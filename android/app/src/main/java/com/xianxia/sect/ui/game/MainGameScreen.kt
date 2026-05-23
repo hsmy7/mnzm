@@ -71,7 +71,6 @@ import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.dialogs.DiscipleDesertionDialog
 import com.xianxia.sect.ui.game.dialogs.DiscipleTheftCaughtDialog
-import com.xianxia.sect.ui.game.dialogs.OuterTournamentResultDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
@@ -421,12 +420,6 @@ fun MainGameScreen(
         }
     }
 
-    LaunchedEffect(gameData?.pendingCompetitionResults) {
-        if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
-            dialogNavController.navigate(GameRoute.OuterTournamentResult.route)
-        }
-    }
-
     val isGameOver by viewModel.isGameOver.collectAsState()
 
     LaunchedEffect(isGameOver) {
@@ -756,18 +749,6 @@ fun MainGameScreen(
                     viewModel = viewModel,
                     worldMapViewModel = worldMapViewModel,
                     onDismiss = { dialogNavController.popBackStack() }
-                )
-            }
-            composable(GameRoute.OuterTournamentResult.route) {
-                OuterTournamentResultDialog(
-                    competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
-                    allDisciples = aliveDisciples.value,
-                    gameData = gameData ?: GameData(),
-                    worldMapViewModel = worldMapViewModel,
-                    onDismiss = {
-                        worldMapViewModel.closeOuterTournamentDialog()
-                        dialogNavController.popBackStack()
-                    }
                 )
             }
             composable(GameRoute.BattleLog.route) {

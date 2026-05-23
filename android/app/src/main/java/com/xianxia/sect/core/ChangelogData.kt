@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.84",
+            date = "2026-05-24",
+            changes = listOf(
+                "移除外门大比机制：弟子晋升改为在弟子信息界面直接切换",
+                "弟子详情界面新增内外门切换按钮（关系按钮左侧），点击即可在外门弟子和内门弟子之间切换",
+                "所有弟子默认为外门弟子，可随时在弟子信息界面手动晋升或降级",
+                "切换内外门身份时自动清理对应职位（如灵矿矿工、长老等）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.83",
             date = "2026-05-24",
             changes = listOf(

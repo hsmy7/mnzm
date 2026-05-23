@@ -698,16 +698,6 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromCompetitionRankResultList(value: List<CompetitionRankResult>): String =
-        encodeToBase64(ListSerializer(CompetitionRankResult.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toCompetitionRankResultList(value: String): List<CompetitionRankResult> =
-        decodeFromBase64(ListSerializer(CompetitionRankResult.serializer()), value) { emptyList() }
-
-    @TypeConverter
-    @JvmStatic
     fun fromSectDetailMap(value: Map<String, SectDetail>): String =
         encodeToBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value)
 

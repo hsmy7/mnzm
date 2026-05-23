@@ -1096,12 +1096,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         // 10. Process diplomacy events
         processDiplomacyMonthlyEvents(year, month)
 
-        // 11. Process outer tournament (every 3 years)
-        if (month == 1) {
-            processOuterTournament(year)
-        }
-
-        // 12. Process law enforcement monthly check
+        // 11. Process law enforcement monthly check
         processLawEnforcementMonthly()
 
         // 13. Process partner matching (道侣匹配)
@@ -2742,51 +2737,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         currentGameData = updatedData
-    }
-
-    /**
-     * Process outer tournament (every 3 years)
-     */
-    private fun processOuterTournament(year: Int) {
-        if (year % 3 != 0) {
-            return
-        }
-
-        try {
-            val outerDisciples = currentDisciples.filter {
-                it.isAlive &&
-                it.discipleType == "outer" &&
-                it.status != DiscipleStatus.REFLECTING
-            }
-
-            if (outerDisciples.isEmpty()) {
-                return
-            }
-
-
-            val sortedDisciples = outerDisciples.sortedWith(
-                compareBy<Disciple> { it.realm }
-                    .thenByDescending { it.realmLayer }
-                    .thenByDescending { it.cultivation }
-                    .thenByDescending { it.skills.comprehension }
-            )
-
-            val topCount = minOf(10, sortedDisciples.size)
-            val topDisciples = sortedDisciples.take(topCount)
-            val competitionResults = topDisciples.mapIndexed { index, disciple ->
-                CompetitionRankResult(discipleId = disciple.id, rank = index + 1)
-            }
-
-            currentGameData = currentGameData.copy(
-                pendingCompetitionResults = competitionResults,
-                lastCompetitionYear = year
-            )
-
-            val topNames = topDisciples.map { it.name }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in processOuterTournament", e)
-        }
     }
 
     /**

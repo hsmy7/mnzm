@@ -44,8 +44,6 @@ sealed class GameRoute(val route: String) {
     object Alliance : GameRoute("alliance")
     object EnvoyDiscipleSelect : GameRoute("envoy_disciple_select")
     object ScoutDiscipleSelect : GameRoute("scout_disciple_select")
-    object OuterTournamentResult : GameRoute("outer_tournament_result")
-
     // Battle
     object BattleTeam : GameRoute("battle_team")
     object BattleTeamDiscipleSelect : GameRoute("battle_team_disciple_select/{slotIndex}") {

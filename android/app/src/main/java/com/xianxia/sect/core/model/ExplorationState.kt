@@ -20,7 +20,5 @@ data class ExplorationState(
     val unlockedRecipes: List<String> = emptyList(),
     val unlockedManuals: List<String> = emptyList(),
     val manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
-    val pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
-    val lastCompetitionYear: Int = 0,
     val worldLevels: List<WorldLevel> = emptyList()
 )

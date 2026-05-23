@@ -205,7 +205,6 @@ enum class BattleType {
     PVE,
     PVP,
     SECT_WAR,
-    TOURNAMENT,
     CAVE_EXPLORATION,
     SCOUT;
 
@@ -213,7 +212,6 @@ enum class BattleType {
         PVE -> "PVE战斗"
         PVP -> "PVP战斗"
         SECT_WAR -> "宗门战"
-        TOURNAMENT -> "大比"
         CAVE_EXPLORATION -> "洞府探索"
         SCOUT -> "探查"
     }

@@ -230,49 +230,4 @@ class WorldMapViewModel @Inject constructor(
         _selectedGiftSectId.value = null
     }
 
-    fun closeOuterTournamentDialog() {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
-        }
-    }
-
-    fun promoteSelectedDisciplesToInner(selectedDiscipleIds: Set<String>) {
-        viewModelScope.launch {
-            try {
-                val promotedToInnerIds = mutableListOf<String>()
-                selectedDiscipleIds.forEach { discipleId ->
-                    gameEngine.updateDisciple(discipleId) { disciple ->
-                        if (disciple.discipleType == "outer") {
-                            promotedToInnerIds.add(discipleId)
-                            disciple.copy(discipleType = "inner")
-                        } else {
-                            disciple
-                        }
-                    }
-                }
-
-                if (promotedToInnerIds.isNotEmpty()) {
-                    val currentSpiritMineSlots = gameEngine.gameData.value.spiritMineSlots
-                    var slotsChanged = false
-                    val updatedSpiritMineSlots = currentSpiritMineSlots.map { slot ->
-                        if (slot.discipleId in promotedToInnerIds) {
-                            slotsChanged = true
-                            slot.copy(discipleId = "", discipleName = "")
-                        } else {
-                            slot
-                        }
-                    }
-                    if (slotsChanged) {
-                        gameEngine.updateGameData { it.copy(spiritMineSlots = updatedSpiritMineSlots) }
-                    }
-                    gameEngine.syncAllDiscipleStatuses()
-                }
-
-                gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
-            } catch (e: Exception) {
-                showError("晋升弟子失败: ${e.message}")
-                gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
-            }
-        }
-    }
 }

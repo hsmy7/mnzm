@@ -190,10 +190,6 @@ data class GameData(
     var activeMissions: List<ActiveMission> = emptyList(),
     var availableMissions: List<Mission> = emptyList(),
 
-    // 外门大比系统
-    var pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
-    var lastCompetitionYear: Int = 0,
-
     // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
     // smartBattleEnabled removed — replaced by world level system
 
@@ -264,8 +260,6 @@ data class GameData(
         unlockedRecipes = unlockedRecipes,
         unlockedManuals = unlockedManuals,
         manualProficiencies = manualProficiencies,
-        pendingCompetitionResults = pendingCompetitionResults,
-        lastCompetitionYear = lastCompetitionYear,
         worldLevels = worldLevels
     )
 
@@ -317,8 +311,6 @@ data class GameData(
         unlockedRecipes = state.unlockedRecipes,
         unlockedManuals = state.unlockedManuals,
         manualProficiencies = state.manualProficiencies,
-        pendingCompetitionResults = state.pendingCompetitionResults,
-        lastCompetitionYear = state.lastCompetitionYear,
         worldLevels = state.worldLevels
     )
 
@@ -739,8 +731,3 @@ data class AIBattleTeam(
     val garrisonSectName: String = ""
 )
 
-@Serializable
-data class CompetitionRankResult(
-    val discipleId: String = "",
-    val rank: Int = 0
-)

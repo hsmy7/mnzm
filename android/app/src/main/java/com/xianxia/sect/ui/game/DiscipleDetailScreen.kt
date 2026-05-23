@@ -187,6 +187,7 @@ fun DiscipleDetailDialog(
     var showRelationsDialog by remember { mutableStateOf(false) }
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
+    var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
 
     val gameData by viewModel?.gameData?.collectAsState() ?: remember { mutableStateOf(null) }
 
@@ -317,6 +318,45 @@ fun DiscipleDetailDialog(
                         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val btnColor = if (disciple.discipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(btnColor)
+                                        .clickable { showDiscipleTypeDropdown = true }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        if (disciple.discipleType == "inner") "内门弟子" else "外门弟子",
+                                        fontSize = 10.sp,
+                                        color = Color.White
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showDiscipleTypeDropdown,
+                                    onDismissRequest = { showDiscipleTypeDropdown = false },
+                                    modifier = Modifier.background(btnColor)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (disciple.discipleType == "outer") "内门弟子" else "外门弟子",
+                                                fontSize = 10.sp,
+                                                color = Color.Black
+                                            )
+                                        },
+                                        onClick = {
+                                            showDiscipleTypeDropdown = false
+                                            viewModel?.changeDiscipleType(
+                                                disciple.id,
+                                                if (disciple.discipleType == "outer") "inner" else "outer"
+                                            )
+                                        },
+                                        modifier = Modifier.height(28.dp)
+                                    )
+                                }
+                            }
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
                                     .clickable { showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)

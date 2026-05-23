@@ -531,6 +531,13 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun changeDiscipleType(discipleId: String, newType: String) {
+        viewModelScope.launch {
+            gameEngine.updateDisciple(discipleId) { it.copy(discipleType = newType) }
+            gameEngine.syncAllDiscipleStatuses()
+        }
+    }
+
     fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
         viewModelScope.launch {
             gameEngine.updateDisciple(discipleId) { disciple ->
