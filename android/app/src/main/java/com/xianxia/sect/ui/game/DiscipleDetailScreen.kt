@@ -190,6 +190,7 @@ fun DiscipleDetailDialog(
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
+    var selectedTalent by remember { mutableStateOf<Talent?>(null) }
 
     val gameData by viewModel?.gameData?.collectAsState() ?: remember { mutableStateOf(null) }
 
@@ -260,7 +261,7 @@ fun DiscipleDetailDialog(
                                         sectPolicies = gameData?.sectPolicies
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    TalentsSection(talents, disciple.statusData)
+                                    TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
                                 }
                                 1 -> {
                                     AttributesSection(disciple)
@@ -524,6 +525,13 @@ fun DiscipleDetailDialog(
                 showManualSelection = false
                 selectedManualId = null
             }
+        )
+    }
+
+    selectedTalent?.let { talent ->
+        TalentDetailDialog(
+            talent = talent,
+            onDismiss = { selectedTalent = null }
         )
     }
 
@@ -1393,10 +1401,13 @@ private fun InfoItem(value: String, modifier: Modifier = Modifier, color: Color 
 }
 
 @Composable
-private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String> = emptyMap()) {
+private fun TalentsSection(
+    talents: List<Talent>,
+    statusData: Map<String, String> = emptyMap(),
+    onTalentClick: (Talent) -> Unit = {}
+) {
     val dismissDropdown = LocalDismissDropdown.current
-    var selectedTalent by remember { mutableStateOf<Talent?>(null) }
-    
+
     // 计算战斗成长值
     val winGrowth = remember(statusData) {
         val growthAttrs = listOf("maxHp" to "生命", "maxMp" to "灵力", "physicalAttack" to "物攻",
@@ -1435,7 +1446,7 @@ private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String
                                 .weight(1f)
                                 .clip(RoundedCornerShape(4.dp))
                                 .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
-                                .clickable { dismissDropdown(); selectedTalent = talent }
+                                .clickable { dismissDropdown(); onTalentClick(talent) }
                                 .padding(vertical = 3.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1465,12 +1476,6 @@ private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String
         }
     }
     
-    selectedTalent?.let { talent ->
-        TalentDetailDialog(
-            talent = talent,
-            onDismiss = { selectedTalent = null }
-        )
-    }
 }
 
 @Composable

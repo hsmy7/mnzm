@@ -37,7 +37,6 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode

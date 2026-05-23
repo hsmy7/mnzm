@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -508,64 +507,49 @@ fun getTalentRarityColor(rarity: Int): Color = when (rarity) {
 fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
     val rarityColor = getTalentRarityColor(talent.rarity)
 
-    AlertDialog(
+    UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        title = talent.name,
+        titleColor = rarityColor,
+        scrollableContent = false
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "天赋效果",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            if (talent.effects.isEmpty()) {
                 Text(
-                    text = talent.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                CloseButton(onClick = onDismiss)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "天赋效果",
+                    text = talent.description,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
+            } else {
+                talent.effects.forEach { (key, value) ->
+                    val effectText = formatTalentEffectText(key, value)
 
-                if (talent.effects.isEmpty()) {
-                    Text(
-                        text = talent.description,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                } else {
-                    talent.effects.forEach { (key, value) ->
-                        val effectText = formatTalentEffectText(key, value)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "•",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                            Text(
-                                text = effectText,
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "•",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = effectText,
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 fun formatTalentEffectText(key: String, value: Any): String {
