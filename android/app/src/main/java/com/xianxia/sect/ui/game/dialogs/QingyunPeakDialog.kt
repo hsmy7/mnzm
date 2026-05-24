@@ -23,7 +23,7 @@ import com.xianxia.sect.ui.game.PeakElderSection
 import com.xianxia.sect.ui.game.PeakElderSlotConfig
 import com.xianxia.sect.ui.game.PeakPreachingMasterSection
 import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
-import com.xianxia.sect.ui.game.PeakDiscipleListSection
+
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 
@@ -42,8 +42,6 @@ fun QingyunPeakDialog(
     val innerElder = productionViewModel.getInnerElder()
     val preachingElder = productionViewModel.getQingyunPreachingElder()
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
-    val innerDisciples = disciples.filter { it.isAlive && it.discipleType == "inner" }
-
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "青云塔",
@@ -95,16 +93,6 @@ fun QingyunPeakDialog(
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) },
             onMasterSwap = { index -> showPreachingMasterSelection = index }
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        PeakDiscipleListSection(
-            sectionTitle = "内门弟子",
-            emptyText = "暂无内门弟子",
-            disciples = innerDisciples,
-            maxHeightDp = 150.dp,
-            truncateAt = null
         )
             }
     }

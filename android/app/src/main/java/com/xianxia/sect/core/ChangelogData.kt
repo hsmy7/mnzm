@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.95",
+            date = "2026-05-24",
+            changes = listOf(
+                "问道塔和青云塔不再开局免费建造，需通过建造栏花费灵石建造",
+                "移除问道塔和青云塔对话框中的弟子名册展示区域"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.94",
             date = "2026-05-24",
             changes = listOf(

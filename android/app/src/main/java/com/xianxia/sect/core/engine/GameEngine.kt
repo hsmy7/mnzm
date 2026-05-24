@@ -224,29 +224,10 @@ class GameEngine @Inject constructor(
         // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
         // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
         stateStore.update {
-            val centerX = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_WIDTH_CELLS / 2
-            val centerY = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_HEIGHT_CELLS / 2
             gameData = gameData.copy(
                 isGameStarted = true,
                 currentSlot = currentSlot,
-                placedBuildings = listOf(
-                    GridBuildingData(
-                        buildingId = "青云塔",
-                        displayName = "青云塔",
-                        gridX = centerX - 2,
-                        gridY = centerY - 1,
-                        width = 2,
-                        height = 3
-                    ).withInstanceId(),
-                    GridBuildingData(
-                        buildingId = "问道塔",
-                        displayName = "问道塔",
-                        gridX = centerX,
-                        gridY = centerY - 1,
-                        width = 2,
-                        height = 3
-                    ).withInstanceId()
-                )
+                placedBuildings = emptyList()
             )
             repeat(3) { discipleService.recruitDisciple() }
         }
@@ -267,29 +248,10 @@ class GameEngine @Inject constructor(
             // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
             // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
             stateStore.update {
-                val centerX = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_WIDTH_CELLS / 2
-                val centerY = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_HEIGHT_CELLS / 2
                 gameData = gameData.copy(
                     isGameStarted = true,
                     currentSlot = currentSlot,
-                    placedBuildings = listOf(
-                        GridBuildingData(
-                            buildingId = "青云塔",
-                            displayName = "青云塔",
-                            gridX = centerX - 2,
-                            gridY = centerY - 1,
-                            width = 2,
-                            height = 3
-                        ).withInstanceId(),
-                        GridBuildingData(
-                            buildingId = "问道塔",
-                            displayName = "问道塔",
-                            gridX = centerX,
-                            gridY = centerY - 1,
-                            width = 2,
-                            height = 3
-                        ).withInstanceId()
-                    )
+                    placedBuildings = emptyList()
                 )
                 repeat(3) { discipleService.recruitDisciple() }
             }

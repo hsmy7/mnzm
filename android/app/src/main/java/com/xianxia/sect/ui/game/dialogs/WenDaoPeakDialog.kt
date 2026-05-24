@@ -23,7 +23,7 @@ import com.xianxia.sect.ui.game.PeakElderSection
 import com.xianxia.sect.ui.game.PeakElderSlotConfig
 import com.xianxia.sect.ui.game.PeakPreachingMasterSection
 import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
-import com.xianxia.sect.ui.game.PeakDiscipleListSection
+
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 
@@ -42,8 +42,6 @@ fun WenDaoPeakDialog(
     val outerElder = productionViewModel.getOuterElder()
     val preachingElder = productionViewModel.getPreachingElder()
     val preachingMasters = productionViewModel.getPreachingMasters()
-    val outerDisciples = disciples.filter { it.isAlive && it.discipleType == "outer" }
-
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "问道塔",
@@ -95,14 +93,6 @@ fun WenDaoPeakDialog(
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) },
             onMasterSwap = { index -> showPreachingMasterSelection = index }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PeakDiscipleListSection(
-            sectionTitle = "外门弟子",
-            emptyText = "暂无外门弟子",
-            disciples = outerDisciples
         )
             }
     }
