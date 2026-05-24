@@ -127,16 +127,16 @@ object DisciplePillManager {
         ) {
             updated = updated.copy(
                 skills = updated.skills.copy(
-                    intelligence = (updated.skills.intelligence + effect.intelligenceAdd).coerceIn(1, 100),
-                    charm = (updated.skills.charm + effect.charmAdd).coerceIn(1, 100),
-                    loyalty = (updated.skills.loyalty + effect.loyaltyAdd).coerceIn(1, 100),
-                    comprehension = (updated.skills.comprehension + effect.comprehensionAdd).coerceIn(1, 100),
-                    artifactRefining = (updated.skills.artifactRefining + effect.artifactRefiningAdd).coerceIn(1, 100),
-                    pillRefining = (updated.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
-                    spiritPlanting = (updated.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
-                    teaching = (updated.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                    morality = (updated.skills.morality + effect.moralityAdd).coerceIn(1, 100),
-                    mining = (updated.skills.mining + effect.miningAdd).coerceIn(1, 100)
+                    intelligence = (updated.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
+                    charm = (updated.skills.charm + effect.charmAdd).coerceAtLeast(0),
+                    loyalty = (updated.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
+                    comprehension = (updated.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
+                    artifactRefining = (updated.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
+                    pillRefining = (updated.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
+                    spiritPlanting = (updated.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
+                    teaching = (updated.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
+                    morality = (updated.skills.morality + effect.moralityAdd).coerceAtLeast(0),
+                    mining = (updated.skills.mining + effect.miningAdd).coerceAtLeast(0)
                 )
             )
         }

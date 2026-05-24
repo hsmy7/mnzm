@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.98",
+            date = "2026-05-25",
+            changes = listOf(
+                "监牢思过年限从10年缩短为5年，思过结束后弟子增加5点道德和5点忠诚",
+                "弟子所有基础属性移除100上限，下限统一改为0"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.97",
             date = "2026-05-25",
             changes = listOf(

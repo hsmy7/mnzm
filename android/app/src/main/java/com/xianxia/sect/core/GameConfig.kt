@@ -468,7 +468,7 @@ object GameConfig {
         const val ELDER_BONUS_PER_POINT = 0.01
         const val DISCIPLE_INTELLIGENCE_STEP = 5
         const val DISCIPLE_BONUS_PER_STEP = 0.01
-        const val REFLECTION_YEARS = 10
+        const val REFLECTION_YEARS = 5
         const val NEW_DISCIPLE_PROTECTION_MONTHS = 12  // 新弟子入门一年内不会偷盗和叛逃
     }
 

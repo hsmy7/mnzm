@@ -1738,7 +1738,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     val salary = salaryConfig[disciple.realm] ?: 0
                     val newPaidCount = disciple.skills.salaryPaidCount + 1
                     val newLoyalty = if (newPaidCount % 3 == 0) {
-                        (disciple.skills.loyalty + 1).coerceIn(0, 100)
+                        (disciple.skills.loyalty + 1).coerceAtLeast(0)
                     } else {
                         disciple.skills.loyalty
                     }
@@ -1759,7 +1759,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                     val newMissedCount = disciple.skills.salaryMissedCount + 1
                     val newLoyalty = if (newMissedCount % 3 == 0) {
-                        (disciple.skills.loyalty - 1).coerceIn(0, 100)
+                        (disciple.skills.loyalty - 1).coerceAtLeast(0)
                     } else {
                         disciple.skills.loyalty
                     }
@@ -3321,11 +3321,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: return@map disciple
             if (year < endYear) return@map disciple
 
-            val newMorality = (disciple.skills.morality + 10).coerceAtMost(100)
             disciple.copy(
                 status = DiscipleStatus.IDLE,
                 statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
-                skills = disciple.skills.copy(morality = newMorality)
+                skills = disciple.skills.copy(
+                    morality = disciple.skills.morality + 5,
+                    loyalty = disciple.skills.loyalty + 5
+                )
             )
         }
 

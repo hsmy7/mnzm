@@ -536,7 +536,7 @@ class GameEngine @Inject constructor(
                     status = DiscipleStatus.REFLECTING,
                     statusData = it.statusData + mapOf(
                         "reflectionStartYear" to currentYear.toString(),
-                        "reflectionEndYear" to (currentYear + 10).toString()
+                        "reflectionEndYear" to (currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
                     )
                 ) else it
             }
@@ -553,7 +553,7 @@ class GameEngine @Inject constructor(
                         status = DiscipleStatus.IDLE,
                         statusData = it.statusData - setOf("reflectionStartYear", "reflectionEndYear"),
                         skills = it.skills.copy(
-                            loyalty = (baseStats.loyalty + loyaltyChange).coerceIn(0, 100)
+                            loyalty = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
                         )
                     )
                 } else it
@@ -1676,16 +1676,16 @@ class GameEngine @Inject constructor(
                                 ) {
                                     updatedDisciple = updatedDisciple.copy(
                                         skills = updatedDisciple.skills.copy(
-                                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceIn(1, 100),
-                                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceIn(1, 100),
-                                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceIn(1, 100),
-                                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceIn(1, 100),
-                                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceIn(1, 100),
-                                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
-                                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
-                                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100),
-                                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceIn(1, 100)
+                                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
+                                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceAtLeast(0),
+                                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
+                                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
+                                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
+                                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
+                                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
+                                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
+                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceAtLeast(0),
+                                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceAtLeast(0)
                                         )
                                     )
                                 }
@@ -2361,16 +2361,16 @@ class GameEngine @Inject constructor(
                 ) {
                     updatedDisciple = updatedDisciple.copy(
                         skills = updatedDisciple.skills.copy(
-                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceIn(1, 100),
-                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceIn(1, 100),
-                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceIn(1, 100),
-                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceIn(1, 100),
-                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceIn(1, 100),
-                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
-                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
-                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100),
-                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceIn(1, 100)
+                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
+                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceAtLeast(0),
+                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
+                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
+                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
+                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
+                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
+                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
+                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceAtLeast(0),
+                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceAtLeast(0)
                         )
                     )
                 }
