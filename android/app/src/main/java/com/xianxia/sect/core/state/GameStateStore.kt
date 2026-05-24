@@ -235,7 +235,9 @@ class GameStateStore @Inject constructor(
             }
             currentTransactionState = reusableMutableState
             try {
+                val notificationBeforeBlock = reusableMutableState.pendingNotification
                 reusableMutableState.block()
+                val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock
                 _state.update { oldState ->
                     val finalPaused = if (_isPaused.value != current.isPaused) _isPaused.value else reusableMutableState.isPaused
                     val finalLoading = if (_isLoading.value != current.isLoading) _isLoading.value else reusableMutableState.isLoading
@@ -261,7 +263,7 @@ class GameStateStore @Inject constructor(
                         isLoading = finalLoading,
                         isSaving = finalSaving,
                         pendingBattleResult = oldState.pendingBattleResult,
-                        pendingNotification = reusableMutableState.pendingNotification
+                        pendingNotification = if (blockChangedNotification) reusableMutableState.pendingNotification else oldState.pendingNotification
                     )
                 }
             } finally {
