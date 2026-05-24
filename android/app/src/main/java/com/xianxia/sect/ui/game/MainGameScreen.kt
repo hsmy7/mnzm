@@ -1223,9 +1223,13 @@ private fun SectGroundCanvas(
     movingInstanceId: String? = null,
     modifier: Modifier = Modifier
 ) {
+    // 用 rememberUpdatedState 读取最新值，避免 isMoving/isPlacing 作为 pointerInput key 导致手势检测器重启
+    val currentIsMoving by rememberUpdatedState(isMoving)
+    val currentIsPlacing by rememberUpdatedState(isPlacing)
+
     Canvas(
         modifier = modifier
-            .pointerInput(placedBuildings, tileSize, isMoving) {
+            .pointerInput(placedBuildings, tileSize) {
                 detectTapGestures(
                     onTap = { offset ->
                         val wx = cameraState.screenToWorldX(offset.x)
@@ -1243,7 +1247,7 @@ private fun SectGroundCanvas(
                         }
                     },
                     onLongPress = { offset ->
-                        if (isMoving || isPlacing) return@detectTapGestures
+                        if (currentIsMoving || currentIsPlacing) return@detectTapGestures
                         val wx = cameraState.screenToWorldX(offset.x)
                         val wy = cameraState.screenToWorldY(offset.y)
                         for (b in placedBuildings) {
@@ -1259,12 +1263,12 @@ private fun SectGroundCanvas(
                     }
                 )
             }
-            .pointerInput(isPlacing, isMoving, cameraState) {
+            .pointerInput(cameraState) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
-                    if (isMoving) {
+                    if (currentIsMoving) {
                         onMovingDrag(dragAmount.x, dragAmount.y)
-                    } else if (isPlacing) {
+                    } else if (currentIsPlacing) {
                         onPlacementDrag(dragAmount.x, dragAmount.y)
                     } else {
                         cameraState.pan(dragAmount.x, dragAmount.y)
