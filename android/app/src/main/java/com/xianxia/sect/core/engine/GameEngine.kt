@@ -173,8 +173,9 @@ class GameEngine @Inject constructor(
         Log.d(TAG, "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
 
         // Validate and fix alchemy/forge slot count to match placed buildings
-        val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" }
-        val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" }
+        val activeSectId = gameData.activeSectId
+        val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeSectId }
+        val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeSectId }
         val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
 
         if (fixedProductionSlots.isNotEmpty()) {
@@ -299,17 +300,19 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun placeBuilding(building: GridBuildingData) {
+        val sectId = currentActiveSectId()
         updateGameData { gd ->
-            gd.copy(placedBuildings = gd.placedBuildings + building)
+            gd.copy(placedBuildings = gd.placedBuildings + building.copy(sectId = sectId))
         }
     }
 
     /** 直接更新建筑位置，绕过 transactionMutex 避免与游戏 tick 竞争锁导致延迟 */
     fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
+        val sectId = currentActiveSectId()
         stateStore.updateGameDataDirect { data ->
             data.copy(
                 placedBuildings = data.placedBuildings.map {
-                    if (it.instanceId == instanceId) it.copy(gridX = newGridX, gridY = newGridY)
+                    if (it.instanceId == instanceId && it.sectId == sectId) it.copy(gridX = newGridX, gridY = newGridY)
                     else it
                 }
             )
@@ -566,6 +569,15 @@ class GameEngine @Inject constructor(
         stateStore.clearPendingNotification()
     }
 
+    fun enterSect(sectId: String) {
+        stateStore.updateGameDataDirect { gameData ->
+            gameData.activeSectId = sectId
+            gameData
+        }
+    }
+
+    fun currentActiveSectId(): String = stateStore.gameDataSnapshot.activeSectId
+
     suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
         discipleService.equipEquipment(discipleId, equipmentId)
 
@@ -766,11 +778,15 @@ class GameEngine @Inject constructor(
         return if (id.isNullOrEmpty()) null else Pair(id, slot.assignedDiscipleName)
     }
 
-    fun getAlchemyFurnaceCount(): Int =
-        stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" }
+    fun getAlchemyFurnaceCount(): Int {
+        val activeSectId = stateStore.gameDataSnapshot.activeSectId
+        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeSectId }
+    }
 
-    fun getForgeWorkshopCount(): Int =
-        stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" }
+    fun getForgeWorkshopCount(): Int {
+        val activeSectId = stateStore.gameDataSnapshot.activeSectId
+        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeSectId }
+    }
 
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
         buildingService.autoHarvestCompletedAlchemySlots()
@@ -1217,7 +1233,8 @@ class GameEngine @Inject constructor(
         val unified = stateStore.unifiedState.value
         val data = unified.gameData
         val discipleMap = unified.disciples.associateBy { it.id }
-        val mineCount = data.placedBuildings.count { it.displayName == "灵矿场" }
+        val activeSectId = data.activeSectId
+        val mineCount = data.placedBuildings.count { it.displayName == "灵矿场" && it.sectId == activeSectId }
         val expectedSlots = mineCount * 3
 
         val truncatedSlots = data.spiritMineSlots.take(expectedSlots)

@@ -19,7 +19,7 @@ import kotlin.random.Random
 object RedeemCodeManager {
 
     private const val TAG = "RedeemCodeManager"
-    private const val MIN_CODE_LENGTH = 4
+    private const val MIN_CODE_LENGTH = 3
     private const val MAX_CODE_LENGTH = 20
 
     // ══════════════════════════════════

@@ -11,7 +11,8 @@ data class GridBuildingData(
     @ProtoNumber(4) val gridY: Int = 0,
     @ProtoNumber(5) val width: Int = 2,
     @ProtoNumber(6) val height: Int = 3,
-    @ProtoNumber(7) val instanceId: String = ""
+    @ProtoNumber(7) val instanceId: String = "",
+    @ProtoNumber(8) val sectId: String = ""
 ) {
     fun withInstanceId(): GridBuildingData =
         if (instanceId.isNotBlank()) this else copy(instanceId = java.util.UUID.randomUUID().toString())

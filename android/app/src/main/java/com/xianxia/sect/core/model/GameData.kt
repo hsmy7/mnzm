@@ -149,6 +149,9 @@ data class GameData(
     // 已放置建筑（网格坐标）
     var placedBuildings: List<GridBuildingData> = emptyList(),
 
+    // 当前活跃宗门ID（"" = 主宗门）
+    var activeSectId: String = "",
+
     // 住所槽位
     var residenceSlots: List<ResidenceSlot> = emptyList(),
 

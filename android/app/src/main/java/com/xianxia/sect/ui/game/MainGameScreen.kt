@@ -225,10 +225,14 @@ fun MainGameScreen(
     }
 
     // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
+    val activeSectBuildings by derivedStateOf {
+        val sid = gameData.activeSectId
+        placedBuildings.filter { it.sectId == sid }
+    }
     val effectivePlacedBuildings by derivedStateOf {
         val mb = movingBuilding
-        if (mb != null) placedBuildings.filter { it.instanceId != mb.instanceId }
-        else placedBuildings
+        if (mb != null) activeSectBuildings.filter { it.instanceId != mb.instanceId }
+        else activeSectBuildings
     }
 
     val dialogNavController = rememberNavController()
@@ -307,7 +311,7 @@ fun MainGameScreen(
         val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
         val fullBmp = fullMapBmp.asAndroidBitmap()
         val canvas = android.graphics.Canvas(fullBmp)
-        for (b in placedBuildings) {
+        for (b in activeSectBuildings) {
             for (cx in b.gridX until b.gridX + b.width) {
                 for (cy in b.gridY until b.gridY + b.height) {
                     if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
@@ -452,7 +456,7 @@ fun MainGameScreen(
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览 + 确认按钮）
         SectMapLayer(
             cameraState = cameraState,
-            placedBuildings = placedBuildings,
+            placedBuildings = effectivePlacedBuildings,
             fullMapBmp = fullMapBmp,
             buildingBitmaps = buildingBitmaps,
             tileSize = tileSize,
@@ -607,7 +611,7 @@ fun MainGameScreen(
             }
             BuildingConstructionBar(
                 buildingList = constructionBarList,
-                placedBuildings = placedBuildings,
+                placedBuildings = activeSectBuildings,
                 buildingCosts = buildingCosts,
                 spiritStones = gameData.spiritStones,
                 onSelectBuilding = { name ->
@@ -943,7 +947,7 @@ fun MainGameScreen(
         }
 
         pendingNotification?.let { notification ->
-            val hasPrison = gameData.placedBuildings.any {
+            val hasPrison = activeSectBuildings.any {
                 it.displayName == "监牢" || it.buildingId == "reflection_cliff"
             }
             val currentYear = gameData.gameYear

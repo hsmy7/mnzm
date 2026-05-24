@@ -312,6 +312,16 @@ internal fun WorldMapSectDetailDialog(
                     if (sect.isPlayerOccupied) {
                         HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
+                        GameButton(
+                            text = "进入",
+                            onClick = {
+                                viewModel.enterSect(sect.id)
+                                onDismiss()
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         Text(
                             text = "驻守弟子",
                             fontSize = 12.sp,
@@ -359,19 +369,15 @@ internal fun WorldMapSectDetailDialog(
             } else {
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFFF8E1), RoundedCornerShape(6.dp))
-                        .padding(12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "这是您的宗门",
-                        fontSize = 12.sp,
-                        color = Color(0xFF8B7355)
-                    )
-                }
+                Spacer(modifier = Modifier.height(4.dp))
+
+                GameButton(
+                    text = "进入",
+                    onClick = {
+                        viewModel.enterSect("")
+                        onDismiss()
+                    }
+                )
             }
         }
     }

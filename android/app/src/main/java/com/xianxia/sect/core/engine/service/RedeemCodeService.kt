@@ -74,7 +74,7 @@ private val secureClient: SecureHttpClient,
         currentMonth: Int
     ): RedeemResult {
         val trimmedCode = code.trim().takeIf {
-            it.length in 4..32 && it.all { c -> c.isLetterOrDigit() || c == '-' }
+            it.length in 3..32 && it.all { c -> c.isLetterOrDigit() || c == '-' }
         } ?: return RedeemResult(success = false, message = "兑换码格式无效")
 
         val inputValidation = InputValidator.validateRedeemCode(trimmedCode)

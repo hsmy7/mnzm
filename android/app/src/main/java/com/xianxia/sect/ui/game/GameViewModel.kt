@@ -499,6 +499,10 @@ class GameViewModel @Inject constructor(
         gameEngine.clearPendingNotification()
     }
 
+    fun enterSect(sectId: String) {
+        gameEngine.enterSect(sectId)
+    }
+
     fun expelTheftDisciple(discipleId: String) {
         viewModelScope.launch {
             gameEngine.expelTheftDisciple(discipleId)
