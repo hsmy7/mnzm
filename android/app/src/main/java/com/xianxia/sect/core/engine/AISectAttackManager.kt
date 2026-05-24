@@ -136,16 +136,15 @@ object AISectAttackManager {
 
         val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
+        val survivorAttackerIds = result.attackers.map { it.id }.toSet()
+        val survivorDefenderIds = result.defenders.map { it.id }.toSet()
+
         val deadAttackerIds = attackers
-            .filter { disciple ->
-                result.attackers.find { it.id == disciple.id }?.isDead == true
-            }
+            .filter { it.id !in survivorAttackerIds }
             .map { it.id }
 
         val deadDefenderIds = defenseTeam
-            .filter { disciple ->
-                result.defenders.find { it.id == disciple.id }?.isDead == true
-            }
+            .filter { it.id !in survivorDefenderIds }
             .map { it.id }
 
         val allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
