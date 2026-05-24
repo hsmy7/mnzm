@@ -46,8 +46,9 @@ class GameViewModel @Inject constructor(
     val navigationEvents: Flow<GameRoute> = _navigationEvents.receiveAsFlow()
 
     // Pop-back events — emitted by closeCurrentDialog() for dialog-internal dismissal
-    private val _popBackEvents = Channel<Unit>(Channel.CONFLATED)
-    val popBackEvents: Flow<Unit> = _popBackEvents.receiveAsFlow()
+    // null = pop one entry, non-null route = pop to that route (e.g. "empty" for root)
+    private val _popBackEvents = Channel<String?>(Channel.CONFLATED)
+    val popBackEvents: Flow<String?> = _popBackEvents.receiveAsFlow()
 
     init {
         viewModelScope.launch {
@@ -62,7 +63,11 @@ class GameViewModel @Inject constructor(
      * 关闭当前对话框 — dialogs call this internally
      */
     fun closeCurrentDialog() {
-        _popBackEvents.trySend(Unit)
+        _popBackEvents.trySend(null)
+    }
+
+    fun closeAllDialogs() {
+        _popBackEvents.trySend("empty")
     }
 
     fun openSpiritMineDialog(mineIndex: Int = 0) {

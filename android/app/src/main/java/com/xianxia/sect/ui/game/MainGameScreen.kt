@@ -371,8 +371,9 @@ fun MainGameScreen(
         }
     }
     LaunchedEffect(Unit) {
-        viewModel.popBackEvents.collect {
-            dialogNavController.popBackStack()
+        viewModel.popBackEvents.collect { route ->
+            if (route != null) dialogNavController.popBackStack(route, inclusive = false)
+            else dialogNavController.popBackStack()
         }
     }
 
