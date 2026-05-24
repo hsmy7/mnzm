@@ -249,6 +249,7 @@ internal fun WorldMapSectDetailDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    if (!sect.isPlayerOccupied) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -282,18 +283,21 @@ internal fun WorldMapSectDetailDialog(
                             enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
                         )
                     }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        GameButton(
-                            text = "交易",
-                            onClick = {
-                                worldMapViewModel.openSectTradeDialog(sect.id)
-                                onDismiss()
-                            }
-                        )
+                        if (!sect.isPlayerOccupied) {
+                            GameButton(
+                                text = "交易",
+                                onClick = {
+                                    worldMapViewModel.openSectTradeDialog(sect.id)
+                                    onDismiss()
+                                }
+                            )
+                        }
 
                         if (!sect.isPlayerOccupied) {
                             GameButton(

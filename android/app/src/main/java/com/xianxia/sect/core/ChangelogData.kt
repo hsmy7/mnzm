@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.100",
+            date = "2026-05-25",
+            changes = listOf(
+                "占领宗门后世界地图宗门详情界面和外交界面隐藏探查、送礼、结盟、交易按钮"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.99",
             date = "2026-05-25",
             changes = listOf(

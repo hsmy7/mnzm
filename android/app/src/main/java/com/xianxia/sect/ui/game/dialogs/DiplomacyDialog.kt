@@ -245,34 +245,36 @@ internal fun DiplomacySectCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                GameButton(
-                    text = "送礼",
-                    onClick = {
-                        if (hasGiftedThisYear) {
-                            onShowGiftedMessage()
-                        } else {
-                            onGift()
-                        }
-                    },
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
+            if (!sect.isPlayerOccupied) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    GameButton(
+                        text = "送礼",
+                        onClick = {
+                            if (hasGiftedThisYear) {
+                                onShowGiftedMessage()
+                            } else {
+                                onGift()
+                            }
+                        },
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
 
-                GameButton(
-                    text = if (isAlly) "盟约" else "结盟",
-                    onClick = onFormAlliance,
-                    enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
+                    GameButton(
+                        text = if (isAlly) "盟约" else "结盟",
+                        onClick = onFormAlliance,
+                        enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
 
-                GameButton(
-                    text = "交易",
-                    onClick = onTrade,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
+                    GameButton(
+                        text = "交易",
+                        onClick = onTrade,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                }
             }
         }
     }
