@@ -170,6 +170,10 @@ internal fun WorldMapSectDetailDialog(
                 )
 
                 val scoutInfo = gameData?.sectDetails?.get(sect.id)?.scoutInfo ?: SectScoutInfo()
+                val liveDistribution = gameData?.aiSectDisciples?.get(sect.id)
+                    ?.filter { it.isAlive }
+                    ?.groupingBy { it.realm }
+                    ?.eachCount() ?: emptyMap()
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -177,7 +181,7 @@ internal fun WorldMapSectDetailDialog(
                 ) {
                     (0..4).forEach { realmIndex ->
                         val realmName = GameConfig.Realm.getName(realmIndex)
-                        val count = scoutInfo.disciples[realmIndex] ?: 0
+                        val count = liveDistribution[realmIndex] ?: 0
                         val isScouted = scoutInfo.sectId.isNotEmpty()
                         val displayText = if (isScouted) "$count" else "?"
                         val textColor = if (isScouted) {
@@ -213,7 +217,7 @@ internal fun WorldMapSectDetailDialog(
                 ) {
                     (5..9).forEach { realmIndex ->
                         val realmName = GameConfig.Realm.getName(realmIndex)
-                        val count = scoutInfo.disciples[realmIndex] ?: 0
+                        val count = liveDistribution[realmIndex] ?: 0
                         val isScouted = scoutInfo.sectId.isNotEmpty()
                         val displayText = if (isScouted) "$count" else "?"
                         val textColor = if (isScouted) {
