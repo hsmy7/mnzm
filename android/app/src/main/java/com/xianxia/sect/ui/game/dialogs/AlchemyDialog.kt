@@ -56,7 +56,7 @@ import java.util.Locale
 
 @Composable
 fun AlchemyDialog(
-    buildingIndex: Int = 0,
+    buildingInstanceId: String = "",
     alchemySlots: List<AlchemySlot>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -76,6 +76,8 @@ fun AlchemyDialog(
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
+    val globalFurnaces = gameData?.placedBuildings?.filter { it.displayName == "炼丹炉" } ?: emptyList()
+    val buildingIndex = globalFurnaces.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     val alchemySlotsState by viewModel.alchemySlots.collectAsState()
     val mySlot = alchemySlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
@@ -85,7 +87,7 @@ fun AlchemyDialog(
 
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
-        title = "炼丹炉 #${buildingIndex + 1}",
+        title = "炼丹炉",
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {

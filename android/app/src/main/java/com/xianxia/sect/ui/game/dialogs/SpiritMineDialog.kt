@@ -52,7 +52,7 @@ import com.xianxia.sect.ui.game.applyFilters
 
 @Composable
 fun SpiritMineDialog(
-    mineIndex: Int = 0,
+    buildingInstanceId: String = "",
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     spiritMineViewModel: SpiritMineViewModel,
@@ -70,7 +70,8 @@ fun SpiritMineDialog(
         spiritMineViewModel.validateSpiritMineData()
     }
 
-    val mineCount = gameData?.placedBuildings?.count { it.displayName == "灵矿场" } ?: 0
+    val globalMines = gameData?.placedBuildings?.filter { it.displayName == "灵矿场" } ?: emptyList()
+    val mineIndex = globalMines.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     val mineStartIndex = mineIndex * 3
 
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
@@ -152,7 +153,7 @@ fun SpiritMineDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "灵矿场 ${mineIndex + 1}/$mineCount | 矿工 ($emptySlotCount/3 空闲)",
+                        text = "灵矿场 | 矿工 ($emptySlotCount/3 空闲)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -166,7 +167,7 @@ fun SpiritMineDialog(
                 )
             }
 
-            if (mineCount == 0) {
+            if (globalMines.isEmpty()) {
                 Text(
                     text = "尚未建造灵矿场，请在宗门地图上建造",
                     fontSize = 11.sp,

@@ -2,15 +2,15 @@ package com.xianxia.sect.ui.navigation
 
 sealed class GameRoute(val route: String) {
     // Half-screen construction dialogs
-    object Alchemy : GameRoute("alchemy/{buildingIndex}") {
-        fun createRoute(buildingIndex: Int) = "alchemy/$buildingIndex"
+    object Alchemy : GameRoute("alchemy/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "alchemy/$buildingInstanceId"
     }
-    object Forge : GameRoute("forge/{buildingIndex}") {
-        fun createRoute(buildingIndex: Int) = "forge/$buildingIndex"
+    object Forge : GameRoute("forge/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "forge/$buildingInstanceId"
     }
     object HerbGarden : GameRoute("herb_garden")
-    object SpiritMine : GameRoute("spirit_mine/{mineIndex}") {
-        fun createRoute(mineIndex: Int) = "spirit_mine/$mineIndex"
+    object SpiritMine : GameRoute("spirit_mine/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "spirit_mine/$buildingInstanceId"
     }
     object Library : GameRoute("library")
     object WenDaoPeak : GameRoute("wendao_peak")

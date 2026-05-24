@@ -53,7 +53,7 @@ import java.util.Locale
 
 @Composable
 fun ForgeDialog(
-    buildingIndex: Int = 0,
+    buildingInstanceId: String = "",
     forgeSlots: List<ForgeSlot>,
     materials: List<Material>,
     gameData: GameData?,
@@ -73,6 +73,8 @@ fun ForgeDialog(
     var showAddReserveDialog by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
+    val globalForges = gameData?.placedBuildings?.filter { it.displayName == "锻造坊" } ?: emptyList()
+    val buildingIndex = globalForges.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     val forgeSlotsState by viewModel.forgeSlots.collectAsState()
     val mySlot = forgeSlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
@@ -82,7 +84,7 @@ fun ForgeDialog(
 
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
-        title = "锻造坊 #${buildingIndex + 1}",
+        title = "锻造坊",
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {

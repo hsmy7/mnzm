@@ -347,10 +347,10 @@ fun MainGameScreen(
     // 建筑列表及点击回调
     val buildingList = remember {
         listOf(
-            "灵矿场" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(0)) },
+            "灵矿场" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "灵矿场" }?.instanceId?.let { dialogNavController.navigate(GameRoute.SpiritMine.createRoute(it)) }; Unit },
             "灵植阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.HerbGarden.route) },
-            "炼丹炉" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(0)) },
-            "锻造坊" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Forge.createRoute(0)) },
+            "炼丹炉" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "炼丹炉" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Alchemy.createRoute(it)) }; Unit },
+            "锻造坊" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "锻造坊" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Forge.createRoute(it)) }; Unit },
             "藏经阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Library.route) },
             "问道塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.WenDaoPeak.route) },
             "青云塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.QingyunPeak.route) },
@@ -475,9 +475,9 @@ fun MainGameScreen(
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
             buildingList = buildingList,
-            onSpiritMineClick = { mineIndex -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(mineIndex)) },
-            onAlchemyClick = { idx -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(idx)) },
-            onForgeClick = { idx -> dialogNavController.navigate(GameRoute.Forge.createRoute(idx)) },
+            onSpiritMineClick = { instanceId -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(instanceId)) },
+            onAlchemyClick = { instanceId -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(instanceId)) },
+            onForgeClick = { instanceId -> dialogNavController.navigate(GameRoute.Forge.createRoute(instanceId)) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx
                 placingWorldY += dy
@@ -766,9 +766,9 @@ fun MainGameScreen(
 
             // Construction dialogs (building click → NavHost)
             composable(GameRoute.SpiritMine.route) {
-                val mineIndex = it.arguments?.getString("mineIndex")?.toIntOrNull() ?: 0
+                val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
                 SpiritMineDialog(
-                    mineIndex = mineIndex,
+                    buildingInstanceId = buildingInstanceId,
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
                     spiritMineViewModel = spiritMineViewModel,
@@ -787,9 +787,9 @@ fun MainGameScreen(
                 )
             }
             composable(GameRoute.Alchemy.route) {
-                val buildingIndex = it.arguments?.getString("buildingIndex")?.toIntOrNull() ?: 0
+                val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
                 AlchemyDialog(
-                    buildingIndex = buildingIndex,
+                    buildingInstanceId = buildingInstanceId,
                     alchemySlots = alchemySlots,
                     materials = materials,
                     herbs = herbs,
@@ -803,9 +803,9 @@ fun MainGameScreen(
                 )
             }
             composable(GameRoute.Forge.route) {
-                val buildingIndex = it.arguments?.getString("buildingIndex")?.toIntOrNull() ?: 0
+                val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
                 ForgeDialog(
-                    buildingIndex = buildingIndex,
+                    buildingInstanceId = buildingInstanceId,
                     forgeSlots = forgeSlots,
                     materials = materials,
                     gameData = gameData,
@@ -1094,9 +1094,9 @@ private fun SectMapLayer(
     previewSize: GridSnapHelper.BuildingSize,
     previewValid: GridSnapHelper.PlacementValidity,
     buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
-    onSpiritMineClick: (Int) -> Unit = {},
-    onAlchemyClick: (Int) -> Unit = {},
-    onForgeClick: (Int) -> Unit = {},
+    onSpiritMineClick: (String) -> Unit = {},
+    onAlchemyClick: (String) -> Unit = {},
+    onForgeClick: (String) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit,
     onPlacementConfirm: () -> Unit,
     onPlacementCancel: () -> Unit,
@@ -1136,24 +1136,9 @@ private fun SectMapLayer(
         textMeasurer = textMeasurer,
         onBuildingClick = { building ->
             when (building.displayName) {
-                "灵矿场" -> {
-                    val mineIndex = placedBuildings
-                        .filter { it.displayName == "灵矿场" }
-                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
-                    onSpiritMineClick(mineIndex.coerceAtLeast(0))
-                }
-                "炼丹炉" -> {
-                    val furnaceIndex = placedBuildings
-                        .filter { it.displayName == "炼丹炉" }
-                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
-                    onAlchemyClick(furnaceIndex.coerceAtLeast(0))
-                }
-                "锻造坊" -> {
-                    val forgeIndex = placedBuildings
-                        .filter { it.displayName == "锻造坊" }
-                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
-                    onForgeClick(forgeIndex.coerceAtLeast(0))
-                }
+                "灵矿场" -> onSpiritMineClick(building.instanceId)
+                "炼丹炉" -> onAlchemyClick(building.instanceId)
+                "锻造坊" -> onForgeClick(building.instanceId)
                 else -> {
                     val b = buildingList.find { it.first == building.displayName }
                     b?.second?.invoke(building)
