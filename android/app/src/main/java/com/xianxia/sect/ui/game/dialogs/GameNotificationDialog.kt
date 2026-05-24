@@ -34,10 +34,11 @@ fun DiscipleDesertionDialog(
         BattleParticipantSlot(
             name = disciple.name,
             realmName = disciple.realmName,
-            hp = 1,
+            hp = 0,
             maxHp = 1,
             isAlive = true,
-            portraitRes = disciple.portraitRes
+            portraitRes = disciple.portraitRes,
+            showHpBar = false
         )
     }
 }

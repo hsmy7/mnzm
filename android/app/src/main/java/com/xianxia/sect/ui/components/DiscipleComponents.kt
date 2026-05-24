@@ -433,7 +433,8 @@ internal fun BattleParticipantSlot(
     hp: Int,
     maxHp: Int,
     isAlive: Boolean,
-    portraitRes: String = ""
+    portraitRes: String = "",
+    showHpBar: Boolean = true
 ) {
     val hpPercent = maxHp.takeIf { it > 0 }?.let {
         (hp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
@@ -448,22 +449,24 @@ internal fun BattleParticipantSlot(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .width(52.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color(0xFFE0E0E0))
-        ) {
+        if (showHpBar) {
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(hpPercent)
-                    .background(hpColor)
-            )
-        }
+                    .width(52.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFFE0E0E0))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(hpPercent)
+                        .background(hpColor)
+                )
+            }
 
-        Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+        }
 
         Box(
             modifier = Modifier
