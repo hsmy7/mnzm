@@ -2845,7 +2845,18 @@ class GameEngine @Inject constructor(
 
         // Build battle log
         val teamMembers = attackers.map { d ->
-            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
+            BattleLogMember(
+                id = d.id,
+                name = d.name,
+                realm = d.realm,
+                realmName = d.realmName,
+                hp = battleResult.survivorHpMap[d.id] ?: 0,
+                maxHp = d.maxHp,
+                mp = battleResult.survivorMpMap[d.id] ?: 0,
+                maxMp = d.maxMp,
+                isAlive = d.id !in deadPlayerIds,
+                portraitRes = d.portraitRes
+            )
         }
         val enemyMembers = defenderDisciples.map { d ->
             BattleLogEnemy(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
@@ -3075,8 +3086,12 @@ class GameEngine @Inject constructor(
         }
 
         // Build battle log
-        val teamMembers = combatDisciples.map { d ->
-            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
+        val teamMembers = result.battle.team.map { m ->
+            BattleLogMember(
+                id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+                hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+                isAlive = !m.isDead, portraitRes = m.portraitRes
+            )
         }
         val enemies = result.battle.beasts.map { b ->
             BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes)
@@ -3261,8 +3276,12 @@ class GameEngine @Inject constructor(
         }
 
         // Build BattleLog
-        val teamMembers = combatDisciples.map { d ->
-            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
+        val teamMembers = result.battle.team.map { m ->
+            BattleLogMember(
+                id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+                hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+                isAlive = !m.isDead, portraitRes = m.portraitRes
+            )
         }
         val enemies = aiCombatants.map { b ->
             BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes)
