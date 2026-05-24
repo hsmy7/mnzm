@@ -163,25 +163,26 @@ class GameViewModel @Inject constructor(
                 else -> null
             }
 
+            val activeId = gameEngine.currentActiveSectId()
             gameEngine.updateGameData { data ->
                 when (name) {
                     "灵矿场" -> {
-                        val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" }
+                        val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" && it.sectId == activeId }
                         if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
                     }
                     "炼丹炉" -> {
-                        val cnt = data.placedBuildings.count { it.displayName == "炼丹炉" }
+                        val cnt = data.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeId }
                         if (cnt >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) return@updateGameData data
                     }
                     "锻造坊" -> {
-                        val cnt = data.placedBuildings.count { it.displayName == "锻造坊" }
+                        val cnt = data.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeId }
                         if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
                     }
                     "单人住所", "多人住所" -> {
                         // No build limit for residences
                     }
                     else -> {
-                        if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                        if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
                     }
                 }
                 if (data.spiritStones < cost) return@updateGameData data
@@ -197,7 +198,8 @@ class GameViewModel @Inject constructor(
                     gridX = gridX,
                     gridY = gridY,
                     width = gridW,
-                    height = gridH
+                    height = gridH,
+                    sectId = activeId
                 ).withInstanceId()
 
                 val newResidenceSlots = when (name) {
