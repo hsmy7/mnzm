@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 
@@ -30,7 +31,14 @@ fun DiscipleDesertionDialog(
         confirmLabel = "知道了",
         onConfirm = onDismiss
     ) {
-        DiscipleSnapshotCard(disciple = disciple)
+        BattleParticipantSlot(
+            name = disciple.name,
+            realmName = disciple.realmName,
+            hp = 1,
+            maxHp = 1,
+            isAlive = true,
+            portraitRes = disciple.portraitRes
+        )
     }
 }
 
