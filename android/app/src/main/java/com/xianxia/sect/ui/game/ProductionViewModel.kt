@@ -191,11 +191,13 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun getLawEnforcementReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
     }
 
     fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds }
@@ -233,7 +235,8 @@ class ProductionViewModel @Inject constructor(
                     discipleId = discipleId,
                     discipleName = disciple.name,
                     discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor
+                    discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                    sectId = gameEngine.gameDataSnapshot.activeSectId
                 )
 
                 val updatedReserveDisciples = currentReserveDisciples + newSlot
@@ -270,7 +273,8 @@ class ProductionViewModel @Inject constructor(
                             discipleId = discipleId,
                             discipleName = disciple.name,
                             discipleRealm = disciple.realmName,
-                            discipleSpiritRootColor = disciple.spiritRoot.countColor
+                            discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                            sectId = gameEngine.gameDataSnapshot.activeSectId
                         )
                     )
                     nextIndex++

@@ -167,7 +167,7 @@ private val inventorySystem: InventorySystem,
     }
 
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean {
-        if (slotIndex < 0 || slotIndex >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) {
+        if (slotIndex < 0) {
             return false
         }
 

@@ -2442,7 +2442,8 @@ class SaveDataConverter @Inject constructor() {
             discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
             discipleRealm = slot.discipleRealm ?: "",
-            discipleSpiritRootColor = slot.discipleSpiritRootColor ?: ""
+            discipleSpiritRootColor = slot.discipleSpiritRootColor ?: "",
+            sectId = slot.sectId ?: ""
         )
     }
 
@@ -2452,7 +2453,8 @@ class SaveDataConverter @Inject constructor() {
             discipleId = data.discipleId,
             discipleName = data.discipleName,
             discipleRealm = data.discipleRealm,
-            discipleSpiritRootColor = data.discipleSpiritRootColor
+            discipleSpiritRootColor = data.discipleSpiritRootColor,
+            sectId = data.sectId
         )
     }
 
@@ -2461,7 +2463,8 @@ class SaveDataConverter @Inject constructor() {
             index = slot.index ?: 0,
             discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
-            output = slot.output ?: 0
+            output = slot.output ?: 0,
+            sectId = slot.sectId ?: ""
         )
     }
 
@@ -2470,7 +2473,8 @@ class SaveDataConverter @Inject constructor() {
             index = data.index,
             discipleId = data.discipleId,
             discipleName = data.discipleName,
-            output = data.output
+            output = data.output,
+            sectId = data.sectId
         )
     }
 

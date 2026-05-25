@@ -72,11 +72,14 @@ fun SpiritMineDialog(
 
     val globalMines = gameData?.placedBuildings?.filter { it.displayName == "灵矿场" } ?: emptyList()
     val mineIndex = globalMines.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
+    val mineSectId = globalMines.getOrNull(mineIndex)?.sectId ?: ""
     val mineStartIndex = mineIndex * 3
 
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
     val slots = (mineStartIndex until mineStartIndex + 3).map { index ->
-        mineSlots.getOrNull(index) ?: SpiritMineSlot(index = index)
+        val slot = mineSlots.getOrNull(index)
+        if (slot != null && slot.sectId == mineSectId) slot
+        else SpiritMineSlot(index = index, sectId = mineSectId)
     }
 
     val emptySlotCount = slots.count { !it.isActive }

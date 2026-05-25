@@ -226,7 +226,7 @@ fun ForgeDialog(
                 recommendAttributeText = "炼器",
                 getCoreAttributeValue = { it.artifactRefining },
                 getElderId = { it.forgeElder },
-                getDirectDisciples = { it.forgeDisciples },
+                getDirectDisciples = { it.forgeDisciples.filter { d -> d.sectId == (gameData?.activeSectId ?: "") } },
                 elderSortComparator = compareByDescending<DiscipleAggregate> { it.artifactRefining }
                     .thenBy { it.realm }.thenByDescending { it.realmLayer },
                 directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }

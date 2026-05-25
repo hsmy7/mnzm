@@ -74,7 +74,8 @@ fun HerbGardenDialog(
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
-    val herbGardenDisciples = elderSlots.herbGardenDisciples
+    val activeSectId = gameData?.activeSectId ?: ""
+    val herbGardenDisciples = elderSlots.herbGardenDisciples.filter { it.sectId == activeSectId }
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
     val plantSlots by viewModel.plantSlots.collectAsState()

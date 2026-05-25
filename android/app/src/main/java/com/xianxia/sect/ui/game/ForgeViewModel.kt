@@ -184,7 +184,8 @@ class ForgeViewModel @Inject constructor(
     }
 
     fun getForgeReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples
+        val activeSectId = gameEngine.gameDataSnapshot.activeSectId
+        val reserveSlots = gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples.filter { it.sectId == activeSectId }
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
@@ -210,7 +211,8 @@ class ForgeViewModel @Inject constructor(
                         discipleId = discipleId,
                         discipleName = disciple.name,
                         discipleRealm = disciple.realmName,
-                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                        sectId = gameEngine.gameDataSnapshot.activeSectId
                     )
                     currentReserveDisciples.add(newSlot)
                     addedCount++
@@ -257,7 +259,8 @@ class ForgeViewModel @Inject constructor(
     }
 
     fun getForgeReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples
+        val activeSectId = gameEngine.gameDataSnapshot.activeSectId
+        return gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples.filter { it.sectId == activeSectId }
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {

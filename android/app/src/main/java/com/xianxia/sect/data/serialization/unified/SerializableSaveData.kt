@@ -602,7 +602,8 @@ data class SerializableDirectDiscipleSlot(
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val discipleRealm: String,
-    @ProtoNumber(5) val discipleSpiritRootColor: String
+    @ProtoNumber(5) val discipleSpiritRootColor: String,
+    @ProtoNumber(6) val sectId: String = ""
 )
 
 @Serializable
@@ -610,7 +611,8 @@ data class SerializableSpiritMineSlot(
     @ProtoNumber(1) val index: Int,
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
-    @ProtoNumber(4) val output: Int
+    @ProtoNumber(4) val output: Int,
+    @ProtoNumber(5) val sectId: String = ""
 )
 
 @Serializable

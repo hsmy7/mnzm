@@ -389,7 +389,8 @@ data class DirectDiscipleSlot(
     val discipleId: String = "",
     val discipleName: String = "",
     val discipleRealm: String = "",
-    val discipleSpiritRootColor: String = "#E0E0E0"
+    val discipleSpiritRootColor: String = "#E0E0E0",
+    val sectId: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
@@ -606,7 +607,8 @@ data class SpiritMineSlot(
     val index: Int = 0,
     val discipleId: String = "",
     val discipleName: String = "",
-    val output: Int = 100
+    val output: Int = 100,
+    val sectId: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

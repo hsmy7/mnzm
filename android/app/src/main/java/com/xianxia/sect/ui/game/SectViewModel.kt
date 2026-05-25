@@ -174,9 +174,10 @@ class SectViewModel @Inject constructor(
                     discipleId = discipleId,
                     discipleName = disciple.name,
                     discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor
+                    discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                    sectId = gameEngine.gameData.value.activeSectId
                 )
-                
+
                 val updatedReserveDisciples = currentReserveDisciples + newSlot
                 val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
                     lawEnforcementReserveDisciples = updatedReserveDisciples

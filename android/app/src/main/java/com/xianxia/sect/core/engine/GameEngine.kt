@@ -173,9 +173,8 @@ class GameEngine @Inject constructor(
         Log.d(TAG, "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
 
         // Validate and fix alchemy/forge slot count to match placed buildings
-        val activeSectId = gameData.activeSectId
-        val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeSectId }
-        val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeSectId }
+        val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" }
+        val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" }
         val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
 
         if (fixedProductionSlots.isNotEmpty()) {
@@ -1095,7 +1094,8 @@ class GameEngine @Inject constructor(
             discipleId = discipleId,
             discipleName = discipleName,
             discipleRealm = discipleRealm,
-            discipleSpiritRootColor = discipleSpiritRootColor
+            discipleSpiritRootColor = discipleSpiritRootColor,
+            sectId = data.activeSectId
         )
         val updatedSlots = when (elderSlotType) {
             "herbGarden" -> {
@@ -1223,24 +1223,32 @@ class GameEngine @Inject constructor(
         val unified = stateStore.unifiedState.value
         val data = unified.gameData
         val discipleMap = unified.disciples.associateBy { it.id }
-        val activeSectId = data.activeSectId
-        val mineCount = data.placedBuildings.count { it.displayName == "灵矿场" && it.sectId == activeSectId }
-        val expectedSlots = mineCount * 3
 
-        val truncatedSlots = data.spiritMineSlots.take(expectedSlots)
-        val fixedSlots = truncatedSlots.map { slot ->
-            if (slot.discipleId.isNotEmpty() && (slot.discipleId !in discipleMap || discipleMap[slot.discipleId]?.discipleType != "outer")) {
-                slot.copy(discipleId = "", discipleName = "")
-            } else slot
+        // Rebuild slot list in global mine order, stamping sectId from each mine
+        val globalMines = data.placedBuildings.filter { it.displayName == "灵矿场" }
+        val rebuiltSlots = mutableListOf<SpiritMineSlot>()
+        var slotIdx = 0
+        for (mine in globalMines) {
+            for (offset in 0 until 3) {
+                val existing = data.spiritMineSlots.getOrNull(slotIdx + offset)
+                val slot = if (existing != null) {
+                    if (existing.discipleId.isNotEmpty() && (existing.discipleId !in discipleMap || discipleMap[existing.discipleId]?.discipleType != "outer")) {
+                        existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size)
+                    } else existing.copy(index = rebuiltSlots.size)
+                } else {
+                    SpiritMineSlot(index = rebuiltSlots.size, sectId = mine.sectId)
+                }
+                rebuiltSlots.add(slot)
+            }
+            slotIdx += 3
         }
-
-        val finalSlots = if (fixedSlots.size < expectedSlots) {
-            fixedSlots + (fixedSlots.size until expectedSlots).map { SpiritMineSlot(index = it) }
-        } else fixedSlots
+        val finalSlots = rebuiltSlots.toList()
 
         if (finalSlots != data.spiritMineSlots) {
-            val orphanedIds = data.spiritMineSlots.drop(expectedSlots)
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+            val keptIds = finalSlots.mapNotNull { it.discipleId }.toSet()
+            val orphanedIds = data.spiritMineSlots
+                .filter { it.discipleId.isNotEmpty() && it.discipleId !in keptIds }
+                .mapNotNull { it.discipleId }
             orphanedIds.forEach { discipleId ->
                 gameEngineCore.launchInScope {
                     stateStore.update {

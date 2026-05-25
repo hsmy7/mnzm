@@ -125,11 +125,13 @@ class HerbGardenViewModel @Inject constructor(
     }
 
     fun getHerbGardenReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        return gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
     }
 
     fun getHerbGardenReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
@@ -158,7 +160,8 @@ class HerbGardenViewModel @Inject constructor(
                         discipleId = discipleId,
                         discipleName = disciple.name,
                         discipleRealm = disciple.realmName,
-                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                        sectId = gameEngine.gameDataSnapshot.activeSectId
                     )
                     currentReserveDisciples.add(newSlot)
                     addedCount++

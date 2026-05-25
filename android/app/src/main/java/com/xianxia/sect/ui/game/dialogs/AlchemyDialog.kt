@@ -230,7 +230,7 @@ fun AlchemyDialog(
                 recommendAttributeText = "炼丹",
                 getCoreAttributeValue = { it.pillRefining },
                 getElderId = { it.alchemyElder },
-                getDirectDisciples = { it.alchemyDisciples },
+                getDirectDisciples = { it.alchemyDisciples.filter { d -> d.sectId == (gameData?.activeSectId ?: "") } },
                 elderSortComparator = compareByDescending<DiscipleAggregate> { it.pillRefining }
                     .thenBy { it.realm }.thenByDescending { it.realmLayer },
                 directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }

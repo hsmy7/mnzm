@@ -180,7 +180,8 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
@@ -206,7 +207,8 @@ class AlchemyViewModel @Inject constructor(
                         discipleId = discipleId,
                         discipleName = disciple.name,
                         discipleRealm = disciple.realmName,
-                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                        sectId = gameEngine.gameDataSnapshot.activeSectId
                     )
                     currentReserveDisciples.add(newSlot)
                 }
@@ -249,7 +251,8 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun getAlchemyReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        return gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {

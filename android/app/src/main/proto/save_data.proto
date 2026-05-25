@@ -121,6 +121,7 @@ message DirectDiscipleSlotProto {
     string disciple_name = 3;
     string disciple_realm = 4;
     string disciple_spirit_root_color = 5;
+    string sect_id = 6;
 }
 
 message SpiritMineSlotProto {
@@ -128,6 +129,7 @@ message SpiritMineSlotProto {
     string disciple_id = 2;
     string disciple_name = 3;
     int32 output = 4;
+    string sect_id = 5;
 }
 
 message LibrarySlotProto {

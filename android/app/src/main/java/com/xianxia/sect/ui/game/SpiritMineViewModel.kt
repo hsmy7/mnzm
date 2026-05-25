@@ -145,7 +145,8 @@ class SpiritMineViewModel @Inject constructor(
 
                     currentSlots[slotIndex] = currentSlots[slotIndex].copy(
                         discipleId = "",
-                        discipleName = ""
+                        discipleName = "",
+                        sectId = currentSlots[slotIndex].sectId
                     )
                     gameEngine.updateSpiritMineSlots(currentSlots)
                 }
@@ -165,7 +166,7 @@ class SpiritMineViewModel @Inject constructor(
                     val oldDiscipleId = allSlots[slotIndex].discipleId
                     oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
                     val newName = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId }?.name ?: ""
-                    allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName)
+                    allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)
                     gameEngine.updateSpiritMineSlots(allSlots)
                     gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)
                 }
@@ -189,13 +190,16 @@ class SpiritMineViewModel @Inject constructor(
 
     private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
         val currentGameData = gameEngine.gameDataSnapshot
+        val mineSectId = currentGameData.placedBuildings
+            .filter { it.displayName == "灵矿场" }
+            .getOrNull(mineIndex)?.sectId ?: ""
         val allSlots = currentGameData.spiritMineSlots.toMutableList()
         val mineStartIndex = mineIndex * 3
         val mineEndIndex = mineStartIndex + 3
 
         // Ensure slot list is long enough
         while (allSlots.size < mineEndIndex) {
-            allSlots.add(SpiritMineSlot(index = allSlots.size))
+            allSlots.add(SpiritMineSlot(index = allSlots.size, sectId = mineSectId))
         }
 
         val emptyCount = (mineStartIndex until mineEndIndex).count { allSlots[it].discipleId.isEmpty() }
@@ -209,7 +213,8 @@ class SpiritMineViewModel @Inject constructor(
                 val disciple = disciplesToAssign[assigned]
                 allSlots[globalIndex] = allSlots[globalIndex].copy(
                     discipleId = disciple.id,
-                    discipleName = disciple.name
+                    discipleName = disciple.name,
+                    sectId = mineSectId
                 )
                 gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
                 assigned++
