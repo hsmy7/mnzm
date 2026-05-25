@@ -343,8 +343,10 @@ abstract class GameDatabase : RoomDatabase() {
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data DROP COLUMN pendingCompetitionResults")
-                db.execSQL("ALTER TABLE game_data DROP COLUMN lastCompetitionYear")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    db.execSQL("ALTER TABLE game_data DROP COLUMN pendingCompetitionResults")
+                    db.execSQL("ALTER TABLE game_data DROP COLUMN lastCompetitionYear")
+                }
             }
         }
 
