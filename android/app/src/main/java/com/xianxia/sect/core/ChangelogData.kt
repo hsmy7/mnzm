@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.10",
+            date = "2026-05-25",
+            changes = listOf(
+                "弟子详情页神魂行移除突破加成显示，仅显示数值",
+                "突破率右侧增加详情按钮，点击弹窗显示全部分加成明细（基础/长老/神魂/天赋/丹药）",
+                "弹窗使用3列网格动态布局，标题栏右侧关闭按钮"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.09",
             date = "2026-05-25",
             changes = listOf(

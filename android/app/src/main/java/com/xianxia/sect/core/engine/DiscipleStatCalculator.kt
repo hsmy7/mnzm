@@ -497,6 +497,41 @@ object DiscipleStatCalculator {
         return ((soulPower / 20).coerceAtMost(5)) / 100.0
     }
 
+    data class BreakthroughBonusDetail(
+        val baseChance: Double,
+        val innerElderBonus: Double,
+        val outerElderBonus: Double,
+        val talentBonus: Double,
+        val soulPowerBonus: Double,
+        val pillBonus: Double,
+        val total: Double
+    )
+
+    fun getBreakthroughBonusDetail(
+        aggregate: DiscipleAggregate,
+        innerElderComprehension: Int = 0,
+        outerElderComprehensionBonus: Double = 0.0,
+        pillBonus: Double = 0.0
+    ): BreakthroughBonusDetail {
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        val rootCount = aggregate.spiritRoot.types.size
+        val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
+        val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - 80) / 4) * 0.01 else 0.0
+        val talentEffects = getTalentEffects(aggregate)
+        val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
+        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus
+        return BreakthroughBonusDetail(
+            baseChance = baseChance,
+            innerElderBonus = innerElderBonus,
+            outerElderBonus = outerElderComprehensionBonus,
+            talentBonus = talentBonus,
+            soulPowerBonus = soulPowerBonus,
+            pillBonus = pillBonus,
+            total = total.coerceIn(0.0, 1.0)
+        )
+    }
+
     fun getMaxManualSlots(disciple: Disciple): Int {
         val talentEffects = getTalentEffects(disciple)
         val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0

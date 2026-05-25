@@ -1149,7 +1149,44 @@ private fun BasicInfoSection(
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
             val breakthroughChance = disciple.getBreakthroughChance()
-            InfoItem("突破率 ${GameUtils.formatPercent(breakthroughChance)}", Modifier.weight(1f))
+            val innerElderComp = elderSlots?.innerElder?.let { eid ->
+                allDisciples.find { it.id == eid }?.comprehension ?: 0
+            } ?: 0
+            val outerElderComp = elderSlots?.outerElder?.let { eid ->
+                allDisciples.find { it.id == eid }?.comprehension ?: 0
+            } ?: 0
+            val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+                disciple,
+                innerElderComprehension = innerElderComp,
+                outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - 80) / 4) * 0.01 else 0.0
+            )
+            var showBreakthroughDetail by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "突破率 ${GameUtils.formatPercent(breakthroughChance)}",
+                    fontSize = 12.sp,
+                    color = Color.Black,
+                    modifier = Modifier.weight(1f)
+                )
+                Image(
+                    painter = painterResource(id = R.drawable.ui_detail_button),
+                    contentDescription = "详情",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .clickable { showBreakthroughDetail = true },
+                    contentScale = ContentScale.FillBounds
+                )
+            }
+            if (showBreakthroughDetail) {
+                BreakthroughDetailDialog(
+                    detail = detail,
+                    onDismiss = { showBreakthroughDetail = false }
+                )
+            }
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1554,8 +1591,7 @@ private fun CombatStatsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
-            val soulBonus = (disciple.soulPower / 20).coerceAtMost(5)
-            StatItem(if (soulBonus > 0) "神魂 +${soulBonus}%突破" else "神魂", disciple.soulPower, Modifier.weight(1f))
+            StatItem("神魂", disciple.soulPower, Modifier.weight(1f))
         }
     }
 }
@@ -1795,6 +1831,91 @@ private fun ManualSlot(
                     fontSize = 20.sp,
                     color = Color.Black
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreakthroughDetailDialog(
+    detail: DiscipleStatCalculator.BreakthroughBonusDetail,
+    onDismiss: () -> Unit
+) {
+    val items = buildList {
+        if (detail.innerElderBonus > 0) add("内门执事加成" to detail.innerElderBonus)
+        if (detail.outerElderBonus > 0) add("外门执事加成" to detail.outerElderBonus)
+        if (detail.talentBonus > 0) add("天赋加成" to detail.talentBonus)
+        if (detail.soulPowerBonus > 0) add("神魂加成" to detail.soulPowerBonus)
+        if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "突破率详情",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
+
+                HorizontalDivider(color = Color(0xFFDDDDDD), thickness = 1.dp)
+
+                if (items.isEmpty()) {
+                    Text("无额外加成", fontSize = 13.sp, color = Color.Black)
+                } else {
+                    val columns = items.chunked(3)
+                    columns.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        row.forEach { (label, value) ->
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    text = "+${GameUtils.formatPercent(value)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                        repeat(3 - row.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+                }
             }
         }
     }
