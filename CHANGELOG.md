@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.13] - 2026-05-25
+
+### 修复
+- 数据库迁移safeDropColumns封装替代DROP COLUMN，PRAGMA动态重建表，所有Android版本安全
+- CLAUDE.md增加ALTER TABLE DROP COLUMN禁令，防止未来重复引入
+
 ## [3.1.12] - 2026-05-25
 
 ### 修复

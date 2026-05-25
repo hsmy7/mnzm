@@ -341,12 +341,40 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Safely drop columns from a table, compatible with all Android API levels.
+         * On API 31+ uses native DROP COLUMN; on older versions rebuilds the table via PRAGMA.
+         */
+        private fun SupportSQLiteDatabase.safeDropColumns(table: String, vararg dropCols: String) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                dropCols.forEach { execSQL("ALTER TABLE $table DROP COLUMN $it") }
+                return
+            }
+            val dropped = dropCols.toSet()
+            val cols = mutableListOf<Triple<String, String, Int>>()
+            query("PRAGMA table_info($table)").use { c ->
+                while (c.moveToNext()) {
+                    val name = c.getString(c.getColumnIndexOrThrow("name"))
+                    if (name in dropped) continue
+                    cols.add(Triple(name,
+                        c.getString(c.getColumnIndexOrThrow("type")),
+                        c.getInt(c.getColumnIndexOrThrow("pk"))))
+                }
+            }
+            val colDefs = cols.joinToString(", ") { "${it.first} ${it.second}" }
+            val pkCols = cols.filter { it.third > 0 }.sortedBy { it.third }
+            val pk = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString { it.first }})" else ""
+            val names = cols.joinToString(", ") { it.first }
+
+            execSQL("CREATE TABLE ${table}_new ($colDefs$pk)")
+            execSQL("INSERT INTO ${table}_new ($names) SELECT $names FROM $table")
+            execSQL("DROP TABLE $table")
+            execSQL("ALTER TABLE ${table}_new RENAME TO $table")
+        }
+
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    db.execSQL("ALTER TABLE game_data DROP COLUMN pendingCompetitionResults")
-                    db.execSQL("ALTER TABLE game_data DROP COLUMN lastCompetitionYear")
-                }
+                db.safeDropColumns("game_data", "pendingCompetitionResults", "lastCompetitionYear")
             }
         }
 
