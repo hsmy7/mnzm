@@ -11,7 +11,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.CaveExplorationTeamMarker
-import com.xianxia.sect.ui.game.map.markers.CaveMarker
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
 
@@ -28,7 +27,6 @@ fun WorldMapScreen(
     focusWorldY: Float? = null,
     onBack: () -> Unit = {},
     onSectClick: (MapItem.Sect) -> Unit = {},
-    onCaveClick: (MapItem.Cave) -> Unit = {},
     onLevelClick: (MapItem.Level) -> Unit = {}
 ) {
     LaunchedEffect(focusWorldX, focusWorldY) {
@@ -66,12 +64,6 @@ fun WorldMapScreen(
                     item = item,
                     cameraState = cameraState,
                     onClick = { onSectClick(item) }
-                )
-
-                is MapItem.Cave -> CaveMarker(
-                    item = item,
-                    cameraState = cameraState,
-                    onClick = { onCaveClick(item) }
                 )
 
                 is MapItem.CaveExplorationTeam -> CaveExplorationTeamMarker(

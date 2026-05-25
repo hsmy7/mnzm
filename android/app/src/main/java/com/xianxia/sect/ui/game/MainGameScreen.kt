@@ -89,7 +89,6 @@ import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
-import com.xianxia.sect.ui.game.dialogs.CaveDetailDialog
 
 import com.xianxia.sect.ui.game.dialogs.SpiritMineDialog
 import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog

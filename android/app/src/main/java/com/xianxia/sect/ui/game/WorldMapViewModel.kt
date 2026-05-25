@@ -136,13 +136,6 @@ class WorldMapViewModel @Inject constructor(
         return data.worldMapSects.filter { allyIds.contains(it.id) }
     }
 
-    fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<DiscipleAggregate>) {
-        viewModelScope.launch {
-            // TODO(U-01 Phase3): GameEngine.startCaveExploration 应接受 DiscipleAggregate
-            gameEngine.startCaveExploration(cave, selectedDisciples.map { it.toDisciple() })
-        }
-    }
-
     fun getMovableTargetSectIds(): List<String> {
         val data = gameEngine.gameData.value
         val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""

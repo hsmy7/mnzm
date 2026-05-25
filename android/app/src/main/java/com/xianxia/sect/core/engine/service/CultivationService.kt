@@ -608,12 +608,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * Process realtime breakthrough checks
-     *
-     * Uses maxCultivation as threshold (consistent with Disciple.canBreakthrough()).
-     * When cultivation >= maxCultivation, auto attempt breakthrough.
-     * If disciple doesn't meet soul power requirement for major breakthrough,
-     * cultivation is NOT reset - disciple waits until soul power is sufficient.
+     * Process realtime breakthrough checks.
+     * When cultivation >= maxCultivation and HP/MP are full, auto attempt breakthrough.
+     * Soul power increases breakthrough chance via DiscipleStatCalculator.getBreakthroughChance.
+     * On failure, cultivation resets to 0.
      */
     private fun processRealtimeBreakthroughs(livingDisciples: List<Disciple>, data: GameData) {
         val candidates = livingDisciples.filter { disciple ->
@@ -1157,6 +1155,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     result.pills.forEach { pill -> inventorySystem.addPill(pill) }
                     result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
                     result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
+
+                    if (result.combatTriggered && result.victory && result.battleResult != null) {
+                        val missionSurvivorIds = result.battleResult.log.teamMembers
+                            .filter { it.isAlive }.map { it.id }.toSet()
+                        currentDisciples = currentDisciples.map { d ->
+                            if (d.id in missionSurvivorIds && d.isAlive) {
+                                d.copyWith(soulPower = d.soulPower + 1)
+                            } else d
+                        }
+                    }
                 }
 
                 for (did in activeMission.discipleIds) {
@@ -2125,17 +2133,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
-        val connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
-
-        val newCaves = CaveGenerator.generateCaves(
-            existingSects = data.worldMapSects,
-            connectionEdges = connectionEdges,
-            currentYear = year,
-            currentMonth = month,
-            existingCaves = activeCaves,
-            maxNewCaves = 2
-        )
-
         val allAITeams = data.aiCaveTeams.toMutableList()
         activeCaves.forEach { cave ->
             val currentTeams = allAITeams.count {
@@ -2218,7 +2215,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val currentData = currentGameData
         currentGameData = currentData.copy(
-            cultivatorCaves = finalCaves + newCaves,
+            cultivatorCaves = finalCaves,
             aiCaveTeams = finalAITeams,
             caveExplorationTeams = finalExplorationTeams,
             worldMapSects = updatedSectsForAI,

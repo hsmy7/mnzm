@@ -662,13 +662,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<DiscipleAggregate>) {
-        viewModelScope.launch {
-            // TODO(U-01 Phase3): GameEngine.startCaveExploration 应接受 DiscipleAggregate
-            gameEngine.startCaveExploration(cave, selectedDisciples.map { it.toDisciple() })
-        }
-    }
-
     fun buyFromMerchant(itemId: String, quantity: Int = 1) {
         viewModelScope.launch {
             try {

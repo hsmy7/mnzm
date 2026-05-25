@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.07",
+            date = "2026-05-25",
+            changes = listOf(
+                "战斗胜利后存活弟子神魂+1（世界关卡、宗门战、任务战斗），修复神魂只在旧洞府探索增长的bug",
+                "清理旧洞府系统：停止生成旧洞府、删除不可达的洞府详情/CaveMarker等死UI代码",
+                "删除未实现的战斗成长（winGrowth）死代码",
+                "修正弟子详情页神魂显示公式与计算一致（/20而非/10）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.06",
             date = "2026-05-25",
             changes = listOf(

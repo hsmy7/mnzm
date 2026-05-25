@@ -199,125 +199,6 @@ class ExplorationService @Inject constructor(
         }
     }
 
-    // ==================== 洞府探索管理 ====================
-
-    /**
-     * Start cave exploration
-     */
-    suspend fun startCaveExploration(
-        cave: CultivatorCave,
-        selectedDisciples: List<Disciple>
-    ): Boolean {
-        val data = currentGameData
-
-        val underageDisciples = selectedDisciples.filter { it.age < 5 }
-        if (underageDisciples.isNotEmpty()) {
-            return false
-        }
-
-        val lowHpDisciples = selectedDisciples.filter { it.hpPercent < 30 }
-        if (lowHpDisciples.isNotEmpty()) {
-            return false
-        }
-
-        val busyDisciples = selectedDisciples.filter { it.status != DiscipleStatus.IDLE }
-        if (busyDisciples.isNotEmpty()) {
-            return false
-        }
-
-        val caveExploringIds = data.caveExplorationTeams
-            .filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
-            .flatMap { it.memberIds }
-            .toSet()
-        val alreadyCaveExploring = selectedDisciples.filter { it.id in caveExploringIds }
-        if (alreadyCaveExploring.isNotEmpty()) {
-                return false
-            }
-
-            // Calculate travel time
-            val playerSect = data.worldMapSects.find { it.isPlayerSect }
-            val sectX = playerSect?.x ?: 2000f
-            val sectY = playerSect?.y ?: 1750f
-
-            val distance = kotlin.math.sqrt(
-                (cave.x - sectX) * (cave.x - sectX) +
-                (cave.y - sectY) * (cave.y - sectY)
-            )
-            val travelDuration = (distance / 200 * 30).toInt().coerceIn(1, 360)
-
-            // Create team
-            val team = CaveExplorationSystem.createCaveExplorationTeam(
-                cave = cave,
-                disciples = selectedDisciples,
-                currentYear = data.gameYear,
-                currentMonth = data.gameMonth,
-                sectX = sectX,
-                sectY = sectY,
-                travelDuration = travelDuration
-            )
-
-            // Update cave status
-            val updatedCave = cave.copy(status = CaveStatus.EXPLORING)
-            val updatedCaves = data.cultivatorCaves.map {
-                if (it.id == cave.id) updatedCave else it
-            }
-
-            selectedDisciples.forEach { disciple ->
-                updateDiscipleStatus(disciple.id, DiscipleStatus.IN_TEAM)
-            }
-
-            // Save changes
-            @Suppress("USELESS_CAST")
-            currentGameData = data.copy(
-                cultivatorCaves = updatedCaves,
-                caveExplorationTeams = (data.caveExplorationTeams + team) as List<CaveExplorationTeam>
-            )
-
-            return true
-    }
-
-    /**
-     * Recall cave exploration team
-     */
-    fun recallCaveExplorationTeam(teamId: String): Boolean {
-        val data = currentGameData
-        val team = data.caveExplorationTeams.find { it.id == teamId } ?: return false
-
-        val updatedTeams = data.caveExplorationTeams.filter { it.id != teamId }
-
-        // Reset disciple statuses
-        team.memberIds.forEach { memberId ->
-            updateDiscipleStatus(memberId, DiscipleStatus.IDLE)
-        }
-
-        // Reset cave status
-        val updatedCaves = data.cultivatorCaves.map { cave ->
-            if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
-                cave.copy(status = CaveStatus.AVAILABLE)
-            } else {
-                cave
-            }
-        }
-
-        currentGameData = data.copy(
-            caveExplorationTeams = updatedTeams,
-            cultivatorCaves = updatedCaves
-        )
-
-        return true
-    }
-
-    // ==================== 辅助方法 ====================
-
-    /**
-     * Update disciple status
-     */
-    private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        currentDisciples = currentDisciples.map {
-            if (it.id == discipleId) it.copy(status = status) else it
-        }
-    }
-
     /**
      * Mark disciple as dead
      */
@@ -329,25 +210,10 @@ class ExplorationService @Inject constructor(
         disciple?.let { eventBus.emitSync(DeathEvent(it.id, it.name, "探索阵亡")) }
     }
 
-    /**
-     * Get active exploration teams count
-     */
-    fun getActiveExplorationTeamsCount(): Int {
-        return currentTeams.count {
-            it.status == ExplorationStatus.TRAVELING ||
-            it.status == ExplorationStatus.EXPLORING ||
-            it.status == ExplorationStatus.SCOUTING
+    private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
+        currentDisciples = currentDisciples.map {
+            if (it.id == discipleId) it.copy(status = status) else it
         }
     }
 
-    /**
-     * Get active cave exploration teams count
-     */
-    fun getActiveCaveExplorationTeamsCount(): Int {
-        val data = currentGameData
-        return data.caveExplorationTeams.count {
-            it.status == CaveExplorationStatus.TRAVELING ||
-            it.status == CaveExplorationStatus.EXPLORING
-        }
-    }
 }

@@ -22,13 +22,6 @@ sealed interface MapItem {
         val isHighlighted: Boolean
     ) : MapItem
 
-    data class Cave(
-        override val id: String,
-        override val worldX: Float,
-        override val worldY: Float,
-        val name: String
-    ) : MapItem
-
     data class CaveExplorationTeam(
         override val id: String,
         override val worldX: Float,

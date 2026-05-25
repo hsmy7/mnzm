@@ -1390,16 +1390,6 @@ private fun TalentsSection(
 ) {
     val dismissDropdown = LocalDismissDropdown.current
 
-    // 计算战斗成长值
-    val winGrowth = remember(statusData) {
-        val growthAttrs = listOf("maxHp" to "生命", "maxMp" to "灵力", "physicalAttack" to "物攻",
-            "magicAttack" to "法攻", "physicalDefense" to "物防", "magicDefense" to "法防", "speed" to "速度")
-        growthAttrs.mapNotNull { (key, label) ->
-            val value = statusData["winGrowth.$key"]?.toIntOrNull() ?: 0
-            if (value > 0) "$label+$value" else null
-        }
-    }
-    
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "天赋",
@@ -1448,14 +1438,6 @@ private fun TalentsSection(
             }
         }
         
-        // 战斗成长显示（"百战通神"天赋效果）
-        if (winGrowth.isNotEmpty()) {
-            Text(
-                text = "战斗成长: ${winGrowth.joinToString(" ")}",
-                fontSize = 10.sp,
-                color = Color(0xFF4CAF50)
-            )
-        }
     }
     
 }
@@ -1572,7 +1554,7 @@ private fun CombatStatsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
-            val soulBonus = (disciple.soulPower / 10).coerceAtMost(10)
+            val soulBonus = (disciple.soulPower / 20).coerceAtMost(5)
             StatItem(if (soulBonus > 0) "神魂 +${soulBonus}%突破" else "神魂", disciple.soulPower, Modifier.weight(1f))
         }
     }

@@ -633,16 +633,6 @@ class GameEngine @Inject constructor(
     fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) =
         explorationService.completeExploration(teamId, success, survivorIds)
 
-    suspend fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<Disciple>): Boolean =
-        explorationService.startCaveExploration(cave, selectedDisciples)
-
-    fun recallCaveExplorationTeam(teamId: String): Boolean =
-        explorationService.recallCaveExplorationTeam(teamId)
-
-    fun getActiveExplorationTeamsCount(): Int = explorationService.getActiveExplorationTeamsCount()
-
-    fun getActiveCaveExplorationTeamsCount(): Int = explorationService.getActiveCaveExplorationTeamsCount()
-
     fun generateSectTradeItems(year: Int): List<MerchantItem> =
         diplomacyService.generateSectTradeItems(year)
 
@@ -2906,6 +2896,14 @@ class GameEngine @Inject constructor(
 
         // If win, generate rewards and handle occupation
         if (battleResult.winner == AIBattleWinner.ATTACKER) {
+            val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
+            stateStore.updateDisciplesDirect { disciples ->
+                disciples.map { d ->
+                    if (d.id in sectSurvivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1)
+                    else d
+                }
+            }
+
             val warRewards: WarRewards
             if (battleResult.canOccupy) {
                 val survivors = attackers.filter { it.id !in deadPlayerIds }
@@ -3151,6 +3149,13 @@ class GameEngine @Inject constructor(
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         if (result.victory) {
+            stateStore.updateDisciplesDirect { disciples ->
+                disciples.map { d ->
+                    if (d.id in survivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1)
+                    else d
+                }
+            }
+
             val allRewards = mutableListOf<BattleRewardItem>()
             stateStore.update {
                 if (level.isBeast) {

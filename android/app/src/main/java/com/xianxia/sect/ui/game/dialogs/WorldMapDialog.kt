@@ -3,8 +3,6 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import com.xianxia.sect.core.model.CaveExplorationTeam
-import com.xianxia.sect.core.model.CaveStatus
-import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldMapRenderData
@@ -31,8 +29,6 @@ internal fun WorldMapDialog(
 ) {
     var selectedSect by remember { mutableStateOf<WorldSect?>(null) }
     var showSectDetail by remember { mutableStateOf(false) }
-    var selectedCave by remember { mutableStateOf<CultivatorCave?>(null) }
-    var showCaveDetail by remember { mutableStateOf(false) }
     var selectedLevel by remember { mutableStateOf<MapItem.Level?>(null) }
     var showLevelDetail by remember { mutableStateOf(false) }
 
@@ -47,7 +43,6 @@ internal fun WorldMapDialog(
     val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsState()
     val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsState()
     val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsState()
-    val caves: List<CultivatorCave> = mapRenderData.cultivatorCaves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
@@ -57,7 +52,7 @@ internal fun WorldMapDialog(
         MapItemMapper.fromWorldSects(worldSects, emptySet())
     }
 
-    val dynamicItems = remember(caves, caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
+    val dynamicItems = remember(caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
         val items = mutableListOf<MapItem>()
         items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
         items.addAll(MapItemMapper.fromLevels(mapRenderData.worldLevels))
@@ -72,17 +67,14 @@ internal fun WorldMapDialog(
         MapItemMapper.fromPaths(worldSects)
     }
 
-    val caveExplorationPaths = remember(caveExplorationTeams, caves) {
-        caveExplorationTeams.filter { it.isMoving }.mapNotNull { team ->
-            val cave = caves.find { it.id == team.caveId }
-            if (cave != null) {
-                CaveExplorationPathData(
-                    startWorldX = team.startX,
-                    startWorldY = team.startY,
-                    endWorldX = team.targetX,
-                    endWorldY = team.targetY
-                )
-            } else null
+    val caveExplorationPaths = remember(caveExplorationTeams) {
+        caveExplorationTeams.filter { it.isMoving }.map { team ->
+            CaveExplorationPathData(
+                startWorldX = team.startX,
+                startWorldY = team.startY,
+                endWorldX = team.targetX,
+                endWorldY = team.targetY
+            )
         }
     }
 
@@ -102,13 +94,6 @@ internal fun WorldMapDialog(
                 showSectDetail = true
             }
         },
-        onCaveClick = { caveItem ->
-            val cave = caves.find { it.id == caveItem.id }
-            if (cave != null) {
-                selectedCave = cave
-                showCaveDetail = true
-            }
-        },
         onLevelClick = { levelItem ->
             selectedLevel = levelItem
             showLevelDetail = true
@@ -126,22 +111,6 @@ internal fun WorldMapDialog(
                 onDismiss = {
                     showSectDetail = false
                     selectedSect = null
-                }
-            )
-        }
-    }
-
-    if (showCaveDetail) {
-        selectedCave?.let { cave ->
-            CaveDetailDialog(
-                cave = cave,
-                gameData = gameData,
-                disciples = disciples,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = {
-                    showCaveDetail = false
-                    selectedCave = null
                 }
             )
         }
