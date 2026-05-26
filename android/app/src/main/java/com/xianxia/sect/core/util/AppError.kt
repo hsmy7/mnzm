@@ -467,16 +467,6 @@ fun com.xianxia.sect.core.model.production.ProductionError.toAppError(): AppErro
         AppError.Domain.Production.Unknown(message)
 }
 
-fun GameLoopError.toAppError(): AppError = when (this) {
-    is GameLoopError.TickTimeout -> AppError.Domain.GameLoop.TickTimeout(elapsedMs)
-    is GameLoopError.StateInconsistency -> AppError.Domain.GameLoop.StateInconsistency(detail)
-    is GameLoopError.EngineNotRunning -> AppError.Domain.GameLoop.EngineNotRunning(operation)
-    is GameLoopError.ConcurrentTick -> AppError.Domain.GameLoop.StateInconsistency("并发Tick: $threadName")
-    is GameLoopError.SaveConflict -> AppError.Domain.Storage.SaveFailed("存档冲突: 槽位$slot")
-    is GameLoopError.ResourceExhaustion -> AppError.Domain.GameLoop.StateInconsistency("资源耗尽: $resource")
-    is GameLoopError.Unknown -> AppError.Domain.GameLoop.Unknown(message, cause)
-}
-
 fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
     is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
     is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->
@@ -485,44 +475,4 @@ fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domai
         AppError.Domain.Storage.Expired("签名已过期 (签名时间: $signedAt, 当前时间: $currentTime)", null)
     is com.xianxia.sect.data.crypto.VerificationResult.Tampered ->
         AppError.Domain.Storage.Tampered(reason, null)
-}
-
-fun com.xianxia.sect.core.util.ValidationResult.toAppError(): AppError.Domain.Validation? = when (this) {
-    is com.xianxia.sect.core.util.ValidationResult.Success -> null
-    is com.xianxia.sect.core.util.ValidationResult.SuccessLong -> null
-    is com.xianxia.sect.core.util.ValidationResult.SuccessInt -> null
-    is com.xianxia.sect.core.util.ValidationResult.Error -> {
-        val trimmed = message.trim()
-        when {
-            trimmed.contains("不能为空") || trimmed.contains("为空") ->
-                AppError.Domain.Validation.EmptyValue(message)
-            trimmed.contains("超过") || trimmed.contains("不能小于") || trimmed.contains("至少") ->
-                AppError.Domain.Validation.OutOfRange(message)
-            else ->
-                AppError.Domain.Validation.InvalidInput(message)
-        }
-    }
-}
-
-fun com.xianxia.sect.core.config.ConfigValidator.ValidationResult.toAppError(): AppError.Domain.Validation? = when (this) {
-    is com.xianxia.sect.core.config.ConfigValidator.ValidationResult.Valid -> null
-    is com.xianxia.sect.core.config.ConfigValidator.ValidationResult.Invalid ->
-        AppError.Domain.Validation.ConfigError(errors.joinToString("; "))
-}
-
-fun com.xianxia.sect.core.transaction.ProductionTransactionError.toAppError(): AppError.Domain.Production = when (this) {
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotNotFound ->
-        AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotBusy ->
-        AppError.Domain.Production.SlotBusy(message.ifEmpty { "槽位正在工作中" }, slotIndex)
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.InsufficientMaterials ->
-        AppError.Domain.Production.InsufficientMaterials("材料不足", missing)
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.InvalidStateTransition ->
-        AppError.Domain.Production.InvalidStateTransition(message.ifEmpty { "无效的状态转换" }, from.name, to.name)
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.ProductionNotReady ->
-        AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remainingTime}月")
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.DatabaseError ->
-        AppError.Domain.Production.DatabaseError(message)
-    is com.xianxia.sect.core.transaction.ProductionTransactionError.UnknownError ->
-        AppError.Domain.Production.Unknown(message)
 }

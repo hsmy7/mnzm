@@ -74,17 +74,13 @@ class BuildingConfigService @Inject constructor(
             context.assets.open(CONFIG_PATH).use { inputStream ->
                 val jsonString = inputStream.bufferedReader().use { it.readText() }
                 val parsed = json.decodeFromString<BuildingsConfig>(jsonString)
-                val validation = ConfigValidator.validate(parsed)
-                when (validation) {
-                    is ConfigValidator.ValidationResult.Valid -> {
-                        Log.d(TAG, "Config validated successfully from assets")
-                        parsed
-                    }
-                    is ConfigValidator.ValidationResult.Invalid -> {
-                        Log.w(TAG, "Config validation errors: ${validation.errors}")
-                        parsed
-                    }
+                val errors = ConfigValidator.validate(parsed)
+                if (errors.isEmpty()) {
+                    Log.d(TAG, "Config validated successfully from assets")
+                } else {
+                    Log.w(TAG, "Config validation errors: $errors")
                 }
+                parsed
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not load config from assets: ${e.message}")
@@ -427,40 +423,31 @@ class BuildingConfigService @Inject constructor(
 }
 
 object ConfigValidator {
-    
-    fun validate(config: BuildingsConfig): ValidationResult {
+
+    fun validate(config: BuildingsConfig): List<String> {
         val errors = mutableListOf<String>()
-        
+
         config.buildings.forEach { (id, building) ->
             if (building.id != id) {
                 errors.add("Building ID mismatch: key=$id, id=${building.id}")
             }
-            
+
             if (building.slotCount < 1 || building.slotCount > 10) {
                 errors.add("Invalid slotCount for $id: ${building.slotCount}")
             }
-            
+
             if (building.baseSuccessRate < 0 || building.baseSuccessRate > 1) {
                 errors.add("Invalid baseSuccessRate for $id: ${building.baseSuccessRate}")
             }
-            
+
             try {
                 BuildingType.valueOf(building.buildingType)
             } catch (e: IllegalArgumentException) {
                 errors.add("Unknown buildingType for $id: ${building.buildingType}")
             }
         }
-        
-        return if (errors.isEmpty()) {
-            ValidationResult.Valid
-        } else {
-            ValidationResult.Invalid(errors)
-        }
+
+        return errors
     }
-    
-    @Deprecated("Use AppError.Domain.Validation", ReplaceWith("AppError.Domain.Validation", "com.xianxia.sect.core.util.AppError"))
-    sealed class ValidationResult {
-        object Valid : ValidationResult()
-        data class Invalid(val errors: List<String>) : ValidationResult()
-    }
+
 }

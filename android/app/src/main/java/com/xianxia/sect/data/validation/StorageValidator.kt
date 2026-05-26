@@ -553,10 +553,9 @@ object StorageValidator {
 
         // 5. 存档名称验证
         if (data.gameData.sectName.isNotEmpty()) {
-            val nameResult = InputValidator.validateSectName(data.gameData.sectName)
-            if (nameResult.isError) {
-                allWarnings.add(ValidationIssue("LONG_SAVE_NAME",
-                    (nameResult as com.xianxia.sect.core.util.ValidationResult.Error).message, Severity.WARNING))
+            val nameError = InputValidator.validateSectName(data.gameData.sectName)
+            if (nameError != null) {
+                allWarnings.add(ValidationIssue("LONG_SAVE_NAME", nameError, Severity.WARNING))
             }
         }
 

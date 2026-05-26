@@ -743,11 +743,6 @@ data class Combatant(
     }
 }
 
-@Deprecated("Use CombatantSide instead", replaceWith = ReplaceWith("CombatantSide"))
-enum class CombatantType {
-    DISCIPLE, BEAST
-}
-
 data class CombatSkill(
     val name: String,
     val skillType: SkillType = SkillType.ATTACK,

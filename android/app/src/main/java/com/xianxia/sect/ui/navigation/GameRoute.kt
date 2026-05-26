@@ -37,22 +37,8 @@ sealed class GameRoute(val route: String) {
     object Warehouse : GameRoute("warehouse")
     object Settings : GameRoute("settings")
     object Buildings : GameRoute("buildings")
-    object Reward : GameRoute("reward")
-
-    // WorldMap sub-dialogs
-    object SectTrade : GameRoute("sect_trade")
-    object Gift : GameRoute("gift")
-    object Alliance : GameRoute("alliance")
-    object EnvoyDiscipleSelect : GameRoute("envoy_disciple_select")
-    object ScoutDiscipleSelect : GameRoute("scout_disciple_select")
-    // Battle
-    object BattleTeam : GameRoute("battle_team")
-    object BattleTeamDiscipleSelect : GameRoute("battle_team_disciple_select/{slotIndex}") {
-        fun createRoute(slotIndex: Int) = "battle_team_disciple_select/$slotIndex"
-    }
     object BattleResult : GameRoute("battle_result")
 
     // Misc
     object GameOver : GameRoute("game_over")
-    object Inventory : GameRoute("inventory")
 }

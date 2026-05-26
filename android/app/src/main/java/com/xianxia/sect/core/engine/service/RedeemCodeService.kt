@@ -14,7 +14,6 @@ import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.InputValidator
-import com.xianxia.sect.core.util.ValidationResult
 import com.xianxia.sect.network.SecureHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
@@ -77,9 +76,9 @@ private val secureClient: SecureHttpClient,
             it.length in 3..32 && it.all { c -> c.isLetterOrDigit() || c == '-' }
         } ?: return RedeemResult(success = false, message = "兑换码格式无效")
 
-        val inputValidation = InputValidator.validateRedeemCode(trimmedCode)
-        if (inputValidation is ValidationResult.Error) {
-            return RedeemResult(success = false, message = inputValidation.message)
+        val errorMsg = InputValidator.validateRedeemCode(trimmedCode)
+        if (errorMsg != null) {
+            return RedeemResult(success = false, message = errorMsg)
         }
 
         if (trimmedCode in usedCodes) {

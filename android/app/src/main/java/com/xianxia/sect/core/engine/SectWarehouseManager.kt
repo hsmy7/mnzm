@@ -16,47 +16,11 @@ object SectWarehouseManager {
     var inventoryConfig: InventoryConfig = InventoryConfig.DEFAULT
     
     fun addItemToWarehouse(warehouse: SectWarehouse, item: WarehouseItem): SectWarehouse {
-        return if (useOptimized) {
-            OptimizedWarehouseManager.addItem(warehouse, item)
-        } else {
-            addItemToWarehouseLegacy(warehouse, item)
-        }
-    }
-    
-    private fun addItemToWarehouseLegacy(warehouse: SectWarehouse, item: WarehouseItem): SectWarehouse {
-        val existingIndex = warehouse.items.indexOfFirst { 
-            it.itemId == item.itemId && 
-            it.itemType == item.itemType && 
-            it.rarity == item.rarity &&
-            it.itemName == item.itemName
-        }
-        
-        return if (existingIndex >= 0) {
-            val updatedItems = warehouse.items.toMutableList()
-            val existing = updatedItems[existingIndex]
-            val maxStack = inventoryConfig.getMaxStackSize(item.itemType)
-            val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
-            updatedItems[existingIndex] = existing.copy(quantity = newQty)
-            warehouse.copy(items = updatedItems)
-        } else {
-            warehouse.copy(items = warehouse.items + item)
-        }
+        return OptimizedWarehouseManager.addItem(warehouse, item)
     }
     
     fun addItemsToWarehouse(warehouse: SectWarehouse, items: List<WarehouseItem>): SectWarehouse {
-        return if (useOptimized) {
-            OptimizedWarehouseManager.addItemsBatch(warehouse, items)
-        } else {
-            addItemsToWarehouseLegacy(warehouse, items)
-        }
-    }
-    
-    private fun addItemsToWarehouseLegacy(warehouse: SectWarehouse, items: List<WarehouseItem>): SectWarehouse {
-        var result = warehouse
-        items.forEach { item ->
-            result = addItemToWarehouseLegacy(result, item)
-        }
-        return result
+        return OptimizedWarehouseManager.addItemsBatch(warehouse, items)
     }
     
     fun addSpiritStonesToWarehouse(warehouse: SectWarehouse, amount: Long): SectWarehouse {

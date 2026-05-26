@@ -57,7 +57,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
@@ -65,8 +64,8 @@ import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.map.CameraState
 import com.xianxia.sect.ui.game.map.rememberCameraState
 import com.xianxia.sect.core.util.GridSystem
-import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.dialogs.DiscipleDesertionDialog
@@ -81,13 +80,11 @@ import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
-import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
-import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.PlantingDialog
 
@@ -105,9 +102,6 @@ import com.xianxia.sect.ui.game.dialogs.RecruitDialog
 import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
 import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
 import com.xianxia.sect.ui.game.dialogs.MerchantDialog
-import com.xianxia.sect.core.model.production.BuildingType
-import com.xianxia.sect.core.model.PlantSlotData
-import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 
 

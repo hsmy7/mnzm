@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.production.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.transaction.ProductionTransactionResult
+import com.xianxia.sect.core.util.AppError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -186,10 +187,10 @@ class ProductionCoordinator @Inject constructor(
             return ProductionStartResult(
                 success = false,
                 error = when (val err = txResult.error) {
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotBusy -> 
-                        ProductionError.SlotBusy(message = err.message, slotIndex = slotIndex)
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.InsufficientMaterials -> 
-                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missing)
+                    is AppError.Domain.Production.SlotBusy ->
+                        ProductionError.SlotBusy(message = err.message, slotIndex = err.slotIndex)
+                    is AppError.Domain.Production.InsufficientMaterials ->
+                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missingMaterials)
                     else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
                 }
             )
@@ -281,10 +282,10 @@ class ProductionCoordinator @Inject constructor(
             return ProductionStartResult(
                 success = false,
                 error = when (val err = txResult.error) {
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotBusy -> 
-                        ProductionError.SlotBusy(message = err.message, slotIndex = slotIndex)
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.InsufficientMaterials -> 
-                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missing)
+                    is AppError.Domain.Production.SlotBusy ->
+                        ProductionError.SlotBusy(message = err.message, slotIndex = err.slotIndex)
+                    is AppError.Domain.Production.InsufficientMaterials ->
+                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missingMaterials)
                     else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
                 }
             )
@@ -323,17 +324,11 @@ class ProductionCoordinator @Inject constructor(
             return ProductionCompleteResult(
                 success = false,
                 error = when (val err = txResult.error) {
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.ProductionNotReady -> 
-                        ProductionError.InvalidStateTransition(
-                            message = "生产尚未完成，剩余${err.remainingTime}月",
-                            fromStatus = "WORKING",
-                            toStatus = "COMPLETED"
-                        )
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.InvalidStateTransition -> 
+                    is AppError.Domain.Production.InvalidStateTransition ->
                         ProductionError.InvalidStateTransition(
                             message = err.message,
-                            fromStatus = err.from.name,
-                            toStatus = err.to.name
+                            fromStatus = err.fromStatus,
+                            toStatus = err.toStatus
                         )
                     else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
                 }
@@ -362,17 +357,11 @@ class ProductionCoordinator @Inject constructor(
             return ProductionCompleteResult(
                 success = false,
                 error = when (val err = txResult.error) {
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.ProductionNotReady -> 
-                        ProductionError.InvalidStateTransition(
-                            message = "生产尚未完成，剩余${err.remainingTime}月",
-                            fromStatus = "WORKING",
-                            toStatus = "COMPLETED"
-                        )
-                    is com.xianxia.sect.core.transaction.ProductionTransactionError.InvalidStateTransition -> 
+                    is AppError.Domain.Production.InvalidStateTransition ->
                         ProductionError.InvalidStateTransition(
                             message = err.message,
-                            fromStatus = err.from.name,
-                            toStatus = err.to.name
+                            fromStatus = err.fromStatus,
+                            toStatus = err.toStatus
                         )
                     else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
                 }

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -39,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.CornerRadius
-import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.Spacing
 
 enum class DialogMode { Half, Full, Auto }
@@ -199,62 +196,6 @@ fun GameFullDialog(
         contentAlignment = Alignment.Center
     ) {
         content()
-    }
-}
-
-/**
- * 替代 Compose Material3 [androidx.compose.material3.AlertDialog]。
- * 居中卡片式弹窗，无遮罩。用于确认/选择对话框。
- */
-@Deprecated(
-    message = "Use StandardPromptDialog instead",
-    replaceWith = ReplaceWith(
-        "StandardPromptDialog(onDismissRequest = onDismissRequest, title = \"\", text = \"\", confirmLabel = \"确定\", dismissLabel = \"取消\")",
-        "com.xianxia.sect.ui.components.StandardPromptDialog"
-    )
-)
-@Composable
-fun GameAlertDialog(
-    onDismissRequest: () -> Unit,
-    title: @Composable () -> Unit,
-    confirmButton: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-    text: @Composable (() -> Unit)? = null,
-    dismissButton: @Composable (() -> Unit)? = null,
-    containerColor: Color = GameColors.PageBackground,
-    shape: Shape = androidx.compose.material3.AlertDialogDefaults.shape,
-    tonalElevation: Dp = 0.dp
-) {
-    BackHandler(onBack = onDismissRequest)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismissRequest
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            modifier = modifier.widthIn(max = 560.dp),
-            shape = shape,
-            color = containerColor,
-            tonalElevation = tonalElevation
-        ) {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                title()
-                if (text != null) {
-                    text()
-                }
-                Row {
-                    dismissButton?.invoke()
-                    confirmButton()
-                }
-            }
-        }
     }
 }
 

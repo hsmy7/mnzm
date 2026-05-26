@@ -86,9 +86,6 @@ data class UiError(
         fun fromProductionError(error: com.xianxia.sect.core.model.production.ProductionError): UiError =
             fromAppError(error.toAppError())
 
-        fun fromGameLoopError(error: GameLoopError): UiError =
-            fromAppError(error.toAppError())
-
         fun fromException(e: Throwable): UiError = fromAppError(AppError.fromException(e))
     }
 }

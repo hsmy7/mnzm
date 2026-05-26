@@ -7,9 +7,11 @@ import com.xianxia.sect.core.model.production.ProductionOutcome
 import com.xianxia.sect.core.model.production.ProductionParams
 import com.xianxia.sect.core.model.production.ProductionResult
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
+import com.xianxia.sect.core.util.AppError
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -254,24 +256,22 @@ class BuildingSubsystem @Inject constructor(
     
     fun getLockStatistics() = repository.getLockStatistics()
 
-    private fun mapTransactionError(error: com.xianxia.sect.core.transaction.ProductionTransactionError?): ProductionResult.ProductionError {
+    private fun mapTransactionError(error: AppError.Domain.Production?): ProductionResult.ProductionError {
         if (error == null) return ProductionResult.ProductionError.UnknownError("Unknown error")
-        
+
         return when (error) {
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotNotFound ->
-                ProductionResult.ProductionError.SlotNotFound(error.buildingType, error.slotIndex)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.SlotBusy ->
+            is AppError.Domain.Production.InvalidSlot ->
+                ProductionResult.ProductionError.SlotNotFound(BuildingType.ALCHEMY, error.slotIndex)
+            is AppError.Domain.Production.SlotBusy ->
                 ProductionResult.ProductionError.SlotBusy(error.slotIndex, error.message)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.InsufficientMaterials ->
-                ProductionResult.ProductionError.InsufficientMaterials(error.missing)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.InvalidStateTransition ->
-                ProductionResult.ProductionError.InvalidStateTransition(error.from, error.to, error.message)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.ProductionNotReady ->
-                ProductionResult.ProductionError.ProductionNotReady(error.remainingTime)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.DatabaseError ->
-                ProductionResult.ProductionError.DatabaseError(error.message)
-            is com.xianxia.sect.core.transaction.ProductionTransactionError.UnknownError ->
-                ProductionResult.ProductionError.UnknownError(error.message)
+            is AppError.Domain.Production.InsufficientMaterials ->
+                ProductionResult.ProductionError.InsufficientMaterials(error.missingMaterials)
+            is AppError.Domain.Production.InvalidStateTransition ->
+                ProductionResult.ProductionError.InvalidStateTransition(
+                    ProductionSlotStatus.valueOf(error.fromStatus),
+                    ProductionSlotStatus.valueOf(error.toStatus),
+                    error.message)
+            else -> ProductionResult.ProductionError.UnknownError(error.message)
         }
     }
 }

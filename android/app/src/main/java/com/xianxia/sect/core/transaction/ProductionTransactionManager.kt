@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.util.AppError
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -15,7 +16,7 @@ data class ProductionTransactionResult(
     val success: Boolean,
     val slot: ProductionSlot? = null,
     val outcome: ProductionOutcome? = null,
-    val error: ProductionTransactionError? = null,
+    val error: AppError.Domain.Production? = null,
     val rollbackData: ProductionRollbackData? = null
 )
 
@@ -23,21 +24,6 @@ data class ProductionRollbackData(
     val materialsToRestore: Map<String, Int> = emptyMap(),
     val previousSlotState: ProductionSlot? = null
 )
-
-@Deprecated("Use AppError.Domain.Production", ReplaceWith("AppError.Domain.Production", "com.xianxia.sect.core.util.AppError"))
-sealed class ProductionTransactionError {
-    data class SlotNotFound(val buildingType: BuildingType, val slotIndex: Int) : ProductionTransactionError()
-    data class SlotBusy(val slotIndex: Int, val message: String = "") : ProductionTransactionError()
-    data class InsufficientMaterials(val missing: Map<String, Int>) : ProductionTransactionError()
-    data class InvalidStateTransition(
-        val from: ProductionSlotStatus, 
-        val to: ProductionSlotStatus,
-        val message: String = ""
-    ) : ProductionTransactionError()
-    data class ProductionNotReady(val remainingTime: Int) : ProductionTransactionError()
-    data class DatabaseError(val message: String) : ProductionTransactionError()
-    data class UnknownError(val message: String) : ProductionTransactionError()
-}
 
 @Singleton
 class ProductionTransactionManager @Inject constructor(
@@ -71,7 +57,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
             )
         }
         
@@ -79,7 +65,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot busy: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotBusy(slotIndex, "Slot is already working")
+                error = AppError.Domain.Production.SlotBusy("Slot is already working", slotIndex)
             )
         }
         
@@ -95,7 +81,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Insufficient materials: $missingMaterials")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InsufficientMaterials(missingMaterials)
+                error = AppError.Domain.Production.InsufficientMaterials("材料不足", missingMaterials)
             )
         }
         
@@ -137,10 +123,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to start production: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    previousState.status,
-                    ProductionSlotStatus.WORKING,
-                    exception?.message ?: "Unknown error"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    exception?.message ?: "Unknown error",
+                    previousState.status.name,
+                    ProductionSlotStatus.WORKING.name
                 )
             )
         }
@@ -180,7 +166,7 @@ class ProductionTransactionManager @Inject constructor(
                     Log.e(TAG, "Failed to create slot for $buildingId[$slotIndex]: ${addResult.exceptionOrNull()?.message}")
                     return ProductionTransactionResult(
                         success = false,
-                        error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                        error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
                     )
                 }
             } else {
@@ -192,7 +178,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot busy: $buildingId[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotBusy(slotIndex, "Slot is already working")
+                error = AppError.Domain.Production.SlotBusy("Slot is already working", slotIndex)
             )
         }
         
@@ -208,7 +194,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Insufficient materials: $missingMaterials")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InsufficientMaterials(missingMaterials)
+                error = AppError.Domain.Production.InsufficientMaterials("材料不足", missingMaterials)
             )
         }
         
@@ -250,10 +236,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to start production: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    previousState.status,
-                    ProductionSlotStatus.WORKING,
-                    exception?.message ?: "Unknown error"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    exception?.message ?: "Unknown error",
+                    previousState.status.name,
+                    ProductionSlotStatus.WORKING.name
                 )
             )
         }
@@ -272,7 +258,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
             )
         }
         
@@ -280,10 +266,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Invalid state: ${slot.status}")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    slot.status, 
-                    ProductionSlotStatus.COMPLETED,
-                    "Slot is not in WORKING state"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    "Slot is not in WORKING state",
+                    slot.status.name,
+                    ProductionSlotStatus.COMPLETED.name
                 )
             )
         }
@@ -293,7 +279,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Production not ready: $remaining months remaining")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.ProductionNotReady(remaining)
+                error = AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remaining}月")
             )
         }
         
@@ -320,10 +306,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to complete production: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    previousState.status,
-                    ProductionSlotStatus.COMPLETED,
-                    exception?.message ?: "Unknown error"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    exception?.message ?: "Unknown error",
+                    previousState.status.name,
+                    ProductionSlotStatus.COMPLETED.name
                 )
             )
         }
@@ -342,7 +328,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: $buildingId[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(BuildingType.ALCHEMY, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ALCHEMY[$slotIndex]", slotIndex)
             )
         }
         
@@ -350,10 +336,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Invalid state: ${slot.status}")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    slot.status, 
-                    ProductionSlotStatus.COMPLETED,
-                    "Slot is not in WORKING state"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    "Slot is not in WORKING state",
+                    slot.status.name,
+                    ProductionSlotStatus.COMPLETED.name
                 )
             )
         }
@@ -363,7 +349,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Production not ready: $remaining months remaining")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.ProductionNotReady(remaining)
+                error = AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remaining}月")
             )
         }
         
@@ -390,10 +376,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to complete production: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    previousState.status,
-                    ProductionSlotStatus.COMPLETED,
-                    exception?.message ?: "Unknown error"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    exception?.message ?: "Unknown error",
+                    previousState.status.name,
+                    ProductionSlotStatus.COMPLETED.name
                 )
             )
         }
@@ -410,7 +396,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
             )
         }
         
@@ -435,10 +421,10 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to reset slot: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.InvalidStateTransition(
-                    previousState.status,
-                    ProductionSlotStatus.IDLE,
-                    exception?.message ?: "Unknown error"
+                error = AppError.Domain.Production.InvalidStateTransition(
+                    exception?.message ?: "Unknown error",
+                    previousState.status.name,
+                    ProductionSlotStatus.IDLE.name
                 )
             )
         }
@@ -457,7 +443,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
             )
         }
         
@@ -482,7 +468,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to assign disciple: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.UnknownError(exception?.message ?: "Unknown error")
+                error = AppError.Domain.Production.Unknown(exception?.message ?: "Unknown error")
             )
         }
     }
@@ -498,7 +484,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.w(TAG, "Slot not found: ${buildingType.name}[$slotIndex]")
             return ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
             )
         }
         
@@ -523,7 +509,7 @@ class ProductionTransactionManager @Inject constructor(
             Log.e(TAG, "Failed to remove disciple: ${exception?.message}")
             ProductionTransactionResult(
                 success = false,
-                error = ProductionTransactionError.UnknownError(exception?.message ?: "Unknown error")
+                error = AppError.Domain.Production.Unknown(exception?.message ?: "Unknown error")
             )
         }
     }
