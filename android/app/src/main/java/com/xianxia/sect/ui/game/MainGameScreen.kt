@@ -1582,6 +1582,11 @@ private fun BuildingConstructionBar(
     }
 }
 
+
+
+/**
+ * 建筑放置确认/取消按钮 — 固定出现在建筑上方居中，不受地图方格尺寸限制。
+ */
 @Composable
 private fun PlacementConfirmButtons(
     snappedGridX: Int,
@@ -1594,44 +1599,52 @@ private fun PlacementConfirmButtons(
     onCancel: () -> Unit
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val worldX = GridSnapHelper.gridToWorld(snappedGridX, tileSize)
-    val worldY = GridSnapHelper.gridToWorld(snappedGridY, tileSize)
-    val screenXDp = cameraState.worldToScreenX(worldX.toFloat()) / density
-    val screenYDp = cameraState.worldToScreenY(worldY.toFloat()) / density
-    val widthDp = (buildingSize.width * tileSize) / density
-
+    val worldX = GridSnapHelper.gridToWorld(snappedGridX, tileSize).toFloat()
+    val worldY = GridSnapHelper.gridToWorld(snappedGridY, tileSize).toFloat()
+    val buildingCenterXDp = cameraState.worldToScreenX(worldX + buildingSize.width * tileSize / 2f) / density
+    val buildingTopYDp = cameraState.worldToScreenY(worldY) / density
     val canConfirm = validity == GridSnapHelper.PlacementValidity.Valid
-    val cellDp = (tileSize / density).dp
-
+    val btnDp = (tileSize / density).dp
+    val spacerDp = btnDp * 0.4f
+    // 按钮行独立于建筑宽度，居中出现在建筑正上方
     Box(
         modifier = Modifier
-            .offset(x = screenXDp.dp, y = screenYDp.dp - cellDp)
-            .size(width = widthDp.dp, height = cellDp)
+            .offset(x = buildingCenterXDp.dp - btnDp * 1.2f, y = buildingTopYDp.dp - btnDp * 1.5f)
+            .size(width = btnDp * 2f + spacerDp, height = btnDp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier
-                    .size(cellDp)
+                modifier = Modifier.size(btnDp)
                     .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black, CircleShape)
                     .clickable(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
-            ) { Text("✓", fontSize = (cellDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
-            Spacer(modifier = Modifier.width((cellDp.value * 0.25f).dp))
+            ) { Text("✓", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.width(spacerDp))
             Box(
-                modifier = Modifier
-                    .size(cellDp)
+                modifier = Modifier.size(btnDp)
                     .background(Color(0xFFF44336), CircleShape)
                     .clickable { onCancel() },
                 contentAlignment = Alignment.Center
-            ) { Text("✗", fontSize = (cellDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            ) { Text("✗", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
     }
+    // 放置预览覆盖层
+    val overlayXDp = cameraState.worldToScreenX(worldX) / density
+    val overlayYDp = cameraState.worldToScreenY(worldY) / density
+    val overlayWDp = (buildingSize.width * tileSize) / density
+    val overlayHDp = (buildingSize.height * tileSize) / density
+    val overlayColor = if (canConfirm) Color(0x664CAF50) else Color(0x66F44336)
+    Box(
+        modifier = Modifier
+            .offset(x = overlayXDp.dp, y = overlayYDp.dp)
+            .size(width = overlayWDp.dp, height = overlayHDp.dp)
+            .background(overlayColor)
+    )
 }
-
 private fun getBuildingColor(displayName: String): Color = when (displayName) {
     "灵矿场" -> Color(0xFFBCAAA4).copy(alpha = 0.8f)
     "灵植阁" -> Color(0xFFA5D6A7).copy(alpha = 0.8f)
