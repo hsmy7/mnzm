@@ -9,10 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.16",
+            date = "2026-05-26",
+            changes = listOf(
+                "新增顶层overlay z-order排序机制，后打开的界面保证在最顶层",
+                "BattleResult/BattleLogDetail纳入排序列表"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.15",
             date = "2026-05-26",
             changes = listOf(
-                "修复弟子详情界面未全屏显示问题，统一为顶层渲染"
+                "弟子详情界面全屏渲染架构重构，统一顶层覆盖模式"
             )
         ),
         ChangelogEntry(

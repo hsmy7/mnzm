@@ -1,9 +1,15 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.16] - 2026-05-26
+
+### 新增
+- 顶层inline overlay z-order排序机制（SnapshotStateList），保证后打开的界面始终在最顶层
+- BattleResult和BattleLogDetail纳入排序列表，与弟子详情统一管理
+
 ## [3.1.15] - 2026-05-26
 
 ### 修复
-- 修复弟子详情界面未全屏显示问题，改为通过GameViewModel统一驱动的顶层渲染，解决Compose Dialog在游戏平台上的全屏兼容问题
+- 弟子详情界面全屏渲染架构重构：18个调用点统一改为ViewModel驱动，移至MainGameScreen最外层渲染，解决Compose Dialog平台兼容问题
 
 ## [3.1.14] - 2026-05-26
 
