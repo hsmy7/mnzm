@@ -360,8 +360,10 @@ fun PlantingDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // 已种植：每个种子分组一行
-                                fieldGroups.filter { it.seedId.isNotEmpty() }.forEach { group ->
+                                // 已种植：每个种子分组一行（仓库有同类型种子才显示）
+                                fieldGroups.filter { g ->
+                                    g.seedId.isNotEmpty() && seeds.any { s -> s.name == g.seedName && s.quantity > 0 }
+                                }.forEach { group ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().height(72.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -456,6 +458,10 @@ fun PlantingDialog(
                             thickness = 1.dp,
                             color = Color(0xFFBDBDBD)
                         )
+                        val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                        val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                        val incInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                        val maxInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -463,56 +469,95 @@ fun PlantingDialog(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 最小按钮
                             Text(
                                 text = "最小",
                                 fontSize = 12.sp,
                                 color = Color.Black,
-                                modifier = Modifier.clickable {
+                                modifier = Modifier.clickable(interactionSource = minInteraction, indication = null) {
                                     plantQuantity = 1
                                     qtyInput = "1"
                                 }
                             )
-                            // -1 按钮
                             Text(
                                 text = "-1",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (plantQuantity > 1) Color.Black else Color(0xFFCCCCCC),
-                                modifier = Modifier.clickable(enabled = plantQuantity > 1) {
+                                modifier = Modifier.clickable(
+                                    interactionSource = decInteraction,
+                                    indication = null,
+                                    enabled = plantQuantity > 1
+                                ) {
                                     plantQuantity--
                                     qtyInput = plantQuantity.toString()
                                 }
                             )
-                            // 数量显示
-                            Text(
-                                text = "$plantQuantity",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            // +1 按钮
+                            // 数量显示 — 白底，点击弹出键盘
+                            var showQtyEdit by remember { mutableStateOf(false) }
+                            if (showQtyEdit) {
+                                BasicTextField(
+                                    value = qtyInput,
+                                    onValueChange = { qtyInput = it },
+                                    modifier = Modifier.width(48.dp).background(Color.White, RoundedCornerShape(4.dp))
+                                        .border(1.dp, Color(0xFF3498DB), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                        color = Color.Black, textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                LaunchedEffect(Unit) {
+                                    qtyInput = plantQuantity.toString()
+                                }
+                                DisposableEffect(Unit) {
+                                    onDispose {
+                                        val parsed = qtyInput.toIntOrNull()
+                                        plantQuantity = (parsed ?: plantQuantity).coerceIn(1, unplantedCount.coerceAtLeast(1))
+                                        qtyInput = plantQuantity.toString()
+                                    }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color.White, RoundedCornerShape(4.dp))
+                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
+                                        .clickable { showQtyEdit = true }
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "$plantQuantity",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
                             Text(
                                 text = "+1",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (plantQuantity < unplantedCount) Color.Black else Color(0xFFCCCCCC),
-                                modifier = Modifier.clickable(enabled = plantQuantity < unplantedCount) {
+                                modifier = Modifier.clickable(
+                                    interactionSource = incInteraction,
+                                    indication = null,
+                                    enabled = plantQuantity < unplantedCount
+                                ) {
                                     plantQuantity++
                                     qtyInput = plantQuantity.toString()
                                 }
                             )
-                            // 最大按钮
                             Text(
                                 text = "最大",
                                 fontSize = 12.sp,
                                 color = Color.Black,
-                                modifier = Modifier.clickable {
+                                modifier = Modifier.clickable(interactionSource = maxInteraction, indication = null) {
                                     plantQuantity = unplantedCount.coerceAtLeast(1)
                                     qtyInput = plantQuantity.toString()
                                 }
                             )
-                            // 种植按钮
                             GameButton(
                                 text = "种植",
                                 enabled = selectedSeed != null && unplantedCount > 0,
@@ -521,12 +566,10 @@ fun PlantingDialog(
                                     val unplantedFields =
                                         fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields
                                             ?: emptyList()
-                                    for (i in 0 until toPlant) {
-                                        viewModel.plantOnSpiritField(
-                                            unplantedFields[i].instanceId,
-                                            selectedSeed!!.id,
-                                            activeSectId
-                                        )
+                                    // 批量收集instanceId，一次性种植
+                                    val ids = unplantedFields.take(toPlant).map { it.instanceId }
+                                    if (ids.isNotEmpty() && selectedSeed != null) {
+                                        viewModel.plantOnSpiritFields(ids, selectedSeed!!.id, activeSectId)
                                     }
                                     selectedSeedId = null
                                     plantQuantity = 1

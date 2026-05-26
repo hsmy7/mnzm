@@ -1434,6 +1434,36 @@ class GameEngine @Inject constructor(
         inventorySystem.removeSeedSync(seedId, 1)
     }
 
+    /** 批量种植：依次占用空灵田，只消耗一颗种子数量（按quantity扣除） */
+    suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
+        if (instanceIds.isEmpty()) return
+        val seed = inventorySystem.getSeedById(seedId) ?: return
+        val total = instanceIds.size.coerceAtMost(seed.quantity)
+        if (total <= 0) return
+
+        updateGameData { data ->
+            val currentYear = data.gameYear
+            val currentMonth = data.gameMonth
+            val updatedPlants = data.spiritFieldPlants.toMutableList()
+            var planted = 0
+            for (i in updatedPlants.indices) {
+                if (planted >= total) break
+                val p = updatedPlants[i]
+                if (p.buildingInstanceId in instanceIds && p.seedId.isEmpty()) {
+                    updatedPlants[i] = p.copy(
+                        seedId = seedId, seedName = seed.name,
+                        growTime = seed.growTime, expectedYield = seed.yield,
+                        plantYear = currentYear, plantMonth = currentMonth, sectId = sectId
+                    )
+                    planted++
+                }
+            }
+            data.copy(spiritFieldPlants = updatedPlants)
+        }
+
+        inventorySystem.removeSeedSync(seedId, total)
+    }
+
     suspend fun removePlantFromSpiritField(buildingInstanceId: String) {
         updateGameData { data ->
             val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId }

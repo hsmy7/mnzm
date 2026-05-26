@@ -769,6 +769,16 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
+        viewModelScope.launch {
+            try {
+                gameEngine.plantOnSpiritFields(instanceIds, seedId, sectId)
+            } catch (e: Exception) {
+                showError(e.message ?: "种植失败")
+            }
+        }
+    }
+
     fun removePlantFromSpiritField(buildingInstanceId: String) {
         viewModelScope.launch {
             try {

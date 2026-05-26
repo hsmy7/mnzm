@@ -1594,7 +1594,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 // Auto-replant or clear field
                 val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
-                    val existingSeed = currentSeeds.find { it.id == plant.seedId && it.quantity > 0 }
+                    val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
+                    val existingSeed = currentSeeds.find { s ->
+                        s.name == plant.seedName && s.rarity == (matchingSeed?.rarity ?: 1) && s.growTime == plant.growTime && s.quantity > 0
+                    }
                     updatedPlants = updatedPlants.toMutableList().also {
                         if (existingSeed != null) {
                             inventorySystem.removeSeedSync(existingSeed.id, 1)
