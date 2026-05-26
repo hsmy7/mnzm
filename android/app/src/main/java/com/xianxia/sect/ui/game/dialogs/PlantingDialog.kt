@@ -553,11 +553,6 @@ fun PlantingDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "铲除后作物将消失，是否确认？",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                Text(
                     "当前分组：${group.seedName}（${group.fields.size}块）",
                     fontSize = 12.sp,
                     color = Color.Black
