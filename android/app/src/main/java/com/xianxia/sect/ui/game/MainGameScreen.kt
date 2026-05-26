@@ -251,6 +251,7 @@ fun MainGameScreen(
         mapOf(
             "灵矿场" to { viewModel.getBuildingGridSize("灵矿场") },
             "灵植阁" to { viewModel.getBuildingGridSize("灵植阁") },
+            "灵田" to { viewModel.getBuildingGridSize("灵田") },
             "炼丹炉" to { viewModel.getBuildingGridSize("炼丹炉") },
             "锻造坊" to { viewModel.getBuildingGridSize("锻造坊") },
             "任务阁" to { viewModel.getBuildingGridSize("任务阁") },
@@ -349,6 +350,7 @@ fun MainGameScreen(
         listOf(
             "灵矿场" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "灵矿场" }?.instanceId?.let { dialogNavController.navigate(GameRoute.SpiritMine.createRoute(it)) }; Unit },
             "灵植阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.HerbGarden.route) },
+            "灵田" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Planting.route) },
             "炼丹炉" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "炼丹炉" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Alchemy.createRoute(it)) }; Unit },
             "锻造坊" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "锻造坊" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Forge.createRoute(it)) }; Unit },
             "藏经阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Library.route) },
@@ -647,7 +649,7 @@ fun MainGameScreen(
                         "灵矿场" -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
                         "炼丹炉" -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
                         "锻造坊" -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
-                        "单人住所", "多人住所" -> Int.MAX_VALUE
+                        "单人住所", "多人住所", "灵田" -> Int.MAX_VALUE
                         else -> 1
                     }
                 }
@@ -1467,6 +1469,7 @@ private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
     "天枢殿" -> R.drawable.building_tianshu_hall
     "执法堂" -> R.drawable.building_law_enforcement
     "灵植阁" -> R.drawable.building_herb_garden
+    "灵田" -> R.drawable.building_spirit_field
     "灵矿场" -> R.drawable.building_spirit_mine
     "炼丹炉" -> R.drawable.building_alchemy
     "监牢" -> R.drawable.building_reflection_cliff
@@ -1484,7 +1487,7 @@ private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
 private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
     val context = androidx.compose.ui.platform.LocalContext.current
     val names = listOf(
-        "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
+        "任务阁", "天枢殿", "执法堂", "灵植阁", "灵田", "灵矿场",
         "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
         "单人住所", "中级单人住所", "多人住所"
     )

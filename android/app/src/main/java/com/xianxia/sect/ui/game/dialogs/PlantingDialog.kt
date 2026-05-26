@@ -175,32 +175,33 @@ fun PlantingDialog(
                 contentScale = ContentScale.Crop
             )
 
-            // 关闭按钮（右上角）
-            CloseButton(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-            )
-
-            // 主区域：左（60%）| 分割线 | 右（40%）
-            Row(modifier = Modifier.fillMaxSize()) {
-
-                // ═════════════════ 左侧：种子网格 ════════════
-                Column(
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .fillMaxHeight()
-                        .padding(start = 12.dp, top = 44.dp, end = 8.dp)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 标题栏：标题 + 关闭按钮同行
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 标题
                     Text(
                         text = "种子（${activeSeeds.size}）",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.weight(1f))
+                    CloseButton(onClick = onDismiss)
+                }
+
+                // 主区域：左（60%）| 分割线 | 右（40%）
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+
+                // ═════════════════ 左侧：种子网格 ════════════
+                Column(
+                    modifier = Modifier
+                        .weight(0.6f)
+                        .fillMaxHeight()
+                        .padding(start = 12.dp, top = 4.dp, end = 8.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     if (activeSeeds.isEmpty()) {
                         // 空状态
@@ -218,7 +219,8 @@ fun PlantingDialog(
                             columns = GridCells.Adaptive(60.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             contentPadding = PaddingValues(2.dp)
@@ -480,6 +482,7 @@ fun PlantingDialog(
                 }
             }
         }
+    }
     }
 }
 
