@@ -10,10 +10,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -106,6 +104,7 @@ import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.ui.game.building.BuildingDef
+import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 
 
 /**
@@ -1408,105 +1407,15 @@ private fun SectGroundCanvas(
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)
 
-private fun getBuildingDrawable(displayName: String): Int = BuildingRegistry.drawableRes(displayName)
-
 @Composable
 private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
     val context = androidx.compose.ui.platform.LocalContext.current
     val names = BuildingRegistry.names
     return remember {
         names.associateWith { name ->
-            val resId = getBuildingDrawable(name)
+            val resId = BuildingRegistry.drawableRes(name)
             android.graphics.BitmapFactory.decodeResource(context.resources, resId)
                 .asImageBitmap()
-        }
-    }
-}
-
-@Composable
-private fun BuildingConstructionBar(
-    buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
-    placedBuildings: List<GridBuildingData>,
-    buildingCosts: Map<String, Long>,
-    spiritStones: Long,
-    onSelectBuilding: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    getBuildingCount: (String) -> Int = { name -> placedBuildings.count { it.displayName == name } },
-    getBuildingMaxCount: (String) -> Int = { 1 }
-) {
-    Box(modifier = modifier.fillMaxWidth()) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_horizontal),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            buildingList.forEach { (name, _) ->
-                val built = placedBuildings.count { it.displayName == name } >= getBuildingMaxCount(name)
-                val cost = buildingCosts[name] ?: 1000L
-                val canAfford = spiritStones >= cost
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(64.dp)
-                            .height(60.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                            .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
-                    ) {
-                        Text(
-                            text = name,
-                            fontSize = 8.sp,
-                            lineHeight = 8.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                        Image(
-                            painter = painterResource(id = getBuildingDrawable(name)),
-                            contentDescription = name,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentScale = ContentScale.Fit,
-                            alpha = if (built || !canAfford) 0.4f else 1f
-                        )
-                        Text(
-                            text = "${cost}灵石",
-                            fontSize = 7.sp,
-                            lineHeight = 7.sp,
-                            color = Color.Black,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                    }
-                    val maxCount = getBuildingMaxCount(name)
-                    if (maxCount < Int.MAX_VALUE) {
-                        Text(
-                            text = "${getBuildingCount(name)}/$maxCount",
-                            fontSize = 9.sp,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
         }
     }
 }

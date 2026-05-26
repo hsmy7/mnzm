@@ -41,6 +41,13 @@ class GameViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
+    val disciple = com.xianxia.sect.ui.game.delegate.DiscipleDelegate(gameEngine, viewModelScope)
+    val navigation = com.xianxia.sect.ui.game.delegate.NavigationDelegate(
+        gameEngine, gameEngineCore, viewModelScope,
+        onNavigate = { _navigationEvents.trySend(it) },
+        onPopBack = { _popBackEvents.trySend(it) }
+    )
+    val inventory = com.xianxia.sect.ui.game.delegate.InventoryDelegate(gameEngine, viewModelScope)
 
     companion object {
         private const val TAG = "GameViewModel"
@@ -67,87 +74,45 @@ class GameViewModel @Inject constructor(
     /**
      * 关闭当前对话框 — dialogs call this internally
      */
-    fun closeCurrentDialog() {
-        _popBackEvents.trySend(null)
-    }
+    fun closeCurrentDialog() = navigation.closeCurrentDialog()
 
-    fun closeAllDialogs() {
-        _popBackEvents.trySend("empty")
-    }
+    fun closeAllDialogs() = navigation.closeAllDialogs()
 
-    fun openSpiritMineDialog(mineIndex: Int = 0) {
-        _navigationEvents.trySend(GameRoute.SpiritMine)
-    }
+    fun openSpiritMineDialog(mineIndex: Int = 0) = navigation.openSpiritMineDialog(mineIndex)
 
-    fun openHerbGardenDialog() {
-        _navigationEvents.trySend(GameRoute.HerbGarden)
-    }
+    fun openHerbGardenDialog() = navigation.openHerbGardenDialog()
 
-    fun openAlchemyDialog(buildingIndex: Int = 0) {
-        _navigationEvents.trySend(GameRoute.Alchemy)
-    }
+    fun openAlchemyDialog(buildingIndex: Int = 0) = navigation.openAlchemyDialog(buildingIndex)
 
-    fun openForgeDialog(buildingIndex: Int = 0) {
-        _navigationEvents.trySend(GameRoute.Forge)
-    }
+    fun openForgeDialog(buildingIndex: Int = 0) = navigation.openForgeDialog(buildingIndex)
 
-    fun openLibraryDialog() {
-        _navigationEvents.trySend(GameRoute.Library)
-    }
+    fun openLibraryDialog() = navigation.openLibraryDialog()
 
-    fun openWenDaoPeakDialog() {
-        _navigationEvents.trySend(GameRoute.WenDaoPeak)
-    }
+    fun openWenDaoPeakDialog() = navigation.openWenDaoPeakDialog()
 
-    fun openQingyunPeakDialog() {
-        _navigationEvents.trySend(GameRoute.QingyunPeak)
-    }
+    fun openQingyunPeakDialog() = navigation.openQingyunPeakDialog()
 
-    fun openTianshuHallDialog() {
-        _navigationEvents.trySend(GameRoute.TianshuHall)
-    }
+    fun openTianshuHallDialog() = navigation.openTianshuHallDialog()
 
-    fun openLawEnforcementHallDialog() {
-        _navigationEvents.trySend(GameRoute.LawEnforcementHall)
-    }
+    fun openLawEnforcementHallDialog() = navigation.openLawEnforcementHallDialog()
 
-    fun openMissionHallDialog() {
-        _navigationEvents.trySend(GameRoute.MissionHall)
-    }
+    fun openMissionHallDialog() = navigation.openMissionHallDialog()
 
-    fun openReflectionCliffDialog() {
-        _navigationEvents.trySend(GameRoute.ReflectionCliff)
-    }
+    fun openReflectionCliffDialog() = navigation.openReflectionCliffDialog()
 
-    fun openWorldMapDialog() {
-        _navigationEvents.trySend(GameRoute.WorldMap)
-    }
+    fun openWorldMapDialog() = navigation.openWorldMapDialog()
 
-    fun openRecruitDialog() {
-        _navigationEvents.trySend(GameRoute.Recruit)
-    }
+    fun openRecruitDialog() = navigation.openRecruitDialog()
 
-    fun openMerchantDialog() {
-        _navigationEvents.trySend(GameRoute.Merchant)
-    }
+    fun openMerchantDialog() = navigation.openMerchantDialog()
 
-    fun openDiplomacyDialog() {
-        _navigationEvents.trySend(GameRoute.Diplomacy)
-    }
+    fun openDiplomacyDialog() = navigation.openDiplomacyDialog()
 
-    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
-        viewModelScope.launch {
-            gameEngine.attackWorldLevel(levelId, discipleIds)
-        }
-    }
+    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) = navigation.attackWorldLevel(levelId, discipleIds)
 
-    fun openBattleLogDialog() {
-        _navigationEvents.trySend(GameRoute.BattleLog)
-    }
+    fun openBattleLogDialog() = navigation.openBattleLogDialog()
 
-    fun dismissBattleResult() {
-        gameEngine.clearPendingBattleResult()
-    }
+    fun dismissBattleResult() = navigation.dismissBattleResult()
 
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         viewModelScope.launch {
@@ -502,48 +467,13 @@ class GameViewModel @Inject constructor(
         _selectedBuildingId.value = buildingId
     }
 
-    // 招募弟子
-    fun recruitDisciple() {
-        viewModelScope.launch {
-            try {
-                gameEngine.recruitDisciple()
-            } catch (e: Exception) {
-                showError(e.message ?: "招募弟子失败")
-            }
-        }
-    }
+    fun recruitDisciple() = disciple.recruitDisciple()
 
-    fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
-            } catch (e: Exception) {
-                showError(e.message ?: "分配失败")
-            }
-        }
-    }
+    fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) = disciple.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
 
-    // 弟子招募相关
-    fun recruitDiscipleFromList(discipleId: String) {
-        if (recruitingDiscipleIds.contains(discipleId)) {
-            return
-        }
-        recruitingDiscipleIds.add(discipleId)
+    fun recruitDiscipleFromList(discipleId: String) = disciple.recruitDiscipleFromList(discipleId)
 
-        viewModelScope.launch {
-            try {
-                gameEngine.recruitDiscipleFromList(discipleId)
-            } finally {
-                recruitingDiscipleIds.remove(discipleId)
-            }
-        }
-    }
-
-    fun expelDisciple(discipleId: String) {
-        viewModelScope.launch {
-            gameEngine.expelDisciple(discipleId)
-        }
-    }
+    fun expelDisciple(discipleId: String) = disciple.expelDisciple(discipleId)
 
     fun clearNotification() {
         gameEngine.clearPendingNotification()
@@ -553,147 +483,41 @@ class GameViewModel @Inject constructor(
         gameEngine.enterSect(sectId)
     }
 
-    fun expelTheftDisciple(discipleId: String) {
-        viewModelScope.launch {
-            gameEngine.expelTheftDisciple(discipleId)
-            gameEngine.clearPendingNotification()
-        }
-    }
+    fun expelTheftDisciple(discipleId: String) = disciple.expelTheftDisciple(discipleId)
 
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
-        gameEngine.imprisonTheftDisciple(discipleId, currentYear)
-        gameEngine.clearPendingNotification()
-    }
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = disciple.imprisonTheftDisciple(discipleId, currentYear)
 
-    fun releaseTheftDisciple(discipleId: String): Int {
-        return gameEngine.releaseTheftDisciple(discipleId)
-    }
+    fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
 
-    fun onLoyaltyDialogDismissed() {
-        gameEngine.clearPendingNotification()
-    }
+    fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 
-    fun toggleFollowDisciple(discipleId: String) {
-        viewModelScope.launch {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                val currentFollowed = disciple.statusData["followed"] == "true"
-                val newStatusData = disciple.statusData.toMutableMap().apply {
-                    if (currentFollowed) remove("followed") else this["followed"] = "true"
-                }
-                disciple.copy(statusData = newStatusData)
-            }
-        }
-    }
+    fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
 
-    fun changeDiscipleType(discipleId: String, newType: String) {
-        viewModelScope.launch {
-            gameEngine.updateDisciple(discipleId) { it.copy(discipleType = newType) }
-            gameEngine.syncAllDiscipleStatuses()
-        }
-    }
+    fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)
 
-    fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
-        viewModelScope.launch {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copyWith(autoEquipFromWarehouse = enabled)
-            }
-        }
-    }
+    fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoEquipFromWarehouse(discipleId, enabled)
 
-    fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) {
-        viewModelScope.launch {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copyWith(autoLearnFromWarehouse = enabled)
-            }
-        }
-    }
+    fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoLearnFromWarehouse(discipleId, enabled)
 
-    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
-        gameEngine.rewardItemsToDisciple(discipleId, items)
-    }
+    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) = disciple.rewardItemsToDisciple(discipleId, items)
 
-    fun recruitAllDisciples() {
-        viewModelScope.launch {
-            val success = gameEngine.recruitAllFromList()
-            if (!success) {
-                showError("无弟子可招募")
-            }
-        }
-    }
+    fun recruitAllDisciples() = disciple.recruitAllDisciples()
 
-    fun rejectDiscipleFromList(discipleId: String) {
-        viewModelScope.launch {
-            gameEngine.removeFromRecruitList(discipleId)
-        }
-    }
+    fun rejectDiscipleFromList(discipleId: String) = disciple.rejectDiscipleFromList(discipleId)
 
-    fun setAutoRecruitFilter(filter: Set<Int>) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { gd ->
-                gd.copy(autoRecruitSpiritRootFilter = filter)
-            }
-        }
-    }
+    fun setAutoRecruitFilter(filter: Set<Int>) = disciple.setAutoRecruitFilter(filter)
 
-    fun equipItem(discipleId: String, equipmentId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.equipItem(discipleId, equipmentId)
-            } catch (e: Exception) {
-                showError(e.message ?: "装备失败")
-            }
-        }
-    }
+    fun equipItem(discipleId: String, equipmentId: String) = disciple.equipItem(discipleId, equipmentId)
 
-    fun unequipItem(discipleId: String, slot: EquipmentSlot) {
-        viewModelScope.launch {
-            try {
-                gameEngine.unequipItem(discipleId, slot)
-            } catch (e: Exception) {
-                showError(e.message ?: "卸下装备失败")
-            }
-        }
-    }
+    fun unequipItem(discipleId: String, slot: EquipmentSlot) = disciple.unequipItem(discipleId, slot)
 
-    fun unequipItem(discipleId: String, equipmentId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.unequipItemById(discipleId, equipmentId)
-            } catch (e: Exception) {
-                showError(e.message ?: "卸下装备失败")
-            }
-        }
-    }
+    fun unequipItem(discipleId: String, equipmentId: String) = disciple.unequipItem(discipleId, equipmentId)
 
-    fun forgetManual(discipleId: String, instanceId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.forgetManual(discipleId, instanceId)
-            } catch (e: Exception) {
-                showError(e.message ?: "遗忘功法失败")
-            }
-        }
-    }
+    fun forgetManual(discipleId: String, instanceId: String) = disciple.forgetManual(discipleId, instanceId)
 
-    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
-            } catch (e: Exception) {
-                showError(e.message ?: "功法替换失败")
-            }
-        }
-    }
+    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) = disciple.replaceManual(discipleId, oldInstanceId, newStackId)
 
-    fun learnManual(discipleId: String, stackId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.learnManual(discipleId, stackId)
-            } catch (e: Exception) {
-                showError(e.message ?: "学习功法失败")
-            }
-        }
-    }
+    fun learnManual(discipleId: String, stackId: String) = disciple.learnManual(discipleId, stackId)
 
     fun recallTeam(teamId: String) {
         viewModelScope.launch {
@@ -705,53 +529,13 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun buyFromMerchant(itemId: String, quantity: Int = 1) {
-        viewModelScope.launch {
-            try {
-                gameEngine.buyMerchantItem(itemId, quantity)
-            } catch (e: Exception) {
-                showError(e.message ?: "购买失败")
-            }
-        }
-    }
+    fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
 
-    fun listItemsToMerchant(items: List<Pair<String, Int>>) {
-        viewModelScope.launch {
-            try {
-                gameEngine.listItemsToMerchant(items)
-            } catch (e: Exception) {
-                showError(e.message ?: "上架失败")
-            }
-        }
-    }
+    fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)
 
-    fun removePlayerListedItem(itemId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.removePlayerListedItem(itemId)
-            } catch (e: Exception) {
-                showError(e.message ?: "下架失败")
-            }
-        }
-    }
+    fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
 
-    // 招募相关
-    private val recruitingDiscipleIds = mutableSetOf<String>()
-
-    fun recruitDisciple(disciple: DiscipleAggregate) {
-        if (recruitingDiscipleIds.contains(disciple.id)) {
-            return
-        }
-        recruitingDiscipleIds.add(disciple.id)
-
-        viewModelScope.launch {
-            try {
-                gameEngine.recruitDiscipleFromList(disciple.id)
-            } finally {
-                recruitingDiscipleIds.remove(disciple.id)
-            }
-        }
-    }
+    fun recruitDisciple(disciple: DiscipleAggregate) = this@GameViewModel.disciple.recruitDisciple(disciple)
 
     fun plantSeed(slotIndex: Int, seed: com.xianxia.sect.core.model.Seed) {
         viewModelScope.launch {
@@ -787,75 +571,24 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun usePill(discipleId: String, pillId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.usePill(discipleId, pillId)
-            } catch (e: Exception) {
-                showError(e.message ?: "使用丹药失败")
-            }
-        }
-    }
+    fun usePill(discipleId: String, pillId: String) = disciple.usePill(discipleId, pillId)
 
-    fun usePill(discipleId: String, pill: Pill) {
-        viewModelScope.launch {
-            try {
-                gameEngine.usePill(discipleId, pill.id)
-            } catch (e: Exception) {
-                showError(e.message ?: "使用丹药失败")
-            }
-        }
-    }
+    fun usePill(discipleId: String, pill: Pill) = disciple.usePill(discipleId, pill)
 
-    fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
-        viewModelScope.launch {
-            try {
-                gameEngine.confiscateStorageBagItem(discipleId, item)
-            } catch (e: Exception) {
-                showError(e.message ?: "没收物品失败")
-            }
-        }
-    }
+    fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) = disciple.confiscateStorageBagItem(discipleId, item)
 
-    fun getDiscipleById(id: String): DiscipleAggregate? {
-        return discipleAggregates.value.find { it.id == id }
-    }
+    fun getDiscipleById(id: String): DiscipleAggregate? = disciple.getDiscipleById(id)
 
     @Suppress("DEPRECATION")
-    fun getManualById(id: String): ManualInstance? {
-        return manuals.value.find { it.id == id }
-    }
+    fun getManualById(id: String): ManualInstance? = inventory.getManualById(id)
 
-    fun getManualInstanceById(id: String): ManualInstance? {
-        return manualInstances.value.find { it.id == id }
-    }
+    fun getManualInstanceById(id: String): ManualInstance? = inventory.getManualInstanceById(id)
 
-    fun getEquipmentInstanceById(id: String): EquipmentInstance? {
-        return equipmentInstances.value.find { it.id == id }
-    }
+    fun getEquipmentInstanceById(id: String): EquipmentInstance? = inventory.getEquipmentInstanceById(id)
 
-    fun toggleItemLock(itemId: String, itemType: String) {
-        viewModelScope.launch {
-            gameEngine.toggleItemLock(itemId, itemType)
-        }
-    }
+    fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
 
-    fun sellItem(itemId: String, itemType: String, quantity: Int) {
-        viewModelScope.launch {
-            val result = when (itemType) {
-                "equipment" -> gameEngine.sellEquipment(itemId, quantity)
-                "manual" -> gameEngine.sellManual(itemId, quantity)
-                "pill" -> gameEngine.sellPill(itemId, quantity)
-                "material" -> gameEngine.sellMaterial(itemId, quantity)
-                "herb" -> gameEngine.sellHerb(itemId, quantity)
-                "seed" -> gameEngine.sellSeed(itemId, quantity)
-                else -> false
-            }
-            if (!result) {
-                showError("售卖失败，物品可能已被锁定或不存在")
-            }
-        }
-    }
+    fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
     fun bulkSellItems(
         selectedRarities: Set<Int>,
         selectedTypes: Set<String>
@@ -941,17 +674,11 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun getEquipmentById(id: String): EquipmentInstance? {
-        return equipment.value.find { it.id == id }
-    }
+    fun getEquipmentById(id: String): EquipmentInstance? = inventory.getEquipmentById(id)
 
-    fun getPillById(id: String): Pill? {
-        return pills.value.find { it.id == id }
-    }
+    fun getPillById(id: String): Pill? = inventory.getPillById(id)
 
-    fun getMaterialById(id: String): Material? {
-        return materials.value.find { it.id == id }
-    }
+    fun getMaterialById(id: String): Material? = inventory.getMaterialById(id)
 
     fun startMission(mission: com.xianxia.sect.core.model.Mission, selectedDisciples: List<DiscipleAggregate>) {
         viewModelScope.launch {
@@ -992,25 +719,14 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun openSalaryConfigDialog() {
-        _navigationEvents.trySend(GameRoute.SalaryConfig)
-    }
+    fun openSalaryConfigDialog() = navigation.openSalaryConfigDialog()
 
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
         .map { it.isGameOver }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, false)
 
-    fun openGameOverDialog() {
-        viewModelScope.launch {
-            try {
-                gameEngineCore.pause()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to pause game engine on game over", e)
-            }
-            _navigationEvents.send(GameRoute.GameOver)
-        }
-    }
+    fun openGameOverDialog() = navigation.openGameOverDialog()
 
     private val _showRedeemCodeDialog = MutableStateFlow(false)
     val showRedeemCodeDialog: StateFlow<Boolean> = _showRedeemCodeDialog.asStateFlow()
