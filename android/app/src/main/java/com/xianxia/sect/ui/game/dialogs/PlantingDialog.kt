@@ -289,12 +289,40 @@ fun PlantingDialog(
                         .weight(0.4f)
                         .fillMaxHeight()
                 ) {
+                    // 灵田统计行固定第一行
+                    val totalFields = fieldGroups.sumOf { it.fields.size }
+                    val plantedFields = fieldGroups.filter { it.seedId.isNotEmpty() }.sumOf { it.fields.size }
+                    val unplantedFields = fieldGroups.find { it.seedId.isEmpty() }?.fields?.size ?: 0
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
+                                Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
+                                Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
                     // 已种植种子卡片列表（可滚动）
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                            .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val plantedGroups = fieldGroups.filter { g ->
