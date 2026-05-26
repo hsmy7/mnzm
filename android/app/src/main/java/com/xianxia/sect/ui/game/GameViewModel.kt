@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
@@ -398,16 +399,31 @@ class GameViewModel @Inject constructor(
 
     // 防止重复点击标志
 
+    // 顶层 inline overlay z-order 列表（最后的 = 最顶层）
+    private val _overlayOrder = mutableStateListOf<TopOverlay>()
+    val overlayOrder: List<TopOverlay> get() = _overlayOrder
+
+    private fun pushOverlay(overlay: TopOverlay) {
+        _overlayOrder.remove(overlay)
+        _overlayOrder.add(overlay)
+    }
+
+    private fun popOverlay(overlay: TopOverlay) {
+        _overlayOrder.remove(overlay)
+    }
+
     // 弟子详情 — 顶层全屏覆盖，统一所有触发入口
     private val _detailDisciple = MutableStateFlow<DiscipleDetailRequest?>(null)
     val detailDisciple: StateFlow<DiscipleDetailRequest?> = _detailDisciple.asStateFlow()
 
     fun showDiscipleDetail(request: DiscipleDetailRequest) {
         _detailDisciple.value = request
+        pushOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
     fun dismissDiscipleDetail() {
         _detailDisciple.value = null
+        popOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
     fun navigateDiscipleDetail(disciple: DiscipleAggregate) {
@@ -1113,4 +1129,9 @@ data class DiscipleDetailRequest(
     val allDisciples: List<DiscipleAggregate>,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 )
+
+/** 顶层 inline overlay 类型，用于 z-order 排序。渲染顺序即列表顺序（最后的在最顶层）。 */
+enum class TopOverlay {
+    DISCIPLE_DETAIL
+}
 

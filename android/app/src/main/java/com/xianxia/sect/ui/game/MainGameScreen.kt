@@ -973,20 +973,26 @@ fun MainGameScreen(
             }
         }
 
-        // 弟子详情 — 顶层全屏覆盖（在 NavHost 之上，始终全屏）
-        val detailRequest by viewModel.detailDisciple.collectAsState()
-        detailRequest?.let { request ->
-            val updatedDisciple = request.allDisciples
-                .find { it.id == request.disciple.id } ?: request.disciple
-            DiscipleDetailDialog(
-                disciple = updatedDisciple,
-                allDisciples = request.allDisciples,
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = { viewModel.dismissDiscipleDetail() },
-                onNavigateToDisciple = request.onNavigateToDisciple
-                    ?: { d -> viewModel.navigateDiscipleDetail(d) }
-            )
+        // 顶层 inline overlay 区域（按 overlayOrder 列表顺序渲染，最后的在最顶层）
+        viewModel.overlayOrder.forEach { overlay ->
+            when (overlay) {
+                TopOverlay.DISCIPLE_DETAIL -> {
+                    val request by viewModel.detailDisciple.collectAsState()
+                    request?.let { req ->
+                        val updatedDisciple = req.allDisciples
+                            .find { it.id == req.disciple.id } ?: req.disciple
+                        DiscipleDetailDialog(
+                            disciple = updatedDisciple,
+                            allDisciples = req.allDisciples,
+                            gameData = gameData,
+                            viewModel = viewModel,
+                            onDismiss = { viewModel.dismissDiscipleDetail() },
+                            onNavigateToDisciple = req.onNavigateToDisciple
+                                ?: { d -> viewModel.navigateDiscipleDetail(d) }
+                        )
+                    }
+                }
+            }
         }
     }
     } // CompositionLocalProvider
