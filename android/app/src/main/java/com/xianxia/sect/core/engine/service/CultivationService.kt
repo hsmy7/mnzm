@@ -1594,12 +1594,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         if (hasChanges) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) {
-                ts.gameData = ts.gameData.copy(spiritFieldPlants = updatedPlants)
-            } else {
-                stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
-            }
+            currentGameData = currentGameData.copy(spiritFieldPlants = updatedPlants)
         }
     }
 
