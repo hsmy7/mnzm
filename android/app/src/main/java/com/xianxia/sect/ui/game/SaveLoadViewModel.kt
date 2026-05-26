@@ -87,7 +87,7 @@ class SaveLoadViewModel @Inject constructor(
         _loadingProgress.value = PROGRESS_BITMAP_PRELOAD
         withContext(Dispatchers.Default) {
             val bitmapNames = listOf(
-                "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
+                "任务阁", "天枢殿", "执法堂", "灵植阁", "灵田", "灵矿场",
                 "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
                 "单人住所", "中级单人住所", "多人住所"
             )
@@ -140,6 +140,7 @@ class SaveLoadViewModel @Inject constructor(
         "天枢殿" -> com.xianxia.sect.R.drawable.building_tianshu_hall
         "执法堂" -> com.xianxia.sect.R.drawable.building_law_enforcement
         "灵植阁" -> com.xianxia.sect.R.drawable.building_herb_garden
+        "灵田" -> com.xianxia.sect.R.drawable.building_spirit_field
         "灵矿场" -> com.xianxia.sect.R.drawable.building_spirit_mine
         "炼丹炉" -> com.xianxia.sect.R.drawable.building_alchemy
         "监牢" -> com.xianxia.sect.R.drawable.building_reflection_cliff

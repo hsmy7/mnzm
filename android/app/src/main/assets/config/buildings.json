@@ -53,6 +53,16 @@
       "gridHeight": 2,
       "description": "种植灵草的园地"
     },
+    "spirit_field": {
+      "id": "spirit_field",
+      "displayName": "灵田",
+      "buildingType": "SPIRIT_FIELD",
+      "slotCount": 1,
+      "cost": 200,
+      "gridWidth": 1,
+      "gridHeight": 1,
+      "description": "种植灵草的田地"
+    },
     "tianshu_hall": {
       "id": "tianshu_hall",
       "displayName": "天枢殿",

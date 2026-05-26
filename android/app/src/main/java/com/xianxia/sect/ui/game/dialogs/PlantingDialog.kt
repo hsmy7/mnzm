@@ -176,7 +176,7 @@ fun PlantingDialog(
             )
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // 标题栏：标题 + 关闭按钮同行
+                // 标题栏：种子标题 + 灵田标题 + 关闭按钮同行
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -188,6 +188,13 @@ fun PlantingDialog(
                         color = Color.Black
                     )
                     Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "灵田",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     CloseButton(onClick = onDismiss)
                 }
 
@@ -289,21 +296,60 @@ fun PlantingDialog(
                         .weight(0.4f)
                         .fillMaxHeight()
                 ) {
-                    // 灵田标题 + 滚动列表
+                    // 灵田统计行（固定第一行，不可滚动）
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 12.dp, top = 8.dp)
+                    ) {
+                        val totalFields = fieldGroups.sumOf { it.fields.size }
+                        val plantedFields = fieldGroups.filter { it.seedId.isNotEmpty() }.sumOf { it.fields.size }
+                        val unplantedFields = fieldGroups.find { it.seedId.isEmpty() }?.fields?.size ?: 0
+
+                        // 描述文字行
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    color = Color.Black,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        // 数值行
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
+                                Text(
+                                    text = value,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    // 灵田列表（可滚动）
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(12.dp)
+                            .padding(horizontal = 12.dp)
                     ) {
-                        Text(
-                            text = "灵田",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
                         if (spiritFields.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -322,15 +368,94 @@ fun PlantingDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                fieldGroups.forEach { group ->
-                                    FieldGroupRow(
-                                        group = group,
-                                        onRemove = {
-                                            removeQuantity = 1
-                                            removeQtyInput = "1"
-                                            removeDialogGroup = group
+                                // 已种植：每个种子分组一行
+                                fieldGroups.filter { it.seedId.isNotEmpty() }.forEach { group ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        // 种子卡片
+                                        val plantedSeed = activeSeeds.find { it.id == group.seedId }
+                                            ?: seeds.find { it.id == group.seedId }
+                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                            if (plantedSeed != null) {
+                                                UnifiedItemCard(
+                                                    data = ItemCardData(
+                                                        id = plantedSeed.id,
+                                                        name = plantedSeed.name,
+                                                        description = plantedSeed.description,
+                                                        rarity = plantedSeed.rarity,
+                                                        quantity = plantedSeed.quantity
+                                                    ),
+                                                    isSelected = false,
+                                                    onClick = { selectedSeedId = plantedSeed.id }
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(Color(0xFFE0E0E0))
+                                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(group.seedName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
+                                                }
+                                            }
                                         }
-                                    )
+                                        // 数量
+                                        Text(
+                                            text = "${group.fields.size}",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        // 铲除按钮
+                                        GameButton(
+                                            text = "铲除",
+                                            onClick = {
+                                                removeQuantity = 1
+                                                removeQtyInput = "1"
+                                                removeDialogGroup = group
+                                            },
+                                            width = 56.dp
+                                        )
+                                    }
+                                }
+                                // 未种植合并一行
+                                val unplantedGroup = fieldGroups.find { it.seedId.isEmpty() }
+                                if (unplantedGroup != null && unplantedGroup.fields.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(Color(0xFFF5F5F5))
+                                                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text("未种植", fontSize = 10.sp, color = Color.Black, textAlign = TextAlign.Center)
+                                            }
+                                        }
+                                        Text(
+                                            text = "${unplantedGroup.fields.size}",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        GameButton(
+                                            text = "铲除",
+                                            onClick = { },
+                                            width = 56.dp,
+                                            enabled = false
+                                        )
+                                    }
                                 }
                             }
                         }
