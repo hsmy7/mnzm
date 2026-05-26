@@ -102,6 +102,7 @@ import com.xianxia.sect.ui.game.dialogs.RecruitDialog
 import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
 import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
 import com.xianxia.sect.ui.game.dialogs.MerchantDialog
+import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.ui.game.building.BuildingDef
@@ -575,28 +576,13 @@ fun MainGameScreen(
                     .displayCutoutPadding()
             )
 
-            // Top-right button grid: row of 6 + column of 3 below
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .displayCutoutPadding()
-                    .padding(top = 8.dp, end = 8.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FloatingActionButton(text = "日志", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.BattleLog.route) }, drawableRes = R.drawable.ui_log_button)
-                    FloatingActionButton(text = "商人", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Merchant.route) }, drawableRes = R.drawable.ui_merchant_button)
-                    FloatingActionButton(text = "招募", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Recruit.route) }, drawableRes = R.drawable.ui_recruit_button)
-                    FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null }, drawableRes = R.drawable.ui_build_button)
-                    FloatingActionButton(text = "仓库", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Warehouse.route) }, drawableRes = R.drawable.ui_warehouse_button)
-                    FloatingActionButton(text = "设置", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Settings.route) }, drawableRes = R.drawable.ui_settings_button)
-                }
-                FloatingActionButton(text = "弟子", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Disciples.route) }, drawableRes = R.drawable.ui_team_button)
-                FloatingActionButton(text = "世界", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.WorldMap.route) }, drawableRes = R.drawable.ui_map_button)
-                FloatingActionButton(text = "外交", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Diplomacy.route) }, drawableRes = R.drawable.ui_diplomacy_button)
-                FloatingActionButton(text = "种植", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Planting.route) }, drawableRes = R.drawable.ui_planting_button)
-            }
+            GameActionButtons(
+                dialogNavController = dialogNavController,
+                buildingBarExpanded = buildingBarExpanded,
+                onToggleBuildingBar = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null },
+                onCancelPlacement = { isPlacingBuilding = false; movingBuilding = null },
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
         }
 
         // 建造栏 — 开关式，展开时显示
@@ -1418,36 +1404,6 @@ private fun SectGroundCanvas(
     }
 }
 
-@Composable
-private fun FloatingActionButton(
-    text: String,
-    onClick: () -> Unit,
-    drawableRes: Int = R.drawable.ui_button
-) {
-    val size = 35.dp
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Image(
-            painter = painterResource(id = drawableRes),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Text(
-            text = text,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier
-                .padding(horizontal = 3.dp, vertical = 1.dp)
-        )
-    }
-}
 
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)

@@ -40,6 +40,8 @@ class GameViewModel @Inject constructor(
     private val buildingConfigService: BuildingConfigService
 ) : BaseViewModel() {
 
+    val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
+
     companion object {
         private const val TAG = "GameViewModel"
     }
@@ -761,35 +763,14 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.plantOnSpiritField(buildingInstanceId, seedId, sectId)
-            } catch (e: Exception) {
-                showError(e.message ?: "种植失败")
-            }
-        }
-    }
+    fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) =
+        planting.plantOnSpiritField(buildingInstanceId, seedId, sectId)
 
-    fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.plantOnSpiritFields(instanceIds, seedId, sectId)
-            } catch (e: Exception) {
-                showError(e.message ?: "种植失败")
-            }
-        }
-    }
+    fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) =
+        planting.plantOnSpiritFields(instanceIds, seedId, sectId)
 
-    fun removePlantFromSpiritField(buildingInstanceId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.removePlantFromSpiritField(buildingInstanceId)
-            } catch (e: Exception) {
-                showError(e.message ?: "铲除失败")
-            }
-        }
-    }
+    fun removePlantFromSpiritField(buildingInstanceId: String) =
+        planting.removePlantFromSpiritField(buildingInstanceId)
 
     fun setMonthlySalary(realm: Int, amount: Int) {
         viewModelScope.launch {

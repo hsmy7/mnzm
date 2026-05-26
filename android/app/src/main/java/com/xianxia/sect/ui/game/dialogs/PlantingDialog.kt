@@ -525,7 +525,7 @@ fun PlantingDialog(
                                     // 批量收集instanceId，一次性种植
                                     val ids = unplantedFields.take(toPlant).map { it.instanceId }
                                     if (ids.isNotEmpty() && selectedSeed != null) {
-                                        viewModel.plantOnSpiritFields(ids, selectedSeed!!.id, activeSectId)
+                                        viewModel.planting.plantOnSpiritFields(ids, selectedSeed!!.id, activeSectId)
                                     }
                                     selectedSeedId = null
                                     plantQuantity = 1
@@ -549,7 +549,7 @@ fun PlantingDialog(
             onConfirm = {
                 val toRemove = removeQuantity.coerceAtMost(group.plantEntries.size)
                 for (i in 0 until toRemove) {
-                    viewModel.removePlantFromSpiritField(
+                    viewModel.planting.removePlantFromSpiritField(
                         group.plantEntries[i].buildingInstanceId
                     )
                 }
