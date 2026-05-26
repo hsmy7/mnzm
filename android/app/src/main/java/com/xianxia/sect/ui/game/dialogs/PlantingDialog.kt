@@ -153,12 +153,12 @@ fun PlantingDialog(
 
     val unplantedCount = fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields?.size ?: 0
 
-    // ── 分页 ───────────────────────────────────────────────
-    val pageSize = 12
-    val totalPages = maxOf(1, ceil(activeSeeds.size.toDouble() / pageSize).toInt())
+    // ── 分页（动态计算每页数量） ─────────────────────────────
+    var dynPageSize by remember { mutableIntStateOf(12) }
+    val totalPages = maxOf(1, ceil(activeSeeds.size.toDouble() / dynPageSize.coerceAtLeast(1)).toInt())
     val currentPage = seedPage.coerceIn(1, totalPages)
-    val pagedSeeds = remember(currentPage, activeSeeds) {
-        activeSeeds.drop((currentPage - 1) * pageSize).take(pageSize)
+    val pagedSeeds = remember(currentPage, activeSeeds, dynPageSize) {
+        activeSeeds.drop((currentPage - 1) * dynPageSize).take(dynPageSize)
     }
 
     // ── 主体布局 ───────────────────────────────────────────
@@ -215,12 +215,22 @@ fun PlantingDialog(
                             Text("仓库中没有种子", fontSize = 12.sp, color = Color.Black)
                         }
                     } else {
-                        // 种子网格
-                        LazyVerticalGrid(
+                        // 种子网格 — 用 BoxWithConstraints 动态计算每页行列数
+                        BoxWithConstraints(
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        ) {
+                            val itemW = 60.dp
+                            val gap = 6.dp
+                            val cols = maxOf(1, ((maxWidth - gap) / (itemW + gap)).toInt())
+                            val rows = maxOf(2, ((maxHeight - gap) / (itemW + 20.dp + gap)).toInt())
+                            val calcSize = cols * rows
+                            if (calcSize != dynPageSize && calcSize > 0) {
+                                LaunchedEffect(Unit) { dynPageSize = calcSize }
+                            }
+                            LazyVerticalGrid(
                             columns = GridCells.Adaptive(60.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
+                                .fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             contentPadding = PaddingValues(2.dp)
@@ -244,6 +254,7 @@ fun PlantingDialog(
                                 )
                             }
                         }
+                        } // BoxWithConstraints
 
                         // 分页
                         Spacer(modifier = Modifier.height(4.dp))
