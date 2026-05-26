@@ -45,6 +45,7 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 data class ProductionTheme(
@@ -73,7 +74,7 @@ data class ProductionTheme(
 
 val ALCHEMY_THEME = ProductionTheme(
     buildingId = "alchemy",
-    displayName = "炼丹炉",
+    displayName = BuildingDef.ALCHEMY.displayName,
     elderTitle = "炼丹长老",
     elderBonusInfo = ElderBonusInfoProvider.getAlchemyElderInfo(),
     coreAttributeName = "炼丹",
@@ -101,7 +102,7 @@ val ALCHEMY_THEME = ProductionTheme(
 
 val FORGE_THEME = ProductionTheme(
     buildingId = "forge",
-    displayName = "锻造坊",
+    displayName = BuildingDef.FORGE.displayName,
     elderTitle = "天工长老",
     elderBonusInfo = ElderBonusInfoProvider.getForgeElderInfo(),
     coreAttributeName = "炼器",
@@ -129,7 +130,7 @@ val FORGE_THEME = ProductionTheme(
 
 val HERB_GARDEN_THEME = ProductionTheme(
     buildingId = "herbGarden",
-    displayName = "灵植阁",
+    displayName = BuildingDef.HERB_GARDEN.displayName,
     elderTitle = "灵植长老",
     elderBonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo(),
     coreAttributeName = "灵植",
@@ -157,7 +158,7 @@ val HERB_GARDEN_THEME = ProductionTheme(
 
 val SPIRIT_MINE_THEME = ProductionTheme(
     buildingId = "spiritMine",
-    displayName = "灵矿场",
+    displayName = BuildingDef.SPIRIT_MINE.displayName,
     elderTitle = "执事",
     elderBonusInfo = ElderBonusInfo( title = "执事", requiredAttribute = "道德", effectDescription = "管理灵矿场", bonusFormula = "道德值×效率"),
     coreAttributeName = "采矿",

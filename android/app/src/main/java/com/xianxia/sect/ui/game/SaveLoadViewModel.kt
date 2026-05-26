@@ -24,6 +24,7 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
+import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -86,11 +87,7 @@ class SaveLoadViewModel @Inject constructor(
 
         _loadingProgress.value = PROGRESS_BITMAP_PRELOAD
         withContext(Dispatchers.Default) {
-            val bitmapNames = listOf(
-                "任务阁", "天枢殿", "执法堂", "灵植阁", "灵田", "灵矿场",
-                "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
-                "单人住所", "中级单人住所", "多人住所"
-            )
+            val bitmapNames = BuildingRegistry.names
             val bitmaps = bitmapNames.mapNotNull { name ->
                 val resId = getBuildingDrawableResId(name)
                 try {
@@ -135,24 +132,7 @@ class SaveLoadViewModel @Inject constructor(
         return sampleSize
     }
 
-    private fun getBuildingDrawableResId(displayName: String): Int = when (displayName) {
-        "任务阁" -> com.xianxia.sect.R.drawable.building_mission_hall
-        "天枢殿" -> com.xianxia.sect.R.drawable.building_tianshu_hall
-        "执法堂" -> com.xianxia.sect.R.drawable.building_law_enforcement
-        "灵植阁" -> com.xianxia.sect.R.drawable.building_herb_garden
-        "灵田" -> com.xianxia.sect.R.drawable.building_spirit_field
-        "灵矿场" -> com.xianxia.sect.R.drawable.building_spirit_mine
-        "炼丹炉" -> com.xianxia.sect.R.drawable.building_alchemy
-        "监牢" -> com.xianxia.sect.R.drawable.building_reflection_cliff
-        "藏经阁" -> com.xianxia.sect.R.drawable.building_library
-        "锻造坊" -> com.xianxia.sect.R.drawable.building_forge
-        "问道塔" -> com.xianxia.sect.R.drawable.building_wen_dao_peak
-        "青云塔" -> com.xianxia.sect.R.drawable.building_qingyun_peak
-        "单人住所" -> com.xianxia.sect.R.drawable.building_single_residence
-        "中级单人住所" -> com.xianxia.sect.R.drawable.building_single_residence_upgraded
-        "多人住所" -> com.xianxia.sect.R.drawable.building_multi_residence
-        else -> com.xianxia.sect.R.drawable.building_alchemy
-    }
+    private fun getBuildingDrawableResId(displayName: String): Int = BuildingRegistry.drawableRes(displayName)
 
     private val saveLock = AtomicBoolean(false)
     private val pendingAutoSave = AtomicReference<SavePipeline.SaveSource?>(null)

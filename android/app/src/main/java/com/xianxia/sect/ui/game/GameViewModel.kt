@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
+import com.xianxia.sect.ui.game.building.BuildingDef
+import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
@@ -153,12 +155,12 @@ class GameViewModel @Inject constructor(
 
             // Pre-compute new production slot for alchemy/forge multi-build
             val newProductionSlot = when (name) {
-                "炼丹炉" -> {
-                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" }
+                BuildingDef.ALCHEMY.displayName -> {
+                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName }
                     ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
                 }
-                "锻造坊" -> {
-                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" }
+                BuildingDef.FORGE.displayName -> {
+                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName }
                     ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
                 }
                 else -> null
@@ -166,21 +168,21 @@ class GameViewModel @Inject constructor(
 
             val activeId = gameEngine.currentActiveSectId()
             gameEngine.updateGameData { data ->
-                when (name) {
-                    "灵矿场" -> {
-                        val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" && it.sectId == activeId }
+                when {
+                    name == BuildingDef.SPIRIT_MINE.displayName -> {
+                        val currentMines = data.placedBuildings.count { it.displayName == BuildingDef.SPIRIT_MINE.displayName && it.sectId == activeId }
                         if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
                     }
-                    "炼丹炉" -> {
-                        val cnt = data.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeId }
+                    name == BuildingDef.ALCHEMY.displayName -> {
+                        val cnt = data.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName && it.sectId == activeId }
                         if (cnt >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) return@updateGameData data
                     }
-                    "锻造坊" -> {
-                        val cnt = data.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeId }
+                    name == BuildingDef.FORGE.displayName -> {
+                        val cnt = data.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName && it.sectId == activeId }
                         if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
                     }
-                    "单人住所", "多人住所", "灵田" -> {
-                        // No build limit for residences and spirit fields
+                    BuildingRegistry.hasNoLimit(name) -> {
+                        // No build limit for residences, spirit fields
                     }
                     else -> {
                         if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
@@ -188,7 +190,7 @@ class GameViewModel @Inject constructor(
                 }
                 if (data.spiritStones < cost) return@updateGameData data
 
-                val newSlots = if (name == "灵矿场") {
+                val newSlots = if (name == BuildingDef.SPIRIT_MINE.displayName) {
                     val nextIndex = data.spiritMineSlots.size
                     (0 until 3).map { SpiritMineSlot(index = nextIndex + it) }
                 } else emptyList()
@@ -204,12 +206,12 @@ class GameViewModel @Inject constructor(
                 ).withInstanceId()
 
                 val newResidenceSlots = when (name) {
-                    "单人住所" -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
-                    "多人住所" -> (0 until 4).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
+                    BuildingDef.SINGLE_RESIDENCE.displayName -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
+                    BuildingDef.MULTI_RESIDENCE.displayName -> (0 until 4).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
                     else -> emptyList()
                 }
 
-                val newSpiritFieldPlants = if (name == "灵田") {
+                val newSpiritFieldPlants = if (name == BuildingDef.SPIRIT_FIELD.displayName) {
                     listOf(SpiritFieldPlant(buildingInstanceId = newBuilding.instanceId, sectId = activeId))
                 } else emptyList()
 

@@ -76,6 +76,8 @@ import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 
+import com.xianxia.sect.ui.game.building.BuildingDef
+import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.theme.Spacing
@@ -102,19 +104,43 @@ internal fun BuildingsTab(
     val pills by viewModel.pills.collectAsState()
     val productionSlots by viewModel.productionSlots.collectAsState()
 
-    val buildings: List<Triple<String, String, () -> Unit>> = listOf(
-        Triple("灵矿场", "开采灵石资源") { viewModel.openSpiritMineDialog() },
-        Triple("灵植阁", "种植灵药材料") { viewModel.openHerbGardenDialog() },
-        Triple("炼丹炉", "炼制丹药") { viewModel.openAlchemyDialog() },
-        Triple("锻造坊", "锻造装备") { viewModel.openForgeDialog() },
-        Triple("藏经阁", "功法管理") { viewModel.openLibraryDialog() },
-        Triple("问道塔", "管理外门弟子") { viewModel.openWenDaoPeakDialog() },
-        Triple("青云塔", "管理内门弟子") { viewModel.openQingyunPeakDialog() },
-        Triple("天枢殿", "处理宗门事务") { viewModel.openTianshuHallDialog() },
-        Triple("执法堂", "维护宗门纪律") { viewModel.openLawEnforcementHallDialog() },
-        Triple("任务阁", "派遣弟子执行任务") { viewModel.openMissionHallDialog() },
-        Triple("监牢", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
-    )
+    val buildings: List<Triple<String, String, () -> Unit>> = remember {
+        BuildingRegistry.ALL.filter { def ->
+            def != BuildingDef.SINGLE_RESIDENCE_UPGRADED && !def.isResidence && def != BuildingDef.SPIRIT_FIELD
+        }.map { def ->
+            val desc = when (def) {
+                BuildingDef.SPIRIT_MINE -> "开采灵石资源"
+                BuildingDef.HERB_GARDEN -> "种植灵药材料"
+                BuildingDef.ALCHEMY -> "炼制丹药"
+                BuildingDef.FORGE -> "锻造装备"
+                BuildingDef.LIBRARY -> "功法管理"
+                BuildingDef.WEN_DAO_PEAK -> "管理外门弟子"
+                BuildingDef.QINGYUN_PEAK -> "管理内门弟子"
+                BuildingDef.TIANSHU_HALL -> "处理宗门事务"
+                BuildingDef.LAW_ENFORCEMENT -> "维护宗门纪律"
+                BuildingDef.MISSION_HALL -> "派遣弟子执行任务"
+                BuildingDef.REFLECTION_CLIFF -> "悔过自新之地"
+                else -> ""
+            }
+            val onClick = {
+                when (def) {
+                    BuildingDef.SPIRIT_MINE -> viewModel.openSpiritMineDialog()
+                    BuildingDef.HERB_GARDEN -> viewModel.openHerbGardenDialog()
+                    BuildingDef.ALCHEMY -> viewModel.openAlchemyDialog()
+                    BuildingDef.FORGE -> viewModel.openForgeDialog()
+                    BuildingDef.LIBRARY -> viewModel.openLibraryDialog()
+                    BuildingDef.WEN_DAO_PEAK -> viewModel.openWenDaoPeakDialog()
+                    BuildingDef.QINGYUN_PEAK -> viewModel.openQingyunPeakDialog()
+                    BuildingDef.TIANSHU_HALL -> viewModel.openTianshuHallDialog()
+                    BuildingDef.LAW_ENFORCEMENT -> viewModel.openLawEnforcementHallDialog()
+                    BuildingDef.MISSION_HALL -> viewModel.openMissionHallDialog()
+                    BuildingDef.REFLECTION_CLIFF -> viewModel.openReflectionCliffDialog()
+                    else -> { }
+                }
+            }
+            Triple(def.displayName, desc, onClick)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Column(

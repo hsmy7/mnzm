@@ -103,6 +103,8 @@ import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
 import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
 import com.xianxia.sect.ui.game.dialogs.MerchantDialog
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
+import com.xianxia.sect.ui.game.building.BuildingRegistry
+import com.xianxia.sect.ui.game.building.BuildingDef
 
 
 /**
@@ -242,25 +244,9 @@ fun MainGameScreen(
 
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
-        mapOf(
-            "灵矿场" to { viewModel.getBuildingGridSize("灵矿场") },
-            "灵植阁" to { viewModel.getBuildingGridSize("灵植阁") },
-            "灵田" to { viewModel.getBuildingGridSize("灵田") },
-            "炼丹炉" to { viewModel.getBuildingGridSize("炼丹炉") },
-            "锻造坊" to { viewModel.getBuildingGridSize("锻造坊") },
-            "任务阁" to { viewModel.getBuildingGridSize("任务阁") },
-            "监牢" to { viewModel.getBuildingGridSize("监牢") },
-            "天枢殿" to { viewModel.getBuildingGridSize("天枢殿") },
-            "执法堂" to { viewModel.getBuildingGridSize("执法堂") },
-            "藏经阁" to { viewModel.getBuildingGridSize("藏经阁") },
-            "青云塔" to { viewModel.getBuildingGridSize("青云塔") },
-            "问道塔" to { viewModel.getBuildingGridSize("问道塔") },
-            "单人住所" to { viewModel.getBuildingGridSize("单人住所") },
-            "中级单人住所" to { viewModel.getBuildingGridSize("中级单人住所") },
-            "多人住所" to { viewModel.getBuildingGridSize("多人住所") }
-        ).mapValues { (_, getSize) ->
-            val (w, h) = getSize()
-            GridSnapHelper.BuildingSize(w, h)
+        BuildingRegistry.ALL.associate { def ->
+            val (w, h) = viewModel.getBuildingGridSize(def.displayName)
+            def.displayName to GridSnapHelper.BuildingSize(w, h)
         }
     }
 
@@ -341,23 +327,25 @@ fun MainGameScreen(
 
     // 建筑列表及点击回调
     val buildingList = remember {
-        listOf(
-            "灵矿场" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "灵矿场" }?.instanceId?.let { dialogNavController.navigate(GameRoute.SpiritMine.createRoute(it)) }; Unit },
-            "灵植阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.HerbGarden.route) },
-            "灵田" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Planting.route) },
-            "炼丹炉" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "炼丹炉" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Alchemy.createRoute(it)) }; Unit },
-            "锻造坊" to { _: GridBuildingData? -> activeSectBuildings.firstOrNull { it.displayName == "锻造坊" }?.instanceId?.let { dialogNavController.navigate(GameRoute.Forge.createRoute(it)) }; Unit },
-            "藏经阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Library.route) },
-            "问道塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.WenDaoPeak.route) },
-            "青云塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.QingyunPeak.route) },
-            "天枢殿" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.TianshuHall.route) },
-            "执法堂" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) },
-            "任务阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.MissionHall.route) },
-            "监牢" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) },
-            "单人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit },
-            "中级单人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit },
-            "多人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
-        )
+        BuildingRegistry.constructible.map { def ->
+            val handler: (GridBuildingData?) -> Unit = when (def) {
+                BuildingDef.SPIRIT_MINE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.SpiritMine.createRoute(it)) }; Unit }
+                BuildingDef.HERB_GARDEN -> { _ -> dialogNavController.navigate(GameRoute.HerbGarden.route) }
+                BuildingDef.SPIRIT_FIELD -> { _ -> dialogNavController.navigate(GameRoute.Planting.route) }
+                BuildingDef.ALCHEMY -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Alchemy.createRoute(it)) }; Unit }
+                BuildingDef.FORGE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Forge.createRoute(it)) }; Unit }
+                BuildingDef.LIBRARY -> { _ -> dialogNavController.navigate(GameRoute.Library.route) }
+                BuildingDef.WEN_DAO_PEAK -> { _ -> dialogNavController.navigate(GameRoute.WenDaoPeak.route) }
+                BuildingDef.QINGYUN_PEAK -> { _ -> dialogNavController.navigate(GameRoute.QingyunPeak.route) }
+                BuildingDef.TIANSHU_HALL -> { _ -> dialogNavController.navigate(GameRoute.TianshuHall.route) }
+                BuildingDef.LAW_ENFORCEMENT -> { _ -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) }
+                BuildingDef.MISSION_HALL -> { _ -> dialogNavController.navigate(GameRoute.MissionHall.route) }
+                BuildingDef.REFLECTION_CLIFF -> { _ -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
+                BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
+                BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
+            }
+            def.displayName to handler
+        }
     }
 
     // Navigation event collectors — ViewModel-triggered dialogs
@@ -485,6 +473,7 @@ fun MainGameScreen(
             onSpiritMineClick = { instanceId -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(instanceId)) },
             onAlchemyClick = { instanceId -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(instanceId)) },
             onForgeClick = { instanceId -> dialogNavController.navigate(GameRoute.Forge.createRoute(instanceId)) },
+            onResidenceClick = { instanceId -> dialogNavController.navigate(GameRoute.Residence.createRoute(instanceId)) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx
                 placingWorldY += dy
@@ -612,8 +601,8 @@ fun MainGameScreen(
 
         // 建造栏 — 开关式，展开时显示
         if (buildingBarExpanded) {
-            val constructionBarList = remember(buildingList) {
-                buildingList.filter { it.first != "中级单人住所" }
+            val constructionBarList = remember {
+                buildingList // BuildingRegistry.constructible already excludes 中级单人住所
             }
             val buildingCosts = remember {
                 constructionBarList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
@@ -639,11 +628,11 @@ fun MainGameScreen(
                 },
                 modifier = Modifier.align(Alignment.BottomCenter),
                 getBuildingMaxCount = { name ->
-                    when (name) {
-                        "灵矿场" -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
-                        "炼丹炉" -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
-                        "锻造坊" -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
-                        "单人住所", "多人住所", "灵田" -> Int.MAX_VALUE
+                    when {
+                        BuildingRegistry.isResidence(name) || BuildingRegistry.hasNoLimit(name) -> Int.MAX_VALUE
+                        name == BuildingDef.SPIRIT_MINE.displayName -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
+                        name == BuildingDef.ALCHEMY.displayName -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
+                        name == BuildingDef.FORGE.displayName -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
                         else -> 1
                     }
                 }
@@ -1136,6 +1125,7 @@ private fun SectMapLayer(
     onSpiritMineClick: (String) -> Unit = {},
     onAlchemyClick: (String) -> Unit = {},
     onForgeClick: (String) -> Unit = {},
+    onResidenceClick: (String) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit,
     onPlacementConfirm: () -> Unit,
     onPlacementCancel: () -> Unit,
@@ -1174,10 +1164,14 @@ private fun SectMapLayer(
         previewValid = previewValid,
         textMeasurer = textMeasurer,
         onBuildingClick = { building ->
-            when (building.displayName) {
-                "灵矿场" -> onSpiritMineClick(building.instanceId)
-                "炼丹炉" -> onAlchemyClick(building.instanceId)
-                "锻造坊" -> onForgeClick(building.instanceId)
+            val def = BuildingRegistry.findByDisplayName(building.displayName)
+            when (def) {
+                BuildingDef.SPIRIT_MINE -> onSpiritMineClick(building.instanceId)
+                BuildingDef.ALCHEMY -> onAlchemyClick(building.instanceId)
+                BuildingDef.FORGE -> onForgeClick(building.instanceId)
+                BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
+                    onResidenceClick(building.instanceId)
+                }
                 else -> {
                     val b = buildingList.find { it.first == building.displayName }
                     b?.second?.invoke(building)
@@ -1458,33 +1452,12 @@ private fun FloatingActionButton(
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)
 
-private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
-    "任务阁" -> R.drawable.building_mission_hall
-    "天枢殿" -> R.drawable.building_tianshu_hall
-    "执法堂" -> R.drawable.building_law_enforcement
-    "灵植阁" -> R.drawable.building_herb_garden
-    "灵田" -> R.drawable.building_spirit_field
-    "灵矿场" -> R.drawable.building_spirit_mine
-    "炼丹炉" -> R.drawable.building_alchemy
-    "监牢" -> R.drawable.building_reflection_cliff
-    "藏经阁" -> R.drawable.building_library
-    "锻造坊" -> R.drawable.building_forge
-    "问道塔" -> R.drawable.building_wen_dao_peak
-    "青云塔" -> R.drawable.building_qingyun_peak
-    "单人住所" -> R.drawable.building_single_residence
-    "中级单人住所" -> R.drawable.building_single_residence_upgraded
-    "多人住所" -> R.drawable.building_multi_residence
-    else -> R.drawable.building_alchemy
-}
+private fun getBuildingDrawable(displayName: String): Int = BuildingRegistry.drawableRes(displayName)
 
 @Composable
 private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val names = listOf(
-        "任务阁", "天枢殿", "执法堂", "灵植阁", "灵田", "灵矿场",
-        "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
-        "单人住所", "中级单人住所", "多人住所"
-    )
+    val names = BuildingRegistry.names
     return remember {
         names.associateWith { name ->
             val resId = getBuildingDrawable(name)
@@ -1645,20 +1618,7 @@ private fun PlacementConfirmButtons(
             .background(overlayColor)
     )
 }
-private fun getBuildingColor(displayName: String): Color = when (displayName) {
-    "灵矿场" -> Color(0xFFBCAAA4).copy(alpha = 0.8f)
-    "灵植阁" -> Color(0xFFA5D6A7).copy(alpha = 0.8f)
-    "炼丹炉" -> Color(0xFFEF9A9A).copy(alpha = 0.8f)
-    "锻造坊" -> Color(0xFFB0BEC5).copy(alpha = 0.8f)
-    "任务阁" -> Color(0xFF90CAF9).copy(alpha = 0.8f)
-    "监牢" -> Color(0xFFBDBDBD).copy(alpha = 0.8f)
-    "天枢殿" -> Color(0xFFFFF176).copy(alpha = 0.8f)
-    "执法堂" -> Color(0xFFCE93D8).copy(alpha = 0.8f)
-    "藏经阁" -> Color(0xFF80CBC4).copy(alpha = 0.8f)
-    "青云塔" -> Color(0xFF9FA8DA).copy(alpha = 0.8f)
-    "问道塔" -> Color(0xFFFFAB91).copy(alpha = 0.8f)
-    else -> Color(0xFFEEEEEE).copy(alpha = 0.8f)
-}
+private fun getBuildingColor(displayName: String): Color = BuildingRegistry.color(displayName)
 
 @Composable
 private fun GameOverDialog(
