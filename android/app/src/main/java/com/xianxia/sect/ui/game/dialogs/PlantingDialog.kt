@@ -283,76 +283,29 @@ fun PlantingDialog(
                         .background(Color(0xFFBDBDBD))
                 )
 
-                // ═════════════════ 右侧：灵田信息 ════════════
+                // ═════════════════ 右侧：种子卡片列表 ════════════
                 Column(
                     modifier = Modifier
                         .weight(0.4f)
                         .fillMaxHeight()
                 ) {
-                    // 灵田统计行（固定第一行，不可滚动）
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, top = 8.dp)
-                    ) {
-                        val totalFields = fieldGroups.sumOf { it.fields.size }
-                        val plantedFields = fieldGroups.filter { it.seedId.isNotEmpty() }.sumOf { it.fields.size }
-                        val unplantedFields = fieldGroups.find { it.seedId.isEmpty() }?.fields?.size ?: 0
-
-                        // 描述文字行
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
-                                Text(
-                                    text = label,
-                                    fontSize = 10.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        // 数值行
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
-                                Text(
-                                    text = value,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
-
-                    // 灵田列表（可滚动）
+                    // 已种植种子卡片列表（可滚动）
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
+                            .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (spiritFields.isEmpty()) {
+                        val plantedGroups = fieldGroups.filter { g ->
+                            g.seedId.isNotEmpty() && seeds.any { s -> s.name == g.seedName && s.quantity > 0 }
+                        }
+                        if (plantedGroups.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    "当前宗门没有灵田",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
+                                Text("暂无种植", fontSize = 12.sp, color = Color.Black)
                             }
                         } else {
                             Column(
@@ -361,16 +314,12 @@ fun PlantingDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // 已种植：每个种子分组一行（仓库有同类型种子才显示）
-                                fieldGroups.filter { g ->
-                                    g.seedId.isNotEmpty() && seeds.any { s -> s.name == g.seedName && s.quantity > 0 }
-                                }.forEach { group ->
+                                plantedGroups.forEach { group ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().height(72.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        // 种子卡片
                                         val plantedSeed = activeSeeds.find { it.id == group.seedId }
                                             ?: seeds.find { it.id == group.seedId }
                                         if (plantedSeed != null) {
@@ -387,8 +336,7 @@ fun PlantingDialog(
                                             )
                                         } else {
                                             Box(
-                                                modifier = Modifier
-                                                    .size(60.dp)
+                                                modifier = Modifier.size(60.dp)
                                                     .clip(RoundedCornerShape(4.dp))
                                                     .background(Color(0xFFE0E0E0))
                                                     .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
@@ -397,14 +345,12 @@ fun PlantingDialog(
                                                 Text(group.seedName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
                                             }
                                         }
-                                        // 数量
                                         Text(
                                             text = "${group.fields.size}",
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.Black
                                         )
-                                        // 铲除按钮
                                         GameButton(
                                             text = "铲除",
                                             onClick = {
@@ -412,40 +358,6 @@ fun PlantingDialog(
                                                 removeQtyInput = "1"
                                                 removeDialogGroup = group
                                             }
-                                        )
-                                    }
-                                }
-                                // 未种植合并一行
-                                val unplantedGroup = fieldGroups.find { it.seedId.isEmpty() }
-                                if (unplantedGroup != null && unplantedGroup.fields.isNotEmpty()) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().height(72.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(60.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFFF5F5F5))
-                                                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text("未种植", fontSize = 10.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                            }
-                                        }
-                                        Text(
-                                            text = "${unplantedGroup.fields.size}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        GameButton(
-                                            text = "铲除",
-                                            onClick = { },
-                                            width = 56.dp,
-                                            enabled = false
                                         )
                                     }
                                 }
@@ -627,36 +539,25 @@ fun PlantingDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text("铲除数量:", fontSize = 12.sp, color = Color.Black)
-                    PlantQuantitySelector(
-                        quantity = removeQuantity,
-                        maxQuantity = group.fields.size.coerceAtLeast(1),
-                        isEditing = isEditingRemoveQty,
-                        input = removeQtyInput,
-                        onMinus = {
-                            if (removeQuantity > 1) {
-                                removeQuantity--
-                                removeQtyInput = removeQuantity.toString()
+                    val ri = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    Text(
+                        text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
+                        modifier = Modifier.alpha(if (removeQuantity > 1) 1f else 0.3f)
+                            .clickable(interactionSource = ri, indication = null, enabled = removeQuantity > 1) {
+                                removeQuantity--; removeQtyInput = removeQuantity.toString()
                             }
-                        },
-                        onPlus = {
-                            if (removeQuantity < group.fields.size) {
-                                removeQuantity++
-                                removeQtyInput = removeQuantity.toString()
+                    )
+                    Text(
+                        text = "$removeQuantity", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black
+                    )
+                    val ri2 = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val maxQty = group.fields.size.coerceAtLeast(1)
+                    Text(
+                        text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
+                        modifier = Modifier.alpha(if (removeQuantity < maxQty) 1f else 0.3f)
+                            .clickable(interactionSource = ri2, indication = null, enabled = removeQuantity < maxQty) {
+                                removeQuantity++; removeQtyInput = removeQuantity.toString()
                             }
-                        },
-                        onEditingChange = { editing ->
-                            if (!editing && isEditingRemoveQty) {
-                                val parsed = removeQtyInput.toIntOrNull()
-                                removeQuantity =
-                                    (parsed ?: 1).coerceIn(1, group.fields.size.coerceAtLeast(1))
-                                removeQtyInput = removeQuantity.toString()
-                            }
-                            isEditingRemoveQty = editing
-                        },
-                        onInputChange = { v ->
-                            isEditingRemoveQty = true
-                            removeQtyInput = v
-                        }
                     )
                 }
             }
@@ -759,209 +660,6 @@ private fun PlantingPagination(
             contentAlignment = Alignment.Center
         ) {
             Text(">>", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-/**
- * 右侧灵田分组行。
- *
- * 布局：[铲除] [灵田图标] [名称 + 数量] [种子卡片 / 空占位]
- *
- * @param group 当前分组数据
- * @param onRemove 点击铲除按钮的回调
- */
-@Composable
-private fun FieldGroupRow(
-    group: FieldGroup,
-    onRemove: () -> Unit
-) {
-    val isPlanted = group.seedId.isNotEmpty()
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 铲除按钮
-        GameButton(
-            text = "铲除",
-            enabled = isPlanted,
-            onClick = onRemove
-        )
-
-        Spacer(modifier = Modifier.width(6.dp))
-
-        // 灵田图标
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (isPlanted) Color(0xFF27AE60) else Color(0xFF95A5A6)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "灵田",
-                fontSize = 10.sp,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        // 灵田名称 + 数量
-        Column {
-            Text(
-                text = "灵田",
-                fontSize = 10.sp,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "×${group.fields.size}",
-                fontSize = 10.sp,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        // 已种植 → 种子卡片；未种植 → 空占位
-        if (isPlanted) {
-            UnifiedItemCard(
-                data = ItemCardData(
-                    id = group.seedId,
-                    name = group.seedName,
-                    rarity = group.seedRarity,
-                    quantity = group.fields.size,
-                    description = group.seedName
-                ),
-                showQuantity = false
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .border(2.dp, Color(0xFFBDBDBD), RoundedCornerShape(6.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "空",
-                    fontSize = 12.sp,
-                    color = Color(0xFFBDBDBD),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-/**
- * 数量选择器 [-][数值/编辑框][+]
- *
- * 点击中间数值切换为输入框，可通过键盘直接填入数值。
- * 失去焦点或按 Done 键后自动校验并提交。
- */
-@Composable
-private fun PlantQuantitySelector(
-    quantity: Int,
-    maxQuantity: Int,
-    isEditing: Boolean,
-    input: String,
-    onMinus: () -> Unit,
-    onPlus: () -> Unit,
-    onEditingChange: (Boolean) -> Unit,
-    onInputChange: (String) -> Unit
-) {
-    val focusRequester = remember { FocusRequester() }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        // ── 减号按钮 ──
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (quantity > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC)
-                )
-                .clickable(enabled = quantity > 1) { onMinus() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-
-        // ── 数值显示 / 编辑框 ──
-        if (isEditing) {
-            BasicTextField(
-                value = input,
-                onValueChange = { newVal ->
-                    val filtered = newVal.filter { it.isDigit() }
-                    if (filtered.length <= 5) onInputChange(filtered)
-                },
-                modifier = Modifier
-                    .width(48.dp)
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { if (!it.isFocused) onEditingChange(false) },
-                textStyle = TextStyle(
-                    textAlign = TextAlign.Center,
-                    fontSize = 12.sp,
-                    color = Color.Black
-                ),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { onEditingChange(false) }
-                ),
-                singleLine = true
-            )
-            LaunchedEffect(Unit) { focusRequester.requestFocus() }
-        } else {
-            Box(
-                modifier = Modifier
-                    .width(48.dp)
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
-                    .clickable {
-                        onInputChange(quantity.toString())
-                        onEditingChange(true)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "$quantity",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        // ── 加号按钮 ──
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (quantity < maxQuantity) Color(0xFF3498DB) else Color(0xFFCCCCCC)
-                )
-                .clickable(enabled = quantity < maxQuantity) { onPlus() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
