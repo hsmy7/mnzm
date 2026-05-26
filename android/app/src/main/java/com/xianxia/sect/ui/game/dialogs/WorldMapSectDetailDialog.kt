@@ -25,8 +25,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -46,7 +44,7 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -72,7 +70,6 @@ internal fun WorldMapSectDetailDialog(
     var showGiftedMessage by remember { mutableStateOf(false) }
     var showAttackDialog by remember { mutableStateOf(false) }
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
-    var selectedGarrisonDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null) {
@@ -352,7 +349,7 @@ internal fun WorldMapSectDetailDialog(
                                             portraitRes = gSlot.portraitRes,
                                             onClick = {
                                                 if (gDisciple != null) {
-                                                    selectedGarrisonDetail = gDisciple
+                                                    viewModel.showDiscipleDetail(DiscipleDetailRequest(gDisciple, disciples))
                                                 } else {
                                                     showGarrisonSelection = slotIndex
                                                 }
@@ -428,28 +425,6 @@ internal fun WorldMapSectDetailDialog(
         )
     }
 
-    if (selectedGarrisonDetail != null) {
-        val equipment by viewModel.equipment.collectAsState()
-        val manuals by viewModel.manuals.collectAsState()
-        val manualStacks by viewModel.manualStacks.collectAsState()
-        val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-        Dialog(
-            onDismissRequest = { selectedGarrisonDetail = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            DiscipleDetailDialog(
-                disciple = selectedGarrisonDetail!!,
-                allDisciples = disciples,
-                allEquipment = equipment,
-                allManuals = manuals,
-                manualStacks = manualStacks,
-                equipmentStacks = equipmentStacks,
-                manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
-                viewModel = viewModel,
-                onDismiss = { selectedGarrisonDetail = null }
-            )
-        }
-    }
 }
 
 @Composable

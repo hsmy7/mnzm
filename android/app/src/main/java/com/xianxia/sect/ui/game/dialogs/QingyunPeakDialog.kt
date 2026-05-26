@@ -25,7 +25,7 @@ import com.xianxia.sect.ui.game.PeakPreachingMasterSection
 import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
 
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 
 @Composable
 fun QingyunPeakDialog(
@@ -37,8 +37,6 @@ fun QingyunPeakDialog(
     var showInnerElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
     var showPreachingMasterSelection by remember { mutableStateOf<Int?>(null) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
-
     val innerElder = productionViewModel.getInnerElder()
     val preachingElder = productionViewModel.getQingyunPreachingElder()
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
@@ -62,7 +60,7 @@ fun QingyunPeakDialog(
                 title = "内门长老",
                 elder = innerElder,
                 bonusInfo = ElderBonusInfoProvider.getInnerElderInfo(),
-                onClick = { selectedDiscipleDetail = innerElder },
+                onClick = { innerElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                 onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) },
                 onSwap = { showInnerElderSelection = true }
             ),
@@ -70,7 +68,7 @@ fun QingyunPeakDialog(
                 title = "青云塔传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
-                onClick = { selectedDiscipleDetail = preachingElder },
+                onClick = { preachingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                 onRemove = { productionViewModel.removeElder(ElderSlotType.CLOUD_PREACHING) },
                 onSwap = { showPreachingElderSelection = true }
             )
@@ -89,7 +87,7 @@ fun QingyunPeakDialog(
             onMasterClick = { index ->
                 val master = preachingMasters.find { it.index == index }
                 val d = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
-                selectedDiscipleDetail = d
+                d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) },
             onMasterSwap = { index -> showPreachingMasterSelection = index }
@@ -140,13 +138,4 @@ fun QingyunPeakDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }

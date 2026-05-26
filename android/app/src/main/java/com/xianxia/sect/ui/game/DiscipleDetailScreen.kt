@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
@@ -673,7 +672,7 @@ fun DiscipleDetailDialog(
 
 /**
  * DiscipleDetailDialog 便捷重载：自动从 GameViewModel 收集 StateFlow，
- * 并用 Dialog 独立窗口渲染，确保在 HalfScreenDialog 之上显示。
+ * 顶层渲染由 MainGameScreen 负责，此处仅负责数据注入。
  */
 @Composable
 fun DiscipleDetailDialog(
@@ -689,23 +688,18 @@ fun DiscipleDetailDialog(
     val manualStacks by viewModel.manualStacks.collectAsState()
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = allDisciples,
-            allEquipment = equipment,
-            allManuals = manuals,
-            manualStacks = manualStacks,
-            equipmentStacks = equipmentStacks,
-            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
-            viewModel = viewModel,
-            onDismiss = onDismiss,
-            onNavigateToDisciple = onNavigateToDisciple
-        )
-    }
+    DiscipleDetailDialog(
+        disciple = disciple,
+        allDisciples = allDisciples,
+        allEquipment = equipment,
+        allManuals = manuals,
+        manualStacks = manualStacks,
+        equipmentStacks = equipmentStacks,
+        manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+        viewModel = viewModel,
+        onDismiss = onDismiss,
+        onNavigateToDisciple = onNavigateToDisciple
+    )
 }
 
 @Composable

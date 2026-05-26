@@ -42,7 +42,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HERB_GARDEN_THEME
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
@@ -69,7 +69,6 @@ fun HerbGardenDialog(
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
@@ -94,7 +93,7 @@ fun HerbGardenDialog(
             ) {
                 HerbGardenElderSection(
                     elder = herbGardenElder,
-                    onSlotClick = { selectedDiscipleDetail = herbGardenElder },
+                    onSlotClick = { herbGardenElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                     onElderRemove = {
                         if (hasDirectDisciples) {
                             showElderRemoveConfirm = true
@@ -111,7 +110,7 @@ fun HerbGardenDialog(
                     onDirectDiscipleClick = { index ->
                         val slot = herbGardenDisciples.getOrNull(index)
                         val d = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null
-                        selectedDiscipleDetail = d
+                        d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
                     onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
@@ -235,15 +234,6 @@ fun HerbGardenDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

@@ -28,7 +28,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.components.CloseButton
@@ -54,7 +54,6 @@ fun LawEnforcementHallDialog(
     var showElderSelection by remember { mutableStateOf(false) }
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showReserveDiscipleList by remember { mutableStateOf(false) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val lawElder = productionViewModel.getLawEnforcementElder()
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
@@ -95,7 +94,7 @@ fun LawEnforcementHallDialog(
 
                 LawElderSection(
                     elder = lawElder,
-                    onElderClick = { selectedDiscipleDetail = lawElder },
+                    onElderClick = { lawElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                     onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) },
                     onElderSwap = { showElderSelection = true }
                 )
@@ -106,7 +105,7 @@ fun LawEnforcementHallDialog(
                     onDiscipleClick = { index ->
                         val slot = lawDisciples.find { it.index == index }
                         val d = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
-                        selectedDiscipleDetail = d
+                        d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
                     onDiscipleSwap = { index -> showDiscipleSelection = index }
@@ -183,15 +182,6 @@ fun LawEnforcementHallDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

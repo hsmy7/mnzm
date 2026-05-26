@@ -398,6 +398,24 @@ class GameViewModel @Inject constructor(
 
     // 防止重复点击标志
 
+    // 弟子详情 — 顶层全屏覆盖，统一所有触发入口
+    private val _detailDisciple = MutableStateFlow<DiscipleDetailRequest?>(null)
+    val detailDisciple: StateFlow<DiscipleDetailRequest?> = _detailDisciple.asStateFlow()
+
+    fun showDiscipleDetail(request: DiscipleDetailRequest) {
+        _detailDisciple.value = request
+    }
+
+    fun dismissDiscipleDetail() {
+        _detailDisciple.value = null
+    }
+
+    fun navigateDiscipleDetail(disciple: DiscipleAggregate) {
+        val current = _detailDisciple.value ?: return
+        val target = current.allDisciples.find { it.id == disciple.id } ?: disciple
+        _detailDisciple.value = current.copy(disciple = target)
+    }
+
     private val _selectedBuildingId = MutableStateFlow<String?>(null)
     val selectedBuildingId: StateFlow<String?> = _selectedBuildingId.asStateFlow()
 
@@ -1084,4 +1102,15 @@ class GameViewModel @Inject constructor(
     }
 
 }
+
+/**
+ * 弟子详情全屏覆盖请求。
+ * 所有触发入口统一通过 [GameViewModel.showDiscipleDetail] 发送，
+ * 由 MainGameScreen 在最顶层渲染。
+ */
+data class DiscipleDetailRequest(
+    val disciple: DiscipleAggregate,
+    val allDisciples: List<DiscipleAggregate>,
+    val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
+)
 

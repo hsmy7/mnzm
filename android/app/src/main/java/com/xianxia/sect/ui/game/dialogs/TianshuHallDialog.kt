@@ -40,7 +40,7 @@ import com.xianxia.sect.ui.game.ALCHEMY_THEME
 import com.xianxia.sect.ui.game.FORGE_THEME
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 
 @Composable
 fun TianshuHallDialog(
@@ -54,7 +54,6 @@ fun TianshuHallDialog(
     val viceSectMasterId = elderSlots?.viceSectMaster
     val viceSectMaster = disciples.find { it.id == viceSectMasterId }
 
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
     var showForgeElderSelectDialog by remember { mutableStateOf(false) }
@@ -90,7 +89,7 @@ fun TianshuHallDialog(
 
                         DiscipleSlotWithActions(
                             disciple = viceSectMaster,
-                            onSlotClick = { selectedDiscipleDetail = viceSectMaster },
+                            onSlotClick = { viceSectMaster?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                             onEmptySlotClick = { showViceSectMasterSelectDialog = true },
                             onDismiss = { productionViewModel.removeViceSectMaster() },
                             onSwap = { showViceSectMasterSelectDialog = true }
@@ -106,7 +105,7 @@ fun TianshuHallDialog(
                         ProductionElderSection(
                             theme = ALCHEMY_THEME,
                             elder = alchemyElder,
-                            onSlotClick = { selectedDiscipleDetail = alchemyElder },
+                            onSlotClick = { alchemyElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                             onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) },
                             onSwap = { showAlchemyElderSelectDialog = true }
                         )
@@ -114,7 +113,7 @@ fun TianshuHallDialog(
                         ProductionElderSection(
                             theme = FORGE_THEME,
                             elder = forgeElder,
-                            onSlotClick = { selectedDiscipleDetail = forgeElder },
+                            onSlotClick = { forgeElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                             onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
                             onSwap = { showForgeElderSelectDialog = true }
                         )
@@ -230,15 +229,6 @@ fun TianshuHallDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

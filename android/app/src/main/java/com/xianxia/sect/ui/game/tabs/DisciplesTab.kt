@@ -74,7 +74,7 @@ import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
@@ -114,8 +114,6 @@ internal fun DisciplesTab(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
-    var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
-
     val realmCounts = remember(disciples) {
         disciples.groupingBy { it.realm }.eachCount()
     }
@@ -182,23 +180,11 @@ internal fun DisciplesTab(
                 ) { disciple ->
                     DiscipleCard(
                         disciple = disciple,
-                        onClick = { selectedDisciple = disciple }
+                        onClick = { viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, filteredDisciples)) }
                     )
                 }
             }
         }
-
-    selectedDisciple?.let { selected ->
-        val updatedDisciple = disciples.find { it.id == selected.id } ?: selected
-        DiscipleDetailDialog(
-            disciple = updatedDisciple,
-            allDisciples = filteredDisciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDisciple = null },
-            onNavigateToDisciple = { disciple -> selectedDisciple = disciple }
-        )
-    }
     }
 }
 

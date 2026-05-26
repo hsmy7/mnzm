@@ -33,7 +33,7 @@ import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
@@ -55,13 +55,6 @@ internal fun AttackDiscipleDialog(
     val slots = remember { mutableStateListOf<DiscipleAggregate?>().apply { repeat(10) { add(null) } } }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
-
-    // Collect state for DiscipleDetailDialog
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
 
     val filledCount = slots.count { it != null }
 
@@ -90,7 +83,7 @@ internal fun AttackDiscipleDialog(
                                     onSlotClick = {
                                         val disciple = slots[slotIndex]
                                         if (disciple != null) {
-                                            selectedDiscipleDetail = disciple
+                                            viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
                                         } else {
                                             selectedSlotIndex = slotIndex
                                             showDiscipleSelection = true
@@ -163,17 +156,6 @@ internal fun AttackDiscipleDialog(
         )
     }
 
-    // Disciple detail dialog
-    selectedDiscipleDetail?.let { disciple ->
-        val updated = disciples.find { it.id == disciple.id } ?: disciple
-        DiscipleDetailDialog(
-            disciple = updated,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

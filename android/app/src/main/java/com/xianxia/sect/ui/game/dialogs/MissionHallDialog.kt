@@ -36,7 +36,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
@@ -51,7 +51,6 @@ fun MissionHallDialog(
     var selectedActiveMission by remember { mutableStateOf<ActiveMission?>(null) }
     var showDispatchDialog by remember { mutableStateOf(false) }
     var showActiveMissionDetail by remember { mutableStateOf(false) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val activeMissions = gameData?.activeMissions ?: emptyList()
     val availableMissions = gameData?.availableMissions ?: emptyList()
@@ -134,7 +133,7 @@ fun MissionHallDialog(
                 disciples = disciples,
                 currentYear = currentYear,
                 currentMonth = currentMonth,
-                onDiscipleClick = { selectedDiscipleDetail = it },
+                onDiscipleClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
                 onDismiss = {
                     showActiveMissionDetail = false
                     selectedActiveMission = null
@@ -143,15 +142,6 @@ fun MissionHallDialog(
         }
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable
@@ -544,7 +534,6 @@ private fun MissionDispatchDialog(
 ) {
     val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
     var selectingSlotIndex by remember { mutableStateOf(-1) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val eligibleDisciples = remember(allDisciples, busyDiscipleIds) {
         allDisciples.filter { disciple ->
@@ -681,7 +670,7 @@ private fun MissionDispatchDialog(
                                 disciple = disciple,
                                 onSlotClick = {
                                     if (disciple != null) {
-                                        selectedDiscipleDetail = disciple
+                                        viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))
                                     }
                                 },
                                 onEmptySlotClick = {
@@ -726,16 +715,6 @@ private fun MissionDispatchDialog(
     }
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        val updated = allDisciples.find { it.id == disciple.id } ?: disciple
-        DiscipleDetailDialog(
-            disciple = updated,
-            allDisciples = allDisciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

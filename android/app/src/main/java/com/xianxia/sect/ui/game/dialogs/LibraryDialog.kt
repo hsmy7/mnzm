@@ -35,7 +35,7 @@ import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 
@@ -49,8 +49,7 @@ fun LibraryDialog(
     onDismiss: () -> Unit
 ) {
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
-    
+
     val librarySlots = gameData?.librarySlots ?: emptyList()
     val slots = (0 until 3).map { index ->
         librarySlots.find { it.index == index } ?: LibrarySlot(index = index)
@@ -83,7 +82,7 @@ fun LibraryDialog(
                             onAssign = { showDiscipleSelection = slot.index },
                             onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(slot.index) },
                             onSwap = { showDiscipleSelection = slot.index },
-                            onSlotClick = { selectedDiscipleDetail = disciple }
+                            onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }
                         )
                     }
                 }
@@ -108,15 +107,6 @@ fun LibraryDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable

@@ -44,7 +44,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.getSpiritRootCount
@@ -63,7 +63,6 @@ fun SpiritMineDialog(
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var swappingSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
@@ -135,7 +134,7 @@ fun SpiritMineDialog(
             SpiritMineDeaconSection(
                 deaconSlots = deaconDisciples,
                 disciples = disciples,
-                onDeaconClick = { selectedDiscipleDetail = it },
+                onDeaconClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
                 onDeaconRemove = { index -> spiritMineViewModel.removeSpiritMineDeacon(index) },
                 onDeaconSwap = { index -> showDeaconSelection = index }
             )
@@ -189,7 +188,7 @@ fun SpiritMineDialog(
                             onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
                             onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) },
                             onSwap = { swappingSlotIndex = slot.index; showDiscipleSelection = true },
-                            onSlotClick = { selectedDiscipleDetail = disciple }
+                            onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }
                         )
                     }
                 }
@@ -242,15 +241,6 @@ fun SpiritMineDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 
 }
 

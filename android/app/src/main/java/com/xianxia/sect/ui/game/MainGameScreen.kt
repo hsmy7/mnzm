@@ -972,6 +972,22 @@ fun MainGameScreen(
                 }
             }
         }
+
+        // 弟子详情 — 顶层全屏覆盖（在 NavHost 之上，始终全屏）
+        val detailRequest by viewModel.detailDisciple.collectAsState()
+        detailRequest?.let { request ->
+            val updatedDisciple = request.allDisciples
+                .find { it.id == request.disciple.id } ?: request.disciple
+            DiscipleDetailDialog(
+                disciple = updatedDisciple,
+                allDisciples = request.allDisciples,
+                gameData = gameData,
+                viewModel = viewModel,
+                onDismiss = { viewModel.dismissDiscipleDetail() },
+                onNavigateToDisciple = request.onNavigateToDisciple
+                    ?: { d -> viewModel.navigateDiscipleDetail(d) }
+            )
+        }
     }
     } // CompositionLocalProvider
 }

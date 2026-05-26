@@ -51,7 +51,7 @@ import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
-import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import java.util.Locale
 
 @Composable
@@ -69,7 +69,6 @@ fun AlchemyDialog(
     onDismiss: () -> Unit
 ) {
     val theme = ALCHEMY_THEME
-    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showPillSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
@@ -129,7 +128,7 @@ fun AlchemyDialog(
                     Spacer(modifier = Modifier.height(4.dp))
                     DiscipleSlotWithActions(
                         disciple = workerDisciple,
-                        onSlotClick = { selectedDiscipleDetail = workerDisciple },
+                        onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                         onEmptySlotClick = { showWorkerSelection = true },
                         onDismiss = { alchemyViewModel.removeWorker(buildingIndex) },
                         onSwap = { showWorkerSelection = true }
@@ -284,15 +283,6 @@ fun AlchemyDialog(
         )
     }
 
-    selectedDiscipleDetail?.let { disciple ->
-        DiscipleDetailDialog(
-            disciple = disciple,
-            allDisciples = disciples,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { selectedDiscipleDetail = null }
-        )
-    }
 }
 
 @Composable
