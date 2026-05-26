@@ -287,16 +287,16 @@ object GameConfig {
         )
 
         val REALM_STATS = mapOf(
-            9  to RealmStats(hp=484,    mp=186,    attack=44,     defense=32,     speed=23),
-            8  to RealmStats(hp=1210,   mp=465,    attack=108,    defense=82,     speed=58),
-            7  to RealmStats(hp=3144,   mp=1210,   attack=279,    defense=211,    speed=149),
-            6  to RealmStats(hp=8223,   mp=3163,   attack=734,    defense=548,    speed=389),
-            5  to RealmStats(hp=21766,  mp=8372,   attack=1942,   defense=1451,   speed=1031),
-            4  to RealmStats(hp=53204,  mp=20463,  attack=4748,   defense=3547,   speed=2518),
-            3  to RealmStats(hp=125756, mp=48368,  attack=11221,  defense=8384,   speed=5953),
-            2  to RealmStats(hp=280534, mp=107897, attack=25033,  defense=18702,  speed=13280),
-            1  to RealmStats(hp=580356, mp=223236, attack=51791,  defense=38695,  speed=27475),
-            0  to RealmStats(hp=1209076,mp=465075, attack=107897, defense=80613,  speed=57240)
+            9  to RealmStats(hp=339,    mp=130,    attack=31,     defense=22,     speed=16),
+            8  to RealmStats(hp=847,    mp=326,    attack=76,     defense=57,     speed=41),
+            7  to RealmStats(hp=2201,   mp=847,    attack=195,    defense=148,    speed=104),
+            6  to RealmStats(hp=5756,   mp=2214,   attack=514,    defense=384,    speed=272),
+            5  to RealmStats(hp=15236,  mp=5860,   attack=1359,   defense=1016,   speed=722),
+            4  to RealmStats(hp=37243,  mp=14324,  attack=3324,   defense=2483,   speed=1763),
+            3  to RealmStats(hp=88029,  mp=33858,  attack=7855,   defense=5869,   speed=4167),
+            2  to RealmStats(hp=196374, mp=75528,  attack=17523,  defense=13091,  speed=9296),
+            1  to RealmStats(hp=406249, mp=156265, attack=36254,  defense=27087,  speed=19233),
+            0  to RealmStats(hp=846353, mp=325553, attack=75528,  defense=56429,  speed=40068)
         )
 
         fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
