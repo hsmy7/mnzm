@@ -403,12 +403,12 @@ class GameViewModel @Inject constructor(
     private val _overlayOrder = mutableStateListOf<TopOverlay>()
     val overlayOrder: List<TopOverlay> get() = _overlayOrder
 
-    private fun pushOverlay(overlay: TopOverlay) {
+    fun pushOverlay(overlay: TopOverlay) {
         _overlayOrder.remove(overlay)
         _overlayOrder.add(overlay)
     }
 
-    private fun popOverlay(overlay: TopOverlay) {
+    fun popOverlay(overlay: TopOverlay) {
         _overlayOrder.remove(overlay)
     }
 
@@ -1132,6 +1132,8 @@ data class DiscipleDetailRequest(
 
 /** 顶层 inline overlay 类型，用于 z-order 排序。渲染顺序即列表顺序（最后的在最顶层）。 */
 enum class TopOverlay {
-    DISCIPLE_DETAIL
+    DISCIPLE_DETAIL,
+    BATTLE_RESULT,
+    BATTLE_LOG_DETAIL
 }
 

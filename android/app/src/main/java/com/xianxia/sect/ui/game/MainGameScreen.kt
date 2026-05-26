@@ -425,6 +425,17 @@ fun MainGameScreen(
         }
     }
 
+    // Sync overlay z-order with visibility state
+    LaunchedEffect(showBattleResult) {
+        if (showBattleResult) viewModel.pushOverlay(TopOverlay.BATTLE_RESULT)
+        else viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
+    }
+
+    LaunchedEffect(detailBattleLog) {
+        if (detailBattleLog != null) viewModel.pushOverlay(TopOverlay.BATTLE_LOG_DETAIL)
+        else viewModel.popOverlay(TopOverlay.BATTLE_LOG_DETAIL)
+    }
+
     val isGameOver by viewModel.isGameOver.collectAsState()
 
     LaunchedEffect(isGameOver) {
@@ -905,38 +916,7 @@ fun MainGameScreen(
             }
         }
 
-        // BattleResult rendered outside NavHost to avoid replacing WorldMap composable
-        if (showBattleResult) {
-            val result = pendingBattleResult
-            if (result != null) {
-                val log = battleLogs.find { it.id == result.battleLogId }
-                BattleResultDialog(
-                    resultData = result,
-                    battleLog = log,
-                    onConfirm = {
-                        viewModel.dismissBattleResult()
-                        showBattleResult = false
-                    },
-                    onViewDetail = { selectedLog ->
-                        viewModel.dismissBattleResult()
-                        showBattleResult = false
-                        detailBattleLog = selectedLog
-                    },
-                    onDismiss = {
-                        viewModel.dismissBattleResult()
-                        showBattleResult = false
-                    }
-                )
-            }
-        }
-
-        detailBattleLog?.let { log ->
-            BattleLogDetailDialog(
-                log = log,
-                onDismiss = { detailBattleLog = null }
-            )
-        }
-
+        // 平台 Dialog() 窗口 — 天然在顶层，不纳入 overlayOrder
         tipDialogMessage?.let { message ->
             StandardPromptDialog(
                 onDismissRequest = { tipDialogMessage = null },
@@ -976,6 +956,39 @@ fun MainGameScreen(
         // 顶层 inline overlay 区域（按 overlayOrder 列表顺序渲染，最后的在最顶层）
         viewModel.overlayOrder.forEach { overlay ->
             when (overlay) {
+                TopOverlay.BATTLE_RESULT -> {
+                    val result = pendingBattleResult
+                    if (result != null && showBattleResult) {
+                        val log = battleLogs.find { it.id == result.battleLogId }
+                        BattleResultDialog(
+                            resultData = result,
+                            battleLog = log,
+                            onConfirm = {
+                                viewModel.dismissBattleResult()
+                                showBattleResult = false
+                            },
+                            onViewDetail = { selectedLog ->
+                                viewModel.dismissBattleResult()
+                                showBattleResult = false
+                                detailBattleLog = selectedLog
+                            },
+                            onDismiss = {
+                                viewModel.dismissBattleResult()
+                                showBattleResult = false
+                            }
+                        )
+                    }
+                }
+
+                TopOverlay.BATTLE_LOG_DETAIL -> {
+                    detailBattleLog?.let { log ->
+                        BattleLogDetailDialog(
+                            log = log,
+                            onDismiss = { detailBattleLog = null }
+                        )
+                    }
+                }
+
                 TopOverlay.DISCIPLE_DETAIL -> {
                     val request by viewModel.detailDisciple.collectAsState()
                     request?.let { req ->
