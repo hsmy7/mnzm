@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -482,15 +483,17 @@ fun PlantingDialog(
                                 text = "-1",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (plantQuantity > 1) Color.Black else Color(0xFFCCCCCC),
-                                modifier = Modifier.clickable(
-                                    interactionSource = decInteraction,
-                                    indication = null,
-                                    enabled = plantQuantity > 1
-                                ) {
-                                    plantQuantity--
-                                    qtyInput = plantQuantity.toString()
-                                }
+                                color = Color.Black,
+                                modifier = Modifier
+                                    .alpha(if (plantQuantity > 1) 1f else 0.3f)
+                                    .clickable(
+                                        interactionSource = decInteraction,
+                                        indication = null,
+                                        enabled = plantQuantity > 1
+                                    ) {
+                                        plantQuantity--
+                                        qtyInput = plantQuantity.toString()
+                                    }
                             )
                             // 数量显示 — 白底，点击弹出键盘
                             var showQtyEdit by remember { mutableStateOf(false) }
@@ -539,15 +542,17 @@ fun PlantingDialog(
                                 text = "+1",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (plantQuantity < unplantedCount) Color.Black else Color(0xFFCCCCCC),
-                                modifier = Modifier.clickable(
-                                    interactionSource = incInteraction,
-                                    indication = null,
-                                    enabled = plantQuantity < unplantedCount
-                                ) {
-                                    plantQuantity++
-                                    qtyInput = plantQuantity.toString()
-                                }
+                                color = Color.Black,
+                                modifier = Modifier
+                                    .alpha(if (plantQuantity < unplantedCount) 1f else 0.3f)
+                                    .clickable(
+                                        interactionSource = incInteraction,
+                                        indication = null,
+                                        enabled = plantQuantity < unplantedCount
+                                    ) {
+                                        plantQuantity++
+                                        qtyInput = plantQuantity.toString()
+                                    }
                             )
                             Text(
                                 text = "最大",

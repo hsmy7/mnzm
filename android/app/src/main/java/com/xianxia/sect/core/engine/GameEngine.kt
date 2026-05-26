@@ -1438,16 +1438,15 @@ class GameEngine @Inject constructor(
     suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
         if (instanceIds.isEmpty()) return
         val seed = inventorySystem.getSeedById(seedId) ?: return
-        val total = instanceIds.size.coerceAtMost(seed.quantity)
-        if (total <= 0) return
+        if (seed.quantity <= 0) return
 
+        var planted = 0
         updateGameData { data ->
             val currentYear = data.gameYear
             val currentMonth = data.gameMonth
             val updatedPlants = data.spiritFieldPlants.toMutableList()
-            var planted = 0
             for (i in updatedPlants.indices) {
-                if (planted >= total) break
+                if (planted >= instanceIds.size) break
                 val p = updatedPlants[i]
                 if (p.buildingInstanceId in instanceIds && p.seedId.isEmpty()) {
                     updatedPlants[i] = p.copy(
@@ -1461,7 +1460,9 @@ class GameEngine @Inject constructor(
             data.copy(spiritFieldPlants = updatedPlants)
         }
 
-        inventorySystem.removeSeedSync(seedId, total)
+        if (planted > 0) {
+            inventorySystem.removeSeedSync(seedId, planted)
+        }
     }
 
     suspend fun removePlantFromSpiritField(buildingInstanceId: String) {
