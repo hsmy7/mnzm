@@ -1579,14 +1579,22 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     inventorySystem.addHerb(herbItem)
                 }
 
-                // Mark field as harvested
+                // Auto-replant or clear field
                 val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
+                    val existingSeed = currentSeeds.find { it.id == plant.seedId && it.quantity > 0 }
                     updatedPlants = updatedPlants.toMutableList().also {
-                        it[idx] = it[idx].copy(
-                            seedId = "", seedName = "", growTime = 0, expectedYield = 0,
-                            plantYear = 0, plantMonth = 0
-                        )
+                        if (existingSeed != null) {
+                            inventorySystem.removeSeedSync(existingSeed.id, 1)
+                            it[idx] = it[idx].copy(
+                                plantYear = currentYear, plantMonth = currentMonth
+                            )
+                        } else {
+                            it[idx] = it[idx].copy(
+                                seedId = "", seedName = "", growTime = 0, expectedYield = 0,
+                                plantYear = 0, plantMonth = 0
+                            )
+                        }
                     }
                     hasChanges = true
                 }

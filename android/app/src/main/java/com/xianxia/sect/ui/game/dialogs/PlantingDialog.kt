@@ -176,25 +176,18 @@ fun PlantingDialog(
             )
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // 标题栏：种子标题 + 灵田标题 + 关闭按钮同行
+                // 标题栏：种植标题 + 关闭按钮
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "种子（${activeSeeds.size}）",
+                        text = "种植",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "灵田",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
                     CloseButton(onClick = onDismiss)
                 }
 
@@ -226,8 +219,7 @@ fun PlantingDialog(
                             columns = GridCells.Adaptive(60.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxWidth()
-                                .heightIn(max = 360.dp),
+                                .fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             contentPadding = PaddingValues(2.dp)
@@ -368,40 +360,38 @@ fun PlantingDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // 已种植：每个种子分组一行
-                                fieldGroups.filter { it.seedId.isNotEmpty() }.forEach { group ->
+                                // 已种植：每个种子分组一行（仓库无种子的分组隐藏）
+                                fieldGroups.filter { it.seedId.isNotEmpty() && seeds.any { s -> s.id == it.seedId && s.quantity > 0 } }.forEach { group ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().height(72.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
                                         // 种子卡片
                                         val plantedSeed = activeSeeds.find { it.id == group.seedId }
                                             ?: seeds.find { it.id == group.seedId }
-                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                            if (plantedSeed != null) {
-                                                UnifiedItemCard(
-                                                    data = ItemCardData(
-                                                        id = plantedSeed.id,
-                                                        name = plantedSeed.name,
-                                                        description = plantedSeed.description,
-                                                        rarity = plantedSeed.rarity,
-                                                        quantity = plantedSeed.quantity
-                                                    ),
-                                                    isSelected = false,
-                                                    onClick = { selectedSeedId = plantedSeed.id }
-                                                )
-                                            } else {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(60.dp)
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(Color(0xFFE0E0E0))
-                                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(group.seedName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                                }
+                                        if (plantedSeed != null) {
+                                            UnifiedItemCard(
+                                                data = ItemCardData(
+                                                    id = plantedSeed.id,
+                                                    name = plantedSeed.name,
+                                                    description = plantedSeed.description,
+                                                    rarity = plantedSeed.rarity,
+                                                    quantity = plantedSeed.quantity
+                                                ),
+                                                isSelected = false,
+                                                onClick = { selectedSeedId = plantedSeed.id }
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(Color(0xFFE0E0E0))
+                                                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(group.seedName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
                                             }
                                         }
                                         // 数量
@@ -418,8 +408,7 @@ fun PlantingDialog(
                                                 removeQuantity = 1
                                                 removeQtyInput = "1"
                                                 removeDialogGroup = group
-                                            },
-                                            width = 56.dp
+                                            }
                                         )
                                     }
                                 }
@@ -471,42 +460,59 @@ fun PlantingDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("种植数量:", fontSize = 12.sp, color = Color.Black)
-                            PlantQuantitySelector(
-                                quantity = plantQuantity,
-                                maxQuantity = unplantedCount.coerceAtLeast(1),
-                                isEditing = isEditingQty,
-                                input = qtyInput,
-                                onMinus = {
-                                    if (plantQuantity > 1) {
-                                        plantQuantity--
-                                        qtyInput = plantQuantity.toString()
-                                    }
-                                },
-                                onPlus = {
-                                    if (plantQuantity < unplantedCount) {
-                                        plantQuantity++
-                                        qtyInput = plantQuantity.toString()
-                                    }
-                                },
-                                onEditingChange = { editing ->
-                                    if (!editing && isEditingQty) {
-                                        val parsed = qtyInput.toIntOrNull()
-                                        plantQuantity =
-                                            (parsed ?: 1).coerceIn(1, unplantedCount.coerceAtLeast(1))
-                                        qtyInput = plantQuantity.toString()
-                                    }
-                                    isEditingQty = editing
-                                },
-                                onInputChange = { v ->
-                                    isEditingQty = true
-                                    qtyInput = v
+                            // 最小按钮
+                            Text(
+                                text = "最小",
+                                fontSize = 12.sp,
+                                color = Color.Black,
+                                modifier = Modifier.clickable {
+                                    plantQuantity = 1
+                                    qtyInput = "1"
                                 }
                             )
-                            Spacer(modifier = Modifier.weight(1f))
+                            // -1 按钮
+                            Text(
+                                text = "-1",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (plantQuantity > 1) Color.Black else Color(0xFFCCCCCC),
+                                modifier = Modifier.clickable(enabled = plantQuantity > 1) {
+                                    plantQuantity--
+                                    qtyInput = plantQuantity.toString()
+                                }
+                            )
+                            // 数量显示
+                            Text(
+                                text = "$plantQuantity",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            // +1 按钮
+                            Text(
+                                text = "+1",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (plantQuantity < unplantedCount) Color.Black else Color(0xFFCCCCCC),
+                                modifier = Modifier.clickable(enabled = plantQuantity < unplantedCount) {
+                                    plantQuantity++
+                                    qtyInput = plantQuantity.toString()
+                                }
+                            )
+                            // 最大按钮
+                            Text(
+                                text = "最大",
+                                fontSize = 12.sp,
+                                color = Color.Black,
+                                modifier = Modifier.clickable {
+                                    plantQuantity = unplantedCount.coerceAtLeast(1)
+                                    qtyInput = plantQuantity.toString()
+                                }
+                            )
+                            // 种植按钮
                             GameButton(
                                 text = "种植",
                                 enabled = selectedSeed != null && unplantedCount > 0,
