@@ -34,6 +34,7 @@ class ProductionSubsystem @Inject constructor(
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processHerbGardenGrowth(state.gameData.gameYear, state.gameData.gameMonth)
+        cultivationService.processSpiritFieldHarvest()
         cultivationService.processSpiritMineProduction()
         cultivationService.processAutoPlant()
         cultivationService.processAutoAlchemy()

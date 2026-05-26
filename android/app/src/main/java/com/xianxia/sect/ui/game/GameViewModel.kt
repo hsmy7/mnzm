@@ -179,8 +179,8 @@ class GameViewModel @Inject constructor(
                         val cnt = data.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeId }
                         if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
                     }
-                    "单人住所", "多人住所" -> {
-                        // No build limit for residences
+                    "单人住所", "多人住所", "灵田" -> {
+                        // No build limit for residences and spirit fields
                     }
                     else -> {
                         if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
@@ -209,9 +209,14 @@ class GameViewModel @Inject constructor(
                     else -> emptyList()
                 }
 
+                val newSpiritFieldPlants = if (name == "灵田") {
+                    listOf(SpiritFieldPlant(buildingInstanceId = newBuilding.instanceId, sectId = activeId))
+                } else emptyList()
+
                 data.copy(
                     spiritStones = data.spiritStones - cost,
                     placedBuildings = data.placedBuildings + newBuilding,
+                    spiritFieldPlants = data.spiritFieldPlants + newSpiritFieldPlants,
                     spiritMineSlots = data.spiritMineSlots + newSlots,
                     residenceSlots = data.residenceSlots + newResidenceSlots,
                     // TODO: 后续统一到 Repository 单一数据源，移除对 GameData.productionSlots 的写入
@@ -750,6 +755,26 @@ class GameViewModel @Inject constructor(
                 gameEngine.startManualPlanting(slotIndex, seed.id)
             } catch (e: Exception) {
                 showError(e.message ?: "种植失败")
+            }
+        }
+    }
+
+    fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
+        viewModelScope.launch {
+            try {
+                gameEngine.plantOnSpiritField(buildingInstanceId, seedId, sectId)
+            } catch (e: Exception) {
+                showError(e.message ?: "种植失败")
+            }
+        }
+    }
+
+    fun removePlantFromSpiritField(buildingInstanceId: String) {
+        viewModelScope.launch {
+            try {
+                gameEngine.removePlantFromSpiritField(buildingInstanceId)
+            } catch (e: Exception) {
+                showError(e.message ?: "铲除失败")
             }
         }
     }

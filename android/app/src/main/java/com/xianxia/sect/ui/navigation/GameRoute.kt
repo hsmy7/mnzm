@@ -29,6 +29,7 @@ sealed class GameRoute(val route: String) {
     object Recruit : GameRoute("recruit")
     object Merchant : GameRoute("merchant")
     object Diplomacy : GameRoute("diplomacy")
+    object Planting : GameRoute("planting")
     object SalaryConfig : GameRoute("salary_config")
     object WorldMap : GameRoute("world_map")
     object BattleLog : GameRoute("battle_log")

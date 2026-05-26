@@ -1408,6 +1408,50 @@ class GameEngine @Inject constructor(
         inventorySystem.removeSeedSync(seedId, 1)
     }
 
+    suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
+        val seed = inventorySystem.getSeedById(seedId) ?: return
+        if (seed.quantity <= 0) return
+
+        updateGameData { data ->
+            val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId && it.seedId.isEmpty() }
+            if (idx < 0) return@updateGameData data
+
+            val currentYear = data.gameYear
+            val currentMonth = data.gameMonth
+            val updatedPlants = data.spiritFieldPlants.toMutableList()
+            updatedPlants[idx] = updatedPlants[idx].copy(
+                seedId = seedId,
+                seedName = seed.name,
+                growTime = seed.growTime,
+                expectedYield = seed.yield,
+                plantYear = currentYear,
+                plantMonth = currentMonth,
+                sectId = sectId
+            )
+            data.copy(spiritFieldPlants = updatedPlants)
+        }
+
+        inventorySystem.removeSeedSync(seedId, 1)
+    }
+
+    suspend fun removePlantFromSpiritField(buildingInstanceId: String) {
+        updateGameData { data ->
+            val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId }
+            if (idx < 0) return@updateGameData data
+
+            val updatedPlants = data.spiritFieldPlants.toMutableList()
+            updatedPlants[idx] = updatedPlants[idx].copy(
+                seedId = "",
+                seedName = "",
+                growTime = 0,
+                expectedYield = 0,
+                plantYear = 0,
+                plantMonth = 0
+            )
+            data.copy(spiritFieldPlants = updatedPlants)
+        }
+    }
+
     fun recruitDiscipleFromList(discipleId: String) {
         val data = stateStore.gameData.value
         val disciple = data.recruitList.find { it.id == discipleId } ?: return

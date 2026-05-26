@@ -524,6 +524,16 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromSpiritFieldPlantList(value: List<SpiritFieldPlant>): String =
+        encodeToBase64(ListSerializer(SpiritFieldPlant.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSpiritFieldPlantList(value: String): List<SpiritFieldPlant> =
+        decodeFromBase64(ListSerializer(SpiritFieldPlant.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromDirectDiscipleSlotList(value: List<DirectDiscipleSlot>): String =
         encodeToBase64(ListSerializer(DirectDiscipleSlot.serializer()), value)
 

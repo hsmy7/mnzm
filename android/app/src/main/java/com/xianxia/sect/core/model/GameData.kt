@@ -149,6 +149,9 @@ data class GameData(
     // 已放置建筑（网格坐标）
     var placedBuildings: List<GridBuildingData> = emptyList(),
 
+    // 灵田种植状态
+    var spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
+
     // 当前活跃宗门ID（"" = 主宗门）
     var activeSectId: String = "",
 
@@ -428,6 +431,19 @@ data class PlantSlotData(
         const val MAX_AI_DISCIPLES_PER_SECT = 1000
     }
 }
+
+// 灵田种植数据
+@Serializable
+data class SpiritFieldPlant(
+    val buildingInstanceId: String,
+    val seedId: String = "",
+    val seedName: String = "",
+    val growTime: Int = 0,
+    val expectedYield: Int = 0,
+    val plantYear: Int = 0,
+    val plantMonth: Int = 0,
+    val sectId: String = ""
+)
 
 // 商人商品
 @Serializable

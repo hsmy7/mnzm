@@ -339,6 +339,16 @@ class BuildingConfigService @Inject constructor(
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "单人修炼之所，修炼速度+50%"
+                ),
+                "spirit_field" to BuildingConfigModel(
+                    id = "spirit_field",
+                    displayName = "灵田",
+                    buildingType = "SPIRIT_FIELD",
+                    slotCount = 1,
+                    cost = 200,
+                    gridWidth = 1,
+                    gridHeight = 1,
+                    description = "种植灵草的田地"
                 )
             ),
             buildingAliases = mapOf(

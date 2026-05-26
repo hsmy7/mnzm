@@ -1540,6 +1540,69 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
     }
 
+    /**
+     * Process spirit field harvests - check all planted fields and auto-harvest when growth completes.
+     */
+    internal suspend fun processSpiritFieldHarvest() {
+        val data = currentGameData
+        val currentYear = data.gameYear
+        val currentMonth = data.gameMonth
+        val allDisciples = currentDisciples
+
+        data.spiritFieldPlants.forEach { plant ->
+            if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
+
+            val elapsedMonths = (currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)
+            if (elapsedMonths >= plant.growTime) {
+                val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
+                if (dbHerb != null) {
+                    val policyBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
+                    val elderBonus = calculateSpiritFieldElderBonus(plant.sectId, data, allDisciples)
+
+                    val totalBonus = policyBonus + elderBonus
+                    val finalYield = (plant.expectedYield * (1 + totalBonus)).toInt().coerceAtLeast(1)
+
+                    val herbItem = Herb(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = dbHerb.name,
+                        rarity = dbHerb.rarity,
+                        description = dbHerb.description,
+                        category = dbHerb.category,
+                        quantity = finalYield
+                    )
+                    inventorySystem.addHerb(herbItem)
+                }
+
+                // Reset field to unplanted
+                val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
+                if (idx >= 0) {
+                    val updatedPlants = data.spiritFieldPlants.toMutableList()
+                    updatedPlants[idx] = updatedPlants[idx].copy(
+                        seedId = "", seedName = "", growTime = 0, expectedYield = 0,
+                        plantYear = 0, plantMonth = 0
+                    )
+                    stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
+                }
+            }
+        }
+    }
+
+    private fun calculateSpiritFieldElderBonus(sectId: String, gameData: GameData, allDisciples: List<Disciple>): Double {
+        val slots = gameData.elderSlots
+        val elderId = slots.herbGardenElder
+
+        val elderDisciple = allDisciples.find { it.id == elderId }
+        val elderBonus = if (elderDisciple != null && elderDisciple.spiritPlanting > 80)
+            (elderDisciple.spiritPlanting - 80) * 0.01 else 0.0
+
+        val discipleBonus = slots.herbGardenDisciples.sumOf { slot ->
+            val d = allDisciples.find { it.id == slot.discipleId } ?: return@sumOf 0.0
+            if (d.spiritPlanting > 80) (d.spiritPlanting - 80) * 0.01 else 0.0
+        }
+
+        return (elderBonus + discipleBonus).coerceAtMost(0.80)
+    }
+
     internal suspend fun processAutoAlchemy() {
         val data = currentGameData
 

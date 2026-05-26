@@ -57,27 +57,21 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
 fun HerbGardenDialog(
-    seeds: List<Seed>,
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
-    herbGardenViewModel: HerbGardenViewModel,
     onDismiss: () -> Unit
 ) {
-    var showSeedSelection by remember { mutableStateOf<Int?>(null) }
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
-    var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
     val activeSectId = gameData?.activeSectId ?: ""
     val herbGardenDisciples = elderSlots.herbGardenDisciples.filter { it.sectId == activeSectId }
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
-
-    val plantSlots by viewModel.plantSlots.collectAsState()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -116,82 +110,8 @@ fun HerbGardenDialog(
                     onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
                 )
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                plantSlots.sortedBy { it.slotIndex }.forEach { slot ->
-                    val isWorking = slot.status == ProductionSlotStatus.WORKING
-                    val isIdle = slot.status == ProductionSlotStatus.IDLE
-                    val remainingMonths = if (isWorking && gameData != null)
-                        slot.remainingTime(gameData.gameYear, gameData.gameMonth) else 0
-                    val seedRarity = seeds.find { it.name == slot.recipeName }?.rarity ?: 1
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val autoEnabled = slot.autoRestartEnabled
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (autoEnabled) Color(0xFFFFD700) else Color.Black)
-                                .clickable { herbGardenViewModel.toggleAuto(slot.slotIndex) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (autoEnabled) "自动种植:开" else "自动种植:关",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (autoEnabled) Color.Black else Color.White
-                            )
-                        }
-                    }
-
-                    ProductionSlotItem(
-                        theme = HERB_GARDEN_THEME,
-                        productName = slot.recipeName.ifEmpty { null },
-                        isWorking = isWorking,
-                        isIdle = isIdle,
-                        remainingMonths = remainingMonths,
-                        index = slot.slotIndex,
-                        productRarity = seedRarity,
-                        totalDuration = slot.duration,
-                        onCancel = if (isWorking) { { herbGardenViewModel.cancelPlantSlot(slot.slotIndex) } } else null,
-                        onReplace = if (isWorking) { {
-                            replaceSlotIndex = slot.slotIndex
-                            showSeedSelection = slot.slotIndex
-                        } } else null,
-                        onClick = {
-                            if (isIdle || slot.status == ProductionSlotStatus.COMPLETED) {
-                                showSeedSelection = slot.slotIndex
-                            }
-                        }
-                    )
-                }
             }
         }
-    }
-
-    showSeedSelection?.let { slotIndex ->
-        val isReplacing = replaceSlotIndex != null
-        SeedPlantingDialog(
-            seeds = seeds,
-            onDismiss = {
-                showSeedSelection = null
-                replaceSlotIndex = null
-            },
-            onConfirmOverride = if (isReplacing) { { seed ->
-                herbGardenViewModel.cancelPlantSlot(slotIndex)
-                herbGardenViewModel.plantSeed(slotIndex, seed)
-            } } else null,
-            onSelect = if (!isReplacing) { { seed ->
-                herbGardenViewModel.plantSeed(slotIndex, seed)
-            } } else null
-        )
     }
 
     if (showElderSelection) {

@@ -89,6 +89,7 @@ import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
+import com.xianxia.sect.ui.game.dialogs.PlantingDialog
 
 import com.xianxia.sect.ui.game.dialogs.SpiritMineDialog
 import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
@@ -609,6 +610,7 @@ fun MainGameScreen(
                 FloatingActionButton(text = "弟子", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Disciples.route) }, drawableRes = R.drawable.ui_team_button)
                 FloatingActionButton(text = "世界", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.WorldMap.route) }, drawableRes = R.drawable.ui_map_button)
                 FloatingActionButton(text = "外交", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Diplomacy.route) }, drawableRes = R.drawable.ui_diplomacy_button)
+                FloatingActionButton(text = "种植", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Planting.route) }, drawableRes = R.drawable.ui_planting_button)
             }
         }
 
@@ -742,6 +744,15 @@ fun MainGameScreen(
                     onDismiss = { dialogNavController.popBackStack() }
                 )
             }
+            composable(GameRoute.Planting.route) {
+                PlantingDialog(
+                    seeds = seeds,
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    activeSectId = gameData.activeSectId,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
             composable(GameRoute.Merchant.route) {
                 MerchantDialog(
                     gameData = gameData,
@@ -787,12 +798,10 @@ fun MainGameScreen(
             }
             composable(GameRoute.HerbGarden.route) {
                 HerbGardenDialog(
-                    seeds = seeds,
                     gameData = gameData,
                     disciples = disciples.filter { it.isAlive },
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
-                    herbGardenViewModel = herbGardenViewModel,
                     onDismiss = { dialogNavController.popBackStack() }
                 )
             }

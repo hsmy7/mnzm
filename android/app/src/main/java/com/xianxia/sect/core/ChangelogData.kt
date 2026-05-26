@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.17",
+            date = "2026-05-26",
+            changes = listOf(
+                "种植系统引入：新增灵田建筑（1格/200灵石/无上限），建造后通过种植界面将种子种植到灵田，成熟后自动收获",
+                "灵植阁改造为纯增益建筑，移除种植槽位，灵植弟子对所有同宗门灵田提供产量加成",
+                "新增顶层overlay z-order排序机制，保证后打开的界面在最顶层"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.16",
             date = "2026-05-26",
             changes = listOf(
