@@ -1549,7 +1549,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val currentMonth = data.gameMonth
         val allDisciples = currentDisciples
 
-        data.spiritFieldPlants.forEach { plant ->
+        val plants = data.spiritFieldPlants
+        if (plants.isEmpty()) return
+
+        var updatedPlants = plants
+        var hasChanges = false
+
+        plants.forEach { plant ->
             if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
 
             val elapsedMonths = (currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)
@@ -1573,16 +1579,26 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     inventorySystem.addHerb(herbItem)
                 }
 
-                // Reset field to unplanted
-                val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
+                // Mark field as harvested
+                val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
-                    val updatedPlants = data.spiritFieldPlants.toMutableList()
-                    updatedPlants[idx] = updatedPlants[idx].copy(
-                        seedId = "", seedName = "", growTime = 0, expectedYield = 0,
-                        plantYear = 0, plantMonth = 0
-                    )
-                    stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
+                    updatedPlants = updatedPlants.toMutableList().also {
+                        it[idx] = it[idx].copy(
+                            seedId = "", seedName = "", growTime = 0, expectedYield = 0,
+                            plantYear = 0, plantMonth = 0
+                        )
+                    }
+                    hasChanges = true
                 }
+            }
+        }
+
+        if (hasChanges) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) {
+                ts.gameData = ts.gameData.copy(spiritFieldPlants = updatedPlants)
+            } else {
+                stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
             }
         }
     }
