@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.20] - 2026-05-27
+
+### 重构
+- 全功能模块化架构：BuildingRegistry建筑单一数据源（15项枚举）、ViewModel 4层委托拆分（Planting/Disciple/Navigation/Inventory）
+- MainGameScreen拆分为3独立组件（GameActionButtons/GameOverlayHost/BuildingConstructionBar）
+- 24文件90+处硬编码建筑名统一迁移，GameOverlayHost统一管理24路由+TopOverlay z-order
+
 ## [3.1.19] - 2026-05-27
 
 ### 修复
