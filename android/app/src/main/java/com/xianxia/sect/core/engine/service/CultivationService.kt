@@ -1568,15 +1568,27 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     val totalBonus = policyBonus + elderBonus
                     val finalYield = (plant.expectedYield * (1 + totalBonus)).toInt().coerceAtLeast(1)
 
-                    val herbItem = Herb(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = dbHerb.name,
-                        rarity = dbHerb.rarity,
-                        description = dbHerb.description,
-                        category = dbHerb.category,
-                        quantity = finalYield
-                    )
-                    inventorySystem.addHerb(herbItem)
+                    val herbName = dbHerb.name
+                    val herbRarity = dbHerb.rarity
+                    val herbCat = dbHerb.category
+                    val herbs = currentHerbs
+                    val existingIdx = herbs.indexOfFirst { h ->
+                        h.name == herbName && h.rarity == herbRarity && h.category == herbCat
+                    }
+                    if (existingIdx >= 0) {
+                        val updated = herbs.toMutableList()
+                        updated[existingIdx] = updated[existingIdx].let {
+                            Herb(id = it.id, name = it.name, rarity = it.rarity, description = it.description,
+                                category = it.category, quantity = it.quantity + finalYield)
+                        }
+                        currentHerbs = updated
+                    } else {
+                        currentHerbs = herbs + Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = herbName, rarity = herbRarity, description = dbHerb.description,
+                            category = herbCat, quantity = finalYield
+                        )
+                    }
                 }
 
                 // Auto-replant or clear field

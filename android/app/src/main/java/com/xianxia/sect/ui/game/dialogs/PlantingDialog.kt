@@ -360,8 +360,8 @@ fun PlantingDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // 已种植：每个种子分组一行（仓库无种子的分组隐藏）
-                                fieldGroups.filter { it.seedId.isNotEmpty() && seeds.any { s -> s.id == it.seedId && s.quantity > 0 } }.forEach { group ->
+                                // 已种植：每个种子分组一行
+                                fieldGroups.filter { it.seedId.isNotEmpty() }.forEach { group ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().height(72.dp),
                                         verticalAlignment = Alignment.CenterVertically,
