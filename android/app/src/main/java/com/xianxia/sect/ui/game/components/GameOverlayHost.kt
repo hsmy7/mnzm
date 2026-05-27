@@ -602,14 +602,14 @@ private fun FullScreenOverlay(
         modifier = Modifier.fillMaxSize(),
         color = GameColors.PageBackground
     ) {
-        Box(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Image(
                 painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
             )
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
