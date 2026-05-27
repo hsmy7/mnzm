@@ -69,7 +69,8 @@ data class ProductionTheme(
     val getElderId: (ElderSlots) -> String?,
     val getDirectDisciples: (ElderSlots) -> List<DirectDiscipleSlot>,
     val elderSortComparator: Comparator<DiscipleAggregate>,
-    val directDiscipleSortComparator: Comparator<DiscipleAggregate>
+    val directDiscipleSortComparator: Comparator<DiscipleAggregate>,
+    val directDiscipleEligibility: (DiscipleAggregate) -> Boolean = { it.isEligibleForInnerPosition }
 )
 
 val ALCHEMY_THEME = ProductionTheme(
@@ -153,7 +154,8 @@ val HERB_GARDEN_THEME = ProductionTheme(
         .thenByDescending { it.realmLayer },
     directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
         .thenByDescending { it.realmLayer }
-        .thenByDescending { it.spiritPlanting }
+        .thenByDescending { it.spiritPlanting },
+    directDiscipleEligibility = { it.isAlive && it.status == DiscipleStatus.IDLE }
 )
 
 val SPIRIT_MINE_THEME = ProductionTheme(
@@ -571,7 +573,7 @@ fun ProductionDirectDiscipleSelectionDialog(
     }
 
     val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds) {
-        disciples.filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
+        disciples.filter { theme.directDiscipleEligibility(it) && !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
