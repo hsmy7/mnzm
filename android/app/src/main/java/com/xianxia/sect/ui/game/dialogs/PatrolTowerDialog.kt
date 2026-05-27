@@ -239,8 +239,11 @@ private fun AttackRangeDialog(
                     onValueChange = { v ->
                         val filtered = v.filter { it.isDigit() }
                         val num = filtered.toIntOrNull()
-                        if (num == null) maxCount = ""
-                        else if (num in 1..13) maxCount = filtered
+                        maxCount = when {
+                            num == null -> "1"
+                            num in 1..13 -> filtered
+                            else -> maxCount
+                        }
                     },
                     modifier = Modifier.width(40.dp).height(28.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.Black),

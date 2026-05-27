@@ -444,49 +444,31 @@ fun PlantingDialog(
                                         qtyInput = plantQuantity.toString()
                                     }
                             )
-                            // 数量显示 — 白底，点击弹出键盘
-                            var showQtyEdit by remember { mutableStateOf(false) }
-                            if (showQtyEdit) {
-                                BasicTextField(
-                                    value = qtyInput,
-                                    onValueChange = { qtyInput = it },
-                                    modifier = Modifier.width(48.dp).background(Color.White, RoundedCornerShape(4.dp))
-                                        .border(1.dp, Color(0xFF3498DB), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                        color = Color.Black, textAlign = TextAlign.Center
-                                    ),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                                LaunchedEffect(Unit) {
-                                    qtyInput = plantQuantity.toString()
-                                }
-                                DisposableEffect(Unit) {
-                                    onDispose {
-                                        val parsed = qtyInput.toIntOrNull()
-                                        plantQuantity = (parsed ?: plantQuantity).coerceIn(1, unplantedCount.coerceAtLeast(1))
-                                        qtyInput = plantQuantity.toString()
+                            // 数量显示 — 始终可见的输入框
+                            val displayText = qtyInput.ifEmpty { plantQuantity.toString() }
+                            BasicTextField(
+                                value = displayText,
+                                onValueChange = { newValue ->
+                                    val filtered = newValue.filter { it.isDigit() }
+                                    val num = filtered.toIntOrNull()
+                                    qtyInput = if (num != null) {
+                                        num.coerceIn(1, unplantedCount.coerceAtLeast(1)).toString()
+                                    } else {
+                                        filtered
                                     }
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .background(Color.White, RoundedCornerShape(4.dp))
-                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
-                                        .clickable { showQtyEdit = true }
-                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "$plantQuantity",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
+                                    if (num != null) plantQuantity = num.coerceIn(1, unplantedCount.coerceAtLeast(1))
+                                },
+                                modifier = Modifier.width(40.dp).height(28.dp)
+                                    .background(Color.White, RoundedCornerShape(4.dp))
+                                    .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp),
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = Color.Black, textAlign = TextAlign.Center
+                                ),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
                             Text(
                                 text = "+1",
                                 fontSize = 14.sp,
