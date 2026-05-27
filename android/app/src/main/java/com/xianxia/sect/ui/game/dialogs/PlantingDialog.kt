@@ -336,9 +336,7 @@ fun PlantingDialog(
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val plantedGroups = fieldGroups.filter { g ->
-                            g.seedId.isNotEmpty() && seeds.any { s -> s.name == g.seedName && s.quantity > 0 }
-                        }
+                        val plantedGroups = fieldGroups.filter { g -> g.seedId.isNotEmpty() }
                         if (plantedGroups.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
