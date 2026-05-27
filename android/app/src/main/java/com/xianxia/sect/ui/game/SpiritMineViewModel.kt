@@ -118,7 +118,9 @@ class SpiritMineViewModel @Inject constructor(
 
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForOuterPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
-            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+            .sortedWith(compareByDescending<DiscipleAggregate> { it.mining }
+                .thenBy { it.realm }
+                .thenByDescending { it.realmLayer })
     }
 
     fun assignDisciplesToSpiritMineSlots(selectedDisciples: List<DiscipleAggregate>, mineIndex: Int = 0) {

@@ -95,7 +95,7 @@ fun LevelDetailDialog(
         val idleDisciples = disciples.filter {
             it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5
         }.sortedWith(
-            compareByDescending<DiscipleAggregate> { it.realm }
+            compareBy<DiscipleAggregate> { it.realm }
                 .thenByDescending { it.realmLayer }
         )
 
