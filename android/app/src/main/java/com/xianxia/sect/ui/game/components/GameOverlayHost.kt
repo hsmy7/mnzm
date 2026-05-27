@@ -69,6 +69,7 @@ import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
 import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
 import com.xianxia.sect.ui.game.dialogs.SpiritMineDialog
 import com.xianxia.sect.ui.game.dialogs.TianshuHallDialog
+import com.xianxia.sect.ui.game.dialogs.WarehouseDialog
 import com.xianxia.sect.ui.game.dialogs.WenDaoPeakDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
@@ -163,6 +164,11 @@ fun GameOverlayHost(
             tipDialogMessage = message
             tipDialogIsError = false
         }
+    }
+
+    var showWarehouseFullDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.warehouseFullEvent.collect { showWarehouseFullDialog = true }
     }
 
     // Dialog overlay via NavHost — no animations, instant open/close
@@ -422,6 +428,22 @@ fun GameOverlayHost(
                 )
             }
         }
+        composable(
+            route = GameRoute.WarehouseBuilding.route,
+            arguments = listOf(navArgument("buildingInstanceId") { type = NavType.StringType; defaultValue = "" })
+        ) { backStackEntry ->
+            val instanceId = backStackEntry.arguments?.getString("buildingInstanceId") ?: ""
+            if (instanceId.isNotEmpty()) {
+                WarehouseDialog(
+                    buildingInstanceId = instanceId,
+                    gameData = gameData,
+                    disciples = disciples,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+        }
         composable(GameRoute.GameOver.route) {
             GameOverDialog(
                 onRestartGame = {
@@ -443,6 +465,15 @@ fun GameOverlayHost(
             title = if (tipDialogIsError) "错误" else "提示",
             text = message,
             confirmLabel = "确定"
+        )
+    }
+
+    if (showWarehouseFullDialog) {
+        StandardPromptDialog(
+            onDismissRequest = { showWarehouseFullDialog = false },
+            title = "仓库已满",
+            text = "仓库已满物品无法进入仓库直接遗失",
+            confirmLabel = "知道了"
         )
     }
 

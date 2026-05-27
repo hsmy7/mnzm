@@ -2006,12 +2006,42 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         val thiefIds = mutableSetOf<String>()
+        val warehouses = currentGameData.placedBuildings.filter {
+            it.displayName == "仓库"
+        }
+        val garrisons = currentGameData.warehouseGarrisons
 
         for (disciple in atRiskDisciples) {
             val effectiveMorality = DiscipleStatCalculator.getBaseStats(disciple).morality
             val theftProb = ((GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < theftProb) {
-                if (Random.nextDouble() < captureRate) {
+                val caught = if (warehouses.isNotEmpty()) {
+                    // Warehouse garrison combat
+                    val warehouse = warehouses[Random.nextInt(warehouses.size)]
+                    val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive }
+                    if (garrison == null) {
+                        false // No garrison → theft auto-success
+                    } else {
+                        // 1v1 combat: thief vs garrison disciple
+                        val guardDisciple = currentDisciples.find { it.id == garrison.discipleId }
+                        if (guardDisciple == null) {
+                            false
+                        } else {
+                            val thiefStats = DiscipleStatCalculator.getBaseStats(disciple)
+                            val guardStats = DiscipleStatCalculator.getBaseStats(guardDisciple)
+                            val thiefPower = thiefStats.physicalAttack + thiefStats.magicAttack +
+                                    thiefStats.physicalDefense + thiefStats.magicDefense + thiefStats.speed
+                            val guardPower = guardStats.physicalAttack + guardStats.magicAttack +
+                                    guardStats.physicalDefense + guardStats.magicDefense + guardStats.speed
+                            val thiefWinProb = (thiefPower.toDouble() / (thiefPower + guardPower).coerceAtLeast(1)).coerceIn(0.1, 0.9)
+                            Random.nextDouble() >= thiefWinProb // guard wins → caught
+                        }
+                    }
+                } else {
+                    Random.nextDouble() < captureRate // No warehouses → existing logic
+                }
+
+                if (caught) {
                     pendingNotification = GameNotification.DiscipleTheftCaught(disciple)
                 } else {
                     val currentData = currentGameData

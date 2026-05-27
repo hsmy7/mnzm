@@ -35,6 +35,9 @@ sealed class GameRoute(val route: String) {
     object BattleLog : GameRoute("battle_log")
     object Disciples : GameRoute("disciples")
     object Warehouse : GameRoute("warehouse")
+    object WarehouseBuilding : GameRoute("warehouse_building/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "warehouse_building/$buildingInstanceId"
+    }
     object Settings : GameRoute("settings")
     object Buildings : GameRoute("buildings")
     object BattleResult : GameRoute("battle_result")

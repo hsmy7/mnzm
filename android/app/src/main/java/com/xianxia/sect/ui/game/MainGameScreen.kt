@@ -286,6 +286,7 @@ fun MainGameScreen(
                 BuildingDef.MISSION_HALL -> { _ -> dialogNavController.navigate(GameRoute.MissionHall.route) }
                 BuildingDef.REFLECTION_CLIFF -> { _ -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
                 BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
+                BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.WarehouseBuilding.createRoute(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
             }
             def.displayName to handler

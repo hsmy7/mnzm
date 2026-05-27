@@ -62,8 +62,16 @@ class InventorySystem @Inject constructor(
     companion object {
         private const val TAG = "InventorySystem"
         const val SYSTEM_NAME = "InventorySystem"
-        const val MAX_INVENTORY_SIZE = 2000
         private val VALID_RARITY_RANGE = 1..6
+    }
+
+    private fun getMaxSlots(): Int {
+        val buildings = stateStore.unifiedState.value.gameData.placedBuildings
+        val warehouseCount = buildings.count {
+            it.displayName == com.xianxia.sect.ui.game.building.BuildingDef.WAREHOUSE.displayName
+        }
+        return com.xianxia.sect.core.GameConfig.Warehouse.BASE_CAPACITY +
+               warehouseCount * com.xianxia.sect.core.GameConfig.Warehouse.CAPACITY_PER_BUILDING
     }
 
     private val scope get() = applicationScopeProvider.scope
@@ -185,17 +193,26 @@ class InventorySystem @Inject constructor(
 
     fun getCapacityInfo(): CapacityInfo {
         val current = getTotalSlotCount()
+        val maxSlots = getMaxSlots()
         return CapacityInfo(
             currentSlots = current,
-            maxSlots = MAX_INVENTORY_SIZE,
-            remainingSlots = MAX_INVENTORY_SIZE - current,
-            isFull = current >= MAX_INVENTORY_SIZE
+            maxSlots = maxSlots,
+            remainingSlots = maxSlots - current,
+            isFull = current >= maxSlots
         )
     }
 
-    fun canAddItem(): Boolean = getTotalSlotCount() < MAX_INVENTORY_SIZE
+    fun canAddItem(): Boolean {
+        val full = getTotalSlotCount() >= getMaxSlots()
+        if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
+        return !full
+    }
 
-    fun canAddItems(count: Int): Boolean = getTotalSlotCount() + count <= MAX_INVENTORY_SIZE
+    fun canAddItems(count: Int): Boolean {
+        val full = getTotalSlotCount() + count > getMaxSlots()
+        if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
+        return !full
+    }
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val ts = stateStore.currentTransactionMutableState()
@@ -1360,7 +1377,7 @@ class InventorySystem @Inject constructor(
                     return@update
                 }
             }
-            if (seeds.size >= MAX_INVENTORY_SIZE) {
+            if (getTotalSlotCount() >= getMaxSlots()) {
                 overflowResult = AddResult.FULL
                 return@update
             }

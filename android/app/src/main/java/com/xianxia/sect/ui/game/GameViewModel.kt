@@ -226,6 +226,8 @@ class GameViewModel @Inject constructor(
 
     val pendingNotification: StateFlow<GameNotification?> get() = gameEngine.pendingNotification
 
+    val warehouseFullEvent get() = gameEngine.warehouseFullEvent
+
     /**
      * 弟子聚合数据 - 用于 UI 层显示（推荐使用）
      *

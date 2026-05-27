@@ -63,6 +63,16 @@
       "gridHeight": 1,
       "description": "种植灵草的田地"
     },
+    "warehouse": {
+      "id": "warehouse",
+      "displayName": "仓库",
+      "buildingType": "WAREHOUSE",
+      "slotCount": 1,
+      "cost": 1000,
+      "gridWidth": 2,
+      "gridHeight": 2,
+      "description": "储存宗门物资"
+    },
     "tianshu_hall": {
       "id": "tianshu_hall",
       "displayName": "天枢殿",
@@ -227,6 +237,7 @@
     "multiresidence": "multi_residence",
     "multi_residence": "multi_residence",
     "singleresidenceupgraded": "single_residence_upgraded",
-    "single_residence_upgraded": "single_residence_upgraded"
+    "single_residence_upgraded": "single_residence_upgraded",
+    "warehouse": "warehouse"
   }
 }

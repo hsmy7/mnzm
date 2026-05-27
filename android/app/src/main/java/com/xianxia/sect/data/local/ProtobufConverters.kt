@@ -534,6 +534,16 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromWarehouseGarrisonSlotList(value: List<WarehouseGarrisonSlot>): String =
+        encodeToBase64(ListSerializer(WarehouseGarrisonSlot.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toWarehouseGarrisonSlotList(value: String): List<WarehouseGarrisonSlot> =
+        decodeFromBase64(ListSerializer(WarehouseGarrisonSlot.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromDirectDiscipleSlotList(value: List<DirectDiscipleSlot>): String =
         encodeToBase64(ListSerializer(DirectDiscipleSlot.serializer()), value)
 

@@ -4,6 +4,7 @@ import android.util.Log
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +56,8 @@ class GameStateStore @Inject constructor(
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
+
+    val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     val unifiedState: StateFlow<UnifiedGameState> = _state.asStateFlow()
 

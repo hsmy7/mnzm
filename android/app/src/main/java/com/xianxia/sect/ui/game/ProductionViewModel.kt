@@ -50,6 +50,25 @@ class ProductionViewModel @Inject constructor(
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
         launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
 
+    fun assignWarehouseGarrison(buildingInstanceId: String, discipleId: String, discipleName: String, sectId: String) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                val existing = data.warehouseGarrisons.toMutableList()
+                existing.removeAll { it.buildingInstanceId == buildingInstanceId }
+                existing.add(WarehouseGarrisonSlot(buildingInstanceId, discipleId, discipleName, sectId))
+                data.copy(warehouseGarrisons = existing)
+            }
+        }
+    }
+
+    fun removeWarehouseGarrison(buildingInstanceId: String) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                data.copy(warehouseGarrisons = data.warehouseGarrisons.filter { it.buildingInstanceId != buildingInstanceId })
+            }
+        }
+    }
+
     fun toggleSpiritMineBoost(): Boolean {
         val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {

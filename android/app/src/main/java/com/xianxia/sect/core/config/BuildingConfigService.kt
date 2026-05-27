@@ -345,6 +345,16 @@ class BuildingConfigService @Inject constructor(
                     gridWidth = 1,
                     gridHeight = 1,
                     description = "种植灵草的田地"
+                ),
+                "warehouse" to BuildingConfigModel(
+                    id = "warehouse",
+                    displayName = "仓库",
+                    buildingType = "WAREHOUSE",
+                    slotCount = 1,
+                    cost = 1000,
+                    gridWidth = 2,
+                    gridHeight = 2,
+                    description = "储存宗门物资，每座+50格容量"
                 )
             ),
             buildingAliases = mapOf(
@@ -416,7 +426,8 @@ class BuildingConfigService @Inject constructor(
                 "multiresidence" to "multi_residence",
                 "multi_residence" to "multi_residence",
                 "singleresidenceupgraded" to "single_residence_upgraded",
-                "single_residence_upgraded" to "single_residence_upgraded"
+                "single_residence_upgraded" to "single_residence_upgraded",
+                "warehouse" to "warehouse"
             )
         )
     }

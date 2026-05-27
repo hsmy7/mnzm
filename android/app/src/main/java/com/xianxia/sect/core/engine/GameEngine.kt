@@ -102,6 +102,7 @@ class GameEngine @Inject constructor(
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
     fun clearPendingBattleResult() = stateStore.clearPendingBattleResult()
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
+    val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates

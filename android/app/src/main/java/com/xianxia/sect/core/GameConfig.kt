@@ -124,6 +124,11 @@ object GameConfig {
         const val AURA_RADIUS_TILES = 6.0
     }
 
+    object Warehouse {
+        const val BASE_CAPACITY = 50
+        const val CAPACITY_PER_BUILDING = 50
+    }
+
     object Rarity {
         val CONFIGS = mapOf(
             1 to RarityConfig(1, "凡品", "#b8b8b8", 1.0, 20000, 16000, 1000),

@@ -158,6 +158,9 @@ data class GameData(
     // 住所槽位
     var residenceSlots: List<ResidenceSlot> = emptyList(),
 
+    // 仓库驻守槽位
+    var warehouseGarrisons: List<WarehouseGarrisonSlot> = emptyList(),
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
 
@@ -635,6 +638,16 @@ data class ResidenceSlot(
     val slotIndex: Int = 0,
     val discipleId: String = "",
     val discipleName: String = ""
+) {
+    val isActive: Boolean get() = discipleId.isNotEmpty()
+}
+
+@Serializable
+data class WarehouseGarrisonSlot(
+    val buildingInstanceId: String = "",
+    val discipleId: String = "",
+    val discipleName: String = "",
+    val sectId: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

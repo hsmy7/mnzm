@@ -212,7 +212,8 @@ enum class BuildingType {
     MISSION_HALL,
     REFLECTION_CLIFF,
     SINGLE_RESIDENCE,
-    MULTI_RESIDENCE;
+    MULTI_RESIDENCE,
+    WAREHOUSE;
 
     val displayName: String get() = when (this) {
         ALCHEMY -> "炼丹"
@@ -228,6 +229,7 @@ enum class BuildingType {
         REFLECTION_CLIFF -> "监牢"
         SINGLE_RESIDENCE -> "单人住所"
         MULTI_RESIDENCE -> "多人住所"
+        WAREHOUSE -> "仓库"
     }
 
     fun toSlotType(): SlotType = when (this) {
