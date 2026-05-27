@@ -9,7 +9,7 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
-            version = "3.1.31",
+            version = "3.1.32",
             date = "2026-05-27",
             changes = listOf(
                 "优化一键任命：灵矿场优先任命高采矿弟子，副本战斗优先任命高境界弟子",
