@@ -37,8 +37,7 @@ fun GameActionButtons(
 ) {
     Column(
         modifier = modifier
-            .displayCutoutPadding()
-            .padding(top = 8.dp, end = 8.dp),
+            .padding(top = 8.dp, end = 32.dp),
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {

@@ -477,7 +477,7 @@ fun MainGameScreen(
                 discipleCount = aliveDisciples.value.size,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .displayCutoutPadding()
+                    .padding(start = 32.dp, top = 8.dp)
             )
 
             GameActionButtons(

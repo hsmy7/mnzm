@@ -147,7 +147,7 @@ fun UnifiedGameDialog(
                         .fillMaxWidth()
                         .weight(1f)
                         .then(contentScrollModifier)
-                        .padding(horizontal = Spacing.MD)
+                        .padding(horizontal = if (mode == DialogMode.Full) 32.dp else Spacing.MD)
                 ) {
                     content()
                 }

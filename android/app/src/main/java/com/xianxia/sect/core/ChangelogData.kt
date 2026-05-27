@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.33",
+            date = "2026-05-27",
+            changes = listOf(
+                "全屏界面左右增加32dp安全边距，避免前置摄像头遮挡游戏内容",
+                "主界面悬浮组件（宗门信息卡/功能按钮）统一改为对称固定边距"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.32",
             date = "2026-05-27",
             changes = listOf(
