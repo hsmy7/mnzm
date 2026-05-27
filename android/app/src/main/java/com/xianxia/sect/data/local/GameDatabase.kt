@@ -343,13 +343,10 @@ abstract class GameDatabase : RoomDatabase() {
 
         /**
          * Safely drop columns from a table, compatible with all Android API levels.
-         * On API 31+ uses native DROP COLUMN; on older versions rebuilds the table via PRAGMA.
+         * Always rebuilds the table via PRAGMA — ALTER TABLE DROP COLUMN requires
+         * SQLite 3.35.0+ which is not guaranteed even on API 31+ devices.
          */
         private fun SupportSQLiteDatabase.safeDropColumns(table: String, vararg dropCols: String) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                dropCols.forEach { execSQL("ALTER TABLE $table DROP COLUMN $it") }
-                return
-            }
             val dropped = dropCols.toSet()
             val cols = mutableListOf<Triple<String, String, Int>>()
             query("PRAGMA table_info($table)").use { c ->

@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.21] - 2026-05-27
+
+### 修复
+- safeDropColumns移除API级别判断，统一使用PRAGMA表重建代替原生ALTER TABLE DROP COLUMN
+- 修复部分Android 12+设备SQLite不支持DROP COLUMN语法导致数据库迁移崩溃的问题
+
 ## [3.1.20] - 2026-05-27
 
 ### 重构

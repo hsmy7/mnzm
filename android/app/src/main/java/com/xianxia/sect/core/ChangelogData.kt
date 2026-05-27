@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.21",
+            date = "2026-05-27",
+            changes = listOf(
+                "修复safeDropColumns中API级别判断不可靠导致部分设备SQLite DROP COLUMN语法错误崩溃的问题",
+                "统一使用PRAGMA表重建方案替代原生ALTER TABLE DROP COLUMN，全Android版本兼容"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.20",
             date = "2026-05-27",
             changes = listOf(

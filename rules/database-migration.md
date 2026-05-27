@@ -14,7 +14,7 @@
 
 2. **列变更的迁移 SQL**：
    - 添加列：`ALTER TABLE table_name ADD COLUMN col_name TYPE DEFAULT val`
-   - 删除列：**使用 `db.safeDropColumns("table", "col1", "col2")`**（定义在 `GameDatabase.kt`），禁止直接写 `ALTER TABLE DROP COLUMN`（SQLite < 3.35 / Android < 12 不支持，`minSdk = 24` 必崩）。内部自动处理低版本表重建：
+   - 删除列：**使用 `db.safeDropColumns("table", "col1", "col2")`**（定义在 `GameDatabase.kt`），禁止直接写 `ALTER TABLE DROP COLUMN`（需要 SQLite 3.35.0+，所有 Android 版本均不保证支持）。内部通过 PRAGMA 表重建实现：
      ```kotlin
      db.safeDropColumns("game_data", "oldColumn1", "oldColumn2")
      ```
