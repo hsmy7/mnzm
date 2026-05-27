@@ -42,6 +42,8 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.ui.components.ElderBonusInfoButton
+import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
@@ -118,12 +120,18 @@ private fun HerbGardenDirectDiscipleSection(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "灵植弟子",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "灵植弟子",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getHerbGardenDiscipleInfo())
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

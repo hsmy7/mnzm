@@ -214,6 +214,11 @@ class GameViewModel @Inject constructor(
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    val gameDataUi: StateFlow<GameData> = gameEngine.gameData
+        .sample(400)
+        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
         .map { it.placedBuildings }
         .distinctUntilChanged()

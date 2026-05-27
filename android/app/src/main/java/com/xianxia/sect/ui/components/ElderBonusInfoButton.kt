@@ -198,12 +198,19 @@ object ElderBonusInfoProvider {
     )
     
     fun getHerbGardenElderInfo(): ElderBonusInfo = ElderBonusInfo(
-        title = "灵植长老/灵植弟子",
+        title = "灵植长老",
         requiredAttribute = "灵植",
-        effectDescription = "长老全局提升灵田成熟速度；灵植弟子在灵植阁范围内提升灵田成熟速度",
-        bonusFormula = "长老(全局)：灵植属性以80为基准，每高4点增加1%成熟速度。\n最多增加20%成熟速度。\n灵植弟子(灵植阁范围半径6格)：灵植属性以50为基准，每高5点增加1%成熟速度。\n最多增加20%成熟速度。\n多座灵植阁范围不叠加。"
+        effectDescription = "长老全局提升所有灵田成熟速度",
+        bonusFormula = "灵植属性以80为基准，每高4点增加1%成熟速度。\n最多增加20%成熟速度。\n加成为全局效果，不受灵植阁位置限制。"
     )
-    
+
+    fun getHerbGardenDiscipleInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "灵植弟子",
+        requiredAttribute = "灵植",
+        effectDescription = "灵植弟子在灵植阁范围内提升灵田成熟速度",
+        bonusFormula = "灵植属性以50为基准，每高5点增加1%成熟速度。\n最多增加20%成熟速度。\n灵植阁范围半径6格，多座范围不叠加。"
+    )
+
     fun getLibraryElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "藏经阁长老",
         requiredAttribute = "传道",

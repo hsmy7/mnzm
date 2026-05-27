@@ -28,7 +28,6 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
@@ -90,16 +89,19 @@ fun RecruitDialog(
                                 disciple = disciple,
                                 isSelected = false,
                                 actions = {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
                                         GameButton(
                                             text = "拒绝",
                                             onClick = { viewModel.rejectDiscipleFromList(disciple.id) },
-                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                            modifier = Modifier.weight(1f)
                                         )
                                         GameButton(
                                             text = "同意",
                                             onClick = { viewModel.recruitDisciple(disciple) },
-                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
                                 },

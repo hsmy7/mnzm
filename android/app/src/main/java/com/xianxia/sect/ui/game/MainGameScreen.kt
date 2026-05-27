@@ -125,7 +125,7 @@ fun MainGameScreen(
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
-    val gameData by viewModel.gameData.collectAsState()
+    val gameData by viewModel.gameDataUi.collectAsState()
     // [M7-OPT-2] 弟子列表 - 高频变化（修炼进度每 tick 更新）
     // 使用 derivedStateOf 缓存过滤结果，避免每次重组都重新计算
     val disciples by viewModel.discipleAggregates.collectAsState()
@@ -232,7 +232,7 @@ fun MainGameScreen(
 
     // 建筑放置后清除下方装饰（修改 rawTileData + 修补 fullMapBmp）
     val clearedDecorationCells = remember { mutableSetOf<Long>() }
-    SideEffect {
+    LaunchedEffect(activeSectBuildings) {
         val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
         val fullBmp = fullMapBmp.asAndroidBitmap()
         val canvas = android.graphics.Canvas(fullBmp)

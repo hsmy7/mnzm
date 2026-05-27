@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.27",
+            date = "2026-05-27",
+            changes = listOf(
+                "性能优化：SideEffect改为LaunchedEffect减少主线程bitmap绘制，UI层StateFlow采样降频减少Compose重组",
+                "招募界面同意/拒绝按钮改为自适应等宽，填充卡片可用空间",
+                "灵植弟子标题右侧增加详情按钮描述增益效果"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.26",
             date = "2026-05-27",
             changes = listOf(
