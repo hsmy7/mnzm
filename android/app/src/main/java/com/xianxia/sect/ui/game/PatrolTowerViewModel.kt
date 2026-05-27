@@ -38,6 +38,7 @@ class PatrolTowerViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     portraitRes = disciple.portraitRes
                 )
+                gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.PATROLLING)
                 gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "任命失败")
@@ -51,7 +52,9 @@ class PatrolTowerViewModel @Inject constructor(
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
                 if (slotIndex >= slots.size) return@launch
+                val removedId = slots[slotIndex].discipleId
                 slots[slotIndex] = PatrolSlot(index = slotIndex)
+                if (removedId.isNotEmpty()) gameEngine.updateDiscipleStatus(removedId, DiscipleStatus.IDLE)
                 gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
@@ -65,6 +68,7 @@ class PatrolTowerViewModel @Inject constructor(
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
                 if (slotIndex >= slots.size) return@launch
+                val oldId = slots[slotIndex].discipleId
                 val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId } ?: return@launch
                 slots[slotIndex] = PatrolSlot(
                     index = slotIndex,
@@ -73,6 +77,8 @@ class PatrolTowerViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     portraitRes = disciple.portraitRes
                 )
+                if (oldId.isNotEmpty()) gameEngine.updateDiscipleStatus(oldId, DiscipleStatus.IDLE)
+                gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.PATROLLING)
                 gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "更换失败")
@@ -99,6 +105,7 @@ class PatrolTowerViewModel @Inject constructor(
                             discipleRealm = d.realmName,
                             portraitRes = d.portraitRes
                         )
+                        gameEngine.updateDiscipleStatus(d.id, DiscipleStatus.PATROLLING)
                         idx++
                     }
                 }

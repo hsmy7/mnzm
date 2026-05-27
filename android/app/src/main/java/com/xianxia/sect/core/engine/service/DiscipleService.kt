@@ -250,6 +250,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         data.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
 
+        val patrollingIds = data.patrolSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .map { it.discipleId }
+            .toSet()
+
         currentDisciples = disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
@@ -264,6 +269,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 managingIds.contains(disciple.id) -> DiscipleStatus.MANAGING
                 studyingIds.contains(disciple.id) -> DiscipleStatus.STUDYING
                 miningIds.contains(disciple.id) -> DiscipleStatus.MINING
+                patrollingIds.contains(disciple.id) -> DiscipleStatus.PATROLLING
                 else -> DiscipleStatus.IDLE
             }
 
