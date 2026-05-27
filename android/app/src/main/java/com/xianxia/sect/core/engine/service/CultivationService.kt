@@ -1809,6 +1809,14 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val totalSpiritStones = (baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier).toInt()
 
+        // 矿工每月忠诚-1
+        val minerIds = data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+        currentDisciples = currentDisciples.map { d ->
+            if (d.id in minerIds) {
+                d.copyWith(loyalty = (d.skills.loyalty - 1).coerceAtLeast(0))
+            } else d
+        }
+
         if (totalSpiritStones > 0) {
             currentGameData = data.copy(
                 spiritStones = data.spiritStones + totalSpiritStones
@@ -1846,11 +1854,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                     val salary = salaryConfig[disciple.realm] ?: 0
                     val newPaidCount = disciple.skills.salaryPaidCount + 1
-                    val newLoyalty = if (newPaidCount % 3 == 0) {
-                        (disciple.skills.loyalty + 1).coerceAtLeast(0)
-                    } else {
-                        disciple.skills.loyalty
-                    }
+                    val newLoyalty = (disciple.skills.loyalty + 1).coerceAtLeast(0)
 
                     disciple.copyWith(
                         storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary.toLong(),
@@ -1867,11 +1871,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
 
                     val newMissedCount = disciple.skills.salaryMissedCount + 1
-                    val newLoyalty = if (newMissedCount % 3 == 0) {
-                        (disciple.skills.loyalty - 1).coerceAtLeast(0)
-                    } else {
-                        disciple.skills.loyalty
-                    }
+                    val newLoyalty = (disciple.skills.loyalty - 1).coerceAtLeast(0)
 
                     disciple.copyWith(
                         salaryMissedCount = newMissedCount,
@@ -1881,6 +1881,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                 currentDisciples = discipleUpdates
             }
+        }
+    }
+
+    internal fun processResidenceLoyalty() {
+        val residentIds = currentGameData.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
+        currentDisciples = currentDisciples.map { d ->
+            if (d.id in residentIds) {
+                d.copyWith(loyalty = d.skills.loyalty + 1)
+            } else d
         }
     }
 

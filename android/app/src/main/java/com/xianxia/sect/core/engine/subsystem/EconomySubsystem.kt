@@ -34,5 +34,6 @@ class EconomySubsystem @Inject constructor(
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processPolicyCosts()
         cultivationService.processSalaryPayment(state.gameData.gameYear, state.gameData.gameMonth)
+        cultivationService.processResidenceLoyalty()
     }
 }
