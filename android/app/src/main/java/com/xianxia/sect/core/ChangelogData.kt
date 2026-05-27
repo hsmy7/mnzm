@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.35",
+            date = "2026-05-28",
+            changes = listOf(
+                "突破丹支持对应境界小层突破（如大乘丹可用于大乘一层→二层及大乘九层→渡劫），自动消耗储物袋中突破丹并优先使用高品质"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.34",
             date = "2026-05-28",
             changes = listOf(

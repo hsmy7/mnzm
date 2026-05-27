@@ -632,6 +632,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             var newLifespan = disciple.lifespan
             var newCurrentHp = disciple.combat.currentHp
             var newCurrentMp = disciple.combat.currentMp
+            var newStorageItems = disciple.equipment.storageBagItems
             var shouldContinue = true
 
             while (shouldContinue && newRealm > 0) {
@@ -643,7 +644,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
 
-                val success = tryBreakthrough(disciple)
+                // 消耗突破丹：从储物袋找 targetRealm 匹配的、breakthroughChance 最高的一颗
+                val bestPill = newStorageItems
+                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == newRealm }
+                    .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
+                var pillBonus = 0.0
+                if (bestPill != null) {
+                    newStorageItems = newStorageItems - bestPill
+                    pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
+                }
+
+                val success = tryBreakthrough(disciple, pillBonus)
                 if (success) {
                     newCultivation = 0.0
                     if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
@@ -676,7 +687,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 realmLayer = newRealmLayer,
                 lifespan = newLifespan,
                 currentHp = newCurrentHp,
-                currentMp = newCurrentMp
+                currentMp = newCurrentMp,
+                storageBagItems = newStorageItems
             )
         }
 
@@ -1326,7 +1338,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     /**
      * Try breakthrough for a disciple - returns whether it succeeded
      */
-    private fun tryBreakthrough(disciple: Disciple): Boolean {
+    private fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0): Boolean {
         val data = currentGameData
         val elderSlots = data.elderSlots
         val allDisciples = currentDisciples.associateBy { it.id }
@@ -1349,7 +1361,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
-            outerElderComprehensionBonus = outerElderComprehensionBonus
+            outerElderComprehensionBonus = outerElderComprehensionBonus,
+            pillBonus = pillBonus
         )
         val success = Random.nextDouble() < chance
 
