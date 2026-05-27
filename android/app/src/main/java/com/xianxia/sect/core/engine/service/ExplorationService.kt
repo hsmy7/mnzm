@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.LevelGenerator
 import com.xianxia.sect.core.event.DeathEvent
@@ -23,7 +24,8 @@ import javax.inject.Singleton
 class ExplorationService @Inject constructor(
     private val stateStore: GameStateStore,
     private val eventBus: EventBus,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val battleSystem: BattleSystem
 ) : GameSystem {
     override val systemName: String = "ExplorationService"
     private val scope get() = applicationScopeProvider.scope
@@ -60,6 +62,103 @@ class ExplorationService @Inject constructor(
         } else if (remainingLevels.size != data.worldLevels.size) {
             state.gameData = data.copy(worldLevels = remainingLevels)
         }
+
+        // 巡视楼自动攻击
+        processPatrolAttacks(state)
+    }
+
+    private fun processPatrolAttacks(state: MutableGameState) {
+        var gd = state.gameData
+        var disciples = state.disciples
+        val config = gd.patrolConfig
+        val slots = gd.patrolSlots
+        if (slots.isEmpty() || slots.none { it.discipleId.isNotEmpty() }) return
+
+        val patrolDiscipleIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+        val patrolDisciples = disciples.filter { it.id in patrolDiscipleIds && it.isAlive }
+        if (patrolDisciples.isEmpty()) return
+
+        // 满状态检查
+        if (config.requireFullStatus) {
+            val anyNotFull = patrolDisciples.any {
+                it.combat.currentHp < it.maxHp || it.combat.currentMp < it.maxMp
+            }
+            if (anyNotFull) return
+        }
+
+        // 找匹配的妖兽：境界匹配 + 数量不超上限 + 未击败 + 未过期
+        val year = gd.gameYear; val month = gd.gameMonth
+        val targets = gd.worldLevels.filter {
+            it.type == LevelType.BEAST &&
+            !it.defeated &&
+            !it.checkExpired(year, month) &&
+            it.realm in config.targetRealms &&
+            it.count <= config.maxBeastCount
+        }.sortedWith(compareBy({ it.realm }, { it.count }))
+
+        if (targets.isEmpty()) return
+
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val allProficiencies = gd.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        // 逐只攻击
+        for (beast in targets) {
+            val aliveIds = patrolDiscipleIds.intersect(
+                disciples.filter { it.isAlive }.map { it.id }.toSet()
+            )
+            if (aliveIds.isEmpty()) break
+
+            val attackers = disciples.filter { it.id in aliveIds && it.isAlive }
+            val battle = battleSystem.createBattle(
+                disciples = attackers,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                beastLevel = beast.realm,
+                beastCount = beast.count,
+                beastType = beast.beastName,
+                manualProficiencies = allProficiencies
+            )
+            val result = battleSystem.executeBattle(battle)
+
+            // 更新弟子状态
+            val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
+            val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+            disciples = disciples.map { d ->
+                val (hp, mp) = hpMap[d.id] ?: return@map d
+                if (d.id !in survivorIds) {
+                    d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                } else {
+                    d.copy(combat = d.combat.copy(
+                        currentHp = hp.coerceIn(0, d.maxHp),
+                        currentMp = mp.coerceIn(0, d.maxMp)
+                    ))
+                }
+            }
+
+            // 标记妖兽已击败
+            if (result.victory) {
+                gd = gd.copy(
+                    worldLevels = gd.worldLevels.map {
+                        if (it.id == beast.id) it.copy(defeated = true) else it
+                    }
+                )
+                // 清理阵亡弟子槽位
+                val deadIds = disciples.filter { !it.isAlive }.map { it.id }.toSet()
+                if (deadIds.isNotEmpty()) {
+                    gd = gd.copy(
+                        patrolSlots = gd.patrolSlots.map { slot ->
+                            if (slot.discipleId in deadIds) PatrolSlot(index = slot.index) else slot
+                        }
+                    )
+                }
+            }
+        }
+
+        state.gameData = gd
+        state.disciples = disciples
     }
     private val state = StateAccessorFactory(stateStore, scope, null)
 
