@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.40",
+            date = "2026-05-28",
+            changes = listOf(
+                "数量输入框超上限自动取上限值（如输入999自动变为上限13）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.39",
             date = "2026-05-28",
             changes = listOf(
