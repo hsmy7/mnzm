@@ -11,7 +11,7 @@ enum class BuildingDef(
     val noLimit: Boolean = false
 ) {
     SPIRIT_MINE("mining", "灵矿场", R.drawable.building_spirit_mine, Color(0xFFBCAAA4), noLimit = true),
-    HERB_GARDEN("herb_garden", "灵植阁", R.drawable.building_herb_garden, Color(0xFFA5D6A7)),
+    HERB_GARDEN("herb_garden", "灵植阁", R.drawable.building_herb_garden, Color(0xFFA5D6A7), noLimit = true),
     SPIRIT_FIELD("spirit_field", "灵田", R.drawable.building_spirit_field, Color(0xFFC8E6C9), noLimit = true),
     ALCHEMY("alchemy", "炼丹炉", R.drawable.building_alchemy, Color(0xFFEF9A9A), noLimit = true),
     FORGE("forge", "锻造坊", R.drawable.building_forge, Color(0xFFB0BEC5), noLimit = true),

@@ -18,6 +18,7 @@ import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.BattleMemberData
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.HerbGardenSystem
+import com.xianxia.sect.core.engine.HerbGardenAuraService
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.SectWarehouseManager
@@ -1559,14 +1560,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
 
             val elapsedMonths = (currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)
-            if (elapsedMonths >= plant.growTime) {
+            val speedBonus = calculateSpiritFieldMaturityBonus(plant, data, allDisciples)
+            val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(plant.growTime, speedBonus)
+
+            if (elapsedMonths >= effectiveGrowTime) {
                 val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
                 if (dbHerb != null) {
-                    val policyBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-                    val elderBonus = calculateSpiritFieldElderBonus(plant.sectId, data, allDisciples)
-
-                    val totalBonus = policyBonus + elderBonus
-                    val finalYield = (plant.expectedYield * (1 + totalBonus)).toInt().coerceAtLeast(1)
+                    val finalYield = plant.expectedYield.coerceAtLeast(1)
 
                     val herbName = dbHerb.name
                     val herbRarity = dbHerb.rarity
@@ -1621,20 +1621,24 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
     }
 
-    private fun calculateSpiritFieldElderBonus(sectId: String, gameData: GameData, allDisciples: List<Disciple>): Double {
-        val slots = gameData.elderSlots
-        val elderId = slots.herbGardenElder
+    private fun calculateSpiritFieldMaturityBonus(
+        plant: SpiritFieldPlant,
+        gameData: GameData,
+        allDisciples: List<Disciple>
+    ): Double {
+        val elderBonus = HerbGardenAuraService.calculateElderMaturityBonus(
+            gameData.elderSlots, allDisciples
+        )
+        val policyBonus = if (gameData.sectPolicies.herbCultivation) {
+            GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT
+        } else 0.0
+        val auraBonus = if (HerbGardenAuraService.isSpiritFieldInAura(
+                plant.buildingInstanceId, gameData.placedBuildings
+            )) {
+            HerbGardenAuraService.calculateAuraMaturityBonus(gameData.elderSlots, allDisciples)
+        } else 0.0
 
-        val elderDisciple = allDisciples.find { it.id == elderId }
-        val elderBonus = if (elderDisciple != null && elderDisciple.spiritPlanting > 80)
-            (elderDisciple.spiritPlanting - 80) * 0.01 else 0.0
-
-        val discipleBonus = slots.herbGardenDisciples.sumOf { slot ->
-            val d = allDisciples.find { it.id == slot.discipleId } ?: return@sumOf 0.0
-            if (d.spiritPlanting > 80) (d.spiritPlanting - 80) * 0.01 else 0.0
-        }
-
-        return (elderBonus + discipleBonus).coerceAtMost(0.80)
+        return policyBonus + elderBonus + auraBonus
     }
 
     internal suspend fun processAutoAlchemy() {

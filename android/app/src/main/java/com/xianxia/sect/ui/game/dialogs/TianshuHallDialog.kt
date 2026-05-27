@@ -38,6 +38,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.ProductionElderSection
 import com.xianxia.sect.ui.game.ALCHEMY_THEME
 import com.xianxia.sect.ui.game.FORGE_THEME
+import com.xianxia.sect.ui.game.HERB_GARDEN_THEME
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
@@ -57,6 +58,7 @@ fun TianshuHallDialog(
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
     var showForgeElderSelectDialog by remember { mutableStateOf(false) }
+    var showHerbGardenElderSelectDialog by remember { mutableStateOf(false) }
     var showSectAffairsDialog by remember { mutableStateOf(false) }
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
 
@@ -64,6 +66,8 @@ fun TianshuHallDialog(
     val alchemyElder = disciples.find { it.id == alchemyElderId }
     val forgeElderId = elderSlots?.forgeElder
     val forgeElder = disciples.find { it.id == forgeElderId }
+    val herbGardenElderId = elderSlots?.herbGardenElder
+    val herbGardenElder = disciples.find { it.id == herbGardenElderId }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -116,6 +120,14 @@ fun TianshuHallDialog(
                             onSlotClick = { forgeElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                             onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
                             onSwap = { showForgeElderSelectDialog = true }
+                        )
+
+                        ProductionElderSection(
+                            theme = HERB_GARDEN_THEME,
+                            elder = herbGardenElder,
+                            onSlotClick = { herbGardenElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+                            onElderRemove = { productionViewModel.removeElder(ElderSlotType.HERB_GARDEN) },
+                            onSwap = { showHerbGardenElderSelectDialog = true }
                         )
                     }
 
@@ -212,6 +224,20 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.FORGE, discipleId)
                 showForgeElderSelectDialog = false
+            }
+        )
+    }
+
+    if (showHerbGardenElderSelectDialog) {
+        ProductionElderSelectionDialog(
+            theme = HERB_GARDEN_THEME,
+            disciples = disciples.filter { it.isAlive },
+            currentElderId = herbGardenElderId,
+            elderSlots = elderSlots ?: ElderSlots(),
+            onDismiss = { showHerbGardenElderSelectDialog = false },
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.HERB_GARDEN, discipleId)
+                showHerbGardenElderSelectDialog = false
             }
         )
     }

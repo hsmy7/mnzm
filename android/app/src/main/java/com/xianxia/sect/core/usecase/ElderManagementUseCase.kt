@@ -49,7 +49,6 @@ class ElderManagementUseCase @Inject constructor(
     fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
         return listOf(
             herbGardenDisciples,
-            herbGardenReserveDisciples,
             alchemyDisciples,
             alchemyReserveDisciples,
             forgeDisciples,
@@ -90,8 +89,7 @@ class ElderManagementUseCase @Inject constructor(
         val newElderSlots = when (slotType) {
             ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                 herbGardenElder = discipleId,
-                herbGardenDisciples = emptyList(),
-                herbGardenReserveDisciples = emptyList()
+                herbGardenDisciples = emptyList()
             )
             ElderSlotType.ALCHEMY -> elderSlots.copy(
                 alchemyElder = discipleId,
@@ -138,8 +136,7 @@ class ElderManagementUseCase @Inject constructor(
         val newElderSlots = when (slotType) {
             ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                 herbGardenElder = "",
-                herbGardenDisciples = emptyList(),
-                herbGardenReserveDisciples = emptyList()
+                herbGardenDisciples = emptyList()
             )
             ElderSlotType.ALCHEMY -> elderSlots.copy(
                 alchemyElder = "",

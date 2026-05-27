@@ -118,7 +118,12 @@ object GameConfig {
         const val SPIRIT_MINE_MINING_THRESHOLD = 70
         const val SPIRIT_MINE_MINING_BONUS_RATE = 0.02
     }
-    
+
+    object HerbGarden {
+        /** Aura radius in grid tiles centered on the herb garden building */
+        const val AURA_RADIUS_TILES = 6.0
+    }
+
     object Rarity {
         val CONFIGS = mapOf(
             1 to RarityConfig(1, "凡品", "#b8b8b8", 1.0, 20000, 16000, 1000),
@@ -452,6 +457,14 @@ object GameConfig {
         // 每超过基准值5点智力，政策效果增加1%
         const val VICE_SECT_MASTER_INTELLIGENCE_STEP = 5
         const val VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP = 0.01
+
+        // 灵植长老/灵植弟子成熟速度加成
+        const val HERB_GARDEN_ELDER_SPIRIT_BASE = 80
+        const val HERB_GARDEN_ELDER_SPIRIT_STEP = 4
+        const val HERB_GARDEN_ELDER_MAX = 0.20
+        const val HERB_GARDEN_DISCIPLE_SPIRIT_BASE = 50
+        const val HERB_GARDEN_DISCIPLE_SPIRIT_STEP = 5
+        const val HERB_GARDEN_DISCIPLE_MAX = 0.20
     }
 
     object LawEnforcementConfig {

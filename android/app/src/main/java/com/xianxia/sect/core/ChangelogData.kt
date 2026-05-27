@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.23",
+            date = "2026-05-27",
+            changes = listOf(
+                "灵植长老移至天枢殿，与炼丹/天工长老同行；灵植阁改为范围光环建筑（半径6格）",
+                "灵植阁弟子槽位缩为1个灵植弟子，加成公式改为50基准每5点+1%成熟速度（上限20%），仅光环内灵田生效",
+                "灵植长老加成改为80基准每4点+1%成熟速度（上限20%），全局生效；灵植阁移除建造上限"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.22",
             date = "2026-05-27",
             changes = listOf(

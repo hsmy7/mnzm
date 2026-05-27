@@ -22,33 +22,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HERB_GARDEN_THEME
-import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.ElderBonusInfoButton
-import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
@@ -63,15 +57,11 @@ fun HerbGardenDialog(
     productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
-    var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
-    var showElderRemoveConfirm by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
     val activeSectId = gameData?.activeSectId ?: ""
     val herbGardenDisciples = elderSlots.herbGardenDisciples.filter { it.sectId == activeSectId }
-    val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -85,19 +75,6 @@ fun HerbGardenDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                HerbGardenElderSection(
-                    elder = herbGardenElder,
-                    onSlotClick = { herbGardenElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
-                    onElderRemove = {
-                        if (hasDirectDisciples) {
-                            showElderRemoveConfirm = true
-                        } else {
-                            productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
-                        }
-                    },
-                    onSwap = { showElderSelection = true }
-                )
-
                 HerbGardenDirectDiscipleSection(
                     directDisciples = herbGardenDisciples,
                     disciples = disciples,
@@ -114,21 +91,6 @@ fun HerbGardenDialog(
         }
     }
 
-    if (showElderSelection) {
-        val currentElderId = elderSlots.herbGardenElder
-        ProductionElderSelectionDialog(
-            theme = HERB_GARDEN_THEME,
-            disciples = disciples.filter { it.isAlive },
-            currentElderId = currentElderId,
-            elderSlots = elderSlots,
-            onDismiss = { showElderSelection = false },
-            onSelect = { discipleId ->
-                productionViewModel.assignElder(ElderSlotType.HERB_GARDEN, discipleId)
-                showElderSelection = false
-            }
-        )
-    }
-
     showDirectDiscipleSelection?.let { slotIndex ->
         ProductionDirectDiscipleSelectionDialog(
             theme = HERB_GARDEN_THEME,
@@ -142,113 +104,6 @@ fun HerbGardenDialog(
         )
     }
 
-    if (showElderRemoveConfirm) {
-        ElderRemoveConfirmDialog(
-            elderName = herbGardenElder?.name ?: "长老",
-            discipleCount = herbGardenDisciples.count { it.isActive },
-            onConfirm = {
-                productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
-                showElderRemoveConfirm = false
-            },
-            onDismiss = { showElderRemoveConfirm = false }
-        )
-    }
-
-}
-
-@Composable
-private fun ElderRemoveConfirmDialog(
-    elderName: String,
-    discipleCount: Int,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "确认卸任",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "确定要让 $elderName 卸任灵植长老吗？",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                if (discipleCount > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "⚠️ 卸任后将同时移除 $discipleCount 位亲传弟子！",
-                        fontSize = 11.sp,
-                        color = Color(0xFFE74C3C),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    GameButton(
-                        text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    GameButton(
-                        text = "确认卸任",
-                        onClick = onConfirm,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HerbGardenElderSection(
-    elder: DiscipleAggregate?,
-    onSlotClick: () -> Unit,
-    onElderRemove: () -> Unit,
-    onSwap: () -> Unit = {}
-) {
-    val elderBorderColor = if (elder != null) {
-        try {
-            Color(android.graphics.Color.parseColor(elder.spiritRoot.countColor))
-        } catch (e: Exception) {
-            Color(0xFF4CAF50)
-        }
-    } else {
-        GameColors.Border
-    }
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "灵植长老",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo())
-        }
-
-        DiscipleSlotWithActions(
-            disciple = elder,
-            borderColor = elderBorderColor,
-            onSlotClick = { onSlotClick() },
-            onEmptySlotClick = { onSwap() },
-            onDismiss = { onElderRemove() },
-            onSwap = { onSwap() }
-        )
-    }
 }
 
 @Composable
@@ -264,7 +119,7 @@ private fun HerbGardenDirectDiscipleSection(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "亲传弟子",
+            text = "灵植弟子",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -274,7 +129,7 @@ private fun HerbGardenDirectDiscipleSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
-            (0 until 3).forEach { index ->
+            (0 until 1).forEach { index ->
                 val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
                 val agg = if (slot.isActive) disciples.find { it.id == slot.discipleId } else null
                 val borderColor = if (slot.isActive) {
