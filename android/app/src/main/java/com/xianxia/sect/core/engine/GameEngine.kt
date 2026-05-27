@@ -22,6 +22,7 @@ import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
@@ -3234,8 +3235,36 @@ class GameEngine @Inject constructor(
         if (result.victory) {
             stateStore.updateDisciplesDirect { disciples ->
                 disciples.map { d ->
-                    if (d.id in survivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1)
-                    else d
+                    if (d.id in survivorIds && d.isAlive) {
+                        var modified = d.copyWith(soulPower = d.soulPower + 1)
+                        if (modified.talentIds.any { id ->
+                            TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true
+                        }) {
+                            val r = kotlin.random.Random.nextInt(17)
+                            val s = modified.skills
+                            val c = modified.combat
+                            when (r) {
+                                0 -> s.intelligence++
+                                1 -> s.comprehension++
+                                2 -> s.charm++
+                                3 -> s.loyalty++
+                                4 -> s.artifactRefining++
+                                5 -> s.pillRefining++
+                                6 -> s.spiritPlanting++
+                                7 -> s.mining++
+                                8 -> s.teaching++
+                                9 -> s.morality++
+                                10 -> c.baseHp++
+                                11 -> c.baseMp++
+                                12 -> c.basePhysicalAttack++
+                                13 -> c.baseMagicAttack++
+                                14 -> c.basePhysicalDefense++
+                                15 -> c.baseMagicDefense++
+                                16 -> c.baseSpeed++
+                            }
+                        }
+                        modified
+                    } else d
                 }
             }
 
