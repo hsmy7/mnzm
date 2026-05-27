@@ -403,6 +403,7 @@ abstract class GameDatabase : RoomDatabase() {
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN patrolConfigs TEXT NOT NULL DEFAULT '[]'")
+                db.safeDropColumns("game_data", "patrolConfig")
             }
         }
 
