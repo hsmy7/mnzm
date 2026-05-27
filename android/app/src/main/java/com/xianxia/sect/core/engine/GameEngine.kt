@@ -2909,9 +2909,11 @@ class GameEngine @Inject constructor(
             sectDisciplePool.filter { it.isAlive }.sortedBy { it.realm }.take(AISectAttackManager.TEAM_SIZE)
         }
 
-        // Get the full defender disciple pool for occupation check
+        // 清理阵亡守军用的池：从占领者池中移除（被占领宗门时）
         val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
-        val fullDefenderPool = data.aiSectDisciples[defenderPoolSectId] ?: emptyList()
+        // 占领判定用的池：正常宗门需全池无化神+才占领；被占领宗门击败守军即占领
+        val occupationPoolSectId = sectId
+        val fullDefenderPool = data.aiSectDisciples[occupationPoolSectId] ?: emptyList()
 
         val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples, fullDefenderPool)
 
