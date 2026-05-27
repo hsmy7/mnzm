@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.38",
+            date = "2026-05-28",
+            changes = listOf(
+                "巡视楼移除建造上限，可建造多座，每座独立管理10个槽位和进攻配置",
+                "多座巡视楼分塔分队自动攻击，不同塔不会重复进攻同一只妖兽"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.37",
             date = "2026-05-28",
             changes = listOf(

@@ -12,28 +12,19 @@ class PatrolTowerViewModel @Inject constructor(
     private val gameEngine: GameEngine
 ) : BaseViewModel() {
 
-    private fun slotRange(data: GameData, buildingInstanceId: String): IntRange {
-        val towers = data.placedBuildings.filter { it.displayName == "巡视楼" }
-        val idx = towers.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
-        val start = idx * 10
-        return start until start + 10
-    }
-
-    private fun configIndex(data: GameData, buildingInstanceId: String): Int {
-        val towers = data.placedBuildings.filter { it.displayName == "巡视楼" }
+    fun getTowerIndex(buildingInstanceId: String): Int {
+        val towers = gameEngine.gameDataSnapshot.placedBuildings
+            .filter { it.displayName == "巡视楼" }
         return towers.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     }
 
-    fun getConfig(data: GameData, buildingInstanceId: String): PatrolConfig {
-        val idx = configIndex(data, buildingInstanceId)
-        return data.patrolConfigs.getOrElse(idx) { PatrolConfig() }
-    }
+    fun slotRange(towerIndex: Int): IntRange = (towerIndex * 10) until (towerIndex * 10 + 10)
 
-    fun getAvailableDisciples(): List<DiscipleAggregate> {
+    fun getAvailableDisciples(towerIndex: Int): List<DiscipleAggregate> {
+        val range = slotRange(towerIndex)
         val assignedIds = gameEngine.gameDataSnapshot.patrolSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .map { it.discipleId }
-            .toSet()
+            .filter { it.discipleId.isNotEmpty() && it.index in range }
+            .map { it.discipleId }.toSet()
 
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
@@ -41,17 +32,16 @@ class PatrolTowerViewModel @Inject constructor(
                 .thenByDescending { it.realmLayer })
     }
 
-    fun assignDisciple(buildingInstanceId: String, slotOffset: Int, discipleId: String) {
+    fun assignDisciple(towerIndex: Int, slotOffset: Int, discipleId: String) {
         viewModelScope.launch {
             try {
                 val data = gameEngine.gameDataSnapshot
-                val range = slotRange(data, buildingInstanceId)
-                val globalIdx = range.first + slotOffset
                 val slots = data.patrolSlots.toMutableList()
-                while (slots.size <= globalIdx) slots.add(PatrolSlot(index = slots.size))
+                val globalIndex = towerIndex * 10 + slotOffset
+                while (slots.size <= globalIndex) slots.add(PatrolSlot(index = slots.size))
                 val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == discipleId } ?: return@launch
-                slots[globalIdx] = PatrolSlot(
-                    index = globalIdx,
+                slots[globalIndex] = PatrolSlot(
+                    index = globalIndex,
                     discipleId = discipleId,
                     discipleName = disciple.name,
                     discipleRealm = disciple.realmName,
@@ -65,16 +55,15 @@ class PatrolTowerViewModel @Inject constructor(
         }
     }
 
-    fun removeDisciple(buildingInstanceId: String, slotOffset: Int) {
+    fun removeDisciple(towerIndex: Int, slotOffset: Int) {
         viewModelScope.launch {
             try {
                 val data = gameEngine.gameDataSnapshot
-                val range = slotRange(data, buildingInstanceId)
-                val globalIdx = range.first + slotOffset
                 val slots = data.patrolSlots.toMutableList()
-                if (globalIdx >= slots.size) return@launch
-                val removedId = slots[globalIdx].discipleId
-                slots[globalIdx] = PatrolSlot(index = globalIdx)
+                val globalIndex = towerIndex * 10 + slotOffset
+                if (globalIndex >= slots.size) return@launch
+                val removedId = slots[globalIndex].discipleId
+                slots[globalIndex] = PatrolSlot(index = globalIndex)
                 if (removedId.isNotEmpty()) gameEngine.updateDiscipleStatus(removedId, DiscipleStatus.IDLE)
                 gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
@@ -83,18 +72,17 @@ class PatrolTowerViewModel @Inject constructor(
         }
     }
 
-    fun swapDisciple(buildingInstanceId: String, slotOffset: Int, newDiscipleId: String) {
+    fun swapDisciple(towerIndex: Int, slotOffset: Int, newDiscipleId: String) {
         viewModelScope.launch {
             try {
                 val data = gameEngine.gameDataSnapshot
-                val range = slotRange(data, buildingInstanceId)
-                val globalIdx = range.first + slotOffset
                 val slots = data.patrolSlots.toMutableList()
-                if (globalIdx >= slots.size) return@launch
-                val oldId = slots[globalIdx].discipleId
+                val globalIndex = towerIndex * 10 + slotOffset
+                if (globalIndex >= slots.size) return@launch
+                val oldId = slots[globalIndex].discipleId
                 val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId } ?: return@launch
-                slots[globalIdx] = PatrolSlot(
-                    index = globalIdx,
+                slots[globalIndex] = PatrolSlot(
+                    index = globalIndex,
                     discipleId = newDiscipleId,
                     discipleName = disciple.name,
                     discipleRealm = disciple.realmName,
@@ -109,17 +97,18 @@ class PatrolTowerViewModel @Inject constructor(
         }
     }
 
-    fun autoAssign(buildingInstanceId: String) {
+    fun autoAssign(towerIndex: Int) {
         viewModelScope.launch {
             try {
-                val available = getAvailableDisciples()
+                val available = getAvailableDisciples(towerIndex)
                 if (available.isEmpty()) return@launch
                 val data = gameEngine.gameDataSnapshot
-                val range = slotRange(data, buildingInstanceId)
                 val slots = data.patrolSlots.toMutableList()
-                while (slots.size <= range.last) slots.add(PatrolSlot(index = slots.size))
+                val start = towerIndex * 10
+                val end = start + 10
+                while (slots.size < end) slots.add(PatrolSlot(index = slots.size))
                 var idx = 0
-                for (i in range) {
+                for (i in start until end) {
                     if (slots[i].discipleId.isEmpty() && idx < available.size) {
                         val d = available[idx]
                         slots[i] = PatrolSlot(
@@ -140,20 +129,22 @@ class PatrolTowerViewModel @Inject constructor(
         }
     }
 
-    fun updatePatrolConfig(buildingInstanceId: String, config: PatrolConfig) {
+    fun updatePatrolConfig(towerIndex: Int, config: PatrolConfig) {
         viewModelScope.launch {
-            val data = gameEngine.gameDataSnapshot
-            val idx = configIndex(data, buildingInstanceId)
-            val configs = data.patrolConfigs.toMutableList()
-            while (configs.size <= idx) configs.add(PatrolConfig())
-            configs[idx] = config
+            val configs = gameEngine.gameDataSnapshot.patrolConfigs.toMutableList()
+            while (configs.size <= towerIndex) configs.add(PatrolConfig())
+            configs[towerIndex] = config
             gameEngine.updatePatrolConfigs(configs)
         }
     }
 
-    fun updateRequireFullStatus(buildingInstanceId: String, requireFullStatus: Boolean) {
-        val data = gameEngine.gameDataSnapshot
-        val config = getConfig(data, buildingInstanceId)
-        updatePatrolConfig(buildingInstanceId, config.copy(requireFullStatus = requireFullStatus))
+    fun getPatrolConfig(towerIndex: Int): PatrolConfig {
+        val configs = gameEngine.gameDataSnapshot.patrolConfigs
+        return configs.getOrElse(towerIndex) { PatrolConfig() }
+    }
+
+    fun updateRequireFullStatus(towerIndex: Int, requireFullStatus: Boolean) {
+        val current = getPatrolConfig(towerIndex)
+        updatePatrolConfig(towerIndex, current.copy(requireFullStatus = requireFullStatus))
     }
 }

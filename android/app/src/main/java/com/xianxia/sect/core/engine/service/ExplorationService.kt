@@ -72,28 +72,25 @@ class ExplorationService @Inject constructor(
         var disciples = state.disciples
         val allSlots = gd.patrolSlots
         val configs = gd.patrolConfigs
-        if (allSlots.isEmpty() || allSlots.none { it.discipleId.isNotEmpty() }) return
+        if (allSlots.isEmpty()) return
 
-        val numTowers = gd.placedBuildings.count { it.displayName == "巡视楼" }
-        if (numTowers == 0) return
-
-        val year = gd.gameYear; val month = gd.gameMonth
+        val numTowers = (allSlots.size + 9) / 10
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = gd.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
+        val year = gd.gameYear; val month = gd.gameMonth
+        val claimedBeasts = mutableSetOf<String>()
 
-        val attackedBeasts = mutableSetOf<String>()
+        for (towerIndex in 0 until numTowers) {
+            val config = configs.getOrElse(towerIndex) { PatrolConfig() }
+            val start = towerIndex * 10
+            val end = (start + 10).coerceAtMost(allSlots.size)
+            val towerSlots = allSlots.subList(start, end).filter { it.discipleId.isNotEmpty() }
+            if (towerSlots.isEmpty()) continue
 
-        // 每塔独立进攻
-        for (towerIdx in 0 until numTowers) {
-            val rangeStart = towerIdx * 10
-            val rangeEnd = rangeStart + 10
-            val towerSlots = (rangeStart until rangeEnd).mapNotNull { allSlots.getOrNull(it) }
-            val config = configs.getOrElse(towerIdx) { PatrolConfig() }
-
-            val towerDiscipleIds = towerSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+            val towerDiscipleIds = towerSlots.map { it.discipleId }.toSet()
             val towerDisciples = disciples.filter { it.id in towerDiscipleIds && it.isAlive }
             if (towerDisciples.isEmpty()) continue
 
@@ -105,32 +102,25 @@ class ExplorationService @Inject constructor(
                 if (anyNotFull) continue
             }
 
-            // 找匹配的妖兽（跳过已被其他塔攻击的）
-            val targets = gd.worldLevels.filter {
+            // 找匹配的妖兽（排除已被其他塔选中的）
+            val target = gd.worldLevels.firstOrNull {
                 it.type == LevelType.BEAST &&
                 !it.defeated &&
                 !it.checkExpired(year, month) &&
-                it.id !in attackedBeasts &&
                 it.realm in config.targetRealms &&
-                it.count <= config.maxBeastCount
-            }.sortedWith(compareBy({ it.realm }, { it.count }))
+                it.count <= config.maxBeastCount &&
+                it.id !in claimedBeasts
+            } ?: continue
 
-            if (targets.isEmpty()) continue
-            val beast = targets.first()
+            claimedBeasts.add(target.id)
 
-            val aliveIds = towerDiscipleIds.intersect(
-                disciples.filter { it.isAlive }.map { it.id }.toSet()
-            )
-            if (aliveIds.isEmpty()) continue
-
-            val attackers = disciples.filter { it.id in aliveIds && it.isAlive }
             val battle = battleSystem.createBattle(
-                disciples = attackers,
+                disciples = towerDisciples,
                 equipmentMap = equipmentMap,
                 manualMap = manualMap,
-                beastLevel = beast.realm,
-                beastCount = beast.count,
-                beastType = beast.beastName,
+                beastLevel = target.realm,
+                beastCount = target.count,
+                beastType = target.beastName,
                 manualProficiencies = allProficiencies
             )
             val result = battleSystem.executeBattle(battle)
@@ -152,10 +142,9 @@ class ExplorationService @Inject constructor(
 
             // 标记妖兽已击败
             if (result.victory) {
-                attackedBeasts.add(beast.id)
                 gd = gd.copy(
                     worldLevels = gd.worldLevels.map {
-                        if (it.id == beast.id) it.copy(defeated = true) else it
+                        if (it.id == target.id) it.copy(defeated = true) else it
                     }
                 )
                 // 清理阵亡弟子槽位

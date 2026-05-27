@@ -44,24 +44,26 @@ fun PatrolTowerDialog(
     onDismiss: () -> Unit
 ) {
     val gd = gameData ?: return
-    val patrolConfig = patrolTowerViewModel.getConfig(gd, buildingInstanceId)
-    val towerIdx = gd.placedBuildings.filter { it.displayName == "巡视楼" }.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
-    val rangeStart = towerIdx * 10
+    val towerIndex = remember(buildingInstanceId) { patrolTowerViewModel.getTowerIndex(buildingInstanceId) }
+    val patrolConfig = remember(gd.patrolConfigs, towerIndex) {
+        gd.patrolConfigs.getOrElse(towerIndex) { PatrolConfig() }
+    }
     val allSlots = gd.patrolSlots
+    val range = (towerIndex * 10) until (towerIndex * 10 + 10)
 
     var showAttackRangeDialog by remember { mutableStateOf(false) }
     var requireFullStatus by remember(patrolConfig) { mutableStateOf(patrolConfig.requireFullStatus) }
-    var selectingSlotOffset by remember { mutableStateOf(-1) }
+    var selectingSlotIndex by remember { mutableStateOf(-1) }
     var isSwapMode by remember { mutableStateOf(false) }
 
-    val slots = remember(allSlots, rangeStart) {
-        (0 until 10).map { offset ->
-            allSlots.getOrNull(rangeStart + offset) ?: PatrolSlot(index = rangeStart + offset)
-        }
+    val slots = remember(allSlots, towerIndex) {
+        val list = allSlots.toMutableList()
+        while (list.size < range.last + 1) list.add(PatrolSlot(index = list.size))
+        range.map { list.getOrElse(it) { PatrolSlot(index = it) } }
     }
 
     val assignedIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
-    val availableDisciples = remember(slots, disciples) {
+    val availableDisciples = remember(allSlots, disciples, towerIndex) {
         disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
             .sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
     }
@@ -89,7 +91,7 @@ fun PatrolTowerDialog(
                             .background(Color.Transparent, CircleShape)
                             .clickable {
                                 requireFullStatus = !requireFullStatus
-                                patrolTowerViewModel.updateRequireFullStatus(buildingInstanceId, requireFullStatus)
+                                patrolTowerViewModel.updateRequireFullStatus(towerIndex, requireFullStatus)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -107,7 +109,7 @@ fun PatrolTowerDialog(
                     )
                     GameButton(
                         text = "一键任命",
-                        onClick = { patrolTowerViewModel.autoAssign(buildingInstanceId) },
+                        onClick = { patrolTowerViewModel.autoAssign(towerIndex) },
                         width = ButtonSizes.StandardWidth,
                         height = ButtonSizes.StandardHeight,
                         fontSize = 10.sp
@@ -123,8 +125,8 @@ fun PatrolTowerDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     for (col in 0 until 5) {
-                        val offset = row * 5 + col
-                        val slot = slots.getOrNull(offset) ?: PatrolSlot(index = rangeStart + offset)
+                        val index = row * 5 + col
+                        val slot = slots.getOrNull(index) ?: PatrolSlot(index = index)
                         val assignedDisciple = disciples.find { it.id == slot.discipleId }
                         DiscipleSlotWithActions(
                             disciple = assignedDisciple,
@@ -135,12 +137,12 @@ fun PatrolTowerDialog(
                             },
                             onEmptySlotClick = {
                                 isSwapMode = false
-                                selectingSlotOffset = offset
+                                selectingSlotIndex = index
                             },
-                            onDismiss = { patrolTowerViewModel.removeDisciple(buildingInstanceId, offset) },
+                            onDismiss = { patrolTowerViewModel.removeDisciple(towerIndex, index) },
                             onSwap = {
                                 isSwapMode = true
-                                selectingSlotOffset = offset
+                                selectingSlotIndex = index
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -151,20 +153,20 @@ fun PatrolTowerDialog(
         }
     }
 
-    if (selectingSlotOffset >= 0) {
+    if (selectingSlotIndex >= 0) {
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(
                 title = if (isSwapMode) "更换巡视弟子" else "选择巡视弟子"
             ),
             disciples = availableDisciples,
-            onDismiss = { selectingSlotOffset = -1 },
+            onDismiss = { selectingSlotIndex = -1 },
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     val id = selected.first().id
-                    if (isSwapMode) patrolTowerViewModel.swapDisciple(buildingInstanceId, selectingSlotOffset, id)
-                    else patrolTowerViewModel.assignDisciple(buildingInstanceId, selectingSlotOffset, id)
+                    if (isSwapMode) patrolTowerViewModel.swapDisciple(towerIndex, selectingSlotIndex, id)
+                    else patrolTowerViewModel.assignDisciple(towerIndex, selectingSlotIndex, id)
                 }
-                selectingSlotOffset = -1
+                selectingSlotIndex = -1
             }
         )
     }
@@ -173,7 +175,7 @@ fun PatrolTowerDialog(
         AttackRangeDialog(
             config = patrolConfig,
             onSave = { newConfig ->
-                patrolTowerViewModel.updatePatrolConfig(buildingInstanceId, newConfig)
+                patrolTowerViewModel.updatePatrolConfig(towerIndex, newConfig)
                 showAttackRangeDialog = false
             },
             onDismiss = { showAttackRangeDialog = false }

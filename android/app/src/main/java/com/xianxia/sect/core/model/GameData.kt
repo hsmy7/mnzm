@@ -163,6 +163,7 @@ data class GameData(
 
     // 巡视楼
     var patrolSlots: List<PatrolSlot> = emptyList(),
+    var patrolConfig: PatrolConfig = PatrolConfig(),
     var patrolConfigs: List<PatrolConfig> = emptyList(),
 
     // 结盟关系
