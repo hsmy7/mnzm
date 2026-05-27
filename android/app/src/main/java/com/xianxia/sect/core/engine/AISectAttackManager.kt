@@ -147,8 +147,8 @@ object AISectAttackManager {
             .filter { it.id !in survivorDefenderIds }
             .map { it.id }
 
-        val allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
-        val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
+        val remainingEligible = defenderDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
+        val highRealmAllDead = remainingEligible.filter { it.realm <= 5 }.isEmpty()
 
         val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
 
@@ -160,6 +160,7 @@ object AISectAttackManager {
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
             canOccupy = canOccupy,
+            turns = result.turns,
             survivorHpMap = survivorHpMap,
             survivorMpMap = survivorMpMap
         )
@@ -509,6 +510,7 @@ object AISectAttackManager {
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
             canOccupy = result.winner == AIBattleWinner.ATTACKER,
+            turns = result.turns,
             survivorHpMap = survivorHpMap,
             survivorMpMap = survivorMpMap
         )
@@ -517,7 +519,8 @@ object AISectAttackManager {
     private data class UnifiedAIBattleResult(
         val attackers: List<Combatant>,
         val defenders: List<Combatant>,
-        val winner: AIBattleWinner
+        val winner: AIBattleWinner,
+        val turns: Int
     )
 
     private fun executeUnifiedAIBattle(
@@ -591,7 +594,8 @@ object AISectAttackManager {
         return UnifiedAIBattleResult(
             attackers = currentAttackers,
             defenders = currentDefenders,
-            winner = winner
+            winner = winner,
+            turns = turn
         )
     }
 
@@ -912,6 +916,7 @@ data class AIBattleResult(
     val deadAttackerIds: List<String>,
     val deadDefenderIds: List<String>,
     val canOccupy: Boolean,
+    val turns: Int = 0,
     val survivorHpMap: Map<String, Int> = emptyMap(),
     val survivorMpMap: Map<String, Int> = emptyMap()
 )

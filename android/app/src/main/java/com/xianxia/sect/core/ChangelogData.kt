@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.31",
+            date = "2026-05-27",
+            changes = listOf(
+                "修复攻击AI宗门战斗详情始终显示0回合的问题，现在显示实际战斗回合数",
+                "修复AI宗门击败守军后无法占领宗门的问题，击败所有守军即可占领",
+                "修复被其他AI占领的宗门驻军为空时攻击立即胜利但无法占领的问题",
+                "战斗详情中区分"攻占"和"击溃守军"，准确反映是否实际占领"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.30",
             date = "2026-05-27",
             changes = listOf(
@@ -19,7 +29,6 @@ object ChangelogData {
                 "偷盗机制重构：道德+忠诚双门槛(<30)，偷盗与脱离均改为概率判定而非必定触发",
                 "忠诚月度动态：领月俸+1/欠月俸-1（原每3次），矿工每月-1（执事不减），住宿每月+1"
             )
-        ),
         ),
         ChangelogEntry(
             version = "3.1.28",

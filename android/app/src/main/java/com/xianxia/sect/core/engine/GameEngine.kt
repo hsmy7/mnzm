@@ -2967,10 +2967,10 @@ class GameEngine @Inject constructor(
             result = winResult,
             teamMembers = teamMembers,
             enemies = enemyMembers,
-            turns = 0,
+            turns = battleResult.turns,
             teamCasualties = deadPlayerIds.size,
             details = when (battleResult.winner) {
-                AIBattleWinner.ATTACKER -> "攻占了${targetSect.name}"
+                AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) "攻占了${targetSect.name}" else "击溃了${targetSect.name}的守军"
                 AIBattleWinner.DEFENDER -> "进攻${targetSect.name}失败"
                 AIBattleWinner.DRAW -> "与${targetSect.name}打成平手"
             }
