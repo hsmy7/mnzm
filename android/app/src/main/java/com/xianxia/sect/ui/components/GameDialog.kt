@@ -109,10 +109,11 @@ fun UnifiedGameDialog(
             )
             Column(modifier = Modifier.fillMaxSize()) {
                 // Unified header
+                val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = Spacing.MD, end = Spacing.MD, top = 4.dp),
+                        .padding(start = headerH, end = headerH, top = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
