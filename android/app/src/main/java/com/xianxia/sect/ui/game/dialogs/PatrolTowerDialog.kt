@@ -242,7 +242,8 @@ private fun AttackRangeDialog(
                         if (num == null) maxCount = ""
                         else if (num in 1..13) maxCount = filtered
                     },
-                    modifier = Modifier.width(60.dp).height(36.dp),
+                    modifier = Modifier.width(40.dp).height(28.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.Black),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
