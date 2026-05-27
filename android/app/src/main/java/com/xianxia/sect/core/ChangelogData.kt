@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.39",
+            date = "2026-05-28",
+            changes = listOf(
+                "玩家占领宗门后该宗门所有存活弟子进入招募列表，后续每年新弟子也加入招募列表",
+                "AI占领宗门后防御方存活弟子直接并入占领者宗门，后续每年新弟子也加入占领者",
+                "AI宗门年度新弟子数量从固定5名改为随机0~6名"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.38",
             date = "2026-05-28",
             changes = listOf(

@@ -2785,12 +2785,31 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     private fun processSectDisciplesYearlyRecruitment(year: Int) {
         val data = currentGameData
-        val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
-            val sect = data.worldMapSects.find { it.id == sectId }
-            if (sect == null || sect.isPlayerSect) return@mapValues disciples
-            AISectDiscipleManager.recruitYearlyDisciples(sect.name, disciples)
+        var updatedAiDisciples = data.aiSectDisciples.toMutableMap()
+        var updatedRecruitList = data.recruitList
+
+        for ((sectId, disciples) in data.aiSectDisciples) {
+            val sect = data.worldMapSects.find { it.id == sectId } ?: continue
+            if (sect.isPlayerSect) continue
+
+            val newRecruits = AISectDiscipleManager.generateYearlyRecruits(sect.name, disciples)
+            when {
+                sect.isPlayerOccupied -> {
+                    // 被玩家占领：新弟子进招募列表
+                    updatedRecruitList = updatedRecruitList + newRecruits
+                }
+                sect.occupierSectId.isNotEmpty() -> {
+                    // 被AI占领：新弟子加入占领者宗门
+                    val occupierDisciples = updatedAiDisciples[sect.occupierSectId] ?: emptyList()
+                    updatedAiDisciples[sect.occupierSectId] = occupierDisciples + newRecruits
+                }
+                else -> {
+                    // 未占领：加入自身池
+                    updatedAiDisciples[sectId] = disciples + newRecruits
+                }
+            }
         }
-        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples)
+        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples, recruitList = updatedRecruitList)
     }
 
     private fun processSectDisciplesAging(year: Int) {
@@ -2852,6 +2871,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // Handle occupation
         if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+            // 防御方存活弟子并入攻击方
+            val mergedAttackerDisciples = updatedAttackerDisciples + updatedDefenderDisciples
             updatedData = updatedData.copy(
                 worldMapSects = updatedData.worldMapSects.map { sect ->
                     if (sect.id == result.defenderSectId) {
@@ -2859,6 +2880,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     } else {
                         sect
                     }
+                },
+                aiSectDisciples = updatedData.aiSectDisciples.toMutableMap().apply {
+                    this[result.attackerSectId] = mergedAttackerDisciples
+                    this[result.defenderSectId] = emptyList()
                 }
             )
         }

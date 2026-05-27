@@ -3025,6 +3025,10 @@ class GameEngine @Inject constructor(
                 val rewardCount = (80..130).random()
                 warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
 
+                // 被占领宗门的存活弟子移入招募列表
+                val capturedDisciples = data.aiSectDisciples[sectId]
+                    ?.filter { it.isAlive } ?: emptyList()
+
                 stateStore.update {
                     gameData = gameData.copy(
                         worldMapSects = gameData.worldMapSects.map { sect ->
@@ -3035,6 +3039,10 @@ class GameEngine @Inject constructor(
                                     garrisonSlots = garrisonSlots
                                 )
                             } else sect
+                        },
+                        recruitList = gameData.recruitList + capturedDisciples,
+                        aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
+                            this[sectId] = emptyList()
                         }
                     )
                     addSpiritStones(warRewards.spiritStones)

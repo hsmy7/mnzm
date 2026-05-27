@@ -235,7 +235,7 @@ object AISectDiscipleManager {
         val newDisciples = mutableListOf<Disciple>()
         val usedNames = existingDisciples.map { it.name }.toMutableSet()
 
-        repeat(5) {
+        repeat(Random.nextInt(0, 7)) {
             val disciple = generateQiRefiningDisciple(sectName, usedNames)
             newDisciples.add(disciple)
             usedNames.add(disciple.name)
@@ -247,6 +247,23 @@ object AISectDiscipleManager {
         } else {
             allDisciples
         }
+    }
+
+    /**
+     * 仅生成年度新弟子列表（不合并现有弟子），供占领路由使用
+     */
+    fun generateYearlyRecruits(
+        sectName: String,
+        existingDisciples: List<Disciple>
+    ): List<Disciple> {
+        val newDisciples = mutableListOf<Disciple>()
+        val usedNames = existingDisciples.map { it.name }.toMutableSet()
+        repeat(Random.nextInt(0, 7)) {
+            val disciple = generateQiRefiningDisciple(sectName, usedNames)
+            newDisciples.add(disciple)
+            usedNames.add(disciple.name)
+        }
+        return newDisciples
     }
 
     private fun generateQiRefiningDisciple(sectName: String, existingNames: Set<String>): Disciple {
