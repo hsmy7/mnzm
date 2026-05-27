@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
@@ -56,7 +57,11 @@ fun PatrolTowerDialog(
         list.take(10)
     }
 
-    val availableDisciples = remember { patrolTowerViewModel.getAvailableDisciples() }
+    val assignedIds = patrolSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+    val availableDisciples = remember(patrolSlots, disciples) {
+        disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
+            .sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
+    }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
