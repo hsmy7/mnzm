@@ -115,6 +115,7 @@ fun MainGameScreen(
     forgeViewModel: ForgeViewModel,
     herbGardenViewModel: HerbGardenViewModel,
     spiritMineViewModel: SpiritMineViewModel,
+    patrolTowerViewModel: PatrolTowerViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
@@ -285,6 +286,7 @@ fun MainGameScreen(
                 BuildingDef.LAW_ENFORCEMENT -> { _ -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) }
                 BuildingDef.MISSION_HALL -> { _ -> dialogNavController.navigate(GameRoute.MissionHall.route) }
                 BuildingDef.REFLECTION_CLIFF -> { _ -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
+                BuildingDef.PATROL_TOWER -> { _ -> dialogNavController.navigate(GameRoute.PatrolTower.route) }
                 BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
                 BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.WarehouseBuilding.createRoute(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
@@ -545,6 +547,7 @@ fun MainGameScreen(
             forgeViewModel = forgeViewModel,
             herbGardenViewModel = herbGardenViewModel,
             spiritMineViewModel = spiritMineViewModel,
+            patrolTowerViewModel = patrolTowerViewModel,
             worldMapViewModel = worldMapViewModel,
             battleViewModel = battleViewModel,
             battleLogs = battleLogs,

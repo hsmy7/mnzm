@@ -73,6 +73,10 @@ class NavigationDelegate(
         onNavigate(GameRoute.ReflectionCliff)
     }
 
+    fun openPatrolTowerDialog() {
+        onNavigate(GameRoute.PatrolTower)
+    }
+
     fun openWorldMapDialog() {
         onNavigate(GameRoute.WorldMap)
     }

@@ -120,6 +120,7 @@ internal fun BuildingsTab(
                 BuildingDef.LAW_ENFORCEMENT -> "维护宗门纪律"
                 BuildingDef.MISSION_HALL -> "派遣弟子执行任务"
                 BuildingDef.REFLECTION_CLIFF -> "悔过自新之地"
+                BuildingDef.PATROL_TOWER -> "驻守弟子自动巡视攻击妖兽"
                 else -> ""
             }
             val onClick = {
@@ -135,6 +136,7 @@ internal fun BuildingsTab(
                     BuildingDef.LAW_ENFORCEMENT -> viewModel.openLawEnforcementHallDialog()
                     BuildingDef.MISSION_HALL -> viewModel.openMissionHallDialog()
                     BuildingDef.REFLECTION_CLIFF -> viewModel.openReflectionCliffDialog()
+                    BuildingDef.PATROL_TOWER -> viewModel.openPatrolTowerDialog()
                     else -> { }
                 }
             }

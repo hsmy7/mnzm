@@ -355,6 +355,16 @@ class BuildingConfigService @Inject constructor(
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "储存宗门物资，每座+50格容量"
+                ),
+                "patrol_tower" to BuildingConfigModel(
+                    id = "patrol_tower",
+                    displayName = "巡视楼",
+                    buildingType = "PATROL",
+                    slotCount = 10,
+                    cost = 5000,
+                    gridWidth = 2,
+                    gridHeight = 3,
+                    description = "驻守弟子自动巡视地图攻击妖兽"
                 )
             ),
             buildingAliases = mapOf(
@@ -427,7 +437,9 @@ class BuildingConfigService @Inject constructor(
                 "multi_residence" to "multi_residence",
                 "singleresidenceupgraded" to "single_residence_upgraded",
                 "single_residence_upgraded" to "single_residence_upgraded",
-                "warehouse" to "warehouse"
+                "warehouse" to "warehouse",
+                "patrol_tower" to "patrol_tower",
+                "patroltower" to "patrol_tower"
             )
         )
     }

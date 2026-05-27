@@ -81,6 +81,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     private val forgeViewModel: ForgeViewModel by viewModels()
     private val herbGardenViewModel: HerbGardenViewModel by viewModels()
     private val spiritMineViewModel: SpiritMineViewModel by viewModels()
+    private val patrolTowerViewModel: PatrolTowerViewModel by viewModels()
     private val worldMapViewModel: WorldMapViewModel by viewModels()
     private val battleViewModel: BattleViewModel by viewModels()
 
@@ -281,6 +282,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 forgeViewModel = forgeViewModel,
                                 herbGardenViewModel = herbGardenViewModel,
                                 spiritMineViewModel = spiritMineViewModel,
+                                patrolTowerViewModel = patrolTowerViewModel,
                                 worldMapViewModel = worldMapViewModel,
                                 battleViewModel = battleViewModel,
                                 onLogout = {

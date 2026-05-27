@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.36",
+            date = "2026-05-28",
+            changes = listOf(
+                "新增巡视楼建筑：2×3占地/5000灵石/上限1座，驻守弟子自动巡视攻击妖兽",
+                "巡视楼界面：10个巡视弟子槽位、一键任命（优先高境界）、进攻范围配置",
+                "进攻范围：可选目标境界（默认炼气）+ 妖兽数量上限（默认1，最大13）+ 满状态条件",
+                "满状态条件：勾选后所有巡视弟子需满气血满灵力才可进攻"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.35",
             date = "2026-05-28",
             changes = listOf(

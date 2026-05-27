@@ -19,6 +19,7 @@ sealed class GameRoute(val route: String) {
     object LawEnforcementHall : GameRoute("law_enforcement_hall")
     object MissionHall : GameRoute("mission_hall")
     object ReflectionCliff : GameRoute("reflection_cliff")
+    object PatrolTower : GameRoute("patrol_tower")
 
     // Residence
     object Residence : GameRoute("residence/{buildingInstanceId}") {

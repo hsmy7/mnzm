@@ -1321,6 +1321,14 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(spiritMineSlots = slots) }
     }
 
+    fun updatePatrolSlots(slots: List<PatrolSlot>) {
+        updateGameDataSync { it.copy(patrolSlots = slots) }
+    }
+
+    fun updatePatrolConfig(config: PatrolConfig) {
+        updateGameDataSync { it.copy(patrolConfig = config) }
+    }
+
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
         val data = stateStore.gameData.value
         val slots = data.librarySlots.toMutableList()

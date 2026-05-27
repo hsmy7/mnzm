@@ -43,6 +43,7 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HerbGardenViewModel
+import com.xianxia.sect.ui.game.PatrolTowerViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
@@ -59,6 +60,7 @@ import com.xianxia.sect.ui.game.dialogs.ForgeDialog
 import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
 import com.xianxia.sect.ui.game.dialogs.LawEnforcementHallDialog
 import com.xianxia.sect.ui.game.dialogs.LibraryDialog
+import com.xianxia.sect.ui.game.dialogs.PatrolTowerDialog
 import com.xianxia.sect.ui.game.dialogs.MerchantDialog
 import com.xianxia.sect.ui.game.dialogs.MissionHallDialog
 import com.xianxia.sect.ui.game.dialogs.PlantingDialog
@@ -110,6 +112,7 @@ fun GameOverlayHost(
     forgeViewModel: ForgeViewModel,
     herbGardenViewModel: HerbGardenViewModel,
     spiritMineViewModel: SpiritMineViewModel,
+    patrolTowerViewModel: PatrolTowerViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     battleLogs: List<BattleLog>,
@@ -421,6 +424,15 @@ fun GameOverlayHost(
                 gameData = gameData,
                 onDismiss = { dialogNavController.popBackStack() },
                 onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
+            )
+        }
+        composable(GameRoute.PatrolTower.route) {
+            PatrolTowerDialog(
+                viewModel = viewModel,
+                patrolTowerViewModel = patrolTowerViewModel,
+                gameData = gameData,
+                disciples = disciples,
+                onDismiss = { dialogNavController.popBackStack() }
             )
         }
         composable(

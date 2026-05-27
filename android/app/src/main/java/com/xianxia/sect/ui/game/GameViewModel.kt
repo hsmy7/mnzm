@@ -100,6 +100,8 @@ class GameViewModel @Inject constructor(
 
     fun openReflectionCliffDialog() = navigation.openReflectionCliffDialog()
 
+    fun openPatrolTowerDialog() = navigation.openPatrolTowerDialog()
+
     fun openWorldMapDialog() = navigation.openWorldMapDialog()
 
     fun openRecruitDialog() = navigation.openRecruitDialog()
@@ -150,6 +152,10 @@ class GameViewModel @Inject constructor(
                     (0 until 3).map { SpiritMineSlot(index = nextIndex + it) }
                 } else emptyList()
 
+                val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
+                    (0 until 10).map { PatrolSlot(index = it) }
+                } else emptyList()
+
                 val newBuilding = GridBuildingData(
                     buildingId = name,
                     displayName = name,
@@ -175,6 +181,7 @@ class GameViewModel @Inject constructor(
                     placedBuildings = data.placedBuildings + newBuilding,
                     spiritFieldPlants = data.spiritFieldPlants + newSpiritFieldPlants,
                     spiritMineSlots = data.spiritMineSlots + newSlots,
+                    patrolSlots = if (newPatrolSlots.isNotEmpty()) newPatrolSlots else data.patrolSlots,
                     residenceSlots = data.residenceSlots + newResidenceSlots,
                     // TODO: 后续统一到 Repository 单一数据源，移除对 GameData.productionSlots 的写入
                     productionSlots = if (newProductionSlot != null)

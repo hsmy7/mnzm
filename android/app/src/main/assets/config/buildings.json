@@ -73,6 +73,16 @@
       "gridHeight": 2,
       "description": "储存宗门物资"
     },
+    "patrol_tower": {
+      "id": "patrol_tower",
+      "displayName": "巡视楼",
+      "buildingType": "PATROL",
+      "slotCount": 10,
+      "cost": 5000,
+      "gridWidth": 2,
+      "gridHeight": 3,
+      "description": "驻守弟子自动巡视地图攻击妖兽"
+    },
     "tianshu_hall": {
       "id": "tianshu_hall",
       "displayName": "天枢殿",
@@ -238,6 +248,8 @@
     "multi_residence": "multi_residence",
     "singleresidenceupgraded": "single_residence_upgraded",
     "single_residence_upgraded": "single_residence_upgraded",
-    "warehouse": "warehouse"
+    "warehouse": "warehouse",
+    "patrol_tower": "patrol_tower",
+    "patroltower": "patrol_tower"
   }
 }

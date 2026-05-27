@@ -161,6 +161,10 @@ data class GameData(
     // 仓库驻守槽位
     var warehouseGarrisons: List<WarehouseGarrisonSlot> = emptyList(),
 
+    // 巡视楼
+    var patrolSlots: List<PatrolSlot> = emptyList(),
+    var patrolConfig: PatrolConfig = PatrolConfig(),
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
 

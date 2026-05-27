@@ -725,4 +725,25 @@ object ProtobufConverters {
     @JvmStatic
     fun toSectDetailMap(value: String): Map<String, SectDetail> =
         decodeFromBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value) { emptyMap() }
+
+    // 巡视楼
+    @TypeConverter
+    @JvmStatic
+    fun fromPatrolSlotList(value: List<PatrolSlot>): String =
+        encodeToBase64(ListSerializer(PatrolSlot.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toPatrolSlotList(value: String): List<PatrolSlot> =
+        decodeFromBase64(ListSerializer(PatrolSlot.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromPatrolConfig(value: PatrolConfig): String =
+        encodeToBase64(PatrolConfig.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toPatrolConfig(value: String): PatrolConfig =
+        decodeFromBase64(PatrolConfig.serializer(), value) { PatrolConfig() }
 }
