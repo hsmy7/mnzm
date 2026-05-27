@@ -124,7 +124,6 @@ internal fun WarehouseTab(
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
-    val gameData by viewModel.gameDataUi.collectAsState()
 
     val equipment = remember(equipmentStacks) {
         equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
@@ -203,19 +202,6 @@ internal fun WarehouseTab(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // 仓库容量
-            val totalItems = equipment.size + manuals.size + sortedPills.size +
-                    sortedMaterials.size + herbs.size + seeds.size
-            val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
-            val maxCapacity = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
-            val full = totalItems >= maxCapacity
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("仓库", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text("($totalItems/$maxCapacity)", fontSize = 10.sp, color = if (full) Color.Red else Color.Black)
-                if (full) Text("仓库已满", fontSize = 9.sp, color = Color.Red)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-
             Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),

@@ -273,4 +273,11 @@ object ElderBonusInfoProvider {
         effectDescription = "提升矿工个人灵石产出",
         bonusFormula = "采矿属性以70为基准，每高1点增加2%个人产出。\n低于70时无加成效果。\n每名矿工独立计算后再取平均值加成。\n基础产出：160灵石/人/月。"
     )
+
+    fun getWarehouseGarrisonInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "驻守弟子",
+        requiredAttribute = "战斗",
+        effectDescription = "驻守仓库防止弟子偷盗",
+        bonusFormula = "低道德弟子触发偷盗时，需与驻守弟子进行1v1战斗。\n贼胜则偷盗成功，贼败则被捕。\n无驻守弟子时偷盗直接成功。"
+    )
 }

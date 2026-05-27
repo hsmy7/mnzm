@@ -2002,6 +2002,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             it.isAlive &&
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
+            DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
             (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
         }
 
@@ -2012,17 +2013,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val garrisons = currentGameData.warehouseGarrisons
 
         for (disciple in atRiskDisciples) {
-            val effectiveMorality = DiscipleStatCalculator.getBaseStats(disciple).morality
+            val stats = DiscipleStatCalculator.getBaseStats(disciple)
+            val effectiveMorality = stats.morality
             val theftProb = ((GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < theftProb) {
                 val caught = if (warehouses.isNotEmpty()) {
-                    // Warehouse garrison combat
                     val warehouse = warehouses[Random.nextInt(warehouses.size)]
                     val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive }
                     if (garrison == null) {
-                        false // No garrison → theft auto-success
+                        false
                     } else {
-                        // 1v1 combat: thief vs garrison disciple
                         val guardDisciple = currentDisciples.find { it.id == garrison.discipleId }
                         if (guardDisciple == null) {
                             false
@@ -2034,11 +2034,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             val guardPower = guardStats.physicalAttack + guardStats.magicAttack +
                                     guardStats.physicalDefense + guardStats.magicDefense + guardStats.speed
                             val thiefWinProb = (thiefPower.toDouble() / (thiefPower + guardPower).coerceAtLeast(1)).coerceIn(0.1, 0.9)
-                            Random.nextDouble() >= thiefWinProb // guard wins → caught
+                            Random.nextDouble() >= thiefWinProb
                         }
                     }
                 } else {
-                    Random.nextDouble() < captureRate // No warehouses → existing logic
+                    Random.nextDouble() < captureRate
                 }
 
                 if (caught) {
@@ -2053,7 +2053,14 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             equipment = it.equipment.copy(storageBagSpiritStones = it.equipment.storageBagSpiritStones + stolenAmount)
                         ) else it
                     }
-                    thiefIds.add(disciple.id)
+
+                    val loyalty = stats.loyalty
+                    val desertionProb = ((GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD - loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+                    if (Random.nextDouble() < desertionProb) {
+                        thiefIds.add(disciple.id)
+                    }
+
+                    pendingNotification = GameNotification.WarehouseTheft(stolenAmount)
                 }
             }
         }

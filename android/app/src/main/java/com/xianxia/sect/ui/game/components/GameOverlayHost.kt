@@ -77,6 +77,7 @@ import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
 import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.CloseButton
@@ -132,6 +133,7 @@ fun GameOverlayHost(
     val forgeSlots by viewModel.forgeSlots.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
+    val pills by viewModel.pills.collectAsState()
 
     var showBattleResult by remember { mutableStateOf(false) }
 
@@ -199,8 +201,16 @@ fun GameOverlayHost(
         }
         composable(GameRoute.Warehouse.route) {
             var showBulkSell by remember { mutableStateOf(false) }
+            val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
+            val maxCap = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+            val totalItems = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val isFull = totalItems >= maxCap
+            val titleText = buildString {
+                append("仓库 ($totalItems/$maxCap)")
+                if (isFull) append(" 仓库已满")
+            }
             FullScreenOverlay(
-                title = "仓库",
+                title = titleText,
                 onDismiss = { dialogNavController.popBackStack() },
                 actions = {
                     GameButton(
@@ -499,6 +509,14 @@ fun GameOverlayHost(
                     onRelease = { viewModel.releaseTheftDisciple(notification.disciple.id) },
                     onDiscipleClick = { /* opens disciple detail */ },
                     onLoyaltyDismissed = { viewModel.onLoyaltyDialogDismissed() }
+                )
+            }
+            is GameNotification.WarehouseTheft -> {
+                StandardPromptDialog(
+                    onDismissRequest = { viewModel.clearNotification() },
+                    title = "仓库被偷盗",
+                    text = "宗门仓库被盗，损失了 ${notification.stolenAmount} 灵石",
+                    confirmLabel = "知道了"
                 )
             }
         }

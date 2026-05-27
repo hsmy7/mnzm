@@ -23,6 +23,7 @@ data class BattleResultUIData(
 sealed interface GameNotification {
     data class DiscipleDesertion(val disciple: Disciple) : GameNotification
     data class DiscipleTheftCaught(val disciple: Disciple) : GameNotification
+    data class WarehouseTheft(val stolenAmount: Long) : GameNotification
 }
 
 data class UnifiedGameState(

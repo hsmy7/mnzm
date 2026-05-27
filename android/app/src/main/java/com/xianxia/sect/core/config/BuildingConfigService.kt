@@ -352,7 +352,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "WAREHOUSE",
                     slotCount = 1,
                     cost = 1000,
-                    gridWidth = 2,
+                    gridWidth = 3,
                     gridHeight = 2,
                     description = "储存宗门物资，每座+50格容量"
                 )
