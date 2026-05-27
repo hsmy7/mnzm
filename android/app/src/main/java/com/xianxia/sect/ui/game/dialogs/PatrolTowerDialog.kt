@@ -6,17 +6,19 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -234,8 +236,8 @@ private fun AttackRangeDialog(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("进攻的妖兽数量范围为 1 - ", fontSize = 12.sp, color = Color.Black)
-                TextField(
-                    value = maxCount,
+                BasicTextField(
+                    value = maxCount.ifEmpty { "1" },
                     onValueChange = { v ->
                         val filtered = v.filter { it.isDigit() }
                         val num = filtered.toIntOrNull()
@@ -245,18 +247,16 @@ private fun AttackRangeDialog(
                             else -> maxCount
                         }
                     },
-                    modifier = Modifier.width(40.dp).height(28.dp),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.Black),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.width(40.dp)
+                        .background(Color.White, RoundedCornerShape(4.dp))
+                        .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black,
-                        focusedIndicatorColor = Color.Black,
-                        unfocusedIndicatorColor = Color.Black
-                    )
+                    textStyle = TextStyle(
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = Color.Black, textAlign = TextAlign.Center
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
 

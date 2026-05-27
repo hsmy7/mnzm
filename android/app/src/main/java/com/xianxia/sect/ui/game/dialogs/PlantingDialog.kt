@@ -458,10 +458,10 @@ fun PlantingDialog(
                                     }
                                     if (num != null) plantQuantity = num.coerceIn(1, unplantedCount.coerceAtLeast(1))
                                 },
-                                modifier = Modifier.width(40.dp).height(28.dp)
+                                modifier = Modifier.width(40.dp)
                                     .background(Color.White, RoundedCornerShape(4.dp))
                                     .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 4.dp),
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
                                 singleLine = true,
                                 textStyle = TextStyle(
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
