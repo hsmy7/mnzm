@@ -739,11 +739,11 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromPatrolConfig(value: PatrolConfig): String =
-        encodeToBase64(PatrolConfig.serializer(), value)
+    fun fromPatrolConfigList(value: List<PatrolConfig>): String =
+        encodeToBase64(ListSerializer(PatrolConfig.serializer()), value)
 
     @TypeConverter
     @JvmStatic
-    fun toPatrolConfig(value: String): PatrolConfig =
-        decodeFromBase64(PatrolConfig.serializer(), value) { PatrolConfig() }
+    fun toPatrolConfigList(value: String): List<PatrolConfig> =
+        decodeFromBase64(ListSerializer(PatrolConfig.serializer()), value) { emptyList() }
 }

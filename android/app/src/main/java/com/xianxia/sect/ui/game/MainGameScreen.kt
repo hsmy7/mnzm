@@ -286,7 +286,7 @@ fun MainGameScreen(
                 BuildingDef.LAW_ENFORCEMENT -> { _ -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) }
                 BuildingDef.MISSION_HALL -> { _ -> dialogNavController.navigate(GameRoute.MissionHall.route) }
                 BuildingDef.REFLECTION_CLIFF -> { _ -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
-                BuildingDef.PATROL_TOWER -> { _ -> dialogNavController.navigate(GameRoute.PatrolTower.route) }
+                BuildingDef.PATROL_TOWER -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.PatrolTower.createRoute(it)) } }
                 BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
                 BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.WarehouseBuilding.createRoute(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }

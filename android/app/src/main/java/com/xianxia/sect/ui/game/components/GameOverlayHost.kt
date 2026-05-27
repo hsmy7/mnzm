@@ -426,8 +426,10 @@ fun GameOverlayHost(
                 onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
             )
         }
-        composable(GameRoute.PatrolTower.route) {
+        composable(GameRoute.PatrolTower.route) { entry ->
+            val bid = entry.arguments?.getString("buildingInstanceId") ?: ""
             PatrolTowerDialog(
+                buildingInstanceId = bid,
                 viewModel = viewModel,
                 patrolTowerViewModel = patrolTowerViewModel,
                 gameData = gameData,

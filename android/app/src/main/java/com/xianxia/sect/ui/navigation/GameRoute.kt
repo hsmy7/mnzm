@@ -19,7 +19,9 @@ sealed class GameRoute(val route: String) {
     object LawEnforcementHall : GameRoute("law_enforcement_hall")
     object MissionHall : GameRoute("mission_hall")
     object ReflectionCliff : GameRoute("reflection_cliff")
-    object PatrolTower : GameRoute("patrol_tower")
+    object PatrolTower : GameRoute("patrol_tower/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "patrol_tower/$buildingInstanceId"
+    }
 
     // Residence
     object Residence : GameRoute("residence/{buildingInstanceId}") {

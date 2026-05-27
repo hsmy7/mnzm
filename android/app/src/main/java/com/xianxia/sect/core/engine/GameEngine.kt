@@ -1325,8 +1325,8 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(patrolSlots = slots) }
     }
 
-    fun updatePatrolConfig(config: PatrolConfig) {
-        updateGameDataSync { it.copy(patrolConfig = config) }
+    fun updatePatrolConfigs(configs: List<PatrolConfig>) {
+        updateGameDataSync { it.copy(patrolConfigs = configs) }
     }
 
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {

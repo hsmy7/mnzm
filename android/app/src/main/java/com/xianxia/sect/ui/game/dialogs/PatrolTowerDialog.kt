@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Composable
 fun PatrolTowerDialog(
+    buildingInstanceId: String = "",
     viewModel: GameViewModel,
     patrolTowerViewModel: PatrolTowerViewModel,
     gameData: GameData?,
@@ -43,22 +44,24 @@ fun PatrolTowerDialog(
     onDismiss: () -> Unit
 ) {
     val gd = gameData ?: return
-    val patrolSlots = gd.patrolSlots
-    val patrolConfig = gd.patrolConfig
+    val patrolConfig = patrolTowerViewModel.getConfig(gd, buildingInstanceId)
+    val towerIdx = gd.placedBuildings.filter { it.displayName == "巡视楼" }.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
+    val rangeStart = towerIdx * 10
+    val allSlots = gd.patrolSlots
 
     var showAttackRangeDialog by remember { mutableStateOf(false) }
     var requireFullStatus by remember(patrolConfig) { mutableStateOf(patrolConfig.requireFullStatus) }
-    var selectingSlotIndex by remember { mutableStateOf(-1) }
+    var selectingSlotOffset by remember { mutableStateOf(-1) }
     var isSwapMode by remember { mutableStateOf(false) }
 
-    val slots = remember(patrolSlots) {
-        val list = patrolSlots.toMutableList()
-        while (list.size < 10) list.add(PatrolSlot(index = list.size))
-        list.take(10)
+    val slots = remember(allSlots, rangeStart) {
+        (0 until 10).map { offset ->
+            allSlots.getOrNull(rangeStart + offset) ?: PatrolSlot(index = rangeStart + offset)
+        }
     }
 
-    val assignedIds = patrolSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
-    val availableDisciples = remember(patrolSlots, disciples) {
+    val assignedIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+    val availableDisciples = remember(slots, disciples) {
         disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
             .sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
     }
@@ -86,7 +89,7 @@ fun PatrolTowerDialog(
                             .background(Color.Transparent, CircleShape)
                             .clickable {
                                 requireFullStatus = !requireFullStatus
-                                patrolTowerViewModel.updateRequireFullStatus(requireFullStatus)
+                                patrolTowerViewModel.updateRequireFullStatus(buildingInstanceId, requireFullStatus)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -104,7 +107,7 @@ fun PatrolTowerDialog(
                     )
                     GameButton(
                         text = "一键任命",
-                        onClick = { patrolTowerViewModel.autoAssign() },
+                        onClick = { patrolTowerViewModel.autoAssign(buildingInstanceId) },
                         width = ButtonSizes.StandardWidth,
                         height = ButtonSizes.StandardHeight,
                         fontSize = 10.sp
@@ -120,8 +123,8 @@ fun PatrolTowerDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     for (col in 0 until 5) {
-                        val index = row * 5 + col
-                        val slot = slots.getOrNull(index) ?: PatrolSlot(index = index)
+                        val offset = row * 5 + col
+                        val slot = slots.getOrNull(offset) ?: PatrolSlot(index = rangeStart + offset)
                         val assignedDisciple = disciples.find { it.id == slot.discipleId }
                         DiscipleSlotWithActions(
                             disciple = assignedDisciple,
@@ -132,12 +135,12 @@ fun PatrolTowerDialog(
                             },
                             onEmptySlotClick = {
                                 isSwapMode = false
-                                selectingSlotIndex = index
+                                selectingSlotOffset = offset
                             },
-                            onDismiss = { patrolTowerViewModel.removeDisciple(index) },
+                            onDismiss = { patrolTowerViewModel.removeDisciple(buildingInstanceId, offset) },
                             onSwap = {
                                 isSwapMode = true
-                                selectingSlotIndex = index
+                                selectingSlotOffset = offset
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -148,20 +151,20 @@ fun PatrolTowerDialog(
         }
     }
 
-    if (selectingSlotIndex >= 0) {
+    if (selectingSlotOffset >= 0) {
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(
                 title = if (isSwapMode) "更换巡视弟子" else "选择巡视弟子"
             ),
             disciples = availableDisciples,
-            onDismiss = { selectingSlotIndex = -1 },
+            onDismiss = { selectingSlotOffset = -1 },
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     val id = selected.first().id
-                    if (isSwapMode) patrolTowerViewModel.swapDisciple(selectingSlotIndex, id)
-                    else patrolTowerViewModel.assignDisciple(selectingSlotIndex, id)
+                    if (isSwapMode) patrolTowerViewModel.swapDisciple(buildingInstanceId, selectingSlotOffset, id)
+                    else patrolTowerViewModel.assignDisciple(buildingInstanceId, selectingSlotOffset, id)
                 }
-                selectingSlotIndex = -1
+                selectingSlotOffset = -1
             }
         )
     }
@@ -170,7 +173,7 @@ fun PatrolTowerDialog(
         AttackRangeDialog(
             config = patrolConfig,
             onSave = { newConfig ->
-                patrolTowerViewModel.updatePatrolConfig(newConfig)
+                patrolTowerViewModel.updatePatrolConfig(buildingInstanceId, newConfig)
                 showAttackRangeDialog = false
             },
             onDismiss = { showAttackRangeDialog = false }

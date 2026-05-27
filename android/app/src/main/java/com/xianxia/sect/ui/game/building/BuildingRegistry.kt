@@ -22,7 +22,7 @@ enum class BuildingDef(
     TIANSHU_HALL("tianshu_hall", "天枢殿", R.drawable.building_tianshu_hall, Color(0xFFFFF176)),
     LAW_ENFORCEMENT("law_enforcement_hall", "执法堂", R.drawable.building_law_enforcement, Color(0xFFCE93D8)),
     MISSION_HALL("mission_hall", "任务阁", R.drawable.building_mission_hall, Color(0xFF90CAF9)),
-    PATROL_TOWER("patrol_tower", "巡视楼", R.drawable.building_patrol_tower, Color(0xFF795548)),
+    PATROL_TOWER("patrol_tower", "巡视楼", R.drawable.building_patrol_tower, Color(0xFF795548), noLimit = true),
     REFLECTION_CLIFF("reflection_cliff", "监牢", R.drawable.building_reflection_cliff, Color(0xFFBDBDBD)),
     SINGLE_RESIDENCE("single_residence", "单人住所", R.drawable.building_single_residence, Color(0xFFEEEEEE), noLimit = true),
     SINGLE_RESIDENCE_UPGRADED("single_residence_upgraded", "中级单人住所", R.drawable.building_single_residence_upgraded, Color(0xFFEEEEEE), noLimit = true),

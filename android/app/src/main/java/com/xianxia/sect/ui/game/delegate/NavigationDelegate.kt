@@ -73,7 +73,7 @@ class NavigationDelegate(
         onNavigate(GameRoute.ReflectionCliff)
     }
 
-    fun openPatrolTowerDialog() {
+    fun openPatrolTowerDialog(buildingInstanceId: String = "") {
         onNavigate(GameRoute.PatrolTower)
     }
 
