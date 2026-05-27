@@ -190,6 +190,7 @@ fun DiscipleDetailDialog(
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
+    var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
 
     val gameData by viewModel?.gameData?.collectAsState() ?: remember { mutableStateOf(null) }
@@ -322,7 +323,7 @@ fun DiscipleDetailDialog(
                         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            val btnColor = if (disciple.discipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
+                            val btnColor = if (localDiscipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
                             val btnShape = if (showDiscipleTypeDropdown)
                                 RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
                             else
@@ -336,7 +337,7 @@ fun DiscipleDetailDialog(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        if (disciple.discipleType == "inner") "内门弟子" else "外门弟子",
+                                        if (localDiscipleType == "inner") "内门弟子" else "外门弟子",
                                         fontSize = 10.sp,
                                         color = Color.White
                                     )
@@ -349,16 +350,15 @@ fun DiscipleDetailDialog(
                                             .border(1.dp, btnColor)
                                             .clickable {
                                                 showDiscipleTypeDropdown = false
-                                                viewModel?.changeDiscipleType(
-                                                    disciple.id,
-                                                    if (disciple.discipleType == "outer") "inner" else "outer"
-                                                )
+                                                val newType = if (localDiscipleType == "outer") "inner" else "outer"
+                                                localDiscipleType = newType
+                                                viewModel?.changeDiscipleType(disciple.id, newType)
                                             }
                                             .padding(horizontal = 6.dp, vertical = 1.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            if (disciple.discipleType == "outer") "内门弟子" else "外门弟子",
+                                            if (localDiscipleType == "outer") "内门弟子" else "外门弟子",
                                             fontSize = 10.sp,
                                             color = Color.Black
                                         )
