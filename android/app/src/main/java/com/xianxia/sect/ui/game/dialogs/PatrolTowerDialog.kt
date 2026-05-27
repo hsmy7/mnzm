@@ -76,7 +76,7 @@ fun PatrolTowerDialog(
                     Box(
                         modifier = Modifier.size(20.dp).clip(CircleShape)
                             .border(1.5.dp, Color.Black, CircleShape)
-                            .background(if (requireFullStatus) Color.Black.copy(alpha = 0.15f) else Color.Transparent, CircleShape)
+                            .background(Color.Transparent, CircleShape)
                             .clickable {
                                 requireFullStatus = !requireFullStatus
                                 patrolTowerViewModel.updateRequireFullStatus(requireFullStatus)
@@ -185,7 +185,6 @@ private fun AttackRangeDialog(
 
     var selectedRealms by remember { mutableStateOf(config.targetRealms) }
     var maxCount by remember { mutableStateOf(config.maxBeastCount.toString()) }
-    var showCountInput by remember { mutableStateOf(false) }
     val hasChanges = selectedRealms != config.targetRealms || maxCount.toIntOrNull() != config.maxBeastCount
 
     var showUnsavedPrompt by remember { mutableStateOf(false) }
@@ -211,21 +210,21 @@ private fun AttackRangeDialog(
             ) {
                 items(realmOptions) { (realm, name) ->
                     val checked = realm in selectedRealms
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable {
                             selectedRealms = if (checked) selectedRealms - realm else selectedRealms + realm
                         }
                     ) {
                         Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.width(4.dp))
                         Box(
-                            modifier = Modifier.size(24.dp).clip(CircleShape)
+                            modifier = Modifier.size(16.dp).clip(CircleShape)
                                 .border(1.5.dp, Color.Black, CircleShape)
-                                .background(if (checked) Color.Black.copy(alpha = 0.15f) else Color.Transparent, CircleShape),
+                                .background(Color.Transparent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (checked) Text("✓", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            if (checked) Text("✓", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                     }
                 }
@@ -235,36 +234,26 @@ private fun AttackRangeDialog(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("进攻的妖兽数量范围为 1 - ", fontSize = 12.sp, color = Color.Black)
-                if (showCountInput) {
-                    TextField(
-                        value = maxCount,
-                        onValueChange = { v ->
-                            val filtered = v.filter { it.isDigit() }
-                            val num = filtered.toIntOrNull()
-                            if (num == null) maxCount = ""
-                            else if (num in 1..13) maxCount = filtered
-                        },
-                        modifier = Modifier.width(60.dp).height(36.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black,
-                            focusedIndicatorColor = Color.Black,
-                            unfocusedIndicatorColor = Color(0xFFBDBDBD)
-                        )
+                TextField(
+                    value = maxCount,
+                    onValueChange = { v ->
+                        val filtered = v.filter { it.isDigit() }
+                        val num = filtered.toIntOrNull()
+                        if (num == null) maxCount = ""
+                        else if (num in 1..13) maxCount = filtered
+                    },
+                    modifier = Modifier.width(60.dp).height(36.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedIndicatorColor = Color.Black,
+                        unfocusedIndicatorColor = Color.Black
                     )
-                } else {
-                    Text(
-                        text = maxCount.ifEmpty { "1" },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        modifier = Modifier.clickable { showCountInput = true; maxCount = config.maxBeastCount.toString() }
-                    )
-                }
+                )
             }
 
             Spacer(Modifier.height(16.dp))
