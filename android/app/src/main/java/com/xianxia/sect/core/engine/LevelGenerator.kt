@@ -84,7 +84,7 @@ object LevelGenerator {
         val beastConfig = GameConfig.Beast.getType(beastTypeIndex)
         val realm = Random.nextInt(0, 10)
         val realmLayer = Random.nextInt(1, 10)
-        val count = Random.nextInt(3, 12)
+        val count = Random.nextInt(1, 14)
         val realmName = when (realm) {
             0 -> "仙人"; 1 -> "渡劫"; 2 -> "大乘"; 3 -> "合体"; 4 -> "炼虚"
             5 -> "化神"; 6 -> "元婴"; 7 -> "金丹"; 8 -> "筑基"; 9 -> "炼气"
