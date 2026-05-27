@@ -253,8 +253,9 @@ private fun AttackRangeDialog(
                         val num = filtered.toIntOrNull()
                         maxCount = when {
                             num == null -> "1"
-                            num in 1..13 -> filtered
-                            else -> maxCount
+                            num < 1 -> "1"
+                            num > 13 -> "13"
+                            else -> filtered
                         }
                     },
                     modifier = Modifier.width(40.dp)
