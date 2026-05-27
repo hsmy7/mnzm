@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.25",
+            date = "2026-05-27",
+            changes = listOf(
+                "种子成熟时间按稀有度分档：凡品3年→灵品6年→宝品20年→玄品45年→地品70年→天品120年",
+                "种子详情成熟时间由月显示改为年显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.24",
             date = "2026-05-27",
             changes = listOf(

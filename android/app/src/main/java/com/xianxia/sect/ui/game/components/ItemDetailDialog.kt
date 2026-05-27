@@ -870,7 +870,7 @@ private fun getHerbCategoryName(category: String): String = when (category) {
 
 private fun getSeedEffects(item: Seed): List<String> = buildList {
     add("类型: 种子")
-    add("生长时间: ${item.growTime}个月")
+    add("生长时间: ${item.growTime / 12}年")
     add("收获数量: ${item.yield}")
     add("数量: ${item.quantity}")
 

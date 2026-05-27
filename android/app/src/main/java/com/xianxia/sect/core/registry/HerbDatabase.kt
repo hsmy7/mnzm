@@ -102,75 +102,75 @@ object HerbDatabase {
     private val allHerbs = tier1Herbs + tier2Herbs + tier3Herbs + tier4Herbs + tier5Herbs + tier6Herbs
 
     private val tier1Seeds = listOf(
-        Seed("spiritGrass1Seed", "聚灵草种", 1, 1, 2, 5, "种植后可收获聚灵草"),
-        Seed("spiritGrass2Seed", "清心草种", 1, 1, 2, 5, "种植后可收获清心草"),
-        Seed("spiritGrass3Seed", "凝气草种", 1, 1, 2, 4, "种植后可收获凝气草"),
-        Seed("spiritFlower1Seed", "云雾花种", 1, 1, 2, 5, "种植后可收获云雾花"),
-        Seed("spiritFlower2Seed", "白莲种", 1, 1, 2, 4, "种植后可收获白莲"),
-        Seed("spiritFlower3Seed", "晨露花种", 1, 1, 2, 5, "种植后可收获晨露花"),
-        Seed("spiritFruit1Seed", "精气果核", 1, 1, 2, 5, "种植后可收获精气果"),
-        Seed("spiritFruit2Seed", "赤心果核", 1, 1, 2, 4, "种植后可收获赤心果"),
-        Seed("spiritFruit3Seed", "灵韵果核", 1, 1, 2, 5, "种植后可收获灵韵果")
+        Seed("spiritGrass1Seed", "聚灵草种", 1, 1, 36, 5, "种植后可收获聚灵草"),
+        Seed("spiritGrass2Seed", "清心草种", 1, 1, 36, 5, "种植后可收获清心草"),
+        Seed("spiritGrass3Seed", "凝气草种", 1, 1, 36, 4, "种植后可收获凝气草"),
+        Seed("spiritFlower1Seed", "云雾花种", 1, 1, 36, 5, "种植后可收获云雾花"),
+        Seed("spiritFlower2Seed", "白莲种", 1, 1, 36, 4, "种植后可收获白莲"),
+        Seed("spiritFlower3Seed", "晨露花种", 1, 1, 36, 5, "种植后可收获晨露花"),
+        Seed("spiritFruit1Seed", "精气果核", 1, 1, 36, 5, "种植后可收获精气果"),
+        Seed("spiritFruit2Seed", "赤心果核", 1, 1, 36, 4, "种植后可收获赤心果"),
+        Seed("spiritFruit3Seed", "灵韵果核", 1, 1, 36, 5, "种植后可收获灵韵果")
     )
     
     private val tier2Seeds = listOf(
-        Seed("spiritGrass4Seed", "寒霜草种", 2, 2, 5, 4, "种植后可收获寒霜草"),
-        Seed("spiritGrass5Seed", "烈焰草种", 2, 2, 5, 4, "种植后可收获烈焰草"),
-        Seed("spiritGrass6Seed", "金灵草种", 2, 2, 5, 4, "种植后可收获金灵草"),
-        Seed("spiritFlower4Seed", "冰魄莲种", 2, 2, 5, 3, "种植后可收获冰魄莲"),
-        Seed("spiritFlower5Seed", "双生花种", 2, 2, 5, 4, "种植后可收获双生花"),
-        Seed("spiritFlower6Seed", "紫霄花种", 2, 2, 5, 4, "种植后可收获紫霄花"),
-        Seed("spiritFruit4Seed", "通灵果核", 2, 2, 5, 4, "种植后可收获通灵果"),
-        Seed("spiritFruit5Seed", "玄灵果核", 2, 2, 5, 4, "种植后可收获玄灵果"),
-        Seed("spiritFruit6Seed", "五行果核", 2, 2, 5, 3, "种植后可收获五行果")
+        Seed("spiritGrass4Seed", "寒霜草种", 2, 2, 72, 4, "种植后可收获寒霜草"),
+        Seed("spiritGrass5Seed", "烈焰草种", 2, 2, 72, 4, "种植后可收获烈焰草"),
+        Seed("spiritGrass6Seed", "金灵草种", 2, 2, 72, 4, "种植后可收获金灵草"),
+        Seed("spiritFlower4Seed", "冰魄莲种", 2, 2, 72, 3, "种植后可收获冰魄莲"),
+        Seed("spiritFlower5Seed", "双生花种", 2, 2, 72, 4, "种植后可收获双生花"),
+        Seed("spiritFlower6Seed", "紫霄花种", 2, 2, 72, 4, "种植后可收获紫霄花"),
+        Seed("spiritFruit4Seed", "通灵果核", 2, 2, 72, 4, "种植后可收获通灵果"),
+        Seed("spiritFruit5Seed", "玄灵果核", 2, 2, 72, 4, "种植后可收获玄灵果"),
+        Seed("spiritFruit6Seed", "五行果核", 2, 2, 72, 3, "种植后可收获五行果")
     )
     
     private val tier3Seeds = listOf(
-        Seed("spiritGrass7Seed", "龙血草种", 3, 3, 9, 2, "种植后可收获龙血草"),
-        Seed("spiritGrass8Seed", "风铃草种", 3, 3, 9, 2, "种植后可收获风铃草"),
-        Seed("spiritGrass9Seed", "九转灵草种", 3, 3, 9, 2, "种植后可收获九转灵草"),
-        Seed("spiritFlower7Seed", "九转仙兰种", 3, 3, 9, 2, "种植后可收获九转仙兰"),
-        Seed("spiritFlower8Seed", "凤凰花种", 3, 3, 9, 2, "种植后可收获凤凰花"),
-        Seed("spiritFlower9Seed", "青龙花种", 3, 3, 9, 2, "种植后可收获青龙花"),
-        Seed("spiritFruit7Seed", "赤阳果核", 3, 3, 9, 2, "种植后可收获赤阳果"),
-        Seed("spiritFruit8Seed", "玄灵莓种", 3, 3, 9, 2, "种植后可收获玄灵莓"),
-        Seed("spiritFruit9Seed", "天元果核", 3, 3, 9, 2, "种植后可收获天元果")
+        Seed("spiritGrass7Seed", "龙血草种", 3, 3, 240, 2, "种植后可收获龙血草"),
+        Seed("spiritGrass8Seed", "风铃草种", 3, 3, 240, 2, "种植后可收获风铃草"),
+        Seed("spiritGrass9Seed", "九转灵草种", 3, 3, 240, 2, "种植后可收获九转灵草"),
+        Seed("spiritFlower7Seed", "九转仙兰种", 3, 3, 240, 2, "种植后可收获九转仙兰"),
+        Seed("spiritFlower8Seed", "凤凰花种", 3, 3, 240, 2, "种植后可收获凤凰花"),
+        Seed("spiritFlower9Seed", "青龙花种", 3, 3, 240, 2, "种植后可收获青龙花"),
+        Seed("spiritFruit7Seed", "赤阳果核", 3, 3, 240, 2, "种植后可收获赤阳果"),
+        Seed("spiritFruit8Seed", "玄灵莓种", 3, 3, 240, 2, "种植后可收获玄灵莓"),
+        Seed("spiritFruit9Seed", "天元果核", 3, 3, 240, 2, "种植后可收获天元果")
     )
     
     private val tier4Seeds = listOf(
-        Seed("spiritGrass10Seed", "玄冰草种", 4, 4, 18, 1, "种植后可收获玄冰草"),
-        Seed("spiritGrass11Seed", "风暴草种", 4, 4, 18, 1, "种植后可收获风暴草"),
-        Seed("spiritGrass12Seed", "神命草种", 4, 4, 18, 1, "种植后可收获神命草"),
-        Seed("spiritFlower10Seed", "日月同辉种", 4, 4, 18, 1, "种植后可收获日月同辉花"),
-        Seed("spiritFlower11Seed", "紫云花种", 4, 4, 18, 1, "种植后可收获紫云花"),
-        Seed("spiritFlower12Seed", "玄武花种", 4, 4, 18, 1, "种植后可收获玄武花"),
-        Seed("spiritFruit10Seed", "长生果核", 4, 4, 18, 1, "种植后可收获长生果"),
-        Seed("spiritFruit11Seed", "仙灵果核", 4, 4, 18, 1, "种植后可收获仙灵果"),
-        Seed("spiritFruit12Seed", "天灵果核", 4, 4, 18, 1, "种植后可收获天灵果")
+        Seed("spiritGrass10Seed", "玄冰草种", 4, 4, 540, 1, "种植后可收获玄冰草"),
+        Seed("spiritGrass11Seed", "风暴草种", 4, 4, 540, 1, "种植后可收获风暴草"),
+        Seed("spiritGrass12Seed", "神命草种", 4, 4, 540, 1, "种植后可收获神命草"),
+        Seed("spiritFlower10Seed", "日月同辉种", 4, 4, 540, 1, "种植后可收获日月同辉花"),
+        Seed("spiritFlower11Seed", "紫云花种", 4, 4, 540, 1, "种植后可收获紫云花"),
+        Seed("spiritFlower12Seed", "玄武花种", 4, 4, 540, 1, "种植后可收获玄武花"),
+        Seed("spiritFruit10Seed", "长生果核", 4, 4, 540, 1, "种植后可收获长生果"),
+        Seed("spiritFruit11Seed", "仙灵果核", 4, 4, 540, 1, "种植后可收获仙灵果"),
+        Seed("spiritFruit12Seed", "天灵果核", 4, 4, 540, 1, "种植后可收获天灵果")
     )
     
     private val tier5Seeds = listOf(
-        Seed("spiritGrass13Seed", "仙灵草种", 5, 5, 30, 1, "种植后可收获仙灵草"),
-        Seed("spiritGrass14Seed", "天灵草种", 5, 5, 30, 1, "种植后可收获天灵草"),
-        Seed("spiritGrass15Seed", "混沌草种", 5, 5, 30, 1, "种植后可收获混沌草"),
-        Seed("spiritFlower13Seed", "凤仙花种", 5, 5, 30, 1, "种植后可收获涅槃凤仙花"),
-        Seed("spiritFlower14Seed", "龙鳞莲种", 5, 5, 30, 1, "种植后可收获龙鳞仙莲"),
-        Seed("spiritFlower15Seed", "白虎幽兰种", 5, 5, 30, 1, "种植后可收获白虎幽兰"),
-        Seed("spiritFruit13Seed", "还魂果核", 5, 5, 30, 1, "种植后可收获九叶还魂果"),
-        Seed("spiritFruit14Seed", "玄天灵果核", 5, 5, 30, 1, "种植后可收获玄天灵果"),
-        Seed("spiritFruit15Seed", "星陨神果核", 5, 5, 30, 1, "种植后可收获星陨神果")
+        Seed("spiritGrass13Seed", "仙灵草种", 5, 5, 840, 1, "种植后可收获仙灵草"),
+        Seed("spiritGrass14Seed", "天灵草种", 5, 5, 840, 1, "种植后可收获天灵草"),
+        Seed("spiritGrass15Seed", "混沌草种", 5, 5, 840, 1, "种植后可收获混沌草"),
+        Seed("spiritFlower13Seed", "凤仙花种", 5, 5, 840, 1, "种植后可收获涅槃凤仙花"),
+        Seed("spiritFlower14Seed", "龙鳞莲种", 5, 5, 840, 1, "种植后可收获龙鳞仙莲"),
+        Seed("spiritFlower15Seed", "白虎幽兰种", 5, 5, 840, 1, "种植后可收获白虎幽兰"),
+        Seed("spiritFruit13Seed", "还魂果核", 5, 5, 840, 1, "种植后可收获九叶还魂果"),
+        Seed("spiritFruit14Seed", "玄天灵果核", 5, 5, 840, 1, "种植后可收获玄天灵果"),
+        Seed("spiritFruit15Seed", "星陨神果核", 5, 5, 840, 1, "种植后可收获星陨神果")
     )
     
     private val tier6Seeds = listOf(
-        Seed("spiritGrass16Seed", "鸿蒙草种", 6, 6, 48, 1, "种植后可收获鸿蒙草"),
-        Seed("spiritGrass17Seed", "太初草种", 6, 6, 48, 1, "种植后可收获太初草"),
-        Seed("spiritGrass18Seed", "永恒草种", 6, 6, 48, 1, "种植后可收获永恒草"),
-        Seed("spiritFlower16Seed", "永恒花种", 6, 6, 48, 1, "种植后可收获永恒花"),
-        Seed("spiritFlower17Seed", "混沌仙莲种", 6, 6, 48, 1, "种植后可收获混沌仙莲"),
-        Seed("spiritFlower18Seed", "造化神花种", 6, 6, 48, 1, "种植后可收获造化神花"),
-        Seed("spiritFruit16Seed", "瑞麟仙果核", 6, 6, 48, 1, "种植后可收获瑞麟仙果"),
-        Seed("spiritFruit17Seed", "玄武帝果核", 6, 6, 48, 1, "种植后可收获玄武帝果"),
-        Seed("spiritFruit18Seed", "混沌神果核", 6, 6, 48, 1, "种植后可收获混沌神果")
+        Seed("spiritGrass16Seed", "鸿蒙草种", 6, 6, 1440, 1, "种植后可收获鸿蒙草"),
+        Seed("spiritGrass17Seed", "太初草种", 6, 6, 1440, 1, "种植后可收获太初草"),
+        Seed("spiritGrass18Seed", "永恒草种", 6, 6, 1440, 1, "种植后可收获永恒草"),
+        Seed("spiritFlower16Seed", "永恒花种", 6, 6, 1440, 1, "种植后可收获永恒花"),
+        Seed("spiritFlower17Seed", "混沌仙莲种", 6, 6, 1440, 1, "种植后可收获混沌仙莲"),
+        Seed("spiritFlower18Seed", "造化神花种", 6, 6, 1440, 1, "种植后可收获造化神花"),
+        Seed("spiritFruit16Seed", "瑞麟仙果核", 6, 6, 1440, 1, "种植后可收获瑞麟仙果"),
+        Seed("spiritFruit17Seed", "玄武帝果核", 6, 6, 1440, 1, "种植后可收获玄武帝果"),
+        Seed("spiritFruit18Seed", "混沌神果核", 6, 6, 1440, 1, "种植后可收获混沌神果")
     )
 
     private val allSeeds = tier1Seeds + tier2Seeds + tier3Seeds + tier4Seeds + tier5Seeds + tier6Seeds
