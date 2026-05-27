@@ -844,6 +844,39 @@ private fun SectGroundCanvas(
                 }
             }
 
+            // 2.5. 灵植阁光环预览 — 范围内灵田绿色覆盖
+            val herbGardenAuraName = BuildingDef.HERB_GARDEN.displayName
+            val showHerbGardenAura = (isPlacing && placingBuildingName == herbGardenAuraName) ||
+                    (isMoving && movingBuildingName == herbGardenAuraName)
+            if (showHerbGardenAura) {
+                val hgGridX = if (isPlacing) previewGridX else movingGridX
+                val hgGridY = if (isPlacing) previewGridY else movingGridY
+                val hgW = if (isPlacing) previewSize.width else movingSize.width
+                val hgH = if (isPlacing) previewSize.height else movingSize.height
+                val hgCenterX = hgGridX + hgW / 2.0
+                val hgCenterY = hgGridY + hgH / 2.0
+                val auraRadius = GameConfig.HerbGarden.AURA_RADIUS_TILES
+                val spiritFieldName = BuildingDef.SPIRIT_FIELD.displayName
+                for (building in placedBuildings) {
+                    if (building.displayName != spiritFieldName) continue
+                    val closestX = hgCenterX.coerceIn(
+                        building.gridX.toDouble(), (building.gridX + building.width).toDouble()
+                    )
+                    val closestY = hgCenterY.coerceIn(
+                        building.gridY.toDouble(), (building.gridY + building.height).toDouble()
+                    )
+                    val dx = closestX - hgCenterX
+                    val dy = closestY - hgCenterY
+                    if (dx * dx + dy * dy <= auraRadius * auraRadius) {
+                        drawRect(
+                            Color(0x404CAF50),
+                            Offset(building.gridX * tileSize.toFloat(), building.gridY * tileSize.toFloat()),
+                            Size(building.width * tileSize.toFloat(), building.height * tileSize.toFloat())
+                        )
+                    }
+                }
+            }
+
             // 3. 网格线（放置/建造栏展开/移动模式时显示）
             if (isPlacing || buildingBarExpanded || isMoving) {
                 val gridColor = Color(0xFFE4DDD0)
@@ -923,6 +956,25 @@ private fun SectGroundCanvas(
                         )
                     }
                 }
+            }
+
+            // 6. 灵植阁光环范围圈
+            if (showHerbGardenAura) {
+                val centerX: Float
+                val centerY: Float
+                if (isPlacing) {
+                    centerX = previewWorldX + (previewSize.width * tileSize) / 2f
+                    centerY = previewWorldY + (previewSize.height * tileSize) / 2f
+                } else {
+                    centerX = movingWorldX + (movingSize.width * tileSize) / 2f
+                    centerY = movingWorldY + (movingSize.height * tileSize) / 2f
+                }
+                drawCircle(
+                    color = Color(0x404CAF50),
+                    radius = (GameConfig.HerbGarden.AURA_RADIUS_TILES * tileSize).toFloat(),
+                    center = Offset(centerX, centerY),
+                    style = Stroke(width = 2.dp.toPx())
+                )
             }
         }
     }

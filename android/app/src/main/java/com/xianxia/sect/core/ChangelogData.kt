@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.24",
+            date = "2026-05-27",
+            changes = listOf(
+                "灵植阁放置/移动时显示绿色光环范围圈，范围内灵田显示绿色覆盖",
+                "灵田部分处于范围即享受增益，光环判定改为最近点距离"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.23",
             date = "2026-05-27",
             changes = listOf(

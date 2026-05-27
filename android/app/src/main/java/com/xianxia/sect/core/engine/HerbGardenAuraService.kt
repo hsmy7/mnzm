@@ -44,14 +44,14 @@ object HerbGardenAuraService {
         }
         if (herbGardens.isEmpty()) return false
 
-        val sfCenterX = sf.gridX + sf.width / 2.0
-        val sfCenterY = sf.gridY + sf.height / 2.0
-
         for (hg in herbGardens) {
             val hgCenterX = hg.gridX + hg.width / 2.0
             val hgCenterY = hg.gridY + hg.height / 2.0
-            val dx = sfCenterX - hgCenterX
-            val dy = sfCenterY - hgCenterY
+            // Closest point on spirit field rect to herb garden center — partial coverage counts
+            val closestX = hgCenterX.coerceIn(sf.gridX.toDouble(), (sf.gridX + sf.width).toDouble())
+            val closestY = hgCenterY.coerceIn(sf.gridY.toDouble(), (sf.gridY + sf.height).toDouble())
+            val dx = closestX - hgCenterX
+            val dy = closestY - hgCenterY
             if (sqrt(dx * dx + dy * dy) <= GameConfig.HerbGarden.AURA_RADIUS_TILES) {
                 return true
             }
