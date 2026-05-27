@@ -737,6 +737,17 @@ object ProtobufConverters {
     fun toPatrolSlotList(value: String): List<PatrolSlot> =
         decodeFromBase64(ListSerializer(PatrolSlot.serializer()), value) { emptyList() }
 
+    // 旧版单值转换器（保留以兼容数据库迁移验证）
+    @TypeConverter
+    @JvmStatic
+    fun fromPatrolConfig(value: PatrolConfig): String =
+        encodeToBase64(PatrolConfig.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toPatrolConfig(value: String): PatrolConfig =
+        decodeFromBase64(PatrolConfig.serializer(), value) { PatrolConfig() }
+
     @TypeConverter
     @JvmStatic
     fun fromPatrolConfigList(value: List<PatrolConfig>): String =
