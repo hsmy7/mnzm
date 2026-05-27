@@ -305,12 +305,13 @@ fun MainGameScreen(
         }
     }
 
-    // Dialog dismiss on NavHost back press: cancel building placement / moving
+    // Dialog dismiss on NavHost back press: cancel building placement / moving / bar
     LaunchedEffect(dialogNavController) {
         dialogNavController.currentBackStackEntryFlow.collect {
             if (it.destination.route != null) {
                 isPlacingBuilding = false
                 movingBuilding = null
+                buildingBarExpanded = false
             }
         }
     }
@@ -518,9 +519,6 @@ fun MainGameScreen(
                 getBuildingMaxCount = { name ->
                     when {
                         BuildingRegistry.isResidence(name) || BuildingRegistry.hasNoLimit(name) -> Int.MAX_VALUE
-                        name == BuildingDef.SPIRIT_MINE.displayName -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
-                        name == BuildingDef.ALCHEMY.displayName -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
-                        name == BuildingDef.FORGE.displayName -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
                         else -> 1
                     }
                 }

@@ -136,20 +136,8 @@ class GameViewModel @Inject constructor(
             val activeId = gameEngine.currentActiveSectId()
             gameEngine.updateGameData { data ->
                 when {
-                    name == BuildingDef.SPIRIT_MINE.displayName -> {
-                        val currentMines = data.placedBuildings.count { it.displayName == BuildingDef.SPIRIT_MINE.displayName && it.sectId == activeId }
-                        if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
-                    }
-                    name == BuildingDef.ALCHEMY.displayName -> {
-                        val cnt = data.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName && it.sectId == activeId }
-                        if (cnt >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) return@updateGameData data
-                    }
-                    name == BuildingDef.FORGE.displayName -> {
-                        val cnt = data.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName && it.sectId == activeId }
-                        if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
-                    }
                     BuildingRegistry.hasNoLimit(name) -> {
-                        // No build limit for residences, spirit fields
+                        // No build limit
                     }
                     else -> {
                         if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
