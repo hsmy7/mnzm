@@ -259,7 +259,8 @@ fun DiscipleDetailDialog(
                                         isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
                                         elderSlots = gameData?.elderSlots,
                                         allDisciples = allDisciples,
-                                        sectPolicies = gameData?.sectPolicies
+                                        sectPolicies = gameData?.sectPolicies,
+                                        gameData = gameData
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -1088,7 +1089,8 @@ private fun BasicInfoSection(
     isWorkStatusPosition: Boolean = false,
     elderSlots: ElderSlots? = null,
     allDisciples: List<DiscipleAggregate> = emptyList(),
-    sectPolicies: SectPolicies? = null
+    sectPolicies: SectPolicies? = null,
+    gameData: GameData? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1191,17 +1193,30 @@ private fun BasicInfoSection(
                 val proficiencyMap = remember(manualProficiencies, disciple.id) {
                     manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
                 }
-                val cultivationSpeed = remember(disciple, manualsMap, proficiencyMap, allDisciples, elderSlots, sectPolicies) {
+                val buildingBonus = remember(disciple, gameData) {
+                    val slot = gameData?.residenceSlots?.firstOrNull { it.discipleId == disciple.id }
+                    val building = slot?.let { s ->
+                        gameData?.placedBuildings?.firstOrNull { it.instanceId == s.buildingInstanceId }
+                    }
+                    when (building?.displayName) {
+                        "中级单人住所" -> 1.50
+                        "单人住所" -> 1.25
+                        "多人住所" -> 1.10
+                        else -> 1.0
+                    }
+                }
+                val cultivationSpeed = remember(disciple, manualsMap, proficiencyMap, allDisciples, elderSlots, sectPolicies, buildingBonus) {
                     val (preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus) = calculatePreachingBonusesForDisplay(
                         disciple, elderSlots, allDisciples,
                         sectPolicies = sectPolicies
                     )
                     disciple.calculateCultivationSpeed(
                         manualsMap, proficiencyMap,
+                        buildingBonus = buildingBonus,
                         preachingElderBonus = preachingElderBonus,
                         preachingMastersBonus = preachingMastersBonus,
                         cultivationSubsidyBonus = cultivationSubsidyBonus
-                    )
+                    ).coerceIn(1.0, 1000.0)
                 }
                 
                 // 境界、修炼进度条、每秒修炼值在同一行显示
