@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.42",
+            date = "2026-05-29",
+            changes = listOf(
+                "新生儿灵根继承机制：30%继承父亲灵根、30%继承母亲灵根、40%随机生成"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.41",
             date = "2026-05-29",
             changes = listOf(

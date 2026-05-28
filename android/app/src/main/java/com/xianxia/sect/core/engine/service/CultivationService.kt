@@ -454,22 +454,28 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val existingNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toSet()
         val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
 
-        val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
-        val rootCount = when (GameRandom.nextInt(100)) {
-            in 0..4 -> 1
-            in 5..24 -> 2
-            in 25..54 -> 3
-            in 55..84 -> 4
-            else -> 5
+        val spiritRootType = when (GameRandom.nextInt(100)) {
+            in 0..29 -> father.spiritRootType
+            in 30..59 -> mother.spiritRootType
+            else -> {
+                val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
+                val rootCount = when (GameRandom.nextInt(100)) {
+                    in 0..4 -> 1
+                    in 5..24 -> 2
+                    in 25..54 -> 3
+                    in 55..84 -> 4
+                    else -> 5
+                }
+                val shuffled = allSpiritRootTypes.toMutableList()
+                for (i in shuffled.indices) {
+                    val j = GameRandom.nextInt(i, shuffled.size)
+                    val tmp = shuffled[i]
+                    shuffled[i] = shuffled[j]
+                    shuffled[j] = tmp
+                }
+                shuffled.take(rootCount).joinToString(",")
+            }
         }
-        val shuffled = allSpiritRootTypes.toMutableList()
-        for (i in shuffled.indices) {
-            val j = GameRandom.nextInt(i, shuffled.size)
-            val tmp = shuffled[i]
-            shuffled[i] = shuffled[j]
-            shuffled[j] = tmp
-        }
-        val spiritRootType = shuffled.take(rootCount).joinToString(",")
 
         // 基础属性方差（与 recruitDisciple 一致的范围）
         val hpVariance = GameRandom.nextInt(-50, 51)
