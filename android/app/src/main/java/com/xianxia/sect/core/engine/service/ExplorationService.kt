@@ -7,10 +7,11 @@ import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.LevelGenerator
 import com.xianxia.sect.core.event.DeathEvent
-import com.xianxia.sect.core.event.EventBus
+import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.ExplorationSystem
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
@@ -23,7 +24,7 @@ import javax.inject.Singleton
 @Singleton
 class ExplorationService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val eventBus: EventBus,
+    private val eventBus: EventBusPort,
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val battleSystem: BattleSystem
 ) : GameSystem {

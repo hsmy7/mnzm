@@ -8,6 +8,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SaveSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
 import javax.inject.Inject

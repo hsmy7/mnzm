@@ -47,7 +47,9 @@ import com.xianxia.sect.di.ApplicationScopeProvider
 import android.util.Log
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.engine.system.CultivationSystem
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
@@ -396,167 +398,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * 子嗣产出系统 - 每天处理一次
-     *
-     * 条件：女性弟子、有道侣(partnerId!=null)、道侣存活、未处于冷却期
-     * 概率：每天 0.08%
-     * 冷却：lastChildYear 距今不到1年则跳过
-     */
-    private fun processChildBirth(currentYear: Int) {
-        val allDisciples = currentDisciples
-        val discipleMap = allDisciples.associateBy { it.id }
-
-        // 筛选符合条件的女性弟子
-        val eligibleMothers = allDisciples.filter { mother ->
-            mother.isAlive &&
-            mother.gender == "female" &&
-            mother.social.partnerId != null &&
-            (currentYear - mother.social.lastChildYear >= 1)
-        }
-
-        for (mother in eligibleMothers) {
-            val fatherId = mother.social.partnerId ?: continue
-            val father = discipleMap[fatherId]
-
-            // 道侣必须存活
-            if (father == null || !father.isAlive) continue
-
-            // 0.08% 概率诞下子嗣（子嗣加入招募列表，需玩家手动或自动招募）
-            if (GameRandom.nextDouble() < 0.0008) {
-                val child = createChild(mother, father, currentYear)
-                currentGameData = currentGameData.copy(
-                    recruitList = currentGameData.recruitList + child
-                )
-                currentDisciples = currentDisciples.map {
-                    if (it.id == mother.id) it.copyWith(lastChildYear = currentYear) else it
-                }
-
-                val genderText = if (child.gender == "male") "子" else "女"
-
-                return
-            }
-        }
-    }
-
-    /**
-     * 创建子嗣弟子
-     *
-     * @param mother 母亲弟子
-     * @param father 父亲弟子
-     * @param currentYear 当前年份
-     * @return 新创建的子嗣弟子
-     */
-    private fun createChild(mother: Disciple, father: Disciple, currentYear: Int): Disciple {
-        val id = java.util.UUID.randomUUID().toString()
-        val gender = if (GameRandom.nextBoolean()) "male" else "female"
-
-        val fatherSurname = if (father.surname.isNotEmpty()) father.surname else NameService.extractSurname(father.name)
-        val existingNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toSet()
-        val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
-
-        val spiritRootType = when (GameRandom.nextInt(100)) {
-            in 0..29 -> father.spiritRootType
-            in 30..59 -> mother.spiritRootType
-            else -> {
-                val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
-                val rootCount = when (GameRandom.nextInt(100)) {
-                    in 0..4 -> 1
-                    in 5..24 -> 2
-                    in 25..54 -> 3
-                    in 55..84 -> 4
-                    else -> 5
-                }
-                val shuffled = allSpiritRootTypes.toMutableList()
-                for (i in shuffled.indices) {
-                    val j = GameRandom.nextInt(i, shuffled.size)
-                    val tmp = shuffled[i]
-                    shuffled[i] = shuffled[j]
-                    shuffled[j] = tmp
-                }
-                shuffled.take(rootCount).joinToString(",")
-            }
-        }
-
-        // 基础属性方差（与 recruitDisciple 一致的范围）
-        val hpVariance = GameRandom.nextInt(-50, 51)
-        val mpVariance = GameRandom.nextInt(-50, 51)
-        val physicalAttackVariance = GameRandom.nextInt(-50, 51)
-        val magicAttackVariance = GameRandom.nextInt(-50, 51)
-        val physicalDefenseVariance = GameRandom.nextInt(-50, 51)
-        val magicDefenseVariance = GameRandom.nextInt(-50, 51)
-        val speedVariance = GameRandom.nextInt(-50, 51)
-
-        val spiritRootCount = spiritRootType.split(",").size
-        val comprehension = when (spiritRootCount) {
-            1 -> GameRandom.nextInt(80, 101)
-            2 -> GameRandom.nextInt(60, 101)
-            3 -> GameRandom.nextInt(40, 101)
-            4 -> GameRandom.nextInt(20, 101)
-            else -> GameRandom.nextInt(1, 101)
-        }
-
-        val disciple = Disciple(
-            id = id,
-            name = nameResult.fullName,
-            surname = nameResult.surname,
-            gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender),
-            age = 1,
-            realm = 9,
-            realmLayer = 0, // 未成年，无境界
-            spiritRootType = spiritRootType,
-            status = DiscipleStatus.IDLE,
-            discipleType = "outer",
-            talentIds = com.xianxia.sect.core.registry.TalentDatabase.generateTalentsForDisciple().map { it.id },
-            combat = com.xianxia.sect.core.model.CombatAttributes(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance
-            ),
-            social = com.xianxia.sect.core.model.SocialData(
-                parentId1 = mother.id,
-                parentId2 = father.id
-            ),
-            skills = com.xianxia.sect.core.model.SkillStats(
-                intelligence = GameRandom.nextInt(1, 101),
-                charm = GameRandom.nextInt(1, 101),
-                loyalty = GameRandom.nextInt(1, 101),
-                comprehension = comprehension,
-                morality = GameRandom.nextInt(1, 101),
-                artifactRefining = GameRandom.nextInt(1, 101),
-                pillRefining = GameRandom.nextInt(1, 101),
-                spiritPlanting = GameRandom.nextInt(1, 101),
-                mining = GameRandom.nextInt(1, 101),
-                teaching = GameRandom.nextInt(1, 101)
-            )
-        ).apply {
-            val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-            combat.baseHp = baseStats.baseHp
-            combat.baseMp = baseStats.baseMp
-            combat.basePhysicalAttack = baseStats.basePhysicalAttack
-            combat.baseMagicAttack = baseStats.baseMagicAttack
-            combat.basePhysicalDefense = baseStats.basePhysicalDefense
-            combat.baseMagicDefense = baseStats.baseMagicDefense
-            combat.baseSpeed = baseStats.baseSpeed
-
-            // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
-            val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
-            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-            val baseLifespan = GameConfig.Realm.get(realm).maxAge
-            lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-        }
-
-        return disciple
-    }
-
-    /**
      * Calculate cultivation gain per second for a disciple
      */
     private fun calculateDiscipleCultivationPerSecond(disciple: Disciple, data: GameData): Double {
@@ -826,7 +667,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         safelyRun("updateCaveExplorationTeamsMovement") { updateCaveExplorationTeamsMovement(day, month, year) }
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
         safelyRun("checkExplorationArrivals") { checkExplorationArrivals() }
-        safelyRun("processChildBirth") { processChildBirth(year) }
 
         // Daily recovery: disciples recover 5% HP and MP (including those in battle)
         safelyRun("processDailyRecovery") { processDailyRecovery() }
@@ -1129,9 +969,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 11. Process law enforcement monthly check
         processLawEnforcementMonthly()
-
-        // 13. Process partner matching (道侣匹配)
-        processPartnerMatching()
 
         // 14. Process completed missions and refresh available missions
         processCompletedMissions()
@@ -2108,65 +1945,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * 所有符合条件的异性配对每月均有 0.6% 独立概率结为道侣
      * 支持灵根数量禁婚过滤 + 结婚审批模式
      */
-    private fun processPartnerMatching() {
-        val allDisciples = currentDisciples
-        val bannedRootCounts = currentGameData.daoCompanionBannedRootCounts
-        val consentRequired = currentGameData.daoCompanionConsentRequired
-
-        val eligibleMales = allDisciples.filter {
-            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "male" &&
-                !bannedRootCounts.contains(it.spiritRootType.split(",").size)
-        }
-        val eligibleFemales = allDisciples.filter {
-            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "female" &&
-                !bannedRootCounts.contains(it.spiritRootType.split(",").size)
-        }
-
-        if (eligibleMales.isEmpty() || eligibleFemales.isEmpty()) return
-
-        var currentList = allDisciples
-        val pairedFemaleIds = mutableSetOf<String>()
-
-        for (male in eligibleMales) {
-            for (female in eligibleFemales) {
-                if (female.id in pairedFemaleIds) continue
-                if (hasBloodRelation(male, female)) continue
-
-                if (GameRandom.nextDouble() < 0.006) {
-                    if (consentRequired) {
-                        pendingNotification = GameNotification.MarriageRequest(male, female)
-                        return
-                    }
-                    currentList = currentList.map { disciple ->
-                        when (disciple.id) {
-                            male.id -> disciple.copyWith(partnerId = female.id)
-                            female.id -> disciple.copyWith(partnerId = male.id)
-                            else -> disciple
-                        }
-                    }
-                    pairedFemaleIds.add(female.id)
-                }
-            }
-        }
-
-        if (pairedFemaleIds.isNotEmpty()) {
-            currentDisciples = currentList
-        }
-    }
-
-    private fun hasBloodRelation(a: Disciple, b: Disciple): Boolean {
-        val aParent1 = a.social.parentId1
-        val aParent2 = a.social.parentId2
-        val bParent1 = b.social.parentId1
-        val bParent2 = b.social.parentId2
-        return a.id == bParent1 || a.id == bParent2 ||
-               b.id == aParent1 || b.id == aParent2 ||
-               (aParent1 != null && aParent1 == bParent1) ||
-               (aParent1 != null && aParent1 == bParent2) ||
-               (aParent2 != null && aParent2 == bParent1) ||
-               (aParent2 != null && aParent2 == bParent2)
-    }
-
     /**
      * Update exploration teams movement
      */
@@ -3389,27 +3167,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     internal suspend fun refreshRecruitList(year: Int) {
-        val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
-        val spiritRootNames = mapOf(
-            "metal" to "金灵根", "wood" to "木灵根", "water" to "水灵根",
-            "fire" to "火灵根", "earth" to "土灵根"
-        )
         val recruitCount = Random.nextInt(0, 7)
         val newRecruitDisciples = mutableListOf<Disciple>()
         val usedNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
             val gender = if (Random.nextBoolean()) "male" else "female"
             val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, usedNames)
-            val spiritRootType = spiritRootTypes.let { types ->
-                val rootCount = when (Random.nextInt(100)) {
-                    in 0..4 -> 1
-                    in 5..24 -> 2
-                    in 25..54 -> 3
-                    in 55..84 -> 4
-                    else -> 5
-                }
-                types.shuffled().take(rootCount).joinToString(",")
-            }
+            val spiritRootType = SpiritRootGenerator.generate(Random)
             val hpVariance = Random.nextInt(-50, 51)
             val mpVariance = Random.nextInt(-50, 51)
             val physicalAttackVariance = Random.nextInt(-50, 51)

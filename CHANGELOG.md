@@ -1,5 +1,13 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.43] - 2026-05-29
+
+### 架构重构 Phase 0
+- 提取 SpiritRootGenerator 统一灵根生成逻辑，消除 5 处重复实现
+- 修复 core→ui 循环依赖：DisciplePositionHelper 迁移至 core/util
+- EventBus 提取 EventBusPort 接口，消费者（GameEngineCore、CombatService、ExplorationService）通过接口依赖
+- 为全部 9 个 Service 创建接口契约文档（ServiceInterfaces.kt）
+
 ## [3.1.42] - 2026-05-29
 
 ### 新增

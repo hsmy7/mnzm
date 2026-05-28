@@ -6,14 +6,13 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.PortraitPool
 import kotlin.random.Random
 
 object AISectDiscipleManager {
 
     private val SECONDS_PER_MONTH = GameConfig.Time.SECONDS_PER_REAL_MONTH
-
-    private val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
 
     data class BattleItems(
         val manuals: List<Pair<String, Int>>,
@@ -104,18 +103,7 @@ object AISectDiscipleManager {
         }
     }
 
-    private fun generateSpiritRoot(): String {
-        val count = when (Random.nextInt(100)) {
-            in 0..4 -> 1
-            in 5..24 -> 2
-            in 25..54 -> 3
-            in 55..84 -> 4
-            else -> 5
-        }
-
-        val shuffled = spiritRootTypes.shuffled()
-        return shuffled.take(count).joinToString(",")
-    }
+    private fun generateSpiritRoot(): String = SpiritRootGenerator.generate()
 
     fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
 

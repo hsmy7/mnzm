@@ -4,7 +4,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.ui.game.building.BuildingDef
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -40,7 +39,7 @@ object HerbGardenAuraService {
         val sf = placedBuildings.find { it.instanceId == spiritFieldInstanceId } ?: return false
 
         val herbGardens = placedBuildings.filter {
-            it.displayName == BuildingDef.HERB_GARDEN.displayName && it.sectId == sf.sectId
+            it.displayName == "灵植阁" && it.sectId == sf.sectId
         }
         if (herbGardens.isEmpty()) return false
 

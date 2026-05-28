@@ -145,18 +145,31 @@ interface DomainEventSubscriber {
     val subscribedTypes: Set<String>
 }
 
+interface EventBusPort {
+    val events: Flow<DomainEvent>
+    val latestNotifications: StateFlow<List<NotificationEvent>>
+    suspend fun emit(event: DomainEvent)
+    fun emitSync(event: DomainEvent): Boolean
+    fun emitAll(events: List<DomainEvent>)
+    fun subscribe(subscriber: DomainEventSubscriber)
+    fun unsubscribe(subscriber: DomainEventSubscriber)
+    fun <T : DomainEvent> emitTyped(event: T)
+    fun clearNotifications()
+    fun dispose()
+}
+
 @Singleton
 class EventBus @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider
-) {
+) : EventBusPort {
 
     private val scope get() = applicationScopeProvider.scope
 
     private val eventChannel = Channel<DomainEvent>(capacity = 256)
-    val events: Flow<DomainEvent> = eventChannel.receiveAsFlow()
+    override val events: Flow<DomainEvent> = eventChannel.receiveAsFlow()
     
     private val _latestNotifications = MutableStateFlow<List<NotificationEvent>>(emptyList())
-    val latestNotifications: StateFlow<List<NotificationEvent>> = _latestNotifications.asStateFlow()
+    override val latestNotifications: StateFlow<List<NotificationEvent>> = _latestNotifications.asStateFlow()
     
     private val subscribers = ConcurrentHashMap<String, CopyOnWriteArrayList<DomainEventSubscriber>>()
     
@@ -185,7 +198,7 @@ class EventBus @Inject constructor(
         }
     }
     
-    suspend fun emit(event: DomainEvent) {
+    override suspend fun emit(event: DomainEvent) {
         val result = eventChannel.trySend(event)
         if (!result.isSuccess) {
             droppedEventCount++
@@ -197,7 +210,7 @@ class EventBus @Inject constructor(
         }
     }
     
-    fun emitSync(event: DomainEvent): Boolean {
+    override fun emitSync(event: DomainEvent): Boolean {
         val result = eventChannel.trySend(event)
         if (!result.isSuccess) {
             droppedEventCount++
@@ -205,31 +218,31 @@ class EventBus @Inject constructor(
         return result.isSuccess
     }
     
-    fun emitAll(events: List<DomainEvent>) {
+    override fun emitAll(events: List<DomainEvent>) {
         for (event in events) {
             eventChannel.trySend(event)
         }
     }
     
-    fun subscribe(subscriber: DomainEventSubscriber) {
+    override fun subscribe(subscriber: DomainEventSubscriber) {
         subscriber.subscribedTypes.forEach { type ->
             subscribers.computeIfAbsent(type) { CopyOnWriteArrayList() }.add(subscriber)
         }
     }
     
-    fun unsubscribe(subscriber: DomainEventSubscriber) {
+    override fun unsubscribe(subscriber: DomainEventSubscriber) {
         subscriber.subscribedTypes.forEach { type ->
             subscribers[type]?.remove(subscriber)
         }
     }
     
-    fun <T : DomainEvent> emitTyped(event: T) {
+    override fun <T : DomainEvent> emitTyped(event: T) {
         scope.launch {
             eventChannel.send(event)
         }
     }
     
-    fun clearNotifications() {
+    override fun clearNotifications() {
         _latestNotifications.value = emptyList()
     }
     
@@ -255,7 +268,7 @@ class EventBus @Inject constructor(
         }
     }
     
-    fun dispose() {
+    override fun dispose() {
         eventChannel.close()
         isProcessing = false
     }

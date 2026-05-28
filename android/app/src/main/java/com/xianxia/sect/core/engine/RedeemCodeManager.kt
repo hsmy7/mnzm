@@ -10,6 +10,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
+import com.xianxia.sect.core.util.SpiritRootGenerator
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
@@ -661,9 +662,7 @@ object RedeemCodeManager {
             val types = listOf("metal", "wood", "water", "fire", "earth")
             types.shuffled().take(cfg.spiritRootCount).joinToString(",")
         } else {
-            val types = listOf("metal", "wood", "water", "fire", "earth")
-            val rootCount = GameConfig.SpiritRoot.generateRandomSpiritRootCount()
-            types.shuffled().take(rootCount).joinToString(",")
+            SpiritRootGenerator.generate()
         }
 
         val age = if (cfg.minAge == cfg.maxAge) {

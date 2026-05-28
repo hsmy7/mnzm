@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.ui.game.DisciplePositionHelper
+import com.xianxia.sect.core.util.DisciplePositionHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 

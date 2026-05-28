@@ -35,7 +35,6 @@ import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.state.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.state.equipmentBagStackIds
 import com.xianxia.sect.core.state.manualBagStackIds
-import com.xianxia.sect.core.event.EventBus
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.util.Log

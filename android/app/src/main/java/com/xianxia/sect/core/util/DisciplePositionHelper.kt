@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.*
 

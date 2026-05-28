@@ -11,12 +11,14 @@ import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.state.equipmentBagStackIds
+import com.xianxia.sect.core.engine.system.DiscipleManagementSystem
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
+import com.xianxia.sect.core.util.SpiritRootGenerator
 import android.util.Log
 import java.util.UUID
 import javax.inject.Inject
@@ -423,15 +425,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, existingNames)
 
 
-        val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
-        val rootCount = when (Random.nextInt(100)) {
-            in 0..4 -> 1
-            in 5..24 -> 2
-            in 25..54 -> 3
-            in 55..84 -> 4
-            else -> 5
-        }
-        val spiritRootType = allSpiritRootTypes.shuffled().take(rootCount).joinToString(",")
+        val spiritRootType = SpiritRootGenerator.generate()
 
         val hpVariance = Random.nextInt(-50, 51)
         val mpVariance = Random.nextInt(-50, 51)
@@ -441,7 +435,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val magicDefenseVariance = Random.nextInt(-50, 51)
         val speedVariance = Random.nextInt(-50, 51)
 
-        val comprehension = when (rootCount) {
+        val spiritRootCount = spiritRootType.split(",").size
+        val comprehension = when (spiritRootCount) {
             1 -> Random.nextInt(80, 101)
             2 -> Random.nextInt(60, 101)
             3 -> Random.nextInt(40, 101)

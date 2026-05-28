@@ -44,7 +44,7 @@ import javax.inject.Singleton
 class GameEngineCore @Inject constructor(
     private val stateStore: GameStateStore,
     private val stateManager: UnifiedGameStateManager,
-    private val eventBus: EventBus,
+    private val eventBus: EventBusPort,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
     private val applicationScopeProvider: ApplicationScopeProvider

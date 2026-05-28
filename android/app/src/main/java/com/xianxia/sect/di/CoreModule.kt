@@ -3,6 +3,8 @@ package com.xianxia.sect.di
 import com.xianxia.sect.core.engine.system.*
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.subsystem.*
+import com.xianxia.sect.core.event.EventBus
+import com.xianxia.sect.core.event.EventBusPort
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,6 +14,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object CoreModule {
+
+    @Provides
+    @Singleton
+    fun provideEventBusPort(eventBus: EventBus): EventBusPort = eventBus
 
     @Provides
     @Singleton
@@ -27,6 +33,8 @@ object CoreModule {
         saveService: SaveService,
         formulaService: FormulaService,
         redeemCodeService: RedeemCodeService,
+        partnerSystem: PartnerSystem,
+        childBirthSystem: ChildBirthSystem,
         buildingSubsystem: BuildingSubsystem,
         productionSubsystem: ProductionSubsystem,
         economySubsystem: EconomySubsystem
@@ -43,6 +51,8 @@ object CoreModule {
             saveService,
             formulaService,
             redeemCodeService,
+            partnerSystem,
+            childBirthSystem,
             buildingSubsystem,
             productionSubsystem,
             economySubsystem

@@ -12,6 +12,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.RedeemCodeSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.network.SecureHttpClient
