@@ -48,8 +48,8 @@ fun StandardPromptDialog(
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
     val config = LocalConfiguration.current
-    val dialogWidth = (config.screenWidthDp * 0.4f).dp
-    val dialogHeight = (config.screenHeightDp * 0.45f).dp
+    val dialogWidth = (config.screenWidthDp * 0.5f).dp
+    val dialogHeight = (config.screenHeightDp * 0.55f).dp
 
     Dialog(
         onDismissRequest = if (dismissOnClickOutside) onDismissRequest else {{}},
