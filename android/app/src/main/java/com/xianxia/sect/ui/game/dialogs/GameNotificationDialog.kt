@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -106,6 +107,51 @@ fun LoyaltyChangeDialog(
         confirmLabel = "知道了",
         onConfirm = onDismiss
     )
+}
+
+@Composable
+fun MarriageApprovalDialog(
+    maleDisciple: Disciple,
+    femaleDisciple: Disciple,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    StandardPromptDialog(
+        onDismissRequest = onReject,
+        title = "${maleDisciple.name}弟子与${femaleDisciple.name}弟子请求结婚",
+        dismissOnBackPress = false,
+        dismissOnClickOutside = false,
+        customButtons = {
+            GameButton(text = "同意", onClick = onApprove)
+            Spacer(modifier = Modifier.width(8.dp))
+            GameButton(text = "拒绝", onClick = onReject)
+        }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BattleParticipantSlot(
+                name = maleDisciple.name,
+                realmName = maleDisciple.realmName,
+                hp = 0,
+                maxHp = 1,
+                isAlive = true,
+                portraitRes = maleDisciple.portraitRes,
+                showHpBar = false
+            )
+            BattleParticipantSlot(
+                name = femaleDisciple.name,
+                realmName = femaleDisciple.realmName,
+                hp = 0,
+                maxHp = 1,
+                isAlive = true,
+                portraitRes = femaleDisciple.portraitRes,
+                showHpBar = false
+            )
+        }
+    }
 }
 
 @Composable

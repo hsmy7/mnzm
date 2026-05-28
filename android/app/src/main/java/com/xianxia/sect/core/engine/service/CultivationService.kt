@@ -2100,15 +2100,20 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      *
      * 条件：存活、年龄>=18、无道侣(partnerId==null)的异性弟子
      * 所有符合条件的异性配对每月均有 0.6% 独立概率结为道侣
+     * 支持灵根数量禁婚过滤 + 结婚审批模式
      */
     private fun processPartnerMatching() {
         val allDisciples = currentDisciples
+        val bannedRootCounts = currentGameData.daoCompanionBannedRootCounts
+        val consentRequired = currentGameData.daoCompanionConsentRequired
 
         val eligibleMales = allDisciples.filter {
-            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "male"
+            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "male" &&
+                !bannedRootCounts.contains(it.spiritRootType.split(",").size)
         }
         val eligibleFemales = allDisciples.filter {
-            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "female"
+            it.isAlive && it.age >= 18 && it.social.partnerId == null && it.gender == "female" &&
+                !bannedRootCounts.contains(it.spiritRootType.split(",").size)
         }
 
         if (eligibleMales.isEmpty() || eligibleFemales.isEmpty()) return
@@ -2122,6 +2127,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 if (hasBloodRelation(male, female)) continue
 
                 if (GameRandom.nextDouble() < 0.006) {
+                    if (consentRequired) {
+                        pendingNotification = GameNotification.MarriageRequest(male, female)
+                        return
+                    }
                     currentList = currentList.map { disciple ->
                         when (disciple.id) {
                             male.id -> disciple.copyWith(partnerId = female.id)

@@ -138,7 +138,7 @@ fun TianshuHallDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
                     ) {
                         GameButton(
-                            text = "宗门事务",
+                            text = "宗门管理",
                             onClick = { showSectAffairsDialog = true },
                             modifier = Modifier.width(ButtonSizes.StandardWidth)
                         )
@@ -243,7 +243,11 @@ fun TianshuHallDialog(
     }
 
     if (showSectAffairsDialog) {
-        SectAffairsPlaceholderDialog(onDismiss = { showSectAffairsDialog = false })
+        SectManagementDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showSectAffairsDialog = false }
+        )
     }
 
     if (showSectPoliciesDialog) {

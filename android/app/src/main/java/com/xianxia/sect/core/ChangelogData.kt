@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.41",
+            date = "2026-05-29",
+            changes = listOf(
+                "天枢殿「宗门事务」改为「宗门管理」，新增道侣管理系统",
+                "道侣管理支持按灵根数量禁婚（单灵根~五灵根），勾选后对应灵根弟子不会与异性弟子结为道侣",
+                "道侣管理支持结婚审批模式：开启后每次有弟子请求结婚时弹出审批框，可同意或拒绝"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.40",
             date = "2026-05-28",
             changes = listOf(

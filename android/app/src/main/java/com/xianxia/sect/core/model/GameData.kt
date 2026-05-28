@@ -210,6 +210,12 @@ data class GameData(
     // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
 
+    // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    var daoCompanionBannedRootCounts: Set<Int> = emptySet(),
+
+    // 道侣管理：结婚需玩家同意
+    var daoCompanionConsentRequired: Boolean = false,
+
     var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"

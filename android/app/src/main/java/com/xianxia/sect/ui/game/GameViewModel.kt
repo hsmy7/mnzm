@@ -515,6 +515,29 @@ class GameViewModel @Inject constructor(
 
     fun setAutoRecruitFilter(filter: Set<Int>) = disciple.setAutoRecruitFilter(filter)
 
+    fun setDaoCompanionBannedRootCounts(counts: Set<Int>) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(daoCompanionBannedRootCounts = counts) }
+        }
+    }
+
+    fun setDaoCompanionConsentRequired(required: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(daoCompanionConsentRequired = required) }
+        }
+    }
+
+    fun approveMarriage(maleId: String, femaleId: String) {
+        viewModelScope.launch {
+            gameEngine.approveMarriage(maleId, femaleId)
+            gameEngine.clearPendingNotification()
+        }
+    }
+
+    fun rejectMarriage() {
+        gameEngine.clearPendingNotification()
+    }
+
     fun equipItem(discipleId: String, equipmentId: String) = disciple.equipItem(discipleId, equipmentId)
 
     fun unequipItem(discipleId: String, slot: EquipmentSlot) = disciple.unequipItem(discipleId, slot)

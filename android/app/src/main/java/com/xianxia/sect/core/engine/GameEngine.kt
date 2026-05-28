@@ -570,6 +570,11 @@ class GameEngine @Inject constructor(
         stateStore.clearPendingNotification()
     }
 
+    suspend fun approveMarriage(maleId: String, femaleId: String) {
+        updateDisciple(maleId) { it.copyWith(partnerId = femaleId) }
+        updateDisciple(femaleId) { it.copyWith(partnerId = maleId) }
+    }
+
     fun enterSect(sectId: String) {
         stateStore.updateGameDataDirect { gameData ->
             gameData.activeSectId = sectId

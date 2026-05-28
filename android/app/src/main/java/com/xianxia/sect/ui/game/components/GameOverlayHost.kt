@@ -56,6 +56,7 @@ import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.DiscipleDesertionDialog
 import com.xianxia.sect.ui.game.dialogs.DiscipleTheftCaughtDialog
+import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
 import com.xianxia.sect.ui.game.dialogs.ForgeDialog
 import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
 import com.xianxia.sect.ui.game.dialogs.LawEnforcementHallDialog
@@ -531,6 +532,19 @@ fun GameOverlayHost(
                     title = "仓库被偷盗",
                     text = "宗门仓库被盗，损失了 ${notification.stolenAmount} 灵石",
                     confirmLabel = "知道了"
+                )
+            }
+            is GameNotification.MarriageRequest -> {
+                MarriageApprovalDialog(
+                    maleDisciple = notification.maleDisciple,
+                    femaleDisciple = notification.femaleDisciple,
+                    onApprove = {
+                        viewModel.approveMarriage(
+                            notification.maleDisciple.id,
+                            notification.femaleDisciple.id
+                        )
+                    },
+                    onReject = { viewModel.rejectMarriage() }
                 )
             }
         }
