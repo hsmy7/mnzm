@@ -589,11 +589,11 @@ fun GameOverlayHost(
             TopOverlay.DISCIPLE_DETAIL -> {
                 val request by viewModel.detailDisciple.collectAsState()
                 request?.let { req ->
-                    val updatedDisciple = req.allDisciples
+                    val updatedDisciple = disciples
                         .find { it.id == req.disciple.id } ?: req.disciple
                     DiscipleDetailDialog(
                         disciple = updatedDisciple,
-                        allDisciples = req.allDisciples,
+                        allDisciples = disciples,
                         gameData = gameData,
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },

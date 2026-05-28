@@ -9,13 +9,21 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.44",
+            date = "2026-05-29",
+            changes = listOf(
+                "修复弟子详情界面修为进度条不实时更新的问题（改用实时弟子列表替代快照）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.43",
             date = "2026-05-29",
             changes = listOf(
-                "架构重构 Phase 0：提取 SpiritRootGenerator 统一灵根生成，消除 5 处重复代码",
-                "架构重构 Phase 0：修复 core→ui 循环依赖，DisciplePositionHelper 迁移至 core/util",
-                "架构重构 Phase 0：EventBus 提取 EventBusPort 接口，消费者通过接口依赖",
-                "架构重构 Phase 0：为全部 9 个 Service 创建接口契约（ServiceInterfaces.kt）"
+                "架构重构：提取 SpiritRootGenerator 统一灵根生成，消除 5 处重复代码",
+                "架构重构：修复 core→ui 循环依赖，DisciplePositionHelper 迁移至 core/util",
+                "架构重构：EventBus 提取 EventBusPort 接口，消费者通过接口依赖",
+                "架构重构：为全部 9 个 Service 创建接口契约",
+                "架构重构：PartnerSystem 和 ChildBirthSystem 从 CultivationService 独立为 GameSystem"
             )
         ),
         ChangelogEntry(
