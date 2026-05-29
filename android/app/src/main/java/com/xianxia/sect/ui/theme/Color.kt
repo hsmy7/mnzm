@@ -43,7 +43,14 @@ object GameColors {
     val RarityMystic = Color(0xFFC0A2DD)
     val RarityEarth = Color(0xFFE7C67D)
     val RarityHeaven = Color(0xFFE3A0A0)
-    
+
+    val RarityTextCommon = Color(0xFF666666)
+    val RarityTextSpirit = Color(0xFF5B8C2A)
+    val RarityTextTreasure = Color(0xFF3B7DD8)
+    val RarityTextMystic = Color(0xFF7B4FAA)
+    val RarityTextEarth = Color(0xFFC8960C)
+    val RarityTextHeaven = Color(0xFFCC4444)
+
     val RealmLianQi = Color(0xFF95A5A6)
     val RealmZhuJi = Color(0xFF27AE60)
     val RealmJinDan = Color(0xFF3498DB)
