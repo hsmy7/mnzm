@@ -1,7 +1,7 @@
-# 统一 Room 单存储架构方案
+# 存档架构重构方案（单机→联机演进路线）
 
 > 日期：2026-05-30
-> 目标：消除 Room + .sav 双写架构，统一为 Room 唯一存储，削减 ~4200 行维护代码
+> 目标：消除本地 .sav + Room 双写冗余，保留 ProtoBuf 为未来联机通信协议做准备
 
 ---
 
@@ -15,78 +15,77 @@
        Room DB → GameData(Entity)（fallback）
 ```
 
-每次保存同时写 Room 数据库和 `.sav` 文件，两套格式不同、模型不同、迁移路径独立。SaveDataConverter 1800 行手动映射代码是双架构的直接产物。
+问题是**本地写了两份独立格式**。Room DB 和 .sav 是同一份游戏数据的两种存储，维护 1800 行 Converter 映射 + 两套独立的版本迁移。
 
-## 二、行业参照
+## 二、目标架构（考虑联机演进）
 
-单机手游存档方案调研：
-
-- **Room / WCDB** 为主存储，WAL（Write-Ahead Log）提供崩溃安全，SQLite 自带事务回滚
-- 备份用**整文件拷贝**或**Google Drive 云同步**，不另建一套序列化格式
-- 双写冗余在游戏存档领域少见——更常见于金融/支付系统（监管合规要求），游戏无此需求
-- ProtoBuf 设计目标是跨平台网络传输（C/S 通信），本地持久化属于杀鸡用牛刀
-- 主流单机游戏（Stardew Valley、Terraria、Minecraft PE）的存档均采用单一格式 + 简单文件备份，无序列化转换层
-
-## 三、目标架构
+### 当前阶段（单机）：砍掉 .sav 双写
 
 ```
-保存：GameData(Entity) → Room DB（唯一存储，WAL 模式）
+保存：GameData(Entity) → Room DB（唯一本地存储）
 加载：Room DB → GameData(Entity)
-备份：Room DB 文件 → zip → 备份目录 / 云端
+备份：Room DB 文件 → zip → 云备份
 ```
 
-## 四、可移除的代码
+### 联机阶段：ProtoBuf 成为网络协议
+
+```
+客户端                           服务端
+GameData(Entity) ↔ SaveDataConverter ↔ SerializableSaveData ↔ ProtoBuf ↔ 网络
+       ↕
+    Room DB（本地缓存 + 离线兜底）
+```
+
+ProtoBuf 序列化层**保留**，但职责从本地持久化转为 C/S 通信协议。
+
+## 三、各层的最终定位
+
+| 层 | 当前用途 | 重构后 |
+|------|----------|--------|
+| Room DB | 双写之一 | **唯一本地存储**，WAL 崩溃安全 |
+| ProtoBuf / SerializableSaveData | .sav 文件序列化 | **网络协议 schema**，C/S 数据交换 |
+| SaveDataConverter | 双模型手工映射 | **保留**，Entity ↔ 网络协议转换 |
+| DataCompressor | .sav 压缩 | **保留**，网络传输压缩（省带宽） |
+| SaveDataMigrator | 无（之前死代码，刚接入） | **保留**，协议版本迁移（联机兼容多客户端版本） |
+| SaveFileHandler | .sav 文件读写 | **删除** |
+| FileBackupManager | .sav 文件备份 | **删除** |
+
+## 四、本地不再双写后可删除的代码
 
 | 模块 | 文件 | 估算行数 |
 |------|------|----------|
-| 序列化模型 | `data/serialization/unified/SerializableSaveData.kt` | 930 |
-| 转换器 | `data/serialization/unified/SaveDataConverter.kt` | 1800 |
-| 序列化引擎 | `data/serialization/unified/UnifiedSerializationEngine.kt` | 560 |
-| 版本迁移器 | `data/serialization/unified/SaveDataMigrator.kt` + 4个Migrator | 200 |
-| 序列化门面 | `data/serialization/unified/SerializationModule.kt` | 85 |
-| 类型/配额 | `data/serialization/unified/SerializationTypes.kt` / `SerializationQuota.kt` | 200 |
-| 压缩层 | `data/compression/DataCompressor.kt`（存档压缩部分） | 200 |
 | 文件存储 | `data/engine/SaveFileHandler.kt` | 150 |
 | 文件备份 | `data/engine/FileBackupManager.kt` | 150 |
+| 文件回退加载 | `StorageEngine.kt` 中的 `.sav` load fallback | 50 |
+| 文件序列化入口 | `SerializationModule.kt` 中的 save to file / load from file | 50 |
+| 存档配额 | `SerializationQuota.kt`（文件大小限制） | 去掉，本地 DB 不设配额 |
 
-**预计削减 ~4200 行代码**。`data/serialization/` 目录可整体移除。
+**预计削减 ~400 行**，消除文件 I/O 相关代码。
 
-## 五、需要保留和调整的部分
+## 五、哪些保留（联机需要）
 
-**保留不变：**
-- `GameData.kt` + 所有 `@Entity` 类
-- `GameDatabase.kt` + Migration 链（成为唯一的版本迁移路径）
-- Room DAO 层
-
-**需要调整：**
-- `StorageEngine.kt` — 删除文件双写和文件回退加载逻辑
-- `StorageFacade` — 简化保存/加载路径，只走 Room
-- DI 模块（`StorageModule.kt`）— 移除序列化相关 Provider
-
-## 六、风险与应对
-
-| 风险 | 应对 |
+| 保留 | 原因 |
 |------|------|
-| Room DB 文件损坏 | WAL checkpoint 前先做文件快照；利用 Android AutoBackup |
-| 旧 `.sav` 存档无法读取 | 保留一次性迁移工具：启动时检测老 `.sav` → 转 Room → 删除 `.sav` |
-| 云存档格式不兼容 | 改为上传 Room DB 文件（可 zip 压缩），版本号嵌入文件名 |
-| 实施周期长 | 分四期推进，每期独立可测试 |
+| `SerializableSaveData.kt` 全部 | 网络协议 schema |
+| `SaveDataConverter.kt` | Entity ↔ ProtoBuf 双向桥接 |
+| `SerializationModule.kt` 核心 | 封装序列化/反序列化为 `ByteArray`，供网络层使用 |
+| `DataCompressor.kt` | 网络传输压缩 |
+| `SaveDataMigrator.kt` | 协议版本兼容，多客户端版本共存 |
+| `SerializationTypes.kt` | ProtoBuf 相关枚举和类型 |
 
-## 七、实施分期
+## 六、实施分期
 
 ```
-Phase 1：保存改为只写 Room，.sav 停止写入（但保留读取兼容）
-Phase 2：.sav → Room 一次性迁移工具（老用户启动时自动执行一次）
-Phase 3：删除 SerializationModule / Converter / ProtoBuf / 压缩层
-Phase 4：云存档切换为 Room DB 文件上传
+Phase 1：保存改为只写 Room，.sav 停止写入（保留读取兼容）
+Phase 2：.sav → Room 一次性迁移（老用户启动自动执行）
+Phase 3：删除 SaveFileHandler / FileBackupManager
+         SerializationModule 去掉文件读写入参(c/s 接口保留)
+Phase 4（联机时）：SerializableSaveData 直接作为网络协议使用
 ```
 
-每期独立提交，中间版本均可正常运行。
+## 七、收益
 
-## 八、收益总结
-
-- 删 4200 行维护代码，消除双模型映射
-- 加字段只需改 `@Entity` + 一条 `ALTER TABLE ADD COLUMN` migration
-- 保存速度提升（跳过 ProtoBuf 序列化 + 压缩）
-- 不再有双路径数据不一致的风险
-- 新人理解存档系统只需看 Room 层，无需学习 ProtoBuf
+- 本地不再维护两套独立存储，加字段只走 Room Migration
+- ProtoBuf 序列化能力保留，联机时直接复用
+- 文件 I/O 代码删除，简化加载流程
+- 架构上为联机做好铺垫：数据格式（ProtoBuf）、压缩、版本迁移均已就位
