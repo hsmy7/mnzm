@@ -124,8 +124,9 @@ class GameStateStore @Inject constructor(
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _state
-        .map { state -> state.disciples.map { it.toAggregate() } }
-        .distinctUntilChanged()
+        .map { it.disciples }
+        .distinctUntilChanged { old, new -> old === new }
+        .map { disciples -> disciples.map { it.toAggregate() } }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     internal fun isInTransaction(): Boolean = currentTransactionState != null

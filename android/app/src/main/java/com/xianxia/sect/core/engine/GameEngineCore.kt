@@ -54,9 +54,14 @@ class GameEngineCore @Inject constructor(
     companion object {
         private const val TAG = "GameEngineCore"
         private const val TICK_INTERVAL_MS = 200L
+        private const val MIN_TICK_DELAY_MS = 50L
         private const val TICK_WARNING_THRESHOLD_MS = 50f
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
+        private const val ADAPTIVE_MAX_INTERVAL_MS = 400L
     }
+
+    private var currentTickInterval = TICK_INTERVAL_MS
+    private var consecutiveOverruns = 0
     
     private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
@@ -144,10 +149,23 @@ class GameEngineCore @Inject constructor(
                 lastFrameTime = currentTime
                 
                 val elapsed = currentTime - startTime
-                val delayMs = (TICK_INTERVAL_MS - elapsed).coerceAtLeast(0)
-                
+                val delayMs = (currentTickInterval - elapsed).coerceAtLeast(MIN_TICK_DELAY_MS)
+
+                // 自适应：连续超时则降频，正常则恢复
+                if (elapsed > currentTickInterval) {
+                    consecutiveOverruns++
+                    if (consecutiveOverruns > 3) {
+                        currentTickInterval = (currentTickInterval * 1.5).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
+                        consecutiveOverruns = 0
+                    }
+                } else if (consecutiveOverruns == 0 && currentTickInterval > TICK_INTERVAL_MS) {
+                    currentTickInterval = (currentTickInterval * 0.8).toLong().coerceAtLeast(TICK_INTERVAL_MS)
+                } else {
+                    consecutiveOverruns = 0
+                }
+
                 updateFps(actualFrameInterval)
-                        
+
                         delay(delayMs)
                     } catch (e: CancellationException) {
                         Log.i(TAG, "Game loop cancelled")
