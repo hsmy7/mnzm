@@ -150,11 +150,12 @@ class V4ToV5Migrator : VersionMigrator {
     override val toVersion = SchemaVersion(5)
 
     private fun migratePill(pill: SerializablePill): SerializablePill {
+        val category = pill.type.ifEmpty { pill.category }
         if (pill.effectsMap.isEmpty() || pill.effects != SerializablePillEffect()) {
-            return pill.copy(effectsMap = emptyMap())
+            return pill.copy(category = category, effectsMap = emptyMap())
         }
         val migrated = migrateEffectsMapToPillEffect(pill.effectsMap)
-        return pill.copy(effects = migrated, effectsMap = emptyMap())
+        return pill.copy(category = category, effects = migrated, effectsMap = emptyMap())
     }
 
     private fun migrateEffectsMapToPillEffect(effectsMap: Map<String, Double>): SerializablePillEffect {

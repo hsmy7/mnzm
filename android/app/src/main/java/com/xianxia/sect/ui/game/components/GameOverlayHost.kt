@@ -1,11 +1,7 @@
 package com.xianxia.sect.ui.game.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -19,27 +15,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHostController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
 
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
-import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HerbGardenViewModel
@@ -49,37 +32,12 @@ import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TopOverlay
 import com.xianxia.sect.ui.game.WorldMapViewModel
-import com.xianxia.sect.ui.game.dialogs.AlchemyDialog
-import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
-import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
-import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
-import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
-import com.xianxia.sect.ui.game.dialogs.DiscipleDesertionDialog
-import com.xianxia.sect.ui.game.dialogs.DiscipleTheftCaughtDialog
-import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
-import com.xianxia.sect.ui.game.dialogs.ForgeDialog
-import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
-import com.xianxia.sect.ui.game.dialogs.LawEnforcementHallDialog
-import com.xianxia.sect.ui.game.dialogs.LibraryDialog
-import com.xianxia.sect.ui.game.dialogs.PatrolTowerDialog
-import com.xianxia.sect.ui.game.dialogs.MerchantDialog
-import com.xianxia.sect.ui.game.dialogs.MissionHallDialog
-import com.xianxia.sect.ui.game.dialogs.PlantingDialog
-import com.xianxia.sect.ui.game.dialogs.QingyunPeakDialog
-import com.xianxia.sect.ui.game.dialogs.RecruitDialog
-import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
-import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
-import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
-import com.xianxia.sect.ui.game.dialogs.SpiritMineDialog
-import com.xianxia.sect.ui.game.dialogs.TianshuHallDialog
-import com.xianxia.sect.ui.game.dialogs.WarehouseDialog
-import com.xianxia.sect.ui.game.dialogs.WenDaoPeakDialog
-import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
+import com.xianxia.sect.ui.game.dialogs.*
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
-import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
@@ -87,26 +45,11 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 
-/**
- * GameOverlayHost — 管理所有 Dialog 路由 (NavHost) 和顶层叠加层 (TopOverlay z-order)。
- *
- * 提取自 MainGameScreen，用于降低 MainGameScreen 的复杂度。
- * NavHost 包含所有业务对话框的路由，TopOverlay 管理 BATTLE_RESULT /
- * BATTLE_LOG_DETAIL / DISCIPLE_DETAIL 的 z-order 渲染。
- */
+private val CachedColorScheme = XianxiaColorScheme()
+
 @Composable
 fun GameOverlayHost(
-    dialogNavController: NavHostController,
     viewModel: GameViewModel,
-    gameData: GameData,
-    disciples: List<DiscipleAggregate>,
-    equipment: List<EquipmentInstance>,
-    manuals: List<ManualInstance>,
-    manualStacks: List<ManualStack>,
-    equipmentStacks: List<EquipmentStack>,
-    seeds: List<Seed>,
-    activeSectId: String,
-    activeSectBuildings: List<GridBuildingData>,
     saveLoadViewModel: SaveLoadViewModel,
     productionViewModel: ProductionViewModel,
     alchemyViewModel: AlchemyViewModel,
@@ -116,28 +59,20 @@ fun GameOverlayHost(
     patrolTowerViewModel: PatrolTowerViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
-    battleLogs: List<BattleLog>,
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
     limitAdTracking: Boolean,
     onLimitAdTrackingChanged: (Boolean) -> Unit
 ) {
-    // TipDialog state — collects error/success messages from BaseViewModel
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
 
-    // Battle result detail overlay
     var detailBattleLog by remember { mutableStateOf<BattleLog?>(null) }
 
-    // Collect additional data from ViewModels
+    val currentDialogRoute by viewModel.currentDialogRoute.collectAsState()
+
     val pendingNotification by viewModel.pendingNotification.collectAsState()
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsState()
-    val mapRenderData by viewModel.worldMapRenderData.collectAsState()
-    val alchemySlots by viewModel.alchemySlots.collectAsState()
-    val forgeSlots by viewModel.forgeSlots.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val pills by viewModel.pills.collectAsState()
 
     var showBattleResult by remember { mutableStateOf(false) }
 
@@ -147,7 +82,6 @@ fun GameOverlayHost(
         }
     }
 
-    // Sync overlay z-order with visibility state
     LaunchedEffect(showBattleResult) {
         if (showBattleResult) viewModel.pushOverlay(TopOverlay.BATTLE_RESULT)
         else viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
@@ -177,95 +111,57 @@ fun GameOverlayHost(
         viewModel.warehouseFullEvent.collect { showWarehouseFullDialog = true }
     }
 
-    // Dialog overlay via NavHost — no animations, instant open/close
-    NavHost(
-        navController = dialogNavController,
-        startDestination = "empty",
-        modifier = Modifier.fillMaxSize(),
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None }
-    ) {
-        composable("empty") {
-            DisposableEffect(Unit) {
-                viewModel.setActiveTab("OVERVIEW")
-                onDispose { }
+    LaunchedEffect(Unit) {
+        viewModel.popBackEvents.collect { target ->
+            if (target == null || target == "empty") {
+                viewModel.dismissDialog()
             }
         }
+    }
 
-        // Full-screen overlays (floating button dialogs)
-        composable(GameRoute.Disciples.route) {
+    val onDismiss: () -> Unit = { viewModel.dismissDialog() }
+
+    when (val route = currentDialogRoute) {
+        is DialogRoute.None -> { }
+
+        is DialogRoute.Disciples -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("DISCIPLES")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "弟子", onDismiss = { dialogNavController.popBackStack() }) {
-                DisciplesTab(
-                    gameData = gameData,
-                    disciples = disciples.filter { it.isAlive },
-                    equipment = equipment,
-                    manuals = manuals,
-                    manualStacks = manualStacks,
-                    equipmentStacks = equipmentStacks,
-                    viewModel = viewModel
-                )
+            FullScreenOverlay(title = "弟子", onDismiss = onDismiss) {
+                DisciplesTabContent(viewModel = viewModel)
             }
         }
-        composable(GameRoute.Warehouse.route) {
+        is DialogRoute.Warehouse -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("WAREHOUSE")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            var showBulkSell by remember { mutableStateOf(false) }
-            val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
-            val maxCap = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
-            val totalItems = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-            val isFull = totalItems >= maxCap
-            val titleText = buildString {
-                append("仓库 ($totalItems/$maxCap)")
-                if (isFull) append(" 仓库已满")
-            }
-            FullScreenOverlay(
-                title = titleText,
-                onDismiss = { dialogNavController.popBackStack() },
-                actions = {
-                    GameButton(
-                        text = "一键出售",
-                        onClick = { showBulkSell = true }
-                    )
-                }
-            ) {
-                WarehouseTab(
-                    viewModel = viewModel,
-                    showBulkSellDialog = showBulkSell,
-                    onBulkSellDismiss = { showBulkSell = false },
-                    onDismiss = { dialogNavController.popBackStack() }
-                )
-            }
+            FullScreenOverlayWarehouse(viewModel = viewModel, onDismiss = onDismiss)
         }
-        composable(GameRoute.Settings.route) {
+        is DialogRoute.Settings -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("SETTINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "设置", onDismiss = { dialogNavController.popBackStack() }) {
+            FullScreenOverlay(title = "设置", onDismiss = onDismiss) {
                 SettingsTab(
                     viewModel = viewModel,
                     saveLoadViewModel = saveLoadViewModel,
                     onLogout = onLogout,
-                    onDismiss = { dialogNavController.popBackStack() },
+                    onDismiss = onDismiss,
                     limitAdTracking = limitAdTracking,
                     onLimitAdTrackingChanged = onLimitAdTrackingChanged
                 )
             }
         }
-        composable(GameRoute.Buildings.route) {
+        is DialogRoute.Buildings -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("BUILDINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "建造", onDismiss = { dialogNavController.popBackStack() }) {
+            FullScreenOverlay(title = "建造", onDismiss = onDismiss) {
                 BuildingsTab(
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
@@ -273,53 +169,60 @@ fun GameOverlayHost(
                     forgeViewModel = forgeViewModel,
                     herbGardenViewModel = herbGardenViewModel,
                     spiritMineViewModel = spiritMineViewModel,
-                    onDismiss = { dialogNavController.popBackStack() }
+                    onDismiss = onDismiss
                 )
             }
         }
-
-        // Business dialogs (DialogStateManager -> NavHost)
-        composable(GameRoute.Recruit.route) {
+        is DialogRoute.Recruit -> {
             val recruitList by viewModel.recruitListAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
             RecruitDialog(
                 recruitList = recruitList,
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Diplomacy.route) {
+        is DialogRoute.Diplomacy -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
             DiplomacyDialog(
                 gameData = gameData,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Planting.route) {
+        is DialogRoute.Planting -> {
+            val seeds by viewModel.seeds.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
             PlantingDialog(
                 seeds = seeds,
                 gameData = gameData,
                 viewModel = viewModel,
-                activeSectId = activeSectId,
-                onDismiss = { dialogNavController.popBackStack() }
+                activeSectId = gameData.activeSectId,
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Merchant.route) {
+        is DialogRoute.Merchant -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
             MerchantDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.SalaryConfig.route) {
+        is DialogRoute.SalaryConfig -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
             SalaryConfigDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.WorldMap.route) {
+        is DialogRoute.WorldMap -> {
+            val mapRenderData by viewModel.worldMapRenderData.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
             WorldMapDialog(
                 worldSects = mapRenderData.worldMapSects,
                 mapRenderData = mapRenderData,
@@ -327,184 +230,212 @@ fun GameOverlayHost(
                 disciples = disciples,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.BattleLog.route) {
+        is DialogRoute.BattleLog -> {
+            val battleLogs by viewModel.battleLogs.collectAsState()
             BattleLogListDialog(
                 battleLogs = battleLogs,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-
-        // Construction dialogs (building click -> NavHost)
-        composable(GameRoute.SpiritMine.route) {
-            val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
+        is DialogRoute.SpiritMine -> {
             SpiritMineDialog(
-                buildingInstanceId = buildingInstanceId,
+                buildingInstanceId = route.buildingInstanceId,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
                 spiritMineViewModel = spiritMineViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.HerbGarden.route) {
+        is DialogRoute.HerbGarden -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             HerbGardenDialog(
                 gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Alchemy.route) {
-            val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
+        is DialogRoute.Alchemy -> {
+            val alchemySlots by viewModel.alchemySlots.collectAsState()
+            val materials by viewModel.materials.collectAsState()
+            val herbs by viewModel.herbs.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             AlchemyDialog(
-                buildingInstanceId = buildingInstanceId,
+                buildingInstanceId = route.buildingInstanceId,
                 alchemySlots = alchemySlots,
                 materials = materials,
                 herbs = herbs,
                 gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
                 alchemyViewModel = alchemyViewModel,
-                colors = XianxiaColorScheme(),
-                onDismiss = { dialogNavController.popBackStack() }
+                colors = CachedColorScheme,
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Forge.route) {
-            val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
+        is DialogRoute.Forge -> {
+            val forgeSlots by viewModel.forgeSlots.collectAsState()
+            val materials by viewModel.materials.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             ForgeDialog(
-                buildingInstanceId = buildingInstanceId,
+                buildingInstanceId = route.buildingInstanceId,
                 forgeSlots = forgeSlots,
                 materials = materials,
                 gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
                 forgeViewModel = forgeViewModel,
-                colors = XianxiaColorScheme(),
-                onDismiss = { dialogNavController.popBackStack() }
+                colors = CachedColorScheme,
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.Library.route) {
+        is DialogRoute.Library -> {
+            val manuals by viewModel.manuals.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             LibraryDialog(
                 manuals = manuals,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.WenDaoPeak.route) {
+        is DialogRoute.WenDaoPeak -> {
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             WenDaoPeakDialog(
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
             )
         }
-        composable(GameRoute.QingyunPeak.route) {
+        is DialogRoute.QingyunPeak -> {
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             QingyunPeakDialog(
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
             )
         }
-        composable(GameRoute.TianshuHall.route) {
+        is DialogRoute.TianshuHall -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             TianshuHallDialog(
                 gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.LawEnforcementHall.route) {
+        is DialogRoute.LawEnforcementHall -> {
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             LawEnforcementHallDialog(
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.MissionHall.route) {
+        is DialogRoute.MissionHall -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             MissionHallDialog(
                 gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 viewModel = viewModel,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(GameRoute.ReflectionCliff.route) {
+        is DialogRoute.ReflectionCliff -> {
+            val disciples by viewModel.discipleAggregates.collectAsState()
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
             ReflectionCliffDialog(
-                disciples = disciples.filter { it.isAlive },
+                disciples = aliveDisciples.value,
                 gameData = gameData,
-                onDismiss = { dialogNavController.popBackStack() },
+                onDismiss = onDismiss,
                 onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
             )
         }
-        composable(GameRoute.PatrolTower.route) {
-            val buildingInstanceId = it.arguments?.getString("buildingInstanceId") ?: ""
+        is DialogRoute.PatrolTower -> {
+            val gameData by viewModel.gameDataUi.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsState()
             PatrolTowerDialog(
-                buildingInstanceId = buildingInstanceId,
+                buildingInstanceId = route.buildingInstanceId,
                 viewModel = viewModel,
                 patrolTowerViewModel = patrolTowerViewModel,
                 gameData = gameData,
                 disciples = disciples,
-                onDismiss = { dialogNavController.popBackStack() }
+                onDismiss = onDismiss
             )
         }
-        composable(
-            route = GameRoute.Residence.route,
-            arguments = listOf(navArgument("buildingInstanceId") { type = NavType.StringType; defaultValue = "" })
-        ) { backStackEntry ->
-            val instanceId = backStackEntry.arguments?.getString("buildingInstanceId") ?: ""
-            if (instanceId.isNotEmpty()) {
+        is DialogRoute.Residence -> {
+            if (route.buildingInstanceId.isNotEmpty()) {
+                val gameData by viewModel.gameDataUi.collectAsState()
+                val disciples by viewModel.discipleAggregates.collectAsState()
                 ResidenceDialog(
-                    buildingInstanceId = instanceId,
+                    buildingInstanceId = route.buildingInstanceId,
                     viewModel = viewModel,
                     disciples = disciples,
                     gameData = gameData,
-                    onDismiss = { dialogNavController.popBackStack() }
+                    onDismiss = onDismiss
                 )
             }
         }
-        composable(
-            route = GameRoute.WarehouseBuilding.route,
-            arguments = listOf(navArgument("buildingInstanceId") { type = NavType.StringType; defaultValue = "" })
-        ) { backStackEntry ->
-            val instanceId = backStackEntry.arguments?.getString("buildingInstanceId") ?: ""
-            if (instanceId.isNotEmpty()) {
+        is DialogRoute.WarehouseBuilding -> {
+            if (route.buildingInstanceId.isNotEmpty()) {
+                val gameData by viewModel.gameDataUi.collectAsState()
+                val disciples by viewModel.discipleAggregates.collectAsState()
                 WarehouseDialog(
-                    buildingInstanceId = instanceId,
+                    buildingInstanceId = route.buildingInstanceId,
                     gameData = gameData,
                     disciples = disciples,
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
-                    onDismiss = { dialogNavController.popBackStack() }
+                    onDismiss = onDismiss
                 )
             }
         }
-        composable(GameRoute.GameOver.route) {
+        is DialogRoute.GameOver -> {
             GameOverDialog(
                 onRestartGame = {
-                    dialogNavController.popBackStack()
+                    viewModel.dismissDialog()
                     onRestartGame()
                 },
                 onReturnToMain = {
-                    dialogNavController.popBackStack()
+                    viewModel.dismissDialog()
                     onLogout()
                 }
             )
         }
     }
 
-    // Platform Dialog() windows — naturally on top, not in overlayOrder
     tipDialogMessage?.let { message ->
         StandardPromptDialog(
             onDismissRequest = { tipDialogMessage = null },
@@ -523,8 +454,14 @@ fun GameOverlayHost(
         )
     }
 
+    val gameData by viewModel.gameDataUi.collectAsState()
+    val placedBuildings by viewModel.placedBuildings.collectAsState()
+    val activeSectBuildings = remember(placedBuildings, gameData.activeSectId) {
+        derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }
+    }
+
     pendingNotification?.let { notification ->
-        val hasPrison = activeSectBuildings.any {
+        val hasPrison = activeSectBuildings.value.any {
             it.displayName == "监牢" || it.buildingId == "reflection_cliff"
         }
         val currentYear = gameData.gameYear
@@ -543,7 +480,7 @@ fun GameOverlayHost(
                     onExpel = { viewModel.expelTheftDisciple(notification.disciple.id) },
                     onImprison = { viewModel.imprisonTheftDisciple(notification.disciple.id, currentYear) },
                     onRelease = { viewModel.releaseTheftDisciple(notification.disciple.id) },
-                    onDiscipleClick = { /* opens disciple detail */ },
+                    onDiscipleClick = { },
                     onLoyaltyDismissed = { viewModel.onLoyaltyDialogDismissed() }
                 )
             }
@@ -571,7 +508,9 @@ fun GameOverlayHost(
         }
     }
 
-    // Top-level inline overlay area (rendered in overlayOrder sequence, last = topmost)
+    val battleLogs by viewModel.battleLogs.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
+
     viewModel.overlayOrder.forEach { overlay ->
         when (overlay) {
             TopOverlay.BATTLE_RESULT -> {
@@ -628,6 +567,64 @@ fun GameOverlayHost(
 }
 
 @Composable
+private fun DisciplesTabContent(viewModel: GameViewModel) {
+    val gameData by viewModel.gameDataUi.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
+    val equipment by viewModel.equipment.collectAsState()
+    val manuals by viewModel.manuals.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val aliveDisciples = remember(disciples) { derivedStateOf { disciples.filter { it.isAlive } } }
+    DisciplesTab(
+        gameData = gameData,
+        disciples = aliveDisciples.value,
+        equipment = equipment,
+        manuals = manuals,
+        manualStacks = manualStacks,
+        equipmentStacks = equipmentStacks,
+        viewModel = viewModel
+    )
+}
+
+@Composable
+private fun FullScreenOverlayWarehouse(viewModel: GameViewModel, onDismiss: () -> Unit) {
+    val gameData by viewModel.gameDataUi.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
+    val pills by viewModel.pills.collectAsState()
+    val materials by viewModel.materials.collectAsState()
+    val herbs by viewModel.herbs.collectAsState()
+    val seeds by viewModel.seeds.collectAsState()
+
+    var showBulkSell by remember { mutableStateOf(false) }
+    val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
+    val maxCap = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+    val totalItems = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+    val isFull = totalItems >= maxCap
+    val titleText = buildString {
+        append("仓库 ($totalItems/$maxCap)")
+        if (isFull) append(" 仓库已满")
+    }
+    FullScreenOverlay(
+        title = titleText,
+        onDismiss = onDismiss,
+        actions = {
+            GameButton(
+                text = "一键出售",
+                onClick = { showBulkSell = true }
+            )
+        }
+    ) {
+        WarehouseTab(
+            viewModel = viewModel,
+            showBulkSellDialog = showBulkSell,
+            onBulkSellDismiss = { showBulkSell = false },
+            onDismiss = onDismiss
+        )
+    }
+}
+
+@Composable
 private fun FullScreenOverlay(
     title: String,
     onDismiss: () -> Unit,
@@ -675,7 +672,7 @@ private fun GameOverDialog(
     onRestartGame: () -> Unit,
     onReturnToMain: () -> Unit
 ) {
-    BackHandler(enabled = true) { /* no-op: game-over can't be dismissed */ }
+    BackHandler(enabled = true) { }
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Card(
             modifier = Modifier
