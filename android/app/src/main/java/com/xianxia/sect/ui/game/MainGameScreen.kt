@@ -390,6 +390,14 @@ fun MainGameScreen(
                     placingSnappedGridX, placingSnappedGridY,
                     placingBuildingSize.width, placingBuildingSize.height
                 )
+                val edgePx = 80f
+                val screenX = cameraState.worldToScreenX(placingWorldX)
+                val screenY = cameraState.worldToScreenY(placingWorldY)
+                val panSpeed = 8f
+                if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
+                if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
+                if (screenY < edgePx) cameraState.pan(0f, panSpeed)
+                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
             },
             onPlacementConfirm = {
                 if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
