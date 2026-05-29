@@ -298,12 +298,13 @@ object BattleCalculator {
             var dotDamage = 0
             poisonBuffs.forEach { buff ->
                 val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)
-                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt().coerceAtLeast(1)
+                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()
             }
             burnBuffs.forEach { buff ->
                 val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)
-                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt().coerceAtLeast(1)
+                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()
             }
+            dotDamage = dotDamage.coerceAtLeast(1)
 
             if (dotDamage > 0) {
                 val newHp = maxOf(0, combatant.hp - dotDamage)

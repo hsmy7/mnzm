@@ -313,7 +313,7 @@ object DiscipleManualManager {
         val bestStack = candidates.maxWithOrNull(
             compareBy<ManualStack> { stack ->
                 if (prefersPhysical && stack.skillDamageType == "physical") 1
-                else if (!prefersPhysical && stack.skillDamageType != "physical") 1
+                else if (!prefersPhysical && stack.skillDamageType == "magic") 1
                 else 0
             }.thenBy { it.rarity }
         ) ?: return ManualLearnResult(disciple, null, null, null, null, emptyList())
