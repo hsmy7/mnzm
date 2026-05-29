@@ -66,32 +66,37 @@ class DataCompressor @Inject constructor(
 
         val startTime = System.nanoTime()
 
+        var actualAlgorithm = algorithm
         val compressed = try {
             when (algorithm) {
                 CompressionAlgorithm.LZ4 -> compressLZ4(data)
                 CompressionAlgorithm.GZIP -> compressGzip(data)
-                CompressionAlgorithm.ZSTD -> compressZstd(data)
+                CompressionAlgorithm.ZSTD -> {
+                    val result = compressZstdWithActualAlgo(data)
+                    actualAlgorithm = result.second
+                    result.first
+                }
                 CompressionAlgorithm.NONE -> data
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Compression failed with ${algorithm.name}, falling back to uncompressed", e)
-            return CompressedData(data, algorithm, data.size, 0)
+            Log.e(TAG, "Compression failed with ${actualAlgorithm.name}, falling back to uncompressed", e)
+            return CompressedData(data, actualAlgorithm, data.size, 0)
         }
 
         val duration = System.nanoTime() - startTime
 
         if (compressed.size >= data.size) {
             Log.d(TAG, "Compression not beneficial for ${data.size} bytes, keeping original")
-            return CompressedData(data, algorithm, data.size, 0)
+            return CompressedData(data, actualAlgorithm, data.size, 0)
         }
 
         val ratio = data.size.toDouble() / compressed.size
         Log.d(TAG, "Compressed ${data.size} -> ${compressed.size} bytes " +
-              "(ratio: ${"%.2f".format(ratio)}, time: ${duration / 1_000_000}ms, algo: ${algorithm.name})")
+              "(ratio: ${"%.2f".format(ratio)}, time: ${duration / 1_000_000}ms, algo: ${actualAlgorithm.name})")
 
         return CompressedData(
             data = compressed,
-            algorithm = algorithm,
+            algorithm = actualAlgorithm,
             originalSize = data.size,
             compressionTime = duration
         )
@@ -322,19 +327,25 @@ class DataCompressor @Inject constructor(
      * @return 压缩后的数据（可能是 ZSTD 或 GZIP 格式）
      */
     private fun compressZstd(data: ByteArray): ByteArray {
+        return compressZstdWithActualAlgo(data).first
+    }
+
+    private fun compressZstdWithActualAlgo(data: ByteArray): Pair<ByteArray, CompressionAlgorithm> {
         ZstdWrapper.init()
 
         if (!ZstdWrapper.isAvailable) {
             Log.w(TAG, "ZSTD not available, falling back to GZIP for compression (${data.size} bytes)")
-            return compressGzip(data)
+            return compressGzip(data) to CompressionAlgorithm.GZIP
         }
 
-        return ZstdWrapper.compress(data) ?: run {
-            Log.e(TAG, "ZSTD compression failed, falling back to GZIP")
-            compressGzip(data)
-        }.also {
-            Log.d(TAG, "ZSTD compression successful: ${data.size} -> ${it.size} bytes (level=3)")
+        val compressed = ZstdWrapper.compress(data)
+        if (compressed != null) {
+            Log.d(TAG, "ZSTD compression successful: ${data.size} -> ${compressed.size} bytes (level=3)")
+            return compressed to CompressionAlgorithm.ZSTD
         }
+
+        Log.e(TAG, "ZSTD compression failed, falling back to GZIP")
+        return compressGzip(data) to CompressionAlgorithm.GZIP
     }
 
     /**

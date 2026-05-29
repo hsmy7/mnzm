@@ -655,7 +655,7 @@ class SaveDataConverter @Inject constructor() {
         val pillEffect = if (data.effects != SerializablePillEffect() || data.effectsMap.isEmpty()) {
             data.effects
         } else {
-            migrateEffectsMapToPillEffect(data.effectsMap)
+            V4ToV5Migrator().migrateEffectsMapToPillEffect(data.effectsMap)
         }
 
         return com.xianxia.sect.core.model.Pill(
@@ -708,47 +708,6 @@ class SaveDataConverter @Inject constructor() {
             description = data.description,
             quantity = data.quantity,
             isLocked = data.isLocked
-        )
-    }
-
-    @Suppress("DEPRECATION")
-    private fun migrateEffectsMapToPillEffect(effectsMap: Map<String, Double>): SerializablePillEffect {
-        return SerializablePillEffect(
-            breakthroughChance = effectsMap["breakthroughChance"] ?: 0.0,
-            targetRealm = (effectsMap["targetRealm"] ?: 0.0).toInt(),
-            isAscension = (effectsMap["isAscension"] ?: 0.0) > 0.5,
-            cultivationSpeedPercent = effectsMap["cultivationSpeedPercent"] ?: 0.0,
-            skillExpSpeedPercent = effectsMap["skillExpSpeedPercent"] ?: 0.0,
-            nurtureSpeedPercent = effectsMap["nurtureSpeedPercent"] ?: 0.0,
-            cultivationAdd = (effectsMap["cultivationAdd"] ?: 0.0).toInt(),
-            skillExpAdd = (effectsMap["skillExpAdd"] ?: 0.0).toInt(),
-            nurtureAdd = (effectsMap["nurtureAdd"] ?: 0.0).toInt(),
-            duration = (effectsMap["duration"] ?: 0.0).toInt(),
-            cannotStack = (effectsMap["cannotStack"] ?: 0.0) > 0.5,
-            physicalAttackAdd = (effectsMap["physicalAttackAdd"] ?: 0.0).toInt(),
-            magicAttackAdd = (effectsMap["magicAttackAdd"] ?: 0.0).toInt(),
-            physicalDefenseAdd = (effectsMap["physicalDefenseAdd"] ?: 0.0).toInt(),
-            magicDefenseAdd = (effectsMap["magicDefenseAdd"] ?: 0.0).toInt(),
-            hpAdd = (effectsMap["hpAdd"] ?: 0.0).toInt(),
-            mpAdd = (effectsMap["mpAdd"] ?: 0.0).toInt(),
-            speedAdd = (effectsMap["speedAdd"] ?: 0.0).toInt(),
-            critRateAdd = effectsMap["critRateAdd"] ?: 0.0,
-            critEffectAdd = effectsMap["critEffectAdd"] ?: 0.0,
-            extendLife = (effectsMap["extendLife"] ?: 0.0).toInt(),
-            intelligenceAdd = (effectsMap["intelligenceAdd"] ?: 0.0).toInt(),
-            charmAdd = (effectsMap["charmAdd"] ?: 0.0).toInt(),
-            loyaltyAdd = (effectsMap["loyaltyAdd"] ?: 0.0).toInt(),
-            comprehensionAdd = (effectsMap["comprehensionAdd"] ?: 0.0).toInt(),
-            artifactRefiningAdd = (effectsMap["artifactRefiningAdd"] ?: 0.0).toInt(),
-            pillRefiningAdd = (effectsMap["pillRefiningAdd"] ?: 0.0).toInt(),
-            spiritPlantingAdd = (effectsMap["spiritPlantingAdd"] ?: 0.0).toInt(),
-            teachingAdd = (effectsMap["teachingAdd"] ?: 0.0).toInt(),
-            moralityAdd = (effectsMap["moralityAdd"] ?: 0.0).toInt(),
-            miningAdd = (effectsMap["miningAdd"] ?: 0.0).toInt(),
-            healMaxHpPercent = effectsMap["healMaxHpPercent"] ?: 0.0,
-            mpRecoverMaxMpPercent = effectsMap["mpRecoverMaxMpPercent"] ?: 0.0,
-            revive = (effectsMap["revive"] ?: 0.0) > 0.5,
-            clearAll = (effectsMap["clearAll"] ?: 0.0) > 0.5
         )
     }
 

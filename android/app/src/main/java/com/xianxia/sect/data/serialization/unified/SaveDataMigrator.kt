@@ -158,7 +158,7 @@ class V4ToV5Migrator : VersionMigrator {
         return pill.copy(category = category, effects = migrated, effectsMap = emptyMap())
     }
 
-    private fun migrateEffectsMapToPillEffect(effectsMap: Map<String, Double>): SerializablePillEffect {
+    internal fun migrateEffectsMapToPillEffect(effectsMap: Map<String, Double>): SerializablePillEffect {
         return SerializablePillEffect(
             breakthroughChance = effectsMap["breakthroughChance"] ?: 0.0,
             targetRealm = (effectsMap["targetRealm"] ?: 0.0).toInt(),
