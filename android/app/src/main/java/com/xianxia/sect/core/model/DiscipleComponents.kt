@@ -120,6 +120,7 @@ data class SocialData(
     var parentId1: String? = null,
     var parentId2: String? = null,
     var lastChildYear: Int = 0,
+    var childBirthMonth: Int? = null,
     var griefEndYear: Int? = null
 ) {
     val hasPartner: Boolean get() = partnerId != null

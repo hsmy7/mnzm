@@ -231,6 +231,7 @@ data class Disciple(
     var parentId2: String? get() = social.parentId2; set(value) { social.parentId2 = value }
     /** @deprecated 请改用 [social.lastChildYear] */
     var lastChildYear: Int get() = social.lastChildYear; set(value) { social.lastChildYear = value }
+    var childBirthMonth: Int? get() = social.childBirthMonth; set(value) { social.childBirthMonth = value }
     /** @deprecated 请改用 [social.griefEndYear] */
     var griefEndYear: Int? get() = social.griefEndYear; set(value) { social.griefEndYear = value }
 
@@ -413,6 +414,7 @@ data class Disciple(
         parentId1: String? = this.parentId1,
         parentId2: String? = this.parentId2,
         lastChildYear: Int = this.lastChildYear,
+        childBirthMonth: Int? = this.childBirthMonth,
         griefEndYear: Int? = this.griefEndYear,
 
         // SkillStats
@@ -516,6 +518,7 @@ data class Disciple(
                 parentId1 = parentId1,
                 parentId2 = parentId2,
                 lastChildYear = lastChildYear,
+                childBirthMonth = childBirthMonth,
                 griefEndYear = griefEndYear
             ),
             skills = SkillStats(
