@@ -154,7 +154,8 @@ class GameViewModel @Inject constructor(
 
                 val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
                     val nextIndex = data.patrolSlots.size
-                    (0 until 10).map { PatrolSlot(index = nextIndex + it) }
+                    val slotCount = buildingConfigService.getSlotCountByDisplayName(name)
+                    (0 until slotCount).map { PatrolSlot(index = nextIndex + it) }
                 } else emptyList()
 
                 val newPatrolConfigs = if (name == BuildingDef.PATROL_TOWER.displayName) {

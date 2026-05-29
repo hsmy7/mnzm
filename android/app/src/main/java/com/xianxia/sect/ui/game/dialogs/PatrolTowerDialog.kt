@@ -49,7 +49,8 @@ fun PatrolTowerDialog(
         gd.patrolConfigs.getOrElse(towerIndex) { PatrolConfig() }
     }
     val allSlots = gd.patrolSlots
-    val range = (towerIndex * 10) until (towerIndex * 10 + 10)
+    val slotsPerTower = patrolTowerViewModel.slotsPerTower
+    val range = (towerIndex * slotsPerTower) until (towerIndex * slotsPerTower + slotsPerTower)
 
     var showAttackRangeDialog by remember { mutableStateOf(false) }
     var requireFullStatus by remember(patrolConfig) { mutableStateOf(patrolConfig.requireFullStatus) }
@@ -119,13 +120,14 @@ fun PatrolTowerDialog(
 
             Spacer(Modifier.height(8.dp))
 
+            val colsPerRow = slotsPerTower / 2
             for (row in 0 until 2) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    for (col in 0 until 5) {
-                        val index = row * 5 + col
+                    for (col in 0 until colsPerRow) {
+                        val index = row * colsPerRow + col
                         val slot = slots.getOrNull(index) ?: PatrolSlot(index = index)
                         val assignedDisciple = disciples.find { it.id == slot.discipleId }
                         DiscipleSlotWithActions(

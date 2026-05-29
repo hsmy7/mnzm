@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,8 +10,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PatrolTowerViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val buildingConfigService: BuildingConfigService
 ) : BaseViewModel() {
+
+    val slotsPerTower: Int get() = buildingConfigService.getSlotCountByDisplayName("巡视楼")
 
     fun getTowerIndex(buildingInstanceId: String): Int {
         val towers = gameEngine.gameDataSnapshot.placedBuildings
@@ -18,7 +22,7 @@ class PatrolTowerViewModel @Inject constructor(
         return towers.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
     }
 
-    fun slotRange(towerIndex: Int): IntRange = (towerIndex * 10) until (towerIndex * 10 + 10)
+    fun slotRange(towerIndex: Int): IntRange = (towerIndex * slotsPerTower) until (towerIndex * slotsPerTower + slotsPerTower)
 
     fun getAvailableDisciples(towerIndex: Int): List<DiscipleAggregate> {
         val range = slotRange(towerIndex)
@@ -37,7 +41,7 @@ class PatrolTowerViewModel @Inject constructor(
             try {
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * 10 + slotOffset
+                val globalIndex = towerIndex * slotsPerTower + slotOffset
                 while (slots.size <= globalIndex) slots.add(PatrolSlot(index = slots.size))
                 val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == discipleId } ?: return@launch
                 slots[globalIndex] = PatrolSlot(
@@ -60,7 +64,7 @@ class PatrolTowerViewModel @Inject constructor(
             try {
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * 10 + slotOffset
+                val globalIndex = towerIndex * slotsPerTower + slotOffset
                 if (globalIndex >= slots.size) return@launch
                 val removedId = slots[globalIndex].discipleId
                 slots[globalIndex] = PatrolSlot(index = globalIndex)
@@ -77,7 +81,7 @@ class PatrolTowerViewModel @Inject constructor(
             try {
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * 10 + slotOffset
+                val globalIndex = towerIndex * slotsPerTower + slotOffset
                 if (globalIndex >= slots.size) return@launch
                 val oldId = slots[globalIndex].discipleId
                 val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId } ?: return@launch
@@ -104,8 +108,8 @@ class PatrolTowerViewModel @Inject constructor(
                 if (available.isEmpty()) return@launch
                 val data = gameEngine.gameDataSnapshot
                 val slots = data.patrolSlots.toMutableList()
-                val start = towerIndex * 10
-                val end = start + 10
+                val start = towerIndex * slotsPerTower
+                val end = start + slotsPerTower
                 while (slots.size < end) slots.add(PatrolSlot(index = slots.size))
                 var idx = 0
                 for (i in start until end) {

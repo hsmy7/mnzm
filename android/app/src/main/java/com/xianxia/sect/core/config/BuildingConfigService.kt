@@ -166,6 +166,10 @@ class BuildingConfigService @Inject constructor(
         return ensureConfigLoaded().buildings.values.find { it.displayName == displayName }
     }
 
+    fun getSlotCountByDisplayName(displayName: String): Int {
+        return getBuildingConfigByDisplayName(displayName)?.slotCount ?: 1
+    }
+
     fun reload() {
         loadConfig()
         Log.d(TAG, "Building config reloaded")
@@ -360,7 +364,7 @@ class BuildingConfigService @Inject constructor(
                     id = "patrol_tower",
                     displayName = "巡视楼",
                     buildingType = "PATROL",
-                    slotCount = 10,
+                    slotCount = 8,
                     cost = 5000,
                     gridWidth = 2,
                     gridHeight = 3,
@@ -455,7 +459,7 @@ object ConfigValidator {
                 errors.add("Building ID mismatch: key=$id, id=${building.id}")
             }
 
-            if (building.slotCount < 1 || building.slotCount > 10) {
+            if (building.slotCount < 1 || building.slotCount > 8) {
                 errors.add("Invalid slotCount for $id: ${building.slotCount}")
             }
 

@@ -156,9 +156,11 @@ class GameEngine @Inject constructor(
         alliances: List<Alliance> = emptyList(),
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     ) {
+        val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
+
         stateStore.loadFromSnapshot(
-            gameData = gameData.copy(isGameStarted = true),
-            disciples = disciples,
+            gameData = migratedGameData.copy(isGameStarted = true),
+            disciples = migratedDisciples,
             equipmentStacks = equipmentStacks,
             equipmentInstances = equipmentInstances,
             manualStacks = manualStacks,
@@ -3618,5 +3620,64 @@ class GameEngine @Inject constructor(
             }
         }
         return rewards
+    }
+
+    private fun migratePatrolSlotsIfNeeded(
+        gameData: GameData,
+        disciples: List<Disciple>
+    ): Pair<GameData, List<Disciple>> {
+        val numTowers = gameData.placedBuildings.count { it.displayName == "巡视楼" }
+        if (numTowers == 0) return gameData to disciples
+
+        val oldSlots = gameData.patrolSlots
+        val expectedSize = numTowers * 8
+        if (oldSlots.size <= expectedSize) return gameData to disciples
+
+        Log.w(TAG, "迁移巡逻槽位: ${oldSlots.size}槽/${numTowers}塔 → ${expectedSize}槽")
+
+        var updatedDisciples = disciples.toMutableList()
+        val newSlots = mutableListOf<PatrolSlot>()
+        var newGlobalIndex = 0
+
+        for (towerIdx in 0 until numTowers) {
+            val oldStart = towerIdx * 10
+            for (localIdx in 0 until 8) {
+                val globalIdx = oldStart + localIdx
+                if (globalIdx < oldSlots.size) {
+                    newSlots.add(oldSlots[globalIdx].copy(index = newGlobalIndex))
+                } else {
+                    newSlots.add(PatrolSlot(index = newGlobalIndex))
+                }
+                newGlobalIndex++
+            }
+            // 释放被裁掉的槽位（local 8-9）中的弟子
+            for (discardLocalIdx in 8 until 10) {
+                val discardGlobalIdx = oldStart + discardLocalIdx
+                if (discardGlobalIdx < oldSlots.size) {
+                    val discardedSlot = oldSlots[discardGlobalIdx]
+                    if (discardedSlot.discipleId.isNotEmpty()) {
+                        updatedDisciples = updatedDisciples.map {
+                            if (it.id == discardedSlot.discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                        }.toMutableList()
+                    }
+                }
+            }
+        }
+
+        // 释放超出 numTowers * 10 的孤立槽位中的弟子
+        val orphanedStart = numTowers * 10
+        for (i in orphanedStart until oldSlots.size) {
+            val slot = oldSlots[i]
+            if (slot.discipleId.isNotEmpty()) {
+                updatedDisciples = updatedDisciples.map {
+                    if (it.id == slot.discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                }.toMutableList()
+            }
+        }
+
+        val newConfigs = gameData.patrolConfigs.take(numTowers)
+
+        Log.i(TAG, "巡逻槽位迁移完成: ${oldSlots.size} → ${newSlots.size}")
+        return gameData.copy(patrolSlots = newSlots, patrolConfigs = newConfigs) to updatedDisciples
     }
 }

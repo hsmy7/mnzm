@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
@@ -26,7 +27,8 @@ class ExplorationService @Inject constructor(
     private val stateStore: GameStateStore,
     private val eventBus: EventBusPort,
     private val applicationScopeProvider: ApplicationScopeProvider,
-    private val battleSystem: BattleSystem
+    private val battleSystem: BattleSystem,
+    private val buildingConfigService: BuildingConfigService
 ) : GameSystem {
     override val systemName: String = "ExplorationService"
     private val scope get() = applicationScopeProvider.scope
@@ -75,7 +77,7 @@ class ExplorationService @Inject constructor(
         val configs = gd.patrolConfigs
         if (allSlots.isEmpty()) return
 
-        val numTowers = (allSlots.size + 9) / 10
+        val numTowers = gd.placedBuildings.count { it.displayName == "巡视楼" }
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = gd.manualProficiencies.mapValues { (_, list) ->
@@ -84,10 +86,11 @@ class ExplorationService @Inject constructor(
         val year = gd.gameYear; val month = gd.gameMonth
         val claimedBeasts = mutableSetOf<String>()
 
+        val slotsPerTower = buildingConfigService.getSlotCountByDisplayName("巡视楼")
         for (towerIndex in 0 until numTowers) {
             val config = configs.getOrElse(towerIndex) { PatrolConfig() }
-            val start = towerIndex * 10
-            val end = (start + 10).coerceAtMost(allSlots.size)
+            val start = towerIndex * slotsPerTower
+            val end = (start + slotsPerTower).coerceAtMost(allSlots.size)
             val towerSlots = allSlots.subList(start, end).filter { it.discipleId.isNotEmpty() }
             if (towerSlots.isEmpty()) continue
 
