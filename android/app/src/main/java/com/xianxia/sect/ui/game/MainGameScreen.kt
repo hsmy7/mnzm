@@ -442,10 +442,10 @@ fun MainGameScreen(
                 val screenX = cameraState.worldToScreenX(movingWorldX)
                 val screenY = cameraState.worldToScreenY(movingWorldY)
                 val panSpeed = 8f
-                if (screenX < edgePx) cameraState.pan(-panSpeed, 0f)
-                if (screenX > screenWidthPx - edgePx) cameraState.pan(panSpeed, 0f)
-                if (screenY < edgePx) cameraState.pan(0f, -panSpeed)
-                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, panSpeed)
+                if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
+                if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
+                if (screenY < edgePx) cameraState.pan(0f, panSpeed)
+                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
             }
         )
 
