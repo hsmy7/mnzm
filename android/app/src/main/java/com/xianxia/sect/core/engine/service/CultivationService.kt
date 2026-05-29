@@ -514,7 +514,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 // 先检查弟子管理设置：符合条件则从仓库消耗
                 val autoPill = qualifiesForSectAuto(
                     disciple, currentGameData.breakthroughAutoPillFocused, currentGameData.breakthroughAutoPillRootCounts
-                )
+                ) { false }
                 if (autoPill) {
                     val warehousePill = currentPills
                         .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
@@ -588,11 +588,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         return hp >= disciple.maxHp && mp >= disciple.maxMp
     }
 
-    private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {
-        if (!focused && rootCounts.isEmpty()) return false
-        if (focused && disciple.statusData["followed"] == "true") return true
-        val rootCount = disciple.spiritRootType.split(",").size
-        return rootCount in rootCounts
+    private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>, legacyCheck: (Disciple) -> Boolean): Boolean {
+        // 新设置已配置 → 使用新规则
+        if (focused || rootCounts.isNotEmpty()) {
+            if (focused && disciple.statusData["followed"] == "true") return true
+            val rootCount = disciple.spiritRootType.split(",").size
+            return rootCount in rootCounts
+        }
+        // 旧存档未配置 → 回退到弟子级别旧标志
+        return legacyCheck(disciple)
     }
 
     private fun getLifespanGainForRealm(realm: Int): Int {
@@ -901,7 +905,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             if (!disciple.isAlive) continue
             var updatedDisciple = disciple
 
-            if (qualifiesForSectAuto(disciple, equipFocused, equipRootCounts)) {
+            if (qualifiesForSectAuto(disciple, equipFocused, equipRootCounts) { it.equipment.autoEquipFromWarehouse }) {
                 val result = DiscipleEquipmentManager.processAutoEquipFromWarehouse(
                     disciple = updatedDisciple,
                     warehouseStacks = eqStacks,
@@ -927,7 +931,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 }
             }
 
-            if (qualifiesForSectAuto(disciple, learnFocused, learnRootCounts)) {
+            if (qualifiesForSectAuto(disciple, learnFocused, learnRootCounts) { it.autoLearnFromWarehouse }) {
                 val result = DiscipleManualManager.processAutoLearnFromWarehouse(
                     disciple = updatedDisciple,
                     warehouseStacks = mnStacks,
