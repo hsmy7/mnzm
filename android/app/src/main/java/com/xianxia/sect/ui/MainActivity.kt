@@ -437,22 +437,22 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun initTapTapSDK() {
-        try {
-            TapTapAuthManager.init(
-                this,
-                BuildConfig.TAPTAP_CLIENT_ID,
-                BuildConfig.TAPTAP_CLIENT_TOKEN,
-                BuildConfig.TAPTAP_IS_CN,
-                sessionManager.limitAdTracking
-            )
-            
-            ComplianceManager.registerCallback(MainComplianceCallback(this))
-            com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
-
-            Log.d(TAG, "TapTap SDK初始化成功")
-        } catch (e: Exception) {
-            Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                TapTapAuthManager.init(
+                    this@MainActivity,
+                    BuildConfig.TAPTAP_CLIENT_ID,
+                    BuildConfig.TAPTAP_CLIENT_TOKEN,
+                    BuildConfig.TAPTAP_IS_CN,
+                    sessionManager.limitAdTracking
+                )
+                Log.d(TAG, "TapTap SDK初始化成功")
+            } catch (e: Exception) {
+                Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
+            }
         }
+        ComplianceManager.registerCallback(MainComplianceCallback(this))
+        com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
     }
     
     internal fun handleUserExit() {

@@ -28,8 +28,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3150
-        versionName = "3.1.50"
+        versionCode = 3151
+        versionName = "3.1.51"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -38,9 +38,9 @@ android {
         buildConfigField "String", "TAPDB_CHANNEL", '"' + apiProperties.getProperty('TAPDB_CHANNEL', 'taptap') + '"'
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
 
-        // 支持64位架构 - 一加、OPPO等新设备必需
+        // 仅保留 ARM 架构，模拟器通过 libhoudini 翻译运行（与主流国产手游一致）
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
     }
 
