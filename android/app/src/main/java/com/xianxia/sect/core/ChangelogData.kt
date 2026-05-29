@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.59",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复DOT多buff叠加时跨境界减伤不生效：coerceAtLeast移到总伤害计算",
+                "修复功法自动学习属性匹配：法攻偏好不再误选治疗/辅助功法",
+                "旧存档自动装备/学习设置向后兼容：未配置sect时回退读取弟子旧标志"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.58",
             date = "2026-05-30",
             changes = listOf(
