@@ -9,6 +9,68 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.54",
+            date = "2026-05-29",
+            changes = listOf(
+                "巡视楼战斗胜利后幸存弟子神魂+1（与关卡/宗门战一致）",
+                "拥有「百战通神」天赋的弟子胜利后随机属性+1（17种属性中随机一种）"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.53",
+            date = "2026-05-29",
+            changes = listOf(
+                "性能优化：打开弟子详情时该弟子200ms实时刷新，其他弟子1s分频刷新",
+                "性能优化：切换Tab时通知引擎调整数据更新优先级，减少不必要刷新"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.52",
+            date = "2026-05-29",
+            changes = listOf(
+                "性能优化：游戏循环自适应节流，tick超时不再自旋、连续超时自动降频",
+                "性能优化：StateFlow分配优化，跳过不变时的计算减少GC压力"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.51",
+            date = "2026-05-29",
+            changes = listOf(
+                "修复雷电模拟器TapTap启动卡死：SDK初始化切到后台线程+超时保护",
+                "移除x86 ABI支持强制ARM翻译，避免模拟器兼容问题"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.50",
+            date = "2026-05-29",
+            changes = listOf(
+                "巡视楼战斗结算弹窗：击败妖兽后弹出结算界面、生成战斗日志、发放奖励",
+                "设置界面新增巡视楼结算开关，默认关闭，开启后自动弹出结算",
+                "巡视楼Switch改为圆形勾选框，文本更新，提取共享CircularCheckbox组件"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.49",
+            date = "2026-05-29",
+            changes = listOf(
+                "跨境界斩杀机制：进攻方境界比防守方大三个大境界以上时攻击必中且一击必杀"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.48",
+            date = "2026-05-29",
+            changes = listOf(
+                "巡视楼巡视槽位从10减为8，旧存档多余弟子自动回归空闲"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.47",
+            date = "2026-05-29",
+            changes = listOf(
+                "道侣生子机制重构：从每日概率改为每年判定一次，通过后在当年随机月份生育"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.46",
             date = "2026-05-29",
             changes = listOf(
