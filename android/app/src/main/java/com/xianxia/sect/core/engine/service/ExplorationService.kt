@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.LevelGenerator
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -216,6 +217,40 @@ class ExplorationService @Inject constructor(
                             if (slot.discipleId in deadIds) PatrolSlot(index = slot.index) else slot
                         }
                     )
+                }
+
+                // 幸存弟子神魂+1，有天赋的随机属性+1
+                disciples = disciples.map { d ->
+                    if (d.id in survivorIds && d.isAlive) {
+                        var modified = d.copyWith(soulPower = d.soulPower + 1)
+                        if (modified.talentIds.any { id ->
+                            TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true
+                        }) {
+                            val r = kotlin.random.Random.nextInt(17)
+                            val s = modified.skills
+                            val c = modified.combat
+                            when (r) {
+                                0 -> s.intelligence++
+                                1 -> s.comprehension++
+                                2 -> s.charm++
+                                3 -> s.loyalty++
+                                4 -> s.artifactRefining++
+                                5 -> s.pillRefining++
+                                6 -> s.spiritPlanting++
+                                7 -> s.mining++
+                                8 -> s.teaching++
+                                9 -> s.morality++
+                                10 -> c.baseHp++
+                                11 -> c.baseMp++
+                                12 -> c.basePhysicalAttack++
+                                13 -> c.baseMagicAttack++
+                                14 -> c.basePhysicalDefense++
+                                15 -> c.baseMagicDefense++
+                                16 -> c.baseSpeed++
+                            }
+                        }
+                        modified
+                    } else d
                 }
 
                 // 妖兽材料奖励
