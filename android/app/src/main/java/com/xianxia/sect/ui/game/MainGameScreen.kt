@@ -771,6 +771,7 @@ private fun SectGroundCanvas(
     // 用 rememberUpdatedState 读取最新值，避免 isMoving/isPlacing 作为 pointerInput key 导致手势检测器重启
     val currentIsMoving by rememberUpdatedState(isMoving)
     val currentIsPlacing by rememberUpdatedState(isPlacing)
+    var dragOnBuilding by remember { mutableStateOf(false) }
 
     Canvas(
         modifier = modifier
@@ -809,16 +810,33 @@ private fun SectGroundCanvas(
                 )
             }
             .pointerInput(cameraState) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    if (currentIsMoving) {
-                        onMovingDrag(dragAmount.x, dragAmount.y)
-                    } else if (currentIsPlacing) {
-                        onPlacementDrag(dragAmount.x, dragAmount.y)
-                    } else {
-                        cameraState.pan(dragAmount.x, dragAmount.y)
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val wx = cameraState.screenToWorldX(offset.x)
+                        val wy = cameraState.screenToWorldY(offset.y)
+                        dragOnBuilding = if (currentIsMoving) {
+                            val bw = movingSize.width * tileSize
+                            val bh = movingSize.height * tileSize
+                            wx >= movingWorldX && wx < movingWorldX + bw &&
+                                wy >= movingWorldY && wy < movingWorldY + bh
+                        } else if (currentIsPlacing) {
+                            val bw = previewSize.width * tileSize
+                            val bh = previewSize.height * tileSize
+                            wx >= previewWorldX && wx < previewWorldX + bw &&
+                                wy >= previewWorldY && wy < previewWorldY + bh
+                        } else false
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        if (currentIsMoving && dragOnBuilding) {
+                            onMovingDrag(dragAmount.x, dragAmount.y)
+                        } else if (currentIsPlacing && dragOnBuilding) {
+                            onPlacementDrag(dragAmount.x, dragAmount.y)
+                        } else {
+                            cameraState.pan(dragAmount.x, dragAmount.y)
+                        }
                     }
-                }
+                )
             }
     ) {
         val sw = size.width
