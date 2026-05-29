@@ -100,6 +100,8 @@ class GameEngine @Inject constructor(
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
     fun clearPendingBattleResult() = stateStore.clearPendingBattleResult()
+    fun setFocusedDiscipleId(id: String?) { stateStore.focusedDiscipleId = id }
+    fun setActiveTab(tab: String) { stateStore.activeTab = tab }
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams

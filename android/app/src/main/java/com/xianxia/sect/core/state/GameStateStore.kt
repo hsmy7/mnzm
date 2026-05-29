@@ -42,6 +42,12 @@ class GameStateStore @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider
 ) {
 
+    @Volatile
+    var focusedDiscipleId: String? = null
+
+    @Volatile
+    var activeTab: String = "OVERVIEW"
+
     companion object {
         private const val TAG = "GameStateStore"
     }

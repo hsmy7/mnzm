@@ -401,11 +401,13 @@ class GameViewModel @Inject constructor(
 
     fun showDiscipleDetail(request: DiscipleDetailRequest) {
         _detailDisciple.value = request
+        gameEngine.setFocusedDiscipleId(request.disciple.id)
         pushOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
     fun dismissDiscipleDetail() {
         _detailDisciple.value = null
+        gameEngine.setFocusedDiscipleId(null)
         popOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
@@ -532,6 +534,10 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) }
         }
+    }
+
+    fun setActiveTab(tab: String) {
+        gameEngine.setActiveTab(tab)
     }
 
     fun approveMarriage(maleId: String, femaleId: String) {

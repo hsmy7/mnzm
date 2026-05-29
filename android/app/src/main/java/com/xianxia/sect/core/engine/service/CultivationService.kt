@@ -276,7 +276,23 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         val elapsedMillis = currentTimeMillis - lastUpdateTime
-        if (elapsedMillis < 1000) return
+        if (elapsedMillis < 1000) {
+            // 焦点弟子快速更新（200ms），仅当玩家打开弟子详情时
+            val focusedId = stateStore.focusedDiscipleId ?: return
+            val disciples = state?.disciples ?: currentDisciples
+            val focusedDisciple = disciples.find { it.id == focusedId && it.isAlive } ?: return
+            val elapsedSinceLastCult = ((currentTimeMillis - currentHfd.lastCultivationTime).coerceAtMost(2000)).toDouble() / 1000.0
+            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(focusedDisciple, data)
+            val gained = cultivationPerSecond * elapsedSinceLastCult
+            state?.let {
+                it.disciples = it.disciples.map { d ->
+                    if (d.id == focusedId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
+                    else d
+                }
+            }
+            _highFrequencyData.value = currentHfd.copy(lastCultivationTime = currentTimeMillis)
+            return
+        }
 
         val elapsedSeconds = elapsedMillis / 1000.0
         val gameSpeed = 1.0

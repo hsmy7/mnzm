@@ -187,10 +187,19 @@ fun GameOverlayHost(
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { ExitTransition.None }
     ) {
-        composable("empty") { /* No overlay — base map visible */ }
+        composable("empty") {
+            DisposableEffect(Unit) {
+                viewModel.setActiveTab("OVERVIEW")
+                onDispose { }
+            }
+        }
 
         // Full-screen overlays (floating button dialogs)
         composable(GameRoute.Disciples.route) {
+            DisposableEffect(Unit) {
+                viewModel.setActiveTab("DISCIPLES")
+                onDispose { viewModel.setActiveTab("OVERVIEW") }
+            }
             FullScreenOverlay(title = "弟子", onDismiss = { dialogNavController.popBackStack() }) {
                 DisciplesTab(
                     gameData = gameData,
@@ -204,6 +213,10 @@ fun GameOverlayHost(
             }
         }
         composable(GameRoute.Warehouse.route) {
+            DisposableEffect(Unit) {
+                viewModel.setActiveTab("WAREHOUSE")
+                onDispose { viewModel.setActiveTab("OVERVIEW") }
+            }
             var showBulkSell by remember { mutableStateOf(false) }
             val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
             val maxCap = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
@@ -232,6 +245,10 @@ fun GameOverlayHost(
             }
         }
         composable(GameRoute.Settings.route) {
+            DisposableEffect(Unit) {
+                viewModel.setActiveTab("SETTINGS")
+                onDispose { viewModel.setActiveTab("OVERVIEW") }
+            }
             FullScreenOverlay(title = "设置", onDismiss = { dialogNavController.popBackStack() }) {
                 SettingsTab(
                     viewModel = viewModel,
@@ -244,6 +261,10 @@ fun GameOverlayHost(
             }
         }
         composable(GameRoute.Buildings.route) {
+            DisposableEffect(Unit) {
+                viewModel.setActiveTab("BUILDINGS")
+                onDispose { viewModel.setActiveTab("OVERVIEW") }
+            }
             FullScreenOverlay(title = "建造", onDismiss = { dialogNavController.popBackStack() }) {
                 BuildingsTab(
                     viewModel = viewModel,
