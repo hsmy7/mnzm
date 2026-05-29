@@ -216,6 +216,9 @@ data class GameData(
     // 道侣管理：结婚需玩家同意
     var daoCompanionConsentRequired: Boolean = false,
 
+    // 巡视楼战斗后展示结算弹窗
+    var patrolBattleResultPopup: Boolean = false,
+
     var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"

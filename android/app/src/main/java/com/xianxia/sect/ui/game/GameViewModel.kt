@@ -528,6 +528,12 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun setPatrolBattleResultPopup(enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) }
+        }
+    }
+
     fun approveMarriage(maleId: String, femaleId: String) {
         viewModelScope.launch {
             gameEngine.approveMarriage(maleId, femaleId)

@@ -4,16 +4,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.LevelGenerator
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.ExplorationSystem
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
@@ -28,10 +33,19 @@ class ExplorationService @Inject constructor(
     private val eventBus: EventBusPort,
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val battleSystem: BattleSystem,
-    private val buildingConfigService: BuildingConfigService
+    private val buildingConfigService: BuildingConfigService,
+    private val inventorySystem: InventorySystem
 ) : GameSystem {
     override val systemName: String = "ExplorationService"
     private val scope get() = applicationScopeProvider.scope
+
+    private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
+
+    fun consumePendingPatrolResults(): List<BattleResultUIData> {
+        val results = _pendingPatrolResults.toList()
+        _pendingPatrolResults.clear()
+        return results
+    }
 
     override fun initialize() {
         Log.d(TAG, "ExplorationService initialized as GameSystem")
@@ -144,6 +158,49 @@ class ExplorationService @Inject constructor(
                 }
             }
 
+            // 构建 BattleLog
+            val teamMembers = result.battle.team.map { m ->
+                BattleLogMember(
+                    id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+                    hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+                    isAlive = !m.isDead, portraitRes = m.portraitRes
+                )
+            }
+            val enemies = result.battle.beasts.map { b ->
+                BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes)
+            }
+            val rounds = result.log.rounds.map { r ->
+                BattleLogRound(
+                    roundNumber = r.roundNumber,
+                    actions = r.actions.map { a ->
+                        BattleLogAction(
+                            type = a.type, attacker = a.attacker, attackerType = a.attackerType,
+                            target = a.target, damage = a.damage, damageType = a.damageType,
+                            isCrit = a.isCrit, isKill = a.isKill, message = a.message
+                        )
+                    }
+                )
+            }
+            val log = BattleLog(
+                year = gd.gameYear,
+                month = gd.gameMonth,
+                type = BattleType.PVE,
+                attackerName = "巡视队伍",
+                defenderName = target.beastName.ifEmpty { "妖兽" },
+                result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
+                teamMembers = teamMembers,
+                enemies = enemies,
+                rounds = rounds,
+                turns = result.turnCount,
+                teamCasualties = teamMembers.count { !survivorIds.contains(it.id) },
+                beastsDefeated = if (result.victory) target.count else result.battle.beasts.count { it.isDead },
+                details = if (result.victory) "巡视楼击败了${target.beastName}" else "巡视楼被${target.beastName}击败"
+            )
+            state.battleLogs = (state.battleLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+
+            // 奖励
+            val allRewards = mutableListOf<BattleRewardItem>()
+
             // 标记妖兽已击败
             if (result.victory) {
                 gd = gd.copy(
@@ -160,6 +217,50 @@ class ExplorationService @Inject constructor(
                         }
                     )
                 }
+
+                // 妖兽材料奖励
+                val beastConfig = GameConfig.Beast.getType(target.beastType ?: 0)
+                val tier = GameConfig.Realm.getMaxRarity(target.realm)
+                for (i in 0 until target.count) {
+                    val materialCount = kotlin.random.Random.nextInt(1, 4)
+                    repeat(materialCount) {
+                        val beastMaterial = BeastMaterialDatabase.getRandomMaterialByBeastType(beastConfig.name, tier)
+                        if (beastMaterial != null) {
+                            val material = Material(
+                                id = UUID.randomUUID().toString(),
+                                name = beastMaterial.name,
+                                rarity = beastMaterial.rarity,
+                                description = beastMaterial.description,
+                                category = beastMaterial.materialCategory,
+                                quantity = 1
+                            )
+                            val addResult = inventorySystem.addMaterial(material)
+                            if (addResult == AddResult.SUCCESS || addResult == AddResult.PARTIAL_SUCCESS) {
+                                allRewards.add(BattleRewardItem(
+                                    itemId = material.id, name = material.name,
+                                    quantity = 1, rarity = material.rarity, type = "material"
+                                ))
+                            }
+                        }
+                    }
+                }
+
+                // 灵石奖励
+                val spiritStoneReward = result.rewards["spiritStones"] ?: 0
+                if (spiritStoneReward > 0) {
+                    gd = gd.copy(spiritStones = gd.spiritStones + spiritStoneReward.toLong())
+                    allRewards.add(BattleRewardItem(name = "灵石", quantity = spiritStoneReward, rarity = 1, type = "spiritStones"))
+                }
+            }
+
+            // 收集结算弹窗数据
+            if (gd.patrolBattleResultPopup) {
+                _pendingPatrolResults.add(BattleResultUIData(
+                    battleLogId = log.id,
+                    victory = result.victory,
+                    teamMembers = teamMembers,
+                    rewards = allRewards
+                ))
             }
         }
 

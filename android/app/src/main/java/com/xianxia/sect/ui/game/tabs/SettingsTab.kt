@@ -458,6 +458,24 @@ internal fun SettingsTab(
                             )
                         }
                     }
+                    Column {
+                        Text(
+                            text = "巡视楼结算",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Switch(
+                            checked = gameData.patrolBattleResultPopup,
+                            onCheckedChange = { viewModel.setPatrolBattleResultPopup(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = GameColors.SpiritBlue,
+                                checkedThumbColor = Color.White
+                            ),
+                            modifier = Modifier.height(24.dp)
+                        )
+                    }
                 }
             }
 

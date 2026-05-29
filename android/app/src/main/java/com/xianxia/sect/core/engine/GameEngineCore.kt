@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.ExplorationService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
@@ -288,8 +289,14 @@ class GameEngineCore @Inject constructor(
                 }
             }
         }
+
+        // 处理巡视楼战斗结算（必须在 stateStore.update 事务外部）
+        val patrolResults = systemManager.getSystem<ExplorationService>().consumePendingPatrolResults()
+        for (result in patrolResults) {
+            stateStore.setPendingBattleResult(result)
+        }
     }
-    
+
     /**
      * 看门狗：检测 isSaving/isLoading 是否卡住超时，如果超时则强制重置。
      * 在 tickInternal() 每次跳过 tick 时调用。
