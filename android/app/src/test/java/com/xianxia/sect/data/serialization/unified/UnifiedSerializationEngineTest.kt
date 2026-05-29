@@ -260,29 +260,24 @@ class UnifiedSerializationEngineTest {
     }
 
     @Test
-    fun `SerializationQuota - STRICT has expected limits`() {
-        val quota = SerializationQuota.STRICT
-        assertEquals(64 * 1024, quota.coreMaxBytes)
-        assertEquals(10 * 1024 * 1024, quota.discipleMaxBytes)
-        assertEquals(5 * 1024 * 1024, quota.inventoryMaxBytes)
-        assertEquals(200 * 1024 * 1024, quota.totalMaxBytes)
-        assertEquals(5000, quota.maxDiscipleCount)
-        assertEquals(10000, quota.maxBattleLogCount)
+    fun `DataLimits - DEFAULT has expected limits`() {
+        val limits = DataLimits.DEFAULT
+        assertEquals(5000, limits.maxDiscipleCount)
+        assertEquals(10000, limits.maxBattleLogCount)
     }
 
     @Test
-    fun `SerializationQuota - LENIENT has larger limits than STRICT`() {
-        val strict = SerializationQuota.STRICT
-        val lenient = SerializationQuota.LENIENT
+    fun `DataLimits - LENIENT has larger limits than DEFAULT`() {
+        val default = DataLimits.DEFAULT
+        val lenient = DataLimits.LENIENT
 
-        assertTrue(lenient.totalMaxBytes > strict.totalMaxBytes)
-        assertTrue(lenient.maxDiscipleCount > strict.maxDiscipleCount)
-        assertTrue(lenient.maxBattleLogCount > strict.maxBattleLogCount)
+        assertTrue(lenient.maxDiscipleCount > default.maxDiscipleCount)
+        assertTrue(lenient.maxBattleLogCount > default.maxBattleLogCount)
     }
 
     @Test
-    fun `QuotaViolation - toString contains domain and values`() {
-        val violation = QuotaViolation(
+    fun `DataLimitViolation - toString contains domain and values`() {
+        val violation = DataLimitViolation(
             domain = "disciples",
             actualValue = 6000,
             limit = 5000,
@@ -295,11 +290,11 @@ class UnifiedSerializationEngineTest {
     }
 
     @Test
-    fun `QuotaValidationResult - hasViolations reflects violations list`() {
-        val valid = QuotaValidationResult(isValid = true, violations = emptyList())
-        val invalid = QuotaValidationResult(
+    fun `DataLimitValidationResult - hasViolations reflects violations list`() {
+        val valid = DataLimitValidationResult(isValid = true, violations = emptyList())
+        val invalid = DataLimitValidationResult(
             isValid = false,
-            violations = listOf(QuotaViolation("test", 100, 50))
+            violations = listOf(DataLimitViolation("test", 100, 50))
         )
         assertFalse(valid.hasViolations)
         assertTrue(invalid.hasViolations)

@@ -13,6 +13,7 @@ import com.xianxia.sect.data.engine.DataPruningScheduler
 import com.xianxia.sect.data.engine.ProactiveMemoryGuard
 import com.xianxia.sect.data.engine.StorageBackup
 import com.xianxia.sect.data.engine.StorageCircuitBreaker
+import com.xianxia.sect.data.engine.SavMigrator
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.StorageIntegrity
 import com.xianxia.sect.data.engine.StorageMetrics
@@ -22,9 +23,6 @@ import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 import com.xianxia.sect.data.recovery.RecoveryManager
-import com.xianxia.sect.data.unified.BackupManager
-import com.xianxia.sect.data.unified.MetadataManager
-import com.xianxia.sect.data.unified.SaveFileHandler
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.wal.FunctionalWAL
 import com.xianxia.sect.data.wal.WALProvider
@@ -72,39 +70,12 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun provideSaveFileHandler(
-        @ApplicationContext context: Context,
-        memoryManager: DynamicMemoryManager
-    ): SaveFileHandler {
-        return SaveFileHandler(context, memoryManager)
-    }
-
-    @Provides
-    @Singleton
     fun provideSerializationModule(
         serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine,
         saveDataConverter: com.xianxia.sect.data.serialization.unified.SaveDataConverter,
         saveDataMigrator: com.xianxia.sect.data.serialization.unified.SaveDataMigrator
     ): SerializationModule {
         return SerializationModule(serializationEngine, saveDataConverter, saveDataMigrator)
-    }
-
-    @Provides
-    @Singleton
-    fun provideMetadataManager(
-        @ApplicationContext context: Context,
-        fileHandler: SaveFileHandler
-    ): MetadataManager {
-        return MetadataManager(context, fileHandler)
-    }
-
-    @Provides
-    @Singleton
-    fun provideBackupManager(
-        fileHandler: SaveFileHandler,
-        lockManager: SlotLockManager
-    ): BackupManager {
-        return BackupManager(fileHandler, lockManager)
     }
 
     @Provides
@@ -148,9 +119,7 @@ object StorageModule {
         storageIntegrity: StorageIntegrity,
         storageBackup: StorageBackup,
         storageWal: StorageWal,
-        storageMetrics: StorageMetrics,
-        saveFileHandler: SaveFileHandler,
-        serializationModule: SerializationModule
+        storageMetrics: StorageMetrics
     ): StorageEngine {
         return StorageEngine(
             database = database,
@@ -168,9 +137,7 @@ object StorageModule {
             storageIntegrity = storageIntegrity,
             storageBackup = storageBackup,
             storageWal = storageWal,
-            storageMetrics = storageMetrics,
-            saveFileHandler = saveFileHandler,
-            serializationModule = serializationModule
+            storageMetrics = storageMetrics
         )
     }
 
@@ -197,5 +164,16 @@ object StorageModule {
         storageFacade: StorageFacade
     ): KeyRotationManager {
         return KeyRotationManager(context, storageFacade)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSavMigrator(
+        @ApplicationContext context: Context,
+        serializationModule: SerializationModule,
+        database: GameDatabase,
+        storageEngine: StorageEngine
+    ): SavMigrator {
+        return SavMigrator(context, serializationModule, database, storageEngine)
     }
 }

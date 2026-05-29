@@ -813,8 +813,8 @@ class StorageSystemBenchmark {
     // ==================== 7. 配额系统评估 ====================
 
     @Test
-    fun `quota evaluation - validateAgainstQuota with various scales`() {
-        println("\n========== 15. QUOTA VALIDATION EVALUATION ==========")
+    fun `data limits evaluation - validateDataLimits with various scales`() {
+        println("\n========== 15. DATA LIMITS VALIDATION EVALUATION ==========")
 
         for (scale in DataScale.entries) {
             val data = generateTestData(scale)
@@ -873,13 +873,13 @@ class StorageSystemBenchmark {
                 }
             )
 
-            val strictResult = serializationEngine.validateAgainstQuota(serializableData, SerializationQuota.STRICT)
-            val lenientResult = serializationEngine.validateAgainstQuota(serializableData, SerializationQuota.LENIENT)
+            val defaultResult = serializationEngine.validateDataLimits(serializableData, DataLimits.DEFAULT)
+            val lenientResult = serializationEngine.validateDataLimits(serializableData, DataLimits.LENIENT)
 
             println("  ${scale.label}:")
-            println("    STRICT: valid=${strictResult.isValid}, violations=${strictResult.violations.size}, estimatedTotal=${strictResult.estimatedTotalBytes / 1024}KB")
-            if (strictResult.violations.isNotEmpty()) {
-                strictResult.violations.forEach { v -> println("      - $v") }
+            println("    DEFAULT: valid=${defaultResult.isValid}, violations=${defaultResult.violations.size}, estimatedTotal=${defaultResult.estimatedTotalBytes / 1024}KB")
+            if (defaultResult.violations.isNotEmpty()) {
+                defaultResult.violations.forEach { v -> println("      - $v") }
             }
             println("    LENIENT: valid=${lenientResult.isValid}, violations=${lenientResult.violations.size}, estimatedTotal=${lenientResult.estimatedTotalBytes / 1024}KB")
         }
@@ -911,8 +911,8 @@ class StorageSystemBenchmark {
         println("  存档超时(MANUAL): 30s (SavePipeline)")
         println("  读档超时: 10s (SaveLoadCoordinator.LOAD_TIMEOUT_MS)")
         println("  紧急存档超时: 2s (GameActivity)")
-        println("  最大存档大小: 200MB (SerializationQuota.STRICT.totalMaxBytes)")
-        println("  最大弟子数: 5000 (SerializationQuota.STRICT.maxDiscipleCount)")
+        println("  最大存档大小: 200MB (DataLimits.DEFAULT.totalMaxBytes)")
+        println("  最大弟子数: 5000 (DataLimits.DEFAULT.maxDiscipleCount)")
         println("  WAL最大文件: 10MB (StorageConstants.MAX_WAL_SIZE_BYTES)")
         println("  DB批量批次: 200条 (StorageEngine.MAX_BATCH_SIZE)")
 
@@ -984,7 +984,7 @@ class StorageSystemBenchmark {
         println("     → commit()时强制flush确保持久化")
         println("     → 崩溃恢复: 扫描未完成事务 + 快照回放")
         println("     → 评级: ★★★★★ (完善的崩溃恢复能力)")
-        println("  3. 原子文件写入 (SaveFileHandler): temp→rename")
+        println("  3. 原子文件写入 (SavePipeline): temp→rename")
         println("     → 评级: ★★★★★ (标准原子写模式)")
         println("  4. 备份体系:")
         println("     → 自动备份(最多5份) + SHA-256快速校验(前8字节)")
