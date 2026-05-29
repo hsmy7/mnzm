@@ -447,11 +447,13 @@ class MainActivity : ComponentActivity() {
                     sessionManager.limitAdTracking
                 )
                 Log.d(TAG, "TapTap SDK初始化成功")
+                withContext(Dispatchers.Main) {
+                    ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
             }
         }
-        ComplianceManager.registerCallback(MainComplianceCallback(this))
         com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
     }
     
@@ -656,7 +658,10 @@ fun MainScreen(
                                 Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
 
                                 isLoading = false
-                                (context as? MainActivity)?.startComplianceCheck(unionId)
+                                val activity = context as? MainActivity
+                                activity?.runOnUiThread {
+                                    activity.startComplianceCheck(unionId)
+                                }
                             }
 
                             override fun onFailure(error: Exception) {
