@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
@@ -193,34 +194,4 @@ private fun RootCountCheckboxRow(
     }
 }
 
-@Composable
-private fun CircularCheckbox(
-    checked: Boolean,
-    onToggle: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.5.dp,
-                color = Color.Black,
-                shape = CircleShape
-            )
-            .background(
-                color = if (checked) Color.Black.copy(alpha = 0.15f) else Color.Transparent,
-                shape = CircleShape
-            )
-            .clickable { onToggle() },
-        contentAlignment = Alignment.Center
-    ) {
-        if (checked) {
-            Text(
-                text = "✓",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-        }
-    }
-}
+// CircularCheckbox extracted to com.xianxia.sect.ui.components.CircularCheckbox

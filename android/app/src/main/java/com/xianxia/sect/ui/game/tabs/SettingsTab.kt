@@ -60,6 +60,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
@@ -460,21 +461,28 @@ internal fun SettingsTab(
                     }
                     Column {
                         Text(
-                            text = "巡视楼结算",
+                            text = "巡视楼设置",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Switch(
-                            checked = gameData.patrolBattleResultPopup,
-                            onCheckedChange = { viewModel.setPatrolBattleResultPopup(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = GameColors.SpiritBlue,
-                                checkedThumbColor = Color.White
-                            ),
-                            modifier = Modifier.height(24.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Text(
+                                text = "巡视楼弹出战斗结算界面",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CircularCheckbox(
+                                checked = gameData.patrolBattleResultPopup,
+                                onToggle = { viewModel.setPatrolBattleResultPopup(!gameData.patrolBattleResultPopup) }
+                            )
+                        }
                     }
                 }
             }
