@@ -7,14 +7,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -739,75 +741,112 @@ private fun SectGroundCanvas(
     movingInstanceId: String? = null,
     modifier: Modifier = Modifier
 ) {
-    // 用 rememberUpdatedState 读取最新值，避免 isMoving/isPlacing 作为 pointerInput key 导致手势检测器重启
+    val currentOnBuildingClick by rememberUpdatedState(onBuildingClick)
+    val currentOnBuildingLongPress by rememberUpdatedState(onBuildingLongPress)
+    val currentOnPlacementDrag by rememberUpdatedState(onPlacementDrag)
+    val currentOnMovingDrag by rememberUpdatedState(onMovingDrag)
     val currentIsMoving by rememberUpdatedState(isMoving)
     val currentIsPlacing by rememberUpdatedState(isPlacing)
-    var dragOnBuilding by remember { mutableStateOf(false) }
+    val currentMovingWorldX by rememberUpdatedState(movingWorldX)
+    val currentMovingWorldY by rememberUpdatedState(movingWorldY)
+    val currentPreviewWorldX by rememberUpdatedState(previewWorldX)
+    val currentPreviewWorldY by rememberUpdatedState(previewWorldY)
+    val currentMovingSize by rememberUpdatedState(movingSize)
+    val currentPreviewSize by rememberUpdatedState(previewSize)
+    val currentMovingInstanceId by rememberUpdatedState(movingInstanceId)
+    val longPressScope = rememberCoroutineScope()
 
     Canvas(
         modifier = modifier
             .pointerInput(placedBuildings, tileSize) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        val wx = cameraState.screenToWorldX(offset.x)
-                        val wy = cameraState.screenToWorldY(offset.y)
-                        for (b in placedBuildings) {
-                            if (b.instanceId == movingInstanceId) continue
-                            val bx = b.gridX * tileSize
-                            val by = b.gridY * tileSize
-                            if (wx >= bx && wx < bx + b.width * tileSize &&
-                                wy >= by && wy < by + b.height * tileSize
-                            ) {
-                                onBuildingClick(b)
-                                return@detectTapGestures
-                            }
-                        }
-                    },
-                    onLongPress = { offset ->
-                        if (currentIsMoving || currentIsPlacing) return@detectTapGestures
-                        val wx = cameraState.screenToWorldX(offset.x)
-                        val wy = cameraState.screenToWorldY(offset.y)
-                        for (b in placedBuildings) {
-                            val bx = b.gridX * tileSize
-                            val by = b.gridY * tileSize
-                            if (wx >= bx && wx < bx + b.width * tileSize &&
-                                wy >= by && wy < by + b.height * tileSize
-                            ) {
-                                onBuildingLongPress(b)
-                                return@detectTapGestures
-                            }
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val downPos = down.position
+
+                    val wx = cameraState.screenToWorldX(downPos.x)
+                    val wy = cameraState.screenToWorldY(downPos.y)
+
+                    val touchedBuilding = placedBuildings.find { b ->
+                        if (b.instanceId == currentMovingInstanceId) return@find false
+                        val bx = b.gridX * tileSize
+                        val by = b.gridY * tileSize
+                        wx >= bx && wx < bx + b.width * tileSize &&
+                            wy >= by && wy < by + b.height * tileSize
+                    }
+
+                    val onMovingBuilding = currentIsMoving && run {
+                        val bw = currentMovingSize.width * tileSize
+                        val bh = currentMovingSize.height * tileSize
+                        wx >= currentMovingWorldX && wx < currentMovingWorldX + bw &&
+                            wy >= currentMovingWorldY && wy < currentMovingWorldY + bh
+                    }
+
+                    val onPlacingBuilding = currentIsPlacing && run {
+                        val bw = currentPreviewSize.width * tileSize
+                        val bh = currentPreviewSize.height * tileSize
+                        wx >= currentPreviewWorldX && wx < currentPreviewWorldX + bw &&
+                            wy >= currentPreviewWorldY && wy < currentPreviewWorldY + bh
+                    }
+
+                    var longPressTriggered = false
+                    var dragStarted = false
+                    var dragTarget = DragTarget.CAMERA
+                    var lastPos = downPos
+
+                    val longPressJob = longPressScope.launch {
+                        delay(viewConfiguration.longPressTimeoutMillis)
+                        if (!dragStarted && touchedBuilding != null &&
+                            !currentIsMoving && !currentIsPlacing
+                        ) {
+                            longPressTriggered = true
+                            currentOnBuildingLongPress(touchedBuilding)
+                            dragTarget = DragTarget.BUILDING_MOVE
                         }
                     }
-                )
-            }
-            .pointerInput(cameraState) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        val wx = cameraState.screenToWorldX(offset.x)
-                        val wy = cameraState.screenToWorldY(offset.y)
-                        dragOnBuilding = if (currentIsMoving) {
-                            val bw = movingSize.width * tileSize
-                            val bh = movingSize.height * tileSize
-                            wx >= movingWorldX && wx < movingWorldX + bw &&
-                                wy >= movingWorldY && wy < movingWorldY + bh
-                        } else if (currentIsPlacing) {
-                            val bw = previewSize.width * tileSize
-                            val bh = previewSize.height * tileSize
-                            wx >= previewWorldX && wx < previewWorldX + bw &&
-                                wy >= previewWorldY && wy < previewWorldY + bh
-                        } else false
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        if (currentIsMoving && dragOnBuilding) {
-                            onMovingDrag(dragAmount.x, dragAmount.y)
-                        } else if (currentIsPlacing && dragOnBuilding) {
-                            onPlacementDrag(dragAmount.x, dragAmount.y)
-                        } else {
-                            cameraState.pan(dragAmount.x, dragAmount.y)
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+
+                        if (!change.pressed) {
+                            longPressJob.cancel()
+                            if (!dragStarted && !longPressTriggered && touchedBuilding != null) {
+                                currentOnBuildingClick(touchedBuilding)
+                            }
+                            change.consume()
+                            break
                         }
-                    }
-                )
+
+                        if (!dragStarted) {
+                            val dx = change.position.x - downPos.x
+                            val dy = change.position.y - downPos.y
+                            if (dx * dx + dy * dy > viewConfiguration.touchSlop * viewConfiguration.touchSlop) {
+                                dragStarted = true
+                                longPressJob.cancel()
+                                dragTarget = when {
+                                    longPressTriggered -> DragTarget.BUILDING_MOVE
+                                    currentIsMoving && onMovingBuilding -> DragTarget.BUILDING_MOVE
+                                    currentIsPlacing && onPlacingBuilding -> DragTarget.BUILDING_PLACE
+                                    else -> DragTarget.CAMERA
+                                }
+                            }
+                        }
+
+                        if (dragStarted) {
+                            change.consume()
+                            val dragAmountX = change.position.x - lastPos.x
+                            val dragAmountY = change.position.y - lastPos.y
+                            when (dragTarget) {
+                                DragTarget.BUILDING_MOVE -> currentOnMovingDrag(dragAmountX, dragAmountY)
+                                DragTarget.BUILDING_PLACE -> currentOnPlacementDrag(dragAmountX, dragAmountY)
+                                DragTarget.CAMERA -> cameraState.pan(dragAmountX, dragAmountY)
+                            }
+                        }
+
+                        lastPos = change.position
+                    } while (true)
+                }
             }
     ) {
         val sw = size.width
@@ -981,6 +1020,8 @@ private fun SectGroundCanvas(
     }
 }
 
+
+private enum class DragTarget { CAMERA, BUILDING_MOVE, BUILDING_PLACE }
 
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)

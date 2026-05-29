@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.61",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复建筑拖动/点击手势冲突：统一为awaitEachGesture单循环，消除拖拽失效"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.60",
             date = "2026-05-30",
             changes = listOf(
