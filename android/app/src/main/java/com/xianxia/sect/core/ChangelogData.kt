@@ -10,9 +10,10 @@ object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
             version = "3.1.58",
-            date = "2026-05-29",
+            date = "2026-05-30",
             changes = listOf(
-                "修复毒/灼烧持续伤害绕过跨境界减伤的问题：低境界敌人DOT也能正确被压制"
+                "修复DOT持续伤害绕过跨境界减伤：低境界敌人毒/灼烧对高境界弟子伤害被正确压缩",
+                "修复TapTap新账号登录后卡在登录界面：合规认证SDK注册竞态+线程问题"
             )
         ),
         ChangelogEntry(
