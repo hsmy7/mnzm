@@ -55,7 +55,7 @@ data class SerializableGameData(
     @ProtoNumber(34) val spiritMineSlots: List<SerializableSpiritMineSlot> = emptyList(),
     @ProtoNumber(35) val librarySlots: List<SerializableLibrarySlot> = emptyList(),
     @ProtoNumber(36) val residenceSlots: List<SerializableResidenceSlot> = emptyList(),
-    @ProtoNumber(36) @Deprecated("Migrated to productionSlots") val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
+    @ProtoNumber(41) @Deprecated("Migrated to productionSlots") val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
     @ProtoNumber(37) @Deprecated("Migrated to productionSlots") val alchemySlots: List<SerializableAlchemySlot> = emptyList(),
     @ProtoNumber(52) val productionSlots: List<SerializableProductionSlot> = emptyList(),
     @ProtoNumber(38) val alliances: List<SerializableAlliance> = emptyList(),
@@ -207,16 +207,61 @@ data class SerializableManual(
 )
 
 @Serializable
+data class SerializablePillEffect(
+    @ProtoNumber(1) val breakthroughChance: Double = 0.0,
+    @ProtoNumber(2) val targetRealm: Int = 0,
+    @ProtoNumber(3) val isAscension: Boolean = false,
+    @ProtoNumber(4) val cultivationSpeedPercent: Double = 0.0,
+    @ProtoNumber(5) val skillExpSpeedPercent: Double = 0.0,
+    @ProtoNumber(6) val nurtureSpeedPercent: Double = 0.0,
+    @ProtoNumber(7) val cultivationAdd: Int = 0,
+    @ProtoNumber(8) val skillExpAdd: Int = 0,
+    @ProtoNumber(9) val nurtureAdd: Int = 0,
+    @ProtoNumber(10) val duration: Int = 3,
+    @ProtoNumber(11) val cannotStack: Boolean = true,
+    @ProtoNumber(12) val physicalAttackAdd: Int = 0,
+    @ProtoNumber(13) val magicAttackAdd: Int = 0,
+    @ProtoNumber(14) val physicalDefenseAdd: Int = 0,
+    @ProtoNumber(15) val magicDefenseAdd: Int = 0,
+    @ProtoNumber(16) val hpAdd: Int = 0,
+    @ProtoNumber(17) val mpAdd: Int = 0,
+    @ProtoNumber(18) val speedAdd: Int = 0,
+    @ProtoNumber(19) val critRateAdd: Double = 0.0,
+    @ProtoNumber(20) val critEffectAdd: Double = 0.0,
+    @ProtoNumber(21) val extendLife: Int = 0,
+    @ProtoNumber(22) val intelligenceAdd: Int = 0,
+    @ProtoNumber(23) val charmAdd: Int = 0,
+    @ProtoNumber(24) val loyaltyAdd: Int = 0,
+    @ProtoNumber(25) val comprehensionAdd: Int = 0,
+    @ProtoNumber(26) val artifactRefiningAdd: Int = 0,
+    @ProtoNumber(27) val pillRefiningAdd: Int = 0,
+    @ProtoNumber(28) val spiritPlantingAdd: Int = 0,
+    @ProtoNumber(29) val teachingAdd: Int = 0,
+    @ProtoNumber(30) val moralityAdd: Int = 0,
+    @ProtoNumber(31) val miningAdd: Int = 0,
+    @ProtoNumber(32) val healMaxHpPercent: Double = 0.0,
+    @ProtoNumber(33) val mpRecoverMaxMpPercent: Double = 0.0,
+    @ProtoNumber(34) val revive: Boolean = false,
+    @ProtoNumber(35) val clearAll: Boolean = false
+)
+
+@Serializable
 data class SerializablePill(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val name: String,
     @ProtoNumber(3) val type: String,
     @ProtoNumber(4) val rarity: Int,
-    @ProtoNumber(5) val effects: Map<String, Double> = emptyMap(),
+    @Deprecated("Use effects at ProtoNumber(14). Kept for backward compat with v4 saves.")
+    @ProtoNumber(5) val effectsMap: Map<String, Double> = emptyMap(),
     @ProtoNumber(6) val description: String = "",
     @ProtoNumber(7) val quantity: Int = 1,
     @ProtoNumber(8) val obtainedYear: Int = 1,
-    @ProtoNumber(9) val obtainedMonth: Int = 1
+    @ProtoNumber(9) val obtainedMonth: Int = 1,
+    @ProtoNumber(10) val category: String = "CULTIVATION",
+    @ProtoNumber(11) val grade: String = "MEDIUM",
+    @ProtoNumber(12) val minRealm: Int = 9,
+    @ProtoNumber(13) val isLocked: Boolean = false,
+    @ProtoNumber(14) val effects: SerializablePillEffect = SerializablePillEffect()
 )
 
 @Serializable
@@ -543,9 +588,22 @@ data class SerializableCultivatorCave(
     @ProtoNumber(5) val y: Float,
     @ProtoNumber(6) val ownerSectId: String = "",
     @ProtoNumber(7) val ownerSectName: String,
-    @ProtoNumber(8) val disciples: List<SerializableDisciple> = emptyList(),
+    @Deprecated("No longer in business model, kept for proto compatibility")
+    @ProtoNumber(8) val disciples: List<SerializableAICaveDisciple> = emptyList(),
+    @Deprecated("No longer in business model, kept for proto compatibility")
     @ProtoNumber(9) val resources: Map<String, Int> = emptyMap(),
-    @ProtoNumber(10) val discovered: Boolean
+    @ProtoNumber(10) val discovered: Boolean,
+    @ProtoNumber(11) val spawnYear: Int = 1,
+    @ProtoNumber(12) val spawnMonth: Int = 1,
+    @ProtoNumber(13) val expiryYear: Int = 1,
+    @ProtoNumber(14) val expiryMonth: Int = 1,
+    @ProtoNumber(15) val exploredByTeamId: String = "",
+    @ProtoNumber(16) val status: String = "AVAILABLE",
+    @ProtoNumber(17) val canOperate: Boolean = true,
+    @ProtoNumber(18) val isOwned: Boolean = false,
+    @ProtoNumber(19) val connectedSects: List<String> = emptyList(),
+    @ProtoNumber(20) val mineSlots: List<SerializableMineSlot> = emptyList(),
+    @ProtoNumber(21) val occupationTime: Long = 0
 )
 
 @Serializable
@@ -561,15 +619,61 @@ data class SerializableCaveExplorationTeam(
 )
 
 @Serializable
+data class SerializableAIRandomEquipment(
+    @ProtoNumber(1) val slot: String,
+    @ProtoNumber(2) val name: String,
+    @ProtoNumber(3) val rarity: Int,
+    @ProtoNumber(4) val nurtureLevel: Int,
+    @ProtoNumber(5) val physicalAttack: Int = 0,
+    @ProtoNumber(6) val magicAttack: Int = 0,
+    @ProtoNumber(7) val physicalDefense: Int = 0,
+    @ProtoNumber(8) val magicDefense: Int = 0,
+    @ProtoNumber(9) val speed: Int = 0,
+    @ProtoNumber(10) val hp: Int = 0,
+    @ProtoNumber(11) val mp: Int = 0
+)
+
+@Serializable
+data class SerializableAIRandomManual(
+    @ProtoNumber(1) val name: String,
+    @ProtoNumber(2) val rarity: Int,
+    @ProtoNumber(3) val mastery: Int,
+    @ProtoNumber(4) val stats: Map<String, Int> = emptyMap()
+)
+
+@Serializable
+data class SerializableAICaveDisciple(
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val realm: Int = 5,
+    @ProtoNumber(4) val realmName: String = "",
+    @ProtoNumber(5) val hp: Int = 1000,
+    @ProtoNumber(6) val maxHp: Int = 1000,
+    @ProtoNumber(7) val mp: Int = 500,
+    @ProtoNumber(8) val maxMp: Int = 500,
+    @ProtoNumber(9) val physicalAttack: Int = 100,
+    @ProtoNumber(10) val magicAttack: Int = 50,
+    @ProtoNumber(11) val physicalDefense: Int = 50,
+    @ProtoNumber(12) val magicDefense: Int = 40,
+    @ProtoNumber(13) val speed: Int = 100,
+    @ProtoNumber(14) val critRate: Double = 0.05,
+    @ProtoNumber(15) val equipments: List<SerializableAIRandomEquipment> = emptyList(),
+    @ProtoNumber(16) val manuals: List<SerializableAIRandomManual> = emptyList()
+)
+
+@Serializable
 data class SerializableAICaveTeam(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val sectId: String,
     @ProtoNumber(3) val sectName: String,
     @ProtoNumber(4) val targetCaveId: String,
-    @ProtoNumber(5) val disciples: List<SerializableDisciple> = emptyList(),
+    @ProtoNumber(5) val disciples: List<SerializableAICaveDisciple> = emptyList(),
     @ProtoNumber(6) val status: String,
     @ProtoNumber(7) val startYear: Int,
-    @ProtoNumber(8) val startMonth: Int
+    @ProtoNumber(8) val startMonth: Int,
+    @ProtoNumber(9) val memberCount: Int = 5,
+    @ProtoNumber(10) val avgRealm: Int = 5,
+    @ProtoNumber(11) val avgRealmName: String = ""
 )
 
 @Serializable
@@ -714,13 +818,16 @@ data class SerializableBattleLogRound(
 data class SerializableBattleLogAction(
     @ProtoNumber(1) val actorId: String,
     @ProtoNumber(2) val actorName: String,
-    @ProtoNumber(3) val targetType: String,
+    @ProtoNumber(3) val attackerType: String,
     @ProtoNumber(4) val targetId: String,
     @ProtoNumber(5) val targetName: String,
     @ProtoNumber(6) val skillName: String,
     @ProtoNumber(7) val damage: Int,
     @ProtoNumber(8) val isCritical: Boolean,
-    @ProtoNumber(9) val effect: String
+    @ProtoNumber(9) val effect: String,
+    @ProtoNumber(10) val type: String = "",
+    @ProtoNumber(11) val damageType: String = "",
+    @ProtoNumber(12) val isKill: Boolean = false
 )
 
 @Serializable
@@ -846,10 +953,12 @@ data class MetadataFile(
     @ProtoNumber(2) val slots: Map<Int, SerializableSaveSlot>
 )
 
-/**
- * 带完整性哈希的存档数据包装
- * 序列化时自动计算并附加SHA-256哈希，反序列化时自动验证
- */
+@Deprecated(
+    message = "HashedSaveData provides only partial-field hashing which gives a false sense of security. " +
+              "Use UnifiedSerializationEngine's byte-level SHA-256 checksum (computeChecksum) instead, " +
+              "which covers the entire serialized payload.",
+    level = DeprecationLevel.WARNING
+)
 @Serializable
 data class HashedSaveData(
     @ProtoNumber(1) val data: SerializableSaveData,
@@ -860,10 +969,10 @@ data class HashedSaveData(
     companion object {
         const val DEFAULT_ALGORITHM = "SHA-256"
 
-        /**
-         * 创建带哈希的存档数据
-         * 自动计算数据的SHA-256哈希值
-         */
+        @Deprecated(
+            message = "Use UnifiedSerializationEngine's byte-level checksum instead.",
+            level = DeprecationLevel.WARNING
+        )
         fun create(data: SerializableSaveData): HashedSaveData {
             val hash = computeHash(data)
             return HashedSaveData(
@@ -874,9 +983,10 @@ data class HashedSaveData(
             )
         }
 
-        /**
-         * 计算SerializableSaveData的SHA-256哈希
-         */
+        @Deprecated(
+            message = "Partial-field hashing is incomplete. Use byte-level SHA-256 on the full serialized payload.",
+            level = DeprecationLevel.WARNING
+        )
         private fun computeHash(data: SerializableSaveData): String {
             val digest = java.security.MessageDigest.getInstance(DEFAULT_ALGORITHM)
 
@@ -907,10 +1017,10 @@ data class HashedSaveData(
             return hashBytes.joinToString("") { "%02x".format(it) }
         }
 
-        /**
-         * 验证数据完整性
-         * @return true 如果哈希匹配，false 如果数据被篡改
-         */
+        @Deprecated(
+            message = "Use UnifiedSerializationEngine's byte-level checksum validation instead.",
+            level = DeprecationLevel.WARNING
+        )
         fun verifyIntegrity(hashedData: HashedSaveData): Boolean {
             if (hashedData.integrityHash.isEmpty()) {
                 return false
@@ -921,9 +1031,10 @@ data class HashedSaveData(
         }
     }
 
-    /**
-     * 验证当前实例的数据完整性
-     */
+    @Deprecated(
+        message = "Use UnifiedSerializationEngine's byte-level checksum validation instead.",
+        level = DeprecationLevel.WARNING
+    )
     fun isValid(): Boolean {
         return verifyIntegrity(this)
     }
