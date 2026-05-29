@@ -2,6 +2,9 @@
 
 ## [3.1.61] - 2026-05-30
 
+### 变更
+- TapDB 迁移至 v4 API：setUserId/clearUser/logEvent/logPurchasedEvent 改用 TapTapEvent 接口
+- SDK 初始化新增 TapTapEventOptions 配置：渠道信息与自动 IAP 上报迁移至 eventOptions
 ### 修复
 - 建筑拖动/点击手势冲突修复：统一为 awaitEachGesture 单循环，消除拖拽失效
 

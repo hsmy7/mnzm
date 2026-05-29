@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 
 import com.xianxia.sect.BuildConfig;
 
+import com.taptap.sdk.core.TapTapEventOptions;
 import com.taptap.sdk.core.TapTapRegion;
 import com.taptap.sdk.core.TapTapSdk;
 import com.taptap.sdk.core.TapTapSdkOptions;
@@ -55,10 +56,14 @@ public class TapTapAuthManager {
         options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         options.setEnableLog(BuildConfig.DEBUG);
         options.setGameVersion(BuildConfig.VERSION_NAME);
-        options.setChannel(BuildConfig.TAPDB_CHANNEL);
+
+        TapTapEventOptions eventOptions = TapTapEventOptions.builder()
+            .channel(BuildConfig.TAPDB_CHANNEL)
+            .autoIAPEventEnabled(true)
+            .build();
 
         Future<?> future = initExecutor.submit(() -> {
-            TapTapSdk.init(activity.getApplicationContext(), options);
+            TapTapSdk.init(activity.getApplicationContext(), options, eventOptions);
         });
         try {
             future.get(8, TimeUnit.SECONDS);
