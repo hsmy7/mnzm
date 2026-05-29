@@ -678,7 +678,7 @@ object AISectAttackManager {
             var updatedTarget = enemies[targetIdx].copy(hp = newHp)
 
             if (skill.buffType != null && skill.buffDuration > 0) {
-                val debuff = CombatBuff(type = skill.buffType, value = skill.buffValue, remainingDuration = skill.buffDuration)
+                val debuff = CombatBuff(type = skill.buffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)
                 updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
             }
 
@@ -721,7 +721,7 @@ object AISectAttackManager {
                 var updatedTarget = enemies[targetIdx].copy(hp = newHp)
 
                 if (skill.buffType != null && skill.buffDuration > 0) {
-                    val debuff = CombatBuff(type = skill.buffType, value = skill.buffValue, remainingDuration = skill.buffDuration)
+                    val debuff = CombatBuff(type = skill.buffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)
                     updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
                 }
 

@@ -449,7 +449,8 @@ class BattleSystem @Inject constructor() {
                         val debuff = CombatBuff(
                             type = availableSkill.buffType,
                             value = availableSkill.buffValue,
-                            remainingDuration = availableSkill.buffDuration
+                            remainingDuration = availableSkill.buffDuration,
+                            sourceRealm = currentCombatant.realm
                         )
                         if (isTeamMember && targetIndex < beasts.size) {
                             beasts[targetIndex] = beasts[targetIndex].copy(
@@ -467,7 +468,8 @@ class BattleSystem @Inject constructor() {
                     val debuff = CombatBuff(
                         type = availableSkill.buffType,
                         value = availableSkill.buffValue,
-                        remainingDuration = availableSkill.buffDuration
+                        remainingDuration = availableSkill.buffDuration,
+                        sourceRealm = currentCombatant.realm
                     )
                     aliveEnemies.filter { !it.isDead }.forEach { enemy ->
                         val idx = enemiesIndexMap[enemy.id] ?: return@forEach
@@ -683,7 +685,8 @@ data class Battle(
 data class CombatBuff(
     val type: BuffType,
     val value: Double,
-    var remainingDuration: Int
+    var remainingDuration: Int,
+    val sourceRealm: Int = 9
 )
 
 data class Combatant(
