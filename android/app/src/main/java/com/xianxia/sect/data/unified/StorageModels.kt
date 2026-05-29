@@ -23,10 +23,6 @@ data class SlotMetadata(
     val merkleRoot: String = ""
 )
 
-/**
- * Simplified backup information for backward compatibility.
- * Mapped from EnhancedBackupInfo in BackupManager.
- */
 data class BackupInfo(
     val id: String,
     val slot: Int,
@@ -34,17 +30,3 @@ data class BackupInfo(
     val size: Long,
     val checksum: String
 )
-
-/**
- * Result of integrity verification for a save slot.
- */
-sealed class IntegrityResult {
-    /** Data is valid and integrity checks passed. */
-    object Valid : IntegrityResult()
-
-    /** Data has been tampered with (signature validation failed). */
-    data class Tampered(val reason: String) : IntegrityResult()
-
-    /** Data is invalid or corrupted. */
-    data class Invalid(val errors: List<String>) : IntegrityResult()
-}

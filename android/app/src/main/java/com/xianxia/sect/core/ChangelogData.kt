@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.60",
+            date = "2026-05-30",
+            changes = listOf(
+                "存档架构优化：移除本地.sav文件双写，统一为Room数据库存储",
+                "新增长旧存档迁移器：首次启动自动将.sav存档迁移至Room数据库"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.59",
             date = "2026-05-30",
             changes = listOf(

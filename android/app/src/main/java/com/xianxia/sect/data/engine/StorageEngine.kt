@@ -19,9 +19,7 @@ import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.BackupInfo
-import com.xianxia.sect.data.unified.SaveFileHandler
 import com.xianxia.sect.data.unified.SlotMetadata
-import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.validation.StorageValidator
 import com.xianxia.sect.data.wal.WALProvider
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -85,9 +83,7 @@ class StorageEngine @Inject internal constructor(
     private val storageIntegrity: StorageIntegrity,
     private val storageBackup: StorageBackup,
     private val storageWal: StorageWal,
-    private val storageMetrics: StorageMetrics,
-    private val saveFileHandler: SaveFileHandler,
-    private val serializationModule: SerializationModule
+    private val storageMetrics: StorageMetrics
 ) {
     companion object {
         private const val TAG = "StorageEngine"
@@ -164,15 +160,6 @@ class StorageEngine @Inject internal constructor(
                     }
 
                     storageMetrics.recordSave()
-                    // Write backup to .sav file for disaster recovery
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val bytes = serializationModule.serializeAndCompressSaveData(dataWithTimestamp)
-                            saveFileHandler.writeAtomically(saveFileHandler.getSaveFile(slot), bytes)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "File backup failed for slot $slot (non-fatal)", e)
-                        }
-                    }
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
                 }
 
@@ -222,25 +209,8 @@ class StorageEngine @Inject internal constructor(
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
                     StorageResult.success(dbData)
                 } else {
-                    // Fallback: try to load from .sav file backup
-                    val fileData = tryLoadFromFile(slot)
-                    if (fileData != null) {
-                        Log.i(TAG, "Restored slot $slot from .sav file backup")
-                        storageMetrics.recordLoad()
-                        // Restore to Room asynchronously
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                save(slot, fileData, SavePriority.CRITICAL)
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Failed to restore file backup to Room for slot $slot", e)
-                            }
-                        }
-                        _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (file backup)")
-                        StorageResult.success(fileData)
-                    } else {
-                        _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
-                        StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
-                    }
+                    _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
+                    StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Load failed for slot $slot", e)
@@ -693,18 +663,6 @@ class StorageEngine @Inject internal constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load from database for slot $slot", e)
-            null
-        }
-    }
-
-    private fun tryLoadFromFile(slot: Int): SaveData? {
-        return try {
-            val file = saveFileHandler.getSaveFile(slot)
-            if (!file.exists()) return null
-            val bytes = file.readBytes()
-            serializationModule.deserializeSaveData(bytes)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to load from file backup for slot $slot", e)
             null
         }
     }

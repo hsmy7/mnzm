@@ -56,14 +56,6 @@ class UnifiedSerializationEngine @Inject constructor(
         val rawData = protoBuf.encodeToByteArray(serializer, data)
         val serializationTime = System.currentTimeMillis() - serializationStart
 
-        val sizeLimit = SerializationQuota.STRICT.totalMaxBytes
-        if (rawData.size > sizeLimit) {
-            throw SerializationException(
-                "Data too large: ${rawData.size} bytes (limit: $sizeLimit bytes). " +
-                "Consider using SerializationQuota for domain-specific limits."
-            )
-        }
-
         val compressionStart = System.currentTimeMillis()
         val algo = when (context.compression) {
             CompressionType.ZSTD -> CompressionAlgorithm.ZSTD
@@ -335,104 +327,26 @@ class UnifiedSerializationEngine @Inject constructor(
         }
     }
 
-    fun validateAgainstQuota(
+    fun validateDataLimits(
         data: SerializableSaveData,
-        quota: SerializationQuota = SerializationQuota.STRICT
-    ): QuotaValidationResult {
-        val violations = mutableListOf<QuotaViolation>()
-        var estimatedTotal = 0L
-
-        val coreEstimate = estimateGameDataSize(data.gameData)
-        estimatedTotal += coreEstimate
-        if (coreEstimate > quota.coreMaxBytes) {
-            violations.add(QuotaViolation("core", coreEstimate, quota.coreMaxBytes.toLong()))
-        }
+        limits: DataLimits = DataLimits.DEFAULT
+    ): DataLimitValidationResult {
+        val violations = mutableListOf<DataLimitViolation>()
 
         val discipleCount = data.disciples.size.toLong()
-        val discipleEstimate = discipleCount * 1500L
-        estimatedTotal += discipleEstimate
-        if (discipleCount > quota.maxDiscipleCount) {
-            violations.add(QuotaViolation("disciple_count", discipleCount, quota.maxDiscipleCount.toLong(), "items"))
-        }
-        if (discipleEstimate > quota.discipleMaxBytes) {
-            violations.add(QuotaViolation("disciples", discipleEstimate, quota.discipleMaxBytes.toLong()))
-        }
-
-        val inventoryItems = data.equipment.size +
-            data.manuals.size +
-            data.pills.size +
-            data.materials.size +
-            data.herbs.size +
-            data.seeds.size
-        val inventoryEstimate = inventoryItems.toLong() * 200L
-        estimatedTotal += inventoryEstimate
-        if (inventoryEstimate > quota.inventoryMaxBytes) {
-            violations.add(QuotaViolation("inventory", inventoryEstimate, quota.inventoryMaxBytes.toLong()))
-        }
-
-        val worldEstimate = (data.gameData.worldMapSects.size * 500L) +
-            (data.alliances.size * 200L)
-        estimatedTotal += worldEstimate
-        if (worldEstimate > quota.worldMaxBytes) {
-            violations.add(QuotaViolation("world", worldEstimate, quota.worldMaxBytes.toLong()))
+        if (discipleCount > limits.maxDiscipleCount) {
+            violations.add(DataLimitViolation("disciple_count", discipleCount, limits.maxDiscipleCount.toLong()))
         }
 
         val battleLogCount = data.battleLogs.size.toLong()
-        val combatEstimate = battleLogCount * 3000L
-        estimatedTotal += combatEstimate
-        if (battleLogCount > quota.maxBattleLogCount) {
-            violations.add(QuotaViolation("battle_log_count", battleLogCount, quota.maxBattleLogCount.toLong(), "items"))
-        }
-        if (combatEstimate > quota.combatMaxBytes) {
-            violations.add(QuotaViolation("combat", combatEstimate, quota.combatMaxBytes.toLong()))
+        if (battleLogCount > limits.maxBattleLogCount) {
+            violations.add(DataLimitViolation("battle_log_count", battleLogCount, limits.maxBattleLogCount.toLong()))
         }
 
-        val missionCount = (data.gameData.activeMissions.size + data.gameData.availableMissions.size).toLong()
-        val missionEstimate = missionCount * 750L
-        estimatedTotal += missionEstimate
-        if (missionEstimate > quota.missionMaxBytes) {
-            violations.add(QuotaViolation("missions", missionEstimate, quota.missionMaxBytes.toLong()))
-        }
-
-        val miscEstimate = (data.teams.size * 400L)
-        estimatedTotal += miscEstimate
-
-        if (estimatedTotal > quota.totalMaxBytes) {
-            violations.add(QuotaViolation("total", estimatedTotal, quota.totalMaxBytes.toLong()))
-        }
-
-        return QuotaValidationResult(
+        return DataLimitValidationResult(
             isValid = violations.isEmpty(),
-            violations = violations,
-            estimatedTotalBytes = estimatedTotal
+            violations = violations
         )
-    }
-
-    private fun estimateGameDataSize(gameData: SerializableGameData): Long {
-        var size = 512L
-
-        size += gameData.worldMapSects.size * 600L
-        size += gameData.exploredSects.size * 200L
-        size += gameData.scoutInfo.size * 150L
-        size += gameData.manualProficiencies.values.sumOf { it.size * 80L }
-        size += gameData.travelingMerchantItems.size * 100L
-        size += gameData.playerListedItems.size * 100L
-        size += gameData.recruitList.size * 24L
-        size += gameData.cultivatorCaves.size * 200L
-        size += gameData.caveExplorationTeams.size * 150L
-        size += gameData.aiCaveTeams.size * 180L
-        size += (gameData.unlockedRecipes.size +
-            gameData.unlockedManuals.size) * 20L
-        size += (gameData.spiritMineSlots.size * 60L +
-            gameData.librarySlots.size * 40L +
-            gameData.residenceSlots.size * 40L +
-            gameData.productionSlots.size * 100L)
-        size += gameData.alliances.size * 150L
-        size += gameData.sectRelations.size * 60L
-        size += gameData.activeMissions.size * 500L
-        size += gameData.availableMissions.size * 350L
-
-        return size
     }
 
     fun getRecommendedContext(dataSize: Int, dataType: DataType): SerializationContext {
