@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.57",
+            date = "2026-05-29",
+            changes = listOf(
+                "天赋文本颜色加深：从浅粉彩改为深色品阶色，白色背景上清晰可辨"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.56",
             date = "2026-05-29",
             changes = listOf(
