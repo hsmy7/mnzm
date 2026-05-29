@@ -370,9 +370,13 @@ class BattleSystem @Inject constructor() {
 
             val result = results.first()
             var isKill = false
+            var isInstantKill = results.any { it.isInstantKill }
             var totalDamage = 0
 
-            val message: String = if (result.isSupport && availableSkill != null) {
+            val message: String = if (isInstantKill) {
+                isKill = true
+                "境界碾压，${result.target.name}被一击必杀！"
+            } else if (result.isSupport && availableSkill != null) {
                 val buffs = availableSkill.buffs
                 BattleDescriptionGenerator.generateSupportSkillDescription(
                     caster = currentCombatant,
@@ -422,9 +426,10 @@ class BattleSystem @Inject constructor() {
                 attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
                 target = if (isSupportSkill) "team" else if (isAoeSkill) "全体敌人" else result.target.name,
                 damage = if (isAoeSkill) totalDamage else result.damage,
-                damageType = if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
+                damageType = if (isInstantKill) "必杀" else if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
                 isCrit = results.any { it.isCrit },
                 isKill = isKill,
+                isInstantKill = isInstantKill,
                 message = message,
                 skillName = result.skillName
             ))
@@ -573,6 +578,13 @@ class BattleSystem @Inject constructor() {
     }
 
     private fun executeAttack(attacker: Combatant, defender: Combatant): AttackResult {
+        if (BattleCalculator.checkInstantKill(attacker.realm, defender.realm)) {
+            return AttackResult(
+                attacker = attacker, target = defender,
+                damage = defender.maxHp, isCrit = false, isPhysical = true,
+                isDodged = false, isInstantKill = true
+            )
+        }
         val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null)
         return AttackResult(
             attacker = attacker,
@@ -585,6 +597,13 @@ class BattleSystem @Inject constructor() {
     }
 
     private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill): AttackResult {
+        if (BattleCalculator.checkInstantKill(attacker.realm, defender.realm)) {
+            return AttackResult(
+                attacker = attacker, target = defender,
+                damage = defender.maxHp, isCrit = false, isPhysical = true,
+                isDodged = false, isInstantKill = true, skillName = skill.name
+            )
+        }
         val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill)
         return AttackResult(
             attacker = attacker,
@@ -775,6 +794,7 @@ data class AttackResult(
     val isCrit: Boolean,
     val isPhysical: Boolean,
     val isDodged: Boolean = false,
+    val isInstantKill: Boolean = false,
     val skillName: String? = null,
     val hits: Int = 1,
     val isSupport: Boolean = false,
@@ -817,6 +837,7 @@ data class BattleActionData(
     val damageType: String = "",
     val isCrit: Boolean = false,
     val isKill: Boolean = false,
+    val isInstantKill: Boolean = false,
     val message: String = "",
     val skillName: String? = null
 )

@@ -607,6 +607,18 @@ object AISectAttackManager {
         alliesIndexMap: Map<String, Int>,
         enemiesIndexMap: Map<String, Int>
     ) {
+        if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+            val targetIdx = enemiesIndexMap[target.id]
+            if (targetIdx != null && targetIdx < enemies.size) {
+                enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
+            }
+            val combatantIdx = alliesIndexMap[attacker.id]
+            if (combatantIdx != null && combatantIdx < allies.size) {
+                allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
+            }
+            return
+        }
+
         val result = BattleCalculator.calculateCombatantDamage(attacker, target, null)
 
         if (result.isDodged) {
@@ -638,6 +650,18 @@ object AISectAttackManager {
         alliesIndexMap: Map<String, Int>,
         enemiesIndexMap: Map<String, Int>
     ) {
+        if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+            val targetIdx = enemiesIndexMap[target.id]
+            if (targetIdx != null && targetIdx < enemies.size) {
+                enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
+            }
+            val combatantIdx = alliesIndexMap[attacker.id]
+            if (combatantIdx != null && combatantIdx < allies.size) {
+                allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
+            }
+            return
+        }
+
         val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill)
 
         if (result.isDodged) {
@@ -678,6 +702,14 @@ object AISectAttackManager {
     ) {
         for (target in targets) {
             if (target.isDead) continue
+
+            if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+                val targetIdx = enemiesIndexMap[target.id]
+                if (targetIdx != null && targetIdx < enemies.size) {
+                    enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
+                }
+                continue
+            }
 
             val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill)
 

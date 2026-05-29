@@ -380,4 +380,8 @@ object BattleCalculator {
             .filter { it.remainingDuration > 0 }
         return combatant.copy(buffs = newBuffs)
     }
+
+    fun checkInstantKill(attackerRealm: Int, defenderRealm: Int): Boolean {
+        return defenderRealm - attackerRealm >= GameConfig.Battle.RealmGap.INSTANT_KILL_GAP
+    }
 }
