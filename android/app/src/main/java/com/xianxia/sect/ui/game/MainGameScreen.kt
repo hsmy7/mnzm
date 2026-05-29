@@ -225,32 +225,61 @@ fun MainGameScreen(
         data
     }
 
-    // 建筑放置后清除下方装饰（修改 rawTileData + 修补 fullMapBmp）
     val clearedDecorationCells = remember { mutableSetOf<Long>() }
     LaunchedEffect(activeSectBuildings) {
         val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
         val fullBmp = fullMapBmp.asAndroidBitmap()
         val canvas = android.graphics.Canvas(fullBmp)
+
+        val buildingCells = mutableSetOf<Long>()
         for (b in activeSectBuildings) {
             for (cx in b.gridX until b.gridX + b.width) {
                 for (cy in b.gridY until b.gridY + b.height) {
                     if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
-                        val cellKey = (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF)
-                        if (cellKey !in clearedDecorationCells) {
-                            clearedDecorationCells.add(cellKey)
-                            rawTileData[cy][cx] = TILE_GROUND
-                            val srcRect = android.graphics.Rect(
-                                cx * tileSize, cy * tileSize,
-                                (cx + 1) * tileSize, (cy + 1) * tileSize
-                            )
-                            val dstRect = android.graphics.Rect(
-                                cx * tileSize, cy * tileSize,
-                                (cx + 1) * tileSize, (cy + 1) * tileSize
-                            )
-                            canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
+                        buildingCells.add((cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
+                    }
+                }
+            }
+        }
+
+        val cellsToClear = mutableSetOf<Long>()
+        cellsToClear.addAll(buildingCells)
+
+        for (cellKey in buildingCells) {
+            val bx = (cellKey shr 32).toInt()
+            val by = (cellKey and 0xFFFF_FFFF).toInt()
+            for (dx in -1..1) {
+                for (dy in -1..1) {
+                    val tx = bx + dx
+                    val ty = by + dy
+                    if (ty in rawTileData.indices && tx in rawTileData[ty].indices && rawTileData[ty][tx] == TILE_TREE) {
+                        for (ex in tx - 1..tx + 1) {
+                            for (ey in ty - 1..ty + 1) {
+                                if (ey in rawTileData.indices && ex in rawTileData[ey].indices) {
+                                    cellsToClear.add((ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
+                                }
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        for (cellKey in cellsToClear) {
+            if (cellKey !in clearedDecorationCells) {
+                clearedDecorationCells.add(cellKey)
+                val cx = (cellKey shr 32).toInt()
+                val cy = (cellKey and 0xFFFF_FFFF).toInt()
+                rawTileData[cy][cx] = TILE_GROUND
+                val srcRect = android.graphics.Rect(
+                    cx * tileSize, cy * tileSize,
+                    (cx + 1) * tileSize, (cy + 1) * tileSize
+                )
+                val dstRect = android.graphics.Rect(
+                    cx * tileSize, cy * tileSize,
+                    (cx + 1) * tileSize, (cy + 1) * tileSize
+                )
+                canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
             }
         }
     }
