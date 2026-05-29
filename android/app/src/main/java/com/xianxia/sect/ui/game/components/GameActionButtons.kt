@@ -15,21 +15,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHostController
 import com.xianxia.sect.R
-import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.navigation.DialogRoute
 
-/**
- * Floating action buttons overlay -- top-right corner of the main game screen.
- * Contains navigation buttons for all major game features (log, merchant, recruit,
- * build, warehouse, settings, disciples, world map, diplomacy, planting).
- *
- * Expected to be placed inside a [androidx.compose.foundation.layout.Box] -- the
- * caller should provide [Modifier.align] (e.g. [Alignment.TopEnd]) via [modifier].
- */
 @Composable
 fun GameActionButtons(
-    dialogNavController: NavHostController,
+    viewModel: GameViewModel,
     buildingBarExpanded: Boolean,
     onToggleBuildingBar: () -> Unit,
     onCancelPlacement: () -> Unit,
@@ -45,15 +37,15 @@ fun GameActionButtons(
             FloatingActionButton(
                 text = "日志",
                 drawableRes = R.drawable.ui_log_button
-            ) { dialogNavController.navigate(GameRoute.BattleLog.route) }
+            ) { viewModel.navigateToDialog(DialogRoute.BattleLog) }
             FloatingActionButton(
                 text = "商人",
                 drawableRes = R.drawable.ui_merchant_button
-            ) { dialogNavController.navigate(GameRoute.Merchant.route) }
+            ) { viewModel.navigateToDialog(DialogRoute.Merchant) }
             FloatingActionButton(
                 text = "招募",
                 drawableRes = R.drawable.ui_recruit_button
-            ) { dialogNavController.navigate(GameRoute.Recruit.route) }
+            ) { viewModel.navigateToDialog(DialogRoute.Recruit) }
             FloatingActionButton(
                 text = "建造",
                 drawableRes = R.drawable.ui_build_button
@@ -61,35 +53,31 @@ fun GameActionButtons(
             FloatingActionButton(
                 text = "仓库",
                 drawableRes = R.drawable.ui_warehouse_button
-            ) { dialogNavController.navigate(GameRoute.Warehouse.route) }
+            ) { viewModel.navigateToDialog(DialogRoute.Warehouse) }
             FloatingActionButton(
                 text = "设置",
                 drawableRes = R.drawable.ui_settings_button
-            ) { dialogNavController.navigate(GameRoute.Settings.route) }
+            ) { viewModel.navigateToDialog(DialogRoute.Settings) }
         }
         FloatingActionButton(
             text = "弟子",
             drawableRes = R.drawable.ui_team_button
-        ) { dialogNavController.navigate(GameRoute.Disciples.route) }
+        ) { viewModel.navigateToDialog(DialogRoute.Disciples) }
         FloatingActionButton(
             text = "世界",
             drawableRes = R.drawable.ui_map_button
-        ) { dialogNavController.navigate(GameRoute.WorldMap.route) }
+        ) { viewModel.navigateToDialog(DialogRoute.WorldMap) }
         FloatingActionButton(
             text = "外交",
             drawableRes = R.drawable.ui_diplomacy_button
-        ) { dialogNavController.navigate(GameRoute.Diplomacy.route) }
+        ) { viewModel.navigateToDialog(DialogRoute.Diplomacy) }
         FloatingActionButton(
             text = "种植",
             drawableRes = R.drawable.ui_planting_button
-        ) { dialogNavController.navigate(GameRoute.Planting.route) }
+        ) { viewModel.navigateToDialog(DialogRoute.Planting) }
     }
 }
 
-/**
- * Small circular icon button with a text label at the bottom.
- * Sized at 35dp with a circular clip and clickable overlay.
- */
 @Composable
 private fun FloatingActionButton(
     text: String,

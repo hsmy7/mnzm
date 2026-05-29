@@ -48,3 +48,66 @@ sealed class GameRoute(val route: String) {
     // Misc
     object GameOver : GameRoute("game_over")
 }
+
+sealed class DialogRoute {
+    object None : DialogRoute()
+
+    object Disciples : DialogRoute()
+    object Warehouse : DialogRoute()
+    object Settings : DialogRoute()
+    object Buildings : DialogRoute()
+
+    object Recruit : DialogRoute()
+    object Diplomacy : DialogRoute()
+    object Planting : DialogRoute()
+    object Merchant : DialogRoute()
+    object SalaryConfig : DialogRoute()
+    object WorldMap : DialogRoute()
+    object BattleLog : DialogRoute()
+
+    data class SpiritMine(val buildingInstanceId: String) : DialogRoute()
+    object HerbGarden : DialogRoute()
+    data class Alchemy(val buildingInstanceId: String) : DialogRoute()
+    data class Forge(val buildingInstanceId: String) : DialogRoute()
+    object Library : DialogRoute()
+    object WenDaoPeak : DialogRoute()
+    object QingyunPeak : DialogRoute()
+    object TianshuHall : DialogRoute()
+    object LawEnforcementHall : DialogRoute()
+    object MissionHall : DialogRoute()
+    object ReflectionCliff : DialogRoute()
+    data class PatrolTower(val buildingInstanceId: String) : DialogRoute()
+    data class Residence(val buildingInstanceId: String) : DialogRoute()
+    data class WarehouseBuilding(val buildingInstanceId: String) : DialogRoute()
+    object GameOver : DialogRoute()
+}
+
+fun GameRoute.toDialogRoute(buildingInstanceId: String = ""): DialogRoute = when (this) {
+    GameRoute.Disciples -> DialogRoute.Disciples
+    GameRoute.Warehouse -> DialogRoute.Warehouse
+    GameRoute.Settings -> DialogRoute.Settings
+    GameRoute.Buildings -> DialogRoute.Buildings
+    GameRoute.Recruit -> DialogRoute.Recruit
+    GameRoute.Diplomacy -> DialogRoute.Diplomacy
+    GameRoute.Planting -> DialogRoute.Planting
+    GameRoute.Merchant -> DialogRoute.Merchant
+    GameRoute.SalaryConfig -> DialogRoute.SalaryConfig
+    GameRoute.WorldMap -> DialogRoute.WorldMap
+    GameRoute.BattleLog -> DialogRoute.BattleLog
+    GameRoute.SpiritMine -> DialogRoute.SpiritMine(buildingInstanceId)
+    GameRoute.HerbGarden -> DialogRoute.HerbGarden
+    GameRoute.Alchemy -> DialogRoute.Alchemy(buildingInstanceId)
+    GameRoute.Forge -> DialogRoute.Forge(buildingInstanceId)
+    GameRoute.Library -> DialogRoute.Library
+    GameRoute.WenDaoPeak -> DialogRoute.WenDaoPeak
+    GameRoute.QingyunPeak -> DialogRoute.QingyunPeak
+    GameRoute.TianshuHall -> DialogRoute.TianshuHall
+    GameRoute.LawEnforcementHall -> DialogRoute.LawEnforcementHall
+    GameRoute.MissionHall -> DialogRoute.MissionHall
+    GameRoute.ReflectionCliff -> DialogRoute.ReflectionCliff
+    GameRoute.PatrolTower -> DialogRoute.PatrolTower(buildingInstanceId)
+    GameRoute.Residence -> DialogRoute.Residence(buildingInstanceId)
+    GameRoute.WarehouseBuilding -> DialogRoute.WarehouseBuilding(buildingInstanceId)
+    GameRoute.GameOver -> DialogRoute.GameOver
+    GameRoute.BattleResult -> DialogRoute.None
+}

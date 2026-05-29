@@ -23,6 +23,7 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.ui.navigation.GameRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
@@ -61,6 +62,17 @@ class GameViewModel @Inject constructor(
     // null = pop one entry, non-null route = pop to that route (e.g. "empty" for root)
     private val _popBackEvents = Channel<String?>(Channel.CONFLATED)
     val popBackEvents: Flow<String?> = _popBackEvents.receiveAsFlow()
+
+    private val _currentDialogRoute = MutableStateFlow<DialogRoute>(DialogRoute.None)
+    val currentDialogRoute: StateFlow<DialogRoute> = _currentDialogRoute.asStateFlow()
+
+    fun navigateToDialog(route: DialogRoute) {
+        _currentDialogRoute.value = route
+    }
+
+    fun dismissDialog() {
+        _currentDialogRoute.value = DialogRoute.None
+    }
 
     init {
         viewModelScope.launch {

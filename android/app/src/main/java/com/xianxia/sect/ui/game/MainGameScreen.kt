@@ -43,7 +43,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
-import androidx.navigation.compose.rememberNavController
+import com.xianxia.sect.ui.navigation.DialogRoute
+import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.ui.navigation.toDialogRoute
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
@@ -57,7 +59,6 @@ import com.xianxia.sect.ui.game.map.rememberCameraState
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
 import com.xianxia.sect.ui.game.building.BuildingRegistry
@@ -127,18 +128,10 @@ fun MainGameScreen(
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
     val gameData by viewModel.gameDataUi.collectAsState()
-    // [M7-OPT-2] 弟子列表 - 高频变化（修炼进度每 tick 更新）
-    // 使用 derivedStateOf 缓存过滤结果，避免每次重组都重新计算
     val disciples by viewModel.discipleAggregates.collectAsState()
     val aliveDisciples = remember(disciples) {
         derivedStateOf { disciples.filter { it.isAlive } }
     }
-
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
 
     var screenWidthPx by remember { mutableFloatStateOf(0f) }
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
@@ -176,7 +169,6 @@ fun MainGameScreen(
         else activeSectBuildings
     }
 
-    val dialogNavController = rememberNavController()
     val tileSize = mapPreloadData.tileSize
     val worldPixelWidth = mapPreloadData.worldPixelWidth
     val worldPixelHeight = mapPreloadData.worldPixelHeight
@@ -274,44 +266,36 @@ fun MainGameScreen(
     val buildingList = remember {
         BuildingRegistry.constructible.map { def ->
             val handler: (GridBuildingData?) -> Unit = when (def) {
-                BuildingDef.SPIRIT_MINE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.SpiritMine.createRoute(it)) }; Unit }
-                BuildingDef.HERB_GARDEN -> { _ -> dialogNavController.navigate(GameRoute.HerbGarden.route) }
-                BuildingDef.SPIRIT_FIELD -> { _ -> dialogNavController.navigate(GameRoute.Planting.route) }
-                BuildingDef.ALCHEMY -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Alchemy.createRoute(it)) }; Unit }
-                BuildingDef.FORGE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Forge.createRoute(it)) }; Unit }
-                BuildingDef.LIBRARY -> { _ -> dialogNavController.navigate(GameRoute.Library.route) }
-                BuildingDef.WEN_DAO_PEAK -> { _ -> dialogNavController.navigate(GameRoute.WenDaoPeak.route) }
-                BuildingDef.QINGYUN_PEAK -> { _ -> dialogNavController.navigate(GameRoute.QingyunPeak.route) }
-                BuildingDef.TIANSHU_HALL -> { _ -> dialogNavController.navigate(GameRoute.TianshuHall.route) }
-                BuildingDef.LAW_ENFORCEMENT -> { _ -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) }
-                BuildingDef.MISSION_HALL -> { _ -> dialogNavController.navigate(GameRoute.MissionHall.route) }
-                BuildingDef.REFLECTION_CLIFF -> { _ -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
-                BuildingDef.PATROL_TOWER -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.PatrolTower.createRoute(it)) }; Unit }
-                BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
-                BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.WarehouseBuilding.createRoute(it)) }; Unit }
+                BuildingDef.SPIRIT_MINE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.SpiritMine(it)) }; Unit }
+                BuildingDef.HERB_GARDEN -> { _ -> viewModel.navigateToDialog(DialogRoute.HerbGarden) }
+                BuildingDef.SPIRIT_FIELD -> { _ -> viewModel.navigateToDialog(DialogRoute.Planting) }
+                BuildingDef.ALCHEMY -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Alchemy(it)) }; Unit }
+                BuildingDef.FORGE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Forge(it)) }; Unit }
+                BuildingDef.LIBRARY -> { _ -> viewModel.navigateToDialog(DialogRoute.Library) }
+                BuildingDef.WEN_DAO_PEAK -> { _ -> viewModel.navigateToDialog(DialogRoute.WenDaoPeak) }
+                BuildingDef.QINGYUN_PEAK -> { _ -> viewModel.navigateToDialog(DialogRoute.QingyunPeak) }
+                BuildingDef.TIANSHU_HALL -> { _ -> viewModel.navigateToDialog(DialogRoute.TianshuHall) }
+                BuildingDef.LAW_ENFORCEMENT -> { _ -> viewModel.navigateToDialog(DialogRoute.LawEnforcementHall) }
+                BuildingDef.MISSION_HALL -> { _ -> viewModel.navigateToDialog(DialogRoute.MissionHall) }
+                BuildingDef.REFLECTION_CLIFF -> { _ -> viewModel.navigateToDialog(DialogRoute.ReflectionCliff) }
+                BuildingDef.PATROL_TOWER -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.PatrolTower(it)) }; Unit }
+                BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Residence(it)) }; Unit }
+                BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.WarehouseBuilding(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
             }
             def.displayName to handler
         }
     }
 
-    // Navigation event collectors — ViewModel-triggered dialogs
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { route ->
-            dialogNavController.navigate(route.route)
-        }
-    }
-    LaunchedEffect(Unit) {
-        viewModel.popBackEvents.collect { route ->
-            if (route != null) dialogNavController.popBackStack(route, inclusive = false)
-            else dialogNavController.popBackStack()
+            viewModel.navigateToDialog(route.toDialogRoute())
         }
     }
 
-    // Dialog dismiss on NavHost back press: cancel building placement / moving / bar
-    LaunchedEffect(dialogNavController) {
-        dialogNavController.currentBackStackEntryFlow.collect {
-            if (it.destination.route != null) {
+    LaunchedEffect(Unit) {
+        viewModel.currentDialogRoute.collect { route ->
+            if (route !is DialogRoute.None) {
                 isPlacingBuilding = false
                 movingBuilding = null
                 buildingBarExpanded = false
@@ -326,8 +310,6 @@ fun MainGameScreen(
             cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
         }
     }
-    val battleLogs by viewModel.battleLogs.collectAsState()
-
     val isGameOver by viewModel.isGameOver.collectAsState()
 
     LaunchedEffect(isGameOver) {
@@ -377,10 +359,10 @@ fun MainGameScreen(
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
             buildingList = buildingList,
-            onSpiritMineClick = { instanceId -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(instanceId)) },
-            onAlchemyClick = { instanceId -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(instanceId)) },
-            onForgeClick = { instanceId -> dialogNavController.navigate(GameRoute.Forge.createRoute(instanceId)) },
-            onResidenceClick = { instanceId -> dialogNavController.navigate(GameRoute.Residence.createRoute(instanceId)) },
+            onSpiritMineClick = { instanceId -> viewModel.navigateToDialog(DialogRoute.SpiritMine(instanceId)) },
+            onAlchemyClick = { instanceId -> viewModel.navigateToDialog(DialogRoute.Alchemy(instanceId)) },
+            onForgeClick = { instanceId -> viewModel.navigateToDialog(DialogRoute.Forge(instanceId)) },
+            onResidenceClick = { instanceId -> viewModel.navigateToDialog(DialogRoute.Residence(instanceId)) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx
                 placingWorldY += dy
@@ -491,7 +473,7 @@ fun MainGameScreen(
             )
 
             GameActionButtons(
-                dialogNavController = dialogNavController,
+                viewModel = viewModel,
                 buildingBarExpanded = buildingBarExpanded,
                 onToggleBuildingBar = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null },
                 onCancelPlacement = { isPlacingBuilding = false; movingBuilding = null },
@@ -538,17 +520,7 @@ fun MainGameScreen(
 
         // Dialog overlay — extracted to GameOverlayHost
         GameOverlayHost(
-            dialogNavController = dialogNavController,
             viewModel = viewModel,
-            gameData = gameData,
-            disciples = disciples,
-            equipment = equipment,
-            manuals = manuals,
-            manualStacks = manualStacks,
-            equipmentStacks = equipmentStacks,
-            seeds = seeds,
-            activeSectId = gameData.activeSectId,
-            activeSectBuildings = activeSectBuildings,
             saveLoadViewModel = saveLoadViewModel,
             productionViewModel = productionViewModel,
             alchemyViewModel = alchemyViewModel,
@@ -558,7 +530,6 @@ fun MainGameScreen(
             patrolTowerViewModel = patrolTowerViewModel,
             worldMapViewModel = worldMapViewModel,
             battleViewModel = battleViewModel,
-            battleLogs = battleLogs,
             onLogout = onLogout,
             onRestartGame = onRestartGame,
             limitAdTracking = limitAdTracking,
