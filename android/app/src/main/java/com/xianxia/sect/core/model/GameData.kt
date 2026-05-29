@@ -219,6 +219,16 @@ data class GameData(
     // 巡视楼战斗后展示结算弹窗
     var patrolBattleResultPopup: Boolean = false,
 
+    // 弟子管理：突破自动使用仓库丹药
+    var breakthroughAutoPillFocused: Boolean = false,
+    var breakthroughAutoPillRootCounts: Set<Int> = emptySet(),
+    // 弟子管理：自动装备仓库装备
+    var autoEquipFromWarehouseFocused: Boolean = false,
+    var autoEquipFromWarehouseRootCounts: Set<Int> = emptySet(),
+    // 弟子管理：自动学习仓库功法
+    var autoLearnFromWarehouseFocused: Boolean = false,
+    var autoLearnFromWarehouseRootCounts: Set<Int> = emptySet(),
+
     var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"

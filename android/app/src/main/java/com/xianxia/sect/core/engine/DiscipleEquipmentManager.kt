@@ -202,7 +202,15 @@ object DiscipleEquipmentManager {
                 !stack.isLocked
             }
 
-            val bestStack = candidates.maxByOrNull { it.rarity } ?: return@forEach
+            // 比较攻击力偏好：物攻高优先物攻装备，法攻高优先法攻装备
+            val prefersPhysical = disciple.basePhysicalAttack >= disciple.baseMagicAttack
+            val bestStack = candidates.maxWithOrNull(
+                compareBy<EquipmentStack> { stack ->
+                    if (prefersPhysical && stack.physicalAttack > 0) 1
+                    else if (!prefersPhysical && stack.magicAttack > 0) 1
+                    else 0
+                }.thenBy { it.rarity }
+            ) ?: return@forEach
 
             val instanceId = java.util.UUID.randomUUID().toString()
             val newInstance = bestStack.toInstance(id = instanceId, ownerId = disciple.id, isEquipped = true)

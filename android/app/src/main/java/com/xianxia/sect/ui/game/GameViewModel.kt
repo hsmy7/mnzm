@@ -530,6 +530,24 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(breakthroughAutoPillFocused = focused, breakthroughAutoPillRootCounts = rootCounts) }
+        }
+    }
+
+    fun setAutoEquipSettings(focused: Boolean, rootCounts: Set<Int>) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(autoEquipFromWarehouseFocused = focused, autoEquipFromWarehouseRootCounts = rootCounts) }
+        }
+    }
+
+    fun setAutoLearnSettings(focused: Boolean, rootCounts: Set<Int>) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(autoLearnFromWarehouseFocused = focused, autoLearnFromWarehouseRootCounts = rootCounts) }
+        }
+    }
+
     fun setPatrolBattleResultPopup(enabled: Boolean) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) }

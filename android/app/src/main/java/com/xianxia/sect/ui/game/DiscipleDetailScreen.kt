@@ -285,8 +285,6 @@ fun DiscipleDetailDialog(
                                     armor = armor,
                                     boots = boots,
                                     accessory = accessory,
-                                    autoEquipFromWarehouse = disciple.autoEquipFromWarehouse,
-                                    onAutoEquipToggle = { viewModel?.toggleAutoEquipFromWarehouse(disciple.id, it) },
                                     onSlotClick = { slotType -> showEquipmentSelection = slotType },
                                     onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
                                 )
@@ -295,8 +293,6 @@ fun DiscipleDetailDialog(
                                     maxSlots = maxManualSlots,
                                     manualProficiencies = manualProficiencies,
                                     discipleId = disciple.id,
-                                    autoLearnFromWarehouse = disciple.autoLearnFromWarehouse,
-                                    onAutoLearnToggle = { viewModel?.toggleAutoLearnFromWarehouse(disciple.id, it) },
                                     onSlotClick = { showManualSelection = true },
                                     onManualClick = { manual -> showManualDetailDialog = manual }
                                 )
@@ -1611,43 +1607,18 @@ private fun EquipmentSection(
     armor: EquipmentInstance?,
     boots: EquipmentInstance?,
     accessory: EquipmentInstance?,
-    autoEquipFromWarehouse: Boolean = false,
-    onAutoEquipToggle: (Boolean) -> Unit = {},
     onSlotClick: (String) -> Unit,
     onEquipmentClick: (EquipmentInstance) -> Unit
 ) {
     val dismissDropdown = LocalDismissDropdown.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "装备",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "自动穿戴仓库装备",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
-            Spacer(Modifier.width(4.dp))
-            Checkbox(
-                checked = autoEquipFromWarehouse,
-                onCheckedChange = onAutoEquipToggle,
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape),
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Color(0xFF4CAF50),
-                    uncheckedColor = Color.Black
-                )
-            )
-        }
-        
+        Text(
+            text = "装备",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1716,43 +1687,18 @@ private fun ManualsSection(
     maxSlots: Int,
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     discipleId: String = "",
-    autoLearnFromWarehouse: Boolean = false,
-    onAutoLearnToggle: (Boolean) -> Unit = {},
     onSlotClick: () -> Unit,
     onManualClick: (ManualInstance) -> Unit
 ) {
     val dismissDropdown = LocalDismissDropdown.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "功法",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "自动学习仓库功法",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
-            Spacer(Modifier.width(4.dp))
-            Checkbox(
-                checked = autoLearnFromWarehouse,
-                onCheckedChange = onAutoLearnToggle,
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape),
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Color(0xFF4CAF50),
-                    uncheckedColor = Color.Black
-                )
-            )
-        }
-        
+        Text(
+            text = "功法",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
         val manualSlots = mutableListOf<ManualInstance?>()
         manuals.take(maxSlots).forEach { manualSlots.add(it) }
         while (manualSlots.size < maxSlots) manualSlots.add(null)

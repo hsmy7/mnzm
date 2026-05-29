@@ -308,7 +308,15 @@ object DiscipleManualManager {
             !(hasMindManual && stack.type == ManualType.MIND)
         }
 
-        val bestStack = candidates.maxByOrNull { it.rarity } ?: return ManualLearnResult(disciple, null, null, null, null, emptyList())
+        // 比较攻击力偏好：物攻高优先物理功法，法攻高优先魔法功法
+        val prefersPhysical = disciple.basePhysicalAttack >= disciple.baseMagicAttack
+        val bestStack = candidates.maxWithOrNull(
+            compareBy<ManualStack> { stack ->
+                if (prefersPhysical && stack.skillDamageType == "physical") 1
+                else if (!prefersPhysical && stack.skillDamageType != "physical") 1
+                else 0
+            }.thenBy { it.rarity }
+        ) ?: return ManualLearnResult(disciple, null, null, null, null, emptyList())
 
         val instanceId = java.util.UUID.randomUUID().toString()
         val newInstance = bestStack.toInstance(id = instanceId, ownerId = disciple.id, isLearned = true)

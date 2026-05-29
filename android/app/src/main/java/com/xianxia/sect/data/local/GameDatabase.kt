@@ -67,7 +67,7 @@ object GameDatabaseConfig {
         ArchivedBattleLog::class,
         ArchivedDisciple::class
     ],
-    version = 14
+    version = 15
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -425,6 +425,17 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillRootCounts TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -454,7 +465,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

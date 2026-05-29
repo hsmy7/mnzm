@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.56",
+            date = "2026-05-29",
+            changes = listOf(
+                "天枢殿→宗门管理新增「弟子管理」：可配置自动使用突破丹/装备/功法条件",
+                "自动使用突破丹：符合条件的弟子突破时优先消耗仓库突破丹（高品阶优先）",
+                "自动装备：符合条件的弟子每日自动穿戴仓库装备（优先匹配攻击属性方向）",
+                "自动学习功法：符合条件的弟子每日自动学习仓库功法（优先匹配攻击属性方向）",
+                "弟子详情界面移除自动穿戴/学习勾选框，统一由弟子管理界面控制"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.55",
             date = "2026-05-29",
             changes = listOf(

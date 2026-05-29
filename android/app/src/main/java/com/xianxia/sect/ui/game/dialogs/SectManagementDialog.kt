@@ -29,6 +29,7 @@ fun SectManagementDialog(
     onDismiss: () -> Unit
 ) {
     var showDaoCompanionManagement by remember { mutableStateOf(false) }
+    var showDiscipleManagement by remember { mutableStateOf(false) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -49,6 +50,12 @@ fun SectManagementDialog(
                 modifier = Modifier.width(ButtonSizes.StandardWidth)
             )
 
+            GameButton(
+                text = "弟子管理",
+                onClick = { showDiscipleManagement = true },
+                modifier = Modifier.width(ButtonSizes.StandardWidth)
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
@@ -58,6 +65,14 @@ fun SectManagementDialog(
             gameData = gameData,
             viewModel = viewModel,
             onDismiss = { showDaoCompanionManagement = false }
+        )
+    }
+
+    if (showDiscipleManagement) {
+        DiscipleManagementDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showDiscipleManagement = false }
         )
     }
 }

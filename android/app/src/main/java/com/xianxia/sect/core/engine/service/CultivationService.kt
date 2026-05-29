@@ -509,13 +509,36 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                 // 消耗突破丹：大境界突破用目标境界的丹，小境界突破用当前境界的丹
                 val pillTargetRealm = if (isMajorBreakthrough) newRealm - 1 else newRealm
-                val bestPill = newStorageItems
-                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
-                    .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
                 var pillBonus = 0.0
-                if (bestPill != null) {
-                    newStorageItems = newStorageItems - bestPill
-                    pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
+
+                // 先检查弟子管理设置：符合条件则从仓库消耗
+                val autoPill = qualifiesForSectAuto(
+                    disciple, currentGameData.breakthroughAutoPillFocused, currentGameData.breakthroughAutoPillRootCounts
+                )
+                if (autoPill) {
+                    val warehousePill = currentPills
+                        .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
+                        .maxByOrNull { it.effects.breakthroughChance }
+                    if (warehousePill != null) {
+                        val pillIndex = currentPills.indexOf(warehousePill)
+                        if (pillIndex >= 0) {
+                            val updatedPills = currentPills.toMutableList()
+                            updatedPills.removeAt(pillIndex)
+                            currentPills = updatedPills
+                            pillBonus = warehousePill.effects.breakthroughChance
+                        }
+                    }
+                }
+
+                // 仓库没有则从储物袋找
+                if (pillBonus == 0.0) {
+                    val bestPill = newStorageItems
+                        .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
+                        .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
+                    if (bestPill != null) {
+                        newStorageItems = newStorageItems - bestPill
+                        pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
+                    }
                 }
 
                 val success = tryBreakthrough(disciple, pillBonus)
@@ -563,6 +586,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val hp = if (disciple.combat.currentHp < 0) disciple.maxHp else disciple.combat.currentHp
         val mp = if (disciple.combat.currentMp < 0) disciple.maxMp else disciple.combat.currentMp
         return hp >= disciple.maxHp && mp >= disciple.maxMp
+    }
+
+    private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {
+        if (!focused && rootCounts.isEmpty()) return false
+        if (focused && disciple.statusData["followed"] == "true") return true
+        val rootCount = disciple.spiritRootType.split(",").size
+        return rootCount in rootCounts
     }
 
     private fun getLifespanGainForRealm(realm: Int): Int {
@@ -838,8 +868,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     private fun processAutoFromWarehouse(year: Int, month: Int, day: Int) {
         val allDisciples = currentDisciples.filter { it.isAlive }
-        val hasAutoEquip = allDisciples.any { it.equipment.autoEquipFromWarehouse }
-        val hasAutoLearn = allDisciples.any { it.autoLearnFromWarehouse }
+        val equipFocused = currentGameData.autoEquipFromWarehouseFocused
+        val equipRootCounts = currentGameData.autoEquipFromWarehouseRootCounts
+        val learnFocused = currentGameData.autoLearnFromWarehouseFocused
+        val learnRootCounts = currentGameData.autoLearnFromWarehouseRootCounts
+        val hasAutoEquip = equipFocused || equipRootCounts.isNotEmpty()
+        val hasAutoLearn = learnFocused || learnRootCounts.isNotEmpty()
 
         if (!hasAutoEquip && !hasAutoLearn) return
 
@@ -867,7 +901,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             if (!disciple.isAlive) continue
             var updatedDisciple = disciple
 
-            if (disciple.equipment.autoEquipFromWarehouse) {
+            if (qualifiesForSectAuto(disciple, equipFocused, equipRootCounts)) {
                 val result = DiscipleEquipmentManager.processAutoEquipFromWarehouse(
                     disciple = updatedDisciple,
                     warehouseStacks = eqStacks,
@@ -893,7 +927,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 }
             }
 
-            if (disciple.autoLearnFromWarehouse) {
+            if (qualifiesForSectAuto(disciple, learnFocused, learnRootCounts)) {
                 val result = DiscipleManualManager.processAutoLearnFromWarehouse(
                     disciple = updatedDisciple,
                     warehouseStacks = mnStacks,
