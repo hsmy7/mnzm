@@ -110,10 +110,15 @@ object PillRecipeDatabase {
         }
 
         val breakthroughData = listOf(
+            Pair(1, listOf(Pair(9, "聚气丹"))),
             Pair(2, listOf(Pair(8, "筑基丹"), Pair(7, "凝金丹"), Pair(6, "结婴丹"))),
             Pair(3, listOf(Pair(5, "化神丹"), Pair(4, "破虚丹"))),
             Pair(5, listOf(Pair(3, "合道丹"))),
             Pair(6, listOf(Pair(2, "大乘丹"), Pair(1, "渡劫丹"), Pair(0, "登仙丹")))
+        )
+
+        val explicitBreakthroughMaterials = mapOf(
+            9 to mapOf("spiritGrass2" to 2, "spiritFruit2" to 2)  // 聚气丹：清心草×2 + 赤心果×2
         )
 
         for ((tier, targets) in breakthroughData) {
@@ -123,7 +128,8 @@ object PillRecipeDatabase {
             val herbs = TIER_HERB_IDS[tier]!!
             for ((idx, targetData) in targets.withIndex()) {
                 val (targetRealm, _) = targetData
-                val materials = mapOf(herbs[idx * 2 % herbs.size] to 2, herbs[(idx * 2 + 3) % herbs.size] to 2)
+                val materials = explicitBreakthroughMaterials[targetRealm]
+                    ?: mapOf(herbs[idx * 2 % herbs.size] to 2, herbs[(idx * 2 + 3) % herbs.size] to 2)
                 if (tier >= 3) {
                     (materials as MutableMap)[herbs[(idx * 2 + 5) % herbs.size]] = 2
                 }

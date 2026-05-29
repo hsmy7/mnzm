@@ -206,6 +206,7 @@ object ItemDatabase {
         }
 
         val breakthroughData = listOf(
+            Pair(1, listOf(Triple(9, "聚气丹", false))),
             Pair(2, listOf(Triple(8, "筑基丹", false), Triple(7, "凝金丹", false), Triple(6, "结婴丹", false))),
             Pair(3, listOf(Triple(5, "化神丹", false), Triple(4, "破虚丹", false))),
             Pair(5, listOf(Triple(3, "合道丹", false))),

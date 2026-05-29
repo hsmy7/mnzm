@@ -507,9 +507,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
 
-                // 消耗突破丹：从储物袋找 targetRealm 匹配的、breakthroughChance 最高的一颗
+                // 消耗突破丹：大境界突破用目标境界的丹，小境界突破用当前境界的丹
+                val pillTargetRealm = if (isMajorBreakthrough) newRealm - 1 else newRealm
                 val bestPill = newStorageItems
-                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == newRealm }
+                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
                     .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
                 var pillBonus = 0.0
                 if (bestPill != null) {

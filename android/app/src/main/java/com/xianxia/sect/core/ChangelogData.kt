@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.55",
+            date = "2026-05-29",
+            changes = listOf(
+                "新增凡品突破丹「聚气丹」：炼气期小层突破使用，商人/宗门交易/炼丹均可获取",
+                "突破丹逻辑修正：大境界突破使用目标境界丹药（如炼气→筑基用筑基丹、筑基→金丹用凝金丹）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.54",
             date = "2026-05-29",
             changes = listOf(
