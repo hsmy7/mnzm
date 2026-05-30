@@ -54,6 +54,8 @@ class GameViewModel @Inject constructor(
         private const val TAG = "GameViewModel"
     }
 
+    private var focusedRefreshJob: Job? = null
+
     // Navigation events — emitted by ViewModel for code-triggered dialogs (GameOver, etc.)
     private val _navigationEvents = Channel<GameRoute>(Channel.BUFFERED)
     val navigationEvents: Flow<GameRoute> = _navigationEvents.receiveAsFlow()
@@ -402,9 +404,18 @@ class GameViewModel @Inject constructor(
         _detailDisciple.value = request
         gameEngine.setFocusedDiscipleId(request.disciple.id)
         pushOverlay(TopOverlay.DISCIPLE_DETAIL)
+        focusedRefreshJob?.cancel()
+        focusedRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                gameEngine.updateFocusedDisciple(request.disciple.id)
+                delay(200)
+            }
+        }
     }
 
     fun dismissDiscipleDetail() {
+        focusedRefreshJob?.cancel()
+        focusedRefreshJob = null
         _detailDisciple.value = null
         gameEngine.setFocusedDiscipleId(null)
         popOverlay(TopOverlay.DISCIPLE_DETAIL)

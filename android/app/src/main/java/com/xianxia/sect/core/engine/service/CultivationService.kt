@@ -244,6 +244,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     override suspend fun onMonthTick(state: MutableGameState) {
         val data = state.gameData
         processMonthlyEvents(data.gameYear, data.gameMonth)
+        updateMonthlyCultivation(state)
+        processMonthlyBreakthroughs(state)
     }
 
     override suspend fun onYearTick(state: MutableGameState) {
@@ -258,159 +260,128 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * Update realtime cultivation data
+     * 月度批量修炼更新 — 遍历全体弟子，一次性补齐整月修炼进度
      */
-    fun updateRealtimeCultivation(currentTimeMillis: Long, state: MutableGameState? = null) {
-        val data = state?.gameData ?: currentGameData
+    fun updateMonthlyCultivation(state: MutableGameState) {
+        val data = state.gameData
+        val livingDisciples = state.disciples.filter { it.isAlive }
+        if (livingDisciples.isEmpty()) return
+
+        val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
+        val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
+        val manualInstanceMap = state.manualInstances.associateBy { it.id }
+        var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
+        val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
+
+        val updatedDisciples = state.disciples.map { disciple ->
+            if (!disciple.isAlive) return@map disciple
+
+            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
+            val gained = cultivationPerSecond * monthSeconds
+            var d = disciple.copy(cultivation = (disciple.cultivation + gained).coerceIn(0.0, disciple.maxCultivation))
+
+            // 功法精通
+            val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
+            val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+            val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
+            val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * monthSeconds
+            d.manualIds.forEach { manualId ->
+                manualInstanceMap[manualId]?.let { manual ->
+                    val profList = updatedManualProficiencies.getOrDefault(d.id, emptyList()).toMutableList()
+                    val profIndex = profList.indexOfFirst { it.manualId == manualId }
+                    if (profIndex >= 0) {
+                        val cp = profList[profIndex]
+                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGain).coerceAtMost(cp.maxProficiency.toDouble()))
+                    } else {
+                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGain.coerceAtMost(100.0)))
+                    }
+                    updatedManualProficiencies[d.id] = profList
+                }
+            }
+
+            // 装备孕养
+            val nurtureGain = 5.0 * monthSeconds
+            d.equipment.weaponId?.let { eqId ->
+                equipmentInstanceMap[eqId]?.let { eq ->
+                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
+                }
+            }
+            d.equipment.armorId?.let { eqId ->
+                equipmentInstanceMap[eqId]?.let { eq ->
+                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
+                }
+            }
+            d.equipment.bootsId?.let { eqId ->
+                equipmentInstanceMap[eqId]?.let { eq ->
+                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
+                }
+            }
+            d.equipment.accessoryId?.let { eqId ->
+                equipmentInstanceMap[eqId]?.let { eq ->
+                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
+                }
+            }
+            d
+        }
+
+        state.disciples = updatedDisciples
+        if (equipmentInstanceUpdates.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
+        }
+        if (updatedManualProficiencies != data.manualProficiencies) {
+            state.gameData = data.copy(manualProficiencies = updatedManualProficiencies)
+        }
+
+        _highFrequencyData.value = _highFrequencyData.value.copy(
+            lastUpdateTime = System.currentTimeMillis(),
+            totalDisciples = livingDisciples.size
+        )
+    }
+
+    /**
+     * 月度突破检查 — 遍历全体弟子
+     */
+    fun processMonthlyBreakthroughs(state: MutableGameState) {
+        val data = state.gameData
+        val livingDisciples = state.disciples.filter { it.isAlive }
+        processRealtimeBreakthroughs(livingDisciples, data)
+    }
+
+    /**
+     * 焦点弟子高频刷新（200ms） — 玩家查看弟子详情时调用
+     * 仅更新该弟子的修炼进度和突破检查
+     */
+    fun updateFocusedDisciple(discipleId: String, state: MutableGameState) {
+        val data = state.gameData
+        val allDisciples = state.disciples
+        val disciple = allDisciples.find { it.id == discipleId && it.isAlive } ?: return
 
         val currentHfd = _highFrequencyData.value
-        val lastUpdateTime = currentHfd.lastUpdateTime
+        val now = System.currentTimeMillis()
+        val lastCultTime = if (currentHfd.lastCultivationTime > 0) currentHfd.lastCultivationTime else now
+        val elapsedSeconds = ((now - lastCultTime).coerceAtMost(2000)).toDouble() / 1000.0
 
-        if (lastUpdateTime <= 0) {
-            _highFrequencyData.value = currentHfd.copy(
-                lastUpdateTime = currentTimeMillis,
-                lastCultivationTime = currentTimeMillis
-            )
-            return
+        val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
+        val gained = cultivationPerSecond * elapsedSeconds
+
+        state.disciples = allDisciples.map { d ->
+            if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
+            else d
         }
 
-        val elapsedMillis = currentTimeMillis - lastUpdateTime
-        if (elapsedMillis < 1000) {
-            // 焦点弟子快速更新（200ms），仅当玩家打开弟子详情时
-            val focusedId = stateStore.focusedDiscipleId ?: return
-            val disciples = state?.disciples ?: currentDisciples
-            val focusedDisciple = disciples.find { it.id == focusedId && it.isAlive } ?: return
-            val elapsedSinceLastCult = ((currentTimeMillis - currentHfd.lastCultivationTime).coerceAtMost(2000)).toDouble() / 1000.0
-            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(focusedDisciple, data)
-            val gained = cultivationPerSecond * elapsedSinceLastCult
-            state?.let {
-                it.disciples = it.disciples.map { d ->
-                    if (d.id == focusedId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
-                    else d
-                }
-            }
-            _highFrequencyData.value = currentHfd.copy(lastCultivationTime = currentTimeMillis)
-            return
+        _highFrequencyData.value = currentHfd.copy(
+            lastCultivationTime = now,
+            cultivationPerSecond = cultivationPerSecond,
+            totalDisciples = allDisciples.count { it.isAlive }
+        )
+
+        // 突破检查
+        val updatedDisciple = state.disciples.find { it.id == discipleId } ?: return
+        if (updatedDisciple.cultivation >= updatedDisciple.maxCultivation && isDiscipleFullHpMp(updatedDisciple)) {
+            processRealtimeBreakthroughs(listOf(updatedDisciple), data)
         }
-
-        val elapsedSeconds = elapsedMillis / 1000.0
-        val gameSpeed = 1.0
-
-        val livingDisciples = (state?.disciples ?: currentDisciples).filter { it.isAlive }
-
-        if (livingDisciples.isEmpty()) {
-            _highFrequencyData.value = currentHfd.copy(lastUpdateTime = currentTimeMillis)
-            return
-        }
-        
-        val cultivationUpdates = mutableMapOf<String, Double>()
-        val gainMap = mutableMapOf<String, Double>()
-        
-        val equipmentInstanceMap = (state?.equipmentInstances ?: currentEquipmentInstances).associateBy { it.id }
-        val manualInstanceMap = (state?.manualInstances ?: currentManualInstances).associateBy { it.id }
-
-            livingDisciples.forEach { disciple ->
-                val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
-                val adjustedCultivationPerSecond = cultivationPerSecond * gameSpeed
-                val gainedCultivation = adjustedCultivationPerSecond * elapsedSeconds
-                
-                val newCultivation = disciple.cultivation + gainedCultivation
-                
-                gainMap[disciple.id] = gainedCultivation
-                cultivationUpdates[disciple.id] = newCultivation
-            }
-
-            var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-            val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
-            val updatedDisciples = (state?.disciples ?: currentDisciples).map { disciple ->
-                gainMap[disciple.id]?.let { gain ->
-                    var d = disciple.copy(cultivation = (disciple.cultivation + gain).coerceIn(0.0, disciple.maxCultivation))
-
-                    val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
-                    val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-                    val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
-                    val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * elapsedSeconds
-                    d.manualIds.forEach { manualId ->
-                        val manual = manualInstanceMap[manualId] ?: return@forEach
-                        val proficiencyList = updatedManualProficiencies.getOrPut(disciple.id) { mutableListOf<ManualProficiencyData>() } as MutableList<ManualProficiencyData>
-                        val existingIndex = proficiencyList.indexOfFirst { it.manualId == manualId }
-                        val existing = if (existingIndex >= 0) proficiencyList[existingIndex] else null
-                        val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity)
-                        val newProficiency = if (existing != null) {
-                            (existing.proficiency + proficiencyGain).coerceAtMost(maxProf)
-                        } else {
-                            proficiencyGain.coerceAtMost(maxProf)
-                        }
-                        val newMasteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProficiency, manual.rarity).level
-                        val updated = ManualProficiencyData(
-                            manualId = manualId,
-                            manualName = manual.name,
-                            proficiency = newProficiency,
-                            maxProficiency = maxProf.toInt(),
-                            level = newMasteryLevel,
-                            masteryLevel = newMasteryLevel
-                        )
-                        if (existingIndex >= 0) {
-                            proficiencyList[existingIndex] = updated
-                        } else {
-                            proficiencyList.add(updated)
-                        }
-                    }
-
-                    val nurtureGain = 5.0 * elapsedSeconds
-
-                    d.equipment.weaponId?.let { eqId ->
-                        val eq = equipmentInstanceMap[eqId] ?: return@let
-                        val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentInstanceUpdates[eqId] = result.equipment
-                    }
-                    d.equipment.armorId?.let { eqId ->
-                        val eq = equipmentInstanceMap[eqId] ?: return@let
-                        val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentInstanceUpdates[eqId] = result.equipment
-                    }
-                    d.equipment.bootsId?.let { eqId ->
-                        val eq = equipmentInstanceMap[eqId] ?: return@let
-                        val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentInstanceUpdates[eqId] = result.equipment
-                    }
-                    d.equipment.accessoryId?.let { eqId ->
-                        val eq = equipmentInstanceMap[eqId] ?: return@let
-                        val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentInstanceUpdates[eqId] = result.equipment
-                    }
-
-                    d
-                } ?: disciple
-            }
-
-            if (state != null) state.disciples = updatedDisciples else currentDisciples = updatedDisciples
-            if (equipmentInstanceUpdates.isNotEmpty()) {
-                if (state != null) {
-                    state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
-                } else {
-                    currentEquipmentInstances = currentEquipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
-                }
-            }
-            if (updatedManualProficiencies != data.manualProficiencies) {
-                val updatedData = data.copy(manualProficiencies = updatedManualProficiencies)
-                if (state != null) state.gameData = updatedData else currentGameData = updatedData
-            }
-            
-            val totalCultivationPerSecond = livingDisciples.sumOf { disciple ->
-                calculateDiscipleCultivationPerSecond(disciple, data)
-            }
-
-            _highFrequencyData.value = currentHfd.copy(
-                lastUpdateTime = currentTimeMillis,
-                cultivationPerSecond = totalCultivationPerSecond * gameSpeed,
-                totalDisciples = livingDisciples.size,
-                cultivationUpdates = cultivationUpdates,
-                realtimeCultivation = cultivationUpdates
-            )
-
-            processRealtimeBreakthroughs((state?.disciples ?: currentDisciples).filter { it.isAlive }, data)
     }
+
 
     /**
      * Calculate cultivation gain per second for a disciple

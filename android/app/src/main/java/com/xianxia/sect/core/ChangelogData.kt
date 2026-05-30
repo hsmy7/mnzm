@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.77",
+            date = "2026-05-31",
+            changes = listOf(
+                "修炼计算改为月度批量处理（一月一次），突破检查同步移至月度tick",
+                "玩家查看弟子详情时启动200ms高频刷新协程，实时更新该弟子修炼进度和突破",
+                "AI弟子修炼和突破一月一次批量处理",
+                "删除已停用的updateRealtimeCultivation/processSecondTick死代码"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.76",
             date = "2026-05-31",
             changes = listOf(

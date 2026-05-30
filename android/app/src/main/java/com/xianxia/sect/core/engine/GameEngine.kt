@@ -343,9 +343,6 @@ class GameEngine @Inject constructor(
         }
     }
 
-    suspend fun updateRealtimeCultivation(currentTimeMillis: Long) =
-        cultivationService.updateRealtimeCultivation(currentTimeMillis)
-
     fun addEquipmentStack(stack: EquipmentStack) = inventorySystem.addEquipmentStack(stack)
 
     fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
@@ -975,8 +972,10 @@ class GameEngine @Inject constructor(
         }
     }
 
-    suspend fun processSecondTick() {
-        cultivationService.updateRealtimeCultivation(System.currentTimeMillis())
+    suspend fun updateFocusedDisciple(discipleId: String) {
+        stateStore.update {
+            cultivationService.updateFocusedDisciple(discipleId, this)
+        }
     }
 
     fun resetCultivationTimer() {
