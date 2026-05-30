@@ -433,7 +433,7 @@ class SaveDataConverter @Inject constructor() {
             grade = data.grade.takeIf { it.isNotEmpty() },
             forgetYear = data.forgetYear.takeIf { it > 0 },
             forgetMonth = data.forgetMonth.takeIf { it > 0 },
-            forgetPhase = data.forgetPhase.takeIf { it >= 0 }
+            forgetPhase = if (data.forgetPhase > 2) (data.forgetPhase - 1) / 10 else data.forgetPhase
         )
     }
 
