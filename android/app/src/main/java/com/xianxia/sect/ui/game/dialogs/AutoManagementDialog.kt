@@ -97,7 +97,7 @@ fun AutoManagementDialog(
         onDismissRequest = handleClose,
         title = "自动管理",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = true
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(
