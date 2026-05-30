@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.69",
+            date = "2026-05-30",
+            changes = listOf(
+                "系统性修复GameEngine中18处stateIn派生StateFlow的.value读取为Snapshot直读，消除assignGarrisonDisciple/startMission/checkAndProcessCompletedMissions等函数的WhileSubscribed replay过期隐患（与此前修复的scoutSect/attackSect/攻击妖兽战斗结算同模式）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.68",
             date = "2026-05-30",
             changes = listOf(

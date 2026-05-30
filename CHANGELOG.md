@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.69] - 2026-05-30
+
+### 修复
+- 系统性修复 GameEngine 中 18 处 stateIn 派生 StateFlow 的 .value 读取为 Snapshot 直读，消除 assignGarrisonDisciple/startMission/checkAndProcessCompletedMissions 等函数的 WhileSubscribed replay 过期隐患
+
 ## [3.1.68] - 2026-05-30
 
 ### 修复

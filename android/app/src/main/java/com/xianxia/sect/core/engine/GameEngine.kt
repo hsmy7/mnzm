@@ -2813,7 +2813,7 @@ class GameEngine @Inject constructor(
     }
 
     fun startMission(mission: Mission, selectedDisciples: List<Disciple>) {
-        val data = stateStore.gameData.value
+        val data = stateStore.gameDataSnapshot
         val activeMission = MissionSystem.createActiveMission(mission, selectedDisciples, data.gameYear, data.gameMonth)
         updateGameDataSync { it.copy(activeMissions = it.activeMissions + activeMission) }
         selectedDisciples.forEach { disciple ->
@@ -2822,7 +2822,7 @@ class GameEngine @Inject constructor(
     }
 
     fun checkAndProcessCompletedMissions(): List<String> {
-        val data = stateStore.gameData.value
+        val data = stateStore.gameDataSnapshot
         val currentYear = data.gameYear
         val currentMonth = data.gameMonth
         val completedIds = mutableListOf<String>()
@@ -2833,14 +2833,14 @@ class GameEngine @Inject constructor(
                 completedIds.add(activeMission.id)
 
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
-                    stateStore.disciples.value.find { it.id == did && it.isAlive }
+                    stateStore.disciplesSnapshot.find { it.id == did && it.isAlive }
                 }
                 val allDead = aliveDisciples.isEmpty()
 
                 if (allDead) {
                 } else {
-                    val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
-                    val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+                    val equipMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
+                    val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
                     val proficiencies = data.manualProficiencies.mapValues { (_, list) ->
                         list.associateBy { it.manualId }
                     }
@@ -2854,7 +2854,7 @@ class GameEngine @Inject constructor(
                 }
 
                 for (did in activeMission.discipleIds) {
-                    val disciple = stateStore.disciples.value.find { it.id == did }
+                    val disciple = stateStore.disciplesSnapshot.find { it.id == did }
                     if (disciple != null && disciple.isAlive) {
                         gameEngineCore.launchInScope { updateDiscipleStatus(did, DiscipleStatus.IDLE) }
                     }
@@ -2872,7 +2872,7 @@ class GameEngine @Inject constructor(
     }
 
     fun processMonthlyMissionRefresh() {
-        val data = stateStore.gameData.value
+        val data = stateStore.gameDataSnapshot
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
             data.gameYear,
@@ -3110,8 +3110,8 @@ class GameEngine @Inject constructor(
 
 
     suspend fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
-        val data = stateStore.gameData.value
-        val disciple = stateStore.disciples.value.find { it.id == discipleId && it.isAlive } ?: return
+        val data = stateStore.gameDataSnapshot
+        val disciple = stateStore.disciplesSnapshot.find { it.id == discipleId && it.isAlive } ?: return
 
         // Prevent assigning same disciple to multiple garrison slots
         val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
