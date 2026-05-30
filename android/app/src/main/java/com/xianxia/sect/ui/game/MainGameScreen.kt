@@ -54,6 +54,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -626,7 +627,7 @@ private fun SectInfoCard(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${gameData?.gameDay ?: 1}日",
+                    text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${GamePhase.fromValue(gameData?.gamePhase ?: 0).displayName}",
                     fontSize = 12.sp,
                     color = Color.Black
                 )

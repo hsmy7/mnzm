@@ -13,10 +13,10 @@ interface GameDataDao {
     @Query("SELECT * FROM game_data WHERE slot_id = :slotId LIMIT 1")
     suspend fun getGameDataSync(slotId: Int): GameData?
 
-    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")
     suspend fun getMetadataBySlot(slotId: Int): GameDataMetadataProjection?
 
-    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data ORDER BY slot_id ASC")
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data ORDER BY slot_id ASC")
     suspend fun getAllMetadata(): List<GameDataMetadataProjection>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -41,7 +41,7 @@ data class GameDataMetadataProjection(
     val sectName: String,
     val gameYear: Int,
     val gameMonth: Int,
-    val gameDay: Int,
+    val gamePhase: Int,
     val spiritStones: Long,
     val spiritHerbs: Int,
     val sectCultivation: Double,

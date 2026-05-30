@@ -742,8 +742,8 @@ class BoundaryAndEdgeCaseTest {
     @Test
     fun `V3ToV4Migrator converts monthly duration to daily`() = runBlocking {
         val migrator = V3ToV4Migrator()
-        assertEquals("3.0", migrator.fromVersion)
-        assertEquals("4.0", migrator.toVersion)
+        assertEquals("3", migrator.fromVersion.toString())
+        assertEquals("4", migrator.toVersion.toString())
 
         val data = SerializableSaveData(
             version = "3.0",
@@ -821,7 +821,7 @@ class BoundaryAndEdgeCaseTest {
 
         val result = migrator.migrate(data)
 
-        assertEquals("4.0", result.version)
+        assertEquals("4", result.version)
         assertEquals(90, result.disciples[0].cultivationSpeedDuration)
         assertEquals(150, result.disciples[0].pillEffectDuration)
         assertEquals(0, result.disciples[1].cultivationSpeedDuration)

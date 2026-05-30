@@ -524,7 +524,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val gd = gameEngine.gameData.value
                 Log.i(TAG, "=== startNewGame SUCCESS === " +
-                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                     "totalElapsed=${System.currentTimeMillis() - startTime}ms")
             } catch (e: Exception) {
@@ -716,7 +716,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val gd = gameEngine.gameData.value
                 Log.i(TAG, "=== loadGame SUCCESS === " +
-                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                     "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                     "elapsed=${System.currentTimeMillis() - startTime}ms")
@@ -833,7 +833,7 @@ class SaveLoadViewModel @Inject constructor(
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGameFromSlot SUCCESS === " +
-                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
                         "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                         "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                         "elapsed=${System.currentTimeMillis() - startTime}ms")
@@ -940,7 +940,7 @@ class SaveLoadViewModel @Inject constructor(
 
                         Log.i(TAG, "=== saveGame SUCCESS === " +
                             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
-                            "month=${snapshot.gameData.gameMonth}, day=${snapshot.gameData.gameDay}, " +
+                            "month=${snapshot.gameData.gameMonth}, phase=${snapshot.gameData.gamePhase}, " +
                             "spiritStones=${snapshot.gameData.spiritStones}, " +
                             "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
                             "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")

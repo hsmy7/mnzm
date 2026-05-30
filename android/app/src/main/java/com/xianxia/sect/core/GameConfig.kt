@@ -95,14 +95,15 @@ object GameConfig {
     }
     
     object Time {
-        const val TICK_INTERVAL = 200L
-        const val TICKS_PER_SECOND = 5
-        const val SECONDS_PER_REAL_MONTH = 10
-        const val DAYS_PER_MONTH = 30
+        const val TICK_INTERVAL = 1000L
+        const val TICKS_PER_SECOND = 1
+        const val SECONDS_PER_REAL_MONTH = 6
+        const val DAYS_PER_MONTH = 30  // 保留兼容，旬制下不再使用天
+        const val PHASES_PER_MONTH = 3  // 上/中/下旬
         const val MONTHS_PER_YEAR = 12
         const val MAX_EXPLORE_TIME = 12
-        const val HIGH_FREQUENCY_UPDATE_INTERVAL = 200L
-        const val LOW_FREQUENCY_UPDATE_INTERVAL = 1000L
+        const val HIGH_FREQUENCY_UPDATE_INTERVAL = 1000L
+        const val LOW_FREQUENCY_UPDATE_INTERVAL = 2000L
     }
     
     object Cultivation {

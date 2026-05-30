@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import android.util.Log
+import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.ExplorationService
@@ -53,11 +54,11 @@ class GameEngineCore @Inject constructor(
     
     companion object {
         private const val TAG = "GameEngineCore"
-        private const val TICK_INTERVAL_MS = 200L
+        private const val TICK_INTERVAL_MS = 1000L
         private const val MIN_TICK_DELAY_MS = 50L
-        private const val TICK_WARNING_THRESHOLD_MS = 50f
+        private const val TICK_WARNING_THRESHOLD_MS = 100f
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
-        private const val ADAPTIVE_MAX_INTERVAL_MS = 400L
+        private const val ADAPTIVE_MAX_INTERVAL_MS = 2000L
     }
 
     private var currentTickInterval = TICK_INTERVAL_MS
@@ -92,7 +93,7 @@ class GameEngineCore @Inject constructor(
     val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
     
-    private var dayAccumulator = 0.0
+    private var phaseAccumulator = 0.0
     
     @Volatile
     private var _autoSaveTrigger = Channel<Unit>(capacity = Channel.BUFFERED)
@@ -127,7 +128,7 @@ class GameEngineCore @Inject constructor(
             return
         }
         
-        dayAccumulator = 0.0
+        phaseAccumulator = 0.0
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
 
@@ -268,38 +269,36 @@ class GameEngineCore @Inject constructor(
             checkAndResetStuckStates(currentState)
             return
         }
-        
-        _tickCount.value++
-        
-        stateStore.update {
-            systemManager.onSecondTick(this)
 
-            val daysPerTick = GameConfig.Time.DAYS_PER_MONTH.toDouble() / 
+        _tickCount.value++
+
+        stateStore.update {
+            val phasesPerTick = GamePhase.PHASES_PER_MONTH.toDouble() /
                 (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
-            dayAccumulator += daysPerTick
-            
-            while (dayAccumulator >= 1.0) {
-                dayAccumulator -= 1.0
-                
+            phaseAccumulator += phasesPerTick
+
+            while (phaseAccumulator >= 1.0) {
+                phaseAccumulator -= 1.0
+
                 val prevMonth = this.gameData.gameMonth
                 val prevYear = this.gameData.gameYear
-                
-                systemManager.onDayTick(this)
-                
+
+                systemManager.onPhaseTick(this)
+
                 if (this.gameData.gameMonth != prevMonth) {
                     systemManager.onMonthTick(this)
                 }
                 if (this.gameData.gameYear != prevYear) {
                     systemManager.onYearTick(this)
                 }
-                
+
                 val gameDataSnapshot = this.gameData
                 val autoSaveInterval = gameDataSnapshot.autoSaveIntervalMonths
                 if (autoSaveInterval > 0) {
-                    if (gameDataSnapshot.gameDay == 1 && gameDataSnapshot.gameMonth % autoSaveInterval == 0) {
+                    if (gameDataSnapshot.gamePhase == GamePhase.EARLY.value && gameDataSnapshot.gameMonth % autoSaveInterval == 0) {
                         val result = _autoSaveTrigger.trySend(Unit)
                         if (result.isSuccess) {
-                            Log.d(TAG, "Auto save triggered: year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}, day=${gameDataSnapshot.gameDay}")
+                            if (BuildConfig.DEBUG) Log.d(TAG, "Auto save triggered: year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}, phase=${gameDataSnapshot.gamePhase}")
                         } else {
                             Log.w(TAG, "Auto save trigger failed to send: $result, year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}")
                         }

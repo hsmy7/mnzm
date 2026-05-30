@@ -233,13 +233,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         resetHighFrequencyData()
     }
 
-    override suspend fun onSecondTick(state: MutableGameState) {
-        updateRealtimeCultivation(System.currentTimeMillis(), state)
-    }
+    // onSecondTick removed — 旬制下不再需要 per-second 修炼更新
+    // 修炼进度改为惰性计算（按需）+ 旬 tick 批量处理
 
-    override suspend fun onDayTick(state: MutableGameState) {
+    override suspend fun onPhaseTick(state: MutableGameState) {
         val data = state.gameData
-        processDailyEvents(data.gameDay, data.gameMonth, data.gameYear)
+        processPhaseEvents(data.gamePhase, data.gameMonth, data.gameYear)
     }
 
     override suspend fun onMonthTick(state: MutableGameState) {
@@ -615,17 +614,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * Advance game time by one day
+     * Advance game time by one phase (上/中/下旬)
      */
-    suspend fun advanceDay(state: MutableGameState? = null) {
+    suspend fun advancePhase(state: MutableGameState? = null) {
         val data = state?.gameData ?: currentGameData
-        var newDay = data.gameDay + 1
+        var newPhase = data.gamePhase + 1
         var newMonth = data.gameMonth
         var newYear = data.gameYear
         var monthChanged = false
 
-        if (newDay > 30) {
-            newDay = 1
+        if (newPhase >= GamePhase.PHASES_PER_MONTH) {
+            newPhase = 0
             newMonth++
             monthChanged = true
             if (newMonth > 12) {
@@ -637,13 +636,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val isYearChanged = newYear > data.gameYear
 
         val updatedData = data.copy(
-            gameDay = newDay,
+            gamePhase = newPhase,
             gameMonth = newMonth,
             gameYear = newYear
         )
         if (state != null) state.gameData = updatedData else currentGameData = updatedData
 
-        processDailyEvents(newDay, newMonth, newYear)
+        processPhaseEvents(newPhase, newMonth, newYear)
 
         if (isYearChanged) {
             processYearlyEvents(newYear)
@@ -672,7 +671,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val updatedData = data.copy(
             gameMonth = newMonth,
             gameYear = newYear,
-            gameDay = 1
+            gamePhase = 0
         )
         if (state != null) state.gameData = updatedData else currentGameData = updatedData
 
@@ -693,7 +692,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val updatedData = data.copy(
             gameYear = newYear,
             gameMonth = 1,
-            gameDay = 1
+            gamePhase = 0
         )
         if (state != null) state.gameData = updatedData else currentGameData = updatedData
 
@@ -711,28 +710,29 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * Process daily events
+     * Process phase events (每旬执行一次，1旬≈10天)
      */
-    private suspend fun processDailyEvents(day: Int, month: Int, year: Int) {
-        safelyRun("updateExplorationTeamsMovement") { updateExplorationTeamsMovement(day, month, year) }
-        safelyRun("updateCaveExplorationTeamsMovement") { updateCaveExplorationTeamsMovement(day, month, year) }
+    private suspend fun processPhaseEvents(phase: Int, month: Int, year: Int) {
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
-        safelyRun("checkExplorationArrivals") { checkExplorationArrivals() }
 
-        // Daily recovery: disciples recover 5% HP and MP (including those in battle)
-        safelyRun("processDailyRecovery") { processDailyRecovery() }
+        // Phase recovery: 每旬恢复（日恢复×10倍量）
+        safelyRun("processPhaseRecovery") { processPhaseRecovery() }
 
         safelyRun("processPillDurationDecay") { processPillDurationDecay() }
-        safelyRun("processAutoUseItems") { processAutoUseItems(year, month, day) }
+        safelyRun("processAutoUseItems") { processAutoUseItems(year, month, phase) }
         safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
     }
 
+    /** 旬制的丹药持续/恢复等：原"天"单位数据放大10倍（1旬≈10天） */
+    private val phaseMultiplier: Int get() = 10
+
     private fun processPillDurationDecay() {
+        val decay = phaseMultiplier
         currentDisciples = currentDisciples.map { disciple ->
             var updated = disciple
 
             if (updated.cultivationSpeedDuration > 0) {
-                val newDuration = updated.cultivationSpeedDuration - 1
+                val newDuration = updated.cultivationSpeedDuration - decay
                 if (newDuration <= 0) {
                     updated = updated.copy(
                         cultivationSpeedBonus = 0.0,
@@ -744,7 +744,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
 
             if (updated.pillEffects.pillEffectDuration > 0) {
-                val newDuration = updated.pillEffects.pillEffectDuration - 1
+                val newDuration = updated.pillEffects.pillEffectDuration - decay
                 if (newDuration <= 0) {
                     updated = updated.copy(pillEffects = PillEffects())
                 } else {
@@ -756,7 +756,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
     }
 
-    private fun processAutoUseItems(year: Int, month: Int, day: Int) {
+    private fun processAutoUseItems(year: Int, month: Int, phase: Int) {
         val equipmentStacksList = currentEquipmentStacks
         val equipmentInstancesMap = currentEquipmentInstances.associateBy { it.id }
         val manualStacksList = currentManualStacks
@@ -771,7 +771,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 disciple = updatedDisciple,
                 gameYear = year,
                 gameMonth = month,
-                gameDay = day
+                gamePhase = phase
             )
             if (pillResult.disciple != updatedDisciple) {
                 updatedDisciple = pillResult.disciple
@@ -783,7 +783,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 equipmentInstances = equipmentInstancesMap,
                 gameYear = year,
                 gameMonth = month,
-                gameDay = day,
+                gamePhase = phase,
                 maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
             )
             if (equipResult.newInstances.isNotEmpty()) {
@@ -821,7 +821,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 manualInstances = manualInstancesMap,
                 gameYear = year,
                 gameMonth = month,
-                gameDay = day,
+                gamePhase = phase,
                 maxStack = inventoryConfig.getMaxStackSize("manual_stack")
             )
             if (manualResult.newInstance != null) {
@@ -867,10 +867,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             updatedDisciple
         }
 
-        processAutoFromWarehouse(year, month, day)
+        processAutoFromWarehouse(year, month, phase)
     }
 
-    private fun processAutoFromWarehouse(year: Int, month: Int, day: Int) {
+    private fun processAutoFromWarehouse(year: Int, month: Int, phase: Int) {
         val allDisciples = currentDisciples.filter { it.isAlive }
         val equipFocused = currentGameData.autoEquipFromWarehouseFocused
         val equipRootCounts = currentGameData.autoEquipFromWarehouseRootCounts
@@ -912,7 +912,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     equipmentInstances = eqInstancesById,
                     gameYear = year,
                     gameMonth = month,
-                    gameDay = day,
+                    gamePhase = phase,
                     maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
                 )
                 if (result.newInstances.isNotEmpty()) {
@@ -938,7 +938,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     manualInstances = mnInstancesById,
                     gameYear = year,
                     gameMonth = month,
-                    gameDay = day,
+                    gamePhase = phase,
                     maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                 )
                 if (result.newInstance != null) {
@@ -969,10 +969,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     }
 
-    private fun processDailyRecovery() {
+    private fun processPhaseRecovery() {
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }
         val manualMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = currentGameData.manualProficiencies
+        val multiplier = phaseMultiplier.toDouble()
 
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
@@ -987,8 +988,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val currentHp = disciple.combat.currentHp
             val currentMp = disciple.combat.currentMp
 
-            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE).toInt().coerceAtLeast(1)
+            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
 
             val newHp = if (currentHp < 0) currentHp else (currentHp + hpRecovery).coerceAtMost(maxHp)
             val newMp = if (currentMp < 0) currentMp else (currentMp + mpRecovery).coerceAtMost(maxMp)
@@ -2083,86 +2084,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             currentDisciples = currentDisciples.filter { it.id !in thiefIds }
         }
     }
-
-    /**
-     * 道侣匹配系统 - 每月处理一次
-     *
-     * 条件：存活、年龄>=18、无道侣(partnerId==null)的异性弟子
-     * 所有符合条件的异性配对每月均有 0.6% 独立概率结为道侣
-     * 支持灵根数量禁婚过滤 + 结婚审批模式
-     */
-    /**
-     * Update exploration teams movement
-     */
-    private fun updateExplorationTeamsMovement(day: Int, month: Int, year: Int) {
-        val updatedTeams = currentTeams.map { team ->
-            if (team.status == ExplorationStatus.TRAVELING) {
-                updateTeamMovement(team, day, month, year)
-            } else {
-                team
-            }
-        }
-        currentTeams = updatedTeams
-    }
-
-    /**
-     * Update single team movement
-     */
-    private fun updateTeamMovement(team: ExplorationTeam, day: Int, month: Int, year: Int): ExplorationTeam {
-        // Simple movement logic - in real implementation would be more complex
-        val duration = team.duration.coerceAtLeast(1)
-        val progressIncrement = 1.0f / duration.toFloat()
-        val newProgress = team.moveProgress + progressIncrement
-
-        return if (newProgress >= 1.0f) {
-            team.copy(
-                status = ExplorationStatus.EXPLORING,
-                moveProgress = 1.0f,
-                arrivalYear = year,
-                arrivalMonth = month,
-                arrivalDay = day
-            )
-        } else {
-            team.copy(moveProgress = newProgress)
-        }
-    }
-
-    /**
-     * Update cave exploration teams movement
-     */
-    private fun updateCaveExplorationTeamsMovement(day: Int, month: Int, year: Int) {
-        val data = currentGameData
-        val updatedTeams = data.caveExplorationTeams.map { team ->
-            if (team.status == CaveExplorationStatus.TRAVELING) {
-                val duration = team.duration.coerceAtLeast(1)
-                val progressIncrement = 1.0f / duration.toFloat()
-                val newProgress = team.moveProgress + progressIncrement
-
-                if (newProgress >= 1.0f) {
-                    team.copy(
-                        status = CaveExplorationStatus.EXPLORING,
-                        moveProgress = 1.0f
-                    )
-                } else {
-                    team.copy(moveProgress = newProgress)
-                }
-            } else {
-                team
-            }
-        }
-        currentGameData = data.copy(caveExplorationTeams = updatedTeams)
-    }
-
-    // AIBattleTeam-related methods removed in v3.0.19
-
-    /**
-     * Check exploration arrivals and start exploration
-     */
-    private suspend fun checkExplorationArrivals() {
-        // 地下城探索系统已迁移至世界关卡系统
-    }
-
-
 
     private fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()

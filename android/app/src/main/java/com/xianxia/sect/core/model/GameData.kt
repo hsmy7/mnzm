@@ -36,7 +36,7 @@ data class GameData(
     // 游戏时间
     var gameYear: Int = 1,
     var gameMonth: Int = 1,
-    var gameDay: Int = 1,
+    var gamePhase: Int = 0,  // 0=上旬, 1=中旬, 2=下旬
 
     // 游戏状态
     var isGameStarted: Boolean = false,
@@ -231,7 +231,7 @@ data class GameData(
 
     var isGameOver: Boolean = false
 ) {
-    val displayTime: String get() = "第${gameYear}年${gameMonth}月"
+    val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
     val isPlayerProtected: Boolean get() {
         if (!playerProtectionEnabled) return false

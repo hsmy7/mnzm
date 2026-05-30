@@ -4,17 +4,17 @@ import com.xianxia.sect.core.model.StorageBagItem
 
 object StorageBagUtils {
 
-    private const val COOLING_PERIOD_DAYS = 90
+    private const val COOLING_PERIOD_PHASES = 9  // 3个月 × 3旬/月
     private const val COOLING_PERIOD_MONTHS = 3
 
-    fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
+    fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentPhase: Int): Boolean {
         val forgetYear = item.forgetYear ?: return false
         val forgetMonth = item.forgetMonth ?: return false
-        val forgetDay = item.forgetDay
-        if (forgetDay != null) {
-            val forgetTotalDays = forgetYear * 360 + (forgetMonth - 1) * 30 + forgetDay
-            val currentTotalDays = currentYear * 360 + (currentMonth - 1) * 30 + currentDay
-            return currentTotalDays - forgetTotalDays < COOLING_PERIOD_DAYS
+        val forgetPhase = item.forgetPhase
+        if (forgetPhase != null) {
+            val forgetTotalPhases = forgetYear * 36 + (forgetMonth - 1) * 3 + forgetPhase
+            val currentTotalPhases = currentYear * 36 + (currentMonth - 1) * 3 + currentPhase
+            return currentTotalPhases - forgetTotalPhases < COOLING_PERIOD_PHASES
         } else {
             val forgetTotalMonths = forgetYear * 12 + forgetMonth
             val currentTotalMonths = currentYear * 12 + currentMonth

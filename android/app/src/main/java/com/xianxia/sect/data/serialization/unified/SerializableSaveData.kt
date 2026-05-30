@@ -27,7 +27,7 @@ data class SerializableGameData(
     @ProtoNumber(3) val currentSlot: Int = 1,
     @ProtoNumber(4) val gameYear: Int = 1,
     @ProtoNumber(5) val gameMonth: Int = 1,
-    @ProtoNumber(6) val gameDay: Int = 1,
+    @ProtoNumber(6) val gamePhase: Int = 0,  // 0=上旬,1=中旬,2=下旬; 旧存档 gameDay 需映射: (v-1)/10
     @ProtoNumber(7) val spiritStones: Long = 1000,
     @ProtoNumber(8) val spiritHerbs: Int = 0,
     @ProtoNumber(9) val autoSaveIntervalMonths: Int = 3,
@@ -381,7 +381,7 @@ data class SerializableStorageBagItem(
     @ProtoNumber(9) val grade: String = "",
     @ProtoNumber(10) val forgetYear: Int = 0,
     @ProtoNumber(11) val forgetMonth: Int = 0,
-    @ProtoNumber(12) val forgetDay: Int = 0
+    @ProtoNumber(12) val forgetPhase: Int = 0
 )
 
 @Serializable

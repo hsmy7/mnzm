@@ -604,16 +604,6 @@ class GameViewModel @Inject constructor(
 
     fun learnManual(discipleId: String, stackId: String) = disciple.learnManual(discipleId, stackId)
 
-    fun recallTeam(teamId: String) {
-        viewModelScope.launch {
-            try {
-                gameEngine.recallTeam(teamId)
-            } catch (e: Exception) {
-                showError(e.message ?: "召回失败")
-            }
-        }
-    }
-
     fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
 
     fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)

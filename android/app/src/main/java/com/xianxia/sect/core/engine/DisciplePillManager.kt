@@ -15,7 +15,7 @@ object DisciplePillManager {
         disciple: Disciple,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         instantMessage: Boolean = false
     ): PillUseResult {
         val events = mutableListOf<String>()

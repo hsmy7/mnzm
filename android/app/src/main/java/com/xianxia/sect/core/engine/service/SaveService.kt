@@ -17,7 +17,7 @@ import javax.inject.Singleton
 data class GameStateSnapshot(
     val gameYear: Int = 1,
     val gameMonth: Int = 1,
-    val gameDay: Int = 1,
+    val gamePhase: Int = 0,
     val isGameStarted: Boolean = false,
     val gameSpeed: Int = 1,
     val sectName: String = "",
@@ -72,7 +72,7 @@ class SaveService @Inject constructor(
         return GameStateSnapshot(
             gameYear = data.gameYear,
             gameMonth = data.gameMonth,
-            gameDay = data.gameDay,
+            gamePhase = data.gamePhase,
             isGameStarted = data.isGameStarted,
             gameSpeed = data.gameSpeed,
             sectName = data.sectName,
@@ -158,8 +158,8 @@ class SaveService @Inject constructor(
         if (data.gameMonth < 1 || data.gameMonth > 12) {
             errors.add("Invalid game month: ${data.gameMonth}")
         }
-        if (data.gameDay < 1 || data.gameDay > 30) {
-            errors.add("Invalid game day: ${data.gameDay}")
+        if (data.gamePhase < 0 || data.gamePhase > 2) {
+            errors.add("Invalid game phase: ${data.gamePhase}")
         }
 
         val discipleIds = stateStore.disciples.value.map { it.id }.toSet()
@@ -216,6 +216,6 @@ class SaveService @Inject constructor(
 
     fun getFormattedGameTime(): String {
         val data = stateStore.gameData.value
-        return "${data.gameYear}年${data.gameMonth}月${data.gameDay}日"
+        return "${data.gameYear}年${data.gameMonth}月${GamePhase.fromValue(data.gamePhase).displayName}"
     }
 }

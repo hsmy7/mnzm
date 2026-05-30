@@ -223,7 +223,7 @@ class SaveDataConverterTest {
                 currentSlot = 1,
                 gameYear = 5,
                 gameMonth = 3,
-                gameDay = 15,
+                gamePhase = 1,  // 中旬 (旧 gameDay=15 → phase=1)
                 spiritStones = 50000L,
                 spiritHerbs = 100,
                 autoSaveIntervalMonths = 3,
@@ -370,7 +370,7 @@ class SaveDataConverterTest {
         assertEquals(oGame.sectName, sGame.sectName)
         assertEquals(oGame.gameYear, sGame.gameYear)
         assertEquals(oGame.gameMonth, sGame.gameMonth)
-        assertEquals(oGame.gameDay, sGame.gameDay)
+        assertEquals(oGame.gamePhase, sGame.gamePhase)
         assertEquals(oGame.spiritStones, sGame.spiritStones)
         assertEquals(oGame.spiritHerbs, sGame.spiritHerbs)
         assertEquals(oGame.autoSaveIntervalMonths, sGame.autoSaveIntervalMonths)
@@ -474,7 +474,7 @@ class SaveDataConverterTest {
         assertEquals(original.gameData.sectName, restored.gameData.sectName)
         assertEquals(original.gameData.gameYear, restored.gameData.gameYear)
         assertEquals(original.gameData.gameMonth, restored.gameData.gameMonth)
-        assertEquals(original.gameData.gameDay, restored.gameData.gameDay)
+        assertEquals(original.gameData.gamePhase, restored.gameData.gamePhase)
         assertEquals(original.gameData.spiritStones, restored.gameData.spiritStones)
         assertEquals(original.gameData.spiritHerbs, restored.gameData.spiritHerbs)
     }

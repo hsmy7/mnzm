@@ -181,7 +181,7 @@ fun ForgeDialog(
                     productRarity = mySlot?.equipmentRarity ?: 1,
                     totalDuration = mySlot?.duration ?: 1,
                     successRate = mySlot?.successRate ?: 0.0,
-                    gameDay = gameData?.gameDay ?: 1,
+                    gamePhase = gameData?.gamePhase ?: 0,
                     onCancel = if (isWorking) { { forgeViewModel.cancelForge(slotIndex) } } else null,
                     onReplace = if (isWorking) { {
                         replaceSlotIndex = slotIndex

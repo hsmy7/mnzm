@@ -327,66 +327,6 @@ class ExplorationService @Inject constructor(
      */
     fun getTeams(): StateFlow<List<ExplorationTeam>> = stateStore.teams
 
-    // ==================== 探索队伍管理 ====================
-
-    /**
-     * Create new exploration team for dungeon
-     */
-    fun createExplorationTeam(
-        name: String,
-        memberIds: List<String>,
-        dungeonId: String,
-        dungeonName: String,
-        duration: Int,
-        currentYear: Int,
-        currentMonth: Int,
-        currentDay: Int
-    ): ExplorationTeam {
-        val memberNames = memberIds.mapNotNull { id ->
-            currentDisciples.find { it.id == id }?.name
-        }
-
-        val team = ExplorationTeam(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            memberIds = memberIds,
-            memberNames = memberNames,
-            dungeon = dungeonId,
-            dungeonName = dungeonName,
-            startYear = currentYear,
-            startMonth = currentMonth,
-            startDay = currentDay,
-            duration = duration,
-            status = ExplorationStatus.TRAVELING
-        )
-
-        currentTeams = currentTeams + team
-
-        memberIds.forEach { memberId ->
-            updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
-        }
-
-        return team
-    }
-
-    /**
-     * Recall exploration team
-     */
-    fun recallTeam(teamId: String): Boolean {
-        val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
-        if (teamIndex < 0) return false
-
-        val team = currentTeams[teamIndex]
-
-        currentTeams = currentTeams.filter { it.id != teamId }
-
-        team.memberIds.forEach { memberId ->
-            updateDiscipleStatus(memberId, DiscipleStatus.IDLE)
-        }
-
-        return true
-    }
-
     fun recallDiscipleFromTeam(teamId: String, discipleId: String): Boolean {
         val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
         if (teamIndex < 0) return false

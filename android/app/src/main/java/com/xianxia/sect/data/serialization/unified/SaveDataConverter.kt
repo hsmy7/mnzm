@@ -63,7 +63,7 @@ class SaveDataConverter @Inject constructor() {
             currentSlot = gameData.currentSlot ?: 1,
             gameYear = gameData.gameYear ?: 1,
             gameMonth = gameData.gameMonth ?: 1,
-            gameDay = gameData.gameDay ?: 1,
+            gamePhase = gameData.gamePhase,
             spiritStones = gameData.spiritStones ?: 1000,
             spiritHerbs = gameData.spiritHerbs ?: 0,
             autoSaveIntervalMonths = gameData.autoSaveIntervalMonths ?: 3,
@@ -119,7 +119,7 @@ class SaveDataConverter @Inject constructor() {
             currentSlot = data.currentSlot,
             gameYear = data.gameYear,
             gameMonth = data.gameMonth,
-            gameDay = data.gameDay,
+            gamePhase = if (data.gamePhase > 2) (data.gamePhase - 1) / 10 else data.gamePhase,
             spiritStones = data.spiritStones,
             spiritHerbs = data.spiritHerbs,
             autoSaveIntervalMonths = data.autoSaveIntervalMonths,
@@ -414,7 +414,7 @@ class SaveDataConverter @Inject constructor() {
             grade = item.grade ?: "",
             forgetYear = item.forgetYear ?: 0,
             forgetMonth = item.forgetMonth ?: 0,
-            forgetDay = item.forgetDay ?: 0
+            forgetPhase = item.forgetPhase ?: 0
         )
     }
 
@@ -433,7 +433,7 @@ class SaveDataConverter @Inject constructor() {
             grade = data.grade.takeIf { it.isNotEmpty() },
             forgetYear = data.forgetYear.takeIf { it > 0 },
             forgetMonth = data.forgetMonth.takeIf { it > 0 },
-            forgetDay = data.forgetDay.takeIf { it > 0 }
+            forgetPhase = data.forgetPhase.takeIf { it >= 0 }
         )
     }
 

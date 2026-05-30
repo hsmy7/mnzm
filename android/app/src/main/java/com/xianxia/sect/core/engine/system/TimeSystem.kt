@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.system
 
 import android.util.Log
+import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
@@ -16,8 +17,9 @@ class TimeSystem @Inject constructor(
         private const val TAG = "TimeSystem"
         const val SYSTEM_NAME = "TimeSystem"
 
-        const val DAYS_PER_MONTH = 30
+        const val PHASES_PER_MONTH = GamePhase.PHASES_PER_MONTH
         const val MONTHS_PER_YEAR = 12
+        const val DAYS_PER_MONTH = 30  // 保留兼容
     }
 
     override val systemName: String = SYSTEM_NAME
@@ -32,14 +34,14 @@ class TimeSystem @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onDayTick(state: MutableGameState) {
+    override suspend fun onPhaseTick(state: MutableGameState) {
         val gd = state.gameData
-        var newDay = gd.gameDay + 1
+        var newPhase = gd.gamePhase + 1
         var newMonth = gd.gameMonth
         var newYear = gd.gameYear
 
-        if (newDay > DAYS_PER_MONTH) {
-            newDay = 1
+        if (newPhase >= PHASES_PER_MONTH) {
+            newPhase = 0
             newMonth++
             if (newMonth > MONTHS_PER_YEAR) {
                 newMonth = 1
@@ -47,46 +49,39 @@ class TimeSystem @Inject constructor(
             }
         }
 
-        state.gameData = gd.copy(gameDay = newDay, gameMonth = newMonth, gameYear = newYear)
+        state.gameData = gd.copy(gamePhase = newPhase, gameMonth = newMonth, gameYear = newYear)
     }
 
-    override suspend fun onMonthTick(state: MutableGameState) {
-        // 日期推进已在 onDayTick 中处理（日期溢出时自动进月/进年）
-        // 此方法保留为空，仅作为 GameSystem 接口的事件通知点
-        // GameEngineCore.tickInternal 在检测到月份变更时会调用此方法
-    }
-
-    override suspend fun onYearTick(state: MutableGameState) {
-        // 日期推进已在 onDayTick 中处理（日期溢出时自动进月/进年）
-        // 此方法保留为空，仅作为 GameSystem 接口的事件通知点
-        // GameEngineCore.tickInternal 在检测到年份变更时会调用此方法
-    }
+    override suspend fun onMonthTick(state: MutableGameState) {}
+    override suspend fun onYearTick(state: MutableGameState) {}
 
     fun getCurrentTime(): Triple<Int, Int, Int> {
         val data = stateStore.gameData.value
-        return Triple(data.gameYear, data.gameMonth, data.gameDay)
+        return Triple(data.gameYear, data.gameMonth, data.gamePhase)
     }
 
     fun getCurrentYear(): Int = stateStore.gameData.value.gameYear
     fun getCurrentMonth(): Int = stateStore.gameData.value.gameMonth
-    fun getCurrentDay(): Int = stateStore.gameData.value.gameDay
+    fun getCurrentPhase(): Int = stateStore.gameData.value.gamePhase
 
     fun getTotalMonths(): Int {
         val data = stateStore.gameData.value
         return data.gameYear * MONTHS_PER_YEAR + data.gameMonth
     }
 
-    fun getTotalDays(): Int {
+    /** 基于旬的总时间单位（用于时间比较，保留兼容语义） */
+    fun getTotalPhases(): Int {
         val data = stateStore.gameData.value
-        return data.gameYear * MONTHS_PER_YEAR * DAYS_PER_MONTH +
-               (data.gameMonth - 1) * DAYS_PER_MONTH +
-               data.gameDay
+        return data.gameYear * MONTHS_PER_YEAR * PHASES_PER_MONTH +
+               (data.gameMonth - 1) * PHASES_PER_MONTH +
+               data.gamePhase
     }
 
-    fun isEndOfMonth(): Boolean = stateStore.gameData.value.gameDay == DAYS_PER_MONTH
+    fun isEndOfMonth(): Boolean = stateStore.gameData.value.gamePhase == GamePhase.LATE.value
 
     fun isEndOfYear(): Boolean =
-        stateStore.gameData.value.gameMonth == MONTHS_PER_YEAR && stateStore.gameData.value.gameDay == DAYS_PER_MONTH
+        stateStore.gameData.value.gameMonth == MONTHS_PER_YEAR &&
+        stateStore.gameData.value.gamePhase == GamePhase.LATE.value
 
     fun getMonthName(month: Int): String {
         return when (month) {
@@ -106,9 +101,11 @@ class TimeSystem @Inject constructor(
         }
     }
 
+    fun getPhaseName(phase: Int): String = GamePhase.fromValue(phase).displayName
+
     fun getFormattedTime(): String {
         val data = stateStore.gameData.value
-        return "第${data.gameYear}年${getMonthName(data.gameMonth)}${data.gameDay}日"
+        return "第${data.gameYear}年${getMonthName(data.gameMonth)}${getPhaseName(data.gamePhase)}"
     }
 
     fun calculateMonthsBetween(
@@ -120,18 +117,19 @@ class TimeSystem @Inject constructor(
         return (endYear - startYear) * MONTHS_PER_YEAR + (endMonth - startMonth)
     }
 
-    fun calculateDaysBetween(
+    /** 基于旬的时间差计算（1旬 ≈ 10天，保留兼容） */
+    fun calculatePhasesBetween(
         startYear: Int,
         startMonth: Int,
-        startDay: Int,
+        startPhase: Int,
         endYear: Int,
         endMonth: Int,
-        endDay: Int
+        endPhase: Int
     ): Int {
-        val startTotal = startYear * MONTHS_PER_YEAR * DAYS_PER_MONTH +
-                        (startMonth - 1) * DAYS_PER_MONTH + startDay
-        val endTotal = endYear * MONTHS_PER_YEAR * DAYS_PER_MONTH +
-                      (endMonth - 1) * DAYS_PER_MONTH + endDay
+        val startTotal = startYear * MONTHS_PER_YEAR * PHASES_PER_MONTH +
+                        (startMonth - 1) * PHASES_PER_MONTH + startPhase
+        val endTotal = endYear * MONTHS_PER_YEAR * PHASES_PER_MONTH +
+                      (endMonth - 1) * PHASES_PER_MONTH + endPhase
         return endTotal - startTotal
     }
 }

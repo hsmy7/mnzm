@@ -626,22 +626,6 @@ class GameEngine @Inject constructor(
 
     fun getWinRate(lastNBattles: Int = 50): Double = combatService.getWinRate(lastNBattles)
 
-    fun createExplorationTeam(
-        name: String,
-        memberIds: List<String>,
-        dungeonId: String,
-        dungeonName: String,
-        duration: Int,
-        currentYear: Int,
-        currentMonth: Int,
-        currentDay: Int
-    ): ExplorationTeam = explorationService.createExplorationTeam(
-        name, memberIds, dungeonId, dungeonName, duration,
-        currentYear, currentMonth, currentDay
-    )
-
-    fun recallTeam(teamId: String): Boolean = explorationService.recallTeam(teamId)
-
     fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) =
         explorationService.completeExploration(teamId, success, survivorIds)
 
@@ -1559,7 +1543,7 @@ class GameEngine @Inject constructor(
                                         excludeStackId = stack.id,
                                         gameYear = gameData.gameYear,
                                         gameMonth = gameData.gameMonth,
-                                        gameDay = gameData.gameDay,
+                                        gamePhase = gameData.gamePhase,
                                         maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
                                     )
                                     updatedDisciple = result.updatedDisciple
@@ -1636,7 +1620,7 @@ class GameEngine @Inject constructor(
                                                 obtainedMonth = gameData.gameMonth,
                                                 forgetYear = gameData.gameYear,
                                                 forgetMonth = gameData.gameMonth,
-                                                forgetDay = gameData.gameDay
+                                                forgetPhase = gameData.gamePhase
                                             ),
                                             inventoryConfig.getMaxStackSize("equipment_stack")
                                         )
@@ -1727,7 +1711,7 @@ class GameEngine @Inject constructor(
                                                 obtainedMonth = gameData.gameMonth,
                                                 forgetYear = gameData.gameYear,
                                                 forgetMonth = gameData.gameMonth,
-                                                forgetDay = gameData.gameDay
+                                                forgetPhase = gameData.gamePhase
                                             ),
                                             inventoryConfig.getMaxStackSize("manual_stack")
                                         )
@@ -2005,7 +1989,7 @@ class GameEngine @Inject constructor(
                 bagStackIds = bagStackIds,
                 gameYear = gameData.gameYear,
                 gameMonth = gameData.gameMonth,
-                gameDay = gameData.gameDay,
+                gamePhase = gameData.gamePhase,
                 maxStackSize = inventoryConfig.getMaxStackSize("manual_stack")
             )
             disciples = disciples.map {
@@ -2055,7 +2039,7 @@ class GameEngine @Inject constructor(
                 bagStackIds = bagStackIds,
                 gameYear = data.gameYear,
                 gameMonth = data.gameMonth,
-                gameDay = data.gameDay,
+                gamePhase = data.gamePhase,
                 maxStackSize = inventoryConfig.getMaxStackSize("manual_stack")
             )
 

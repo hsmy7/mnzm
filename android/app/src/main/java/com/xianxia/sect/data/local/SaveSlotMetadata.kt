@@ -30,8 +30,8 @@ data class SaveSlotMetadata(
     @ColumnInfo(name = "game_month")
     val gameMonth: Int = 1,
 
-    @ColumnInfo(name = "game_day")
-    val gameDay: Int = 1,
+    @ColumnInfo(name = "game_phase")
+    val gamePhase: Int = 0,
 
     @ColumnInfo(name = "spirit_stones")
     val spiritStones: Long = 0,

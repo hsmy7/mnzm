@@ -52,7 +52,7 @@ object DiscipleEquipmentManager {
         equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int = MAX_EQUIPMENT_STACK,
         instantMessage: Boolean = false
     ): EquipmentProcessResult {
@@ -64,7 +64,7 @@ object DiscipleEquipmentManager {
         val allReplacedStacks = mutableListOf<EquipmentStack>()
 
         val bagStackRefs = updatedDisciple.equipment.storageBagItems
-            .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
+            .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gamePhase) }
 
         if (bagStackRefs.isEmpty()) {
             return EquipmentProcessResult(disciple, emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
@@ -79,7 +79,7 @@ object DiscipleEquipmentManager {
                 bagStackRefs = bagStackRefs,
                 gameYear = gameYear,
                 gameMonth = gameMonth,
-                gameDay = gameDay,
+                gamePhase = gamePhase,
                 maxStack = maxStack,
                 instantMessage = instantMessage
             )
@@ -105,7 +105,7 @@ object DiscipleEquipmentManager {
         bagStackRefs: List<StorageBagItem>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int,
         instantMessage: Boolean
     ): EquipmentProcessResult {
@@ -184,7 +184,7 @@ object DiscipleEquipmentManager {
         equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int = MAX_EQUIPMENT_STACK
     ): EquipmentProcessResult {
         val events = mutableListOf<String>()

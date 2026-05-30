@@ -328,7 +328,7 @@ fun ProductionSlotItem(
     totalDuration: Int = 1,
     isPill: Boolean = false,
     successRate: Double = 0.0,
-    gameDay: Int = 1,
+    gamePhase: Int = 0,
     onCancel: (() -> Unit)? = null,
     onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -336,8 +336,8 @@ fun ProductionSlotItem(
     // Smooth progress: include day fraction within current month for continuous animation
     val progress = if (isWorking && totalDuration > 0) {
         val elapsedMonths = (totalDuration - remainingMonths).toFloat()
-        val dayFraction = (gameDay - 1) / 30f
-        ((elapsedMonths + dayFraction) / totalDuration).coerceIn(0f, 1f)
+        val phaseFraction = gamePhase.toFloat() / 3f
+        ((elapsedMonths + phaseFraction) / totalDuration).coerceIn(0f, 1f)
     } else 0f
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -10,8 +10,7 @@ interface GameSystem {
     suspend fun clear() {}
     suspend fun clearForSlot(slotId: Int) { clear() }
 
-    suspend fun onSecondTick(state: MutableGameState) {}
-    suspend fun onDayTick(state: MutableGameState) {}
+    suspend fun onPhaseTick(state: MutableGameState) {}
     suspend fun onMonthTick(state: MutableGameState) {}
     suspend fun onYearTick(state: MutableGameState) {}
 }

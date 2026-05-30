@@ -751,7 +751,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     bagStackIds = bagStackIds,
                     gameYear = gameData.gameYear,
                     gameMonth = gameData.gameMonth,
-                    gameDay = gameData.gameDay,
+                    gamePhase = gameData.gamePhase,
                     maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
                 )
                 disciples = disciples.toMutableList().also { it[discipleIndex] = result.updatedDisciple }

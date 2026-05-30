@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.76",
+            date = "2026-05-31",
+            changes = listOf(
+                "性能优化：游戏时间从天制改为上中下旬制（1月=3旬），tick频率从5Hz降至1Hz，大幅降低CPU负载和发热",
+                "修炼计算改为惰性补齐，突破检查/功法精通/装备养成统一到旬tick批量处理",
+                "游戏循环移除per-second修炼更新，减少全弟子遍历",
+                "热路径日志增加DEBUG守卫，减少生产环境字符串分配开销"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.75",
             date = "2026-05-31",
             changes = listOf(

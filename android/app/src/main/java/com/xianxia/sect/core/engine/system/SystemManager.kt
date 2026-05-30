@@ -122,27 +122,14 @@ class SystemManager @Inject constructor(
         }
     }
 
-    suspend fun onSecondTick(state: MutableGameState) {
+    suspend fun onPhaseTick(state: MutableGameState) {
         systemOrder.forEach { kClass ->
             systemMap[kClass]?.let { system ->
                 try {
-                    system.onSecondTick(state)
+                    system.onPhaseTick(state)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error in onSecondTick for ${system.systemName}", e)
-                    _errors.trySend(SystemError(system.systemName, "onSecondTick", e))
-                }
-            }
-        }
-    }
-
-    suspend fun onDayTick(state: MutableGameState) {
-        systemOrder.forEach { kClass ->
-            systemMap[kClass]?.let { system ->
-                try {
-                    system.onDayTick(state)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in onDayTick for ${system.systemName}", e)
-                    _errors.trySend(SystemError(system.systemName, "onDayTick", e))
+                    Log.e(TAG, "Error in onPhaseTick for ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "onPhaseTick", e))
                 }
             }
         }

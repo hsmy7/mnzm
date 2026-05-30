@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.compression
 
 import android.util.Log
+import com.xianxia.sect.BuildConfig
 import net.jpountz.lz4.LZ4Compressor
 import net.jpountz.lz4.LZ4Factory
 import net.jpountz.lz4.LZ4FastDecompressor
@@ -86,13 +87,15 @@ class DataCompressor @Inject constructor(
         val duration = System.nanoTime() - startTime
 
         if (compressed.size >= data.size) {
-            Log.d(TAG, "Compression not beneficial for ${data.size} bytes, keeping original")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Compression not beneficial for ${data.size} bytes, keeping original")
             return CompressedData(data, actualAlgorithm, data.size, 0)
         }
 
-        val ratio = data.size.toDouble() / compressed.size
-        Log.d(TAG, "Compressed ${data.size} -> ${compressed.size} bytes " +
-              "(ratio: ${"%.2f".format(ratio)}, time: ${duration / 1_000_000}ms, algo: ${actualAlgorithm.name})")
+        if (BuildConfig.DEBUG) {
+            val ratio = data.size.toDouble() / compressed.size
+            Log.d(TAG, "Compressed ${data.size} -> ${compressed.size} bytes " +
+                  "(ratio: ${"%.2f".format(ratio)}, time: ${duration / 1_000_000}ms, algo: ${actualAlgorithm.name})")
+        }
 
         return CompressedData(
             data = compressed,
@@ -340,7 +343,7 @@ class DataCompressor @Inject constructor(
 
         val compressed = ZstdWrapper.compress(data)
         if (compressed != null) {
-            Log.d(TAG, "ZSTD compression successful: ${data.size} -> ${compressed.size} bytes (level=3)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD compression successful: ${data.size} -> ${compressed.size} bytes (level=3)")
             return compressed to CompressionAlgorithm.ZSTD
         }
 
@@ -375,7 +378,7 @@ class DataCompressor @Inject constructor(
                 throw CompressionException("All decompression methods failed (ZSTD + GZIP fallback)", gzipEx)
             }
         }.also {
-            Log.d(TAG, "ZSTD decompression successful: ${compressedData.size} -> ${it.size} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD decompression successful: ${compressedData.size} -> ${it.size} bytes")
         }
     }
 }

@@ -623,7 +623,7 @@ class StorageEngine @Inject internal constructor(
             sectName = gd.sectName,
             gameYear = gd.gameYear,
             gameMonth = gd.gameMonth,
-            gameDay = gd.gameDay,
+            gamePhase = gd.gamePhase,
             spiritStones = gd.spiritStones,
             spiritHerbs = gd.spiritHerbs,
             sectCultivation = gd.sectCultivation,

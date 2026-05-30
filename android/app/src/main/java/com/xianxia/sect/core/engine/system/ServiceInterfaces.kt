@@ -54,8 +54,6 @@ interface CombatSystem {
 
 interface ExplorationSystem {
     fun getTeams(): StateFlow<List<ExplorationTeam>>
-    fun createExplorationTeam(name: String, memberIds: List<String>, dungeonId: String, dungeonName: String, duration: Int, currentYear: Int, currentMonth: Int, currentDay: Int): ExplorationTeam
-    fun recallTeam(teamId: String): Boolean
     fun recallDiscipleFromTeam(teamId: String, discipleId: String): Boolean
     fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>)
 }
@@ -121,7 +119,7 @@ interface CultivationSystem {
     fun getHighFrequencyData(): StateFlow<HighFrequencyData>
     fun resetHighFrequencyData()
     fun updateRealtimeCultivation(currentTimeMillis: Long, state: MutableGameState? = null)
-    suspend fun advanceDay(state: MutableGameState? = null)
+    suspend fun advancePhase(state: MutableGameState? = null)
     suspend fun advanceMonth(state: MutableGameState? = null)
     suspend fun advanceYear(state: MutableGameState? = null)
     suspend fun processCaveLifecycle(year: Int, month: Int)

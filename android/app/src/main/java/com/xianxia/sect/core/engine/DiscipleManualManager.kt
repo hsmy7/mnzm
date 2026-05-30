@@ -23,7 +23,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int = MAX_MANUAL_STACK,
         instantMessage: Boolean = false
     ): ManualLearnResult {
@@ -35,7 +35,7 @@ object DiscipleManualManager {
         var lastReplacedManualStack: ManualStack? = null
 
         val bagStackRefs = disciple.equipment.storageBagItems
-            .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
+            .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gamePhase) }
 
         if (bagStackRefs.isEmpty()) {
             return ManualLearnResult(disciple, null, null, null, null, emptyList())
@@ -72,7 +72,7 @@ object DiscipleManualManager {
                             manualStacks = manualStacks,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
-                            gameDay = gameDay,
+                            gamePhase = gamePhase,
                             maxStack = maxStack,
                             instantMessage = instantMessage
                         )
@@ -94,7 +94,7 @@ object DiscipleManualManager {
                             manualInstances = manualInstances,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
-                            gameDay = gameDay,
+                            gamePhase = gamePhase,
                             instantMessage = instantMessage
                         )
                         if (learnResult.newInstance != null) {
@@ -118,7 +118,7 @@ object DiscipleManualManager {
                     manualInstances = manualInstances,
                     gameYear = gameYear,
                     gameMonth = gameMonth,
-                    gameDay = gameDay,
+                    gamePhase = gamePhase,
                     instantMessage = instantMessage
                 )
                 if (learnResult.newInstance != null) {
@@ -147,7 +147,7 @@ object DiscipleManualManager {
                             manualStacks = manualStacks,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
-                            gameDay = gameDay,
+                            gamePhase = gamePhase,
                             maxStack = maxStack,
                             instantMessage = instantMessage
                         )
@@ -174,7 +174,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         instantMessage: Boolean
     ): ManualLearnResult {
         val events = mutableListOf<String>()
@@ -218,7 +218,7 @@ object DiscipleManualManager {
         manualStacks: List<ManualStack>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int,
         instantMessage: Boolean
     ): ManualLearnResult {
@@ -290,7 +290,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
-        gameDay: Int,
+        gamePhase: Int,
         maxStack: Int = MAX_MANUAL_STACK
     ): ManualLearnResult {
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)

@@ -63,7 +63,7 @@ fun MutableGameState.addEquipmentInstanceToDiscipleBag(
     excludeStackId: String? = null,
     gameYear: Int,
     gameMonth: Int,
-    gameDay: Int,
+    gamePhase: Int,
     maxStackSize: Int
 ): AddToBagResult {
     val mergeResult = mergeEquipmentStackToWarehouse(excludeStackId, maxStackSize, instance)
@@ -80,7 +80,7 @@ fun MutableGameState.addManualInstanceToDiscipleBag(
     excludeStackId: String? = null,
     gameYear: Int,
     gameMonth: Int,
-    gameDay: Int,
+    gamePhase: Int,
     maxStackSize: Int
 ): AddToBagResult {
     val mergeResult = mergeManualStackToWarehouse(excludeStackId, maxStackSize, instance)
