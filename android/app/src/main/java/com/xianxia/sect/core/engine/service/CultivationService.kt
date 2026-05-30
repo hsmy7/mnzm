@@ -101,7 +101,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.gameData = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { gameData = value } }
+            stateStore.updateGameDataDirect { _ -> value }
         }
 
     private var currentDisciples: List<Disciple>
@@ -109,7 +109,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.disciples = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { disciples = value } }
+            stateStore.updateDisciplesDirect { _ -> value }
         }
     private var pendingNotification: GameNotification?
         get() = stateStore.currentTransactionMutableState()?.pendingNotification
@@ -124,7 +124,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { equipmentStacks = value } }
+            stateStore.updateEquipmentStacksDirect { _ -> value }
         }
 
     private var currentEquipmentInstances: List<EquipmentInstance>
@@ -132,7 +132,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { equipmentInstances = value } }
+            stateStore.updateEquipmentInstancesDirect { _ -> value }
         }
 
     private var currentManualStacks: List<ManualStack>
@@ -140,7 +140,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.manualStacks = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { manualStacks = value } }
+            stateStore.updateManualStacksDirect { _ -> value }
         }
 
     private var currentManualInstances: List<ManualInstance>
@@ -148,7 +148,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.manualInstances = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { manualInstances = value } }
+            stateStore.updateManualInstancesDirect { _ -> value }
         }
 
     private var currentPills: List<Pill>
@@ -156,7 +156,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.pills = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { pills = value } }
+            stateStore.updatePillsDirect { _ -> value }
         }
 
     private var currentMaterials: List<Material>
@@ -164,7 +164,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.materials = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { materials = value } }
+            stateStore.updateMaterialsDirect { _ -> value }
         }
 
     private var currentHerbs: List<Herb>
@@ -172,7 +172,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.herbs = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { herbs = value } }
+            stateStore.updateHerbsDirect { _ -> value }
         }
 
     private var currentSeeds: List<Seed>
@@ -180,7 +180,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.seeds = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { seeds = value } }
+            stateStore.updateSeedsDirect { _ -> value }
         }
 
     private suspend fun updateHerbsSync(value: List<Herb>) {
@@ -206,7 +206,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.battleLogs = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { battleLogs = value } }
+            stateStore.updateBattleLogsDirect { _ -> value }
         }
 
     private var currentTeams: List<ExplorationTeam>
@@ -214,7 +214,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.teams = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { teams = value } }
+            stateStore.updateTeamsDirect { _ -> value }
         }
 
     private var _highFrequencyData = MutableStateFlow(HighFrequencyData())

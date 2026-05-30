@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.71",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复CultivationService中12个setter使用scope.launch异步写状态导致多域更新不原子的问题，改为同步direct方法直接写入_state"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.70",
             date = "2026-05-30",
             changes = listOf(

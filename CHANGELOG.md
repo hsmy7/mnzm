@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.71] - 2026-05-30
+
+### 修复
+- CultivationService 中 12 个 setter 从 scope.launch 异步写改为 sync direct 方法直接写入 _state，消除多域更新不原子和潜在竞态
+
 ## [3.1.70] - 2026-05-30
 
 ### 优化

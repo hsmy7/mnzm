@@ -294,6 +294,46 @@ class GameStateStore @Inject constructor(
         _state.update { it.copy(gameData = update(it.gameData)) }
     }
 
+    fun updateEquipmentStacksDirect(update: (List<EquipmentStack>) -> List<EquipmentStack>) {
+        _state.update { it.copy(equipmentStacks = update(it.equipmentStacks)) }
+    }
+
+    fun updateEquipmentInstancesDirect(update: (List<EquipmentInstance>) -> List<EquipmentInstance>) {
+        _state.update { it.copy(equipmentInstances = update(it.equipmentInstances)) }
+    }
+
+    fun updateManualStacksDirect(update: (List<ManualStack>) -> List<ManualStack>) {
+        _state.update { it.copy(manualStacks = update(it.manualStacks)) }
+    }
+
+    fun updateManualInstancesDirect(update: (List<ManualInstance>) -> List<ManualInstance>) {
+        _state.update { it.copy(manualInstances = update(it.manualInstances)) }
+    }
+
+    fun updatePillsDirect(update: (List<Pill>) -> List<Pill>) {
+        _state.update { it.copy(pills = update(it.pills)) }
+    }
+
+    fun updateMaterialsDirect(update: (List<Material>) -> List<Material>) {
+        _state.update { it.copy(materials = update(it.materials)) }
+    }
+
+    fun updateHerbsDirect(update: (List<Herb>) -> List<Herb>) {
+        _state.update { it.copy(herbs = update(it.herbs)) }
+    }
+
+    fun updateSeedsDirect(update: (List<Seed>) -> List<Seed>) {
+        _state.update { it.copy(seeds = update(it.seeds)) }
+    }
+
+    fun updateTeamsDirect(update: (List<ExplorationTeam>) -> List<ExplorationTeam>) {
+        _state.update { it.copy(teams = update(it.teams)) }
+    }
+
+    fun updateBattleLogsDirect(update: (List<BattleLog>) -> List<BattleLog>) {
+        _state.update { it.copy(battleLogs = update(it.battleLogs)) }
+    }
+
     // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
     val gameDataSnapshot: GameData get() = _state.value.gameData
     val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _state.value.disciples.map { it.toAggregate() }
