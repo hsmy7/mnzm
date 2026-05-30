@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.67",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复探查和宗门战后战斗结算界面不弹出：scoutSect/attackSect改用Snapshot直读_state.value替代stateIn派生StateFlow，解决WhileSubscribed replay过期导致.value返回空列表静默跳过战斗的bug（与v3.1.64妖兽战斗修复同根因）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.66",
             date = "2026-05-30",
             changes = listOf(

@@ -2895,9 +2895,9 @@ class GameEngine @Inject constructor(
      * This replaces the old movement+battle flow with immediate resolution.
      */
     suspend fun attackSect(sectId: String, attackSlots: List<Pair<Int, com.xianxia.sect.core.model.DiscipleAggregate>>) {
-        val data = stateStore.gameData.value
+        val data = stateStore.gameDataSnapshot
         val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
-        val allDisciples = stateStore.disciples.value
+        val allDisciples = stateStore.disciplesSnapshot
 
         val attackers = attackSlots.mapNotNull { (_, agg) ->
             allDisciples.find { it.id == agg.id && it.isAlive }
@@ -3000,7 +3000,7 @@ class GameEngine @Inject constructor(
                 AIBattleWinner.DRAW -> "与${targetSect.name}打成平手"
             }
         )
-        val existingLogs = stateStore.battleLogs.value
+        val existingLogs = stateStore.battleLogsSnapshot
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         stateStore.update { battleLogs = updatedLogs }
 
@@ -3351,10 +3351,10 @@ class GameEngine @Inject constructor(
      * Resolves immediately like attackWorldLevel — no travel time.
      */
     suspend fun scoutSect(sectId: String, memberIds: List<String>) {
-        val data = stateStore.gameData.value
+        val data = stateStore.gameDataSnapshot
         val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
 
-        val allDisciples = stateStore.disciples.value
+        val allDisciples = stateStore.disciplesSnapshot
         val combatDisciples = memberIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
         if (combatDisciples.isEmpty()) return
 
@@ -3363,8 +3363,8 @@ class GameEngine @Inject constructor(
             .shuffled()
             .take(kotlin.random.Random.nextInt(5, 11))
 
-        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
-        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+        val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
+        val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -3421,7 +3421,7 @@ class GameEngine @Inject constructor(
         // Update disciple HP/MP
         val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
         val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
-        val updatedDisciples = stateStore.disciples.value.map { d ->
+        val updatedDisciples = stateStore.disciplesSnapshot.map { d ->
             val (hp, mp) = hpMap[d.id] ?: return@map d
             if (d.id !in survivorIds) {
                 d.copy(isAlive = false, status = DiscipleStatus.DEAD)
@@ -3494,7 +3494,7 @@ class GameEngine @Inject constructor(
             details = if (victory) "成功探查了${targetSect.name}" else "探查${targetSect.name}失败"
         )
 
-        val existingLogs = stateStore.battleLogs.value
+        val existingLogs = stateStore.battleLogsSnapshot
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         stateStore.update { battleLogs = updatedLogs }
         stateStore.setPendingBattleResult(BattleResultUIData(

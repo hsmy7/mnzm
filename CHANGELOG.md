@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.67] - 2026-05-30
+
+### 修复
+- 探查和宗门战后战斗结算界面不弹出：scoutSect/attackSect 改用 Snapshot 直读 `_state.value` 替代 stateIn 派生 StateFlow，解决 WhileSubscribed replay 过期导致 `.value` 返回空列表静默跳过战斗的 bug（与 3.1.64 妖兽战斗修复同根因）
+
 ## [3.1.66] - 2026-05-30
 
 ### 修复
