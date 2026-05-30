@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.66",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复世界地图探查按钮直接弹出弟子选择器、跳过探查派遣界面的回归问题（v3.0.83统一单选时误伤），恢复10槽位编队+探查确认按钮的完整战斗派遣流程",
+                "探查界面与进攻界面交互统一：10槽位编队、点击空槽位选弟子、点击已填槽位查看详情、卸任更换按钮、确认后执行"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.65",
             date = "2026-05-30",
             changes = listOf(

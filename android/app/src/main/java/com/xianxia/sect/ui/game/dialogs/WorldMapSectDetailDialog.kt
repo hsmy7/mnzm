@@ -259,7 +259,6 @@ internal fun WorldMapSectDetailDialog(
                             text = "探查",
                             onClick = {
                                 worldMapViewModel.openScoutDialog(sect.id)
-                                onDismiss()
                             }
                         )
 

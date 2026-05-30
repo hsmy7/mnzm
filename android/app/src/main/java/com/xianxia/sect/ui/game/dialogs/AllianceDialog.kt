@@ -50,9 +50,6 @@ import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
-
 @Composable
 fun AllianceDialog(
     sect: WorldSect?,
@@ -480,27 +477,5 @@ private fun AllySelectCard(
     }
 }
 
-@Composable
-fun ScoutDiscipleSelectDialog(
-    sect: WorldSect?,
-    disciples: List<DiscipleAggregate>,
-    viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
-    onDismiss: () -> Unit
-) {
-    DiscipleSelectorDialog(
-        config = DiscipleSelectorConfig(
-            title = "选择探查弟子 - ${sect?.name ?: "未知"}"
-        ),
-        disciples = disciples,
-        onDismiss = onDismiss,
-        onConfirm = { selected ->
-            if (selected.isNotEmpty() && sect != null) {
-                worldMapViewModel.startScoutMission(selected.map { it.id }, sect.id)
-                onDismiss()
-            }
-        }
-    )
-}
 
 

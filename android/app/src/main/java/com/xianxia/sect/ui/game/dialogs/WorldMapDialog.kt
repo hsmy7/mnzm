@@ -189,11 +189,13 @@ internal fun WorldMapDialog(
         val eligible = remember(disciples) {
             disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE }
         }
-        ScoutDiscipleSelectDialog(
-            sect = sect,
+        ScoutDialog(
+            sectName = sect?.name ?: "未知",
             disciples = eligible,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
+            onScout = { memberIds ->
+                worldMapViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")
+            },
             onDismiss = { worldMapViewModel.closeScoutDialog() }
         )
     }
