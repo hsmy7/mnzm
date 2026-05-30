@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.70] - 2026-05-30
+
+### 优化
+- GameViewModel 中 19 个无变换透传 StateFlow 从 stateIn() 改为 get() 委托，移除冗余 viewModelScope stateIn 层，减少每 tick O(N) 通知开销
+
 ## [3.1.69] - 2026-05-30
 
 ### 修复

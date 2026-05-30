@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.70",
+            date = "2026-05-30",
+            changes = listOf(
+                "优化状态流架构：GameViewModel中19个无变换透传StateFlow从stateIn()改为get()委托，移除冗余的viewModelScope stateIn层，减少每tick O(N)通知开销"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.69",
             date = "2026-05-30",
             changes = listOf(

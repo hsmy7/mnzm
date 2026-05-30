@@ -237,8 +237,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    val gameData: StateFlow<GameData> = gameEngine.gameData
-        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+    val gameData: StateFlow<GameData> get() = gameEngine.gameData
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     val gameDataUi: StateFlow<GameData> = gameEngine.gameData
@@ -260,14 +259,11 @@ class GameViewModel @Inject constructor(
      * 此属性将底层的 List<Disciple> 自动转换为 List<DiscipleAggregate>，
      * 确保 UI 层统一使用新的多表架构类型。
      */
-    val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = gameEngine.discipleAggregates
 
-    val sectCombatPower: StateFlow<Long> = gameEngine.sectCombatPower
-        .stateIn(viewModelScope, sharingStarted, 0L)
+    val sectCombatPower: StateFlow<Long> get() = gameEngine.sectCombatPower
 
-    val aiSectCombatPowers: StateFlow<Map<String, Long>> = gameEngine.aiSectCombatPowers
-        .stateIn(viewModelScope, sharingStarted, emptyMap())
+    val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = gameEngine.aiSectCombatPowers
 
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
@@ -281,11 +277,9 @@ class GameViewModel @Inject constructor(
         .map { data -> data.recruitList.map { it.toAggregate() } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val equipment: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val equipment: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
 
-    val manuals: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val manuals: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
 
     val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
         gameEngine.equipmentStacks,
@@ -299,8 +293,7 @@ class GameViewModel @Inject constructor(
         stacks.filter { it.id !in bagStackIds }
     }.stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val equipmentInstances: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
 
     val manualStacks: StateFlow<List<ManualStack>> = combine(
         gameEngine.manualStacks,
@@ -314,39 +307,29 @@ class GameViewModel @Inject constructor(
         stacks.filter { it.id !in bagStackIds }
     }.stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val manualInstances: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val manualInstances: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
 
-    val pills: StateFlow<List<Pill>> = gameEngine.pills
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val pills: StateFlow<List<Pill>> get() = gameEngine.pills
 
-    val materials: StateFlow<List<Material>> = gameEngine.materials
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val materials: StateFlow<List<Material>> get() = gameEngine.materials
 
-    val herbs: StateFlow<List<Herb>> = gameEngine.herbs
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val herbs: StateFlow<List<Herb>> get() = gameEngine.herbs
 
-    val seeds: StateFlow<List<Seed>> = gameEngine.seeds
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val seeds: StateFlow<List<Seed>> get() = gameEngine.seeds
 
-    val teams: StateFlow<List<ExplorationTeam>> = gameEngine.teams
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val teams: StateFlow<List<ExplorationTeam>> get() = gameEngine.teams
 
-    val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val battleLogs: StateFlow<List<BattleLog>> get() = gameEngine.battleLogs
 
-    val pendingBattleResult: StateFlow<BattleResultUIData?> = gameEngine.pendingBattleResult
-        .stateIn(viewModelScope, sharingStarted, null)
+    val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val productionSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> = gameEngine.productionSlots
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val productionSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> get() = gameEngine.productionSlots
 
-    val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
-        .stateIn(viewModelScope, sharingStarted, WorldMapRenderData())
+    val worldMapRenderData: StateFlow<WorldMapRenderData> get() = gameEngine.worldMapRenderData
 
     val alchemySlots: StateFlow<List<AlchemySlot>> = productionSlots
         .map { slots ->
@@ -376,11 +359,9 @@ class GameViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val highFrequencyData: StateFlow<HighFrequencyData> = gameEngine.highFrequencyData
-        .stateIn(viewModelScope, sharingStarted, HighFrequencyData())
+    val highFrequencyData: StateFlow<HighFrequencyData> get() = gameEngine.highFrequencyData
 
-    val realtimeCultivation: StateFlow<Map<String, Double>> = gameEngine.realtimeCultivation
-        .stateIn(viewModelScope, sharingStarted, emptyMap())
+    val realtimeCultivation: StateFlow<Map<String, Double>> get() = gameEngine.realtimeCultivation
 
     fun hasDisciplePosition(discipleId: String): Boolean {
         return disciplePositionQuery.hasDisciplePosition(discipleId)
