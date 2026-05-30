@@ -1686,7 +1686,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val policies = data.sectPolicies
         val idleDisciples = mutableListOf<Disciple>().also { it.addAll(currentDisciples.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
 
-        fun takeCandidate(focused: Boolean, rootCounts: Set<Int>, threshold: Int, attr: (Disciple) -> Int): Disciple? {
+        fun takeCandidate(focused: Boolean, rootCounts: List<Int>, threshold: Int, attr: (Disciple) -> Int): Disciple? {
             val enabled = focused || rootCounts.isNotEmpty()
             if (!enabled || idleDisciples.isEmpty()) return null
             val candidate = idleDisciples

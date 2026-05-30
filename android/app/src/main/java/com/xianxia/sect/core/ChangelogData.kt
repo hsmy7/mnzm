@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.74",
+            date = "2026-05-31",
+            changes = listOf(
+                "紧急修复v3.1.73自动存档变空：SectPolicies新增字段Set<Int>改为List<Int>，ProtoBuf不支持Set导致序列化失败"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.73",
             date = "2026-05-31",
             changes = listOf(

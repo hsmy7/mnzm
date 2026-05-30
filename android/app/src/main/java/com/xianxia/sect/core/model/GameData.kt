@@ -367,16 +367,16 @@ data class SectPolicies(
     val autoForge: Boolean = false,
     // 自动分配：focused = 已关注, rootCounts = 灵根数量筛选, threshold = 属性门槛
     val autoMineFocused: Boolean = false,
-    val autoMineRootCounts: Set<Int> = emptySet(),
+    val autoMineRootCounts: List<Int> = emptyList(),
     val autoMineThreshold: Int = 1,
     val autoPlantFocused: Boolean = false,
-    val autoPlantRootCounts: Set<Int> = emptySet(),
+    val autoPlantRootCounts: List<Int> = emptyList(),
     val autoPlantThreshold: Int = 1,
     val autoAlchemyFocused: Boolean = false,
-    val autoAlchemyRootCounts: Set<Int> = emptySet(),
+    val autoAlchemyRootCounts: List<Int> = emptyList(),
     val autoAlchemyThreshold: Int = 1,
     val autoForgeFocused: Boolean = false,
-    val autoForgeRootCounts: Set<Int> = emptySet(),
+    val autoForgeRootCounts: List<Int> = emptyList(),
     val autoForgeThreshold: Int = 1
 )
 

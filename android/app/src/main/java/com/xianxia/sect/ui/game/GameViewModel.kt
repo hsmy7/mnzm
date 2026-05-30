@@ -530,10 +530,10 @@ class GameViewModel @Inject constructor(
     }
 
     fun setAutoAssignSettings(
-        mineFocused: Boolean, mineRootCounts: Set<Int>, mineThreshold: Int,
-        plantFocused: Boolean, plantRootCounts: Set<Int>, plantThreshold: Int,
-        alchemyFocused: Boolean, alchemyRootCounts: Set<Int>, alchemyThreshold: Int,
-        forgeFocused: Boolean, forgeRootCounts: Set<Int>, forgeThreshold: Int
+        mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
+        plantFocused: Boolean, plantRootCounts: List<Int>, plantThreshold: Int,
+        alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
+        forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
     ) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(

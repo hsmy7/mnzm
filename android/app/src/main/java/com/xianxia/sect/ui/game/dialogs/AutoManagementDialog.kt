@@ -48,32 +48,32 @@ fun AutoManagementDialog(
     val policies = gameData?.sectPolicies
 
     var mineFocused by remember { mutableStateOf(policies?.autoMineFocused ?: false) }
-    var mineRootCounts by remember { mutableStateOf(policies?.autoMineRootCounts ?: emptySet<Int>()) }
+    var mineRootCounts by remember { mutableStateOf(policies?.autoMineRootCounts ?: emptyList<Int>()) }
     var mineThreshold by remember { mutableStateOf((policies?.autoMineThreshold ?: 1).toString()) }
 
     var plantFocused by remember { mutableStateOf(policies?.autoPlantFocused ?: false) }
-    var plantRootCounts by remember { mutableStateOf(policies?.autoPlantRootCounts ?: emptySet<Int>()) }
+    var plantRootCounts by remember { mutableStateOf(policies?.autoPlantRootCounts ?: emptyList<Int>()) }
     var plantThreshold by remember { mutableStateOf((policies?.autoPlantThreshold ?: 1).toString()) }
 
     var alchemyFocused by remember { mutableStateOf(policies?.autoAlchemyFocused ?: false) }
-    var alchemyRootCounts by remember { mutableStateOf(policies?.autoAlchemyRootCounts ?: emptySet<Int>()) }
+    var alchemyRootCounts by remember { mutableStateOf(policies?.autoAlchemyRootCounts ?: emptyList<Int>()) }
     var alchemyThreshold by remember { mutableStateOf((policies?.autoAlchemyThreshold ?: 1).toString()) }
 
     var forgeFocused by remember { mutableStateOf(policies?.autoForgeFocused ?: false) }
-    var forgeRootCounts by remember { mutableStateOf(policies?.autoForgeRootCounts ?: emptySet<Int>()) }
+    var forgeRootCounts by remember { mutableStateOf(policies?.autoForgeRootCounts ?: emptyList<Int>()) }
     var forgeThreshold by remember { mutableStateOf((policies?.autoForgeThreshold ?: 1).toString()) }
 
     val hasChanges = mineFocused != (policies?.autoMineFocused ?: false) ||
-            mineRootCounts != (policies?.autoMineRootCounts ?: emptySet<Int>()) ||
+            mineRootCounts != (policies?.autoMineRootCounts ?: emptyList<Int>()) ||
             mineThreshold != (policies?.autoMineThreshold ?: 1).toString() ||
             plantFocused != (policies?.autoPlantFocused ?: false) ||
-            plantRootCounts != (policies?.autoPlantRootCounts ?: emptySet<Int>()) ||
+            plantRootCounts != (policies?.autoPlantRootCounts ?: emptyList<Int>()) ||
             plantThreshold != (policies?.autoPlantThreshold ?: 1).toString() ||
             alchemyFocused != (policies?.autoAlchemyFocused ?: false) ||
-            alchemyRootCounts != (policies?.autoAlchemyRootCounts ?: emptySet<Int>()) ||
+            alchemyRootCounts != (policies?.autoAlchemyRootCounts ?: emptyList<Int>()) ||
             alchemyThreshold != (policies?.autoAlchemyThreshold ?: 1).toString() ||
             forgeFocused != (policies?.autoForgeFocused ?: false) ||
-            forgeRootCounts != (policies?.autoForgeRootCounts ?: emptySet<Int>()) ||
+            forgeRootCounts != (policies?.autoForgeRootCounts ?: emptyList<Int>()) ||
             forgeThreshold != (policies?.autoForgeThreshold ?: 1).toString()
 
     var showUnsavedDialog by remember { mutableStateOf(false) }
@@ -202,7 +202,7 @@ private fun AutoAssignSection(
     title: String,
     attrLabel: String,
     focused: Boolean,
-    rootCounts: Set<Int>,
+    rootCounts: List<Int>,
     threshold: String,
     onFocusedToggle: () -> Unit,
     onRootToggle: (Int) -> Unit,
