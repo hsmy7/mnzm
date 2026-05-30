@@ -1765,7 +1765,19 @@ class SaveDataConverter @Inject constructor() {
             manualResearch = policies.manualResearch ?: false,
             autoPlant = policies.autoPlant ?: false,
             autoAlchemy = policies.autoAlchemy ?: false,
-            autoForge = policies.autoForge ?: false
+            autoForge = policies.autoForge ?: false,
+            autoMineFocused = policies.autoMineFocused,
+            autoMineRootCounts = policies.autoMineRootCounts.toList(),
+            autoMineThreshold = policies.autoMineThreshold,
+            autoPlantFocused = policies.autoPlantFocused,
+            autoPlantRootCounts = policies.autoPlantRootCounts.toList(),
+            autoPlantThreshold = policies.autoPlantThreshold,
+            autoAlchemyFocused = policies.autoAlchemyFocused,
+            autoAlchemyRootCounts = policies.autoAlchemyRootCounts.toList(),
+            autoAlchemyThreshold = policies.autoAlchemyThreshold,
+            autoForgeFocused = policies.autoForgeFocused,
+            autoForgeRootCounts = policies.autoForgeRootCounts.toList(),
+            autoForgeThreshold = policies.autoForgeThreshold
         )
     }
 
@@ -1780,7 +1792,19 @@ class SaveDataConverter @Inject constructor() {
             manualResearch = data.manualResearch,
             autoPlant = data.autoPlant,
             autoAlchemy = data.autoAlchemy,
-            autoForge = data.autoForge
+            autoForge = data.autoForge,
+            autoMineFocused = data.autoMineFocused,
+            autoMineRootCounts = data.autoMineRootCounts.toSet(),
+            autoMineThreshold = data.autoMineThreshold,
+            autoPlantFocused = data.autoPlantFocused,
+            autoPlantRootCounts = data.autoPlantRootCounts.toSet(),
+            autoPlantThreshold = data.autoPlantThreshold,
+            autoAlchemyFocused = data.autoAlchemyFocused,
+            autoAlchemyRootCounts = data.autoAlchemyRootCounts.toSet(),
+            autoAlchemyThreshold = data.autoAlchemyThreshold,
+            autoForgeFocused = data.autoForgeFocused,
+            autoForgeRootCounts = data.autoForgeRootCounts.toSet(),
+            autoForgeThreshold = data.autoForgeThreshold
         )
     }
 

@@ -364,7 +364,20 @@ data class SectPolicies(
     val manualResearch: Boolean = false,
     val autoPlant: Boolean = false,
     val autoAlchemy: Boolean = false,
-    val autoForge: Boolean = false
+    val autoForge: Boolean = false,
+    // 自动分配：focused = 已关注, rootCounts = 灵根数量筛选, threshold = 属性门槛
+    val autoMineFocused: Boolean = false,
+    val autoMineRootCounts: Set<Int> = emptySet(),
+    val autoMineThreshold: Int = 1,
+    val autoPlantFocused: Boolean = false,
+    val autoPlantRootCounts: Set<Int> = emptySet(),
+    val autoPlantThreshold: Int = 1,
+    val autoAlchemyFocused: Boolean = false,
+    val autoAlchemyRootCounts: Set<Int> = emptySet(),
+    val autoAlchemyThreshold: Int = 1,
+    val autoForgeFocused: Boolean = false,
+    val autoForgeRootCounts: Set<Int> = emptySet(),
+    val autoForgeThreshold: Int = 1
 )
 
 // 长老槽位数据

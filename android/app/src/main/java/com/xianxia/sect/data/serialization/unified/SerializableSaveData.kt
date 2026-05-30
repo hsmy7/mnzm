@@ -805,7 +805,19 @@ data class SerializableSectPolicies(
     @ProtoNumber(7) val manualResearch: Boolean = false,
     @ProtoNumber(8) val autoPlant: Boolean = false,
     @ProtoNumber(9) val autoAlchemy: Boolean = false,
-    @ProtoNumber(10) val autoForge: Boolean = false
+    @ProtoNumber(10) val autoForge: Boolean = false,
+    @ProtoNumber(11) val autoMineFocused: Boolean = false,
+    @ProtoNumber(12) val autoMineRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(13) val autoMineThreshold: Int = 1,
+    @ProtoNumber(14) val autoPlantFocused: Boolean = false,
+    @ProtoNumber(15) val autoPlantRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(16) val autoPlantThreshold: Int = 1,
+    @ProtoNumber(17) val autoAlchemyFocused: Boolean = false,
+    @ProtoNumber(18) val autoAlchemyRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(19) val autoAlchemyThreshold: Int = 1,
+    @ProtoNumber(20) val autoForgeFocused: Boolean = false,
+    @ProtoNumber(21) val autoForgeRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(22) val autoForgeThreshold: Int = 1
 )
 
 @Serializable

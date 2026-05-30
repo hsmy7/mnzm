@@ -39,5 +39,6 @@ class ProductionSubsystem @Inject constructor(
         cultivationService.processAutoPlant()
         cultivationService.processAutoAlchemy()
         cultivationService.processAutoForge()
+        cultivationService.processAutoAssign()
     }
 }

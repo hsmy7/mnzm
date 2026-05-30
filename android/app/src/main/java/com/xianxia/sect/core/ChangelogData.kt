@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.73",
+            date = "2026-05-31",
+            changes = listOf(
+                "新增天枢殿→宗门管理→自动管理：配置空闲弟子自动分配灵矿场/灵植阁/炼丹炉/锻造坊的属性门槛与灵根筛选，月度tick触发自动分配",
+                "SectPolicies扩展12个字段支持4种自动分配类型（采矿/种植/炼丹/炼器），ProtoBuf向后兼容无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.72",
             date = "2026-05-30",
             changes = listOf(

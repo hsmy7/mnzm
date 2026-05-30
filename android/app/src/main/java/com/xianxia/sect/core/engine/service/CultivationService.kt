@@ -1679,6 +1679,97 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
+     * Auto-assign idle disciples to empty production slots based on SectPolicies thresholds.
+     */
+    internal suspend fun processAutoAssign() {
+        val data = currentGameData
+        val policies = data.sectPolicies
+        val idleDisciples = mutableListOf<Disciple>().also { it.addAll(currentDisciples.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
+
+        fun takeCandidate(focused: Boolean, rootCounts: Set<Int>, threshold: Int, attr: (Disciple) -> Int): Disciple? {
+            val enabled = focused || rootCounts.isNotEmpty()
+            if (!enabled || idleDisciples.isEmpty()) return null
+            val candidate = idleDisciples
+                .filter { d ->
+                    val matchesFilter = (focused && isDiscipleFollowed(d)) || d.spiritRoot.types.size in rootCounts
+                    matchesFilter && attr(d) >= threshold
+                }
+                .maxByOrNull { attr(it) }
+            if (candidate != null) idleDisciples.remove(candidate)
+            return candidate
+        }
+
+        // 1. Spirit mine
+        if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
+            val candidate = takeCandidate(policies.autoMineFocused, policies.autoMineRootCounts, policies.autoMineThreshold) { it.mining }
+            if (candidate != null) {
+                val emptyIndex = data.spiritMineSlots.indexOfFirst { it.discipleId.isEmpty() }
+                if (emptyIndex >= 0) {
+                    currentGameData = data.copy(spiritMineSlots = data.spiritMineSlots.mapIndexed { i, slot ->
+                        if (i == emptyIndex) slot.copy(discipleId = candidate.id, discipleName = candidate.name) else slot
+                    })
+                    markDiscipleAssigned(candidate.id, DiscipleStatus.MINING)
+                }
+            }
+        }
+
+        // 2. Herb garden
+        if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
+            val candidate = takeCandidate(policies.autoPlantFocused, policies.autoPlantRootCounts, policies.autoPlantThreshold) { it.spiritPlanting }
+            if (candidate != null) {
+                val slots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
+                val emptySlot = slots.firstOrNull { it.assignedDiscipleId.isNullOrEmpty() && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+                if (emptySlot != null) {
+                    productionSlotRepository.updateSlotByBuildingId("herbGarden", emptySlot.slotIndex) { s ->
+                        s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
+                    }
+                    markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
+                }
+            }
+        }
+
+        // 3. Alchemy
+        if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
+            assignToProductionSlot(
+                takeCandidate(policies.autoAlchemyFocused, policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold) { it.pillRefining },
+                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, "alchemy"
+            )
+        }
+
+        // 4. Forge
+        if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
+            assignToProductionSlot(
+                takeCandidate(policies.autoForgeFocused, policies.autoForgeRootCounts, policies.autoForgeThreshold) { it.artifactRefining },
+                com.xianxia.sect.core.model.production.BuildingType.FORGE, "forge"
+            )
+        }
+    }
+
+    private suspend fun assignToProductionSlot(
+        candidate: Disciple?, type: com.xianxia.sect.core.model.production.BuildingType, buildingId: String
+    ) {
+        if (candidate == null) return
+        val slots = productionSlotRepository.getSlotsByType(type)
+        val emptySlot = slots.firstOrNull { it.assignedDiscipleId.isNullOrEmpty() && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+        if (emptySlot != null) {
+            productionSlotRepository.updateSlotByBuildingId(buildingId, emptySlot.slotIndex) { s ->
+                s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
+            }
+            markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
+        }
+    }
+
+    private fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
+        currentDisciples = currentDisciples.map { d ->
+            if (d.id == discipleId) d.copy(status = status) else d
+        }
+    }
+
+    private fun isDiscipleFollowed(d: Disciple): Boolean {
+        return d.statusData["followed"] == "true"
+    }
+
+    /**
      * Process spirit mine production
      */
     internal fun processSpiritMineProduction() {

@@ -529,6 +529,30 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun setAutoAssignSettings(
+        mineFocused: Boolean, mineRootCounts: Set<Int>, mineThreshold: Int,
+        plantFocused: Boolean, plantRootCounts: Set<Int>, plantThreshold: Int,
+        alchemyFocused: Boolean, alchemyRootCounts: Set<Int>, alchemyThreshold: Int,
+        forgeFocused: Boolean, forgeRootCounts: Set<Int>, forgeThreshold: Int
+    ) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(
+                autoMineFocused = mineFocused,
+                autoMineRootCounts = mineRootCounts,
+                autoMineThreshold = mineThreshold,
+                autoPlantFocused = plantFocused,
+                autoPlantRootCounts = plantRootCounts,
+                autoPlantThreshold = plantThreshold,
+                autoAlchemyFocused = alchemyFocused,
+                autoAlchemyRootCounts = alchemyRootCounts,
+                autoAlchemyThreshold = alchemyThreshold,
+                autoForgeFocused = forgeFocused,
+                autoForgeRootCounts = forgeRootCounts,
+                autoForgeThreshold = forgeThreshold
+            )) }
+        }
+    }
+
     fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(breakthroughAutoPillFocused = focused, breakthroughAutoPillRootCounts = rootCounts) }
