@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.63",
+            date = "2026-05-30",
+            changes = listOf(
+                "新增宗门战斗力系统，主界面宗门信息卡片显示战斗力",
+                "战斗力基于弟子最终属性计算（含装备功法丹药加成）",
+                "AI宗门战力基于基础属性×3，境界变化时增量更新"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.62",
             date = "2026-05-30",
             changes = listOf(

@@ -108,6 +108,9 @@ class GameEngine @Inject constructor(
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
 
+    val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower
+    val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = stateStore.aiSectCombatPowers
+
     val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()
 
     val realtimeCultivation: StateFlow<Map<String, Double>> by lazy {

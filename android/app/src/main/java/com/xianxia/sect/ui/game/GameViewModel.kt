@@ -263,6 +263,12 @@ class GameViewModel @Inject constructor(
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
+    val sectCombatPower: StateFlow<Long> = gameEngine.sectCombatPower
+        .stateIn(viewModelScope, sharingStarted, 0L)
+
+    val aiSectCombatPowers: StateFlow<Map<String, Long>> = gameEngine.aiSectCombatPowers
+        .stateIn(viewModelScope, sharingStarted, emptyMap())
+
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
     /**

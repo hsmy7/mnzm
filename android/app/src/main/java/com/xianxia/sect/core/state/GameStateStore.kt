@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import android.util.Log
+import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
@@ -9,12 +10,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -134,6 +137,94 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged { old, new -> old === new }
         .map { disciples -> disciples.map { it.toAggregate() } }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
+
+    private data class CachedPower(
+        val fingerprint: Int,
+        val power: Long
+    )
+
+    private val disciplePowerCache = ConcurrentHashMap<String, CachedPower>()
+    private val aiDisciplePowerCache = ConcurrentHashMap<String, CachedPower>()
+
+    private val disciplesFlow = _state
+        .map { it.disciples }
+        .distinctUntilChanged { old, new -> old === new }
+
+    private val equipmentInstancesFlow = _state
+        .map { it.equipmentInstances }
+        .distinctUntilChanged { old, new -> old === new }
+
+    private val manualInstancesFlow = _state
+        .map { it.manualInstances }
+        .distinctUntilChanged { old, new -> old === new }
+
+    val sectCombatPower: StateFlow<Long> = combine(
+        disciplesFlow,
+        equipmentInstancesFlow,
+        manualInstancesFlow
+    ) { disciples, equipInstances, manualInstances ->
+        val aliveDisciples = disciples.filter { it.isAlive }
+        val equipMap = equipInstances.associateBy { it.id }
+        val manualMap = manualInstances.associateBy { it.id }
+        val aliveIds = aliveDisciples.map { it.id }.toSet()
+
+        disciplePowerCache.keys.retainAll(aliveIds)
+
+        var total = 0L
+        for (disciple in aliveDisciples) {
+            val aggregate = disciple.toAggregate()
+            val fp = SectCombatPowerCalculator.computePlayerFingerprint(aggregate)
+            val cached = disciplePowerCache[disciple.id]
+            if (cached != null && cached.fingerprint == fp) {
+                total += cached.power
+            } else {
+                val power = SectCombatPowerCalculator.calculatePlayerDisciplePower(
+                    aggregate, equipMap, manualMap
+                )
+                disciplePowerCache[disciple.id] = CachedPower(fp, power)
+                total += power
+            }
+        }
+        total
+    }.distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), 0L)
+
+    private val aiSectDisciplesFlow = _state
+        .map { it.gameData.aiSectDisciples }
+        .distinctUntilChanged { old, new -> old === new }
+
+    val aiSectCombatPowers: StateFlow<Map<String, Long>> = aiSectDisciplesFlow
+        .map { aiDisciplesMap ->
+            val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
+            aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
+
+            val result = mutableMapOf<String, Long>()
+            for ((sectId, disciples) in aiDisciplesMap) {
+                val aliveDisciples = disciples.filter { it.isAlive }
+                if (aliveDisciples.isEmpty()) {
+                    result[sectId] = 0L
+                    continue
+                }
+
+                var total = 0L
+                for (disciple in aliveDisciples) {
+                    val aggregate = disciple.toAggregate()
+                    val fp = SectCombatPowerCalculator.computeAIFingerprint(aggregate)
+                    val cached = aiDisciplePowerCache[disciple.id]
+                    if (cached != null && cached.fingerprint == fp) {
+                        total += cached.power
+                    } else {
+                        val power = SectCombatPowerCalculator.calculateAIDisciplePower(aggregate)
+                        aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
+                        total += power
+                    }
+                }
+                result[sectId] = total
+            }
+            result.toMap()
+        }
+        .distinctUntilChanged { old, new -> old === new || old == new }
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyMap())
 
     internal fun isInTransaction(): Boolean = currentTransactionState != null
 
@@ -300,6 +391,8 @@ class GameStateStore @Inject constructor(
         isSaving: Boolean = false
     ) {
         transactionMutex.withLock {
+            disciplePowerCache.clear()
+            aiDisciplePowerCache.clear()
             _state.update {
                 UnifiedGameState(
                     gameData = gameData,
@@ -328,6 +421,8 @@ class GameStateStore @Inject constructor(
 
     suspend fun reset() {
         transactionMutex.withLock {
+            disciplePowerCache.clear()
+            aiDisciplePowerCache.clear()
             _state.update { UnifiedGameState() }
             _isPaused.value = true
             _isLoading.value = false

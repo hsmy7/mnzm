@@ -853,7 +853,7 @@ class StorageSystemBenchmark {
                     SerializableEquipment(id = e.id, name = e.name, type = "WEAPON", rarity = e.rarity, level = e.level, stats = e.stats)
                 },
                 pills = data.pills.map { p ->
-                    SerializablePill(id = p.id, name = p.name, type = "CULTIVATION", rarity = p.rarity, effects = p.effects, quantity = p.quantity)
+                    SerializablePill(id = p.id, name = p.name, type = "CULTIVATION", rarity = p.rarity, effects = SerializablePillEffect(), quantity = p.quantity)
                 },
                 materials = data.materials.map { m ->
                     SerializableMaterial(id = m.id, name = m.name, type = "BEAST_HIDE", rarity = m.rarity, quantity = m.quantity)
@@ -867,7 +867,7 @@ class StorageSystemBenchmark {
                 battleLogs = data.battleLogs.map { b ->
                     SerializableBattleLog(id = b.id, timestamp = b.timestamp, gameYear = 1, gameMonth = 1, attackerSectId = "", attackerSectName = b.attackerName, defenderSectId = "", defenderSectName = b.defenderName, result = b.result, type = "PVE", rounds = b.rounds.map { r ->
                         SerializableBattleLogRound(roundNumber = r.roundNumber, actions = r.actions.map { a ->
-                            SerializableBattleLogAction(actorId = "", actorName = a.actor, targetType = "", targetId = "", targetName = a.target, skillName = a.skill, damage = a.damage, isCritical = false, effect = "")
+                            SerializableBattleLogAction(actorId = "", actorName = a.actor, attackerType = "", targetId = "", targetName = a.target, skillName = a.skill, damage = a.damage, isCritical = false, effect = "")
                         })
                     }, attackerMembers = emptyList(), defenderMembers = emptyList())
                 }
@@ -877,11 +877,11 @@ class StorageSystemBenchmark {
             val lenientResult = serializationEngine.validateDataLimits(serializableData, DataLimits.LENIENT)
 
             println("  ${scale.label}:")
-            println("    DEFAULT: valid=${defaultResult.isValid}, violations=${defaultResult.violations.size}, estimatedTotal=${defaultResult.estimatedTotalBytes / 1024}KB")
+            println("    DEFAULT: valid=${defaultResult.isValid}, violations=${defaultResult.violations.size}")
             if (defaultResult.violations.isNotEmpty()) {
                 defaultResult.violations.forEach { v -> println("      - $v") }
             }
-            println("    LENIENT: valid=${lenientResult.isValid}, violations=${lenientResult.violations.size}, estimatedTotal=${lenientResult.estimatedTotalBytes / 1024}KB")
+            println("    LENIENT: valid=${lenientResult.isValid}, violations=${lenientResult.violations.size}")
         }
     }
 

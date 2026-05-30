@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
@@ -317,8 +318,8 @@ class InventorySystemTest {
     fun `getCapacityInfo - initial capacity`() {
         val info = system.getCapacityInfo()
         assertEquals(0, info.currentSlots)
-        assertEquals(InventorySystem.MAX_INVENTORY_SIZE, info.maxSlots)
-        assertEquals(InventorySystem.MAX_INVENTORY_SIZE, info.remainingSlots)
+        assertEquals(GameConfig.Warehouse.BASE_CAPACITY, info.maxSlots)
+        assertEquals(GameConfig.Warehouse.BASE_CAPACITY, info.remainingSlots)
         assertFalse(info.isFull)
     }
 
@@ -330,7 +331,7 @@ class InventorySystemTest {
     @Test
     fun `canAddItems - check batch add`() {
         assertTrue(system.canAddItems(10))
-        assertFalse(system.canAddItems(InventorySystem.MAX_INVENTORY_SIZE + 1))
+        assertFalse(system.canAddItems(GameConfig.Warehouse.BASE_CAPACITY + 1))
     }
 
     @Test
@@ -469,7 +470,7 @@ class InventorySystemTest {
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack))
-            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+            for (i in 0 until GameConfig.Warehouse.BASE_CAPACITY - 1) {
                 system.addPill(Pill(id = "fill$i", name = "填充丹药$i", rarity = 1, category = PillCategory.FUNCTIONAL, quantity = 1))
             }
         }
@@ -508,7 +509,7 @@ class InventorySystemTest {
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, grade = PillGrade.MEDIUM, quantity = maxStack))
-            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+            for (i in 0 until GameConfig.Warehouse.BASE_CAPACITY - 1) {
                 system.addPill(Pill(id = "fill$i", name = "填充丹药$i", rarity = 1, category = PillCategory.FUNCTIONAL, quantity = 1))
             }
         }
@@ -531,7 +532,7 @@ class InventorySystemTest {
         val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
         stateStore.update {
             system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = maxStack))
-            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+            for (i in 0 until GameConfig.Warehouse.BASE_CAPACITY - 1) {
                 system.addEquipmentStack(EquipmentStack(id = "fill$i", name = "填充装备$i", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 1))
             }
         }

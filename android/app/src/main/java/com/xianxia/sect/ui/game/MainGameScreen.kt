@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -131,6 +132,7 @@ fun MainGameScreen(
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
     val gameData by viewModel.gameDataUi.collectAsState()
     val disciples by viewModel.discipleAggregates.collectAsState()
+    val sectCombatPower by viewModel.sectCombatPower.collectAsState()
     val aliveDisciples = remember(disciples) {
         derivedStateOf { disciples.filter { it.isAlive } }
     }
@@ -498,6 +500,7 @@ fun MainGameScreen(
             SectInfoCard(
                 gameData = gameData,
                 discipleCount = aliveDisciples.value.size,
+                combatPower = sectCombatPower,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 32.dp, top = 8.dp)
@@ -576,6 +579,7 @@ fun MainGameScreen(
 private fun SectInfoCard(
     gameData: GameData?,
     discipleCount: Int,
+    combatPower: Long,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -592,12 +596,32 @@ private fun SectInfoCard(
             modifier = Modifier
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            Text(
-                text = gameData?.sectName ?: "青云宗",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = gameData?.sectName ?: "青云宗",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                val combatPowerBrush = Brush.verticalGradient(
+                    colors = listOf(Color.Red, Color(0xFFFFD700))
+                )
+                Text(
+                    text = "战斗力",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(brush = combatPowerBrush)
+                )
+                Text(
+                    text = "$combatPower",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
