@@ -47,6 +47,7 @@ import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.map.MapItem
+import android.util.Log
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -230,7 +231,10 @@ fun LevelDetailDialog(
             ) {
                 GameButton(
                     text = "进攻",
-                    onClick = { onAttack(slots.toList()) },
+                    onClick = {
+                        Log.w("LevelDetail", "attack clicked: level=${level.id}, slots=${slots.toList()}")
+                        onAttack(slots.toList())
+                    },
                     enabled = occupiedCount > 0,
                     width = ButtonSizes.StandardWidth,
                     height = ButtonSizes.StandardHeight,

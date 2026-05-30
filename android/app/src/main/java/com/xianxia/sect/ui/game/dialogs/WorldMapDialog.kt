@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import com.xianxia.sect.ui.game.GameViewModel
@@ -123,6 +124,7 @@ internal fun WorldMapDialog(
                 disciples = disciples,
                 viewModel = viewModel,
                 onAttack = { slotIds ->
+                    Log.w("WorldMap", "onAttack: level=${level.id}, slotIds=$slotIds")
                     viewModel.attackWorldLevel(level.id, slotIds)
                     showLevelDetail = false
                     selectedLevel = null

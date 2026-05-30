@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.64] - 2026-05-30
+
+### 修复
+- 世界地图进攻妖兽后战斗结算界面不弹出、战斗日志无记录：修复 `attackWorldLevel` 使用 `stateIn` 缓存的 `disciples.value` 在订阅过期后返回空列表导致弟子 NOT FOUND；改用 `disciplesSnapshot` 直读 `_state.value`
+- 自动存档变空：ProtobufConverters 新增 JSON 降级机制，ProtoBuf 序列化 null 字段失败时自动用 JSON 编码存库（`J:` 前缀），解码时自动识别格式，向后兼容
+
 ## [3.1.63] - 2026-05-30
 
 ### 新增

@@ -11,6 +11,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import java.util.Base64
 
 /**
@@ -39,6 +40,12 @@ object ProtobufConverters {
      * 确保所有字段都被序列化，即使值为默认值
      */
     private val protoBuf = NullSafeProtoBuf.protoBuf
+
+    /** JSON fallback for types with nullable fields (ProtoBuf proto3 doesn't support null) */
+    private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+
+    // Marker prefix for JSON-encoded data in the database
+    private const val JSON_MARKER = "J:"
 
     // ==================== Serializer 实例（避免重复创建）====================
 
@@ -78,8 +85,14 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
-            Log.e(TAG, "Protobuf serialization FAILED for ${serializer.descriptor.serialName}, data will be lost! Value type: ${value::class.simpleName}", e)
-            return ""
+            // ProtoBuf proto3 doesn't support null for optional properties — fall back to JSON
+            try {
+                val jsonString = json.encodeToString(serializer, value)
+                return JSON_MARKER + bytesToBase64(jsonString.toByteArray(Charsets.UTF_8))
+            } catch (e2: Exception) {
+                Log.e(TAG, "Both ProtoBuf and JSON serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e2)
+                return ""
+            }
         }
     }
 
@@ -92,19 +105,31 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
-            Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost! Value type: ${value::class.simpleName}", e)
-            return ""
+            // ProtoBuf proto3 doesn't support null for optional properties — fall back to JSON
+            try {
+                val jsonString = json.encodeToString(serializer, value)
+                return JSON_MARKER + bytesToBase64(jsonString.toByteArray(Charsets.UTF_8))
+            } catch (e2: Exception) {
+                Log.e(TAG, "Both ProtoBuf and JSON serialization FAILED for ${serializer.descriptor.serialName}", e2)
+                return ""
+            }
         }
     }
 
     private fun <T> decodeFromBase64(serializer: KSerializer<T>, encoded: String, default: () -> T): T {
         if (encoded.isEmpty()) return default()
         try {
+            if (encoded.startsWith(JSON_MARKER)) {
+                // JSON-encoded data (fallback for types with nullable fields)
+                val jsonString = String(base64ToBytes(encoded.substring(JSON_MARKER.length)), Charsets.UTF_8)
+                if (jsonString.isEmpty()) return default()
+                return json.decodeFromString(serializer, jsonString)
+            }
             val bytes = base64ToBytes(encoded)
             if (bytes.isEmpty()) return default()
             return protoBuf.decodeFromByteArray(serializer, bytes)
         } catch (e: Exception) {
-            Log.e(TAG, "Protobuf deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)
+            Log.e(TAG, "Deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)
             return default()
         }
     }

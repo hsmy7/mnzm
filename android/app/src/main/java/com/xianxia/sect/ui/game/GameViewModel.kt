@@ -122,7 +122,10 @@ class GameViewModel @Inject constructor(
 
     fun openDiplomacyDialog() = navigation.openDiplomacyDialog()
 
-    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) = navigation.attackWorldLevel(levelId, discipleIds)
+    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
+        Log.w(TAG, "attackWorldLevel: levelId=$levelId, discipleIds=$discipleIds")
+        navigation.attackWorldLevel(levelId, discipleIds)
+    }
 
     fun openBattleLogDialog() = navigation.openBattleLogDialog()
 

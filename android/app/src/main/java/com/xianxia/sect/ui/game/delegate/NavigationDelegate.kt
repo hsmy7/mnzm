@@ -94,8 +94,15 @@ class NavigationDelegate(
     }
 
     fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
+        Log.w(TAG, "attackWorldLevel ENTER: levelId=$levelId, discipleIds=$discipleIds")
         scope.launch {
-            gameEngine.attackWorldLevel(levelId, discipleIds)
+            try {
+                Log.w(TAG, "attackWorldLevel LAUNCH: levelId=$levelId")
+                gameEngine.attackWorldLevel(levelId, discipleIds)
+                Log.w(TAG, "attackWorldLevel COMPLETE: levelId=$levelId")
+            } catch (e: Exception) {
+                Log.e(TAG, "attackWorldLevel failed: levelId=$levelId", e)
+            }
         }
     }
 
