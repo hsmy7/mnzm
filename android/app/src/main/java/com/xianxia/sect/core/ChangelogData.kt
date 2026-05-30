@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.72",
+            date = "2026-05-30",
+            changes = listOf(
+                "移除GameStateStore中18个stateIn的replayExpirationMillis=30s限制，改为默认永不过期，彻底消除App切后台>35s回来后StateFlow返回空列表导致UI闪白的问题"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.71",
             date = "2026-05-30",
             changes = listOf(

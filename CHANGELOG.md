@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.72] - 2026-05-30
+
+### 修复
+- 移除 GameStateStore 中 18 个 stateIn 的 replayExpirationMillis=30s 限制，改为默认永不过期，消除后台 >35s 回来 StateFlow 返回空列表导致 UI 闪白
+
 ## [3.1.71] - 2026-05-30
 
 ### 修复
