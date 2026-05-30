@@ -46,8 +46,20 @@ object NullSafeProtoBuf {
      * - ignoreUnknownKeys = false: 严格模式，未知字段会抛出异常
      *   这有助于早期发现 schema 不匹配问题
      */
+    /**
+     * 统一存档路径用 — 所有字段均为非空 Serializable，需要 encodeDefaults=true
+     * 确保 Schema 演进时新增字段有明确默认值，维持版本兼容性
+     */
     val protoBuf: ProtoBuf = ProtoBuf {
         encodeDefaults = true
+    }
+
+    /**
+     * Room TypeConverter 路径用 — 直接序列化领域对象（含 String?/Int? 可空字段）
+     * encodeDefaults=false 使 null 字段自动省略，符合 ProtoBuf proto3 语义
+     */
+    val roomProtoBuf: ProtoBuf = ProtoBuf {
+        encodeDefaults = false
     }
 
     // ==================== String 类型转换 ====================

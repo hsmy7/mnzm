@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.65] - 2026-05-30
+
+### 优化
+- ProtoBuf 序列化彻底优化：Room TypeConverter 改用 `encodeDefaults=false`，可空字段（String?/Int?）为 null 时自动省略，不再需要 JSON 降级
+- 移除 ProtobufConverters 中 JSON 混合格式逻辑，统一为纯 ProtoBuf，提升序列化性能与 Schema 向前兼容性
+
 ## [3.1.64] - 2026-05-30
 
 ### 修复
