@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.78] - 2026-05-31
+
+### 紧急修复
+- **修复存档变空**：v3.1.77 的 DB 迁移 MIGRATION_15_16 保留了 game_day 列未删除，导致 Room schema 验证发现多余列，触发 `fallbackToDestructiveMigration()` 重建空数据库。新增 DB v16→v17 迁移用 `safeDropColumns` 删除残留的 game_day 列，同时修正 MIGRATION_15_16 在新增 game_phase 后也删除旧列
+
 ## [3.1.77] - 2026-05-31
 
 ### 优化

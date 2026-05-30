@@ -67,7 +67,7 @@ object GameDatabaseConfig {
         ArchivedBattleLog::class,
         ArchivedDisciple::class
     ],
-    version = 16
+    version = 17
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -438,11 +438,19 @@ abstract class GameDatabase : RoomDatabase() {
 
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 天制→旬制: 新增 game_phase 列，从 game_day 映射
+                // 天制→旬制: 新增 game_phase 列，从 game_day 映射，然后删除旧列
                 // gameDay 1-10 → 0(上旬), 11-20 → 1(中旬), 21-30 → 2(下旬)
                 db.execSQL("ALTER TABLE game_data ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("UPDATE game_data SET game_phase = (game_day - 1) / 10")
-                // game_day 列保留不动（SQLite 不支持可靠地 DROP COLUMN）
+                db.safeDropColumns("game_data", "game_day")
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 旧版 MIGRATION_15_16 保留了 game_day 列未删除，导致 Room schema 验证失败
+                // safeDropColumns 通过 PRAGMA table_info 重建表，跳过不存在的列时会自动忽略
+                db.safeDropColumns("game_data", "game_day")
             }
         }
 
@@ -475,7 +483,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
