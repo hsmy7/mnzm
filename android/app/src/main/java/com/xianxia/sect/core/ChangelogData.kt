@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.68",
+            date = "2026-05-30",
+            changes = listOf(
+                "修复仓库首次选中物品点查看不弹出详情：remember无keys导致derivedStateOf闭包永久捕获stateIn初始空列表，无法找到物品后守卫子句静默重置（与v3.1.64/67同类的WhileSubscribed初始空值bug）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.67",
             date = "2026-05-30",
             changes = listOf(

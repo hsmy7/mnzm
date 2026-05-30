@@ -170,7 +170,7 @@ internal fun WarehouseTab(
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
-    val selectedItem by remember {
+    val selectedItem by remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds) {
         derivedStateOf {
             selectedItemId?.let { id ->
                 equipment.find { it.id == id }
