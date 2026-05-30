@@ -271,13 +271,10 @@ class GameStateStore @Inject constructor(
     }
 
     fun setPendingBattleResult(result: BattleResultUIData) {
-        Log.w(TAG, "setPendingBattleResult: logId=${result.battleLogId}, victory=${result.victory}")
         _state.update { it.copy(pendingBattleResult = result) }
-        Log.w(TAG, "setPendingBattleResult: _state.value.pendingBattleResult=${_state.value.pendingBattleResult?.battleLogId}")
     }
 
     fun clearPendingBattleResult() {
-        Log.w(TAG, "clearPendingBattleResult")
         _state.update { it.copy(pendingBattleResult = null) }
     }
 

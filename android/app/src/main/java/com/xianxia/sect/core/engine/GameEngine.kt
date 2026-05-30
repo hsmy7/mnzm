@@ -3159,25 +3159,17 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
-        Log.w(TAG, "attackWorldLevel ENTER: levelId=$levelId, discipleIds=$discipleIds")
         // Use snapshots (direct _state.value reads) to avoid stateIn caching delays
         val data = stateStore.gameDataSnapshot
-        val level = data.worldLevels.find { it.id == levelId }
-        if (level == null) { Log.w(TAG, "attackWorldLevel: level not found id=$levelId"); return }
-        if (level.defeated) { Log.w(TAG, "attackWorldLevel: level already defeated id=$levelId"); return }
+        val level = data.worldLevels.find { it.id == levelId } ?: return
+        if (level.defeated) return
 
         val validIds = discipleIds.filterNotNull()
-        if (validIds.isEmpty()) { Log.w(TAG, "attackWorldLevel: no valid disciple IDs"); return }
+        if (validIds.isEmpty()) return
 
         val allDisciples = stateStore.disciplesSnapshot
-        Log.w(TAG, "attackWorldLevel: allDisciples count=${allDisciples.size}, alive=${allDisciples.count { it.isAlive }}, validIds=$validIds")
-        val combatDisciples = validIds.mapNotNull { id ->
-            val d = allDisciples.find { it.id == id }
-            if (d == null) Log.w(TAG, "attackWorldLevel: disciple id=$id NOT FOUND")
-            else if (!d.isAlive) Log.w(TAG, "attackWorldLevel: disciple id=$id name=${d.name} is DEAD")
-            d?.takeIf { it.isAlive }
-        }
-        if (combatDisciples.isEmpty()) { Log.w(TAG, "attackWorldLevel: no alive combat disciples"); return }
+        val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
+        if (combatDisciples.isEmpty()) return
 
         val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
         val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
@@ -3343,7 +3335,6 @@ class GameEngine @Inject constructor(
                 teamMembers = teamMembers,
                 rewards = allRewards
             ))
-            Log.w(TAG, "attackWorldLevel VICTORY: result set, logId=${log.id}")
         } else {
             stateStore.setPendingBattleResult(BattleResultUIData(
                 battleLogId = log.id,
@@ -3352,9 +3343,7 @@ class GameEngine @Inject constructor(
                 rewards = emptyList()
             ))
             stateStore.update { battleLogs = updatedLogs }
-            Log.w(TAG, "attackWorldLevel DEFEAT: result set, logId=${log.id}")
         }
-        Log.w(TAG, "attackWorldLevel EXIT: victory=${result.victory}, logId=${log.id}")
     }
 
     /**

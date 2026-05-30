@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.components
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -74,19 +73,16 @@ fun GameOverlayHost(
 
     val pendingNotification by viewModel.pendingNotification.collectAsState()
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsState()
-    Log.w("GameOverlayHost", "pendingBattleResult collected: ${pendingBattleResult?.battleLogId}")
 
     var showBattleResult by remember { mutableStateOf(false) }
 
     LaunchedEffect(pendingBattleResult) {
-        Log.w("GameOverlayHost", "LaunchedEffect(pendingBattleResult): value=${pendingBattleResult?.battleLogId}")
         if (pendingBattleResult != null) {
             showBattleResult = true
         }
     }
 
     LaunchedEffect(showBattleResult) {
-        Log.w("GameOverlayHost", "showBattleResult changed: $showBattleResult")
         if (showBattleResult) viewModel.pushOverlay(TopOverlay.BATTLE_RESULT)
         else viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
     }
