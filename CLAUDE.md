@@ -153,6 +153,7 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 
 - **NEVER use `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0+ required, not guaranteed on any Android version. To drop columns, use `db.safeDropColumns("table", "col1", "col2")` (defined in `GameDatabase.kt`). It rebuilds the table via PRAGMA, works on all API levels.
 - **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
+- **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
 
 ## Changelog Requirements
 
