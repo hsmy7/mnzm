@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.settlement
 
 import android.util.Log
+import javax.inject.Inject
 
 data class SettlementMetrics(
     val monthYear: Pair<Int, Int>,
@@ -32,7 +33,7 @@ data class SettlementMetrics(
     private fun Float.format(): String = String.format("%.2f", this)
 }
 
-class SettlementMetricsCollector {
+class SettlementMetricsCollector @Inject constructor() {
     private val history = mutableListOf<SettlementMetrics>()
     private var reportInterval = 10
 

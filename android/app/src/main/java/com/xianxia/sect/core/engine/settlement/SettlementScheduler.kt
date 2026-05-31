@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.settlement
 
 import com.xianxia.sect.core.state.MutableGameState
+import javax.inject.Inject
 
 sealed class SettlementPhase {
     abstract suspend fun execute(shadow: MutableGameState): Boolean
@@ -113,7 +114,7 @@ class Phase_AllianceExpiry(
     }
 }
 
-class SettlementScheduler {
+class SettlementScheduler @Inject constructor() {
     private val pendingPhases = mutableListOf<SettlementPhase>()
     private var currentPhaseIndex = 0
     private var frameCount = 0
