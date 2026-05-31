@@ -273,7 +273,10 @@ class GameStateStore @Inject constructor(
                     // 结算未修改此弟子 → 保留主状态版本（含玩家操作）
                     mainDisciple
                 } else {
-                    // 结算修改了此弟子 → 只应用结算相关的字段
+                    // 结算修改了此弟子 → 只应用结算实际变更的字段
+                    // isAlive：仅当结算真的杀了弟子(年度老化)或复活时才用 shadow 值
+                    val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
+                    val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
                     mainDisciple.copy(
                         cultivation = shadowDisciple.cultivation,
                         realm = shadowDisciple.realm,
@@ -286,7 +289,10 @@ class GameStateStore @Inject constructor(
                         cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
                         cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
                         pillEffects = shadowDisciple.pillEffects,
-                        isAlive = shadowDisciple.isAlive
+                        isAlive = when {
+                            diedInSettlement || revivedInSettlement -> shadowDisciple.isAlive
+                            else -> mainDisciple.isAlive  // 保留玩家操作(脱离/处决)
+                        }
                     )
                     // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）
                 }
