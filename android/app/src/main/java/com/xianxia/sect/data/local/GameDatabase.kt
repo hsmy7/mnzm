@@ -348,25 +348,63 @@ abstract class GameDatabase : RoomDatabase() {
          */
         private fun SupportSQLiteDatabase.safeDropColumns(table: String, vararg dropCols: String) {
             val dropped = dropCols.toSet()
-            val cols = mutableListOf<Triple<String, String, Int>>()
+
+            // 1. 保存索引定义 (PRAGMA index_list + index_info)
+            data class IndexInfo(val name: String, val unique: Boolean, val cols: List<String>)
+            val indices = mutableListOf<IndexInfo>()
+            query("PRAGMA index_list($table)").use { c ->
+                while (c.moveToNext()) {
+                    val idxName = c.getString(c.getColumnIndexOrThrow("name"))
+                    val unique = c.getInt(c.getColumnIndexOrThrow("unique")) == 1
+                    val idxCols = mutableListOf<String>()
+                    query("PRAGMA index_info($idxName)").use { ic ->
+                        while (ic.moveToNext()) {
+                            idxCols.add(ic.getString(ic.getColumnIndexOrThrow("name")))
+                        }
+                    }
+                    // 只保留不涉及被删除列的索引
+                    if (idxCols.none { it in dropped }) {
+                        indices.add(IndexInfo(idxName, unique, idxCols))
+                    }
+                }
+            }
+
+            // 2. 读取列定义（含NOT NULL和DEFAULT）
+            data class ColDef(val name: String, val type: String, val notNull: Boolean, val dflt: String?, val pk: Int)
+            val cols = mutableListOf<ColDef>()
             query("PRAGMA table_info($table)").use { c ->
                 while (c.moveToNext()) {
                     val name = c.getString(c.getColumnIndexOrThrow("name"))
                     if (name in dropped) continue
-                    cols.add(Triple(name,
-                        c.getString(c.getColumnIndexOrThrow("type")),
-                        c.getInt(c.getColumnIndexOrThrow("pk"))))
+                    cols.add(ColDef(
+                        name = name,
+                        type = c.getString(c.getColumnIndexOrThrow("type")),
+                        notNull = c.getInt(c.getColumnIndexOrThrow("notnull")) == 1,
+                        dflt = c.getString(c.getColumnIndexOrThrow("dflt_value")),
+                        pk = c.getInt(c.getColumnIndexOrThrow("pk"))
+                    ))
                 }
             }
-            val colDefs = cols.joinToString(", ") { "${it.first} ${it.second}" }
-            val pkCols = cols.filter { it.third > 0 }.sortedBy { it.third }
-            val pk = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString { it.first }})" else ""
-            val names = cols.joinToString(", ") { it.first }
+
+            val colDefs = cols.joinToString(", ") {
+                val nn = if (it.notNull) " NOT NULL" else ""
+                val dflt = if (it.dflt != null) " DEFAULT ${it.dflt}" else ""
+                "${it.name} ${it.type}$nn$dflt"
+            }
+            val pkCols = cols.filter { it.pk > 0 }.sortedBy { it.pk }
+            val pk = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString { it.name }})" else ""
+            val names = cols.joinToString(", ") { it.name }
 
             execSQL("CREATE TABLE ${table}_new ($colDefs$pk)")
             execSQL("INSERT INTO ${table}_new ($names) SELECT $names FROM $table")
             execSQL("DROP TABLE $table")
             execSQL("ALTER TABLE ${table}_new RENAME TO $table")
+
+            // 3. 重建索引
+            indices.forEach { idx ->
+                val unique = if (idx.unique) "UNIQUE " else ""
+                execSQL("CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON $table (${idx.cols.joinToString()})")
+            }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
