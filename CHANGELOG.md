@@ -3,7 +3,12 @@
 ## [3.1.87] - 2026-06-01
 
 ### 修复
-- **建造建筑后消失 + 弟子分配回滚**：根因是月初结算的 `swapFromShadow` 全量覆盖主状态。影子在月初创建时不包含玩家的后续操作（建造/分配弟子），结算完成后 swap 覆盖导致操作丢失。改为三路合并——比较"origin(创建时)→shadow(结算后)→oldState(当前主状态)"，只应用结算修改的字段（修炼值/突破/薪水/忠诚度），保留玩家操作字段（placedBuildings/elderSlots/各类分配槽位）
+- **结算期间玩家操作丢失（swapFromShadow 三路合并）**：月初结算的影子状态 `swapFromShadow` 全量覆盖主状态，影子在月初创建时不包含玩家的后续操作。改为三路合并——比较 `origin(创建时)→shadow(结算后)→oldState(当前主状态)`，仅结算实际修改的字段用 shadow 值，其余保留主状态。修复以下具体问题：
+  - **建造建筑后消失**：`placedBuildings` 被 shadow 旧值覆盖
+  - **弟子分配回滚**：`elderSlots`/各类槽位被 shadow 旧值覆盖
+  - **弟子脱离反复弹窗但未真正脱离**：`isAlive` 被 shadow 的 `true` 覆盖，脱离操作无效后系统重复判定"应脱离"，形成死循环
+  - **装备/功法/战斗状态回滚**：`equipment`/`manualIds`/`combat` 仅在结算实际变更时才用 shadow 值
+  - **政策/设置/战斗队伍被覆盖**：补全 18 个 gameData 字段从 `oldState` 保留
 
 ### 优化
 - **UI 响应速度优化**：
