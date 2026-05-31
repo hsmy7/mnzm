@@ -230,8 +230,11 @@ class GameStateStore @Inject constructor(
 
     internal fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
 
+    private var shadowOrigin: UnifiedGameState? = null
+
     fun createShadow(): MutableGameState {
         val current = _state.value
+        shadowOrigin = current  // 保存原始状态，swap 时用于三路合并
         return MutableGameState(
             gameData = current.gameData,
             disciples = current.disciples,
@@ -253,17 +256,63 @@ class GameStateStore @Inject constructor(
     }
 
     fun swapFromShadow(shadow: MutableGameState) {
+        val origin = shadowOrigin
         _state.update { oldState ->
             val finalPaused = _isPaused.value
             val finalLoading = _isLoading.value
             val finalSaving = _isSaving.value
+
+            // 三路合并：只应用结算的变更，保留玩家在结算期间的操作
+            // origin=创建影子时的状态, shadow=结算修改后的影子, oldState=当前主状态(含玩家操作)
+            val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
+            val mergedDisciples = oldState.disciples.map { mainDisciple ->
+                val shadowDisciple = shadow.disciples.find { it.id == mainDisciple.id }
+                    ?: return@map mainDisciple
+                val originDisciple = originDiscipleMap[mainDisciple.id]
+                if (originDisciple == null || originDisciple === shadowDisciple) {
+                    // 结算未修改此弟子 → 保留主状态版本（含玩家操作）
+                    mainDisciple
+                } else {
+                    // 结算修改了此弟子 → 只应用结算相关的字段
+                    mainDisciple.copy(
+                        cultivation = shadowDisciple.cultivation,
+                        realm = shadowDisciple.realm,
+                        realmLayer = shadowDisciple.realmLayer,
+                        lifespan = shadowDisciple.lifespan,
+                        equipment = shadowDisciple.equipment,
+                        combat = shadowDisciple.combat,
+                        skills = shadowDisciple.skills,
+                        manualIds = shadowDisciple.manualIds,
+                        cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
+                        cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
+                        pillEffects = shadowDisciple.pillEffects,
+                        maxHp = shadowDisciple.maxHp,
+                        maxMp = shadowDisciple.maxMp,
+                        isAlive = shadowDisciple.isAlive
+                    )
+                    // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）
+                }
+            }
+
+            // gameData 合并：从 shadow 取结算后的完整数据，但保留玩家可能在结算期间修改的字段
+            // 保留字段：建筑放置(placedBuildings)、弟子分配(elderSlots/*Slots)、政策设置等
+            val mergedGameData = shadow.gameData.copy(
+                placedBuildings = oldState.gameData.placedBuildings,
+                elderSlots = oldState.gameData.elderSlots,
+                librarySlots = oldState.gameData.librarySlots,
+                residenceSlots = oldState.gameData.residenceSlots,
+                spiritMineSlots = oldState.gameData.spiritMineSlots,
+                patrolSlots = oldState.gameData.patrolSlots,
+                warehouseGarrisons = oldState.gameData.warehouseGarrisons,
+                spiritFieldPlants = oldState.gameData.spiritFieldPlants,
+                gamePhase = oldState.gameData.gamePhase,
+                gameMonth = oldState.gameData.gameMonth,
+                gameYear = oldState.gameData.gameYear
+            )
+
             UnifiedGameState(
-                gameData = shadow.gameData.copy(
-                    gamePhase = oldState.gameData.gamePhase,
-                    gameMonth = oldState.gameData.gameMonth,
-                    gameYear = oldState.gameData.gameYear
-                ),
-                disciples = shadow.disciples,
+                gameData = mergedGameData,
+                disciples = mergedDisciples,
                 equipmentStacks = shadow.equipmentStacks,
                 equipmentInstances = shadow.equipmentInstances,
                 manualStacks = shadow.manualStacks,
@@ -282,6 +331,7 @@ class GameStateStore @Inject constructor(
                 pendingNotification = shadow.pendingNotification ?: oldState.pendingNotification
             )
         }
+        shadowOrigin = null
     }
 
     fun beginShadowTransaction(shadow: MutableGameState) {

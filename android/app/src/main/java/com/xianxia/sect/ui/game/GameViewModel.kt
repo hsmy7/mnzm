@@ -269,6 +269,11 @@ class GameViewModel @Inject constructor(
 
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
+    val aliveDisciples: StateFlow<List<DiscipleAggregate>> = disciples
+        .map { it.filter { d -> d.isAlive } }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, emptyList())
+
     /**
      * 可招募弟子聚合数据 - 响应式数据流
      *
