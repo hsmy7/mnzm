@@ -410,7 +410,7 @@ internal fun BattleLogListDialog(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(recentLogs) { log ->
+                        items(recentLogs, key = { it.id }) { log ->
                             BattleLogListItem(
                                 log = log,
                                 onClick = { selectedBattleLog = log }

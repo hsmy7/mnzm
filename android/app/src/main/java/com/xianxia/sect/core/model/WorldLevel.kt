@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
+@Immutable
 @Serializable
 data class WorldLevel(
     val id: String = UUID.randomUUID().toString(),

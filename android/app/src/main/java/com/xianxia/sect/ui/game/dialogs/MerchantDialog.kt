@@ -153,7 +153,7 @@ fun MerchantDialog(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(filteredItems) { item ->
+                                items(filteredItems, key = { it.id }) { item ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = item.id,
@@ -475,7 +475,7 @@ fun ListingManagementDialog(
                             .padding(horizontal = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(listItems) { item ->
+                        items(listItems, key = { it.id }) { item ->
                             ListedItemCard(
                                 item = item,
                                 onDelist = { viewModel.removePlayerListedItem(item.id) }

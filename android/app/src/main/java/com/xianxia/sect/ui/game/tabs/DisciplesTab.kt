@@ -493,7 +493,7 @@ internal fun ElderDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(filteredDisciples) { disciple ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
                                 val attrValue = when (attrKey) {
                                     "spiritPlanting" -> disciple.spiritPlanting

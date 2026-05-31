@@ -316,7 +316,7 @@ fun PeakDiscipleListSection(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(displayItems) { disciple ->
+                items(displayItems, key = { it.id }) { disciple ->
                     PortraitDiscipleCard(disciple = disciple, onClick = {})
                 }
                 if (truncateAt != null && sortedDisciples.size > truncateAt) {

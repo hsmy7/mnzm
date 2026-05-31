@@ -9,6 +9,20 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.80",
+            date = "2026-05-31",
+            changes = listOf(
+                "Compose性能优化：9处LazyList补充稳定key避免列表数据变化时全量重组，11个核心数据类添加@Immutable注解让编译器跳过无变化重组路径"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.1.79",
+            date = "2026-05-31",
+            changes = listOf(
+                "修复旬制迁移3个严重bug：列名snake_case/camelCase不匹配、safeDropColumns丢失索引和NOT NULL、save_slot_metadata表遗漏迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.78",
             date = "2026-05-31",
             changes = listOf(

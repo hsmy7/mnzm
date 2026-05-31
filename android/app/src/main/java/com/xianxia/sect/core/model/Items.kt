@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
@@ -36,6 +37,7 @@ sealed class GameItem {
         Index(value = ["minRealm"])
     ]
 )
+@Immutable
 data class EquipmentStack(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -273,6 +275,7 @@ data class EquipmentStats(
         Index(value = ["minRealm"])
     ]
 )
+@Immutable
 data class ManualStack(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -551,6 +554,7 @@ data class ManualSkill(
         Index(value = ["rarity", "category"])
     ]
 )
+@Immutable
 data class Pill(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -712,6 +716,7 @@ data class PillEffect(
         Index(value = ["rarity", "category"])
     ]
 )
+@Immutable
 data class Material(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -773,6 +778,7 @@ enum class MaterialCategory {
         Index(value = ["rarity", "category"])
     ]
 )
+@Immutable
 data class Herb(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -804,6 +810,7 @@ data class Herb(
         Index(value = ["growTime"])
     ]
 )
+@Immutable
 data class Seed(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),

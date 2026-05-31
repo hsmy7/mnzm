@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class GridBuildingData(
     @ProtoNumber(1) val buildingId: String = "",

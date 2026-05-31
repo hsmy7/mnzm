@@ -92,7 +92,7 @@ fun ReflectionCliffDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(reflectingDisciples) { disciple ->
+                    items(reflectingDisciples, key = { it.id }) { disciple ->
                         val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
                         val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
                         val remainingYears = (endYear - (gameData?.gameYear ?: 1)).coerceAtLeast(0)

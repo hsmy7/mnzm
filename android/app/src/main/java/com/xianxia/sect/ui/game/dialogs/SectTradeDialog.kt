@@ -169,7 +169,7 @@ fun SectTradeDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(tradeItems) { item ->
+                        items(tradeItems, key = { it.id }) { item ->
                             val canBuyThisItem = canTrade && item.rarity <= maxAllowedRarity
                             val adjustedPrice = (item.price * priceMultiplier).toLong()
 

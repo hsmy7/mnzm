@@ -90,8 +90,7 @@ fun DiplomacyDialog(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sortedSects.size) { index ->
-                            val sect = sortedSects[index]
+                        items(sortedSects, key = { it.id }) { sect ->
                             DiplomacySectCard(
                                 sect = sect,
                                 relation = sectFavors[sect] ?: 0,

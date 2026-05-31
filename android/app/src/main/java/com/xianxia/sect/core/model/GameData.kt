@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
@@ -557,6 +558,7 @@ data class WorldMapRenderData(
 )
 
 // 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）
+@Immutable
 @Serializable
 data class WorldSect(
     val id: String = "",
