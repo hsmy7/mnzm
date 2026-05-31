@@ -268,10 +268,21 @@ class GameEngine @Inject constructor(
             // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
             // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
             stateStore.update {
+                val initialMine = GridBuildingData(
+                    buildingId = "灵矿场",
+                    displayName = "灵矿场",
+                    gridX = 23,
+                    gridY = 23,
+                    width = 2,
+                    height = 2,
+                    instanceId = java.util.UUID.randomUUID().toString(),
+                    sectId = ""
+                )
                 gameData = gameData.copy(
                     isGameStarted = true,
                     currentSlot = currentSlot,
-                    placedBuildings = emptyList()
+                    placedBuildings = listOf(initialMine),
+                    spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") }
                 )
                 repeat(3) { discipleService.recruitDisciple() }
             }
