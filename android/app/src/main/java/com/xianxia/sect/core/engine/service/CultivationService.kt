@@ -30,6 +30,7 @@ import com.xianxia.sect.core.engine.MSTEdge
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.engine.AISectAttackManager
 import com.xianxia.sect.core.engine.AISectDiscipleManager
+import com.xianxia.sect.core.engine.AISectGarrisonManager
 import com.xianxia.sect.core.engine.AIBattleWinner
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.DiscipleEquipmentManager
@@ -1187,6 +1188,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 11. Process favor decay for high favor relations
         processFavorDecay(year)
+
+        // 12. Yearly AI garrison rotation — top 10 stay home, rest fill occupied sect garrisons
+        currentGameData = AISectGarrisonManager.rotateGarrisonSlots(currentGameData)
     }
 
     /**
@@ -2685,6 +2689,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         processAISectAttackDecisions()
+
+        // 月度补全 AI 占领宗门的 garrison 空槽
+        currentGameData = AISectGarrisonManager.fillEmptyGarrisonSlots(currentGameData)
     }
 
     private fun processSectDisciplesYearlyRecruitment(year: Int) {
