@@ -274,24 +274,26 @@ class GameStateStore @Inject constructor(
                     mainDisciple
                 } else {
                     // 结算修改了此弟子 → 只应用结算实际变更的字段
-                    // isAlive：仅当结算真的杀了弟子(年度老化)或复活时才用 shadow 值
                     val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
                     val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
+                    val equipChanged = originDisciple.equipment != shadowDisciple.equipment
+                    val combatChanged = originDisciple.combat != shadowDisciple.combat
+                    val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
                     mainDisciple.copy(
                         cultivation = shadowDisciple.cultivation,
                         realm = shadowDisciple.realm,
                         realmLayer = shadowDisciple.realmLayer,
                         lifespan = shadowDisciple.lifespan,
-                        equipment = shadowDisciple.equipment,
-                        combat = shadowDisciple.combat,
+                        equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
+                        combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
+                        manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
                         skills = shadowDisciple.skills,
-                        manualIds = shadowDisciple.manualIds,
                         cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
                         cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
                         pillEffects = shadowDisciple.pillEffects,
                         isAlive = when {
                             diedInSettlement || revivedInSettlement -> shadowDisciple.isAlive
-                            else -> mainDisciple.isAlive  // 保留玩家操作(脱离/处决)
+                            else -> mainDisciple.isAlive
                         }
                     )
                     // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）
