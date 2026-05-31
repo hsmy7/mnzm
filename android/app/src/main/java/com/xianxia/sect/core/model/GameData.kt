@@ -128,7 +128,7 @@ data class GameData(
     // 解锁的功法
     var unlockedManuals: List<String> = emptyList(),
 
-    // 最后保存时间
+    // 最后保存时间（仅用于存档列表显示，不用于离线时间差计算。游戏无离线进度机制）
     var lastSaveTime: Long = 0L,
 
     // 长老槽位

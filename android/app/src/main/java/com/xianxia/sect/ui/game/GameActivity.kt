@@ -97,6 +97,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     @Inject
     lateinit var gameEngineCore: GameEngineCore
 
+    @Inject
+    lateinit var backgroundTaskScheduler: com.xianxia.sect.core.util.BackgroundTaskScheduler
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
@@ -381,6 +384,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         super.onStop()
         try {
             saveLoadViewModel.pauseAndSaveForBackground()
+            backgroundTaskScheduler.pause()
+            Log.d(TAG, "onStop: background tasks paused")
         } catch (e: Exception) {
             Log.e(TAG, "Error during onStop", e)
         }
@@ -389,6 +394,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onResume() {
         super.onResume()
         hideSystemBars()
+        backgroundTaskScheduler.resume()
+        Log.d(TAG, "onResume: background tasks resumed")
         if (gameEngineCore.wasPausedByBackground) {
             gameEngineCore.clearBackgroundPauseFlag()
             try {

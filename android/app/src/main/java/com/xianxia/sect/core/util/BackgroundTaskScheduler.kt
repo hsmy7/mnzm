@@ -58,5 +58,16 @@ class BackgroundTaskScheduler(
         job = null
     }
 
+    fun pause() {
+        job?.cancel()
+        job = null
+        tickCount = 0L
+    }
+
+    fun resume() {
+        if (job?.isActive == true) return
+        start()
+    }
+
     val isActive: Boolean get() = job?.isActive == true
 }

@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.85",
+            date = "2026-05-31",
+            changes = listOf(
+                "倍速功能修复：倍速选择器之前仅UI显示不生效（gameSpeed字段持久化到存档但引擎不读取），现改为phasesPerTick乘以gameSpeed值，1x=6秒/月，2x=3秒/月。倍速从GameData持久化读取，后台恢复后自动保持之前选择",
+                "离线严格暂停：onStop时暂停BackgroundTaskScheduler所有后台监控任务（性能/内存/GC），仅保留必要数据库维护任务。onResume自动恢复。确保玩家离线期间零游戏进度，在线才收益",
+                "GameData.lastSaveTime字段补充注释说明仅用于存档列表显示，不用于离线时间差计算，消除误解"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.84",
             date = "2026-05-31",
             changes = listOf(

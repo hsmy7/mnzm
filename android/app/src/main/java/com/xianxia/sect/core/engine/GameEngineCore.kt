@@ -284,7 +284,8 @@ class GameEngineCore @Inject constructor(
         var yearChanged = false
 
         stateStore.update {
-            val phasesPerTick = GamePhase.PHASES_PER_MONTH.toDouble() /
+            val speed = this.gameData.gameSpeed.coerceIn(1, 2)
+            val phasesPerTick = (GamePhase.PHASES_PER_MONTH.toDouble() * speed) /
                 (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
             phaseAccumulator += phasesPerTick
 

@@ -1323,17 +1323,19 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
-    private val _timeScale = MutableStateFlow(1)
-    val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
-
-    val timeSpeed: StateFlow<Int> = timeScale
+    val timeSpeed: StateFlow<Int> = gameEngine.gameData
+        .map { it.gameSpeed.coerceIn(1, 2) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, 1)
 
     val isPaused: StateFlow<Boolean> = gameEngineCore.state
         .map { it.isPaused }
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
     fun setTimeSpeed(speed: Int) {
-        _timeScale.value = speed
+        val clamped = speed.coerceIn(1, 2)
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
+        }
         if (gameEngineCore.state.value.isPaused) {
             viewModelScope.launch {
                 gameEngineCore.resume()

@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.85] - 2026-05-31
+
+### 修复
+- **倍速功能修复**：倍速选择器（1x/2x）之前仅在 UI 显示不生效 — `gameSpeed` 字段持久化到 Room 存档但 `GameEngineCore.phasesPerTick` 从不读取，导致选 2x 实际仍是 1x（6 秒/月）。改为 `phasesPerTick = 3 * gameSpeed / (6 * 1)`，1x=6 秒/月，2x=3 秒/月。倍速从 `GameData.gameSpeed` 读取并持久化，后台恢复后自动保持之前的选择
+- **离线严格暂停**：`onStop` 时调用 `BackgroundTaskScheduler.pause()` 暂停性能监控/内存/GC 等后台任务，`onResume` 时 `resume()` 恢复。确保玩家离线期间零游戏进度（游戏循环 tick 本就已停止，此为加固）
+- **lastSaveTime 注释澄清**：补充注释说明该字段仅用于存档列表时间显示，不参与离线时间差计算
+
 ## [3.1.84] - 2026-05-31
 
 ### 优化
