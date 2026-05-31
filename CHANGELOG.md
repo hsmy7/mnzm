@@ -7,8 +7,8 @@
 
 ### 优化
 - **UI 响应速度优化**：
-  - **入场动画**：对话框打开时 fadeIn(120ms) + 上滑(150ms)，点击后 50ms 内视觉反馈，150ms 内动画完成
-  - **骨架屏分层渲染**：`FullScreenOverlay` 标题栏第一帧同步渲染，数据内容通过 `DeferredContent` 延迟一帧(16ms)加载。配合入场动画用户几乎看不到骨架。高频界面(炼药/锻造/藏经阁等)启用，低频界面(Settings/Buildings)跳过
+  - **骨架屏分层渲染**：`FullScreenOverlay` 标题栏第一帧同步渲染，数据内容通过 `DeferredContent` 延迟一帧(16ms)加载，玩家感知为"即时响应"。高频界面(炼药/锻造/藏经阁等)启用，低频界面(Settings/Buildings)跳过
+  - **入场动画已移除**：`AnimatedVisibility`(fadeIn+slideIn) 实测造成 ~800ms 延迟——Compose 动画等内容测量完成后才启动，反而比无动画更慢。骨架屏方案已提供足够的即时反馈
   - **aliveDisciples 提升 ViewModel**：消除 10 处 `derivedStateOf { disciples.filter { it.isAlive } }` 重复计算，改为共享 StateFlow
   - **gameData 共享订阅**：GameOverlayHost 顶层收集一次，通过参数传入各分支，减少 15+ 个重复 StateFlow 订阅
   - **gameDataUi 对话框 snapshot**：打开对话框时立即注入一次当前值（`merge(sample(400), dialogOpenTrigger)`），消除 400ms 采样最坏延迟

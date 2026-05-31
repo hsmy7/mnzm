@@ -13,7 +13,7 @@ object ChangelogData {
             date = "2026-06-01",
             changes = listOf(
                 "修复建造建筑后过一会建筑消失、弟子分配回滚的问题：根因是月初结算的影子状态swapFromShadow全量覆盖主状态，结算期间玩家操作（建造/分配）被旧影子覆盖。改为三路合并——只应用结算修改的字段（修炼/薪水/突破），保留玩家操作字段（placedBuildings/elderSlots/*Slots）",
-                "UI响应速度优化：对话框入场动画(fadeIn 120ms+slideIn 150ms)、骨架屏分层渲染(DeferredContent延迟16ms加载数据内容)、aliveDisciples提升到ViewModel消除10处重复derivedStateOf、gameData提升到GameOverlayHost顶层共享订阅、gameDataUi对话框打开时主动snapshot消除400ms采样延迟"
+                "UI响应速度优化：骨架屏分层渲染(DeferredContent延迟16ms加载数据内容，标题栏首帧即时显示)、aliveDisciples提升到ViewModel消除10处重复derivedStateOf、gameData提升到GameOverlayHost顶层共享订阅、gameDataUi对话框打开时主动snapshot消除400ms采样延迟。入场动画(AnimatedVisibility)实测造成800ms延迟已移除——Compose动画等内容测量后才启动，骨架屏方案已足够
             )
         ),
         ChangelogEntry(
