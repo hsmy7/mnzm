@@ -18,7 +18,7 @@ import com.xianxia.sect.data.engine.SavMigrator
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.StorageIntegrity
 import com.xianxia.sect.data.engine.StorageMetrics
-import com.xianxia.sect.data.engine.StorageWal
+
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
@@ -119,7 +119,6 @@ object StorageModule {
         memoryGuard: ProactiveMemoryGuard,
         storageIntegrity: StorageIntegrity,
         storageBackup: StorageBackup,
-        storageWal: StorageWal,
         storageMetrics: StorageMetrics,
         taskScheduler: BackgroundTaskScheduler
     ): StorageEngine {
@@ -139,7 +138,6 @@ object StorageModule {
             taskScheduler = taskScheduler,
             storageIntegrity = storageIntegrity,
             storageBackup = storageBackup,
-            storageWal = storageWal,
             storageMetrics = storageMetrics
         )
     }

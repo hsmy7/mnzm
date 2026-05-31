@@ -84,7 +84,6 @@ class StorageEngine @Inject internal constructor(
     private val taskScheduler: BackgroundTaskScheduler,
     private val storageIntegrity: StorageIntegrity,
     private val storageBackup: StorageBackup,
-    private val storageWal: StorageWal,
     private val storageMetrics: StorageMetrics
 ) {
     companion object {
@@ -149,9 +148,7 @@ class StorageEngine @Inject internal constructor(
                     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
                     logSaveChanges(slot, dataWithTimestamp)
 
-                    if (priority == SavePriority.CRITICAL) {
-                        storageWal.createCriticalSnapshot(slot, dataWithTimestamp)
-                    }
+
 
                     scope.launch(Dispatchers.IO) {
                         try {

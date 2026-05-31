@@ -42,7 +42,6 @@ object CoreModule {
         redeemCodeService: RedeemCodeService,
         partnerSystem: PartnerSystem,
         childBirthSystem: ChildBirthSystem,
-        buildingSubsystem: BuildingSubsystem,
         productionSubsystem: ProductionSubsystem,
         economySubsystem: EconomySubsystem
     ): SystemManager = SystemManager(
@@ -60,7 +59,6 @@ object CoreModule {
             redeemCodeService,
             partnerSystem,
             childBirthSystem,
-            buildingSubsystem,
             productionSubsystem,
             economySubsystem
         )
