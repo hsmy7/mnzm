@@ -439,10 +439,7 @@ abstract class GameDatabase : RoomDatabase() {
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // 天制→旬制: 幂等迁移，覆盖所有可能状态
-                // 状态A: v15原始(有game_day,无game_phase)→ 加列+复制+删旧
-                // 状态B: fallback后(有game_phase,无game_day)→ 无需操作
-                // 状态C: 上次部分成功(两列都有)→ 只需删旧
-                // 状态D: 已迁移完成(两列都无game_day)→ 无需操作
+                // Room列名规则: Kotlin属性名即列名，不转snake_case。gamePhase→gamePhase(非game_phase)
 
                 fun columnExists(table: String, col: String): Boolean {
                     db.query("PRAGMA table_info($table)").use { c ->
@@ -453,34 +450,53 @@ abstract class GameDatabase : RoomDatabase() {
                     return false
                 }
 
-                val hasGamePhase = columnExists("game_data", "game_phase")
-                val hasGameDay = columnExists("game_data", "game_day")
+                val hasGamePhaseCamel = columnExists("game_data", "gamePhase")
+                val hasGamePhaseSnake = columnExists("game_data", "game_phase")
+                val hasGameDayCamel = columnExists("game_data", "gameDay")
+                val hasGameDaySnake = columnExists("game_data", "game_day")
 
-                if (!hasGamePhase) {
-                    db.execSQL("ALTER TABLE game_data ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
+                // 清理之前错误迁移可能留下的 snake_case game_phase 列
+                if (hasGamePhaseSnake && !hasGamePhaseCamel) {
+                    // 从 snake_case 错误列复制数据
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("UPDATE game_data SET gamePhase = game_phase")
+                    db.safeDropColumns("game_data", "game_phase")
+                } else if (!hasGamePhaseCamel) {
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
                 }
-                if (hasGameDay && hasGamePhase) {
+
+                // 从旧 gameDay 列复制修炼数据
+                val oldDayCol = if (hasGameDayCamel) "gameDay" else if (hasGameDaySnake) "game_day" else null
+                if (oldDayCol != null) {
                     // gameDay 1-10→0(上旬), 11-20→1(中旬), 21-30→2(下旬)
-                    db.execSQL("UPDATE game_data SET game_phase = (game_day - 1) / 10")
+                    db.execSQL("UPDATE game_data SET gamePhase = ($oldDayCol - 1) / 10")
                 }
-                if (hasGameDay) {
-                    db.safeDropColumns("game_data", "game_day")
-                }
+
+                // 删除旧 gameDay 列
+                if (hasGameDayCamel) db.safeDropColumns("game_data", "gameDay")
+                if (hasGameDaySnake) db.safeDropColumns("game_data", "game_day")
             }
         }
 
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 清理旧版MIGRATION_15_16残留的game_day列。幂等：列不存在时safeDropColumns自动跳过
-                var hasGameDay = false
-                db.query("PRAGMA table_info(game_data)").use { c ->
-                    while (c.moveToNext()) {
-                        if (c.getString(c.getColumnIndexOrThrow("name")) == "game_day") { hasGameDay = true; break }
+                // 清理旧版迁移可能残留的 snake_case game_phase 和 game_day/gameDay 列
+                fun colExists(col: String): Boolean {
+                    db.query("PRAGMA table_info(game_data)").use { c ->
+                        while (c.moveToNext()) {
+                            if (c.getString(c.getColumnIndexOrThrow("name")) == col) return true
+                        }
                     }
+                    return false
                 }
-                if (hasGameDay) {
-                    db.safeDropColumns("game_data", "game_day")
+                // 确保有正确的 gamePhase 列
+                if (!colExists("gamePhase") && colExists("game_phase")) {
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("UPDATE game_data SET gamePhase = game_phase")
                 }
+                if (colExists("game_phase")) db.safeDropColumns("game_data", "game_phase")
+                if (colExists("gameDay")) db.safeDropColumns("game_data", "gameDay")
+                if (colExists("game_day")) db.safeDropColumns("game_data", "game_day")
             }
         }
 
