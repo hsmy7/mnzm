@@ -362,9 +362,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val disciple = allDisciples.find { it.id == discipleId && it.isAlive } ?: return
 
         val currentHfd = _highFrequencyData.value
-        val now = System.currentTimeMillis()
-        val lastCultTime = if (currentHfd.lastCultivationTime > 0) currentHfd.lastCultivationTime else now
-        val elapsedSeconds = ((now - lastCultTime).coerceAtMost(2000)).toDouble() / 1000.0
 
         // 先做突破检查（基于上一 tick 积累的修炼进度），再累加本 tick 修炼值
         // 这样 UI 在不同 tick 之间能自然收到"进度条满"和"突破后"两个状态
@@ -377,7 +374,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val currentDisciple = postBreakthroughDisciples.find { it.id == discipleId } ?: return
 
         val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
-        val gained = cultivationPerSecond * elapsedSeconds
+        // 每 tick 分发 1 旬（= 6秒/3旬 = 2秒）修炼值，3 tick 均匀分发整月修炼量
+        val perPhaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble() / GameConfig.Time.PHASES_PER_MONTH
+        val gained = cultivationPerSecond * perPhaseSeconds
 
         state.disciples = postBreakthroughDisciples.map { d ->
             if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
@@ -389,7 +388,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + gained
 
         _highFrequencyData.value = currentHfd.copy(
-            lastCultivationTime = now,
+            lastCultivationTime = System.currentTimeMillis(),
             cultivationPerSecond = cultivationPerSecond,
             totalDisciples = allDisciples.count { it.isAlive },
             cultivationUpdates = accumGains
