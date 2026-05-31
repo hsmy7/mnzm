@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -412,11 +413,17 @@ class GameStateStore @Inject constructor(
     val battleLogsSnapshot: List<BattleLog> get() = _state.value.battleLogs
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
+        // 等待影子事务完成再获取写锁（结算分帧的影子事务通常 < 1.5ms）
+        var retries = 0
+        while (currentTransactionState != null && retries < 100) {
+            delay(1)
+            retries++
+        }
+        check(currentTransactionState == null) {
+            "GameStateStore.update() timed out waiting for shadow transaction to complete after ${retries}ms. " +
+                "This indicates a shadow transaction leak — check beginShadowTransaction/endShadowTransaction pairing."
+        }
         transactionMutex.withLock {
-            check(currentTransactionState == null) {
-                "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
-                    "Use currentTransactionMutableState() to modify state within a tick transaction."
-            }
             val current = _state.value
             reusableMutableState.apply {
                 gameData = current.gameData
