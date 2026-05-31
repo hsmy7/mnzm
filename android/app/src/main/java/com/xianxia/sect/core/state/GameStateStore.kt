@@ -230,6 +230,64 @@ class GameStateStore @Inject constructor(
 
     internal fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
 
+    fun createShadow(): MutableGameState {
+        val current = _state.value
+        return MutableGameState(
+            gameData = current.gameData,
+            disciples = current.disciples,
+            equipmentStacks = current.equipmentStacks,
+            equipmentInstances = current.equipmentInstances,
+            manualStacks = current.manualStacks,
+            manualInstances = current.manualInstances,
+            pills = current.pills,
+            materials = current.materials,
+            herbs = current.herbs,
+            seeds = current.seeds,
+            teams = current.teams,
+            battleLogs = current.battleLogs,
+            isPaused = current.isPaused,
+            isLoading = current.isLoading,
+            isSaving = current.isSaving,
+            pendingNotification = current.pendingNotification
+        )
+    }
+
+    fun swapFromShadow(shadow: MutableGameState) {
+        _state.update { oldState ->
+            val finalPaused = _isPaused.value
+            val finalLoading = _isLoading.value
+            val finalSaving = _isSaving.value
+            UnifiedGameState(
+                gameData = shadow.gameData,
+                disciples = shadow.disciples,
+                equipmentStacks = shadow.equipmentStacks,
+                equipmentInstances = shadow.equipmentInstances,
+                manualStacks = shadow.manualStacks,
+                manualInstances = shadow.manualInstances,
+                pills = shadow.pills,
+                materials = shadow.materials,
+                herbs = shadow.herbs,
+                seeds = shadow.seeds,
+                teams = shadow.teams,
+                battleLogs = shadow.battleLogs,
+                alliances = shadow.gameData.alliances,
+                isPaused = finalPaused,
+                isLoading = finalLoading,
+                isSaving = finalSaving,
+                pendingBattleResult = oldState.pendingBattleResult,
+                pendingNotification = shadow.pendingNotification ?: oldState.pendingNotification
+            )
+        }
+    }
+
+    fun beginShadowTransaction(shadow: MutableGameState) {
+        currentTransactionState = shadow
+    }
+
+    fun endShadowTransaction() {
+        currentTransactionState = null
+    }
+
     fun getCurrentSeeds(): List<Seed> = _state.value.seeds
 
     fun getCurrentHerbs(): List<Herb> = _state.value.herbs

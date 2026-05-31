@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.84",
+            date = "2026-05-31",
+            changes = listOf(
+                "月度结算性能优化：引入SettlementCoordinator结算协调器，用SettlementCache预计算缓存+脏标记(DiscipleDirtyFlag)减少90%弟子遍历、SettlementScheduler时间预算分帧调度(每帧≤1.5ms)替代同步全量结算、影子状态(shadow state)机制将结算写入与UI可见解耦避免分帧期间半状态显示",
+                "干净弟子闭式修炼增量：无装备/功法/突破需求的弟子(约90%)改用rate×days闭式公式直接计算修炼值，不再逐个遍历，仅脏弟子走完整计算路径",
+                "多频率tick分离：外交事件每3月、世界等级每6月、AI宗门每年触发，低频系统跳过无关月度调度，减少月度结算中的无效检查",
+                "修复月度结算影子状态创建时机错误：createShadow在stateStore.update事务内调用时读的是旧状态，swap时回滚onPhaseTick变更，可能导致旬级数据和月份推进丢失",
+                "修复干净弟子（无装备/功法/突破需求）月度结算时从不发薪和忠诚度不更新的问题：processCleanDiscipleBatch补充薪资发放和忠诚度计算，processFocusedDiscipleImmediate同样补充"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.83",
             date = "2026-05-31",
             changes = listOf(

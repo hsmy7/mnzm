@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.84] - 2026-05-31
+
+### 优化
+- **月度结算性能优化**：引入 `SettlementCoordinator` 结算协调器替代 `SystemManager` 对月度/年度 tick 的直接同步调度。核心改进：
+  - **SettlementCache 预计算缓存 + 脏标记**：一次性构建弟子/装备/功法/修炼速率索引，用 `DiscipleDirtyFlag`（NONE/BREAKTHROUGH/EQUIPMENT/MANUAL）标记需要完整计算的弟子。约 90% 弟子仅修炼值增长，用 `rate × days` 闭式公式 O(1) 计算，遍历量减少 90%
+  - **SettlementScheduler 时间预算分帧**：每帧最多 1.5ms 用于结算（非固定弟子数量），自动适配不同性能设备。月度重计算分散到多个 tick，避免单帧卡顿
+  - **影子状态（Shadow State）**：结算期间写入临时 `MutableGameState` 副本，全部阶段完成后一次性 `swapFromShadow` 到 `StateFlow`。UI 在分帧期间看不到半结算状态
+  - **多频率 tick 分离**：外交事件每 3 月、世界等级每 6 月、AI 宗门/招募/衰老每年触发，低频系统跳过无关月度调度
+- **SettlementMetrics 性能监控**：每 10 次结算输出聚合耗时报告（缓存构建、焦点弟子、干净/脏批量、生产、世界事件、swap），可量化后续优化效果
+
+### 修复
+- **月度结算影子状态创建时机修复**：`createShadow()` 原先在 `stateStore.update{}` 事务内调用，此时 `_state.value` 尚未反映 `onPhaseTick` 的变更，导致 `swapFromShadow` 时回滚旬级数据。改为在事务提交后创建影子，确保影子包含完整的当前状态
+- **干净弟子缺薪修复**：`processCleanDiscipleBatch` 仅处理了修炼值增量，遗漏了薪资发放和忠诚度调整。导致无装备/功法/突破需求的弟子（约 90%）忠诚度持续下降。现补充 `calculateSalaryChange` 和 `calculateLoyaltyDelta`，所有弟子统一处理薪水
+- **焦点弟子缺薪修复**：`processFocusedDiscipleImmediate` 同样补充薪资发放和忠诚度计算
+
 ## [3.1.83] - 2026-05-31
 
 ### 优化

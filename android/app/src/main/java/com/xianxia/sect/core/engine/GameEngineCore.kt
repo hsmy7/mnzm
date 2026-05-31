@@ -5,6 +5,7 @@ import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.ExplorationService
+import com.xianxia.sect.core.engine.settlement.SettlementCoordinator
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
@@ -49,6 +50,7 @@ class GameEngineCore @Inject constructor(
     private val eventBus: EventBusPort,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
+    private val settlementCoordinator: SettlementCoordinator,
     private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     
@@ -229,6 +231,7 @@ class GameEngineCore @Inject constructor(
     fun pauseForBackground() {
         if (!stateStore.unifiedState.value.isPaused) {
             stateManager.setPausedDirect(true)
+            settlementCoordinator.cancelPendingWork()
             engineScope.launch {
                 systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
             }
@@ -265,12 +268,20 @@ class GameEngineCore @Inject constructor(
     private suspend fun tickInternal() {
         val currentState = stateStore.unifiedState.value
         if (currentState.isPaused || currentState.isLoading || currentState.isSaving) {
-            // 看门狗：检测 isSaving/isLoading 是否卡住超时
             checkAndResetStuckStates(currentState)
             return
         }
 
         _tickCount.value++
+
+        if (settlementCoordinator.hasPendingWork) {
+            val completed = settlementCoordinator.executeStep(timeBudgetMs = 1)
+            if (completed) settlementCoordinator.onSettlementComplete()
+            return
+        }
+
+        var monthChanged = false
+        var yearChanged = false
 
         stateStore.update {
             val phasesPerTick = GamePhase.PHASES_PER_MONTH.toDouble() /
@@ -285,12 +296,8 @@ class GameEngineCore @Inject constructor(
 
                 systemManager.onPhaseTick(this)
 
-                if (this.gameData.gameMonth != prevMonth) {
-                    systemManager.onMonthTick(this)
-                }
-                if (this.gameData.gameYear != prevYear) {
-                    systemManager.onYearTick(this)
-                }
+                if (this.gameData.gameMonth != prevMonth) monthChanged = true
+                if (this.gameData.gameYear != prevYear) yearChanged = true
 
                 val gameDataSnapshot = this.gameData
                 val autoSaveInterval = gameDataSnapshot.autoSaveIntervalMonths
@@ -306,8 +313,22 @@ class GameEngineCore @Inject constructor(
                 }
             }
         }
+        // createShadow() 必须在 stateStore.update{} 外部调用：
+        // update{} 提交后 _state.value 才反映 onPhaseTick 的变更。
+        // 年度已包含月度阶段，年度优先于月度避免重复调度。
+        if (yearChanged) {
+            val shadow = stateStore.createShadow()
+            settlementCoordinator.scheduleYearly(shadow)
+        } else if (monthChanged) {
+            val shadow = stateStore.createShadow()
+            settlementCoordinator.scheduleMonthly(shadow)
+        }
 
-        // 处理巡视楼战斗结算（必须在 stateStore.update 事务外部）
+        if (settlementCoordinator.hasPendingWork) {
+            val completed = settlementCoordinator.executeStep(timeBudgetMs = 1)
+            if (completed) settlementCoordinator.onSettlementComplete()
+        }
+
         val patrolResults = systemManager.getSystem<ExplorationService>().consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)

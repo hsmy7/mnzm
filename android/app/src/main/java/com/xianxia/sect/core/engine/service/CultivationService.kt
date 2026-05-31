@@ -256,6 +256,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         processYearlyEvents(data.gameYear)
     }
 
+    suspend fun processMonthlyEventsOnShadow(state: MutableGameState) {
+        val data = state.gameData
+        processMonthlyEvents(data.gameYear, data.gameMonth)
+    }
+
+    suspend fun processYearlyEventsOnShadow(state: MutableGameState) {
+        val data = state.gameData
+        processYearlyEvents(data.gameYear)
+    }
+
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData
 
     fun resetHighFrequencyData() {
@@ -633,14 +643,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>, legacyCheck: (Disciple) -> Boolean): Boolean {
-        // 新设置已配置 → 使用新规则
+        return qualifiesForSectAutoPublic(disciple, focused, rootCounts)
+    }
+
+    fun qualifiesForSectAutoPublic(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {
         if (focused || rootCounts.isNotEmpty()) {
             if (focused && disciple.statusData["followed"] == "true") return true
             val rootCount = disciple.spiritRootType.split(",").size
             return rootCount in rootCounts
         }
-        // 旧存档未配置 → 回退到弟子级别旧标志
-        return legacyCheck(disciple)
+        return false
     }
 
     private fun getLifespanGainForRealm(realm: Int): Int {
