@@ -514,6 +514,17 @@ abstract class GameDatabase : RoomDatabase() {
                 // 删除旧 gameDay 列
                 if (hasGameDayCamel) db.safeDropColumns("game_data", "gameDay")
                 if (hasGameDaySnake) db.safeDropColumns("game_data", "game_day")
+
+                // save_slot_metadata 表: game_day → game_phase (snake_case, 有 @ColumnInfo)
+                val metaHasPhase = columnExists("save_slot_metadata", "game_phase")
+                val metaHasDay = columnExists("save_slot_metadata", "game_day")
+                if (!metaHasPhase && metaHasDay) {
+                    db.execSQL("ALTER TABLE save_slot_metadata ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("UPDATE save_slot_metadata SET game_phase = (game_day - 1) / 10")
+                    db.safeDropColumns("save_slot_metadata", "game_day")
+                } else if (!metaHasPhase) {
+                    db.execSQL("ALTER TABLE save_slot_metadata ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
+                }
             }
         }
 
@@ -536,6 +547,27 @@ abstract class GameDatabase : RoomDatabase() {
                 if (colExists("game_phase")) db.safeDropColumns("game_data", "game_phase")
                 if (colExists("gameDay")) db.safeDropColumns("game_data", "gameDay")
                 if (colExists("game_day")) db.safeDropColumns("game_data", "game_day")
+
+                // save_slot_metadata 表: 清理残留的 game_day 列
+                var metaHasDay = false
+                db.query("PRAGMA table_info(save_slot_metadata)").use { c ->
+                    while (c.moveToNext()) {
+                        if (c.getString(c.getColumnIndexOrThrow("name")) == "game_day") { metaHasDay = true; break }
+                    }
+                }
+                if (metaHasDay) {
+                    var metaHasPhase = false
+                    db.query("PRAGMA table_info(save_slot_metadata)").use { c2 ->
+                        while (c2.moveToNext()) {
+                            if (c2.getString(c2.getColumnIndexOrThrow("name")) == "game_phase") { metaHasPhase = true; break }
+                        }
+                    }
+                    if (!metaHasPhase) {
+                        db.execSQL("ALTER TABLE save_slot_metadata ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
+                        db.execSQL("UPDATE save_slot_metadata SET game_phase = (game_day - 1) / 10")
+                    }
+                    db.safeDropColumns("save_slot_metadata", "game_day")
+                }
             }
         }
 
