@@ -400,8 +400,9 @@ abstract class GameDatabase : RoomDatabase() {
             execSQL("DROP TABLE $table")
             execSQL("ALTER TABLE ${table}_new RENAME TO $table")
 
-            // 3. 重建索引
+            // 3. 重建索引（跳过sqlite_autoindex内部保留名，PRIMARY KEY已自动重建）
             indices.forEach { idx ->
+                if (idx.name.startsWith("sqlite_autoindex_")) return@forEach
                 val unique = if (idx.unique) "UNIQUE " else ""
                 execSQL("CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON $table (${idx.cols.joinToString()})")
             }
