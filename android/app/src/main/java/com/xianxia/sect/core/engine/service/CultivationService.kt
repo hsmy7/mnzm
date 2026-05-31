@@ -273,12 +273,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
 
+        // 焦点弟子：高频刷新已给了一部分修炼值，月度批量补足差额
+        val focusedGains = _highFrequencyData.value.cultivationUpdates
         val updatedDisciples = state.disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
 
             val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
-            val gained = cultivationPerSecond * monthSeconds
-            var d = disciple.copy(cultivation = (disciple.cultivation + gained).coerceIn(0.0, disciple.maxCultivation))
+            val monthlyGain = cultivationPerSecond * monthSeconds
+            val alreadyGained = focusedGains[disciple.id] ?: 0.0
+            val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+            var d = disciple.copy(cultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation))
 
             // 功法精通
             val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
@@ -334,7 +338,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         _highFrequencyData.value = _highFrequencyData.value.copy(
             lastUpdateTime = System.currentTimeMillis(),
-            totalDisciples = livingDisciples.size
+            totalDisciples = livingDisciples.size,
+            cultivationUpdates = emptyMap()  // 本月焦点修炼已结算，清零
         )
     }
 
@@ -361,25 +366,34 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val lastCultTime = if (currentHfd.lastCultivationTime > 0) currentHfd.lastCultivationTime else now
         val elapsedSeconds = ((now - lastCultTime).coerceAtMost(2000)).toDouble() / 1000.0
 
+        // 先做突破检查（基于上一 tick 积累的修炼进度），再累加本 tick 修炼值
+        // 这样 UI 在不同 tick 之间能自然收到"进度条满"和"突破后"两个状态
+        if (disciple.cultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
+            processRealtimeBreakthroughs(listOf(disciple), data)
+        }
+
+        // 重新读取（突破可能已修改 disciples），再累加修炼进度
+        val postBreakthroughDisciples = state.disciples
+        val currentDisciple = postBreakthroughDisciples.find { it.id == discipleId } ?: return
+
         val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
         val gained = cultivationPerSecond * elapsedSeconds
 
-        state.disciples = allDisciples.map { d ->
+        state.disciples = postBreakthroughDisciples.map { d ->
             if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
             else d
         }
 
+        // 记录焦点刷新已给的修炼值，供月度批量扣减，避免重复累加
+        val accumGains = currentHfd.cultivationUpdates.toMutableMap()
+        accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + gained
+
         _highFrequencyData.value = currentHfd.copy(
             lastCultivationTime = now,
             cultivationPerSecond = cultivationPerSecond,
-            totalDisciples = allDisciples.count { it.isAlive }
+            totalDisciples = allDisciples.count { it.isAlive },
+            cultivationUpdates = accumGains
         )
-
-        // 突破检查
-        val updatedDisciple = state.disciples.find { it.id == discipleId } ?: return
-        if (updatedDisciple.cultivation >= updatedDisciple.maxCultivation && isDiscipleFullHpMp(updatedDisciple)) {
-            processRealtimeBreakthroughs(listOf(updatedDisciple), data)
-        }
     }
 
 
