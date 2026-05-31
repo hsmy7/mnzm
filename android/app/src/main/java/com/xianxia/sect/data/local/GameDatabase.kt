@@ -438,19 +438,49 @@ abstract class GameDatabase : RoomDatabase() {
 
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 天制→旬制: 新增 game_phase 列，从 game_day 映射，然后删除旧列
-                // gameDay 1-10 → 0(上旬), 11-20 → 1(中旬), 21-30 → 2(下旬)
-                db.execSQL("ALTER TABLE game_data ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("UPDATE game_data SET game_phase = (game_day - 1) / 10")
-                db.safeDropColumns("game_data", "game_day")
+                // 天制→旬制: 幂等迁移，覆盖所有可能状态
+                // 状态A: v15原始(有game_day,无game_phase)→ 加列+复制+删旧
+                // 状态B: fallback后(有game_phase,无game_day)→ 无需操作
+                // 状态C: 上次部分成功(两列都有)→ 只需删旧
+                // 状态D: 已迁移完成(两列都无game_day)→ 无需操作
+
+                fun columnExists(table: String, col: String): Boolean {
+                    db.query("PRAGMA table_info($table)").use { c ->
+                        while (c.moveToNext()) {
+                            if (c.getString(c.getColumnIndexOrThrow("name")) == col) return true
+                        }
+                    }
+                    return false
+                }
+
+                val hasGamePhase = columnExists("game_data", "game_phase")
+                val hasGameDay = columnExists("game_data", "game_day")
+
+                if (!hasGamePhase) {
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
+                }
+                if (hasGameDay && hasGamePhase) {
+                    // gameDay 1-10→0(上旬), 11-20→1(中旬), 21-30→2(下旬)
+                    db.execSQL("UPDATE game_data SET game_phase = (game_day - 1) / 10")
+                }
+                if (hasGameDay) {
+                    db.safeDropColumns("game_data", "game_day")
+                }
             }
         }
 
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 旧版 MIGRATION_15_16 保留了 game_day 列未删除，导致 Room schema 验证失败
-                // safeDropColumns 通过 PRAGMA table_info 重建表，跳过不存在的列时会自动忽略
-                db.safeDropColumns("game_data", "game_day")
+                // 清理旧版MIGRATION_15_16残留的game_day列。幂等：列不存在时safeDropColumns自动跳过
+                var hasGameDay = false
+                db.query("PRAGMA table_info(game_data)").use { c ->
+                    while (c.moveToNext()) {
+                        if (c.getString(c.getColumnIndexOrThrow("name")) == "game_day") { hasGameDay = true; break }
+                    }
+                }
+                if (hasGameDay) {
+                    db.safeDropColumns("game_data", "game_day")
+                }
             }
         }
 
