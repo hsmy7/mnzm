@@ -298,17 +298,36 @@ class GameStateStore @Inject constructor(
                 }
             }
 
-            // gameData 合并：从 shadow 取结算后的完整数据，但保留玩家可能在结算期间修改的字段
-            // 保留字段：建筑放置(placedBuildings)、弟子分配(elderSlots/*Slots)、政策设置等
+            // gameData 合并：从 shadow 取结算后的完整数据，但保留玩家可能修改的字段
             val mergedGameData = shadow.gameData.copy(
+                // 建筑与槽位分配
                 placedBuildings = oldState.gameData.placedBuildings,
                 elderSlots = oldState.gameData.elderSlots,
                 librarySlots = oldState.gameData.librarySlots,
                 residenceSlots = oldState.gameData.residenceSlots,
                 spiritMineSlots = oldState.gameData.spiritMineSlots,
                 patrolSlots = oldState.gameData.patrolSlots,
+                patrolConfig = oldState.gameData.patrolConfig,
+                patrolConfigs = oldState.gameData.patrolConfigs,
                 warehouseGarrisons = oldState.gameData.warehouseGarrisons,
                 spiritFieldPlants = oldState.gameData.spiritFieldPlants,
+                // 政策与设置
+                sectPolicies = oldState.gameData.sectPolicies,
+                monthlySalary = oldState.gameData.monthlySalary,
+                monthlySalaryEnabled = oldState.gameData.monthlySalaryEnabled,
+                autoRecruitSpiritRootFilter = oldState.gameData.autoRecruitSpiritRootFilter,
+                daoCompanionBannedRootCounts = oldState.gameData.daoCompanionBannedRootCounts,
+                daoCompanionConsentRequired = oldState.gameData.daoCompanionConsentRequired,
+                breakthroughAutoPillFocused = oldState.gameData.breakthroughAutoPillFocused,
+                breakthroughAutoPillRootCounts = oldState.gameData.breakthroughAutoPillRootCounts,
+                autoEquipFromWarehouseFocused = oldState.gameData.autoEquipFromWarehouseFocused,
+                autoEquipFromWarehouseRootCounts = oldState.gameData.autoEquipFromWarehouseRootCounts,
+                autoLearnFromWarehouseFocused = oldState.gameData.autoLearnFromWarehouseFocused,
+                autoLearnFromWarehouseRootCounts = oldState.gameData.autoLearnFromWarehouseRootCounts,
+                // 战斗队伍
+                battleTeams = oldState.gameData.battleTeams,
+                usedTeamNumbers = oldState.gameData.usedTeamNumbers,
+                // 时间字段
                 gamePhase = oldState.gameData.gamePhase,
                 gameMonth = oldState.gameData.gameMonth,
                 gameYear = oldState.gameData.gameYear
