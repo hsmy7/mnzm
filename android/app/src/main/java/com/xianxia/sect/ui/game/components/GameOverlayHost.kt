@@ -1,12 +1,7 @@
 package com.xianxia.sect.ui.game.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -130,15 +125,7 @@ fun GameOverlayHost(
 
     val gameData by viewModel.gameDataUi.collectAsState()
 
-    AnimatedVisibility(
-        visible = currentDialogRoute != DialogRoute.None,
-        enter = fadeIn(animationSpec = tween(120)) +
-                slideInVertically(
-                    initialOffsetY = { it / 20 },
-                    animationSpec = tween(150, easing = FastOutSlowInEasing)
-                ),
-        exit = fadeOut(animationSpec = tween(100))
-    ) {
+    if (currentDialogRoute != DialogRoute.None) {
         key(currentDialogRoute) {
             when (val route = currentDialogRoute) {
                 is DialogRoute.None -> { }
