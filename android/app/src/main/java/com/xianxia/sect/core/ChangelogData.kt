@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.82",
+            date = "2026-05-31",
+            changes = listOf(
+                "新游戏初始赠送一座灵矿场，位于地图中央，附带3个矿位，3名初始弟子可直接分配挖矿"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.81",
             date = "2026-05-31",
             changes = listOf(
