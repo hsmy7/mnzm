@@ -786,6 +786,21 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val decay = phaseMultiplier
         val equipmentStacksList = currentEquipmentStacks
         val manualStacksList = currentManualStacks
+        val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
+        val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
+
+        // 副作用累积器：.map{} 闭包内不修改外部状态，收集变更后批量应用
+        val equipInstancesToAdd = mutableListOf<EquipmentInstance>()
+        val equipInstanceIdsToRemove = mutableSetOf<String>()
+        val equipStackDeletions = mutableSetOf<String>()
+        val equipStackQuantityDeltas = mutableMapOf<String, Int>() // stackId -> delta
+        val equipStackAdditions = mutableListOf<EquipmentStack>()
+        val manualInstancesToAdd = mutableListOf<ManualInstance>()
+        val manualInstanceIdsToRemove = mutableSetOf<String>()
+        val manualStackDeletions = mutableSetOf<String>()
+        val manualStackQuantityDeltas = mutableMapOf<String, Int>()
+        val manualStackAdditions = mutableListOf<ManualStack>()
+        val profRemovals = mutableMapOf<String, MutableSet<String>>() // discipleId -> manualIds
 
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
@@ -829,101 +844,120 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
 
             val pillResult = DisciplePillManager.processAutoUsePills(
-                disciple = d,
-                gameYear = year,
-                gameMonth = month,
-                gamePhase = phase
+                disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
             )
             if (pillResult.disciple != d) {
                 d = pillResult.disciple
             }
 
             val equipResult = DiscipleEquipmentManager.processAutoEquip(
-                disciple = d,
-                equipmentStacks = equipmentStacksList,
+                disciple = d, equipmentStacks = equipmentStacksList,
                 equipmentInstances = equipmentMap,
-                gameYear = year,
-                gameMonth = month,
-                gamePhase = phase,
-                maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                gameYear = year, gameMonth = month, gamePhase = phase,
+                maxStack = maxEquipStack
             )
             if (equipResult.newInstances.isNotEmpty()) {
                 d = equipResult.disciple
-                currentEquipmentInstances = currentEquipmentInstances + equipResult.newInstances
-                val replacedIds = equipResult.replacedInstances.map { it.id }.toSet()
-                if (replacedIds.isNotEmpty()) {
-                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id !in replacedIds }
-                }
+                equipInstancesToAdd.addAll(equipResult.newInstances)
+                equipResult.replacedInstances.forEach { equipInstanceIdsToRemove.add(it.id) }
                 equipResult.stackUpdates.forEach { update ->
                     if (update.isDeletion) {
-                        currentEquipmentStacks = currentEquipmentStacks.filter { it.id != update.stackId }
+                        equipStackDeletions.add(update.stackId)
                     } else {
-                        currentEquipmentStacks = currentEquipmentStacks.map {
-                            if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
-                        }
+                        equipStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
                     }
                 }
                 equipResult.replacedEquipmentStacks.forEach { replacedStack ->
-                    val existingStack = currentEquipmentStacks.find { it.id == replacedStack.id }
-                    if (existingStack != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                        currentEquipmentStacks = currentEquipmentStacks.map {
-                            if (it.id == replacedStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
-                        }
-                    } else {
-                        currentEquipmentStacks = currentEquipmentStacks + replacedStack
-                    }
+                    val delta = equipStackQuantityDeltas.getOrDefault(replacedStack.id, -1)
+                    equipStackQuantityDeltas[replacedStack.id] = if (delta < 0) 1 else delta + 1
                 }
             }
 
             val manualResult = DiscipleManualManager.processAutoLearn(
-                disciple = d,
-                manualStacks = manualStacksList,
+                disciple = d, manualStacks = manualStacksList,
                 manualInstances = manualMap,
-                gameYear = year,
-                gameMonth = month,
-                gamePhase = phase,
-                maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                gameYear = year, gameMonth = month, gamePhase = phase,
+                maxStack = maxManualStack
             )
             if (manualResult.newInstance != null) {
                 d = manualResult.disciple
-                currentManualInstances = currentManualInstances + manualResult.newInstance
+                manualInstancesToAdd.add(manualResult.newInstance)
                 manualResult.replacedInstance?.let { replaced ->
-                    currentManualInstances = currentManualInstances.filter { it.id != replaced.id }
-                    val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-                    updatedProficiencies[d.id]?.let { profList ->
-                        val filtered = profList.filter { it.manualId != replaced.id }
-                        if (filtered.isEmpty()) {
-                            updatedProficiencies.remove(d.id)
-                        } else {
-                            updatedProficiencies[d.id] = filtered
-                        }
-                    }
-                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
+                    manualInstanceIdsToRemove.add(replaced.id)
+                    profRemovals.getOrPut(d.id) { mutableSetOf() }.add(replaced.id)
                 }
                 manualResult.stackUpdate?.let { update ->
                     if (update.isDeletion) {
-                        currentManualStacks = currentManualStacks.filter { it.id != update.stackId }
+                        manualStackDeletions.add(update.stackId)
                     } else {
-                        currentManualStacks = currentManualStacks.map {
-                            if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
-                        }
+                        manualStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
                     }
                 }
                 manualResult.replacedManualStack?.let { replacedStack ->
-                    val existingStack = currentManualStacks.find { it.id == replacedStack.id }
-                    if (existingStack != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                        currentManualStacks = currentManualStacks.map {
-                            if (it.id == replacedStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
-                        }
-                    } else {
-                        currentManualStacks = currentManualStacks + replacedStack
-                    }
+                    val delta = manualStackQuantityDeltas.getOrDefault(replacedStack.id, -1)
+                    manualStackQuantityDeltas[replacedStack.id] = if (delta < 0) 1 else delta + 1
                 }
             }
 
             d
+        }
+
+        // 批量应用副作用
+        if (equipInstancesToAdd.isNotEmpty() || equipInstanceIdsToRemove.isNotEmpty()) {
+            currentEquipmentInstances = currentEquipmentInstances
+                .filter { it.id !in equipInstanceIdsToRemove } + equipInstancesToAdd
+        }
+        if (equipStackDeletions.isNotEmpty()) {
+            currentEquipmentStacks = currentEquipmentStacks.filter { it.id !in equipStackDeletions }
+        }
+        equipStackQuantityDeltas.forEach { (stackId, newQty) ->
+            currentEquipmentStacks = currentEquipmentStacks.map {
+                if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxEquipStack)) else it
+            }
+        }
+        equipStackAdditions.forEach { stack ->
+            val existing = currentEquipmentStacks.find { it.id == stack.id }
+            currentEquipmentStacks = if (existing != null) {
+                currentEquipmentStacks.map {
+                    if (it.id == stack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxEquipStack)) else it
+                }
+            } else {
+                currentEquipmentStacks + stack
+            }
+        }
+
+        if (manualInstancesToAdd.isNotEmpty() || manualInstanceIdsToRemove.isNotEmpty()) {
+            currentManualInstances = currentManualInstances
+                .filter { it.id !in manualInstanceIdsToRemove } + manualInstancesToAdd
+        }
+        if (profRemovals.isNotEmpty()) {
+            val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
+            profRemovals.forEach { (discipleId, manualIds) ->
+                updatedProficiencies[discipleId]?.let { profList ->
+                    val filtered = profList.filter { it.manualId !in manualIds }
+                    if (filtered.isEmpty()) updatedProficiencies.remove(discipleId)
+                    else updatedProficiencies[discipleId] = filtered
+                }
+            }
+            currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
+        }
+        if (manualStackDeletions.isNotEmpty()) {
+            currentManualStacks = currentManualStacks.filter { it.id !in manualStackDeletions }
+        }
+        manualStackQuantityDeltas.forEach { (stackId, newQty) ->
+            currentManualStacks = currentManualStacks.map {
+                if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxManualStack)) else it
+            }
+        }
+        manualStackAdditions.forEach { stack ->
+            val existing = currentManualStacks.find { it.id == stack.id }
+            currentManualStacks = if (existing != null) {
+                currentManualStacks.map {
+                    if (it.id == stack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxManualStack)) else it
+                }
+            } else {
+                currentManualStacks + stack
+            }
         }
 
         processAutoFromWarehouse(year, month, phase)
