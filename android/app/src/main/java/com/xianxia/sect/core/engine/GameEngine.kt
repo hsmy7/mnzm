@@ -2918,23 +2918,13 @@ class GameEngine @Inject constructor(
         val isAiOccupied = targetSect.occupierSectId.isNotEmpty() && targetSect.occupierSectId != playerSect?.id
         val defenderDisciples = if (isAiOccupied) {
             val occupierDisciples = data.aiSectDisciples[targetSect.occupierSectId] ?: emptyList()
-            val garrisonDisciples = targetSect.garrisonSlots
+            targetSect.garrisonSlots
                 .filter { it.discipleId.isNotEmpty() }
                 .mapNotNull { slot -> occupierDisciples.find { d -> d.id == slot.discipleId && d.isAlive } }
-            // Fallback: AI 占领宗门后从不填充 garrisonSlots，守军为空时用占领者最强弟子
-            if (garrisonDisciples.isNotEmpty()) {
-                garrisonDisciples
-            } else {
-                occupierDisciples.filter { it.isAlive }
-                    .sortedByDescending { it.realm }
-                    .take(AISectAttackManager.TEAM_SIZE)
-            }
         } else {
             val sectDisciplePool = data.aiSectDisciples[sectId] ?: emptyList()
             sectDisciplePool.filter { it.isAlive }.sortedBy { it.realm }.take(AISectAttackManager.TEAM_SIZE)
         }
-
-        if (defenderDisciples.isEmpty()) return
 
         // 清理阵亡守军用的池：从占领者池中移除（被占领宗门时）
         val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
