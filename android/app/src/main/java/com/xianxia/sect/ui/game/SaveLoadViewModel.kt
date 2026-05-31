@@ -1323,6 +1323,9 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
+    private val _timeScale = MutableStateFlow(1)
+    val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
+
     val timeSpeed: StateFlow<Int> = gameEngine.gameData
         .map { it.gameSpeed.coerceIn(1, 2) }
         .stateIn(viewModelScope, SharingStarted.Lazily, 1)
@@ -1333,8 +1336,15 @@ class SaveLoadViewModel @Inject constructor(
 
     fun setTimeSpeed(speed: Int) {
         val clamped = speed.coerceIn(1, 2)
+        _timeScale.value = clamped  // UI 即时反馈，不依赖 GameData 写入
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
+            try {
+                gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
+            } catch (e: IllegalStateException) {
+                // 影子事务进行中（结算分帧），延迟一帧后重试
+                delay(16)
+                gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
+            }
         }
         if (gameEngineCore.state.value.isPaused) {
             viewModelScope.launch {
