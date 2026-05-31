@@ -321,7 +321,6 @@ class GameStateStore @Inject constructor(
                 patrolConfig = oldState.gameData.patrolConfig,
                 patrolConfigs = oldState.gameData.patrolConfigs,
                 warehouseGarrisons = oldState.gameData.warehouseGarrisons,
-                spiritFieldPlants = oldState.gameData.spiritFieldPlants,
                 // 政策与设置
                 sectPolicies = oldState.gameData.sectPolicies,
                 monthlySalary = oldState.gameData.monthlySalary,
