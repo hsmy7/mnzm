@@ -1,5 +1,8 @@
 package com.xianxia.sect.ui.game.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,13 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.EquipmentNurtureSystem
+import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
@@ -176,7 +180,72 @@ fun ItemDetailDialog(
                         )
                     }
                 }
-                
+
+                // 装备孕养进度条
+                if (item is EquipmentInstance) {
+                    val nurtureLevel = item.nurtureLevel
+                    val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(item.rarity)
+                    if (nurtureLevel < maxLevel) {
+                        val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, item.rarity)
+                        val progressFraction = (item.nurtureProgress / expRequired).toFloat().coerceIn(0f, 1f)
+
+                        val prevNurtureLevel = remember { mutableIntStateOf(nurtureLevel) }
+                        val prevTarget = remember { mutableStateOf(progressFraction) }
+                        val shouldSnapNurture = nurtureLevel > prevNurtureLevel.intValue || progressFraction < prevTarget.value - 0.5f
+                        val animatedNurtureProgress by animateFloatAsState(
+                            targetValue = progressFraction,
+                            animationSpec = if (shouldSnapNurture) snap() else tween(durationMillis = 300),
+                            label = "nurtureProgress"
+                        )
+                        SideEffect {
+                            prevNurtureLevel.intValue = nurtureLevel
+                            prevTarget.value = progressFraction
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "孕养进度",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Lv.$nurtureLevel",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = getRarityColor(item.rarity)
+                            )
+                            Text(
+                                text = "${item.nurtureProgress.toInt()}/${expRequired.toInt()}",
+                                fontSize = 10.sp,
+                                color = Color.Black
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE8E8E8))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = animatedNurtureProgress)
+                                    .fillMaxHeight()
+                                    .background(getRarityColor(item.rarity))
+                            )
+                        }
+                    }
+                }
+
                 if (description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
@@ -305,6 +374,16 @@ fun LearnedManualDetailDialog(
                     )
                 }
 
+                val progressTarget = progressInCurrentLevel.toFloat().coerceIn(0f, 1f)
+                val prevProgressTarget = remember { mutableStateOf(progressTarget) }
+                val shouldSnap = progressTarget < prevProgressTarget.value - 0.5f
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progressTarget,
+                    animationSpec = if (shouldSnap) snap() else tween(durationMillis = 300),
+                    label = "manualProficiency"
+                )
+                SideEffect { prevProgressTarget.value = progressTarget }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -314,7 +393,7 @@ fun LearnedManualDetailDialog(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(fraction = progressInCurrentLevel.toFloat().coerceIn(0f, 1f))
+                            .fillMaxWidth(fraction = animatedProgress)
                             .fillMaxHeight()
                             .background(rarityColor)
                     )

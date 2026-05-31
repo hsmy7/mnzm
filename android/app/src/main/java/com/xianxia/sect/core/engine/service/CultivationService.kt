@@ -65,7 +65,9 @@ data class HighFrequencyData(
     val lastBreakthroughCheckTime: Long = 0L,
     val timestamp: Long = 0L,
     val cultivationUpdates: Map<String, Double> = emptyMap(),
-    val realtimeCultivation: Map<String, Double>? = null
+    val realtimeCultivation: Map<String, Double>? = null,
+    val proficiencyUpdates: Map<String, Map<String, Double>> = emptyMap(), // discipleId -> (manualId -> gained)
+    val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap()      // discipleId -> (equipmentId -> gained)
 )
 
 @SystemPriority(order = 200)
@@ -273,8 +275,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
 
-        // 焦点弟子：高频刷新已给了一部分修炼值，月度批量补足差额
+        // 焦点弟子：高频刷新已给了一部分修炼值/熟练度/孕养，月度批量补足差额
         val focusedGains = _highFrequencyData.value.cultivationUpdates
+        val focusedProfGains = _highFrequencyData.value.proficiencyUpdates
+        val focusedNurtureGains = _highFrequencyData.value.nurtureUpdates
         val updatedDisciples = state.disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
 
@@ -284,47 +288,45 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
             var d = disciple.copy(cultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation))
 
-            // 功法精通
+            // 功法精通（扣除高频已发量）
             val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
             val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
             val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
             val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * monthSeconds
+            val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
             d.manualIds.forEach { manualId ->
                 manualInstanceMap[manualId]?.let { manual ->
                     val profList = updatedManualProficiencies.getOrDefault(d.id, emptyList()).toMutableList()
                     val profIndex = profList.indexOfFirst { it.manualId == manualId }
+                    val alreadyGainedProf = profAlreadyGained[manualId] ?: 0.0
+                    val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
                     if (profIndex >= 0) {
                         val cp = profList[profIndex]
-                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGain).coerceAtMost(cp.maxProficiency.toDouble()))
+                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + netProfGain).coerceAtMost(cp.maxProficiency.toDouble()))
                     } else {
-                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGain.coerceAtMost(100.0)))
+                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = netProfGain.coerceAtMost(100.0)))
                     }
                     updatedManualProficiencies[d.id] = profList
                 }
             }
 
-            // 装备孕养
-            val nurtureGain = 5.0 * monthSeconds
-            d.equipment.weaponId?.let { eqId ->
-                equipmentInstanceMap[eqId]?.let { eq ->
-                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
+            // 装备孕养（扣除高频已发量）
+            val monthlyNurtureGain = 5.0 * monthSeconds
+            val nurtureAlreadyGained = focusedNurtureGains[d.id] ?: emptyMap()
+
+            fun processNurture(eqId: String?) {
+                eqId?.let { id ->
+                    equipmentInstanceMap[id]?.let { eq ->
+                        val already = nurtureAlreadyGained[id] ?: 0.0
+                        val netGain = (monthlyNurtureGain - already).coerceAtLeast(0.0)
+                        equipmentInstanceUpdates[id] = EquipmentNurtureSystem.updateNurtureExp(eq, netGain).equipment
+                    }
                 }
             }
-            d.equipment.armorId?.let { eqId ->
-                equipmentInstanceMap[eqId]?.let { eq ->
-                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
-                }
-            }
-            d.equipment.bootsId?.let { eqId ->
-                equipmentInstanceMap[eqId]?.let { eq ->
-                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
-                }
-            }
-            d.equipment.accessoryId?.let { eqId ->
-                equipmentInstanceMap[eqId]?.let { eq ->
-                    equipmentInstanceUpdates[eqId] = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain).equipment
-                }
-            }
+            processNurture(d.equipment.weaponId)
+            processNurture(d.equipment.armorId)
+            processNurture(d.equipment.bootsId)
+            processNurture(d.equipment.accessoryId)
             d
         }
 
@@ -339,7 +341,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         _highFrequencyData.value = _highFrequencyData.value.copy(
             lastUpdateTime = System.currentTimeMillis(),
             totalDisciples = livingDisciples.size,
-            cultivationUpdates = emptyMap()  // 本月焦点修炼已结算，清零
+            cultivationUpdates = emptyMap(),   // 本月焦点修炼已结算，清零
+            proficiencyUpdates = emptyMap(),   // 本月焦点熟练度已结算
+            nurtureUpdates = emptyMap()        // 本月焦点孕养已结算
         )
     }
 
@@ -354,7 +358,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     /**
      * 焦点弟子高频刷新（200ms） — 玩家查看弟子详情时调用
-     * 仅更新该弟子的修炼进度和突破检查
+     * 更新该弟子的修炼进度、功法熟练度、装备孕养，均摊为每旬增量
      */
     fun updateFocusedDisciple(discipleId: String, state: MutableGameState) {
         val data = state.gameData
@@ -387,11 +391,67 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val accumGains = currentHfd.cultivationUpdates.toMutableMap()
         accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + gained
 
+        // —— 功法熟练度高频分发（每月总量均摊到每旬） ——
+        val manualInstanceMap = state.manualInstances.associateBy { it.id }
+        val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
+        val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+        val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
+        val proficiencyGainPerTick = baseProficiencyRate * (1.0 + libraryBonus) * perPhaseSeconds
+
+        var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
+        val profUpdatesMap = currentHfd.proficiencyUpdates.toMutableMap()
+        val discipleProfUpdates = profUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
+
+        currentDisciple.manualIds.forEach { manualId ->
+            manualInstanceMap[manualId]?.let { manual ->
+                val profList = updatedManualProficiencies.getOrDefault(discipleId, emptyList()).toMutableList()
+                val profIndex = profList.indexOfFirst { it.manualId == manualId }
+                if (profIndex >= 0) {
+                    val cp = profList[profIndex]
+                    profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(cp.maxProficiency.toDouble()))
+                } else {
+                    profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGainPerTick.coerceAtMost(100.0)))
+                }
+                updatedManualProficiencies[discipleId] = profList
+                discipleProfUpdates[manualId] = (discipleProfUpdates[manualId] ?: 0.0) + proficiencyGainPerTick
+            }
+        }
+        profUpdatesMap[discipleId] = discipleProfUpdates
+        if (updatedManualProficiencies != data.manualProficiencies) {
+            state.gameData = data.copy(manualProficiencies = updatedManualProficiencies)
+        }
+
+        // —— 装备孕养高频分发（每月总量均摊到每旬） ——
+        val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
+        val nurtureGainPerTick = 5.0 * perPhaseSeconds
+        val nurtureUpdatesMap = currentHfd.nurtureUpdates.toMutableMap()
+        val discipleNurtureUpdates = nurtureUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
+        val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
+
+        listOfNotNull(
+            currentDisciple.equipment.weaponId,
+            currentDisciple.equipment.armorId,
+            currentDisciple.equipment.bootsId,
+            currentDisciple.equipment.accessoryId
+        ).forEach { eqId ->
+            equipmentInstanceMap[eqId]?.let { eq ->
+                val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGainPerTick)
+                equipmentInstanceUpdates[eqId] = result.equipment
+                discipleNurtureUpdates[eqId] = (discipleNurtureUpdates[eqId] ?: 0.0) + nurtureGainPerTick
+            }
+        }
+        nurtureUpdatesMap[discipleId] = discipleNurtureUpdates
+        if (equipmentInstanceUpdates.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
+        }
+
         _highFrequencyData.value = currentHfd.copy(
             lastCultivationTime = System.currentTimeMillis(),
             cultivationPerSecond = cultivationPerSecond,
             totalDisciples = allDisciples.count { it.isAlive },
-            cultivationUpdates = accumGains
+            cultivationUpdates = accumGains,
+            proficiencyUpdates = profUpdatesMap,
+            nurtureUpdates = nurtureUpdatesMap
         )
     }
 

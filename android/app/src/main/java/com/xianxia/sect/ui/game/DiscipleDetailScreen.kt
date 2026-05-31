@@ -641,8 +641,9 @@ fun DiscipleDetailDialog(
     }
 
     showEquipmentDetailDialog?.let { equipment ->
+        val liveEquipment = allEquipment.find { it.id == equipment.id } ?: equipment
         ItemDetailDialog(
-            item = equipment,
+            item = liveEquipment,
             onDismiss = {
                 showEquipmentDetailDialog = null
             },
