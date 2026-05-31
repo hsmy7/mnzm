@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.81",
+            date = "2026-05-31",
+            changes = listOf(
+                "后台任务统一调度：BackgroundTaskScheduler用共享1s心跳替代8个独立while(isActive)协程循环，通过GameMonitorManager和StorageEngine两个编排中心注入，减少后台协程数从13→4"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.80",
             date = "2026-05-31",
             changes = listOf(

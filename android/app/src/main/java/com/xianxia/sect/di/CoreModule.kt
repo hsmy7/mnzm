@@ -5,6 +5,8 @@ import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.subsystem.*
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.util.BackgroundTaskScheduler
+import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,6 +16,11 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object CoreModule {
+
+    @Provides
+    @Singleton
+    fun provideBackgroundTaskScheduler(scopeProvider: ApplicationScopeProvider): BackgroundTaskScheduler =
+        BackgroundTaskScheduler(scopeProvider.scope)
 
     @Provides
     @Singleton

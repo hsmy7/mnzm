@@ -197,45 +197,20 @@ class UnifiedPerformanceMonitor @Inject constructor(
     }
 
     fun startReporting(intervalMs: Long = DEFAULT_REPORT_INTERVAL_MS) {
-        if (isRunning) {
-            Log.w(TAG, "Performance reporting already running")
-            return
-        }
-
-        isRunning = true
-        reportJob = scope.launch {
-            Log.i(TAG, "Starting performance reporting with interval ${intervalMs}ms")
-            while (isActive) {
-                delay(intervalMs)
-                generateReport()
-            }
-        }
+        Log.d(TAG, "Performance reporting start (delegated to scheduler)")
     }
 
     fun stopReporting() {
-        isRunning = false
-        reportJob?.cancel()
-        reportJob = null
-        Log.i(TAG, "Performance reporting stopped")
+        Log.d(TAG, "Performance reporting stop (delegated to scheduler)")
     }
 
     fun start() {
-        if (tickMonitorJob?.isActive == true) return
-
-        tickMonitorJob = scope.launch {
-            while (isActive) {
-                updateGamePerformanceMetrics()
-                delay(SAMPLE_INTERVAL_MS)
-            }
-        }
-
-        Log.i(TAG, "Performance monitor started")
+        // 迁移至 BackgroundTaskScheduler (GameMonitorManager.startMonitoring)
+        Log.d(TAG, "Performance monitor start (delegated to scheduler)")
     }
 
     fun stop() {
-        tickMonitorJob?.cancel()
-        tickMonitorJob = null
-        Log.i(TAG, "Performance monitor stopped")
+        Log.d(TAG, "Performance monitor stop (delegated to scheduler)")
     }
 
     fun recordTick(durationMs: Float) {
@@ -330,7 +305,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
     @Volatile
     private var currentFps: Float = 0f
 
-    private fun updateGamePerformanceMetrics() {
+    internal fun updateGamePerformanceMetrics() {
         val runtime = Runtime.getRuntime()
         val maxMemory = runtime.maxMemory() / (1024 * 1024)
         val totalMemory = runtime.totalMemory() / (1024 * 1024)
@@ -421,35 +396,11 @@ class UnifiedPerformanceMonitor @Inject constructor(
     }
 
     fun startMonitoring() {
-        if (monitorJob?.isActive == true) {
-            Log.w(TAG, "Performance monitoring already running")
-            return
-        }
-
-        isFrameMonitoringActive = true
-        choreographer?.postFrameCallback(frameCallback)
-
-        monitorJob = scope.launch {
-            Log.i(TAG, "Starting performance monitoring")
-            while (isActive) {
-                try {
-                    val snapshot = capturePerformanceSnapshot()
-                    processPerformanceSnapshot(snapshot)
-                    delay(MONITOR_INTERVAL_MS)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in performance monitoring", e)
-                    delay(5000)
-                }
-            }
-        }
+        Log.d(TAG, "Performance monitoring start (delegated to scheduler)")
     }
 
     fun stopMonitoring() {
-        isFrameMonitoringActive = false
-        choreographer?.removeFrameCallback(frameCallback)
-        monitorJob?.cancel()
-        monitorJob = null
-        Log.i(TAG, "Performance monitoring stopped")
+        Log.d(TAG, "Performance monitoring stop (delegated to scheduler)")
     }
 
     fun addPerformanceEventListener(listener: PerformanceEventListener) {

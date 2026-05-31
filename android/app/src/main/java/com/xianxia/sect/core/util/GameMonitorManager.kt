@@ -11,10 +11,6 @@ import com.xianxia.sect.core.performance.OptimizationLevel
 import com.xianxia.sect.core.performance.Trace
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,16 +24,14 @@ class GameMonitorManager @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
     private val gcOptimizer: GCOptimizer,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val taskScheduler: BackgroundTaskScheduler
 ) {
 
     companion object {
         private const val TAG = "GameMonitorManager"
-        private const val STATUS_REPORT_INTERVAL_MS = 300_000L
     }
 
-    private var reportJob: Job? = null
-    private val managerScope get() = applicationScopeProvider.scope
     private var isInitialized = false
     private var application: XianxiaApplication? = null
 
@@ -137,35 +131,25 @@ class GameMonitorManager @Inject constructor(
             return
         }
 
-        Log.i(TAG, "Starting all monitoring systems")
+        Log.i(TAG, "Starting all monitoring systems via BackgroundTaskScheduler")
 
-        memoryMonitor.startMonitoring()
-        unifiedPerformanceMonitor.startMonitoring()
-        gcOptimizer.startOptimization()
-        unifiedPerformanceMonitor.startReporting()
+        // 1s: 性能指标采样 + 快照
+        taskScheduler.register("PerfMetrics", 1) { unifiedPerformanceMonitor.updateGamePerformanceMetrics() }
+        taskScheduler.register("PerfSnapshot", 1) { unifiedPerformanceMonitor.capturePerformanceSnapshot() }
+        // 60s: GC检查 + 性能报告
+        taskScheduler.register("GCOptimizer", 60) { gcOptimizer.checkAndPerformGC() }
+        taskScheduler.register("PerfReport", 60) { unifiedPerformanceMonitor.generateReport() }
+        // 30s: 内存采样
+        taskScheduler.register("MemoryMonitor", 30) { memoryMonitor.captureMemorySnapshot() }
+        // 300s: 完整状态日志
+        taskScheduler.register("StatusReport", 300) { logFullStatus() }
 
-        startPeriodicReport()
+        taskScheduler.start()
     }
 
     fun stopMonitoring() {
         Log.i(TAG, "Stopping all monitoring systems")
-
-        memoryMonitor.stopMonitoring()
-        unifiedPerformanceMonitor.stopMonitoring()
-        gcOptimizer.stopOptimization()
-        unifiedPerformanceMonitor.stopReporting()
-
-        reportJob?.cancel()
-        reportJob = null
-    }
-
-    private fun startPeriodicReport() {
-        reportJob = managerScope.launch {
-            while (isActive) {
-                delay(STATUS_REPORT_INTERVAL_MS)
-                logFullStatus()
-            }
-        }
+        taskScheduler.stop()
     }
 
     fun logFullStatus() {

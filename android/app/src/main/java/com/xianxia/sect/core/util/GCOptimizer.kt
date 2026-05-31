@@ -68,29 +68,11 @@ class GCOptimizer @Inject constructor(
     }
     
     fun startOptimization() {
-        if (optimizerJob?.isActive == true) {
-            Log.w(TAG, "GC optimization already running")
-            return
-        }
-        
-        optimizerJob = scope.launch {
-            Log.i(TAG, "Starting GC optimization")
-            while (isActive) {
-                try {
-                    checkAndPerformGC()
-                    delay(GC_CHECK_INTERVAL_MS)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in GC optimization", e)
-                    delay(10_000)
-                }
-            }
-        }
+        Log.d(TAG, "GC optimization start (delegated to scheduler)")
     }
-    
+
     fun stopOptimization() {
-        optimizerJob?.cancel()
-        optimizerJob = null
-        Log.i(TAG, "GC optimization stopped")
+        Log.d(TAG, "GC optimization stop (delegated to scheduler)")
     }
     
     fun addListener(listener: GCEventListener) {
@@ -101,7 +83,7 @@ class GCOptimizer @Inject constructor(
         listeners.remove(listener)
     }
     
-    private fun checkAndPerformGC() {
+    internal fun checkAndPerformGC() {
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastGCTime < GC_COOLDOWN_MS) {
             return

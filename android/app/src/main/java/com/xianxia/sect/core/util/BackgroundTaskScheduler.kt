@@ -34,7 +34,6 @@ class BackgroundTaskScheduler(
 
     fun start() {
         if (job?.isActive == true) return
-        tickCount = 0
         job = scope.launch {
             while (isActive) {
                 val tick = tickCount++

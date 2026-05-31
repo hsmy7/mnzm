@@ -120,7 +120,7 @@ class ProactiveMemoryGuard @Inject constructor(
         Log.i(TAG, "Proactive memory guard shutdown")
     }
 
-    private suspend fun performCheck() {
+    internal suspend fun performCheck() {
         totalChecks.incrementAndGet()
 
         val memSnapshot = memoryManager.getMemorySnapshot()

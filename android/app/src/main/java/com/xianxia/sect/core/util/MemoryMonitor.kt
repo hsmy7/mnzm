@@ -80,30 +80,11 @@ class MemoryMonitor @Inject constructor(
     }
     
     fun startMonitoring(intervalMs: Long = DEFAULT_MONITOR_INTERVAL_MS) {
-        if (monitorJob?.isActive == true) {
-            Log.w(TAG, "Memory monitoring already running")
-            return
-        }
-        
-        monitorJob = scope.launch {
-            Log.i(TAG, "Starting memory monitoring with interval ${intervalMs}ms")
-            while (isActive) {
-                try {
-                    val snapshot = captureMemorySnapshot()
-                    processMemorySnapshot(snapshot)
-                    delay(intervalMs)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in memory monitoring", e)
-                    delay(5000)
-                }
-            }
-        }
+        Log.d(TAG, "Memory monitoring start (delegated to scheduler)")
     }
-    
+
     fun stopMonitoring() {
-        monitorJob?.cancel()
-        monitorJob = null
-        Log.i(TAG, "Memory monitoring stopped")
+        Log.d(TAG, "Memory monitoring stop (delegated to scheduler)")
     }
     
     fun addListener(listener: MemoryEventListener) {

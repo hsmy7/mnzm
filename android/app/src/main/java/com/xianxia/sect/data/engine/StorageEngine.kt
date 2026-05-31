@@ -22,6 +22,7 @@ import com.xianxia.sect.data.unified.BackupInfo
 import com.xianxia.sect.data.unified.SlotMetadata
 import com.xianxia.sect.data.validation.StorageValidator
 import com.xianxia.sect.data.wal.WALProvider
+import com.xianxia.sect.core.util.BackgroundTaskScheduler
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +81,7 @@ class StorageEngine @Inject internal constructor(
     private val pruningScheduler: DataPruningScheduler,
     private val archiveScheduler: DataArchiveScheduler,
     private val memoryGuard: ProactiveMemoryGuard,
+    private val taskScheduler: BackgroundTaskScheduler,
     private val storageIntegrity: StorageIntegrity,
     private val storageBackup: StorageBackup,
     private val storageWal: StorageWal,
@@ -484,16 +486,18 @@ class StorageEngine @Inject internal constructor(
     }
 
     fun startMaintenance() {
-        memoryGuard.startMonitoring()
-        pruningScheduler.start()
-        archiveScheduler.start()
-        Log.i(TAG, "Storage maintenance started")
+        // 10s: 内存压力检查
+        taskScheduler.register("MemoryGuard", 10) { memoryGuard.performCheck() }
+        // 300s: 数据修剪
+        taskScheduler.register("DataPruning", 300) { pruningScheduler.performPruning() }
+        // 600s: 数据归档
+        taskScheduler.register("DataArchive", 600) { archiveScheduler.performArchive() }
+        taskScheduler.start()
+        Log.i(TAG, "Storage maintenance started via BackgroundTaskScheduler")
     }
 
     fun stopMaintenance() {
-        memoryGuard.stopMonitoring()
-        pruningScheduler.stop()
-        archiveScheduler.stop()
+        taskScheduler.stop()
         Log.i(TAG, "Storage maintenance stopped")
     }
 

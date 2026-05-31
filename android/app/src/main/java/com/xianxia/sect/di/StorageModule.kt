@@ -11,6 +11,7 @@ import com.xianxia.sect.data.crypto.KeyRotationManager
 import com.xianxia.sect.data.engine.DataArchiveScheduler
 import com.xianxia.sect.data.engine.DataPruningScheduler
 import com.xianxia.sect.data.engine.ProactiveMemoryGuard
+import com.xianxia.sect.core.util.BackgroundTaskScheduler
 import com.xianxia.sect.data.engine.StorageBackup
 import com.xianxia.sect.data.engine.StorageCircuitBreaker
 import com.xianxia.sect.data.engine.SavMigrator
@@ -119,7 +120,8 @@ object StorageModule {
         storageIntegrity: StorageIntegrity,
         storageBackup: StorageBackup,
         storageWal: StorageWal,
-        storageMetrics: StorageMetrics
+        storageMetrics: StorageMetrics,
+        taskScheduler: BackgroundTaskScheduler
     ): StorageEngine {
         return StorageEngine(
             database = database,
@@ -134,6 +136,7 @@ object StorageModule {
             pruningScheduler = pruningScheduler,
             archiveScheduler = archiveScheduler,
             memoryGuard = memoryGuard,
+            taskScheduler = taskScheduler,
             storageIntegrity = storageIntegrity,
             storageBackup = storageBackup,
             storageWal = storageWal,
