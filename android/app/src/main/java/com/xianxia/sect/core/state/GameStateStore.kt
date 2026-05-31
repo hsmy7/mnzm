@@ -265,14 +265,22 @@ class GameStateStore @Inject constructor(
             // 三路合并：只应用结算的变更，保留玩家在结算期间的操作
             // origin=创建影子时的状态, shadow=结算修改后的影子, oldState=当前主状态(含玩家操作)
             val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
-            val mergedDisciples = oldState.disciples.map { mainDisciple ->
-                val shadowDisciple = shadow.disciples.find { it.id == mainDisciple.id }
-                    ?: return@map mainDisciple
-                val originDisciple = originDiscipleMap[mainDisciple.id]
-                if (originDisciple == null || originDisciple === shadowDisciple) {
-                    // 结算未修改此弟子 → 保留主状态版本（含玩家操作）
-                    mainDisciple
+            val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
+            val mergedDisciples = oldState.disciples.mapNotNull { mainDisciple ->
+                val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
+                if (shadowDisciple == null) {
+                    // 弟子不在 shadow 中 → 检查 origin：origin 有但 shadow 无 = 结算删除了(叛逃/处决)
+                    if (originDiscipleMap.containsKey(mainDisciple.id)) {
+                        null  // 结算删除了 → 从合并结果中移除
+                    } else {
+                        mainDisciple  // origin 也没有 → 玩家在结算期间新增的 → 保留
+                    }
                 } else {
+                    val originDisciple = originDiscipleMap[mainDisciple.id]
+                    if (originDisciple == null || originDisciple === shadowDisciple) {
+                        // 结算未修改此弟子 → 保留主状态版本（含玩家操作）
+                        mainDisciple
+                    } else {
                     // 结算修改了此弟子 → 只应用结算实际变更的字段
                     val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
                     val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
@@ -298,6 +306,7 @@ class GameStateStore @Inject constructor(
                     )
                     // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）
                 }
+            }
             }
 
             // gameData 合并：从 shadow 取结算后的完整数据，但保留玩家可能修改的字段
