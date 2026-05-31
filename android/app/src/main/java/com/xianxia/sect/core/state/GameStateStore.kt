@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -287,10 +286,12 @@ class GameStateStore @Inject constructor(
 
     fun beginShadowTransaction(shadow: MutableGameState) {
         currentTransactionState = shadow
+        shadowTransactionThread = Thread.currentThread()
     }
 
     fun endShadowTransaction() {
         currentTransactionState = null
+        shadowTransactionThread = null
     }
 
     fun getCurrentSeeds(): List<Seed> = _state.value.seeds
@@ -412,16 +413,16 @@ class GameStateStore @Inject constructor(
     val teamsSnapshot: List<ExplorationTeam> get() = _state.value.teams
     val battleLogsSnapshot: List<BattleLog> get() = _state.value.battleLogs
 
+    private var shadowTransactionThread: Thread? = null
+
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
-        // 等待影子事务完成再获取写锁（结算分帧的影子事务通常 < 1.5ms）
-        var retries = 0
-        while (currentTransactionState != null && retries < 100) {
-            delay(1)
-            retries++
-        }
-        check(currentTransactionState == null) {
-            "GameStateStore.update() timed out waiting for shadow transaction to complete after ${retries}ms. " +
-                "This indicates a shadow transaction leak — check beginShadowTransaction/endShadowTransaction pairing."
+        // 仅阻止同一线程内的嵌套调用（结算流程内误调 update 属编程错误），
+        // 其他线程（如 UI）直接通过，不等待影子事务
+        if (shadowTransactionThread == Thread.currentThread()) {
+            check(currentTransactionState == null) {
+                "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
+                    "Use currentTransactionMutableState() to modify state within a tick transaction."
+            }
         }
         transactionMutex.withLock {
             val current = _state.value

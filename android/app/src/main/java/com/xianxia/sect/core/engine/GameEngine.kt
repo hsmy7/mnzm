@@ -996,16 +996,8 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun updateFocusedDisciple(discipleId: String) {
-        try {
-            stateStore.update {
-                cultivationService.updateFocusedDisciple(discipleId, this)
-            }
-        } catch (e: IllegalStateException) {
-            // 影子事务进行中（结算分帧），延迟后重试
-            kotlinx.coroutines.delay(16)
-            stateStore.update {
-                cultivationService.updateFocusedDisciple(discipleId, this)
-            }
+        stateStore.update {
+            cultivationService.updateFocusedDisciple(discipleId, this)
         }
     }
 

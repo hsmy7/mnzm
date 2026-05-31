@@ -772,79 +772,83 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     private suspend fun processPhaseEvents(phase: Int, month: Int, year: Int) {
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
 
-        // Phase recovery: 每旬恢复（日恢复×10倍量）
-        safelyRun("processPhaseRecovery") { processPhaseRecovery() }
-
-        safelyRun("processPillDurationDecay") { processPillDurationDecay() }
-        safelyRun("processAutoUseItems") { processAutoUseItems(year, month, phase) }
+        safelyRun("processPhaseTick") { processPhaseTick(year, month, phase) }
         safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
     }
 
-    /** 旬制的丹药持续/恢复等：原"天"单位数据放大10倍（1旬≈10天） */
     private val phaseMultiplier: Int get() = 10
 
-    private fun processPillDurationDecay() {
+    private fun processPhaseTick(year: Int, month: Int, phase: Int) {
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
+        val allProficiencies = currentGameData.manualProficiencies
+        val multiplier = phaseMultiplier.toDouble()
         val decay = phaseMultiplier
-        currentDisciples = currentDisciples.map { disciple ->
-            var updated = disciple
-
-            if (updated.cultivationSpeedDuration > 0) {
-                val newDuration = updated.cultivationSpeedDuration - decay
-                if (newDuration <= 0) {
-                    updated = updated.copy(
-                        cultivationSpeedBonus = 0.0,
-                        cultivationSpeedDuration = 0
-                    )
-                } else {
-                    updated = updated.copy(cultivationSpeedDuration = newDuration)
-                }
-            }
-
-            if (updated.pillEffects.pillEffectDuration > 0) {
-                val newDuration = updated.pillEffects.pillEffectDuration - decay
-                if (newDuration <= 0) {
-                    updated = updated.copy(pillEffects = PillEffects())
-                } else {
-                    updated = updated.copy(pillEffects = updated.pillEffects.copy(pillEffectDuration = newDuration))
-                }
-            }
-
-            updated
-        }
-    }
-
-    private fun processAutoUseItems(year: Int, month: Int, phase: Int) {
         val equipmentStacksList = currentEquipmentStacks
-        val equipmentInstancesMap = currentEquipmentInstances.associateBy { it.id }
         val manualStacksList = currentManualStacks
-        val manualInstancesMap = currentManualInstances.associateBy { it.id }
 
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
 
-            var updatedDisciple = disciple
+            var d = disciple
+
+            if (d.cultivationSpeedDuration > 0) {
+                val newDuration = d.cultivationSpeedDuration - decay
+                if (newDuration <= 0) {
+                    d = d.copy(cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 0)
+                } else {
+                    d = d.copy(cultivationSpeedDuration = newDuration)
+                }
+            }
+
+            if (d.pillEffects.pillEffectDuration > 0) {
+                val newDuration = d.pillEffects.pillEffectDuration - decay
+                if (newDuration <= 0) {
+                    d = d.copy(pillEffects = PillEffects())
+                } else {
+                    d = d.copy(pillEffects = d.pillEffects.copy(pillEffectDuration = newDuration))
+                }
+            }
+
+            val discipleProficiencies = allProficiencies.getOrDefault(d.id, emptyList())
+                .associateBy { it.manualId }
+            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
+            val maxHp = finalStats.maxHp
+            val maxMp = finalStats.maxMp
+            val curHp = d.combat.currentHp
+            val curMp = d.combat.currentMp
+
+            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+
+            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+            if (newHp != curHp || newMp != curMp) {
+                d = d.copyWith(currentHp = newHp, currentMp = newMp)
+            }
 
             val pillResult = DisciplePillManager.processAutoUsePills(
-                disciple = updatedDisciple,
+                disciple = d,
                 gameYear = year,
                 gameMonth = month,
                 gamePhase = phase
             )
-            if (pillResult.disciple != updatedDisciple) {
-                updatedDisciple = pillResult.disciple
+            if (pillResult.disciple != d) {
+                d = pillResult.disciple
             }
 
             val equipResult = DiscipleEquipmentManager.processAutoEquip(
-                disciple = updatedDisciple,
+                disciple = d,
                 equipmentStacks = equipmentStacksList,
-                equipmentInstances = equipmentInstancesMap,
+                equipmentInstances = equipmentMap,
                 gameYear = year,
                 gameMonth = month,
                 gamePhase = phase,
                 maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
             )
             if (equipResult.newInstances.isNotEmpty()) {
-                updatedDisciple = equipResult.disciple
+                d = equipResult.disciple
                 currentEquipmentInstances = currentEquipmentInstances + equipResult.newInstances
                 val replacedIds = equipResult.replacedInstances.map { it.id }.toSet()
                 if (replacedIds.isNotEmpty()) {
@@ -873,28 +877,26 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
 
             val manualResult = DiscipleManualManager.processAutoLearn(
-                disciple = updatedDisciple,
+                disciple = d,
                 manualStacks = manualStacksList,
-                manualInstances = manualInstancesMap,
+                manualInstances = manualMap,
                 gameYear = year,
                 gameMonth = month,
                 gamePhase = phase,
                 maxStack = inventoryConfig.getMaxStackSize("manual_stack")
             )
             if (manualResult.newInstance != null) {
-                updatedDisciple = manualResult.disciple
-                manualResult.newInstance.let { newInstance ->
-                    currentManualInstances = currentManualInstances + newInstance
-                }
+                d = manualResult.disciple
+                currentManualInstances = currentManualInstances + manualResult.newInstance
                 manualResult.replacedInstance?.let { replaced ->
                     currentManualInstances = currentManualInstances.filter { it.id != replaced.id }
                     val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-                    updatedProficiencies[updatedDisciple.id]?.let { profList ->
+                    updatedProficiencies[d.id]?.let { profList ->
                         val filtered = profList.filter { it.manualId != replaced.id }
                         if (filtered.isEmpty()) {
-                            updatedProficiencies.remove(updatedDisciple.id)
+                            updatedProficiencies.remove(d.id)
                         } else {
-                            updatedProficiencies[updatedDisciple.id] = filtered
+                            updatedProficiencies[d.id] = filtered
                         }
                     }
                     currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
@@ -921,14 +923,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 }
             }
 
-            updatedDisciple
+            d
         }
 
         processAutoFromWarehouse(year, month, phase)
     }
 
     private fun processAutoFromWarehouse(year: Int, month: Int, phase: Int) {
-        val allDisciples = currentDisciples.filter { it.isAlive }
         val equipFocused = currentGameData.autoEquipFromWarehouseFocused
         val equipRootCounts = currentGameData.autoEquipFromWarehouseRootCounts
         val learnFocused = currentGameData.autoLearnFromWarehouseFocused
@@ -938,33 +939,36 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         if (!hasAutoEquip && !hasAutoLearn) return
 
-        val bagEqIds = currentDisciples.flatMap { it.equipment.storageBagItems }
-            .filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
-        val bagMnIds = currentDisciples.flatMap { it.equipment.storageBagItems }
-            .filter { it.itemType == "manual_stack" }.map { it.itemId }.toSet()
-
-        val sortedDisciples = allDisciples.sortedWith(
-            compareByDescending<Disciple> { it.statusData["followed"] == "true" }
-                .thenBy { it.realm }
-                .thenByDescending { it.realmLayer }
-        )
+        val updatedDisciples = currentDisciples.toMutableList()
+        val bagEqIds = mutableSetOf<String>()
+        val bagMnIds = mutableSetOf<String>()
+        for (disciple in updatedDisciples) {
+            for (item in disciple.equipment.storageBagItems) {
+                when (item.itemType) {
+                    "equipment_stack" -> bagEqIds.add(item.itemId)
+                    "manual_stack" -> bagMnIds.add(item.itemId)
+                }
+            }
+        }
 
         var eqStacks = currentEquipmentStacks.filter { it.id !in bagEqIds }
         var mnStacks = currentManualStacks.filter { it.id !in bagMnIds }
-        val eqInstances = currentEquipmentInstances
-        val mnInstances = currentManualInstances
-        val updatedDisciples = currentDisciples.toMutableList()
-        val allEvents = mutableListOf<String>()
-        val eqInstancesById = eqInstances.associateBy { it.id }
-        val mnInstancesById = mnInstances.associateBy { it.id }
+        val eqInstancesById = currentEquipmentInstances.associateBy { it.id }
+        val mnInstancesById = currentManualInstances.associateBy { it.id }
 
-        for (disciple in sortedDisciples) {
-            if (!disciple.isAlive) continue
-            var updatedDisciple = disciple
+        val sortedIndices = updatedDisciples.indices
+            .filter { updatedDisciples[it].isAlive }
+            .sortedWith(compareByDescending<Int> { updatedDisciples[it].statusData["followed"] == "true" }
+                .thenBy { updatedDisciples[it].realm }
+                .thenByDescending { updatedDisciples[it].realmLayer })
 
-            if (qualifiesForSectAuto(disciple, equipFocused, equipRootCounts) { it.equipment.autoEquipFromWarehouse }) {
+        for (idx in sortedIndices) {
+            val disciple = updatedDisciples[idx]
+            var d = disciple
+
+            if (qualifiesForSectAuto(d, equipFocused, equipRootCounts) { it.equipment.autoEquipFromWarehouse }) {
                 val result = DiscipleEquipmentManager.processAutoEquipFromWarehouse(
-                    disciple = updatedDisciple,
+                    disciple = d,
                     warehouseStacks = eqStacks,
                     equipmentInstances = eqInstancesById,
                     gameYear = year,
@@ -973,7 +977,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
                 )
                 if (result.newInstances.isNotEmpty()) {
-                    updatedDisciple = result.disciple
+                    d = result.disciple
                     currentEquipmentInstances = currentEquipmentInstances + result.newInstances
                     result.stackUpdates.forEach { update ->
                         if (update.isDeletion) {
@@ -984,13 +988,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             }
                         }
                     }
-                    allEvents.addAll(result.events)
                 }
             }
 
-            if (qualifiesForSectAuto(disciple, learnFocused, learnRootCounts) { it.autoLearnFromWarehouse }) {
+            if (qualifiesForSectAuto(d, learnFocused, learnRootCounts) { it.autoLearnFromWarehouse }) {
                 val result = DiscipleManualManager.processAutoLearnFromWarehouse(
-                    disciple = updatedDisciple,
+                    disciple = d,
                     warehouseStacks = mnStacks,
                     manualInstances = mnInstancesById,
                     gameYear = year,
@@ -999,7 +1002,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                 )
                 if (result.newInstance != null) {
-                    updatedDisciple = result.disciple
+                    d = result.disciple
                     currentManualInstances = currentManualInstances + result.newInstance
                     result.stackUpdate?.let { update ->
                         if (update.isDeletion) {
@@ -1010,51 +1013,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             }
                         }
                     }
-                    allEvents.addAll(result.events)
                 }
             }
 
-            val idx = updatedDisciples.indexOfFirst { it.id == disciple.id }
-            if (idx >= 0) {
-                updatedDisciples[idx] = updatedDisciple
+            if (d !== disciple) {
+                updatedDisciples[idx] = d
             }
         }
 
         currentDisciples = updatedDisciples.toList()
         currentEquipmentStacks = currentEquipmentStacks.filter { it.id in bagEqIds } + eqStacks
         currentManualStacks = currentManualStacks.filter { it.id in bagMnIds } + mnStacks
-
-    }
-
-    private fun processPhaseRecovery() {
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
-        val allProficiencies = currentGameData.manualProficiencies
-        val multiplier = phaseMultiplier.toDouble()
-
-        currentDisciples = currentDisciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
-
-            val discipleProficiencies = allProficiencies.getOrDefault(disciple.id, emptyList())
-                .associateBy { it.manualId }
-            val finalStats = DiscipleStatCalculator.getFinalStats(
-                disciple, equipmentMap, manualMap, discipleProficiencies
-            )
-            val maxHp = finalStats.maxHp
-            val maxMp = finalStats.maxMp
-            val currentHp = disciple.combat.currentHp
-            val currentMp = disciple.combat.currentMp
-
-            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-
-            val newHp = if (currentHp < 0) currentHp else (currentHp + hpRecovery).coerceAtMost(maxHp)
-            val newMp = if (currentMp < 0) currentMp else (currentMp + mpRecovery).coerceAtMost(maxMp)
-
-            if (newHp == currentHp && newMp == currentMp) return@map disciple
-
-            disciple.copyWith(currentHp = newHp, currentMp = newMp)
-        }
     }
 
     /**
