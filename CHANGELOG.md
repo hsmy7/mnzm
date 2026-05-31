@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.81] - 2026-05-31
+
+### 优化
+- **后台任务统一调度**：BackgroundTaskScheduler 用共享 1s 心跳替代 8 个独立 while(isActive) 协程循环，后台协程数从 13 降至 4。通过 GameMonitorManager 和 StorageEngine 两个编排中心注入调度器，各组件的 start/stop 方法改为调度器替代
+
+## [3.1.80] - 2026-05-31
+
+### 优化
+- **Compose 重组优化**：9 处 LazyColumn/LazyVerticalGrid 补充稳定 key 避免列表数据变化时全量重组，11 个核心数据类添加 @Immutable 注解让编译器跳过无变化重组路径
+
+## [3.1.79] - 2026-05-31
+
+### 修复
+- **修复旬制迁移 3 个严重 bug**：列名 snake_case/camelCase 不匹配导致 Room schema 验证失败、safeDropColumns 丢失索引和 NOT NULL 约束、save_slot_metadata 表遗漏迁移
+
 ## [3.1.78] - 2026-05-31
 
 ### 紧急修复
