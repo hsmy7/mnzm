@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.86] - 2026-05-31
+
+### 修复
+- **旬制时间匀速化**：修复上旬明显比中旬/下旬长的问题。根因是月切换时 `scheduleMonthly` 触发结算分帧，`tickInternal()` 开头 `if (hasPendingWork) { executeStep; return }` 阻塞了 phase 推进，结算耗时（约 1-2 秒）被算在上旬头上。改为：
+  - 移除阻塞检查，phase 每 tick 始终推进（1x=2 秒/旬，2x=1 秒/旬不变）
+  - 结算期间仅执行 `TimeSystem.onPhaseTick`（推进时间），跳过 `CultivationService.onPhaseTick`（HP/MP 恢复等下次补回）
+  - `swapFromShadow` 改为保留主状态的 `gamePhase`/`gameMonth`/`gameYear`，避免结算 shadow 覆盖已推进的时间
+  - 2x 速度下若结算跨月，`forceCompleteSettlement` 强制收尾（加大时间预算 5ms，加重入防护）
+
 ## [3.1.85] - 2026-05-31
 
 ### 修复

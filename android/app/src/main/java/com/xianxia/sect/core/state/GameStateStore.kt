@@ -258,7 +258,11 @@ class GameStateStore @Inject constructor(
             val finalLoading = _isLoading.value
             val finalSaving = _isSaving.value
             UnifiedGameState(
-                gameData = shadow.gameData,
+                gameData = shadow.gameData.copy(
+                    gamePhase = oldState.gameData.gamePhase,
+                    gameMonth = oldState.gameData.gameMonth,
+                    gameYear = oldState.gameData.gameYear
+                ),
                 disciples = shadow.disciples,
                 equipmentStacks = shadow.equipmentStacks,
                 equipmentInstances = shadow.equipmentInstances,

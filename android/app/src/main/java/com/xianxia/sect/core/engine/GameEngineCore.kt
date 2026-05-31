@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.ExplorationService
 import com.xianxia.sect.core.engine.settlement.SettlementCoordinator
 import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -274,12 +275,6 @@ class GameEngineCore @Inject constructor(
 
         _tickCount.value++
 
-        if (settlementCoordinator.hasPendingWork) {
-            val completed = settlementCoordinator.executeStep(timeBudgetMs = 1)
-            if (completed) settlementCoordinator.onSettlementComplete()
-            return
-        }
-
         var monthChanged = false
         var yearChanged = false
 
@@ -295,7 +290,11 @@ class GameEngineCore @Inject constructor(
                 val prevMonth = this.gameData.gameMonth
                 val prevYear = this.gameData.gameYear
 
-                systemManager.onPhaseTick(this)
+                if (settlementCoordinator.hasPendingWork) {
+                    systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
+                } else {
+                    systemManager.onPhaseTick(this)
+                }
 
                 if (this.gameData.gameMonth != prevMonth) monthChanged = true
                 if (this.gameData.gameYear != prevYear) yearChanged = true
@@ -314,9 +313,11 @@ class GameEngineCore @Inject constructor(
                 }
             }
         }
-        // createShadow() 必须在 stateStore.update{} 外部调用：
-        // update{} 提交后 _state.value 才反映 onPhaseTick 的变更。
-        // 年度已包含月度阶段，年度优先于月度避免重复调度。
+
+        if (settlementCoordinator.hasPendingWork && (monthChanged || yearChanged)) {
+            forceCompleteSettlement()
+        }
+
         if (yearChanged) {
             val shadow = stateStore.createShadow()
             settlementCoordinator.scheduleYearly(shadow)
@@ -333,6 +334,21 @@ class GameEngineCore @Inject constructor(
         val patrolResults = systemManager.getSystem<ExplorationService>().consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
+        }
+    }
+
+    private var isForceCompleting = false
+
+    private suspend fun forceCompleteSettlement() {
+        if (isForceCompleting) return
+        isForceCompleting = true
+        try {
+            while (settlementCoordinator.hasPendingWork) {
+                settlementCoordinator.executeStep(timeBudgetMs = 5)
+            }
+            settlementCoordinator.onSettlementComplete()
+        } finally {
+            isForceCompleting = false
         }
     }
 

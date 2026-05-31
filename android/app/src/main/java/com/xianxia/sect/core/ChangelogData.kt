@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.86",
+            date = "2026-05-31",
+            changes = listOf(
+                "旬制时间匀速化：修复上旬明显比中下旬长的问题。根因是月切换时触发的结算分帧阻塞了phase推进（hasPendingWork时直接return），结算耗时被算在上旬头上。改为phase推进与结算完全解耦——phase每tick始终推进（仅TimeSystem）、结算在后台增量执行。swapFromShadow改为保留主状态的时间字段。2x速度下如结算未完成则forceCompleteSettlement强制收尾"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.85",
             date = "2026-05-31",
             changes = listOf(
