@@ -868,8 +868,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     }
                 }
                 equipResult.replacedEquipmentStacks.forEach { replacedStack ->
-                    val delta = equipStackQuantityDeltas.getOrDefault(replacedStack.id, -1)
-                    equipStackQuantityDeltas[replacedStack.id] = if (delta < 0) 1 else delta + 1
+                    equipStackAdditions.add(replacedStack)
                 }
             }
 
@@ -894,8 +893,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     }
                 }
                 manualResult.replacedManualStack?.let { replacedStack ->
-                    val delta = manualStackQuantityDeltas.getOrDefault(replacedStack.id, -1)
-                    manualStackQuantityDeltas[replacedStack.id] = if (delta < 0) 1 else delta + 1
+                    manualStackAdditions.add(replacedStack)
                 }
             }
 
