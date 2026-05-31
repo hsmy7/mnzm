@@ -316,7 +316,6 @@ fun GameOverlayHost(
         }
         is DialogRoute.Library -> {
             val manuals by viewModel.manuals.collectAsState()
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 LibraryDialog(
@@ -330,7 +329,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.WenDaoPeak -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 WenDaoPeakDialog(
@@ -342,7 +340,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.QingyunPeak -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 QingyunPeakDialog(
@@ -354,7 +351,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.TianshuHall -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 TianshuHallDialog(
@@ -367,7 +363,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.LawEnforcementHall -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 LawEnforcementHallDialog(
@@ -380,7 +375,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.MissionHall -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 MissionHallDialog(
@@ -392,7 +386,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.ReflectionCliff -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val aliveDisciples by viewModel.aliveDisciples.collectAsState()
             DeferredContent {
                 ReflectionCliffDialog(
@@ -404,7 +397,6 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.PatrolTower -> {
-            val gameData by viewModel.gameDataUi.collectAsState()
             val disciples by viewModel.discipleAggregates.collectAsState()
             PatrolTowerDialog(
                 buildingInstanceId = route.buildingInstanceId,
@@ -417,7 +409,6 @@ fun GameOverlayHost(
         }
         is DialogRoute.Residence -> {
             if (route.buildingInstanceId.isNotEmpty()) {
-                val gameData by viewModel.gameDataUi.collectAsState()
                 val disciples by viewModel.discipleAggregates.collectAsState()
                 ResidenceDialog(
                     buildingInstanceId = route.buildingInstanceId,
@@ -430,7 +421,6 @@ fun GameOverlayHost(
         }
         is DialogRoute.WarehouseBuilding -> {
             if (route.buildingInstanceId.isNotEmpty()) {
-                val gameData by viewModel.gameDataUi.collectAsState()
                 val disciples by viewModel.discipleAggregates.collectAsState()
                 WarehouseDialog(
                     buildingInstanceId = route.buildingInstanceId,
@@ -456,6 +446,7 @@ fun GameOverlayHost(
         }
         }
     }
+    }
 
     tipDialogMessage?.let { message ->
         StandardPromptDialog(
@@ -475,7 +466,6 @@ fun GameOverlayHost(
         )
     }
 
-    val gameData by viewModel.gameDataUi.collectAsState()
     val placedBuildings by viewModel.placedBuildings.collectAsState()
     val activeSectBuildings = remember(placedBuildings, gameData.activeSectId) {
         derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }

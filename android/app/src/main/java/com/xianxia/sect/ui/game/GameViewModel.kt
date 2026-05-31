@@ -68,8 +68,13 @@ class GameViewModel @Inject constructor(
     private val _currentDialogRoute = MutableStateFlow<DialogRoute>(DialogRoute.None)
     val currentDialogRoute: StateFlow<DialogRoute> = _currentDialogRoute.asStateFlow()
 
+    private val _dialogOpenTrigger = MutableSharedFlow<Unit>(replay = 0)
+
     fun navigateToDialog(route: DialogRoute) {
         _currentDialogRoute.value = route
+        viewModelScope.launch {
+            _dialogOpenTrigger.emit(Unit)
+        }
     }
 
     fun dismissDialog() {
@@ -242,9 +247,10 @@ class GameViewModel @Inject constructor(
     val gameData: StateFlow<GameData> get() = gameEngine.gameData
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
-    val gameDataUi: StateFlow<GameData> = gameEngine.gameData
-        .sample(400)
-        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+    val gameDataUi: StateFlow<GameData> = merge(
+        gameEngine.gameData.sample(400),
+        _dialogOpenTrigger.map { gameEngine.gameData.value ?: GameData() }
+    ).stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
 
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
         .map { it.placedBuildings }

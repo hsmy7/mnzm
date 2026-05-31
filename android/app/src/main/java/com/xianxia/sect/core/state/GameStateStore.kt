@@ -286,8 +286,6 @@ class GameStateStore @Inject constructor(
                         cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
                         cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
                         pillEffects = shadowDisciple.pillEffects,
-                        maxHp = shadowDisciple.maxHp,
-                        maxMp = shadowDisciple.maxMp,
                         isAlive = shadowDisciple.isAlive
                     )
                     // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）

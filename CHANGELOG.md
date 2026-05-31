@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.87] - 2026-06-01
+
+### 修复
+- **建造建筑后消失 + 弟子分配回滚**：根因是月初结算的 `swapFromShadow` 全量覆盖主状态。影子在月初创建时不包含玩家的后续操作（建造/分配弟子），结算完成后 swap 覆盖导致操作丢失。改为三路合并——比较"origin(创建时)→shadow(结算后)→oldState(当前主状态)"，只应用结算修改的字段（修炼值/突破/薪水/忠诚度），保留玩家操作字段（placedBuildings/elderSlots/各类分配槽位）
+
+### 优化
+- **UI 响应速度优化**：
+  - **入场动画**：对话框打开时 fadeIn(120ms) + 上滑(150ms)，点击后 50ms 内视觉反馈，150ms 内动画完成
+  - **骨架屏分层渲染**：`FullScreenOverlay` 标题栏第一帧同步渲染，数据内容通过 `DeferredContent` 延迟一帧(16ms)加载。配合入场动画用户几乎看不到骨架。高频界面(炼药/锻造/藏经阁等)启用，低频界面(Settings/Buildings)跳过
+  - **aliveDisciples 提升 ViewModel**：消除 10 处 `derivedStateOf { disciples.filter { it.isAlive } }` 重复计算，改为共享 StateFlow
+  - **gameData 共享订阅**：GameOverlayHost 顶层收集一次，通过参数传入各分支，减少 15+ 个重复 StateFlow 订阅
+  - **gameDataUi 对话框 snapshot**：打开对话框时立即注入一次当前值（`merge(sample(400), dialogOpenTrigger)`），消除 400ms 采样最坏延迟
+
 ## [3.1.86] - 2026-05-31
 
 ### 修复
