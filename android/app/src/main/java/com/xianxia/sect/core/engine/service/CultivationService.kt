@@ -2777,10 +2777,29 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
             // 防御方存活弟子并入攻击方
             val mergedAttackerDisciples = updatedAttackerDisciples + updatedDefenderDisciples
+            // 攻打队伍占领后直接变成守军队伍
+            val garrisonSlots = (0 until 10).map { index ->
+                if (index < result.survivingAttackers.size) {
+                    val d = result.survivingAttackers[index]
+                    GarrisonSlot(
+                        index = index,
+                        discipleId = d.id,
+                        discipleName = d.name,
+                        discipleRealm = d.realmName,
+                        discipleSpiritRootColor = d.spiritRoot.countColor,
+                        portraitRes = d.portraitRes
+                    )
+                } else {
+                    GarrisonSlot(index = index)
+                }
+            }
             updatedData = updatedData.copy(
                 worldMapSects = updatedData.worldMapSects.map { sect ->
                     if (sect.id == result.defenderSectId) {
-                        sect.copy(occupierSectId = result.attackerSectId)
+                        sect.copy(
+                            occupierSectId = result.attackerSectId,
+                            garrisonSlots = garrisonSlots
+                        )
                     } else {
                         sect
                     }
