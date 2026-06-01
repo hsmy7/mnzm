@@ -134,11 +134,13 @@ class MailService @Inject constructor(
         BuiltinMailConfig.mails.forEach { builtinMail ->
             // 限时邮件超过截止时间：仅停止发放，已存在的保留至正常过期
             if (builtinMail.deadlineMs > 0 && now > builtinMail.deadlineMs) {
+                Log.i(TAG, "Builtin mail ${builtinMail.id} deadline passed, skipping (now=$now, deadline=${builtinMail.deadlineMs})")
                 return@forEach
             }
             val existingMails = mailDao.getActiveMails(slotId, now).first()
             val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
             if (!alreadyInserted) {
+                Log.i(TAG, "Inserting builtin mail ${builtinMail.id} for slot $slotId")
                 val entity = MailEntity(
                     id = builtinMail.id,
                     slotId = slotId,
@@ -493,10 +495,12 @@ class MailService @Inject constructor(
     }
 
     suspend fun initializeForSlot(slotId: Int) {
+        Log.i(TAG, "initializeForSlot BEGIN for slot $slotId")
         try {
             fetchOnlineMails(slotId)
             loadBuiltinMails(slotId)
             cleanExpired(slotId)
+            Log.i(TAG, "initializeForSlot DONE for slot $slotId")
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing mail for slot $slotId", e)
         }
