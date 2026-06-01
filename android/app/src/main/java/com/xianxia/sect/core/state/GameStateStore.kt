@@ -618,6 +618,7 @@ class GameStateStore @Inject constructor(
                     materials = materials,
                     herbs = herbs,
                     seeds = seeds,
+                    storageBags = emptyList(),
                     teams = teams,
                     battleLogs = battleLogs,
                     alliances = gameData.alliances,
