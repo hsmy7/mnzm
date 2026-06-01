@@ -5,6 +5,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
+import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
@@ -839,6 +840,7 @@ data class Seed(
 @Serializable
 @Immutable
 data class StorageBag(
+    @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
     val rarity: Int = 1,
