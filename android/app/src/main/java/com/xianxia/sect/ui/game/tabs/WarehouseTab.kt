@@ -286,7 +286,8 @@ internal fun WarehouseTab(
                                             grade = (warehouseItem.item as? Pill)?.grade?.displayName,
                                             isLocked = getWarehouseItemIsLocked(warehouseItem.item),
                                             isManual = warehouseItem.item is ManualStack,
-                                            isPill = warehouseItem.item is Pill
+                                            isPill = warehouseItem.item is Pill,
+                                            isMaterial = warehouseItem.item is Material
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
                                         showViewButton = true,
@@ -1176,7 +1177,7 @@ internal fun BulkSellDialog(
                                 ) {
                                     rowItems.forEach { item ->
                                         UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity),
+                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity, isMaterial = true),
                                             modifier = Modifier.weight(1f)
                                         )
                                     }

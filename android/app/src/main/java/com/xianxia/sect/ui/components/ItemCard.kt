@@ -38,7 +38,8 @@ data class ItemCardData(
     val grade: String? = null,
     val isLocked: Boolean = false,
     val isManual: Boolean = false,
-    val isPill: Boolean = false
+    val isPill: Boolean = false,
+    val isMaterial: Boolean = false
 )
 
 @Composable
@@ -57,6 +58,7 @@ fun UnifiedItemCard(
     val spriteRes = when {
         data.isManual -> manualSpriteRes(data.rarity)
         data.isPill -> pillSpriteRes(data.rarity)
+        data.isMaterial -> materialSpriteRes(data.name)
         else -> equipmentSpriteRes(data.name)
     }
 

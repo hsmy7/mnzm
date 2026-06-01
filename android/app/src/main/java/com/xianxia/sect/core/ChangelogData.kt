@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.89",
+            date = "2026-06-01",
+            changes = listOf(
+                "妖兽材料精灵图替换「敬请期待」占位文字：新增32张妖兽材料精灵图（虎/狼/蛇/熊/鹰/狐/龙/龟 × 皮/骨/牙/内丹等），同一材料不同品阶共用精灵图。仓库、商人、宗门交易、战利品、弟子储物袋、赏赐弟子等界面均已替换",
+                "ItemCardData新增isMaterial字段，materialSpriteRes函数通过去除品阶前缀（凡/灵/宝/玄/地/天）映射基础材料名到对应精灵图资源"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.87",
             date = "2026-06-01",
             changes = listOf(

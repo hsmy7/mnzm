@@ -101,6 +101,47 @@ fun pillSpriteRes(rarity: Int): Int? = when (rarity) {
     else -> null
 }
 
+fun materialSpriteRes(name: String): Int? {
+    val baseName = name.removePrefix("凡").removePrefix("灵")
+        .removePrefix("宝").removePrefix("玄")
+        .removePrefix("地").removePrefix("天")
+    return when (baseName) {
+        "虎皮" -> R.drawable.tiger_hide
+        "虎骨" -> R.drawable.tiger_bone
+        "虎牙" -> R.drawable.tiger_tooth
+        "虎内丹" -> R.drawable.tiger_core
+        "狼皮" -> R.drawable.wolf_hide
+        "狼骨" -> R.drawable.wolf_bone
+        "狼牙" -> R.drawable.wolf_tooth
+        "狼内丹" -> R.drawable.wolf_core
+        "蛇鳞" -> R.drawable.snake_scale
+        "蛇血" -> R.drawable.snake_blood
+        "蛇牙" -> R.drawable.snake_tooth
+        "蛇内丹" -> R.drawable.snake_core
+        "熊皮" -> R.drawable.bear_hide
+        "熊骨" -> R.drawable.bear_bone
+        "熊掌" -> R.drawable.bear_claw
+        "熊内丹" -> R.drawable.bear_core
+        "鹰羽" -> R.drawable.eagle_feather
+        "鹰骨" -> R.drawable.eagle_bone
+        "鹰爪" -> R.drawable.eagle_claw
+        "鹰内丹" -> R.drawable.eagle_core
+        "狐皮" -> R.drawable.fox_hide
+        "狐骨" -> R.drawable.fox_bone
+        "狐尾" -> R.drawable.fox_tail
+        "狐内丹" -> R.drawable.fox_core
+        "龙鳞" -> R.drawable.dragon_scale
+        "龙爪" -> R.drawable.dragon_claw
+        "龙角" -> R.drawable.dragon_horn
+        "龙内丹" -> R.drawable.dragon_core
+        "龟壳" -> R.drawable.turtle_shell
+        "龟骨" -> R.drawable.turtle_bone
+        "龟血" -> R.drawable.turtle_blood
+        "龟内丹" -> R.drawable.turtle_core
+        else -> null
+    }
+}
+
 fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }
 
 fun allManualSpriteResIds(): List<Int> = (1..6).mapNotNull { manualSpriteRes(it) }

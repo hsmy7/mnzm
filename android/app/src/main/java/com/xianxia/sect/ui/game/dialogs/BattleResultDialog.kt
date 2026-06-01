@@ -123,7 +123,8 @@ internal fun BattleResultDialog(
                                         quantity = reward.quantity,
                                         type = reward.type,
                                         isPill = reward.type == "pill",
-                                        isManual = reward.type == "manual"
+                                        isManual = reward.type == "manual",
+                                        isMaterial = reward.type == "material"
                                     )
                                 )
                             }
