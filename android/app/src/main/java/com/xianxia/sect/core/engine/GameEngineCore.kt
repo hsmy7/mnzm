@@ -438,6 +438,7 @@ class GameEngineCore @Inject constructor(
             materials = snapshot.materials,
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
+            storageBags = snapshot.storageBags,
             teams = snapshot.teams,
             battleLogs = snapshot.battleLogs
         )

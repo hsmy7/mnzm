@@ -607,6 +607,9 @@ class StorageEngine @Inject internal constructor(
         data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().insertAll(it.map { h -> h.copy(slotId = slot) }) }
         data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().insertAll(it.map { s -> s.copy(slotId = slot) }) }
 
+        database.storageBagDao().deleteAll(slot)
+        data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().insertAll(it) }
+
         database.explorationTeamDao().deleteAll(slot)
         database.buildingSlotDao().deleteAll(slot)
         database.recipeDao().deleteAll(slot)
@@ -731,6 +734,7 @@ class StorageEngine @Inject internal constructor(
         val materials = database.materialDao().getAllSync(slot)
         val herbs = database.herbDao().getAllSync(slot)
         val seeds = database.seedDao().getAllSync(slot)
+        val storageBags = database.storageBagDao().getAll(slot)
         val teams = database.explorationTeamDao().getAllSync(slot)
         val alliances = gameData.alliances ?: emptyList()
         val battleLogs = database.battleLogDao().getAllSync(slot)
@@ -763,6 +767,7 @@ class StorageEngine @Inject internal constructor(
             materials = materials,
             herbs = herbs,
             seeds = seeds,
+            storageBags = storageBags,
             teams = teams,
             battleLogs = battleLogs,
             alliances = alliances,

@@ -1111,3 +1111,21 @@ interface GameHeavyDataDao {
     @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId AND data_key = :key")
     suspend fun deleteByKey(slotId: Int, key: String)
 }
+
+@Dao
+interface StorageBagDao {
+    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId AND quantity > 0")
+    suspend fun getAll(slotId: Int): List<StorageBag>
+
+    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId AND id = :id")
+    suspend fun getById(slotId: Int, id: String): StorageBag?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(storageBag: StorageBag)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(storageBags: List<StorageBag>)
+
+    @Query("DELETE FROM storage_bags WHERE slot_id = :slotId")
+    suspend fun deleteAll(slotId: Int)
+}

@@ -842,6 +842,10 @@ data class Seed(
 data class StorageBag(
     @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val name: String = "",
     val rarity: Int = 1,
     val description: String = "可随机获得5-20件同品阶物品",

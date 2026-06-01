@@ -90,6 +90,7 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun materialDao(): MaterialDao
     abstract fun seedDao(): SeedDao
     abstract fun herbDao(): HerbDao
+    abstract fun storageBagDao(): StorageBagDao
     abstract fun explorationTeamDao(): ExplorationTeamDao
     abstract fun buildingSlotDao(): BuildingSlotDao
     abstract fun recipeDao(): RecipeDao
@@ -579,13 +580,14 @@ abstract class GameDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS storage_bags (
-                        id TEXT NOT NULL PRIMARY KEY,
+                        id TEXT NOT NULL,
                         slot_id INTEGER NOT NULL DEFAULT 0,
                         name TEXT NOT NULL DEFAULT '',
                         rarity INTEGER NOT NULL DEFAULT 1,
                         description TEXT NOT NULL DEFAULT '',
                         quantity INTEGER NOT NULL DEFAULT 1,
-                        isLocked INTEGER NOT NULL DEFAULT 0
+                        isLocked INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(id)
                     )
                 """)
             }

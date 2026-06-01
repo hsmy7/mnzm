@@ -142,6 +142,7 @@ class UnifiedGameStateManager @Inject constructor(
             materials = newState.materials,
             herbs = newState.herbs,
             seeds = newState.seeds,
+            storageBags = newState.storageBags,
             teams = newState.teams,
             battleLogs = newState.battleLogs,
             isPaused = newState.isPaused,

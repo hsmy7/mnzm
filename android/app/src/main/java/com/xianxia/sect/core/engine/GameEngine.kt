@@ -54,6 +54,7 @@ data class GameStateSnapshot(
     val materials: List<Material>,
     val herbs: List<Herb>,
     val seeds: List<Seed>,
+    val storageBags: List<StorageBag> = emptyList(),
     val teams: List<ExplorationTeam>,
     val battleLogs: List<BattleLog>,
     val alliances: List<Alliance>,
@@ -192,7 +193,8 @@ class GameEngine @Inject constructor(
         teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog> = emptyList(),
         alliances: List<Alliance> = emptyList(),
-        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
+        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList(),
+        storageBags: List<StorageBag> = emptyList()
     ) {
         heavyDataLoaded = false
         val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
@@ -208,6 +210,7 @@ class GameEngine @Inject constructor(
             materials = materials,
             herbs = herbs,
             seeds = seeds,
+            storageBags = storageBags,
             teams = teams,
             battleLogs = battleLogs
         )
@@ -897,6 +900,7 @@ class GameEngine @Inject constructor(
             materials = stateStore.materialsSnapshot,
             herbs = stateStore.herbsSnapshot,
             seeds = stateStore.seedsSnapshot,
+            storageBags = stateStore.storageBagsSnapshot,
             teams = stateStore.teamsSnapshot,
             battleLogs = stateStore.battleLogsSnapshot,
             alliances = stateStore.gameDataSnapshot.alliances,
@@ -919,6 +923,7 @@ class GameEngine @Inject constructor(
             materials = stateStore.materialsSnapshot,
             herbs = stateStore.herbsSnapshot,
             seeds = stateStore.seedsSnapshot,
+            storageBags = stateStore.storageBagsSnapshot,
             teams = stateStore.teamsSnapshot,
             battleLogs = stateStore.battleLogsSnapshot,
             alliances = gd.alliances,

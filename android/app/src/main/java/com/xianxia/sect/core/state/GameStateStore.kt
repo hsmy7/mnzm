@@ -597,6 +597,7 @@ class GameStateStore @Inject constructor(
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
+        storageBags: List<StorageBag> = emptyList(),
         teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean = true,
