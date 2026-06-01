@@ -601,6 +601,11 @@ private fun SectInfoCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Image(
+                    painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(1)),
+                    contentDescription = "宗门等级",
+                    modifier = Modifier.height(16.sp.toDp())
+                )
                 Text(
                     text = gameData?.sectName ?: "青云宗",
                     fontSize = 16.sp,

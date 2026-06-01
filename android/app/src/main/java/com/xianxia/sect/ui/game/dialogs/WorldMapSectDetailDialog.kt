@@ -93,17 +93,21 @@ internal fun WorldMapSectDetailDialog(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (!sect.isPlayerSect) {
-                    Text(
-                        text = sect.levelName,
-                        fontSize = 10.sp,
-                        color = Color.Black,
-                        modifier = Modifier
-                            .background(
-                                GameColors.CardBackground,
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Image(
+                            painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(sect.level)),
+                            contentDescription = sect.levelName,
+                            modifier = Modifier.height(14.sp.toDp())
+                        )
+                        Text(
+                            text = sect.levelName,
+                            fontSize = 10.sp,
+                            color = Color.Black,
+                            modifier = Modifier
+                                .background(GameColors.CardBackground, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
                 }
                 if (sect.isPlayerSect) {
                     Text(

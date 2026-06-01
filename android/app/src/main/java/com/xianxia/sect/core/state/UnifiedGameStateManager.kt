@@ -38,6 +38,7 @@ data class UnifiedGameState(
     val materials: List<Material> = emptyList(),
     val herbs: List<Herb> = emptyList(),
     val seeds: List<Seed> = emptyList(),
+    val storageBags: List<StorageBag> = emptyList(),
     val teams: List<ExplorationTeam> = emptyList(),
     val battleLogs: List<BattleLog> = emptyList(),
     val alliances: List<Alliance> = emptyList(),

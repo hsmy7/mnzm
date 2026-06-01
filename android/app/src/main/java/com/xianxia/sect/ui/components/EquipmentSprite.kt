@@ -101,6 +101,8 @@ fun pillSpriteRes(rarity: Int): Int? = when (rarity) {
     else -> null
 }
 
+fun spiritStoneSpriteRes(): Int = R.drawable.spirit_stone
+
 fun materialSpriteRes(name: String): Int? {
     val baseName = name.removePrefix("凡").removePrefix("灵")
         .removePrefix("宝").removePrefix("玄")
@@ -145,6 +147,24 @@ fun materialSpriteRes(name: String): Int? {
 fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }
 
 fun allManualSpriteResIds(): List<Int> = (1..6).mapNotNull { manualSpriteRes(it) }
+
+fun storageBagSpriteRes(rarity: Int): Int = when (rarity) {
+    1 -> R.drawable.bag_fan
+    2 -> R.drawable.bag_ling
+    3 -> R.drawable.bag_bao
+    4 -> R.drawable.bag_xuan
+    5 -> R.drawable.bag_di
+    6 -> R.drawable.bag_tian
+    else -> R.drawable.bag_fan
+}
+
+fun sectIconRes(level: Int): Int = when (level) {
+    0 -> R.drawable.sect_icon_small
+    1 -> R.drawable.sect_icon_medium
+    2 -> R.drawable.sect_icon_large
+    3 -> R.drawable.sect_icon_top
+    else -> R.drawable.sect_icon_small
+}
 
 fun allEquipmentSpriteResIds(): List<Int> = listOf(
     R.drawable.jing_tie_jian, R.drawable.jing_tie_dao,

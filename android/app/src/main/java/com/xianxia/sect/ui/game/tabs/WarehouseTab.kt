@@ -60,6 +60,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.CloseButton
@@ -111,6 +112,8 @@ internal enum class WarehouseFilter(val displayName: String) {
     MATERIAL("材料")
 }
 
+data class SpiritStoneInfo(val quantity: Long)
+
 @Composable
 internal fun WarehouseTab(
     viewModel: GameViewModel,
@@ -124,6 +127,23 @@ internal fun WarehouseTab(
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
+    val storageBags by viewModel.storageBags.collectAsState()
+    val gameData by viewModel.gameData.collectAsState()
+
+    // 灵石虚拟物品（每张卡片最多100万）
+    val spiritStoneCards = remember(gameData) {
+        val total = gameData.spiritStones
+        val cards = mutableListOf<Pair<String, SpiritStoneInfo>>()
+        var remaining = total
+        var index = 0
+        while (remaining > 0) {
+            val qty = minOf(remaining, 1_000_000L)
+            cards.add("spirit_stone_$index" to SpiritStoneInfo(qty))
+            remaining -= qty
+            index++
+        }
+        cards
+    }
 
     val equipment = remember(equipmentStacks) {
         equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
@@ -148,7 +168,11 @@ internal fun WarehouseTab(
     val sortedSeeds = remember(seeds) {
         seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
     }
-    
+
+    val sortedBags = remember(storageBags) {
+        storageBags.sortedWith(compareByDescending<StorageBag> { it.rarity }.thenBy { it.name })
+    }
+
     data class WarehouseItemData(
         val id: String,
         val name: String,
@@ -156,7 +180,7 @@ internal fun WarehouseTab(
         val item: Any
     )
     
-    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds) {
+    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, spiritStoneCards) {
         val items = mutableListOf<WarehouseItemData>()
         equipment.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         manuals.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
@@ -164,21 +188,33 @@ internal fun WarehouseTab(
         sortedMaterials.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         sortedHerbs.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         sortedSeeds.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
+        sortedBags.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
+        // 灵石卡片插入到列表头部
+        spiritStoneCards.forEach { (id, info) ->
+            items.add(0, WarehouseItemData(id, "灵石", 1, info))
+        }
         items.sortedWith(compareByDescending<WarehouseItemData> { it.rarity }.thenBy { it.name })
     }
     
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
-    val selectedItem by remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds) {
+    var showBagRewards by remember { mutableStateOf<List<BattleRewardItem>?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val selectedItem by remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, spiritStoneCards, sortedBags) {
         derivedStateOf {
             selectedItemId?.let { id ->
-                equipment.find { it.id == id }
-                    ?: manuals.find { it.id == id }
-                    ?: sortedPills.find { it.id == id }
-                    ?: sortedMaterials.find { it.id == id }
-                    ?: sortedHerbs.find { it.id == id }
-                    ?: sortedSeeds.find { it.id == id }
+                if (id.startsWith("spirit_stone_")) {
+                    spiritStoneCards.find { it.first == id }?.second
+                } else {
+                    equipment.find { it.id == id }
+                        ?: manuals.find { it.id == id }
+                        ?: sortedPills.find { it.id == id }
+                        ?: sortedMaterials.find { it.id == id }
+                        ?: sortedHerbs.find { it.id == id }
+                        ?: sortedSeeds.find { it.id == id }
+                        ?: sortedBags.find { it.id == id }
+                }
             }
         }
     }
@@ -281,13 +317,16 @@ internal fun WarehouseTab(
                                                 is Material -> item.quantity
                                                 is Herb -> item.quantity
                                                 is Seed -> item.quantity
+                                                is SpiritStoneInfo -> item.quantity.toInt()
                                                 else -> 1
                                             },
                                             grade = (warehouseItem.item as? Pill)?.grade?.displayName,
                                             isLocked = getWarehouseItemIsLocked(warehouseItem.item),
                                             isManual = warehouseItem.item is ManualStack,
                                             isPill = warehouseItem.item is Pill,
-                                            isMaterial = warehouseItem.item is Material
+                                            isMaterial = warehouseItem.item is Material,
+                                            isSpiritStone = warehouseItem.item is SpiritStoneInfo,
+                                            isBag = warehouseItem.item is StorageBag
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
                                         showViewButton = true,
@@ -385,20 +424,32 @@ internal fun WarehouseTab(
                     selectedItemId = null
                 },
                 extraActions = {
-                    if (!isLocked) {
+                    if (item is StorageBag) {
                         GameButton(
-                            text = "售卖",
-                            onClick = { showSellDialog = true }
+                            text = "开启",
+                            onClick = {
+                                coroutineScope.launch {
+                                    val rewards = viewModel.openStorageBag(item.id)
+                                    showBagRewards = rewards
+                                }
+                            }
+                        )
+                    } else {
+                        if (!isLocked) {
+                            GameButton(
+                                text = "售卖",
+                                onClick = { showSellDialog = true }
+                            )
+                        }
+                        GameButton(
+                            text = if (isLocked) "已锁定" else "锁定",
+                            onClick = { viewModel.toggleItemLock(itemId, itemType) }
+                        )
+                        GameButton(
+                            text = "赏赐",
+                            onClick = { showDiscipleSelectDialog = true }
                         )
                     }
-                    GameButton(
-                        text = if (isLocked) "已锁定" else "锁定",
-                        onClick = { viewModel.toggleItemLock(itemId, itemType) }
-                    )
-                    GameButton(
-                        text = "赏赐",
-                        onClick = { showDiscipleSelectDialog = true }
-                    )
                 }
             )
 
@@ -416,6 +467,17 @@ internal fun WarehouseTab(
                         }
                     },
                     onDismiss = { showSellDialog = false }
+                )
+            }
+
+            if (showBagRewards != null) {
+                val rewards = showBagRewards!!
+                StandardPromptDialog(
+                    title = "储物袋开启",
+                    message = rewards.joinToString("\n") { "${it.name} × ${it.quantity}" },
+                    confirmText = "确认",
+                    onConfirm = { showBagRewards = null },
+                    onDismiss = { showBagRewards = null }
                 )
             }
 

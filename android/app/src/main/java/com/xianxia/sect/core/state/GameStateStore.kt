@@ -32,6 +32,7 @@ data class MutableGameState(
     var materials: List<Material>,
     var herbs: List<Herb>,
     var seeds: List<Seed>,
+    var storageBags: List<StorageBag>,
     var teams: List<ExplorationTeam>,
     var battleLogs: List<BattleLog>,
     var isPaused: Boolean,
@@ -107,6 +108,10 @@ class GameStateStore @Inject constructor(
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val seeds: StateFlow<List<Seed>> = _state.map { it.seeds }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val storageBags: StateFlow<List<StorageBag>> = _state.map { it.storageBags }
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -246,6 +251,7 @@ class GameStateStore @Inject constructor(
             materials = current.materials,
             herbs = current.herbs,
             seeds = current.seeds,
+            storageBags = current.storageBags,
             teams = current.teams,
             battleLogs = current.battleLogs,
             isPaused = current.isPaused,
@@ -363,6 +369,7 @@ class GameStateStore @Inject constructor(
                 materials = oldState.materials,
                 herbs = oldState.herbs,
                 seeds = oldState.seeds,
+                storageBags = oldState.storageBags,
                 teams = shadow.teams,
                 battleLogs = shadow.battleLogs,
                 alliances = mergedGameData.alliances,
@@ -502,6 +509,7 @@ class GameStateStore @Inject constructor(
     val materialsSnapshot: List<Material> get() = _state.value.materials
     val herbsSnapshot: List<Herb> get() = _state.value.herbs
     val seedsSnapshot: List<Seed> get() = _state.value.seeds
+    val storageBagsSnapshot: List<StorageBag> get() = _state.value.storageBags
     val teamsSnapshot: List<ExplorationTeam> get() = _state.value.teams
     val battleLogsSnapshot: List<BattleLog> get() = _state.value.battleLogs
 
@@ -529,6 +537,7 @@ class GameStateStore @Inject constructor(
                 materials = current.materials
                 herbs = current.herbs
                 seeds = current.seeds
+                storageBags = current.storageBags
                 battleLogs = current.battleLogs
                 teams = current.teams
                 isPaused = current.isPaused

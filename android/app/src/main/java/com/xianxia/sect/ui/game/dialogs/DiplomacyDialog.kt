@@ -198,6 +198,11 @@ internal fun DiplomacySectCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Image(
+                            painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(sect.level)),
+                            contentDescription = sect.levelName,
+                            modifier = Modifier.height(14.sp.toDp())
+                        )
                         Text(
                             text = sect.name,
                             fontSize = 14.sp,

@@ -831,6 +831,23 @@ data class Seed(
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
-    
+
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+}
+
+@Entity(tableName = "storage_bags")
+@Serializable
+@Immutable
+data class StorageBag(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "",
+    val rarity: Int = 1,
+    val description: String = "可随机获得5-20件同品阶物品",
+    var quantity: Int = 1,
+    val isLocked: Boolean = false
+) {
+    companion object {
+        val TIER_NAMES = listOf("凡品储物袋", "灵品储物袋", "宝品储物袋", "玄品储物袋", "地品储物袋", "天品储物袋")
+        val SPIRIT_STONE_AMOUNTS = listOf(500L, 2000L, 10000L, 50000L, 200000L, 500000L)
+    }
 }

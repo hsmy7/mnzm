@@ -330,6 +330,8 @@ class GameViewModel @Inject constructor(
 
     val seeds: StateFlow<List<Seed>> get() = gameEngine.seeds
 
+    val storageBags: StateFlow<List<StorageBag>> get() = gameEngine.storageBags
+
     val teams: StateFlow<List<ExplorationTeam>> get() = gameEngine.teams
 
     val battleLogs: StateFlow<List<BattleLog>> get() = gameEngine.battleLogs
@@ -631,6 +633,8 @@ class GameViewModel @Inject constructor(
     fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)
 
     fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
+
+    suspend fun openStorageBag(bagId: String): List<BattleRewardItem> = gameEngine.openStorageBag(bagId)
 
     fun recruitDisciple(disciple: DiscipleAggregate) = this@GameViewModel.disciple.recruitDisciple(disciple)
 

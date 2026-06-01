@@ -124,7 +124,8 @@ internal fun BattleResultDialog(
                                         type = reward.type,
                                         isPill = reward.type == "pill",
                                         isManual = reward.type == "manual",
-                                        isMaterial = reward.type == "material"
+                                        isMaterial = reward.type == "material",
+                                        isSpiritStone = reward.type == "spiritStones"
                                     )
                                 )
                             }

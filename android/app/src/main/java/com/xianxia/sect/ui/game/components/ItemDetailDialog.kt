@@ -29,11 +29,13 @@ import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getRarityName
+import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
 import com.xianxia.sect.ui.theme.getRarityColor
 import java.util.Locale
 
@@ -124,6 +126,18 @@ fun ItemDetailDialog(
                 else -> ""
             }
             effects = getStorageBagItemEffects(item)
+        }
+        is SpiritStoneInfo -> {
+            name = "灵石"
+            rarity = 1
+            description = "修仙界的通用货币，可用于购买物品、建造建筑、发放薪酬等"
+            effects = listOf("数量: ${item.quantity.toLong()}")
+        }
+        is StorageBag -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = listOf("可随机获得5-20件同品阶物品", "品阶: ${getRarityName(item.rarity)}")
         }
         else -> {
             name = "未知物品"

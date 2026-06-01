@@ -39,7 +39,9 @@ data class ItemCardData(
     val isLocked: Boolean = false,
     val isManual: Boolean = false,
     val isPill: Boolean = false,
-    val isMaterial: Boolean = false
+    val isMaterial: Boolean = false,
+    val isSpiritStone: Boolean = false,
+    val isBag: Boolean = false
 )
 
 @Composable
@@ -56,6 +58,8 @@ fun UnifiedItemCard(
 ) {
     val rarityColor = getRarityColor(data.rarity)
     val spriteRes = when {
+        data.isSpiritStone -> spiritStoneSpriteRes()
+        data.isBag -> storageBagSpriteRes(data.rarity)
         data.isManual -> manualSpriteRes(data.rarity)
         data.isPill -> pillSpriteRes(data.rarity)
         data.isMaterial -> materialSpriteRes(data.name)
