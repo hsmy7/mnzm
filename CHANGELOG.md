@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.93] - 2026-06-01
+
+### 修复
+- **储物袋数据丢失**：`GameStateStore.update()` 每 tick 构造 `UnifiedGameState` 时遗漏 `storageBags` 参数（默认值空列表），导致储物袋在首个 tick 后被清空。`loadFromSnapshot()` 同样遗漏，导致读档后储物袋丢失
+- **数据库迁移 v19→v20**：`StorageBag` 实体未注册到 `@Database` 且缺少 `storage_bags` 建表迁移。新增实体注册 + `MIGRATION_19_20` 自动建表
+
 ## [3.1.92] - 2026-06-01
 
 ### 新增

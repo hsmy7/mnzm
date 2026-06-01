@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.93",
+            date = "2026-06-01",
+            changes = listOf(
+                "修复储物袋数据丢失：GameStateStore.update()每tick构造UnifiedGameState时遗漏storageBags参数(默认值空列表)，导致储物袋在首个tick后被清空。loadFromSnapshot()同样遗漏导致读档后储物袋丢失",
+                "数据库迁移v19→v20：StorageBag实体注册到@Database并新增MIGRATION_19_20自动创建storage_bags表。旧存档升级无数据需要迁移(新表为空)"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.92",
             date = "2026-06-01",
             changes = listOf(
