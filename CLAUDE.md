@@ -166,6 +166,25 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 4. 输出对比分析报告，标注推荐方案和理由
 5. 用户确认后再执行
 
+## 代码质量规范
+
+### 简洁优先
+- **用最简单的方式解决问题**，不为单次使用建抽象，不添加未被要求的"灵活性"
+- 新增功能优先复用现有模式（参考周边代码风格），不引入第二套架构
+- 写完自审：能否删掉一半代码仍实现同样功能？能就删
+
+### 模块化隔离
+- **修改一个功能不能影响其他功能**。新增模块通过接口/服务层与现有系统交互，不直接耦合
+- 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。不反向引用
+- 异常必须就地捕获或有明确的全局兜底，**不能让一个模块的异常导致整个应用崩溃**
+- 新增 Room Entity 时：独立表 + 独立 DAO，不影响 game_data 主表
+- 修改 GameData 字段时：必须加 `@SettlementStrategy` 注解 + DB Migration，**缺一不可**
+
+### 防御性编程
+- 所有对外部系统的调用（网络请求、DB 操作）必须包裹 try-catch
+- StateFlow 数据流确保有初始值，不在 UI 层做空值合并
+- 新功能上线前自测：正常流程 + 边界条件 + 异常恢复
+
 ## Changelog Requirements
 
 After implementing any feature or bug fix, update BOTH:
