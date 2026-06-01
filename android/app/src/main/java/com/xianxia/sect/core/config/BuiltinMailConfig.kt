@@ -14,20 +14,13 @@ object BuiltinMailConfig {
 
     val mails: List<BuiltinMail> = listOf(
         BuiltinMail(
-            id = "test_mail_v3_1_95",
-            title = "【测试】邮件系统验证",
-            content = "道友安好！\n\n此邮件用于验证邮件系统的各项功能，包含灵石、灵草、装备、丹药、材料、草药、种子各类型附件。请逐一测试领取、一键已读、删除已读等功能。\n\n如有问题请反馈。\n\n——天道意志",
+            id = "mail_system_launch_v3_1_96",
+            title = "庆祝邮件系统上线",
+            content = "道友安好！\n\n宗门邮件系统已正式上线，今后所有版本更新补偿、活动奖励、节日福利等均将通过邮件发放，敬请留意查收。\n\n本次奉上薄礼一份，愿道友修仙之路越走越宽。\n\n——天道意志",
             mailType = "reward",
-            minVersion = 3195,
+            minVersion = 3196,
             attachments = listOf(
-                MailAttachment(type = "spiritStones", name = "灵石", quantity = 10000, rarity = 0),
-                MailAttachment(type = "spiritHerbs", name = "灵草", quantity = 5000, rarity = 0),
-                MailAttachment(type = "pill", name = "培元丹", quantity = 3, rarity = 1),
-                MailAttachment(type = "equipment", name = "精铁剑", quantity = 1, rarity = 1),
-                MailAttachment(type = "material", name = "虎皮", quantity = 5, rarity = 1),
-                MailAttachment(type = "herb", name = "灵芝", quantity = 3, rarity = 1),
-                MailAttachment(type = "seed", name = "灵种", quantity = 2, rarity = 1),
-                MailAttachment(type = "storageBag", name = "凡品储物袋", quantity = 3, rarity = 1)
+                MailAttachment(type = "storageBag", name = "宝品储物袋", quantity = 3, rarity = 3)
             )
         )
     )
