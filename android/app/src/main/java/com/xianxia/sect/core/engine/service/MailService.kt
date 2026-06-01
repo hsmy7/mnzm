@@ -159,7 +159,6 @@ class MailService @Inject constructor(
             val existingMails = mailDao.getActiveMails(slotId, now).first()
             val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
             if (!alreadyInserted) {
-                Log.i(TAG, "Inserting builtin mail ${builtinMail.id} for slot $slotId")
                 val entity = MailEntity(
                     id = builtinMail.id,
                     slotId = slotId,
@@ -542,7 +541,6 @@ class MailService @Inject constructor(
                     val now = System.currentTimeMillis()
                     val mails = mailDao.getActiveMails(slotId, now).first()
                     mails.filter { it.id in claimedIds }.forEach { mail ->
-                        Log.i(TAG, "Restoring claimed state for mail ${mail.id}")
                         mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
                     }
                 }
