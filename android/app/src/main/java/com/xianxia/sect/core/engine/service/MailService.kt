@@ -488,13 +488,21 @@ class MailService @Inject constructor(
                     }
                     "storageBag" -> {
                         val qty = attachment.quantity.coerceAtLeast(1)
-                        val bag = StorageBag(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = StorageBag.TIER_NAMES.getOrElse(attachment.rarity.coerceIn(1, 6) - 1) { "凡品储物袋" },
-                            rarity = attachment.rarity.coerceIn(1, 6),
-                            quantity = qty
-                        )
-                        storageBags = storageBags + bag
+                        val rarity = attachment.rarity.coerceIn(1, 6)
+                        val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+                        val existing = storageBags.find { it.rarity == rarity }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + qty)
+                                .coerceAtMost(inventoryConfig.getMaxStackSize("storageBag"))
+                            storageBags = storageBags.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            storageBags = storageBags + StorageBag(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = bagName,
+                                rarity = rarity,
+                                quantity = qty
+                            )
+                        }
                     }
                 }
             }
