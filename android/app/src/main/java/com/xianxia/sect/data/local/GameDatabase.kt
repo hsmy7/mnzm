@@ -71,7 +71,7 @@ object GameDatabaseConfig {
         MailEntity::class,
         ClaimedMailRecord::class
     ],
-    version = 22
+    version = 23
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -625,8 +625,8 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS claimed_mail_records (
                         mailGlobalId TEXT NOT NULL,
-                        slotId INTEGER NOT NULL,
-                        claimedTime INTEGER NOT NULL,
+                        slotId INTEGER NOT NULL DEFAULT 0,
+                        claimedTime INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY(mailGlobalId, slotId)
                     )
                 """)
@@ -635,8 +635,8 @@ abstract class GameDatabase : RoomDatabase() {
 
         val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // v20→v21 迁移中索引名和 remoteMailId DEFAULT NULL 与 Room Entity 不匹配，
-                // 重建 mails 表修复（新表无业务数据，直接 DROP 安全）
+                // v20→v21 迁移中索引名和 DEFAULT 值与 Room Entity 不匹配，
+                // 重建两张新表修复（新表无业务数据，直接 DROP 安全）
                 db.execSQL("DROP TABLE IF EXISTS mails")
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS mails (
@@ -660,6 +660,32 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_slotId ON mails(slotId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_remoteMailId ON mails(remoteMailId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_slotId_expireTime ON mails(slotId, expireTime)")
+
+                db.execSQL("DROP TABLE IF EXISTS claimed_mail_records")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS claimed_mail_records (
+                        mailGlobalId TEXT NOT NULL,
+                        slotId INTEGER NOT NULL DEFAULT 0,
+                        claimedTime INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(mailGlobalId, slotId)
+                    )
+                """)
+            }
+        }
+
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // v20→v21 和 v21→v22 迁移中 claimed_mail_records 表 DEFAULT 值与 Room Entity 不匹配，
+                // 重建修复（新表无业务数据，直接 DROP 安全）
+                db.execSQL("DROP TABLE IF EXISTS claimed_mail_records")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS claimed_mail_records (
+                        mailGlobalId TEXT NOT NULL,
+                        slotId INTEGER NOT NULL DEFAULT 0,
+                        claimedTime INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(mailGlobalId, slotId)
+                    )
+                """)
             }
         }
 
@@ -733,7 +759,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

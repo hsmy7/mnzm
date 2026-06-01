@@ -309,7 +309,7 @@ class MailService @Inject constructor(
 
         for (attachment in attachments) {
             when (attachment.type) {
-                "spiritStones", "spiritHerbs" -> {}
+                "spiritStones", "spiritHerbs", "storageBag" -> {}
                 "equipment", "pill", "material", "herb", "seed" -> {
                     var totalItems = stateStore.equipmentStacks.value.size +
                             stateStore.manualStacks.value.size +
@@ -485,6 +485,16 @@ class MailService @Inject constructor(
                             disciples = disciples + disciple
                             usedNames.add(disciple.name)
                         }
+                    }
+                    "storageBag" -> {
+                        val qty = attachment.quantity.coerceAtLeast(1)
+                        val bag = StorageBag(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = StorageBag.TIER_NAMES.getOrElse(attachment.rarity.coerceIn(1, 6) - 1) { "凡品储物袋" },
+                            rarity = attachment.rarity.coerceIn(1, 6),
+                            quantity = qty
+                        )
+                        storageBags = storageBags + bag
                     }
                 }
             }
