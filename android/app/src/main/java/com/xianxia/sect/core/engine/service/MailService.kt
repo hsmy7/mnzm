@@ -494,6 +494,25 @@ class MailService @Inject constructor(
         return mailDao.getUnreadCount(slotId, System.currentTimeMillis())
     }
 
+    /**
+     * 重置并初始化指定存档的邮件（清除旧邮件 → 重新拉取在线+加载内置）。
+     * 用于新游戏/读档/重开场景，确保邮件状态与当前存档一致。
+     */
+    suspend fun resetAndInitSlot(slotId: Int) {
+        getMutex(slotId).withLock {
+            Log.i(TAG, "resetAndInitSlot for slot $slotId")
+            mailDao.deleteAllForSlot(slotId)
+            try {
+                fetchOnlineMails(slotId)
+                loadBuiltinMails(slotId)
+                cleanExpired(slotId)
+                Log.i(TAG, "resetAndInitSlot DONE for slot $slotId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
+            }
+        }
+    }
+
     suspend fun initializeForSlot(slotId: Int) {
         Log.i(TAG, "initializeForSlot BEGIN for slot $slotId")
         try {

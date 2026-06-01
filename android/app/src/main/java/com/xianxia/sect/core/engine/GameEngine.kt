@@ -263,8 +263,7 @@ class GameEngine @Inject constructor(
 
         // Initialize mail system for the loaded slot（先清再重建，确保邮件状态跟随存档）
         try {
-            mailService.clearForSlot(gameData.slotId)
-            mailService.initializeForSlot(gameData.slotId)
+            mailService.resetAndInitSlot(gameData.slotId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize mail for slot ${gameData.slotId}", e)
         }
@@ -273,7 +272,7 @@ class GameEngine @Inject constructor(
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
         stateStore.reset()
         cultivationService.resetHighFrequencyData()
-        mailService.clearForSlot(currentSlot)
+        mailService.resetAndInitSlot(currentSlot)
         initializeWorldAndServices(sectName, currentSlot)
         // 在事务中创建初始弟子，避免 addDisciple 异步写入竞态导致弟子丢失
         // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
@@ -299,11 +298,6 @@ class GameEngine @Inject constructor(
             repeat(3) { discipleService.recruitDisciple() }
         }
         addInitialManual()
-        try {
-            mailService.initializeForSlot(currentSlot)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to init mail for new game slot $currentSlot", e)
-        }
     }
 
     suspend fun restartGameSuspend(sectName: String = "", currentSlot: Int = 1) {
@@ -313,7 +307,7 @@ class GameEngine @Inject constructor(
     private suspend fun restartGameInternal(sectName: String, currentSlot: Int) {
         stateStore.reset()
         cultivationService.resetHighFrequencyData()
-        mailService.clearForSlot(currentSlot)
+        mailService.resetAndInitSlot(currentSlot)
 
         if (sectName.isNotBlank()) {
             initializeWorldAndServices(sectName, currentSlot)
@@ -340,19 +334,9 @@ class GameEngine @Inject constructor(
                 repeat(3) { discipleService.recruitDisciple() }
             }
             addInitialManual()
-            try {
-                mailService.initializeForSlot(currentSlot)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to init mail for restarted game slot $currentSlot", e)
-            }
         } else {
             stateStore.update {
                 gameData = GameData(isGameStarted = true).copy(currentSlot = currentSlot)
-            }
-            try {
-                mailService.initializeForSlot(currentSlot)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to init mail for restarted game slot $currentSlot", e)
             }
         }
     }
