@@ -65,9 +65,10 @@ object GameDatabaseConfig {
         ChangeLogEntity::class,
         SaveSlotMetadata::class,
         ArchivedBattleLog::class,
-        ArchivedDisciple::class
+        ArchivedDisciple::class,
+        GameHeavyData::class
     ],
-    version = 17
+    version = 19
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -100,6 +101,8 @@ abstract class GameDatabase : RoomDatabase() {
 
     abstract fun archivedBattleLogDao(): ArchivedBattleLogDao
     abstract fun archivedDiscipleDao(): ArchivedDiscipleDao
+
+    abstract fun gameHeavyDataDao(): GameHeavyDataDao
 
     private val checkpointExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "GameDB-Checkpoint")
@@ -571,6 +574,47 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS game_heavy_data (
+                        slot_id INTEGER NOT NULL,
+                        data_key TEXT NOT NULL,
+                        data_value TEXT NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        PRIMARY KEY(slot_id, data_key)
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_game_heavy_data_slot_id ON game_heavy_data(slot_id)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_heavy_data_slot_id_data_key ON game_heavy_data(slot_id, data_key)")
+                val heavyColumns = mapOf(
+                    "aiSectDisciples" to "aiSectDisciples",
+                    "sectDetails" to "sectDetails",
+                    "exploredSects" to "exploredSects",
+                    "scoutInfo" to "scoutInfo",
+                    "manualProficiencies" to "manualProficiencies"
+                )
+                for ((key, col) in heavyColumns) {
+                    db.execSQL("INSERT INTO game_heavy_data (slot_id, data_key, data_value, updated_at) SELECT slot_id, '$key', $col, strftime('%s','now') FROM game_data WHERE $col IS NOT NULL AND length($col) > 2")
+                }
+                db.execSQL("UPDATE game_data SET aiSectDisciples = '' WHERE length(aiSectDisciples) > 2")
+                db.execSQL("UPDATE game_data SET sectDetails = '' WHERE length(sectDetails) > 2")
+                db.execSQL("UPDATE game_data SET exploredSects = '' WHERE length(exploredSects) > 2")
+                db.execSQL("UPDATE game_data SET scoutInfo = '' WHERE length(scoutInfo) > 2")
+                db.execSQL("UPDATE game_data SET manualProficiencies = '' WHERE length(manualProficiencies) > 2")
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇皮', '蛇鳞') WHERE name LIKE '%蛇皮'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇骨', '蛇血'), category = 'BEAST_BLOOD' WHERE name LIKE '%蛇骨'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '毒牙', '蛇牙') WHERE name LIKE '%毒牙'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '龙骨', '龙爪'), category = 'BEAST_CLAW' WHERE name LIKE '%龙骨'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '龟甲', '龟血'), category = 'BEAST_BLOOD' WHERE name LIKE '%龟甲'")
+            }
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -600,7 +644,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

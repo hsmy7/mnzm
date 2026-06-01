@@ -723,11 +723,23 @@ class SaveDataConverter @Inject constructor() {
     }
 
     private fun convertBackMaterial(data: SerializableMaterial): com.xianxia.sect.core.model.Material {
+        val migratedName = data.name
+            .replace("蛇皮", "蛇鳞")
+            .replace("蛇骨", "蛇血")
+            .replace("毒牙", "蛇牙")
+            .replace("龙骨", "龙爪")
+            .replace("龟甲", "龟血")
+        val migratedType = when {
+            data.name.contains("蛇骨") -> "BEAST_BLOOD"
+            data.name.contains("龙骨") -> "BEAST_CLAW"
+            data.name.contains("龟甲") -> "BEAST_BLOOD"
+            else -> data.type
+        }
         return com.xianxia.sect.core.model.Material(
             id = data.id,
-            name = data.name,
+            name = migratedName,
             rarity = data.rarity,
-            category = safeEnumValueOf(data.type, com.xianxia.sect.core.model.MaterialCategory.BEAST_HIDE, "type", "Material"),
+            category = safeEnumValueOf(migratedType, com.xianxia.sect.core.model.MaterialCategory.BEAST_HIDE, "type", "Material"),
             quantity = data.quantity,
             description = data.description
         )

@@ -363,6 +363,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private fun startGameLoop() {
+        viewModelScope.launch { gameEngine.ensureHeavyDataLoaded() }
         gameEngineCore.startListening()
         gameEngineCore.startGameLoop()
         _isTimeRunning.value = true

@@ -76,11 +76,15 @@ class GameEngine @Inject constructor(
     private val cultivationService: CultivationService,
     private val diplomacyService: DiplomacyService,
     private val redeemCodeService: RedeemCodeService,
-    private val formulaService: FormulaService
+    private val formulaService: FormulaService,
+    private val database: com.xianxia.sect.data.local.GameDatabase
 ) {
     companion object {
         private const val TAG = "GameEngine"
     }
+
+    @Volatile
+    private var heavyDataLoaded = false
 
     val gameData: StateFlow<GameData> get() = stateStore.gameData
     val gameDataSnapshot: GameData get() = stateStore.gameDataSnapshot
@@ -145,6 +149,34 @@ class GameEngine @Inject constructor(
         stateStore.update { this.gameData = gameData }
     }
 
+    suspend fun ensureHeavyDataLoaded() {
+        if (heavyDataLoaded) return
+        val slot = stateStore.gameDataSnapshot.currentSlot
+        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
+        if (heavyDataList.isEmpty()) {
+            heavyDataLoaded = true
+            return
+        }
+        val heavyMap = heavyDataList.associate { it.dataKey to it.dataValue }
+        val converters = com.xianxia.sect.data.local.ProtobufConverters
+        stateStore.update {
+            val current = this.gameData
+            val needsUpdate = current.aiSectDisciples.isEmpty() || current.sectDetails.isEmpty() ||
+                current.exploredSects.isEmpty() || current.scoutInfo.isEmpty() || current.manualProficiencies.isEmpty()
+            if (needsUpdate) {
+                this.gameData = current.copy(
+                    aiSectDisciples = if (current.aiSectDisciples.isEmpty()) converters.toDiscipleListMap(heavyMap[GameHeavyData.KEY_AI_SECT_DISCIPLES] ?: "") else current.aiSectDisciples,
+                    sectDetails = if (current.sectDetails.isEmpty()) converters.toSectDetailMap(heavyMap[GameHeavyData.KEY_SECT_DETAILS] ?: "") else current.sectDetails,
+                    exploredSects = if (current.exploredSects.isEmpty()) converters.toExploredSectInfoMap(heavyMap[GameHeavyData.KEY_EXPLORED_SECTS] ?: "") else current.exploredSects,
+                    scoutInfo = if (current.scoutInfo.isEmpty()) converters.toSectScoutInfoMap(heavyMap[GameHeavyData.KEY_SCOUT_INFO] ?: "") else current.scoutInfo,
+                    manualProficiencies = if (current.manualProficiencies.isEmpty()) converters.toManualProficiencyDataMap(heavyMap[GameHeavyData.KEY_MANUAL_PROFICIENCIES] ?: "") else current.manualProficiencies
+                )
+            }
+        }
+        heavyDataLoaded = true
+        Log.d(TAG, "ensureHeavyDataLoaded: loaded ${heavyDataList.size} heavy data entries for slot $slot")
+    }
+
     suspend fun loadData(
         gameData: GameData,
         disciples: List<Disciple>,
@@ -161,6 +193,7 @@ class GameEngine @Inject constructor(
         alliances: List<Alliance> = emptyList(),
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     ) {
+        heavyDataLoaded = false
         val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
 
         stateStore.loadFromSnapshot(
@@ -2901,6 +2934,7 @@ class GameEngine @Inject constructor(
      * This replaces the old movement+battle flow with immediate resolution.
      */
     suspend fun attackSect(sectId: String, attackSlots: List<Pair<Int, com.xianxia.sect.core.model.DiscipleAggregate>>) {
+        ensureHeavyDataLoaded()
         val data = stateStore.gameDataSnapshot
         val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
         val allDisciples = stateStore.disciplesSnapshot
@@ -3357,6 +3391,7 @@ class GameEngine @Inject constructor(
      * Resolves immediately like attackWorldLevel — no travel time.
      */
     suspend fun scoutSect(sectId: String, memberIds: List<String>) {
+        ensureHeavyDataLoaded()
         val data = stateStore.gameDataSnapshot
         val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
 

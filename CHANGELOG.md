@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.88] - 2026-06-01
+
+### 优化
+- **数据库拆表解决 CursorWindow 超限**：`game_data` 单行 60+ 列含大量 Protobuf 序列化数据，中后期存档超过 Android CursorWindow 2MB 行大小限制导致 `SQLiteBlobTooBigException` 崩溃。将 5 个 L4 重型字段（`aiSectDisciples`/`sectDetails`/`exploredSects`/`scoutInfo`/`manualProficiencies`）独立存入新表 `game_heavy_data`，`game_data` 单行体积大幅缩小
+  - **懒加载**：L4 数据在游戏循环启动时按需加载（`ensureHeavyDataLoaded`），攻打/侦查宗门等需要重型数据的操作前自动触发，主界面加载不阻塞
+  - **数据库迁移 v17→v18**：材料更名（蛇皮→蛇鳞、蛇骨→蛇血、毒牙→蛇牙、龙骨→龙爪、龟甲→龟血），同步更新 category（新增 BEAST_BLOOD，plastron→blood，bone→claw）
+  - **数据库迁移 v18→v19**：创建 `game_heavy_data` 表，将 `game_data` 中 5 个 L4 列数据迁移至新表，清空原列
+  - **存档兼容**：`SaveDataConverter` 反序列化时映射旧材料 name/category，旧存档导入自动转换
+
+### 修复
+- **蛇妖/龙妖/龟妖材料更名**：蛇皮→蛇鳞(🛡️)、蛇骨→蛇血(🩸)、毒牙→蛇牙(🦷)、龙骨→龙爪(🐾)、龟甲→龟血(🩸)，配方引用同步更新
+
 ## [3.1.87] - 2026-06-01
 
 ### 修复

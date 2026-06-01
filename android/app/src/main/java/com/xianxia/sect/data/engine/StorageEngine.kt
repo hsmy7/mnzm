@@ -12,6 +12,7 @@ import com.xianxia.sect.data.crypto.IntegrityReport
 import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -278,7 +279,7 @@ class StorageEngine @Inject internal constructor(
         if (!lockManager.isValidSlot(slot)) return false
 
         return try {
-            database.gameDataDao().getGameDataSync(slot) != null
+            database.gameDataDao().existsBySlot(slot) != null
         } catch (e: Exception) {
             Log.e(TAG, "hasData check failed for slot $slot", e)
             false
@@ -368,17 +369,17 @@ class StorageEngine @Inject internal constructor(
         if (!lockManager.isValidSlot(slot)) return null
 
         return try {
-            val gameData = database.gameDataDao().getGameDataSync(slot) ?: return null
+            val meta = database.gameDataDao().getMetadataBySlot(slot) ?: return null
             SlotMetadata(
                 slot = slot,
-                timestamp = gameData.lastSaveTime,
-                gameYear = gameData.gameYear,
-                gameMonth = gameData.gameMonth,
-                sectName = gameData.sectName,
+                timestamp = meta.lastSaveTime,
+                gameYear = meta.gameYear,
+                gameMonth = meta.gameMonth,
+                sectName = meta.sectName,
                 discipleCount = database.discipleDao().getAllAliveSync(slot).size,
-                spiritStones = gameData.spiritStones,
+                spiritStones = meta.spiritStones,
                 fileSize = 0,
-                customName = gameData.sectName
+                customName = meta.sectName
             )
         } catch (e: Exception) {
             Log.w(TAG, "getSlotMetadata failed for slot $slot", e)
@@ -454,8 +455,8 @@ class StorageEngine @Inject internal constructor(
             val slot = StorageConstants.EMERGENCY_SLOT
             lockManager.isValidSlot(slot) && runCatching {
                 kotlinx.coroutines.runBlocking {
-                    database.gameDataDao().getGameDataSync(slot) != null
-                }
+                database.gameDataDao().existsBySlot(slot) != null
+            }
             }.getOrDefault(false)
         } catch (e: Exception) {
             false
@@ -546,8 +547,30 @@ class StorageEngine @Inject internal constructor(
 
     private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {
         Log.d(TAG, "writeAllDataToDatabase: slot=$slot, ${data.disciples.size} disciples, recruitList=${data.gameData.recruitList.size} unrecruited disciples")
-        val gameDataWithSlot = data.gameData.copy(slotId = slot, id = "game_data_$slot", lastSaveTime = data.timestamp)
-        database.gameDataDao().insert(gameDataWithSlot)
+
+        val converters = ProtobufConverters
+        val heavyEntries = listOf(
+            GameHeavyData(slot, GameHeavyData.KEY_AI_SECT_DISCIPLES, converters.fromDiscipleListMap(data.gameData.aiSectDisciples), System.currentTimeMillis()),
+            GameHeavyData(slot, GameHeavyData.KEY_SECT_DETAILS, converters.fromSectDetailMap(data.gameData.sectDetails), System.currentTimeMillis()),
+            GameHeavyData(slot, GameHeavyData.KEY_EXPLORED_SECTS, converters.fromExploredSectInfoMap(data.gameData.exploredSects), System.currentTimeMillis()),
+            GameHeavyData(slot, GameHeavyData.KEY_SCOUT_INFO, converters.fromSectScoutInfoMap(data.gameData.scoutInfo), System.currentTimeMillis()),
+            GameHeavyData(slot, GameHeavyData.KEY_MANUAL_PROFICIENCIES, converters.fromManualProficiencyDataMap(data.gameData.manualProficiencies), System.currentTimeMillis())
+        )
+
+        val lightGameData = data.gameData.copy(
+            slotId = slot,
+            id = "game_data_$slot",
+            lastSaveTime = data.timestamp,
+            aiSectDisciples = emptyMap(),
+            sectDetails = emptyMap(),
+            exploredSects = emptyMap(),
+            scoutInfo = emptyMap(),
+            manualProficiencies = emptyMap()
+        )
+        database.gameDataDao().insert(lightGameData)
+
+        database.gameHeavyDataDao().deleteAllForSlot(slot)
+        database.gameHeavyDataDao().upsertAll(heavyEntries)
 
         database.discipleDao().deleteAll(slot)
         database.discipleCoreDao().deleteAll(slot)
@@ -668,9 +691,37 @@ class StorageEngine @Inject internal constructor(
         }
     }
 
-    private suspend fun loadFromDatabaseInternal(slot: Int): SaveData? {
+    private suspend fun loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData? {
         val gameData = database.gameDataDao().getGameDataSync(slot) ?: return null
 
+        if (loadHeavyData) {
+            val merged = mergeHeavyData(gameData, slot)
+            return buildSaveDataFromDatabase(slot, merged)
+        }
+
+        return buildSaveDataFromDatabase(slot, gameData)
+    }
+
+    private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData {
+        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
+        if (heavyDataList.isEmpty()) return gameData
+        val heavyMap = heavyDataList.associate { it.dataKey to it.dataValue }
+        val converters = ProtobufConverters
+        return gameData.copy(
+            aiSectDisciples = if (gameData.aiSectDisciples.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_AI_SECT_DISCIPLES)) converters.toDiscipleListMap(heavyMap[GameHeavyData.KEY_AI_SECT_DISCIPLES] ?: "") else gameData.aiSectDisciples,
+            sectDetails = if (gameData.sectDetails.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_SECT_DETAILS)) converters.toSectDetailMap(heavyMap[GameHeavyData.KEY_SECT_DETAILS] ?: "") else gameData.sectDetails,
+            exploredSects = if (gameData.exploredSects.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_EXPLORED_SECTS)) converters.toExploredSectInfoMap(heavyMap[GameHeavyData.KEY_EXPLORED_SECTS] ?: "") else gameData.exploredSects,
+            scoutInfo = if (gameData.scoutInfo.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_SCOUT_INFO)) converters.toSectScoutInfoMap(heavyMap[GameHeavyData.KEY_SCOUT_INFO] ?: "") else gameData.scoutInfo,
+            manualProficiencies = if (gameData.manualProficiencies.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_MANUAL_PROFICIENCIES)) converters.toManualProficiencyDataMap(heavyMap[GameHeavyData.KEY_MANUAL_PROFICIENCIES] ?: "") else gameData.manualProficiencies
+        )
+    }
+
+    suspend fun loadHeavyDataForSlot(slot: Int): Map<String, String> {
+        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
+        return heavyDataList.associate { it.dataKey to it.dataValue }
+    }
+
+    private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData {
         val disciples = database.discipleDao().getAllSync(slot)
         val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
         val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
@@ -742,19 +793,19 @@ class StorageEngine @Inject internal constructor(
     private suspend fun querySingleSlot(slot: Int): SaveSlot {
         val isAutoSave = slot == StorageConstants.AUTO_SAVE_SLOT
         return try {
-            val gameData = database.gameDataDao().getGameDataSync(slot)
-            if (gameData != null) {
+            val meta = database.gameDataDao().getMetadataBySlot(slot)
+            if (meta != null) {
                 SaveSlot(
                     slot = slot,
                     name = "Save $slot",
-                    timestamp = gameData.lastSaveTime,
-                    gameYear = gameData.gameYear,
-                    gameMonth = gameData.gameMonth,
-                    sectName = gameData.sectName,
+                    timestamp = meta.lastSaveTime,
+                    gameYear = meta.gameYear,
+                    gameMonth = meta.gameMonth,
+                    sectName = meta.sectName,
                     discipleCount = database.discipleDao().getAllAliveSync(slot).size,
-                    spiritStones = gameData.spiritStones,
+                    spiritStones = meta.spiritStones,
                     isEmpty = false,
-                    customName = gameData.sectName,
+                    customName = meta.sectName,
                     isAutoSave = isAutoSave
                 )
             } else {

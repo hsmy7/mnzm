@@ -19,6 +19,9 @@ interface GameDataDao {
     @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data ORDER BY slot_id ASC")
     suspend fun getAllMetadata(): List<GameDataMetadataProjection>
 
+    @Query("SELECT slot_id FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    suspend fun existsBySlot(slotId: Int): Int?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(gameData: GameData)
 
@@ -1083,4 +1086,28 @@ interface DiscipleAttributesDao {
     /** 获取指定槽位下已有的实体 discipleId 集合（用于 UPSERT 差量写入） */
     @Query("SELECT discipleId FROM disciples_attributes WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
+}
+
+@Dao
+interface GameHeavyDataDao {
+    @Query("SELECT * FROM game_heavy_data WHERE slot_id = :slotId AND data_key = :key")
+    suspend fun getByKey(slotId: Int, key: String): GameHeavyData?
+
+    @Query("SELECT * FROM game_heavy_data WHERE slot_id = :slotId")
+    suspend fun getAllForSlot(slotId: Int): List<GameHeavyData>
+
+    @Query("SELECT data_key FROM game_heavy_data WHERE slot_id = :slotId")
+    suspend fun getLoadedKeys(slotId: Int): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(data: GameHeavyData)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(data: List<GameHeavyData>)
+
+    @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId")
+    suspend fun deleteAllForSlot(slotId: Int)
+
+    @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId AND data_key = :key")
+    suspend fun deleteByKey(slotId: Int, key: String)
 }

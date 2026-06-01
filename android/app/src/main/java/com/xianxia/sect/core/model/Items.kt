@@ -750,6 +750,7 @@ enum class MaterialCategory {
     BEAST_SCALE,
     BEAST_HORN,
     BEAST_SHELL,
+    BEAST_BLOOD,
     BEAST_PLASTRON;
 
     val displayName: String get() = when (this) {
@@ -763,6 +764,7 @@ enum class MaterialCategory {
         BEAST_SCALE -> "鳞片"
         BEAST_HORN -> "兽角"
         BEAST_SHELL -> "龟壳"
+        BEAST_BLOOD -> "兽血"
         BEAST_PLASTRON -> "龟甲"
     }
 }

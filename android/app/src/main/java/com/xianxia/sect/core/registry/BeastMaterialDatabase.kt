@@ -27,7 +27,7 @@ object BeastMaterialDatabase {
             "scale" -> MaterialCategory.BEAST_SCALE
             "horn" -> MaterialCategory.BEAST_HORN
             "shell" -> MaterialCategory.BEAST_SHELL
-            "plastron" -> MaterialCategory.BEAST_PLASTRON
+            "blood" -> MaterialCategory.BEAST_BLOOD
             else -> MaterialCategory.BEAST_HIDE
         }
     }
@@ -99,34 +99,34 @@ object BeastMaterialDatabase {
 
         // ========== 蛇妖材料（法术/毒属性型）==========
         // 凡品
-        BeastMaterial("snakeHide0", "凡蛇皮", 1, 1, "hide", "凡品蛇妖的鳞片，蕴含剧毒", "🟩", 1.0),
-        BeastMaterial("snakeBone0", "凡蛇骨", 1, 1, "bone", "凡品蛇妖的骨骼，柔韧有毒", "🦴", 1.0),
-        BeastMaterial("snakeTooth0", "凡毒牙", 1, 1, "tooth", "凡品蛇妖的毒牙，蕴含剧毒", "🦷", 0.8),
+        BeastMaterial("snakeScale0", "凡蛇鳞", 1, 1, "scale", "凡品蛇妖的鳞片，蕴含剧毒", "🟩", 1.0),
+        BeastMaterial("snakeBlood0", "凡蛇血", 1, 1, "blood", "凡品蛇妖的精血，蕴含剧毒之力", "🩸", 1.0),
+        BeastMaterial("snakeTooth0", "凡蛇牙", 1, 1, "tooth", "凡品蛇妖的毒牙，蕴含剧毒", "🦷", 0.8),
         BeastMaterial("snakeCore0", "凡蛇内丹", 1, 1, "core", "凡品蛇妖的内丹，蕴含剧毒灵力", "🔮", 0.5),
         // 灵品
-        BeastMaterial("snakeHide1", "灵蛇皮", 2, 2, "hide", "灵品蛇妖的鳞片，蕴含灵气与剧毒", "🟩", 0.8),
-        BeastMaterial("snakeBone1", "灵蛇骨", 2, 2, "bone", "灵品蛇妖的骨骼，柔韧且蕴含灵力", "🦴", 0.8),
-        BeastMaterial("snakeTooth1", "灵毒牙", 2, 2, "tooth", "灵品蛇妖的毒牙，毒性强烈", "🦷", 0.6),
+        BeastMaterial("snakeScale1", "灵蛇鳞", 2, 2, "scale", "灵品蛇妖的鳞片，蕴含灵气与剧毒", "🟩", 0.8),
+        BeastMaterial("snakeBlood1", "灵蛇血", 2, 2, "blood", "灵品蛇妖的精血，蕴含灵力与剧毒", "🩸", 0.8),
+        BeastMaterial("snakeTooth1", "灵蛇牙", 2, 2, "tooth", "灵品蛇妖的毒牙，毒性强烈", "🦷", 0.6),
         BeastMaterial("snakeCore1", "灵蛇内丹", 2, 2, "core", "灵品蛇妖的内丹，蕴含浓郁剧毒灵力", "🔮", 0.4),
         // 宝品
-        BeastMaterial("snakeHide2", "宝蛇皮", 3, 3, "hide", "宝品蛇妖的鳞片，珍贵且蕴含强大毒性", "🟩", 0.6),
-        BeastMaterial("snakeBone2", "宝蛇骨", 3, 3, "bone", "宝品蛇妖的骨骼，柔韧如丝", "🦴", 0.6),
-        BeastMaterial("snakeTooth2", "宝毒牙", 3, 3, "tooth", "宝品蛇妖的毒牙，毒性猛烈", "🦷", 0.5),
+        BeastMaterial("snakeScale2", "宝蛇鳞", 3, 3, "scale", "宝品蛇妖的鳞片，珍贵且蕴含强大毒性", "🟩", 0.6),
+        BeastMaterial("snakeBlood2", "宝蛇血", 3, 3, "blood", "宝品蛇妖的精血，毒性猛烈", "🩸", 0.6),
+        BeastMaterial("snakeTooth2", "宝蛇牙", 3, 3, "tooth", "宝品蛇妖的毒牙，毒性猛烈", "🦷", 0.5),
         BeastMaterial("snakeCore2", "宝蛇内丹", 3, 3, "core", "宝品蛇妖的内丹，蕴含强大剧毒之力", "🔮", 0.3),
         // 玄品
-        BeastMaterial("snakeHide3", "玄蛇皮", 4, 4, "hide", "玄品蛇妖的鳞片，蕴含玄妙剧毒之力", "🟩", 0.4),
-        BeastMaterial("snakeBone3", "玄蛇骨", 4, 4, "bone", "玄品蛇妖的骨骼，蕴含玄妙柔韧", "🦴", 0.4),
-        BeastMaterial("snakeTooth3", "玄毒牙", 4, 4, "tooth", "玄品蛇妖的毒牙，蕴含玄妙毒性", "🦷", 0.3),
+        BeastMaterial("snakeScale3", "玄蛇鳞", 4, 4, "scale", "玄品蛇妖的鳞片，蕴含玄妙剧毒之力", "🟩", 0.4),
+        BeastMaterial("snakeBlood3", "玄蛇血", 4, 4, "blood", "玄品蛇妖的精血，蕴含玄妙剧毒", "🩸", 0.4),
+        BeastMaterial("snakeTooth3", "玄蛇牙", 4, 4, "tooth", "玄品蛇妖的毒牙，蕴含玄妙毒性", "🦷", 0.3),
         BeastMaterial("snakeCore3", "玄蛇内丹", 4, 4, "core", "玄品蛇妖的内丹，蕴含玄妙剧毒灵力", "🔮", 0.2),
         // 地品
-        BeastMaterial("snakeHide4", "地蛇皮", 5, 5, "hide", "地品蛇妖的鳞片，蕴含大地剧毒之力", "🟩", 0.25),
-        BeastMaterial("snakeBone4", "地蛇骨", 5, 5, "bone", "地品蛇妖的骨骼，蕴含大地柔韧", "🦴", 0.25),
-        BeastMaterial("snakeTooth4", "地毒牙", 5, 5, "tooth", "地品蛇妖的毒牙，蕴含大地毒性", "🦷", 0.2),
+        BeastMaterial("snakeScale4", "地蛇鳞", 5, 5, "scale", "地品蛇妖的鳞片，蕴含大地剧毒之力", "🟩", 0.25),
+        BeastMaterial("snakeBlood4", "地蛇血", 5, 5, "blood", "地品蛇妖的精血，蕴含大地剧毒", "🩸", 0.25),
+        BeastMaterial("snakeTooth4", "地蛇牙", 5, 5, "tooth", "地品蛇妖的毒牙，蕴含大地毒性", "🦷", 0.2),
         BeastMaterial("snakeCore4", "地蛇内丹", 5, 5, "core", "地品蛇妖的内丹，蕴含大地剧毒灵力", "🔮", 0.12),
         // 天品
-        BeastMaterial("snakeHide5", "天蛇皮", 6, 6, "hide", "天品蛇妖的鳞片，蕴含天道剧毒之力", "🟩", 0.12),
-        BeastMaterial("snakeBone5", "天蛇骨", 6, 6, "bone", "天品蛇妖的骨骼，蕴含天道柔韧", "🦴", 0.12),
-        BeastMaterial("snakeTooth5", "天毒牙", 6, 6, "tooth", "天品蛇妖的毒牙，蕴含天道毒性", "🦷", 0.1),
+        BeastMaterial("snakeScale5", "天蛇鳞", 6, 6, "scale", "天品蛇妖的鳞片，蕴含天道剧毒之力", "🟩", 0.12),
+        BeastMaterial("snakeBlood5", "天蛇血", 6, 6, "blood", "天品蛇妖的精血，蕴含天道剧毒", "🩸", 0.12),
+        BeastMaterial("snakeTooth5", "天蛇牙", 6, 6, "tooth", "天品蛇妖的毒牙，蕴含天道毒性", "🦷", 0.1),
         BeastMaterial("snakeCore5", "天蛇内丹", 6, 6, "core", "天品蛇妖的内丹，蕴含天道剧毒灵力", "🔮", 0.06),
 
         // ========== 熊妖材料（高防御型）==========
@@ -228,32 +228,32 @@ object BeastMaterialDatabase {
         // ========== 龙妖材料（全能顶级型）==========
         // 凡品
         BeastMaterial("dragonScale0", "凡龙鳞", 1, 1, "scale", "凡品龙妖的鳞片，坚硬无比", "🐲", 1.0),
-        BeastMaterial("dragonBone0", "凡龙骨", 1, 1, "bone", "凡品龙妖的骨骼，蕴含龙威", "🦴", 1.0),
+        BeastMaterial("dragonClaw0", "凡龙爪", 1, 1, "claw", "凡品龙妖的利爪，蕴含龙力", "🐾", 1.0),
         BeastMaterial("dragonHorn0", "凡龙角", 1, 1, "horn", "凡品龙妖的龙角，蕴含龙力", "🦄", 0.8),
         BeastMaterial("dragonCore0", "凡龙内丹", 1, 1, "core", "凡品龙妖的内丹，蕴含龙族灵力", "🔮", 0.5),
         // 灵品
         BeastMaterial("dragonScale1", "灵龙鳞", 2, 2, "scale", "灵品龙妖的鳞片，蕴含灵气与龙威", "🐲", 0.8),
-        BeastMaterial("dragonBone1", "灵龙骨", 2, 2, "bone", "灵品龙妖的骨骼，龙威凛凛", "🦴", 0.8),
+        BeastMaterial("dragonClaw1", "灵龙爪", 2, 2, "claw", "灵品龙妖的利爪，龙威凛凛", "🐾", 0.8),
         BeastMaterial("dragonHorn1", "灵龙角", 2, 2, "horn", "灵品龙妖的龙角，蕴含强大龙力", "🦄", 0.6),
         BeastMaterial("dragonCore1", "灵龙内丹", 2, 2, "core", "灵品龙妖的内丹，蕴含浓郁龙族灵力", "🔮", 0.4),
         // 宝品
         BeastMaterial("dragonScale2", "宝龙鳞", 3, 3, "scale", "宝品龙妖的鳞片，珍贵且蕴含强大龙威", "🐲", 0.6),
-        BeastMaterial("dragonBone2", "宝龙骨", 3, 3, "bone", "宝品龙妖的骨骼，坚不可摧", "🦴", 0.6),
+        BeastMaterial("dragonClaw2", "宝龙爪", 3, 3, "claw", "宝品龙妖的利爪，蕴含磅礴龙力", "🐾", 0.6),
         BeastMaterial("dragonHorn2", "宝龙角", 3, 3, "horn", "宝品龙妖的龙角，蕴含磅礴龙力", "🦄", 0.5),
         BeastMaterial("dragonCore2", "宝龙内丹", 3, 3, "core", "宝品龙妖的内丹，蕴含强大龙族之力", "🔮", 0.3),
         // 玄品
         BeastMaterial("dragonScale3", "玄龙鳞", 4, 4, "scale", "玄品龙妖的鳞片，蕴含玄妙龙威", "🐲", 0.4),
-        BeastMaterial("dragonBone3", "玄龙骨", 4, 4, "bone", "玄品龙妖的骨骼，蕴含玄妙龙力", "🦴", 0.4),
+        BeastMaterial("dragonClaw3", "玄龙爪", 4, 4, "claw", "玄品龙妖的利爪，蕴含玄妙龙力", "🐾", 0.4),
         BeastMaterial("dragonHorn3", "玄龙角", 4, 4, "horn", "玄品龙妖的龙角，蕴含玄妙龙威", "🦄", 0.3),
         BeastMaterial("dragonCore3", "玄龙内丹", 4, 4, "core", "玄品龙妖的内丹，蕴含玄妙龙族灵力", "🔮", 0.2),
         // 地品
         BeastMaterial("dragonScale4", "地龙鳞", 5, 5, "scale", "地品龙妖的鳞片，蕴含大地龙威", "🐲", 0.25),
-        BeastMaterial("dragonBone4", "地龙骨", 5, 5, "bone", "地品龙妖的骨骼，蕴含大地龙力", "🦴", 0.25),
+        BeastMaterial("dragonClaw4", "地龙爪", 5, 5, "claw", "地品龙妖的利爪，蕴含大地龙力", "🐾", 0.25),
         BeastMaterial("dragonHorn4", "地龙角", 5, 5, "horn", "地品龙妖的龙角，蕴含大地龙威", "🦄", 0.2),
         BeastMaterial("dragonCore4", "地龙内丹", 5, 5, "core", "地品龙妖的内丹，蕴含大地龙族灵力", "🔮", 0.12),
         // 天品
         BeastMaterial("dragonScale5", "天龙鳞", 6, 6, "scale", "天品龙妖的鳞片，蕴含天道龙威", "🐲", 0.12),
-        BeastMaterial("dragonBone5", "天龙骨", 6, 6, "bone", "天品龙妖的骨骼，蕴含天道龙力", "🦴", 0.12),
+        BeastMaterial("dragonClaw5", "天龙爪", 6, 6, "claw", "天品龙妖的利爪，蕴含天道龙力", "🐾", 0.12),
         BeastMaterial("dragonHorn5", "天龙角", 6, 6, "horn", "天品龙妖的龙角，蕴含天道龙威", "🦄", 0.1),
         BeastMaterial("dragonCore5", "天龙内丹", 6, 6, "core", "天品龙妖的内丹，蕴含天道龙族灵力", "🔮", 0.06),
 
@@ -261,32 +261,32 @@ object BeastMaterialDatabase {
         // 凡品
         BeastMaterial("turtleShell0", "凡龟壳", 1, 1, "shell", "凡品龟妖的龟壳，坚硬厚重", "🐢", 1.0),
         BeastMaterial("turtleBone0", "凡龟骨", 1, 1, "bone", "凡品龟妖的骨骼，厚重坚固", "🦴", 1.0),
-        BeastMaterial("turtlePlastron0", "凡龟甲", 1, 1, "plastron", "凡品龟妖的腹甲，防御力惊人", "🛡️", 0.8),
+        BeastMaterial("turtleBlood0", "凡龟血", 1, 1, "blood", "凡品龟妖的精血，蕴含厚重之力", "🩸", 0.8),
         BeastMaterial("turtleCore0", "凡龟内丹", 1, 1, "core", "凡品龟妖的内丹，蕴含厚重灵力", "🔮", 0.5),
         // 灵品
         BeastMaterial("turtleShell1", "灵龟壳", 2, 2, "shell", "灵品龟妖的龟壳，蕴含灵气与厚重", "🐢", 0.8),
         BeastMaterial("turtleBone1", "灵龟骨", 2, 2, "bone", "灵品龟妖的骨骼，坚如磐石", "🦴", 0.8),
-        BeastMaterial("turtlePlastron1", "灵龟甲", 2, 2, "plastron", "灵品龟妖的腹甲，防御惊人", "🛡️", 0.6),
+        BeastMaterial("turtleBlood1", "灵龟血", 2, 2, "blood", "灵品龟妖的精血，蕴含灵力与厚重", "🩸", 0.6),
         BeastMaterial("turtleCore1", "灵龟内丹", 2, 2, "core", "灵品龟妖的内丹，蕴含浓郁厚重灵力", "🔮", 0.4),
         // 宝品
         BeastMaterial("turtleShell2", "宝龟壳", 3, 3, "shell", "宝品龟妖的龟壳，珍贵且蕴含强大防御", "🐢", 0.6),
         BeastMaterial("turtleBone2", "宝龟骨", 3, 3, "bone", "宝品龟妖的骨骼，坚不可摧", "🦴", 0.6),
-        BeastMaterial("turtlePlastron2", "宝龟甲", 3, 3, "plastron", "宝品龟妖的腹甲，防御无双", "🛡️", 0.5),
+        BeastMaterial("turtleBlood2", "宝龟血", 3, 3, "blood", "宝品龟妖的精血，蕴含强大厚重之力", "🩸", 0.5),
         BeastMaterial("turtleCore2", "宝龟内丹", 3, 3, "core", "宝品龟妖的内丹，蕴含强大厚重之力", "🔮", 0.3),
         // 玄品
         BeastMaterial("turtleShell3", "玄龟壳", 4, 4, "shell", "玄品龟妖的龟壳，蕴含玄妙厚重之力", "🐢", 0.4),
         BeastMaterial("turtleBone3", "玄龟骨", 4, 4, "bone", "玄品龟妖的骨骼，蕴含玄妙坚固", "🦴", 0.4),
-        BeastMaterial("turtlePlastron3", "玄龟甲", 4, 4, "plastron", "玄品龟妖的腹甲，蕴含玄妙防御", "🛡️", 0.3),
+        BeastMaterial("turtleBlood3", "玄龟血", 4, 4, "blood", "玄品龟妖的精血，蕴含玄妙厚重", "🩸", 0.3),
         BeastMaterial("turtleCore3", "玄龟内丹", 4, 4, "core", "玄品龟妖的内丹，蕴含玄妙厚重灵力", "🔮", 0.2),
         // 地品
         BeastMaterial("turtleShell4", "地龟壳", 5, 5, "shell", "地品龟妖的龟壳，蕴含大地厚重之力", "🐢", 0.25),
         BeastMaterial("turtleBone4", "地龟骨", 5, 5, "bone", "地品龟妖的骨骼，蕴含大地坚固", "🦴", 0.25),
-        BeastMaterial("turtlePlastron4", "地龟甲", 5, 5, "plastron", "地品龟妖的腹甲，蕴含大地防御", "🛡️", 0.2),
+        BeastMaterial("turtleBlood4", "地龟血", 5, 5, "blood", "地品龟妖的精血，蕴含大地厚重", "🩸", 0.2),
         BeastMaterial("turtleCore4", "地龟内丹", 5, 5, "core", "地品龟妖的内丹，蕴含大地厚重灵力", "🔮", 0.12),
         // 天品
         BeastMaterial("turtleShell5", "天龟壳", 6, 6, "shell", "天品龟妖的龟壳，蕴含天道厚重之力", "🐢", 0.12),
         BeastMaterial("turtleBone5", "天龟骨", 6, 6, "bone", "天品龟妖的骨骼，蕴含天道坚固", "🦴", 0.12),
-        BeastMaterial("turtlePlastron5", "天龟甲", 6, 6, "plastron", "天品龟妖的腹甲，蕴含天道防御", "🛡️", 0.1),
+        BeastMaterial("turtleBlood5", "天龟血", 6, 6, "blood", "天品龟妖的精血，蕴含天道厚重", "🩸", 0.1),
         BeastMaterial("turtleCore5", "天龟内丹", 6, 6, "core", "天品龟妖的内丹，蕴含天道厚重灵力", "🔮", 0.06)
     )
     
