@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.90",
+            date = "2026-06-01",
+            changes = listOf(
+                "修复结算期间玩家操作丢失漏洞（swapFromShadow补充）：v3.1.87的三路合并遗漏了库存字段和经济字段。商人购买/一键售卖/赏赐弟子等操作在月切结算完成后回退——购买物品消失且灵石回退、售卖物品回来且灵石减少被撤销。改为库存全量从主状态保留、灵石三路delta合并（主状态变化+结算变化同时保留）、商人商品和挂售物品从主状态保留。弟子任命槽位/自动装备学习/生产槽位经验证不受影响",
+                "swapFromShadow pendingNotification改为纯主状态取值，避免结算期间已清除的通知被复活"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.89",
             date = "2026-06-01",
             changes = listOf(

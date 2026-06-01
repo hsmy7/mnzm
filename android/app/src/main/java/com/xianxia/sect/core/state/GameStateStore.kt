@@ -340,28 +340,37 @@ class GameStateStore @Inject constructor(
                 // 时间字段
                 gamePhase = oldState.gameData.gamePhase,
                 gameMonth = oldState.gameData.gameMonth,
-                gameYear = oldState.gameData.gameYear
+                gameYear = oldState.gameData.gameYear,
+                // 经济与商人（玩家在结算期间可修改的字段）
+                // spiritStones: 三路delta合并 —— 保留玩家买卖+结算灵矿/薪酬/政策
+                spiritStones = if (origin != null) {
+                    oldState.gameData.spiritStones + (shadow.gameData.spiritStones - origin.gameData.spiritStones)
+                } else {
+                    oldState.gameData.spiritStones
+                },
+                travelingMerchantItems = oldState.gameData.travelingMerchantItems,
+                playerListedItems = oldState.gameData.playerListedItems
             )
 
             UnifiedGameState(
                 gameData = mergedGameData,
                 disciples = mergedDisciples,
-                equipmentStacks = shadow.equipmentStacks,
-                equipmentInstances = shadow.equipmentInstances,
-                manualStacks = shadow.manualStacks,
-                manualInstances = shadow.manualInstances,
-                pills = shadow.pills,
-                materials = shadow.materials,
-                herbs = shadow.herbs,
-                seeds = shadow.seeds,
+                equipmentStacks = oldState.equipmentStacks,
+                equipmentInstances = oldState.equipmentInstances,
+                manualStacks = oldState.manualStacks,
+                manualInstances = oldState.manualInstances,
+                pills = oldState.pills,
+                materials = oldState.materials,
+                herbs = oldState.herbs,
+                seeds = oldState.seeds,
                 teams = shadow.teams,
                 battleLogs = shadow.battleLogs,
-                alliances = shadow.gameData.alliances,
+                alliances = mergedGameData.alliances,
                 isPaused = finalPaused,
                 isLoading = finalLoading,
                 isSaving = finalSaving,
                 pendingBattleResult = oldState.pendingBattleResult,
-                pendingNotification = shadow.pendingNotification ?: oldState.pendingNotification
+                pendingNotification = oldState.pendingNotification
             )
         }
         shadowOrigin = null

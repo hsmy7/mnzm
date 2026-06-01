@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.90] - 2026-06-01
+
+### 修复
+- **结算期间玩家操作丢失漏洞（swapFromShadow 补充）**：v3.1.87 的三路合并遗漏了库存字段和经济字段，月初结算完成后以下操作回退：
+  - **商人购买后物品消失、数量重置**：`travelingMerchantItems`/`playerListedItems` 被影子旧值覆盖，购买的库存物品（`equipmentStacks`/`pills`/`materials`/`herbs`/`seeds`/`manualStacks`）被影子旧值覆盖
+  - **售卖后物品回来、灵石减少被撤销**：库存减少回退 + `spiritStones` 回退，玩家凭空获利
+  - **赏赐弟子后物品回到仓库**：库存减少回退，弟子 `skills`/`pillEffects` 可能被结算覆盖
+  - **修复方案**：库存 8 个字段全部从主状态保留；灵石三路 delta 合并（`主状态变化 + 结算灵矿/薪酬/政策变化`）；商人商品和挂售物品从主状态保留。`alliances` 改为从 `mergedGameData` 取值，`pendingNotification` 改为纯主状态取值。经验证弟子任命槽位/自动装备学习/生产槽位不受影响
+
 ## [3.1.89] - 2026-06-01
 
 ### 优化
