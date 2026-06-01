@@ -258,32 +258,29 @@ private fun MailDetailPanel(
     mail: MailEntity,
     onClaim: () -> Unit
 ) {
+    val attachments: List<MailAttachment> = remember(mail.attachments) {
+        if (mail.hasAttachment && !mail.attachmentClaimed) {
+            try { mailJson.decodeFromString<List<MailAttachment>>(mail.attachments) }
+            catch (_: Exception) { emptyList() }
+        } else emptyList()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        // 标题区
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PanelBg, RoundedCornerShape(4.dp))
                 .padding(8.dp)
         ) {
-            Text(
-                text = mail.title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Text(
-                text = "发件人: ${mail.senderName}",
-                fontSize = 10.sp,
-                color = Color.Gray
-            )
+            Text(mail.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("发件人: ${mail.senderName}", fontSize = 10.sp, color = Color.Gray)
         }
 
-        HorizontalDivider(
-            thickness = 1.dp,
-            color = Color(0xFFBDBDBD),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-        )
+        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
 
+        // 内容 + 附件合并区
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -291,74 +288,42 @@ private fun MailDetailPanel(
                 .padding(8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                "亲爱的道友，",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
+            Text("亲爱的道友，", fontSize = 12.sp, color = Color.Black)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = mail.content,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
+            Text(mail.content, fontSize = 12.sp, color = Color.Black)
 
-        if (mail.hasAttachment) {
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = Color(0xFFBDBDBD),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(PanelBg, RoundedCornerShape(4.dp))
-                    .padding(8.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                if (!mail.attachmentClaimed) {
-                    val attachments: List<MailAttachment> = try {
-                        mailJson.decodeFromString(mail.attachments)
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-
-                    if (attachments.isNotEmpty()) {
-                        Text(
-                            "附件",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
+            if (attachments.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("附件", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    attachments.forEach { attachment ->
+                        UnifiedItemCard(
+                            data = ItemCardData(
+                                id = attachment.itemId ?: "",
+                                name = attachment.name,
+                                rarity = attachment.rarity,
+                                quantity = attachment.quantity,
+                                type = attachment.type,
+                                isSpiritStone = attachment.type == "spiritStones",
+                                isPill = attachment.type == "pill",
+                                isMaterial = attachment.type in listOf("material", "herb", "seed"),
+                                isBag = attachment.type == "storageBag"
+                            ),
+                            showQuantity = true
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            attachments.forEach { attachment ->
-                                UnifiedItemCard(
-                                    data = ItemCardData(
-                                        id = attachment.itemId ?: "",
-                                        name = attachment.name,
-                                        rarity = attachment.rarity,
-                                        quantity = attachment.quantity,
-                                        type = attachment.type
-                                    ),
-                                    showQuantity = true
-                                )
-                            }
-                        }
                     }
                 }
             }
+        }
 
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = Color(0xFFBDBDBD),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-            )
+        // 按钮区
+        if (mail.hasAttachment) {
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
 
             Box(
                 modifier = Modifier
@@ -368,17 +333,9 @@ private fun MailDetailPanel(
                 contentAlignment = Alignment.Center
             ) {
                 if (!mail.attachmentClaimed) {
-                    GameButton(
-                        text = "领取",
-                        onClick = onClaim
-                    )
+                    GameButton(text = "领取", onClick = onClaim)
                 } else {
-                    Text(
-                        "已领取",
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
+                    Text("已领取", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
                 }
             }
         }
