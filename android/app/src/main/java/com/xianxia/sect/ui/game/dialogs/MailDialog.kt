@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -261,6 +262,7 @@ private fun MailCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MailDetailPanel(
     mail: MailEntity,
@@ -274,26 +276,24 @@ private fun MailDetailPanel(
         } else emptyList()
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // 标题 + 内容 + 按钮共享一个底色面板
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PanelBg, RoundedCornerShape(4.dp)),
+    ) {
         // 标题区
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PanelBg, RoundedCornerShape(4.dp))
-                .padding(8.dp)
-        ) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Text(mail.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             Text("发件人: ${mail.senderName}", fontSize = 10.sp, color = Color.Gray)
         }
 
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
 
         // 内容 + 附件合并区
         Column(
             modifier = Modifier
                 .weight(1f)
-                .background(PanelBg, RoundedCornerShape(4.dp))
                 .padding(8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -306,19 +306,21 @@ private fun MailDetailPanel(
                 Text("附件", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 Spacer(modifier = Modifier.height(4.dp))
                 if (mail.attachmentClaimed) {
-                    // 已领取：显示物品卡片，精灵图替换为"已领"文本
-                    Row(
+                    // 已领取：物品卡片结构不变，仅精灵图替换为"已领"
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         attachments.forEach { attachment ->
                             ClaimedAttachmentCard(attachment)
                         }
                     }
                 } else {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         attachments.forEach { attachment ->
                             UnifiedItemCard(
@@ -343,13 +345,10 @@ private fun MailDetailPanel(
 
         // 按钮区 — 领取后不再显示
         if (mail.hasAttachment && !mail.attachmentClaimed) {
-            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(PanelBg, RoundedCornerShape(4.dp))
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -360,8 +359,8 @@ private fun MailDetailPanel(
 }
 
 /**
- * 已领取附件的物品卡片：精灵图区域替换为"已领"文本，名称和数量保持显示。
- * 参考战斗详情中弟子阵亡的覆盖模式（仅覆盖精灵图，不覆盖名称）。
+ * 已领取附件的物品卡片：布局与 UnifiedItemCard 完全一致，
+ * 仅精灵图替换为绿色"已领"文本，名称和数量不变。
  */
 @Composable
 private fun ClaimedAttachmentCard(attachment: MailAttachment) {
@@ -375,7 +374,7 @@ private fun ClaimedAttachmentCard(attachment: MailAttachment) {
                 .clip(RoundedCornerShape(6.dp))
                 .border(2.dp, GameColors.Border, RoundedCornerShape(6.dp))
         ) {
-            // 精灵图区域 → 替换为"已领"文本
+            // 精灵图区域（与 UnifiedItemCard 比例一致）
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -389,28 +388,32 @@ private fun ClaimedAttachmentCard(attachment: MailAttachment) {
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF4CAF50)
                 )
+                // 数量角标（与 UnifiedItemCard 一致：右下角白字）
+                Text(
+                    text = "${attachment.quantity}",
+                    fontSize = 8.sp,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 3.dp, bottom = 2.dp)
+                )
             }
-            // 名称 + 数量
-            Row(
+            // 名称区域（与 UnifiedItemCard 一致：14dp 白色背景黑字）
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(GameColors.PageBackground)
-                    .padding(horizontal = 2.dp, vertical = 1.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .height(14.dp)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = attachment.name,
-                    fontSize = 7.sp,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "×${attachment.quantity}",
-                    fontSize = 7.sp,
-                    color = Color.Gray
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
             }
         }

@@ -326,6 +326,7 @@ internal fun WarehouseTab(
                                                 is Material -> item.quantity
                                                 is Herb -> item.quantity
                                                 is Seed -> item.quantity
+                                                is StorageBag -> item.quantity
                                                 is SpiritStoneInfo -> item.quantity.toInt()
                                                 else -> 1
                                             },
