@@ -97,43 +97,39 @@ private fun FloatingActionButton(
     onClick: () -> Unit
 ) {
     val size = 35.dp
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Image(
-            painter = painterResource(id = drawableRes),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Text(
-            text = text,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
+    Box {
+        // 按钮本体
+        Box(
             modifier = Modifier
-                .padding(horizontal = 3.dp, vertical = 1.dp)
-        )
+                .size(size)
+                .clip(CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Image(
+                painter = painterResource(id = drawableRes),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Text(
+                text = text,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier
+                    .padding(horizontal = 3.dp, vertical = 1.dp)
+            )
+        }
+        // 红点角标（按钮外部右上方，不接触屏幕顶部）
         if (badge > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 2.dp, y = (-2).dp)
-                    .background(Color.Red, RoundedCornerShape(50))
-                    .padding(horizontal = 3.dp, vertical = 1.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (badge > 99) "99+" else badge.toString(),
-                    color = Color.White,
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                    .offset(x = 2.dp, y = (-4).dp)
+                    .size(7.dp)
+                    .background(Color.Red, CircleShape)
+            )
         }
     }
 }
