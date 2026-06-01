@@ -59,4 +59,7 @@ interface MailDao {
 
     @Query("DELETE FROM mails WHERE slotId = :slotId")
     suspend fun deleteAllForSlot(slotId: Int)
+
+    @Query("DELETE FROM mails WHERE id = :builtinId AND source = 'builtin'")
+    suspend fun deleteByBuiltinId(builtinId: String)
 }

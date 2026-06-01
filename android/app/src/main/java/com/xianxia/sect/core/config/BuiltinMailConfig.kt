@@ -9,6 +9,8 @@ object BuiltinMailConfig {
         val content: String,
         val mailType: String,
         val minVersion: Int,
+        /** 限时截止时间戳(ms)，0=不限时。超过此时间新老玩家均不再显示此邮件 */
+        val deadlineMs: Long = 0,
         val attachments: List<MailAttachment>
     )
 
@@ -19,6 +21,7 @@ object BuiltinMailConfig {
             content = "道友安好！\n\n宗门邮件系统已正式上线，今后所有版本更新补偿、活动奖励、节日福利等均将通过邮件发放，敬请留意查收。\n\n本次奉上薄礼一份，愿道友修仙之路越走越宽。\n\n——天道意志",
             mailType = "reward",
             minVersion = 3196,
+            deadlineMs = 1781568000000L, // 2026-06-16 00:00 UTC (发布日起14天)
             attachments = listOf(
                 MailAttachment(type = "storageBag", name = "宝品储物袋", quantity = 3, rarity = 3)
             )
