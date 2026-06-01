@@ -201,7 +201,7 @@ internal fun DiplomacySectCard(
                         Image(
                             painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(sect.level)),
                             contentDescription = sect.levelName,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                         Text(
                             text = sect.name,
