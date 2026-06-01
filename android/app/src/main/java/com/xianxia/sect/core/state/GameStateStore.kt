@@ -569,6 +569,7 @@ class GameStateStore @Inject constructor(
                         materials = reusableMutableState.materials,
                         herbs = reusableMutableState.herbs,
                         seeds = reusableMutableState.seeds,
+                        storageBags = reusableMutableState.storageBags,
                         teams = reusableMutableState.teams,
                         battleLogs = reusableMutableState.battleLogs,
                         alliances = reusableMutableState.gameData.alliances,
