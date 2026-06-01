@@ -878,17 +878,9 @@ class GameViewModel @Inject constructor(
 
     private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val mails: StateFlow<List<MailEntity>> = gameEngine.gameData
-        .map { it.slotId }
-        .flatMapLatest { slotId -> mailService.getActiveMails(slotId) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val mails: StateFlow<List<MailEntity>> get() = mailService.activeMails
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val mailUnreadCount: StateFlow<Int> = gameEngine.gameData
-        .map { it.slotId }
-        .flatMapLatest { slotId -> mailService.getUnreadCount(slotId) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val mailUnreadCount: StateFlow<Int> get() = mailService.unreadCount
 
     fun markMailAsRead(mailId: String) {
         viewModelScope.launch {

@@ -18,6 +18,9 @@ import com.xianxia.sect.data.local.MailDao
 import com.xianxia.sect.network.SecureHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,6 +66,22 @@ class MailService @Inject constructor(
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
+
+    // 主动推送的邮件列表，避免 flatMapLatest 响应链失效
+    private val _activeMails = MutableStateFlow<List<MailEntity>>(emptyList())
+    val activeMails: StateFlow<List<MailEntity>> = _activeMails.asStateFlow()
+
+    private val _unreadCount = MutableStateFlow(0)
+    val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
+    private var currentSlot: Int = -1
+
+    private suspend fun refreshActiveMails(slotId: Int) {
+        currentSlot = slotId
+        val now = System.currentTimeMillis()
+        _activeMails.value = mailDao.getActiveMails(slotId, now).first()
+        _unreadCount.value = _activeMails.value.count { !it.isRead }
+    }
 
     private fun getMutex(slotId: Int): Mutex {
         return slotMutexes.getOrPut(slotId) { Mutex() }
@@ -192,6 +211,7 @@ class MailService @Inject constructor(
             }
 
             mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
+            refreshActiveMails(slotId)
             ClaimResult.Success(attachments)
         }
     }
@@ -220,6 +240,7 @@ class MailService @Inject constructor(
                 }
             }
 
+            refreshActiveMails(slotId)
             MarkAllReadResult(claimedCount, skippedCount, skipReasons)
         }
     }
@@ -249,6 +270,7 @@ class MailService @Inject constructor(
         }
 
         mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
+        refreshActiveMails(slotId)
         return ClaimResult.Success(attachments)
     }
 
@@ -507,6 +529,7 @@ class MailService @Inject constructor(
                 loadBuiltinMails(slotId)
                 cleanExpired(slotId)
                 Log.i(TAG, "resetAndInitSlot DONE for slot $slotId")
+                refreshActiveMails(slotId)
             } catch (e: Exception) {
                 Log.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
             }
