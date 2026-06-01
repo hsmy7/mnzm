@@ -1,5 +1,16 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.94] - 2026-06-01
+
+### 修复
+- **结算影子合并全线加固**：`swapFromShadow()` 白名单遗漏导致玩家在结算期间的操作被影子状态覆盖。14 个受影响字段全部添加正确的三路合并逻辑——worldLevels（妖兽击败后恢复）、usedRedeemCodes（兑换码重复使用）、游戏设置（gameSpeed/存档间隔等）、recruitList（招募列表）、activeMissions（任务）、alliances（盟约）、sectRelations（宗门关系）、worldMapSects（驻守/占领）、sectDetails（交易/侦查）、manualProficiencies（功法熟练度）、aiSectDisciples（AI弟子伤亡）、spiritFieldPlants（灵田种植）、productionSlots（生产槽位）
+- **灵田种植丢失**：`spiritFieldPlants` 注解为 USE_SHADOW 但玩家可种植/收获/移除，改为 CUSTOM 三路合并
+- **兑换码无限复用**：`usedRedeemCodes` 未在结算合并中保留，物品发放但码未记录，重启后可重复兑换
+
+### 架构
+- **@SettlementStrategy 注解系统**：GameData 72 个字段全部标注合并策略（PRESERVE_OLD/USE_SHADOW/DELTA/THREE_WAY_ID/CUSTOM），灵感来自 Microsoft Research Concurrent Revisions 论文的 Isolation Types 模式。策略声明与字段定义同在一处，无需维护第二份白名单
+- **GameDataSettlementCoverageTest 安全网**：Kotlin 反射遍历 GameData 全部属性，缺失 @SettlementStrategy 注解则测试失败。新增字段不写注解 → CI 变红 → 强制声明策略 → 从根本上杜绝同类 bug
+
 ## [3.1.93] - 2026-06-01
 
 ### 修复

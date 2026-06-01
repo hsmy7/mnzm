@@ -7,6 +7,8 @@ import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.state.SettlementStrategy
+import com.xianxia.sect.core.state.Strategy
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -26,32 +28,46 @@ import kotlinx.serialization.Transient
 )
 data class GameData(
     @ColumnInfo(name = "id")
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var id: String = "",
 
     @ColumnInfo(name = "slot_id")
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var slotId: Int = 0,
 
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var sectName: String = "青云宗",
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var currentSlot: Int = 1,
 
-    // 游戏时间
+    // 游戏时间（tick已推进，shadow也同步推进，保留oldState安全）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameYear: Int = 1,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameMonth: Int = 1,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gamePhase: Int = 0,  // 0=上旬, 1=中旬, 2=下旬
 
     // 游戏状态
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var isGameStarted: Boolean = false,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameSpeed: Int = 1,
 
     // 资源
+    @SettlementStrategy(Strategy.DELTA)
     var spiritStones: Long = 1000,
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var spiritHerbs: Int = 0,
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var sectCultivation: Double = 0.0,
 
     // 自动存档设置（月数，0为停止）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSaveIntervalMonths: Int = 3,
 
     // 月俸配置
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var monthlySalary: Map<Int, Int> = mapOf(
         9 to 20,   // 练气
         8 to 60,   // 筑基
@@ -66,6 +82,7 @@ data class GameData(
     ),
 
     // 月俸发放开关（按境界）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var monthlySalaryEnabled: Map<Int, Boolean> = mapOf(
         9 to true,
         8 to true,
@@ -80,156 +97,213 @@ data class GameData(
     ),
 
     // 世界地图宗门
+    @SettlementStrategy(Strategy.CUSTOM)
     var worldMapSects: List<WorldSect> = emptyList(),
 
     // 宗门详情（重型交互数据，按需访问）
+    @SettlementStrategy(Strategy.CUSTOM)
     var sectDetails: Map<String, SectDetail> = emptyMap(),
 
+    @SettlementStrategy(Strategy.CUSTOM)
     var aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
 
     // 已探索宗门信息
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var exploredSects: Map<String, ExploredSectInfo> = emptyMap(),
 
     // 宗门侦查信息
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var scoutInfo: Map<String, SectScoutInfo> = emptyMap(),
 
+    @SettlementStrategy(Strategy.CUSTOM)
     var manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
 
     // 旅行商人
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var travelingMerchantItems: List<MerchantItem> = emptyList(),
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var merchantLastRefreshYear: Int = 0,
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var merchantRefreshCount: Int = 0,
 
     // 玩家上架商品
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerListedItems: List<MerchantItem> = emptyList(),
 
     // 弟子招募（存储完整弟子对象，仅包含可招募但未正式招募的弟子）
+    @SettlementStrategy(Strategy.THREE_WAY_ID)
     var recruitList: List<Disciple> = emptyList(),
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var lastRecruitYear: Int = 0,
 
     // 世界关卡（妖兽+洞府统一池子）
+    @SettlementStrategy(Strategy.CUSTOM)
     var worldLevels: List<WorldLevel> = emptyList(),
 
     // 修士洞府（保留兼容）
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var cultivatorCaves: List<CultivatorCave> = emptyList(),
 
     // 洞府探索队伍（保留兼容）
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
 
     // AI洞府探索队伍（保留兼容）
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var aiCaveTeams: List<AICaveTeam> = emptyList(),
 
     // 解锁的副本
     // unlockedDungeons removed — replaced by world level system
 
     // 解锁的配方
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var unlockedRecipes: List<String> = emptyList(),
 
     // 解锁的功法
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var unlockedManuals: List<String> = emptyList(),
 
     // 最后保存时间（仅用于存档列表显示，不用于离线时间差计算。游戏无离线进度机制）
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var lastSaveTime: Long = 0L,
 
     // 长老槽位
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var elderSlots: ElderSlots = ElderSlots(),
 
     // 灵矿槽位
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var spiritMineSlots: List<SpiritMineSlot> = emptyList(),
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var spiritMineExpansions: Int = 0,
 
     // 藏经阁弟子槽位（独立3个）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var librarySlots: List<LibrarySlot> = emptyList(),
 
     @Deprecated(
         message = "生产槽位数据已迁移到 ProductionSlotRepository，请使用 GameEngine.productionSlots 或 Repository API 读写",
         replaceWith = ReplaceWith("使用 ProductionSlotRepository.updateSlot() / getSlots() 或 GameEngine.productionSlots")
     )
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var productionSlots: List<ProductionSlot> = emptyList(),
 
     // 已放置建筑（网格坐标）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var placedBuildings: List<GridBuildingData> = emptyList(),
 
     // 灵田种植状态
+    @SettlementStrategy(Strategy.CUSTOM)
     var spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
 
     // 当前活跃宗门ID（"" = 主宗门）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var activeSectId: String = "",
 
     // 住所槽位
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var residenceSlots: List<ResidenceSlot> = emptyList(),
 
     // 仓库驻守槽位
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var warehouseGarrisons: List<WarehouseGarrisonSlot> = emptyList(),
 
     // 巡视楼
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolSlots: List<PatrolSlot> = emptyList(),
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolConfig: PatrolConfig = PatrolConfig(),
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolConfigs: List<PatrolConfig> = emptyList(),
 
     // 结盟关系
+    @SettlementStrategy(Strategy.THREE_WAY_ID)
     var alliances: List<Alliance> = emptyList(),
 
     // AI 宗门间关系
+    @SettlementStrategy(Strategy.CUSTOM)
     var sectRelations: List<SectRelation> = emptyList(),
 
     // 玩家最大结盟数量
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var playerAllianceSlots: Int = 3,
 
     // 宗门政策
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var sectPolicies: SectPolicies = SectPolicies(),
 
     // 战斗队伍（支持多队伍）
     // battleTeam 保留用于 Room schema 兼容旧存档，逻辑层使用 battleTeams
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var battleTeam: BattleTeam? = null,
 
     @Ignore
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var battleTeams: List<BattleTeam> = emptyList(),
 
     // 已使用的队伍编号（用于解散后编号复用）
     @Ignore
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var usedTeamNumbers: List<Int> = emptyList(),
 
     // AI战斗队伍
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var aiBattleTeams: List<AIBattleTeam> = emptyList(),
 
     // 已使用的兑换码列表（使用 LinkedHashSet 去重 + 上限保护）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var usedRedeemCodes: List<String> = emptyList(),
 
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionEnabled: Boolean = true,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionStartYear: Int = 1,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerHasAttackedAI: Boolean = false,
 
     // 任务阁系统
+    @SettlementStrategy(Strategy.THREE_WAY_ID)
     var activeMissions: List<ActiveMission> = emptyList(),
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var availableMissions: List<Mission> = emptyList(),
 
     // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
     // smartBattleEnabled removed — replaced by world level system
 
     // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
 
     // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var daoCompanionBannedRootCounts: Set<Int> = emptySet(),
 
     // 道侣管理：结婚需玩家同意
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var daoCompanionConsentRequired: Boolean = false,
 
     // 巡视楼战斗后展示结算弹窗
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolBattleResultPopup: Boolean = false,
 
     // 弟子管理：突破自动使用仓库丹药
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var breakthroughAutoPillFocused: Boolean = false,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var breakthroughAutoPillRootCounts: Set<Int> = emptySet(),
     // 弟子管理：自动装备仓库装备
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoEquipFromWarehouseFocused: Boolean = false,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoEquipFromWarehouseRootCounts: Set<Int> = emptySet(),
     // 弟子管理：自动学习仓库功法
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoLearnFromWarehouseFocused: Boolean = false,
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoLearnFromWarehouseRootCounts: Set<Int> = emptySet(),
 
+    @SettlementStrategy(Strategy.USE_SHADOW)
     var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"

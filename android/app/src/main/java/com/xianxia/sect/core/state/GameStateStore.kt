@@ -237,6 +237,99 @@ class GameStateStore @Inject constructor(
 
     private var shadowOrigin: UnifiedGameState? = null
 
+    // CUSTOM 字段的合并函数（origin, shadow, oldState → 合并后的值）
+    // 策略声明见 GameData.kt 各字段的 @SettlementStrategy 注解
+    private val customGameDataMergers: Map<String, (GameData, GameData, GameData) -> Any?> = mapOf(
+        "worldLevels" to { origin, shadow, oldState ->
+            val oldLevelMap = oldState.worldLevels.associateBy { it.id }
+            shadow.worldLevels.map { sl ->
+                val ol = oldLevelMap[sl.id]
+                if (ol != null && ol.defeated && !sl.defeated) sl.copy(defeated = true) else sl
+            }
+        },
+        "worldMapSects" to { origin, shadow, oldState ->
+            val originMap = origin.worldMapSects.associateBy { it.id }
+            shadow.worldMapSects.map { ss ->
+                val os = originMap[ss.id]
+                val ms = oldState.worldMapSects.find { it.id == ss.id }
+                if (os != null && ms != null) ss.copy(
+                    garrisonSlots = ms.garrisonSlots,
+                    isPlayerOccupied = ms.isPlayerOccupied,
+                    occupierSectId = ms.occupierSectId,
+                    occupierBattleTeamId = ms.occupierBattleTeamId
+                ) else ss
+            }
+        },
+        "sectDetails" to { origin, shadow, oldState ->
+            val originDetails = origin.sectDetails
+            val result = shadow.sectDetails.toMutableMap()
+            for ((sectId, oldDetail) in oldState.sectDetails) {
+                val originDetail = originDetails[sectId]
+                val shadowDetail = result[sectId]
+                if (originDetail != null && shadowDetail != null) {
+                    val tradeChanged = oldDetail.tradeItems !== originDetail.tradeItems
+                    val scoutChanged = oldDetail.scoutInfo !== originDetail.scoutInfo
+                    if (tradeChanged || scoutChanged) {
+                        result[sectId] = shadowDetail.copy(
+                            tradeItems = if (tradeChanged) oldDetail.tradeItems else shadowDetail.tradeItems,
+                            scoutInfo = if (scoutChanged) oldDetail.scoutInfo else shadowDetail.scoutInfo
+                        )
+                    }
+                }
+            }
+            result
+        },
+        "sectRelations" to { origin, shadow, oldState ->
+            val originMap = origin.sectRelations.associateBy { "${it.sectId1}_${it.sectId2}" }
+            shadow.sectRelations.map { sr ->
+                val or = originMap["${sr.sectId1}_${sr.sectId2}"]
+                val mr = oldState.sectRelations.find { it.sectId1 == sr.sectId1 && it.sectId2 == sr.sectId2 }
+                if (or != null && mr != null) sr.copy(favor = mr.favor + (sr.favor - or.favor))
+                else if (mr != null) mr else sr
+            }
+        },
+        "manualProficiencies" to { origin, shadow, oldState ->
+            val originKeys = origin.manualProficiencies.keys
+            val oldKeys = oldState.manualProficiencies.keys
+            val result = shadow.manualProficiencies.toMutableMap()
+            result.keys.removeAll(originKeys - oldKeys)  // 玩家删除的
+            for (key in oldKeys - originKeys) {           // 玩家新增的
+                if (key !in result) result[key] = oldState.manualProficiencies[key]!!
+            }
+            result
+        },
+        "aiSectDisciples" to { origin, shadow, oldState ->
+            val result = shadow.aiSectDisciples.toMutableMap()
+            for ((sectId, shadowList) in result.toMap()) {
+                val originList = origin.aiSectDisciples[sectId]
+                val oldList = oldState.aiSectDisciples[sectId]
+                if (originList != null && oldList != null && originList !== oldList) {
+                    result[sectId] = oldList
+                }
+            }
+            result
+        },
+        "spiritFieldPlants" to { origin, shadow, oldState ->
+            val originIds = origin.spiritFieldPlants.map { it.buildingInstanceId }.toSet()
+            val oldIds = oldState.spiritFieldPlants.map { it.buildingInstanceId }.toSet()
+            val shadowMap = shadow.spiritFieldPlants.associateBy { it.buildingInstanceId }
+            val result = shadow.spiritFieldPlants.toMutableList()
+            // 玩家在结算期间种植的（oldState 有，origin 无）
+            for (plant in oldState.spiritFieldPlants) {
+                if (plant.buildingInstanceId !in originIds && plant.buildingInstanceId !in shadowMap) {
+                    result.add(plant)
+                }
+            }
+            // 玩家在结算期间移除的（origin 有，oldState 无）
+            val removedByPlayer = originIds - oldIds
+            if (removedByPlayer.isNotEmpty()) {
+                result.filter { it.buildingInstanceId !in removedByPlayer }
+            } else {
+                result
+            }
+        },
+    )
+
     fun createShadow(): MutableGameState {
         val current = _state.value
         shadowOrigin = current  // 保存原始状态，swap 时用于三路合并
@@ -315,48 +408,9 @@ class GameStateStore @Inject constructor(
             }
             }
 
-            // gameData 合并：从 shadow 取结算后的完整数据，但保留玩家可能修改的字段
-            val mergedGameData = shadow.gameData.copy(
-                // 建筑与槽位分配
-                placedBuildings = oldState.gameData.placedBuildings,
-                elderSlots = oldState.gameData.elderSlots,
-                librarySlots = oldState.gameData.librarySlots,
-                residenceSlots = oldState.gameData.residenceSlots,
-                spiritMineSlots = oldState.gameData.spiritMineSlots,
-                patrolSlots = oldState.gameData.patrolSlots,
-                patrolConfig = oldState.gameData.patrolConfig,
-                patrolConfigs = oldState.gameData.patrolConfigs,
-                warehouseGarrisons = oldState.gameData.warehouseGarrisons,
-                // 政策与设置
-                sectPolicies = oldState.gameData.sectPolicies,
-                monthlySalary = oldState.gameData.monthlySalary,
-                monthlySalaryEnabled = oldState.gameData.monthlySalaryEnabled,
-                autoRecruitSpiritRootFilter = oldState.gameData.autoRecruitSpiritRootFilter,
-                daoCompanionBannedRootCounts = oldState.gameData.daoCompanionBannedRootCounts,
-                daoCompanionConsentRequired = oldState.gameData.daoCompanionConsentRequired,
-                breakthroughAutoPillFocused = oldState.gameData.breakthroughAutoPillFocused,
-                breakthroughAutoPillRootCounts = oldState.gameData.breakthroughAutoPillRootCounts,
-                autoEquipFromWarehouseFocused = oldState.gameData.autoEquipFromWarehouseFocused,
-                autoEquipFromWarehouseRootCounts = oldState.gameData.autoEquipFromWarehouseRootCounts,
-                autoLearnFromWarehouseFocused = oldState.gameData.autoLearnFromWarehouseFocused,
-                autoLearnFromWarehouseRootCounts = oldState.gameData.autoLearnFromWarehouseRootCounts,
-                // 战斗队伍
-                battleTeams = oldState.gameData.battleTeams,
-                usedTeamNumbers = oldState.gameData.usedTeamNumbers,
-                // 时间字段
-                gamePhase = oldState.gameData.gamePhase,
-                gameMonth = oldState.gameData.gameMonth,
-                gameYear = oldState.gameData.gameYear,
-                // 经济与商人（玩家在结算期间可修改的字段）
-                // spiritStones: 三路delta合并 —— 保留玩家买卖+结算灵矿/薪酬/政策
-                spiritStones = if (origin != null) {
-                    oldState.gameData.spiritStones + (shadow.gameData.spiritStones - origin.gameData.spiritStones)
-                } else {
-                    oldState.gameData.spiritStones
-                },
-                travelingMerchantItems = oldState.gameData.travelingMerchantItems,
-                playerListedItems = oldState.gameData.playerListedItems
-            )
+            // gameData 合并：每个字段的策略见 GameData.kt 的 @SettlementStrategy 注解
+            // 测试 GameDataSettlementCoverageTest 反射校验全覆盖，缺少注解 → 编译失败
+            val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldState.gameData)
 
             UnifiedGameState(
                 gameData = mergedGameData,
@@ -643,6 +697,102 @@ class GameStateStore @Inject constructor(
             _isLoading.value = false
             _isSaving.value = false
         }
+    }
+
+    // ==================== GameData 策略表驱动合并 ====================
+
+    /**
+     * 根据 GameData 各字段的 @SettlementStrategy 注解合并。
+     * origin=null 时无结算在进行，直接返回 oldState。
+     */
+    private fun mergeGameData(origin: GameData?, shadow: GameData, oldState: GameData): GameData {
+        if (origin == null) return oldState
+        val c = customGameDataMergers
+
+        // THREE_WAY_ID 通用合并：shadow 做底 + 玩家新增 - 玩家删除
+        fun <T> threeWayId(
+            originList: List<T>, shadowList: List<T>, oldList: List<T>,
+            idSelector: (T) -> String
+        ): List<T> {
+            val originIds = originList.map(idSelector).toSet()
+            val shadowIds = shadowList.map(idSelector).toSet()
+            val oldIds = oldList.map(idSelector).toSet()
+            val result = shadowList.toMutableList()
+            // 玩家新增
+            for (item in oldList) {
+                if (idSelector(item) !in originIds && idSelector(item) !in shadowIds)
+                    result.add(item)
+            }
+            // 玩家删除
+            val removedByPlayer = originIds - oldIds
+            if (removedByPlayer.isNotEmpty())
+                return result.filter { idSelector(it) !in removedByPlayer }
+            return result
+        }
+
+        return shadow.copy(
+            // === PRESERVE_OLD ===
+            gameYear = oldState.gameYear,
+            gameMonth = oldState.gameMonth,
+            gamePhase = oldState.gamePhase,
+            gameSpeed = oldState.gameSpeed,
+            autoSaveIntervalMonths = oldState.autoSaveIntervalMonths,
+            monthlySalary = oldState.monthlySalary,
+            monthlySalaryEnabled = oldState.monthlySalaryEnabled,
+            placedBuildings = oldState.placedBuildings,
+            elderSlots = oldState.elderSlots,
+            librarySlots = oldState.librarySlots,
+            residenceSlots = oldState.residenceSlots,
+            spiritMineSlots = oldState.spiritMineSlots,
+            patrolSlots = oldState.patrolSlots,
+            patrolConfig = oldState.patrolConfig,
+            patrolConfigs = oldState.patrolConfigs,
+            warehouseGarrisons = oldState.warehouseGarrisons,
+            sectPolicies = oldState.sectPolicies,
+            autoRecruitSpiritRootFilter = oldState.autoRecruitSpiritRootFilter,
+            daoCompanionBannedRootCounts = oldState.daoCompanionBannedRootCounts,
+            daoCompanionConsentRequired = oldState.daoCompanionConsentRequired,
+            breakthroughAutoPillFocused = oldState.breakthroughAutoPillFocused,
+            breakthroughAutoPillRootCounts = oldState.breakthroughAutoPillRootCounts,
+            autoEquipFromWarehouseFocused = oldState.autoEquipFromWarehouseFocused,
+            autoEquipFromWarehouseRootCounts = oldState.autoEquipFromWarehouseRootCounts,
+            autoLearnFromWarehouseFocused = oldState.autoLearnFromWarehouseFocused,
+            autoLearnFromWarehouseRootCounts = oldState.autoLearnFromWarehouseRootCounts,
+            battleTeams = oldState.battleTeams,
+            usedTeamNumbers = oldState.usedTeamNumbers,
+            travelingMerchantItems = oldState.travelingMerchantItems,
+            playerListedItems = oldState.playerListedItems,
+            usedRedeemCodes = oldState.usedRedeemCodes,
+            activeSectId = oldState.activeSectId,
+            patrolBattleResultPopup = oldState.patrolBattleResultPopup,
+            playerProtectionEnabled = oldState.playerProtectionEnabled,
+            playerProtectionStartYear = oldState.playerProtectionStartYear,
+            playerHasAttackedAI = oldState.playerHasAttackedAI,
+            productionSlots = oldState.productionSlots,
+
+            // === DELTA ===
+            spiritStones = oldState.spiritStones + (shadow.spiritStones - origin.spiritStones),
+
+            // === THREE_WAY_ID ===
+            recruitList = threeWayId(
+                origin.recruitList, shadow.recruitList, oldState.recruitList
+            ) { (it as Disciple).id },
+            activeMissions = threeWayId(
+                origin.activeMissions, shadow.activeMissions, oldState.activeMissions
+            ) { (it as ActiveMission).id },
+            alliances = threeWayId(
+                origin.alliances, shadow.alliances, oldState.alliances
+            ) { (it as Alliance).id },
+
+            // === CUSTOM ===
+            worldLevels = c["worldLevels"]!!(origin, shadow, oldState) as List<WorldLevel>,
+            worldMapSects = c["worldMapSects"]!!(origin, shadow, oldState) as List<WorldSect>,
+            sectDetails = c["sectDetails"]!!(origin, shadow, oldState) as Map<String, SectDetail>,
+            sectRelations = c["sectRelations"]!!(origin, shadow, oldState) as List<SectRelation>,
+            manualProficiencies = c["manualProficiencies"]!!(origin, shadow, oldState) as Map<String, List<ManualProficiencyData>>,
+            aiSectDisciples = c["aiSectDisciples"]!!(origin, shadow, oldState) as Map<String, List<Disciple>>,
+            spiritFieldPlants = c["spiritFieldPlants"]!!(origin, shadow, oldState) as List<SpiritFieldPlant>,
+        )
     }
 }
 

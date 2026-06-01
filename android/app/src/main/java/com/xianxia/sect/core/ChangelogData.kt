@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.94",
+            date = "2026-06-01",
+            changes = listOf(
+                "结算影子合并全线加固：修复 swapFromShadow() 白名单遗漏导致玩家在结算期间操作被影子状态覆盖的问题。受影响字段：worldLevels（妖兽恢复）、usedRedeemCodes（兑换码重复使用）、游戏设置（gameSpeed等）、recruitList（招募列表）、activeMissions（任务）、alliances（盟约）、sectRelations（宗门关系）、worldMapSects（驻守/占领）、sectDetails（交易/侦查）、manualProficiencies（功法熟练度）、aiSectDisciples（AI弟子伤亡）、spiritFieldPlants（灵田种植）、productionSlots（生产槽位）",
+                "架构加固：引入 @SettlementStrategy 注解系统（灵感来源 Microsoft Research Concurrent Revisions 论文的 Isolation Types 模式），GameData 每个字段标注合并策略（PRESERVE_OLD/USE_SHADOW/DELTA/THREE_WAY_ID/CUSTOM）。新增 GameDataSettlementCoverageTest 安全网测试——反射遍历全部72个字段，缺失注解则测试失败，从编译期杜绝同类bug"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.93",
             date = "2026-06-01",
             changes = listOf(
