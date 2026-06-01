@@ -272,7 +272,11 @@ class GameEngine @Inject constructor(
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
         stateStore.reset()
         cultivationService.resetHighFrequencyData()
-        mailService.resetAndInitSlot(currentSlot)
+        try {
+            mailService.resetAndInitSlot(currentSlot)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init mail for new game slot $currentSlot", e)
+        }
         initializeWorldAndServices(sectName, currentSlot)
         // 在事务中创建初始弟子，避免 addDisciple 异步写入竞态导致弟子丢失
         // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
@@ -307,7 +311,11 @@ class GameEngine @Inject constructor(
     private suspend fun restartGameInternal(sectName: String, currentSlot: Int) {
         stateStore.reset()
         cultivationService.resetHighFrequencyData()
-        mailService.resetAndInitSlot(currentSlot)
+        try {
+            mailService.resetAndInitSlot(currentSlot)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init mail for restarted game slot $currentSlot", e)
+        }
 
         if (sectName.isNotBlank()) {
             initializeWorldAndServices(sectName, currentSlot)
