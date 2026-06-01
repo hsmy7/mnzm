@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 24,
-    "identityHash": "ab37036c1b706e1a358363e0b8444850",
+    "identityHash": "40fb7942a4cae42273df70ce2e40afb9",
     "entities": [
       {
         "tableName": "game_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gameDay` INTEGER NOT NULL, `isGameStarted` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedDungeons` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `placedBuildings` TEXT NOT NULL, `alliances` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `pendingCompetitionResults` TEXT NOT NULL, `lastCompetitionYear` INTEGER NOT NULL, `smartBattleEnabled` INTEGER NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL, `isGameOver` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gamePhase` INTEGER NOT NULL, `isGameStarted` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `aiSectDisciples` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `worldLevels` TEXT NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `placedBuildings` TEXT NOT NULL, `spiritFieldPlants` TEXT NOT NULL, `activeSectId` TEXT NOT NULL, `residenceSlots` TEXT NOT NULL, `warehouseGarrisons` TEXT NOT NULL, `patrolSlots` TEXT NOT NULL, `patrolConfig` TEXT NOT NULL, `patrolConfigs` TEXT NOT NULL, `alliances` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL, `daoCompanionBannedRootCounts` TEXT NOT NULL, `daoCompanionConsentRequired` INTEGER NOT NULL, `patrolBattleResultPopup` INTEGER NOT NULL, `breakthroughAutoPillFocused` INTEGER NOT NULL, `breakthroughAutoPillRootCounts` TEXT NOT NULL, `autoEquipFromWarehouseFocused` INTEGER NOT NULL, `autoEquipFromWarehouseRootCounts` TEXT NOT NULL, `autoLearnFromWarehouseFocused` INTEGER NOT NULL, `autoLearnFromWarehouseRootCounts` TEXT NOT NULL, `isGameOver` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -45,8 +45,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "gameDay",
-            "columnName": "gameDay",
+            "fieldPath": "gamePhase",
+            "columnName": "gamePhase",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -111,6 +111,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "aiSectDisciples",
+            "columnName": "aiSectDisciples",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "exploredSects",
             "columnName": "exploredSects",
             "affinity": "TEXT",
@@ -165,6 +171,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "worldLevels",
+            "columnName": "worldLevels",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "cultivatorCaves",
             "columnName": "cultivatorCaves",
             "affinity": "TEXT",
@@ -179,12 +191,6 @@
           {
             "fieldPath": "aiCaveTeams",
             "columnName": "aiCaveTeams",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "unlockedDungeons",
-            "columnName": "unlockedDungeons",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -239,6 +245,48 @@
           {
             "fieldPath": "placedBuildings",
             "columnName": "placedBuildings",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritFieldPlants",
+            "columnName": "spiritFieldPlants",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeSectId",
+            "columnName": "activeSectId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "residenceSlots",
+            "columnName": "residenceSlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "warehouseGarrisons",
+            "columnName": "warehouseGarrisons",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patrolSlots",
+            "columnName": "patrolSlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patrolConfig",
+            "columnName": "patrolConfig",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patrolConfigs",
+            "columnName": "patrolConfigs",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -315,26 +363,62 @@
             "notNull": true
           },
           {
-            "fieldPath": "pendingCompetitionResults",
-            "columnName": "pendingCompetitionResults",
+            "fieldPath": "autoRecruitSpiritRootFilter",
+            "columnName": "autoRecruitSpiritRootFilter",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "lastCompetitionYear",
-            "columnName": "lastCompetitionYear",
+            "fieldPath": "daoCompanionBannedRootCounts",
+            "columnName": "daoCompanionBannedRootCounts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "daoCompanionConsentRequired",
+            "columnName": "daoCompanionConsentRequired",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "smartBattleEnabled",
-            "columnName": "smartBattleEnabled",
+            "fieldPath": "patrolBattleResultPopup",
+            "columnName": "patrolBattleResultPopup",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "autoRecruitSpiritRootFilter",
-            "columnName": "autoRecruitSpiritRootFilter",
+            "fieldPath": "breakthroughAutoPillFocused",
+            "columnName": "breakthroughAutoPillFocused",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakthroughAutoPillRootCounts",
+            "columnName": "breakthroughAutoPillRootCounts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoEquipFromWarehouseFocused",
+            "columnName": "autoEquipFromWarehouseFocused",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoEquipFromWarehouseRootCounts",
+            "columnName": "autoEquipFromWarehouseRootCounts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoLearnFromWarehouseFocused",
+            "columnName": "autoLearnFromWarehouseFocused",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoLearnFromWarehouseRootCounts",
+            "columnName": "autoLearnFromWarehouseRootCounts",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -413,7 +497,7 @@
       },
       {
         "tableName": "disciples",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `spiritRootType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `isAlive` INTEGER NOT NULL, `gender` TEXT NOT NULL, `manualIds` TEXT NOT NULL, `talentIds` TEXT NOT NULL, `manualMasteries` TEXT NOT NULL, `status` TEXT NOT NULL, `statusData` TEXT NOT NULL, `cultivationSpeedBonus` REAL NOT NULL, `cultivationSpeedDuration` INTEGER NOT NULL, `discipleType` TEXT NOT NULL, `autoLearnFromWarehouse` INTEGER NOT NULL, `baseHp` INTEGER NOT NULL, `baseMp` INTEGER NOT NULL, `basePhysicalAttack` INTEGER NOT NULL, `baseMagicAttack` INTEGER NOT NULL, `basePhysicalDefense` INTEGER NOT NULL, `baseMagicDefense` INTEGER NOT NULL, `baseSpeed` INTEGER NOT NULL, `hpVariance` INTEGER NOT NULL, `mpVariance` INTEGER NOT NULL, `physicalAttackVariance` INTEGER NOT NULL, `magicAttackVariance` INTEGER NOT NULL, `physicalDefenseVariance` INTEGER NOT NULL, `magicDefenseVariance` INTEGER NOT NULL, `speedVariance` INTEGER NOT NULL, `totalCultivation` INTEGER NOT NULL, `breakthroughCount` INTEGER NOT NULL, `breakthroughFailCount` INTEGER NOT NULL, `currentHp` INTEGER NOT NULL, `currentMp` INTEGER NOT NULL, `pillPhysicalAttackBonus` INTEGER NOT NULL, `pillMagicAttackBonus` INTEGER NOT NULL, `pillPhysicalDefenseBonus` INTEGER NOT NULL, `pillMagicDefenseBonus` INTEGER NOT NULL, `pillHpBonus` INTEGER NOT NULL, `pillMpBonus` INTEGER NOT NULL, `pillSpeedBonus` INTEGER NOT NULL, `pillCritRateBonus` REAL NOT NULL, `pillCritEffectBonus` REAL NOT NULL, `pillCultivationSpeedBonus` REAL NOT NULL, `pillSkillExpSpeedBonus` REAL NOT NULL, `pillNurtureSpeedBonus` REAL NOT NULL, `pillEffectDuration` INTEGER NOT NULL, `activePillCategory` TEXT NOT NULL, `weaponId` TEXT NOT NULL, `armorId` TEXT NOT NULL, `bootsId` TEXT NOT NULL, `accessoryId` TEXT NOT NULL, `weaponNurture` TEXT NOT NULL, `armorNurture` TEXT NOT NULL, `bootsNurture` TEXT NOT NULL, `accessoryNurture` TEXT NOT NULL, `autoEquipFromWarehouse` INTEGER NOT NULL, `storageBagItems` TEXT NOT NULL, `storageBagSpiritStones` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `soulPower` INTEGER NOT NULL, `social_partnerId` TEXT, `social_partnerSectId` TEXT, `social_parentId1` TEXT, `social_parentId2` TEXT, `social_lastChildYear` INTEGER NOT NULL, `social_griefEndYear` INTEGER, `intelligence` INTEGER NOT NULL, `charm` INTEGER NOT NULL, `loyalty` INTEGER NOT NULL, `comprehension` INTEGER NOT NULL, `artifactRefining` INTEGER NOT NULL, `pillRefining` INTEGER NOT NULL, `spiritPlanting` INTEGER NOT NULL, `mining` INTEGER NOT NULL, `teaching` INTEGER NOT NULL, `morality` INTEGER NOT NULL, `salaryPaidCount` INTEGER NOT NULL, `salaryMissedCount` INTEGER NOT NULL, `usage_usedFunctionalPillTypes` TEXT NOT NULL, `usage_usedExtendLifePillIds` TEXT NOT NULL, `usage_recruitedMonth` INTEGER NOT NULL, `usage_hasReviveEffect` INTEGER NOT NULL, `usage_hasClearAllEffect` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `spiritRootType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `isAlive` INTEGER NOT NULL, `gender` TEXT NOT NULL, `portraitRes` TEXT NOT NULL, `manualIds` TEXT NOT NULL, `talentIds` TEXT NOT NULL, `manualMasteries` TEXT NOT NULL, `status` TEXT NOT NULL, `statusData` TEXT NOT NULL, `cultivationSpeedBonus` REAL NOT NULL, `cultivationSpeedDuration` INTEGER NOT NULL, `discipleType` TEXT NOT NULL, `autoLearnFromWarehouse` INTEGER NOT NULL, `soulPower` INTEGER NOT NULL, `baseHp` INTEGER NOT NULL, `baseMp` INTEGER NOT NULL, `basePhysicalAttack` INTEGER NOT NULL, `baseMagicAttack` INTEGER NOT NULL, `basePhysicalDefense` INTEGER NOT NULL, `baseMagicDefense` INTEGER NOT NULL, `baseSpeed` INTEGER NOT NULL, `hpVariance` INTEGER NOT NULL, `mpVariance` INTEGER NOT NULL, `physicalAttackVariance` INTEGER NOT NULL, `magicAttackVariance` INTEGER NOT NULL, `physicalDefenseVariance` INTEGER NOT NULL, `magicDefenseVariance` INTEGER NOT NULL, `speedVariance` INTEGER NOT NULL, `totalCultivation` INTEGER NOT NULL, `breakthroughCount` INTEGER NOT NULL, `breakthroughFailCount` INTEGER NOT NULL, `currentHp` INTEGER NOT NULL, `currentMp` INTEGER NOT NULL, `pillPhysicalAttackBonus` INTEGER NOT NULL, `pillMagicAttackBonus` INTEGER NOT NULL, `pillPhysicalDefenseBonus` INTEGER NOT NULL, `pillMagicDefenseBonus` INTEGER NOT NULL, `pillHpBonus` INTEGER NOT NULL, `pillMpBonus` INTEGER NOT NULL, `pillSpeedBonus` INTEGER NOT NULL, `pillCritRateBonus` REAL NOT NULL, `pillCritEffectBonus` REAL NOT NULL, `pillCultivationSpeedBonus` REAL NOT NULL, `pillSkillExpSpeedBonus` REAL NOT NULL, `pillNurtureSpeedBonus` REAL NOT NULL, `pillEffectDuration` INTEGER NOT NULL, `activePillCategory` TEXT NOT NULL, `weaponId` TEXT NOT NULL, `armorId` TEXT NOT NULL, `bootsId` TEXT NOT NULL, `accessoryId` TEXT NOT NULL, `weaponNurture` TEXT NOT NULL, `armorNurture` TEXT NOT NULL, `bootsNurture` TEXT NOT NULL, `accessoryNurture` TEXT NOT NULL, `autoEquipFromWarehouse` INTEGER NOT NULL, `storageBagItems` TEXT NOT NULL, `storageBagSpiritStones` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `social_partnerId` TEXT, `social_partnerSectId` TEXT, `social_parentId1` TEXT, `social_parentId2` TEXT, `social_lastChildYear` INTEGER NOT NULL, `social_childBirthMonth` INTEGER, `social_griefEndYear` INTEGER, `intelligence` INTEGER NOT NULL, `charm` INTEGER NOT NULL, `loyalty` INTEGER NOT NULL, `comprehension` INTEGER NOT NULL, `artifactRefining` INTEGER NOT NULL, `pillRefining` INTEGER NOT NULL, `spiritPlanting` INTEGER NOT NULL, `mining` INTEGER NOT NULL, `teaching` INTEGER NOT NULL, `morality` INTEGER NOT NULL, `salaryPaidCount` INTEGER NOT NULL, `salaryMissedCount` INTEGER NOT NULL, `usage_usedFunctionalPillTypes` TEXT NOT NULL, `usage_usedExtendLifePillIds` TEXT NOT NULL, `usage_recruitedMonth` INTEGER NOT NULL, `usage_hasReviveEffect` INTEGER NOT NULL, `usage_hasClearAllEffect` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -488,6 +572,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "portraitRes",
+            "columnName": "portraitRes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "manualIds",
             "columnName": "manualIds",
             "affinity": "TEXT",
@@ -538,6 +628,12 @@
           {
             "fieldPath": "autoLearnFromWarehouse",
             "columnName": "autoLearnFromWarehouse",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soulPower",
+            "columnName": "soulPower",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -812,12 +908,6 @@
             "notNull": true
           },
           {
-            "fieldPath": "equipment.soulPower",
-            "columnName": "soulPower",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
             "fieldPath": "social.partnerId",
             "columnName": "social_partnerId",
             "affinity": "TEXT",
@@ -846,6 +936,12 @@
             "columnName": "social_lastChildYear",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "social.childBirthMonth",
+            "columnName": "social_childBirthMonth",
+            "affinity": "INTEGER",
+            "notNull": false
           },
           {
             "fieldPath": "social.griefEndYear",
@@ -1035,7 +1131,7 @@
       },
       {
         "tableName": "disciples_core",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `isAlive` INTEGER NOT NULL, `status` TEXT NOT NULL, `discipleType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `gender` TEXT NOT NULL, `spiritRootType` TEXT NOT NULL, `recruitedMonth` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `isAlive` INTEGER NOT NULL, `status` TEXT NOT NULL, `discipleType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `gender` TEXT NOT NULL, `portraitRes` TEXT NOT NULL, `spiritRootType` TEXT NOT NULL, `recruitedMonth` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1112,6 +1208,12 @@
           {
             "fieldPath": "gender",
             "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "portraitRes",
+            "columnName": "portraitRes",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -3497,150 +3599,6 @@
         "foreignKeys": []
       },
       {
-        "tableName": "game_events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `message` TEXT NOT NULL, `type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "slotId",
-            "columnName": "slot_id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "message",
-            "columnName": "message",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "type",
-            "columnName": "type",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "timestamp",
-            "columnName": "timestamp",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "year",
-            "columnName": "year",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "month",
-            "columnName": "month",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "id",
-            "slot_id"
-          ]
-        },
-        "indices": [],
-        "foreignKeys": []
-      },
-      {
-        "tableName": "dungeons",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmName` TEXT NOT NULL, `difficulty` INTEGER NOT NULL, `isUnlocked` INTEGER NOT NULL, `unlockYear` INTEGER NOT NULL, `unlockMonth` INTEGER NOT NULL, `completedCount` INTEGER NOT NULL, `rewards` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "slotId",
-            "columnName": "slot_id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "name",
-            "columnName": "name",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "description",
-            "columnName": "description",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "realm",
-            "columnName": "realm",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "realmName",
-            "columnName": "realmName",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "difficulty",
-            "columnName": "difficulty",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isUnlocked",
-            "columnName": "isUnlocked",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "unlockYear",
-            "columnName": "unlockYear",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "unlockMonth",
-            "columnName": "unlockMonth",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "completedCount",
-            "columnName": "completedCount",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "rewards",
-            "columnName": "rewards",
-            "affinity": "TEXT",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "id",
-            "slot_id"
-          ]
-        },
-        "indices": [],
-        "foreignKeys": []
-      },
-      {
         "tableName": "recipes",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `type` TEXT NOT NULL, `isUnlocked` INTEGER NOT NULL, `unlockYear` INTEGER NOT NULL, `unlockMonth` INTEGER NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT NOT NULL, `outputItemName` TEXT NOT NULL, `outputQuantity` INTEGER NOT NULL, `duration` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
@@ -3870,7 +3828,7 @@
       },
       {
         "tableName": "forge_slots",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `equipmentName` TEXT NOT NULL, `equipmentRarity` INTEGER NOT NULL, `equipmentSlot` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `equipmentName` TEXT NOT NULL, `equipmentRarity` INTEGER NOT NULL, `equipmentSlot` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `autoRestartEnabled` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -3955,6 +3913,24 @@
             "columnName": "requiredMaterials",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "autoRestartEnabled",
+            "columnName": "autoRestartEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedDiscipleId",
+            "columnName": "assignedDiscipleId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "assignedDiscipleName",
+            "columnName": "assignedDiscipleName",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -3969,7 +3945,7 @@
       },
       {
         "tableName": "alchemy_slots",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `pillName` TEXT NOT NULL, `pillRarity` INTEGER NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `pillName` TEXT NOT NULL, `pillRarity` INTEGER NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `autoRestartEnabled` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -4048,6 +4024,24 @@
             "columnName": "requiredMaterials",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "autoRestartEnabled",
+            "columnName": "autoRestartEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedDiscipleId",
+            "columnName": "assignedDiscipleId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "assignedDiscipleName",
+            "columnName": "assignedDiscipleName",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -4062,7 +4056,7 @@
       },
       {
         "tableName": "production_slots",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `buildingType` TEXT NOT NULL, `buildingId` TEXT NOT NULL, `status` TEXT NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT, `outputItemName` TEXT NOT NULL, `outputItemRarity` INTEGER NOT NULL, `outputItemSlot` TEXT NOT NULL, `expectedYield` INTEGER NOT NULL DEFAULT 0, `harvestAmount` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `buildingType` TEXT NOT NULL, `buildingId` TEXT NOT NULL, `status` TEXT NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT, `outputItemName` TEXT NOT NULL, `outputItemRarity` INTEGER NOT NULL, `outputItemSlot` TEXT NOT NULL, `expectedYield` INTEGER NOT NULL DEFAULT 0, `harvestAmount` INTEGER NOT NULL DEFAULT 0, `autoRestartEnabled` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -4188,6 +4182,13 @@
           {
             "fieldPath": "harvestAmount",
             "columnName": "harvestAmount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "autoRestartEnabled",
+            "columnName": "autoRestartEnabled",
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
@@ -4331,7 +4332,7 @@
       },
       {
         "tableName": "save_slot_metadata",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `sect_name` TEXT NOT NULL, `game_year` INTEGER NOT NULL, `game_month` INTEGER NOT NULL, `game_day` INTEGER NOT NULL, `spirit_stones` INTEGER NOT NULL, `spirit_herbs` INTEGER NOT NULL, `sect_cultivation` REAL NOT NULL, `is_game_started` INTEGER NOT NULL, `last_save_time` INTEGER NOT NULL, `disciple_count` INTEGER NOT NULL, `data_version` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `sect_name` TEXT NOT NULL, `game_year` INTEGER NOT NULL, `game_month` INTEGER NOT NULL, `game_phase` INTEGER NOT NULL, `spirit_stones` INTEGER NOT NULL, `spirit_herbs` INTEGER NOT NULL, `sect_cultivation` REAL NOT NULL, `is_game_started` INTEGER NOT NULL, `last_save_time` INTEGER NOT NULL, `disciple_count` INTEGER NOT NULL, `data_version` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -4364,8 +4365,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "gameDay",
-            "columnName": "game_day",
+            "fieldPath": "gamePhase",
+            "columnName": "game_phase",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -4545,88 +4546,6 @@
         "foreignKeys": []
       },
       {
-        "tableName": "archived_game_events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `original_id` TEXT NOT NULL, `event_type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `message` TEXT NOT NULL, `data_blob` TEXT NOT NULL, `archived_at` INTEGER NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "slotId",
-            "columnName": "slot_id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "originalId",
-            "columnName": "original_id",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "eventType",
-            "columnName": "event_type",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "timestamp",
-            "columnName": "timestamp",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "message",
-            "columnName": "message",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "dataBlob",
-            "columnName": "data_blob",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "archivedAt",
-            "columnName": "archived_at",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_archived_game_events_slot_id_timestamp",
-            "unique": false,
-            "columnNames": [
-              "slot_id",
-              "timestamp"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_game_events_slot_id_timestamp` ON `${TABLE_NAME}` (`slot_id`, `timestamp`)"
-          },
-          {
-            "name": "index_archived_game_events_archived_at",
-            "unique": false,
-            "columnNames": [
-              "archived_at"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_game_events_archived_at` ON `${TABLE_NAME}` (`archived_at`)"
-          }
-        ],
-        "foreignKeys": []
-      },
-      {
         "tableName": "archived_disciples",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `original_id` TEXT NOT NULL, `name` TEXT NOT NULL, `realm` INTEGER NOT NULL, `data_blob` TEXT NOT NULL, `archived_at` INTEGER NOT NULL)",
         "fields": [
@@ -4701,12 +4620,267 @@
           }
         ],
         "foreignKeys": []
+      },
+      {
+        "tableName": "game_heavy_data",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`slot_id` INTEGER NOT NULL, `data_key` TEXT NOT NULL, `data_value` TEXT NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`slot_id`, `data_key`))",
+        "fields": [
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataKey",
+            "columnName": "data_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataValue",
+            "columnName": "data_value",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "slot_id",
+            "data_key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_game_heavy_data_slot_id_data_key",
+            "unique": true,
+            "columnNames": [
+              "slot_id",
+              "data_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_game_heavy_data_slot_id_data_key` ON `${TABLE_NAME}` (`slot_id`, `data_key`)"
+          },
+          {
+            "name": "index_game_heavy_data_slot_id",
+            "unique": false,
+            "columnNames": [
+              "slot_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_heavy_data_slot_id` ON `${TABLE_NAME}` (`slot_id`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "storage_bags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "mails",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slotId` INTEGER NOT NULL DEFAULT 0, `source` TEXT NOT NULL DEFAULT 'builtin', `mailType` TEXT NOT NULL DEFAULT 'reward', `title` TEXT NOT NULL DEFAULT '', `content` TEXT NOT NULL DEFAULT '', `senderName` TEXT NOT NULL DEFAULT '天道意志', `sendTime` INTEGER NOT NULL DEFAULT 0, `expireTime` INTEGER NOT NULL DEFAULT 0, `isRead` INTEGER NOT NULL DEFAULT 0, `attachmentClaimed` INTEGER NOT NULL DEFAULT 0, `hasAttachment` INTEGER NOT NULL DEFAULT 0, `attachments` TEXT NOT NULL DEFAULT '[]', `remoteMailId` TEXT DEFAULT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slotId",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'builtin'"
+          },
+          {
+            "fieldPath": "mailType",
+            "columnName": "mailType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'reward'"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "senderName",
+            "columnName": "senderName",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'天道意志'"
+          },
+          {
+            "fieldPath": "sendTime",
+            "columnName": "sendTime",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "expireTime",
+            "columnName": "expireTime",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isRead",
+            "columnName": "isRead",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "attachmentClaimed",
+            "columnName": "attachmentClaimed",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "hasAttachment",
+            "columnName": "hasAttachment",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "attachments",
+            "columnName": "attachments",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'[]'"
+          },
+          {
+            "fieldPath": "remoteMailId",
+            "columnName": "remoteMailId",
+            "affinity": "TEXT",
+            "notNull": false,
+            "defaultValue": "NULL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_mails_slotId",
+            "unique": false,
+            "columnNames": [
+              "slotId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mails_slotId` ON `${TABLE_NAME}` (`slotId`)"
+          },
+          {
+            "name": "index_mails_remoteMailId",
+            "unique": false,
+            "columnNames": [
+              "remoteMailId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mails_remoteMailId` ON `${TABLE_NAME}` (`remoteMailId`)"
+          },
+          {
+            "name": "index_mails_slotId_expireTime",
+            "unique": false,
+            "columnNames": [
+              "slotId",
+              "expireTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mails_slotId_expireTime` ON `${TABLE_NAME}` (`slotId`, `expireTime`)"
+          }
+        ],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ab37036c1b706e1a358363e0b8444850')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '40fb7942a4cae42273df70ce2e40afb9')"
     ]
   }
 }

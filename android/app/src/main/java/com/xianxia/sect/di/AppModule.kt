@@ -80,9 +80,6 @@ object AppModule {
     fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()
 
     @Provides
-    fun provideClaimedMailDao(database: GameDatabase): ClaimedMailDao = database.claimedMailDao()
-    
-    @Provides
     fun provideExplorationTeamDao(database: GameDatabase): ExplorationTeamDao = 
         database.explorationTeamDao()
     

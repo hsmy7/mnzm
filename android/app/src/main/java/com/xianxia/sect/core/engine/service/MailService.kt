@@ -14,7 +14,6 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.data.local.ClaimedMailDao
 import com.xianxia.sect.data.local.MailDao
 import com.xianxia.sect.network.SecureHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,7 +47,6 @@ data class MarkAllReadResult(
 @Singleton
 class MailService @Inject constructor(
     private val mailDao: MailDao,
-    private val claimedMailDao: ClaimedMailDao,
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val secureClient: SecureHttpClient,
@@ -81,8 +79,7 @@ class MailService @Inject constructor(
     override suspend fun clearForSlot(slotId: Int) {
         getMutex(slotId).withLock {
             mailDao.deleteAllForSlot(slotId)
-            claimedMailDao.deleteAllForSlot(slotId)
-            Log.d(TAG, "Cleared all mails and claimed records for slot $slotId")
+            Log.d(TAG, "Cleared all mails for slot $slotId")
         }
     }
 
@@ -135,26 +132,23 @@ class MailService @Inject constructor(
     suspend fun loadBuiltinMails(slotId: Int) {
         val now = System.currentTimeMillis()
         BuiltinMailConfig.mails.forEach { builtinMail ->
-            val globalId = "builtin:${builtinMail.id}"
-            if (!claimedMailDao.isClaimed(globalId, slotId)) {
-                val existingMails = mailDao.getActiveMails(slotId, now).first()
-                val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
-                if (!alreadyInserted) {
-                    val entity = MailEntity(
-                        id = builtinMail.id,
-                        slotId = slotId,
-                        source = "builtin",
-                        mailType = builtinMail.mailType,
-                        title = builtinMail.title,
-                        content = builtinMail.content,
-                        senderName = "天道意志",
-                        sendTime = now,
-                        expireTime = now + EXPIRE_MS,
-                        hasAttachment = builtinMail.attachments.isNotEmpty(),
-                        attachments = json.encodeToString(serializer<List<MailAttachment>>(), builtinMail.attachments)
-                    )
-                    mailDao.insertWithEnforceLimit(entity, MAX_MAILS_PER_SLOT)
-                }
+            val existingMails = mailDao.getActiveMails(slotId, now).first()
+            val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
+            if (!alreadyInserted) {
+                val entity = MailEntity(
+                    id = builtinMail.id,
+                    slotId = slotId,
+                    source = "builtin",
+                    mailType = builtinMail.mailType,
+                    title = builtinMail.title,
+                    content = builtinMail.content,
+                    senderName = "天道意志",
+                    sendTime = now,
+                    expireTime = now + EXPIRE_MS,
+                    hasAttachment = builtinMail.attachments.isNotEmpty(),
+                    attachments = json.encodeToString(serializer<List<MailAttachment>>(), builtinMail.attachments)
+                )
+                mailDao.insertWithEnforceLimit(entity, MAX_MAILS_PER_SLOT)
             }
         }
     }
@@ -164,16 +158,7 @@ class MailService @Inject constructor(
             val mail = mailDao.getById(mailId) ?: return ClaimResult.MailNotFound
             val now = System.currentTimeMillis()
             if (mail.expireTime <= now) return ClaimResult.Expired
-
-            val mailGlobalId = if (mail.remoteMailId != null) {
-                "remote:${mail.remoteMailId}"
-            } else {
-                "builtin:${mail.id}"
-            }
-
-            if (claimedMailDao.isClaimed(mailGlobalId, slotId)) {
-                return ClaimResult.AlreadyClaimed
-            }
+            if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
 
             val attachments: List<MailAttachment> = try {
                 json.decodeFromString(mail.attachments)
@@ -182,7 +167,7 @@ class MailService @Inject constructor(
                 return ClaimResult.Success(emptyList())
             }
 
-            // 容量检查（在审计记录写入之前，容量不足时可自由重试）
+            // 容量检查
             if (attachments.isNotEmpty()) {
                 val capacityCheck = ensureCapacity(attachments, slotId)
                 if (capacityCheck != null) {
@@ -190,25 +175,12 @@ class MailService @Inject constructor(
                 }
             }
 
-            // 容量通过后才写入审计记录（危险操作前置 — 此时发放一定会成功）
-            try {
-                claimedMailDao.insert(
-                    ClaimedMailRecord(
-                        mailGlobalId = mailGlobalId,
-                        slotId = slotId,
-                        claimedTime = now
-                    )
-                )
-            } catch (e: Exception) {
-                Log.w(TAG, "Concurrent claim detected for $mailGlobalId slot $slotId", e)
-                return ClaimResult.AlreadyClaimed
-            }
-
+            // 发放附件
             if (attachments.isNotEmpty()) {
                 try {
                     distributeAttachments(attachments)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to distribute attachments for mail $mailId, audit record exists", e)
+                    Log.e(TAG, "Failed to distribute attachments for mail $mailId", e)
                     return ClaimResult.Success(emptyList())
                 }
             }
@@ -248,16 +220,7 @@ class MailService @Inject constructor(
 
     private suspend fun claimAttachmentInternal(mail: MailEntity, slotId: Int, now: Long): ClaimResult {
         if (mail.expireTime <= now) return ClaimResult.Expired
-
-        val mailGlobalId = if (mail.remoteMailId != null) {
-            "remote:${mail.remoteMailId}"
-        } else {
-            "builtin:${mail.id}"
-        }
-
-        if (claimedMailDao.isClaimed(mailGlobalId, slotId)) {
-            return ClaimResult.AlreadyClaimed
-        }
+        if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
 
         val attachments: List<MailAttachment> = try {
             json.decodeFromString(mail.attachments)
@@ -265,28 +228,12 @@ class MailService @Inject constructor(
             return ClaimResult.Success(emptyList())
         }
 
-        // 容量检查（在审计记录写入之前，容量不足时可自由重试）
         if (attachments.isNotEmpty()) {
             val capacityCheck = ensureCapacity(attachments, slotId)
             if (capacityCheck != null) {
                 return ClaimResult.CapacityInsufficient(capacityCheck)
             }
-        }
 
-        // 容量通过后才写入审计记录
-        try {
-            claimedMailDao.insert(
-                ClaimedMailRecord(
-                    mailGlobalId = mailGlobalId,
-                    slotId = slotId,
-                    claimedTime = now
-                )
-            )
-        } catch (e: Exception) {
-            return ClaimResult.AlreadyClaimed
-        }
-
-        if (attachments.isNotEmpty()) {
             try {
                 distributeAttachments(attachments)
             } catch (e: Exception) {
@@ -531,11 +478,6 @@ class MailService @Inject constructor(
     suspend fun cleanExpired(slotId: Int) {
         val now = System.currentTimeMillis()
         mailDao.deleteExpired(slotId, now)
-        try {
-            claimedMailDao.deleteOrphanedForExpiredMails(slotId, now)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to clean orphaned claimed records for slot $slotId", e)
-        }
     }
 
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>> {
