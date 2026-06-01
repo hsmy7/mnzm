@@ -240,6 +240,12 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
+        is DialogRoute.Mail -> {
+            MailDialog(
+                viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+        }
         is DialogRoute.SpiritMine -> {
             SpiritMineDialog(
                 buildingInstanceId = route.buildingInstanceId,

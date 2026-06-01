@@ -1,11 +1,15 @@
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +31,8 @@ fun GameActionButtons(
     onCancelPlacement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val mailUnreadCount by viewModel.mailUnreadCount.collectAsState()
+
     Column(
         modifier = modifier
             .padding(top = 8.dp, end = 32.dp),
@@ -34,6 +40,11 @@ fun GameActionButtons(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FloatingActionButton(
+                text = "邮件",
+                drawableRes = R.drawable.ui_mail_button,
+                badge = mailUnreadCount
+            ) { viewModel.navigateToDialog(DialogRoute.Mail) }
             FloatingActionButton(
                 text = "日志",
                 drawableRes = R.drawable.ui_log_button
@@ -82,6 +93,7 @@ fun GameActionButtons(
 private fun FloatingActionButton(
     text: String,
     drawableRes: Int = R.drawable.ui_button,
+    badge: Int = 0,
     onClick: () -> Unit
 ) {
     val size = 35.dp
@@ -106,5 +118,22 @@ private fun FloatingActionButton(
             modifier = Modifier
                 .padding(horizontal = 3.dp, vertical = 1.dp)
         )
+        if (badge > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 2.dp, y = (-2).dp)
+                    .background(Color.Red, RoundedCornerShape(50))
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (badge > 99) "99+" else badge.toString(),
+                    color = Color.White,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }

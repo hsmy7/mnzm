@@ -872,6 +872,57 @@ class GameViewModel @Inject constructor(
         _redeemResult.value = null
     }
 
+    private val mailService: com.xianxia.sect.core.engine.service.MailService by lazy {
+        systemManager.getSystem(com.xianxia.sect.core.engine.service.MailService::class)
+    }
+
+    private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val mails: StateFlow<List<MailEntity>> = gameEngine.gameData
+        .map { it.slotId }
+        .distinctUntilChanged()
+        .flatMapLatest { slotId -> mailService.getActiveMails(slotId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val mailUnreadCount: StateFlow<Int> = gameEngine.gameData
+        .map { it.slotId }
+        .distinctUntilChanged()
+        .flatMapLatest { slotId -> mailService.getUnreadCount(slotId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun markMailAsRead(mailId: String) {
+        viewModelScope.launch {
+            mailService.markAsRead(mailId)
+        }
+    }
+
+    fun claimMailAttachment(mailId: String, onResult: (com.xianxia.sect.core.engine.service.ClaimResult) -> Unit = {}) {
+        viewModelScope.launch {
+            val result = mailService.claimAttachment(mailId, currentSlotId)
+            onResult(result)
+        }
+    }
+
+    fun markAllMailsAsRead() {
+        viewModelScope.launch {
+            val result = mailService.markAllAsRead(currentSlotId)
+            if (result.claimedCount > 0) {
+                showSuccess("领取了${result.claimedCount}封邮件附件")
+            }
+            if (result.skippedCount > 0) {
+                showError(result.skipReasons.first())
+            }
+        }
+    }
+
+    fun deleteAllReadAndClaimedMails() {
+        viewModelScope.launch {
+            mailService.deleteAllReadAndClaimed(currentSlotId)
+        }
+    }
+
     // region Residence
 
     fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {

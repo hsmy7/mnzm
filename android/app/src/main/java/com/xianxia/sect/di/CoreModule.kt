@@ -43,7 +43,8 @@ object CoreModule {
         partnerSystem: PartnerSystem,
         childBirthSystem: ChildBirthSystem,
         productionSubsystem: ProductionSubsystem,
-        economySubsystem: EconomySubsystem
+        economySubsystem: EconomySubsystem,
+        mailService: MailService
     ): SystemManager = SystemManager(
         setOf(
             timeSystem,
@@ -60,7 +61,8 @@ object CoreModule {
             partnerSystem,
             childBirthSystem,
             productionSubsystem,
-            economySubsystem
+            economySubsystem,
+            mailService
         )
     )
 }

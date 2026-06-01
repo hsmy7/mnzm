@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.95",
+            date = "2026-06-02",
+            changes = listOf(
+                "新增邮件系统：全服补偿/奖励邮件，支持在线拉取+内置邮件混合投递。附件含灵石、灵草、装备、丹药、材料、草药、种子、弟子八种类型。一键已读（含自动领取）+单封查看，30天过期自动清理。领取防刷机制（独立审计表 + 存档级隔离）",
+                "数据库迁移 v20→v21：新增 mails 表和 claimed_mail_records 表（领取审计），含三个索引（slotId、remoteMailId、slotId+expireTime）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.94",
             date = "2026-06-01",
             changes = listOf(

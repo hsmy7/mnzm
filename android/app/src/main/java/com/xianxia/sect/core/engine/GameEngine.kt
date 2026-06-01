@@ -78,6 +78,7 @@ class GameEngine @Inject constructor(
     private val diplomacyService: DiplomacyService,
     private val redeemCodeService: RedeemCodeService,
     private val formulaService: FormulaService,
+    private val mailService: MailService,
     private val database: com.xianxia.sect.data.local.GameDatabase
 ) {
     companion object {
@@ -258,6 +259,13 @@ class GameEngine @Inject constructor(
             stateStore.update {
                 this.gameData = this.gameData.copy(aiSectDisciples = regenerated)
             }
+        }
+
+        // Initialize mail system for the loaded slot
+        try {
+            mailService.initializeForSlot(gameData.slotId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize mail for slot ${gameData.slotId}", e)
         }
     }
 

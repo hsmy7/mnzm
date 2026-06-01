@@ -75,6 +75,12 @@ object AppModule {
     
     @Provides
     fun provideHerbDao(database: GameDatabase): HerbDao = database.herbDao()
+
+    @Provides
+    fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()
+
+    @Provides
+    fun provideClaimedMailDao(database: GameDatabase): ClaimedMailDao = database.claimedMailDao()
     
     @Provides
     fun provideExplorationTeamDao(database: GameDatabase): ExplorationTeamDao = 
