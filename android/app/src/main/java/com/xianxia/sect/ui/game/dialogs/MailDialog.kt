@@ -297,8 +297,6 @@ private fun MailDetailPanel(
                 .padding(8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text("亲爱的道友，", fontSize = 12.sp, color = Color.Black)
-            Spacer(modifier = Modifier.height(4.dp))
             Text(mail.content, fontSize = 12.sp, color = Color.Black)
 
             if (attachments.isNotEmpty()) {
