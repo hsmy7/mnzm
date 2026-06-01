@@ -300,7 +300,8 @@ private val beastDrawables = listOf(
 private fun SlotContent(
     name: String,
     realmName: String,
-    portraitRes: String
+    portraitRes: String,
+    isAlive: Boolean = true
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -314,24 +315,40 @@ private fun SlotContent(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        val context = LocalContext.current
-        val isBeastPortrait = portraitRes.startsWith("beast_")
-        val portraitResId = remember(portraitRes) {
-            if (isBeastPortrait) {
-                val suffix = portraitRes.removePrefix("beast_")
-                val index = suffix.toIntOrNull() ?: -1
-                if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
-                else if (index > 0) index
-                else 0
-            } else PortraitPool.getResourceId(context, portraitRes)
+        if (isAlive) {
+            val context = LocalContext.current
+            val isBeastPortrait = portraitRes.startsWith("beast_")
+            val portraitResId = remember(portraitRes) {
+                if (isBeastPortrait) {
+                    val suffix = portraitRes.removePrefix("beast_")
+                    val index = suffix.toIntOrNull() ?: -1
+                    if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                    else if (index > 0) index
+                    else 0
+                } else PortraitPool.getResourceId(context, portraitRes)
+            }
+            Image(
+                painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                          else painterResource(id = R.drawable.disciple_portrait),
+                contentDescription = null,
+                modifier = Modifier.width(40.dp).height(48.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            // 阵亡：仅覆盖精灵图区域，名称和境界保持显示
+            Box(
+                modifier = Modifier.width(40.dp).height(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "死亡",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF44336),
+                    maxLines = 1
+                )
+            }
         }
-        Image(
-            painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                      else painterResource(id = R.drawable.disciple_portrait),
-            contentDescription = null,
-            modifier = Modifier.width(40.dp).height(48.dp),
-            contentScale = ContentScale.Fit
-        )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = realmName,
@@ -369,7 +386,8 @@ fun UnifiedDiscipleSlot(
             SlotContent(
                 name = disciple.name,
                 realmName = disciple.realmName,
-                portraitRes = disciple.portraitRes
+                portraitRes = disciple.portraitRes,
+                isAlive = disciple.isAlive
             )
         } else {
             Text(
@@ -477,21 +495,12 @@ internal fun BattleParticipantSlot(
                 .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (isAlive) {
-                SlotContent(
-                    name = name,
-                    realmName = realmName,
-                    portraitRes = portraitRes
-                )
-            } else {
-                Text(
-                    text = "死亡",
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF44336),
-                    maxLines = 1
-                )
-            }
+            SlotContent(
+                name = name,
+                realmName = realmName,
+                portraitRes = portraitRes,
+                isAlive = isAlive
+            )
         }
     }
 }

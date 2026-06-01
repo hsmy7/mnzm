@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -244,11 +245,18 @@ private fun MailCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = formatExpireTime(mail.expireTime),
-                fontSize = 9.sp,
-                color = Color.Gray
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = formatExpireTime(mail.expireTime),
+                    fontSize = 9.sp,
+                    color = Color.Gray
+                )
+                Text(
+                    text = if (mail.isRead) "已读" else "未读",
+                    fontSize = 9.sp,
+                    color = if (mail.isRead) Color.Gray else Color(0xFFE53935)
+                )
+            }
         }
     }
 }
@@ -258,8 +266,9 @@ private fun MailDetailPanel(
     mail: MailEntity,
     onClaim: () -> Unit
 ) {
+    // 解析附件（领取后仍显示，已领时精灵图替换为"已领"文本）
     val attachments: List<MailAttachment> = remember(mail.attachments) {
-        if (mail.hasAttachment && !mail.attachmentClaimed) {
+        if (mail.hasAttachment) {
             try { mailJson.decodeFromString<List<MailAttachment>>(mail.attachments) }
             catch (_: Exception) { emptyList() }
         } else emptyList()
@@ -296,32 +305,44 @@ private fun MailDetailPanel(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text("附件", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    attachments.forEach { attachment ->
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                id = attachment.itemId ?: "",
-                                name = attachment.name,
-                                rarity = attachment.rarity,
-                                quantity = attachment.quantity,
-                                type = attachment.type,
-                                isSpiritStone = attachment.type == "spiritStones",
-                                isPill = attachment.type == "pill",
-                                isMaterial = attachment.type in listOf("material", "herb", "seed"),
-                                isBag = attachment.type == "storageBag"
-                            ),
-                            showQuantity = true
-                        )
+                if (mail.attachmentClaimed) {
+                    // 已领取：显示物品卡片，精灵图替换为"已领"文本
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        attachments.forEach { attachment ->
+                            ClaimedAttachmentCard(attachment)
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        attachments.forEach { attachment ->
+                            UnifiedItemCard(
+                                data = ItemCardData(
+                                    id = attachment.itemId ?: "",
+                                    name = attachment.name,
+                                    rarity = attachment.rarity,
+                                    quantity = attachment.quantity,
+                                    type = attachment.type,
+                                    isSpiritStone = attachment.type == "spiritStones",
+                                    isPill = attachment.type == "pill",
+                                    isMaterial = attachment.type in listOf("material", "herb", "seed"),
+                                    isBag = attachment.type == "storageBag"
+                                ),
+                                showQuantity = true
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // 按钮区
-        if (mail.hasAttachment) {
+        // 按钮区 — 领取后不再显示
+        if (mail.hasAttachment && !mail.attachmentClaimed) {
             HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
 
@@ -332,11 +353,65 @@ private fun MailDetailPanel(
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (!mail.attachmentClaimed) {
-                    GameButton(text = "领取", onClick = onClaim)
-                } else {
-                    Text("已领取", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
-                }
+                GameButton(text = "领取", onClick = onClaim)
+            }
+        }
+    }
+}
+
+/**
+ * 已领取附件的物品卡片：精灵图区域替换为"已领"文本，名称和数量保持显示。
+ * 参考战斗详情中弟子阵亡的覆盖模式（仅覆盖精灵图，不覆盖名称）。
+ */
+@Composable
+private fun ClaimedAttachmentCard(attachment: MailAttachment) {
+    Box(
+        modifier = Modifier.size(60.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(6.dp))
+                .border(2.dp, GameColors.Border, RoundedCornerShape(6.dp))
+        ) {
+            // 精灵图区域 → 替换为"已领"文本
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFFF5F5F5)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "已领",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4CAF50)
+                )
+            }
+            // 名称 + 数量
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(GameColors.PageBackground)
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = attachment.name,
+                    fontSize = 7.sp,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "×${attachment.quantity}",
+                    fontSize = 7.sp,
+                    color = Color.Gray
+                )
             }
         }
     }
