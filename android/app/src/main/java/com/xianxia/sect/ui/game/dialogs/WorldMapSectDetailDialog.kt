@@ -97,7 +97,7 @@ internal fun WorldMapSectDetailDialog(
                         Image(
                             painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(sect.level)),
                             contentDescription = sect.levelName,
-                            modifier = Modifier.height(14.sp.toDp())
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = sect.levelName,

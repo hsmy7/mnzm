@@ -58,6 +58,7 @@ import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
@@ -473,11 +474,11 @@ internal fun WarehouseTab(
             if (showBagRewards != null) {
                 val rewards = showBagRewards!!
                 StandardPromptDialog(
+                    onDismissRequest = { showBagRewards = null },
                     title = "储物袋开启",
-                    message = rewards.joinToString("\n") { "${it.name} × ${it.quantity}" },
-                    confirmText = "确认",
-                    onConfirm = { showBagRewards = null },
-                    onDismiss = { showBagRewards = null }
+                    text = rewards.joinToString("\n") { "${it.name} × ${it.quantity}" },
+                    confirmLabel = "确认",
+                    onConfirm = { showBagRewards = null }
                 )
             }
 

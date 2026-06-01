@@ -29,7 +29,6 @@ import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton

@@ -410,6 +410,7 @@ class GameStateStore @Inject constructor(
         materials = emptyList(),
         herbs = emptyList(),
         seeds = emptyList(),
+        storageBags = emptyList(),
         battleLogs = emptyList(),
         teams = emptyList(),
         isPaused = true,

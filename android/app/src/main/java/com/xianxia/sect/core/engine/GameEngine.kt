@@ -2467,91 +2467,93 @@ class GameEngine @Inject constructor(
             val type = kotlin.random.Random.nextInt(7)
             when (type) {
                 0 -> { // equipment
-                    val eq = com.xianxia.sect.core.registry.EquipmentDatabase.allTemplates
-                        .filter { it.rarity == rarity }
-                        .randomOrNull()
-                    if (eq != null) {
-                        val stack = EquipmentStack(name = eq.name, rarity = eq.rarity, slot = eq.slot, description = eq.description, quantity = 1,
-                            physAtk = eq.physAtk, magAtk = eq.magAtk, def = eq.def, speed = eq.speed, hp = eq.hp, mp = eq.mp, critChance = eq.critChance)
-                        stateStore.update { equipmentStacks = equipmentStacks + stack }
-                        rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
-                    }
+                    val stack = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity, rarity)
+                    stateStore.update { equipmentStacks = equipmentStacks + stack }
+                    rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
                 }
                 1 -> { // manual
-                    val manuals = com.xianxia.sect.core.registry.ManualDatabase.allManuals
-                    if (manuals != null) {
-                        val m = manuals.filter { it.rarity == rarity }.randomOrNull()
-                        if (m != null) {
-                            val stack = ManualStack(name = m.name, rarity = m.rarity, type = m.type, description = m.description, quantity = 1,
-                                physAtk = m.physAtk, magAtk = m.magAtk, def = m.def, speed = m.speed, hp = m.hp, mp = m.mp, critChance = m.critChance)
+                    if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
+                        val templates = com.xianxia.sect.core.registry.ManualDatabase.getByRarity(rarity)
+                        if (templates.isNotEmpty()) {
+                            val stack = com.xianxia.sect.core.registry.ManualDatabase.createFromTemplate(templates.random())
                             stateStore.update { manualStacks = manualStacks + stack }
                             rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "manual"))
                         }
                     }
                 }
                 2 -> { // pill
-                    val pill = com.xianxia.sect.core.registry.ItemDatabase.allPills
-                        .filter { it.rarity == rarity }
-                        .randomOrNull()
-                    if (pill != null) {
-                        stateStore.update {
-                            val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
-                            if (existing != null) {
-                                pills = pills.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
-                            } else {
-                                pills = pills + pill.copy(quantity = 1)
-                            }
+                    val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity, rarity)
+                    stateStore.update {
+                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category && it.grade == pill.grade }
+                        if (existing != null) {
+                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                        } else {
+                            pills = pills + pill
                         }
-                        rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                     }
+                    rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                 }
                 3 -> { // herb
-                    val herb = com.xianxia.sect.core.registry.HerbDatabase.getAllHerbs()
-                        .filter { it.rarity == rarity }
-                        .randomOrNull()
-                    if (herb != null) {
+                    val templates = com.xianxia.sect.core.registry.HerbDatabase.getHerbsByTier(rarity)
+                    if (templates.isNotEmpty()) {
+                        val h = templates.random()
+                        var herbId = ""
+                        var herbName = ""
+                        var herbRarity = 0
                         stateStore.update {
-                            val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity }
+                            val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
                             if (existing != null) {
+                                herbId = existing.id
+                                herbName = existing.name
+                                herbRarity = existing.rarity
                                 herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
                             } else {
-                                herbs = herbs + herb.copy(quantity = 1)
+                                val newHerb = com.xianxia.sect.core.model.Herb(id = java.util.UUID.randomUUID().toString(), name = h.name, rarity = h.rarity, description = h.description, category = h.category, quantity = 1)
+                                herbId = newHerb.id
+                                herbName = newHerb.name
+                                herbRarity = newHerb.rarity
+                                herbs = herbs + newHerb
                             }
                         }
-                        rewards.add(BattleRewardItem(itemId = herb.id, name = herb.name, quantity = 1, rarity = herb.rarity, type = "herb"))
+                        rewards.add(BattleRewardItem(itemId = herbId, name = herbName, quantity = 1, rarity = herbRarity, type = "herb"))
                     }
                 }
                 4 -> { // seed
-                    val seed = com.xianxia.sect.core.registry.HerbDatabase.getAllSeeds()
-                        .filter { it.rarity == rarity }
-                        .randomOrNull()
-                    if (seed != null) {
+                    val templates = com.xianxia.sect.core.registry.HerbDatabase.getAllSeeds().filter { it.rarity == rarity }
+                    if (templates.isNotEmpty()) {
+                        val s = templates.random()
+                        var seedId = ""
+                        var seedName = ""
+                        var seedRarity = 0
                         stateStore.update {
-                            val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity }
+                            val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                             if (existing != null) {
+                                seedId = existing.id
+                                seedName = existing.name
+                                seedRarity = existing.rarity
                                 seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
                             } else {
-                                seeds = seeds + seed.copy(quantity = 1)
+                                val newSeed = com.xianxia.sect.core.model.Seed(id = java.util.UUID.randomUUID().toString(), name = s.name, rarity = s.rarity, description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)
+                                seedId = newSeed.id
+                                seedName = newSeed.name
+                                seedRarity = newSeed.rarity
+                                seeds = seeds + newSeed
                             }
                         }
-                        rewards.add(BattleRewardItem(itemId = seed.id, name = seed.name, quantity = 1, rarity = seed.rarity, type = "seed"))
+                        rewards.add(BattleRewardItem(itemId = seedId, name = seedName, quantity = 1, rarity = seedRarity, type = "seed"))
                     }
                 }
                 5 -> { // material
-                    val mat = com.xianxia.sect.core.registry.BeastMaterialDatabase.getAllMaterials()
-                        .filter { it.rarity == rarity }
-                        .randomOrNull()
-                    if (mat != null) {
-                        stateStore.update {
-                            val existing = materials.find { it.name == mat.name && it.rarity == mat.rarity }
-                            if (existing != null) {
-                                materials = materials.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
-                            } else {
-                                materials = materials + mat.copy(quantity = 1)
-                            }
+                    val mat = com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(rarity, rarity)
+                    stateStore.update {
+                        val existing = materials.find { it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category }
+                        if (existing != null) {
+                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                        } else {
+                            materials = materials + mat
                         }
-                        rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity, type = "material"))
                     }
+                    rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity, type = "material"))
                 }
                 6 -> { // spirit stones
                     val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
