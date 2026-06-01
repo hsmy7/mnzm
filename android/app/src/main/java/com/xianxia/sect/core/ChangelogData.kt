@@ -9,11 +9,22 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.96",
+            date = "2026-06-02",
+            changes = listOf(
+                "邮件系统完善：移除防刷审计表（claimed_mail_records），读旧档可重新领取。新游戏/重开后邮件自动重置为未领取。储物袋附件支持堆叠（同品阶合并quantity）。邮件物品卡片精灵图全覆盖（装备/材料/丹药/储物袋/灵石）",
+                "邮件UI优化：标题/内容/按钮区统一底色，附件FlowRow多行换行。已领附件精灵图替换为绿色\"已领\"且名称数量不变。邮件列表卡片显示已读/未读标记（灰/红），未读红点改为按钮外部小圆点",
+                "储物袋堆叠显示修复：仓库中储物袋数量不再固定显示1",
+                "弟子阵亡显示优化：仅立绘区域覆盖红色\"死亡\"文字，名称和境界保持显示",
+                "数据库迁移 v21→v24：修复mail表索引名+DEFAULT值、移除claimed_mail_records表"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.95",
             date = "2026-06-02",
             changes = listOf(
-                "新增邮件系统：全服补偿/奖励邮件，支持在线拉取+内置邮件混合投递。附件含灵石、灵草、装备、丹药、材料、草药、种子、弟子八种类型。一键已读（含自动领取）+单封查看，30天过期自动清理。领取防刷机制（独立审计表 + 存档级隔离）",
-                "数据库迁移 v20→v21：新增 mails 表和 claimed_mail_records 表（领取审计），含三个索引（slotId、remoteMailId、slotId+expireTime）"
+                "新增邮件系统：全服补偿/奖励邮件，支持在线拉取+内置邮件混合投递。附件含灵石、灵草、装备、丹药、材料、草药、种子、储物袋九种类型。一键已读（含自动领取）+单封查看，30天过期自动清理",
+                "数据库迁移 v20→v21：新增 mails 表（14字段+3索引）"
             )
         ),
         ChangelogEntry(
