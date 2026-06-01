@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.91",
+            date = "2026-06-01",
+            changes = listOf(
+                "全量精灵图WebP无损优化：205张PNG统一转WebP无损格式（Google官方推荐，零质量损失比PNG小26-45%），APK资源体积从145MB降至71MB（-51%）。道具卡片按v3.0.72标准统一480px长边（新材料从1400px缩至480px），UI按钮按实际显示尺寸裁剪（地图按钮11MB→210KB、系统消息6.7MB→524KB、奖励弹窗8.1MB→660KB）。drawable-nodpi目录全面WebP化，NodpiCompatUtil废弃",
+                "build.gradle新增noCompress 'webp'，避免APK对已高效压缩的WebP做无效zip二次压缩"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.90",
             date = "2026-06-01",
             changes = listOf(
