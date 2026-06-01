@@ -530,8 +530,8 @@ class MailService @Inject constructor(
     suspend fun resetAndInitSlot(slotId: Int) {
         getMutex(slotId).withLock {
             Log.i(TAG, "resetAndInitSlot for slot $slotId")
-            mailDao.deleteAllForSlot(slotId)
             try {
+                mailDao.deleteAllForSlot(slotId)
                 fetchOnlineMails(slotId)
                 loadBuiltinMails(slotId)
                 cleanExpired(slotId)
