@@ -221,7 +221,7 @@ internal fun WarehouseTab(
     }
     var currentPage by remember { mutableIntStateOf(0) }
     
-    val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials) {
+    val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials, spiritStoneCards, sortedBags) {
         when (selectedFilter) {
             WarehouseFilter.ALL -> allSortedItems
             WarehouseFilter.EQUIPMENT -> equipment.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
@@ -229,7 +229,15 @@ internal fun WarehouseTab(
             WarehouseFilter.MANUAL -> manuals.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
             WarehouseFilter.HERB -> sortedHerbs.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
             WarehouseFilter.SEED -> sortedSeeds.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-            WarehouseFilter.MATERIAL -> sortedMaterials.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.MATERIAL -> {
+                val items = mutableListOf<WarehouseItemData>()
+                sortedMaterials.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
+                sortedBags.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
+                spiritStoneCards.forEach { (id, info) ->
+                    items.add(0, WarehouseItemData(id, "灵石", 1, info))
+                }
+                items
+            }
         }
     }
     
