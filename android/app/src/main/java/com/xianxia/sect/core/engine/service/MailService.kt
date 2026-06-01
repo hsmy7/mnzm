@@ -80,7 +80,9 @@ class MailService @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {
         getMutex(slotId).withLock {
-            Log.d(TAG, "Clearing mail cache for slot $slotId")
+            mailDao.deleteAllForSlot(slotId)
+            claimedMailDao.deleteAllForSlot(slotId)
+            Log.d(TAG, "Cleared all mails and claimed records for slot $slotId")
         }
     }
 
