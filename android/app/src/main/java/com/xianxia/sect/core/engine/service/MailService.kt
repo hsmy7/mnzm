@@ -132,9 +132,8 @@ class MailService @Inject constructor(
     suspend fun loadBuiltinMails(slotId: Int) {
         val now = System.currentTimeMillis()
         BuiltinMailConfig.mails.forEach { builtinMail ->
-            // 限时邮件超过截止时间：彻底删除已存在的，不再插入
+            // 限时邮件超过截止时间：仅停止发放，已存在的保留至正常过期
             if (builtinMail.deadlineMs > 0 && now > builtinMail.deadlineMs) {
-                mailDao.deleteByBuiltinId(builtinMail.id)
                 return@forEach
             }
             val existingMails = mailDao.getActiveMails(slotId, now).first()
