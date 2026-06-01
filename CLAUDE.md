@@ -155,6 +155,17 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 - **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
 - **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
 
+## 设计方案规则
+
+出方案或做设计决策时，**必须**先使用 `/deep-research` skill 并结合网络搜索，调研同游戏行业的先进设计，给出对标分析后再出最优方案。禁止凭经验直接写代码。
+
+流程：
+1. 明确需求 → 列出待调研的设计问题
+2. 使用 `Skill` 工具调用 `deep-research` + `WebSearch` 搜索行业做法
+3. 对标头部产品（原神、星铁、网易、腾讯系等）的设计模式
+4. 输出对比分析报告，标注推荐方案和理由
+5. 用户确认后再执行
+
 ## Changelog Requirements
 
 After implementing any feature or bug fix, update BOTH:
