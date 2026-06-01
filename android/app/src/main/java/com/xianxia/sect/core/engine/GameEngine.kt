@@ -261,8 +261,9 @@ class GameEngine @Inject constructor(
             }
         }
 
-        // Initialize mail system for the loaded slot
+        // Initialize mail system for the loaded slot（先清再重建，确保邮件状态跟随存档）
         try {
+            mailService.clearForSlot(gameData.slotId)
             mailService.initializeForSlot(gameData.slotId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize mail for slot ${gameData.slotId}", e)
