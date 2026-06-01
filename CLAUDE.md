@@ -185,6 +185,13 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 - StateFlow 数据流确保有初始值，不在 UI 层做空值合并
 - 新功能上线前自测：正常流程 + 边界条件 + 异常恢复
 
+### 架构文档同步
+- 写代码时**必须同步更新** `CODE_WIKI.md`，保持架构文档与代码一致
+- 新增模块：补充架构分层图、数据流说明、核心类/接口列表
+- 修改现有模块：更新对应章节的用法说明、注意事项
+- 发现技术债务或优化方向：追加到文档末尾的「后续优化项」清单
+- 文档内容包含：**架构设计 + 使用方式 + 关键配置 + 后续优化项**
+
 ## Changelog Requirements
 
 After implementing any feature or bug fix, update BOTH:

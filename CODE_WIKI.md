@@ -4,7 +4,7 @@
 
 **项目名称**: XianxiaSectNative（仙侠宗门）  
 **应用ID**: `com.xianxia.sect`  
-**当前版本**: 2.6.21 (versionCode: 2184)  
+**当前版本**: 3.1.96 (versionCode: 3196)  
 **项目类型**: Android 原生应用 — 修仙宗门经营模拟游戏  
 **开发语言**: Kotlin 2.0.21, JVM Target 17  
 **最低 SDK**: 24 (Android 7.0) | **目标 SDK**: 35 (Android 15)
@@ -203,6 +203,7 @@ XianxiaSectNative/
 | `SaveService` | 存档服务：保存/加载协调 |
 | `FormulaService` | 公式服务：战斗公式、长老加成计算 |
 | `RedeemCodeService` | 兑换码服务：兑换码验证与奖励发放 |
+| `MailService` | 邮件服务：在线拉取+内置加载、附件领取（8种类型）、一键已读、限时机制、存取档绑定 |
 
 #### 4.1.2 System 层 (`core/engine/system/`)
 
@@ -283,6 +284,12 @@ XianxiaSectNative/
 | `production/GameTime` | 游戏时间模型 | ❌ |
 | `production/ProductionParams` | 生产参数 | ❌ |
 | `production/ProductionError` | 生产错误 | ❌ |
+
+#### 4.2.7 邮件 (`MailEntity.kt`)
+| 类 | 说明 |
+|----|------|
+| `MailEntity` | 邮件 Room Entity（mails 表，14字段+3索引，1000封上限） |
+| `MailAttachment` | 附件数据类（type/name/quantity/rarity），支持8种类型 |
 
 ### 4.3 状态管理层 (`core/state/`)
 
@@ -765,3 +772,53 @@ cd android && ./gradlew.bat clean
 - 使用阿里云 Maven 镜像
 - ViewModel 继承 `BaseViewModel`
 - 状态变更通过 `GameEngine` 方法，UI 层不直接修改 `GameStateStore`
+
+---
+
+## 9. 邮件系统 (`v3.1.96`)
+
+### 9.1 架构
+
+```
+MailService (GameSystem, @SystemPriority 960)
+  ├── resetAndInitSlot()  ← 清空+重建（Mutex 原子操作）
+  ├── claimAttachment()   ← 单封领取（容量检查→发放→写入 GameData.claimedMailIds）
+  ├── markAllAsRead()      ← 一键已读（含自动领取）
+  ├── loadBuiltinMails()  ← 内置邮件加载（含 deadlineMs 限时检查）
+  ├── fetchOnlineMails()  ← 在线邮件拉取（启动+onMonthTick 轮询）
+  └── cleanExpired()      ← 30天过期清理
+
+数据流: MailEntity (Room mails表) → MailService.activeMails (StateFlow) → ViewModel → Compose UI
+领取状态: GameData.claimedMailIds (List<String>) 随存档序列化，读档即还原
+```
+
+### 9.2 文件清单
+
+| 文件 | 说明 |
+|------|------|
+| `core/model/MailEntity.kt` | Room Entity + MailAttachment 数据类 |
+| `data/local/MailDao.kt` | DAO（含 insertWithEnforceLimit/markAllAsRead 等） |
+| `core/engine/service/MailService.kt` | 核心服务（GameSystem 实现） |
+| `core/config/BuiltinMailConfig.kt` | 内置邮件配置（含 deadlineMs 限时） |
+| `ui/game/dialogs/MailDialog.kt` | 邮件对话框（4:6 分栏） |
+| `ui/game/components/GameActionButtons.kt` | 邮件入口按钮+红点 |
+
+### 9.3 关键设计决策
+
+| 决策 | 原因 |
+|------|------|
+| 领取状态存 `GameData` 而非独立审计表 | 单机游戏，邮件状态应随存档走 |
+| `resetAndInitSlot` 原子操作 | 避免 clear+init 分步导致的 StateFlow 竞态 |
+| StateFlow 主动推送（不用 flatMapLatest） | 避免 slotId 快速变化时订阅失效 |
+| `deadlineMs` 绝对时间戳 | 发布日起 N 天后新老玩家均不再发放 |
+
+---
+
+## 10. 后续优化项
+
+- [ ] 邮件全文搜索（标题/正文关键词）
+- [ ] 在线邮件推送通知（FCM/本地通知）
+- [ ] 邮件附件预览（领取前确认窗口）
+- [ ] 弟子阵亡/建筑摧毁等游戏事件自动生成邮件
+- [ ] `CODE_WIKI.md` 版本号与实际版本同步更新机制
+- [ ] 恢复 `claimed_mail_records` 审计表（联机模式时防刷）
