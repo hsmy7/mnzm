@@ -604,7 +604,7 @@ private fun SectInfoCard(
                 Image(
                     painter = painterResource(id = com.xianxia.sect.ui.components.sectIconRes(1)),
                     contentDescription = "宗门等级",
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(24.dp)
                 )
                 Text(
                     text = gameData?.sectName ?: "青云宗",
