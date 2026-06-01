@@ -17,6 +17,17 @@ object ChangelogData {
             )
         ),
         ChangelogEntry(
+            version = "3.1.88",
+            date = "2026-06-01",
+            changes = listOf(
+                "数据库拆表解决CursorWindow超限：game_data单行60+列含大量Protobuf序列化数据，中后期存档超过Android CursorWindow 2MB行大小限制导致SQLiteBlobTooBigException崩溃。将5个L4重型字段（aiSectDisciples/sectDetails/exploredSects/scoutInfo/manualProficiencies）独立存入新表game_heavy_data，game_data单行体积大幅缩小",
+                "L4数据懒加载：游戏循环启动时按需加载（ensureHeavyDataLoaded），攻打/侦查宗门等需要重型数据的操作前自动触发，主界面加载不阻塞",
+                "数据库迁移v17→v18：材料更名（蛇皮→蛇鳞、蛇骨→蛇血、毒牙→蛇牙、龙骨→龙爪、龟甲→龟血），同步更新category（新增BEAST_BLOOD，plastron→blood，bone→claw）",
+                "数据库迁移v18→v19：创建game_heavy_data表，将game_data中5个L4列数据迁移至新表，清空原列",
+                "蛇妖/龙妖/龟妖材料更名：蛇皮→蛇鳞、蛇骨→蛇血、毒牙→蛇牙、龙骨→龙爪、龟甲→龟血，配方引用同步更新"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.87",
             date = "2026-06-01",
             changes = listOf(
