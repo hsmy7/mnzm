@@ -211,6 +211,10 @@ class MailService @Inject constructor(
             }
 
             mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
+            // 记录领取状态到存档数据
+            stateStore.update {
+                gameData = gameData.copy(claimedMailIds = gameData.claimedMailIds + mail.id)
+            }
             refreshActiveMails(slotId)
             ClaimResult.Success(attachments)
         }
@@ -270,6 +274,10 @@ class MailService @Inject constructor(
         }
 
         mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
+        // 记录领取状态到存档数据
+        stateStore.update {
+            gameData = gameData.copy(claimedMailIds = gameData.claimedMailIds + mail.id)
+        }
         refreshActiveMails(slotId)
         return ClaimResult.Success(attachments)
     }
@@ -528,6 +536,16 @@ class MailService @Inject constructor(
                 fetchOnlineMails(slotId)
                 loadBuiltinMails(slotId)
                 cleanExpired(slotId)
+                // 根据存档数据恢复已领取状态
+                val claimedIds = stateStore.gameData.value.claimedMailIds
+                if (claimedIds.isNotEmpty()) {
+                    val now = System.currentTimeMillis()
+                    val mails = mailDao.getActiveMails(slotId, now).first()
+                    mails.filter { it.id in claimedIds }.forEach { mail ->
+                        Log.i(TAG, "Restoring claimed state for mail ${mail.id}")
+                        mailDao.update(mail.copy(attachmentClaimed = true, isRead = true))
+                    }
+                }
                 Log.i(TAG, "resetAndInitSlot DONE for slot $slotId")
                 refreshActiveMails(slotId)
             } catch (e: Exception) {

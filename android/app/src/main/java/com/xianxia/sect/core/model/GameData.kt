@@ -254,6 +254,9 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var usedRedeemCodes: List<String> = emptyList(),
 
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var claimedMailIds: List<String> = emptyList(),
+
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionEnabled: Boolean = true,
