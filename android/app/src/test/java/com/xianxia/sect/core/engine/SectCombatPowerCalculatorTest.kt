@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.Disciple
 import org.junit.Assert.assertEquals

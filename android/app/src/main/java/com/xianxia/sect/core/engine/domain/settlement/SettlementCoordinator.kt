@@ -158,7 +158,7 @@ class SettlementCoordinator @Inject constructor(
         )
     }
 
-    fun onSettlementComplete() {
+    suspend fun onSettlementComplete() {
         val shadow = shadowState ?: return
         timer.start()
         stateStore.swapFromShadow(shadow)

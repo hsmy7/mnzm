@@ -246,6 +246,32 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    suspend fun incrementalSave(slot: Int): SaveResult<Unit> {
+        ensureInitialized()
+        val startTime = System.currentTimeMillis()
+
+        return try {
+            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Incremental save slot $slot")
+
+            val result = engine.incrementalSave(slot)
+            val elapsed = System.currentTimeMillis() - startTime
+
+            if (result.isSuccess) {
+                saveCount.incrementAndGet()
+                totalSaveTimeMs.addAndGet(elapsed)
+                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
+                SaveResult.success(Unit)
+            } else {
+                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Incremental save failed")
+                result.toUnifiedResult().map { }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Incremental save failed for slot $slot", e)
+            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
+            SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Incremental save failed", e)
+        }
+    }
+
     suspend fun load(slot: Int): SaveResult<SaveData> {
         ensureInitialized()
         val startTime = System.currentTimeMillis()

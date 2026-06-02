@@ -3,8 +3,10 @@ package com.xianxia.sect.core.engine.system
 import android.util.Log
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -35,6 +37,8 @@ class SystemManager @Inject constructor(
 
     private var isInitialized = false
 
+    private val priorityGroups: List<List<GameSystem>>
+
     init {
         val sortedSystems = systems.sortedBy { system ->
             system::class.java.getAnnotation(SystemPriority::class.java)?.order
@@ -44,7 +48,16 @@ class SystemManager @Inject constructor(
             systemMap[system::class] = system
             systemOrder.add(system::class)
         }
+        priorityGroups = sortedSystems
+            .groupBy { system ->
+                system::class.java.getAnnotation(SystemPriority::class.java)?.order
+                    ?: DEFAULT_PRIORITY
+            }
+            .toSortedMap()
+            .values
+            .map { group -> group.toList() }
         Log.d(TAG, "System execution order: ${sortedSystems.map { it.systemName }}")
+        Log.d(TAG, "Parallel groups: ${priorityGroups.map { group -> group.map { it.systemName } }}")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -123,39 +136,42 @@ class SystemManager @Inject constructor(
     }
 
     suspend fun onPhaseTick(state: MutableGameState) {
-        systemOrder.forEach { kClass ->
-            systemMap[kClass]?.let { system ->
-                try {
-                    system.onPhaseTick(state)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in onPhaseTick for ${system.systemName}", e)
-                    _errors.trySend(SystemError(system.systemName, "onPhaseTick", e))
-                }
-            }
-        }
+        executeInParallelGroups(state) { system, s -> system.onPhaseTick(s) }
     }
 
     suspend fun onMonthTick(state: MutableGameState) {
-        systemOrder.forEach { kClass ->
-            systemMap[kClass]?.let { system ->
-                try {
-                    system.onMonthTick(state)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in onMonthTick for ${system.systemName}", e)
-                    _errors.trySend(SystemError(system.systemName, "onMonthTick", e))
-                }
-            }
-        }
+        executeInParallelGroups(state) { system, s -> system.onMonthTick(s) }
     }
 
     suspend fun onYearTick(state: MutableGameState) {
-        systemOrder.forEach { kClass ->
-            systemMap[kClass]?.let { system ->
+        executeInParallelGroups(state) { system, s -> system.onYearTick(s) }
+    }
+
+    private suspend fun executeInParallelGroups(
+        state: MutableGameState,
+        action: suspend (GameSystem, MutableGameState) -> Unit
+    ) {
+        for (group in priorityGroups) {
+            if (group.size == 1) {
+                val system = group.first()
                 try {
-                    system.onYearTick(state)
+                    action(system, state)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error in onYearTick for ${system.systemName}", e)
-                    _errors.trySend(SystemError(system.systemName, "onYearTick", e))
+                    Log.e(TAG, "Error in ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "tick", e))
+                }
+            } else {
+                coroutineScope {
+                    group.forEach { system ->
+                        launch {
+                            try {
+                                action(system, state)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in ${system.systemName}", e)
+                                _errors.trySend(SystemError(system.systemName, "tick", e))
+                            }
+                        }
+                    }
                 }
             }
         }

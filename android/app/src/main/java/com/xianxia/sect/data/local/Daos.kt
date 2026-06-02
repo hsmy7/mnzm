@@ -1126,6 +1126,24 @@ interface StorageBagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(storageBags: List<StorageBag>)
 
+    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<StorageBag>
+
     @Query("DELETE FROM storage_bags WHERE slot_id = :slotId")
+    suspend fun deleteAll(slotId: Int)
+}
+
+@Dao
+interface DiscipleCompactDao {
+    @Query("SELECT * FROM disciple_compact WHERE slot_id = :slotId AND isAlive = 1")
+    fun getAllAlive(slotId: Int): Flow<List<DiscipleCompact>>
+
+    @Query("SELECT * FROM disciple_compact WHERE slot_id = :slotId")
+    fun getAll(slotId: Int): Flow<List<DiscipleCompact>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<DiscipleCompact>)
+
+    @Query("DELETE FROM disciple_compact WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 }

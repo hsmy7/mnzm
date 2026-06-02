@@ -27,11 +27,11 @@ class BuildingFacadeImpl @Inject constructor(
         stateStore.update { gameData = gameData.copy(placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId)) }
     }
 
-    override fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
+    override suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
-        stateStore.updateGameDataDirect { data ->
-            data.copy(
-                placedBuildings = data.placedBuildings.map {
+        stateStore.update {
+            gameData = gameData.copy(
+                placedBuildings = gameData.placedBuildings.map {
                     if (it.instanceId == instanceId && it.sectId == sectId) it.copy(gridX = newGridX, gridY = newGridY)
                     else it
                 }

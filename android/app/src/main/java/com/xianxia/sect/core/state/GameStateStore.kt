@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.state
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -42,7 +44,8 @@ data class MutableGameState(
 
 @Singleton
 class GameStateStore @Inject constructor(
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val repository: GameStateRepository
 ) {
 
     @Volatile
@@ -83,6 +86,8 @@ class GameStateStore @Inject constructor(
 
     val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    // LEGACY: 全量 combine，仅用于 GameEngineCore.state 和 UnifiedGameStateManager
+    // 新代码应使用 highFreqState / entityState / configState 或独立 StateFlow
     val unifiedState: StateFlow<UnifiedGameState> = combine(
         _gameDataFlow, _disciplesFlow, _equipmentStacksFlow, _equipmentInstancesFlow,
         _manualStacksFlow, _manualInstancesFlow, _pillsFlow, _materialsFlow,
@@ -133,6 +138,101 @@ class GameStateStore @Inject constructor(
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    // === 三层 StateFlow 架构 ===
+    // HighFreq: 高频变化字段，sample 降频
+    @Immutable
+    data class HighFreqState(
+        val spiritStones: Long = 0L,
+        val gameYear: Int = 1,
+        val gameMonth: Int = 1,
+        val gamePhase: Int = 1,
+        val isPaused: Boolean = true
+    )
+
+    val highFreqState: StateFlow<HighFreqState> = combine(
+        _gameDataFlow.map { it.spiritStones }.distinctUntilChanged(),
+        _gameDataFlow.map { it.gameYear }.distinctUntilChanged(),
+        _gameDataFlow.map { it.gameMonth }.distinctUntilChanged(),
+        _gameDataFlow.map { it.gamePhase }.distinctUntilChanged(),
+        _isPaused
+    ) { spiritStones, year, month, phase, paused ->
+        HighFreqState(spiritStones, year, month, phase, paused)
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), HighFreqState())
+
+    // EntityFlow: 实体数据，distinctUntilChanged
+    data class EntityState(
+        val disciples: List<Disciple> = emptyList(),
+        val equipmentStacks: List<EquipmentStack> = emptyList(),
+        val equipmentInstances: List<EquipmentInstance> = emptyList(),
+        val manualStacks: List<ManualStack> = emptyList(),
+        val manualInstances: List<ManualInstance> = emptyList(),
+        val pills: List<Pill> = emptyList(),
+        val materials: List<Material> = emptyList(),
+        val herbs: List<Herb> = emptyList(),
+        val seeds: List<Seed> = emptyList(),
+        val storageBags: List<StorageBag> = emptyList(),
+        val teams: List<ExplorationTeam> = emptyList(),
+        val battleLogs: List<BattleLog> = emptyList()
+    )
+
+    val entityState: StateFlow<EntityState> = combine(
+        _disciplesFlow,
+        _equipmentStacksFlow,
+        _equipmentInstancesFlow,
+        _manualStacksFlow,
+        _manualInstancesFlow,
+        _pillsFlow,
+        _materialsFlow,
+        _herbsFlow,
+        _seedsFlow,
+        _storageBagsFlow,
+        _teamsFlow,
+        _battleLogsFlow
+    ) { args ->
+        EntityState(
+            disciples = args[0] as List<Disciple>,
+            equipmentStacks = args[1] as List<EquipmentStack>,
+            equipmentInstances = args[2] as List<EquipmentInstance>,
+            manualStacks = args[3] as List<ManualStack>,
+            manualInstances = args[4] as List<ManualInstance>,
+            pills = args[5] as List<Pill>,
+            materials = args[6] as List<Material>,
+            herbs = args[7] as List<Herb>,
+            seeds = args[8] as List<Seed>,
+            storageBags = args[9] as List<StorageBag>,
+            teams = args[10] as List<ExplorationTeam>,
+            battleLogs = args[11] as List<BattleLog>
+        )
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), EntityState())
+
+    // ConfigFlow: 配置数据，从 gameData 派生，distinctUntilChanged
+    data class ConfigState(
+        val sectPolicies: SectPolicies = SectPolicies(),
+        val monthlySalary: Map<Int, Int> = emptyMap(),
+        val monthlySalaryEnabled: Map<Int, Boolean> = emptyMap(),
+        val elderSlots: ElderSlots? = null,
+        val placedBuildings: List<GridBuildingData> = emptyList(),
+        val autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
+        val gameSpeed: Int = 1,
+        val autoSaveIntervalMonths: Int = 3
+    )
+
+    val configState: StateFlow<ConfigState> = _gameDataFlow
+        .map { gd ->
+            ConfigState(
+                sectPolicies = gd.sectPolicies,
+                monthlySalary = gd.monthlySalary,
+                monthlySalaryEnabled = gd.monthlySalaryEnabled,
+                elderSlots = gd.elderSlots,
+                placedBuildings = gd.placedBuildings,
+                autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
+                gameSpeed = gd.gameSpeed,
+                autoSaveIntervalMonths = gd.autoSaveIntervalMonths
+            )
+        }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), ConfigState())
 
     private val aggregateCache = ConcurrentHashMap<String, DiscipleAggregate>()
 
@@ -390,62 +490,67 @@ class GameStateStore @Inject constructor(
         )
     }
 
-    fun swapFromShadow(shadow: MutableGameState) {
+    suspend fun swapFromShadow(shadow: MutableGameState) {
         val origin = shadowOrigin
-        val oldGameData = _gameDataFlow.value
-        val oldDisciples = _disciplesFlow.value
-        val oldTeams = _teamsFlow.value
-        val oldBattleLogs = _battleLogsFlow.value
+        update {
+            val oldGameData = this.gameData
+            val oldDisciples = this.disciples
+            val oldTeams = this.teams
+            val oldBattleLogs = this.battleLogs
 
-        val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
-        _gameDataFlow.value = mergedGameData
+            val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
+            this.gameData = mergedGameData
 
-        if (shadow.teams !== oldTeams) _teamsFlow.value = shadow.teams
-        if (shadow.battleLogs !== oldBattleLogs) _battleLogsFlow.value = shadow.battleLogs
+            if (shadow.teams !== oldTeams) this.teams = shadow.teams
+            if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
 
-        val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
-        val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
-        val mergedDisciples = oldDisciples.mapNotNull { mainDisciple ->
-            val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
-            if (shadowDisciple == null) {
-                if (originDiscipleMap.containsKey(mainDisciple.id)) {
-                    null
+            val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
+            val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
+            val mergedDisciples = oldDisciples.mapNotNull { mainDisciple ->
+                val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
+                if (shadowDisciple == null) {
+                    if (originDiscipleMap.containsKey(mainDisciple.id)) {
+                        null
+                    } else {
+                        mainDisciple
+                    }
                 } else {
-                    mainDisciple
-                }
-            } else {
-                val originDisciple = originDiscipleMap[mainDisciple.id]
-                if (originDisciple == null || originDisciple === shadowDisciple) {
-                    mainDisciple
-                } else {
-                    val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
-                    val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
-                    val equipChanged = originDisciple.equipment != shadowDisciple.equipment
-                    val combatChanged = originDisciple.combat != shadowDisciple.combat
-                    val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
-                    mainDisciple.copy(
-                        cultivation = shadowDisciple.cultivation,
-                        realm = shadowDisciple.realm,
-                        realmLayer = shadowDisciple.realmLayer,
-                        lifespan = shadowDisciple.lifespan,
-                        equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
-                        combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
-                        manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
-                        skills = shadowDisciple.skills,
-                        cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
-                        cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
-                        pillEffects = shadowDisciple.pillEffects,
-                        isAlive = when {
-                            diedInSettlement || revivedInSettlement -> shadowDisciple.isAlive
-                            else -> mainDisciple.isAlive
-                        }
-                    )
+                    val originDisciple = originDiscipleMap[mainDisciple.id]
+                    if (originDisciple == null || originDisciple === shadowDisciple) {
+                        mainDisciple
+                    } else {
+                        val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
+                        val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
+                        val equipChanged = originDisciple.equipment != shadowDisciple.equipment
+                        val combatChanged = originDisciple.combat != shadowDisciple.combat
+                        val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
+                        mainDisciple.copy(
+                            cultivation = shadowDisciple.cultivation,
+                            realm = shadowDisciple.realm,
+                            realmLayer = shadowDisciple.realmLayer,
+                            lifespan = shadowDisciple.lifespan,
+                            equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
+                            combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
+                            manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
+                            skills = shadowDisciple.skills,
+                            cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
+                            cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
+                            pillEffects = shadowDisciple.pillEffects,
+                            isAlive = when {
+                                diedInSettlement || revivedInSettlement -> shadowDisciple.isAlive
+                                else -> mainDisciple.isAlive
+                            },
+                            // 玩家操作字段：始终保留玩家最新值，不被影子覆盖
+                            discipleType = mainDisciple.discipleType,
+                            status = mainDisciple.status,
+                            statusData = mainDisciple.statusData
+                        )
+                    }
                 }
             }
+
+            if (mergedDisciples !== oldDisciples) this.disciples = mergedDisciples
         }
-
-        if (mergedDisciples !== oldDisciples) _disciplesFlow.value = mergedDisciples
-
         shadowOrigin = null
     }
 
@@ -515,50 +620,62 @@ class GameStateStore @Inject constructor(
 
     fun updateDisciplesDirect(update: (List<Disciple>) -> List<Disciple>) {
         _disciplesFlow.value = update(_disciplesFlow.value)
+        repository.markDirty(disciples = true)
     }
 
     fun updateGameDataDirect(update: (GameData) -> GameData) {
         _gameDataFlow.value = update(_gameDataFlow.value)
+        repository.markDirty(gameData = true)
     }
 
     fun updateEquipmentStacksDirect(update: (List<EquipmentStack>) -> List<EquipmentStack>) {
         _equipmentStacksFlow.value = update(_equipmentStacksFlow.value)
+        repository.markDirty(equipmentStacks = true)
     }
 
     fun updateEquipmentInstancesDirect(update: (List<EquipmentInstance>) -> List<EquipmentInstance>) {
         _equipmentInstancesFlow.value = update(_equipmentInstancesFlow.value)
+        repository.markDirty(equipmentInstances = true)
     }
 
     fun updateManualStacksDirect(update: (List<ManualStack>) -> List<ManualStack>) {
         _manualStacksFlow.value = update(_manualStacksFlow.value)
+        repository.markDirty(manualStacks = true)
     }
 
     fun updateManualInstancesDirect(update: (List<ManualInstance>) -> List<ManualInstance>) {
         _manualInstancesFlow.value = update(_manualInstancesFlow.value)
+        repository.markDirty(manualInstances = true)
     }
 
     fun updatePillsDirect(update: (List<Pill>) -> List<Pill>) {
         _pillsFlow.value = update(_pillsFlow.value)
+        repository.markDirty(pills = true)
     }
 
     fun updateMaterialsDirect(update: (List<Material>) -> List<Material>) {
         _materialsFlow.value = update(_materialsFlow.value)
+        repository.markDirty(materials = true)
     }
 
     fun updateHerbsDirect(update: (List<Herb>) -> List<Herb>) {
         _herbsFlow.value = update(_herbsFlow.value)
+        repository.markDirty(herbs = true)
     }
 
     fun updateSeedsDirect(update: (List<Seed>) -> List<Seed>) {
         _seedsFlow.value = update(_seedsFlow.value)
+        repository.markDirty(seeds = true)
     }
 
     fun updateTeamsDirect(update: (List<ExplorationTeam>) -> List<ExplorationTeam>) {
         _teamsFlow.value = update(_teamsFlow.value)
+        repository.markDirty(teams = true)
     }
 
     fun updateBattleLogsDirect(update: (List<BattleLog>) -> List<BattleLog>) {
         _battleLogsFlow.value = update(_battleLogsFlow.value)
+        repository.markDirty(battleLogs = true)
     }
 
     // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
@@ -648,6 +765,21 @@ class GameStateStore @Inject constructor(
                 if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
                 if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
                 if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                repository.markDirty(
+                    gameData = reusableMutableState.gameData !== curGame,
+                    disciples = reusableMutableState.disciples !== curDisc,
+                    equipmentStacks = reusableMutableState.equipmentStacks !== curES,
+                    equipmentInstances = reusableMutableState.equipmentInstances !== curEI,
+                    manualStacks = reusableMutableState.manualStacks !== curMS,
+                    manualInstances = reusableMutableState.manualInstances !== curMI,
+                    pills = reusableMutableState.pills !== curP,
+                    materials = reusableMutableState.materials !== curMat,
+                    herbs = reusableMutableState.herbs !== curH,
+                    seeds = reusableMutableState.seeds !== curS,
+                    storageBags = reusableMutableState.storageBags !== curSB,
+                    teams = reusableMutableState.teams !== curT,
+                    battleLogs = reusableMutableState.battleLogs !== curBL
+                )
             } finally {
                 currentTransactionState = null
             }
@@ -676,7 +808,6 @@ class GameStateStore @Inject constructor(
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
             aggregateCache.clear()
-            // 批量更新所有独立流
             _gameDataFlow.value = gameData
             _disciplesFlow.value = disciples
             _equipmentStacksFlow.value = equipmentStacks
@@ -693,6 +824,8 @@ class GameStateStore @Inject constructor(
             _isPaused.value = isPaused
             _isLoading.value = isLoading
             _isSaving.value = isSaving
+            repository.setActiveSlot(gameData.slotId)
+            repository.markAllDirty()
         }
     }
 

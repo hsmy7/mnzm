@@ -398,6 +398,22 @@ class SaveLoadViewModel @Inject constructor(
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                val currentSlot = storageFacade.getCurrentSlot()
+
+                if (source == SavePipeline.SaveSource.AUTO) {
+                    val incrementalResult = withTimeoutOrNull(15_000L) {
+                        storageFacade.incrementalSave(currentSlot)
+                    }
+
+                    if (incrementalResult != null && incrementalResult.isSuccess) {
+                        consecutiveSaveFailures.set(0)
+                        Log.d(TAG, "Auto incremental save succeeded for slot: $currentSlot")
+                        return@launch
+                    }
+
+                    Log.w(TAG, "Incremental auto-save failed or timed out for slot $currentSlot, falling back to full save")
+                }
+
                 val snapshot = gameEngine.getStateSnapshot()
 
                 val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT

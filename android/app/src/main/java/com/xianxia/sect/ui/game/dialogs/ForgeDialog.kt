@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,7 +75,7 @@ fun ForgeDialog(
 
     val globalForges = gameData?.placedBuildings?.filter { it.displayName == "锻造坊" } ?: emptyList()
     val buildingIndex = globalForges.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
-    val forgeSlotsState by viewModel.forgeSlots.collectAsState()
+    val forgeSlotsState by viewModel.forgeSlots.collectAsStateWithLifecycle()
     val mySlot = forgeSlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
     val assignedDiscipleId = mySlot?.assignedDiscipleId
@@ -325,7 +326,7 @@ private fun EquipmentSelectionDialog(
     var clickedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
-    val allRecipes by forgeViewModel.allForgeRecipes.collectAsState()
+    val allRecipes by forgeViewModel.allForgeRecipes.collectAsStateWithLifecycle()
 
     ProductionCommonDialog(
         title = FORGE_THEME.selectionDialogTitle,

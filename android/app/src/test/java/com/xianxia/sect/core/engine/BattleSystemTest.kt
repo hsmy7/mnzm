@@ -2,6 +2,10 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.BattleWinner
+import com.xianxia.sect.core.engine.domain.battle.CombatBuff
+import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*

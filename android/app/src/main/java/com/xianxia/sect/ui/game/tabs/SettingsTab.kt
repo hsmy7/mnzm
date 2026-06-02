@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -75,7 +76,7 @@ internal fun RedeemCodeDialog(
     onDismiss: () -> Unit
 ) {
     var codeInput by remember { mutableStateOf("") }
-    val redeemResult by viewModel.redeemResult.collectAsState()
+    val redeemResult by viewModel.redeemResult.collectAsStateWithLifecycle()
     var showRewardDialog by remember { mutableStateOf(false) }
     var showTipDialog by remember { mutableStateOf(false) }
     var tipMessage by remember { mutableStateOf("") }
@@ -179,8 +180,8 @@ internal fun SettingsTab(
     limitAdTracking: Boolean = true,
     onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
-    val timeSpeed by saveLoadViewModel.timeSpeed.collectAsState()
-    val gameData by viewModel.gameData.collectAsState()
+    val timeSpeed by saveLoadViewModel.timeSpeed.collectAsStateWithLifecycle()
+    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
     
     var showSaveSlotDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
@@ -190,8 +191,8 @@ internal fun SettingsTab(
     var showChangelogDialog by remember { mutableStateOf(false) }
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
 
-    val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsState()
-    val redeemResult by viewModel.redeemResult.collectAsState()
+    val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsStateWithLifecycle()
+    val redeemResult by viewModel.redeemResult.collectAsStateWithLifecycle()
     
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -213,7 +214,7 @@ internal fun SettingsTab(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                val isPaused by saveLoadViewModel.isPaused.collectAsState()
+                val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -780,8 +781,8 @@ internal fun SaveSlotDialog(
     saveLoadViewModel: SaveLoadViewModel,
     onDismiss: () -> Unit
 ) {
-    val saveSlots by saveLoadViewModel.saveSlots.collectAsState()
-    val saveLoadState by saveLoadViewModel.saveLoadState.collectAsState()
+    val saveSlots by saveLoadViewModel.saveSlots.collectAsStateWithLifecycle()
+    val saveLoadState by saveLoadViewModel.saveLoadState.collectAsStateWithLifecycle()
     val isBusy = saveLoadState.isBusy
     val isSaving = saveLoadState.isSaving
     val isLoading = saveLoadState.isLoading

@@ -50,10 +50,10 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.state.addManualInstanceToDiscipleBag
-import com.xianxia.sect.core.state.equipmentBagStackIds
-import com.xianxia.sect.core.state.manualBagStackIds
+import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
+import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
+import com.xianxia.sect.core.util.equipmentBagStackIds
+import com.xianxia.sect.core.util.manualBagStackIds
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.util.Log
@@ -143,6 +143,10 @@ class GameEngine @Inject constructor(
 
     val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = stateStore.aiSectCombatPowers
+
+    val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = stateStore.highFreqState
+    val entityState: StateFlow<GameStateStore.EntityState> get() = stateStore.entityState
+    val configState: StateFlow<GameStateStore.ConfigState> get() = stateStore.configState
 
     val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()
 
@@ -414,7 +418,7 @@ class GameEngine @Inject constructor(
         buildingFacade.placeBuilding(building)
 
     /** 直接更新建筑位置，绕过 transactionMutex 避免与游戏 tick 竞争锁导致延迟 */
-    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) =
+    suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) =
         buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
 
     private fun updateGameDataSync(update: (GameData) -> GameData) {
@@ -431,6 +435,35 @@ class GameEngine @Inject constructor(
                 list[index] = update(list[index])
                 disciples = list
             }
+        }
+    }
+
+    /**
+     * 原子化切换弟子身份：在同一事务中完成类型变更 + 状态同步。
+     * 避免 syncAllDiscipleStatuses() 从 unifiedState 读取陈旧数据后异步写回覆盖玩家操作。
+     */
+    suspend fun changeDiscipleTypeAtomic(discipleId: String, newType: String) {
+        stateStore.update {
+            // 1. 变更弟子类型
+            val list = disciples.toMutableList()
+            val index = list.indexOfFirst { it.id == discipleId }
+            if (index >= 0) {
+                list[index] = list[index].copy(discipleType = newType)
+                disciples = list
+            }
+            // 2. 在同一事务中同步所有弟子状态（StateAccessor 在事务内同步读写，无陈旧数据风险）
+            discipleFacade.syncAllDiscipleStatuses()
+        }
+    }
+
+    /**
+     * 原子化更新 GameData 并同步弟子状态。
+     * 避免 updateGameData + syncAllDiscipleStatuses 分两步执行导致陈旧读取覆盖。
+     */
+    suspend fun updateGameDataAndSync(update: (GameData) -> GameData) {
+        stateStore.update {
+            gameData = update(gameData)
+            discipleFacade.syncAllDiscipleStatuses()
         }
     }
 
@@ -497,10 +530,10 @@ class GameEngine @Inject constructor(
     suspend fun expelTheftDisciple(discipleId: String): Boolean =
         discipleFacade.expelTheftDisciple(discipleId)
 
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) =
+    suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) =
         discipleFacade.imprisonTheftDisciple(discipleId, currentYear)
 
-    fun releaseTheftDisciple(discipleId: String): Int =
+    suspend fun releaseTheftDisciple(discipleId: String): Int =
         discipleFacade.releaseTheftDisciple(discipleId)
 
     fun clearPendingNotification() = discipleFacade.clearPendingNotification()
@@ -508,11 +541,8 @@ class GameEngine @Inject constructor(
     suspend fun approveMarriage(maleId: String, femaleId: String) =
         discipleFacade.approveMarriage(maleId, femaleId)
 
-    fun enterSect(sectId: String) {
-        stateStore.updateGameDataDirect { gameData ->
-            gameData.activeSectId = sectId
-            gameData
-        }
+    suspend fun enterSect(sectId: String) {
+        stateStore.update { gameData = gameData.copy(activeSectId = sectId) }
     }
 
     fun currentActiveSectId(): String = stateStore.gameDataSnapshot.activeSectId

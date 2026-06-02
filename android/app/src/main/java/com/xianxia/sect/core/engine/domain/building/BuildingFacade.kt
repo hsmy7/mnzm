@@ -6,7 +6,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 
 interface BuildingFacade {
     suspend fun placeBuilding(building: GridBuildingData)
-    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int)
+    suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int)
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String)
     suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int)
     fun getBuildingSlots(buildingId: String): List<BuildingSlot>

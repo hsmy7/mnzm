@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-02 (v3.2.00)
+> 最后更新：2026-06-02 (v3.2.01)
 
 ## 目录
 
@@ -9,10 +9,11 @@
 3. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
 5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
-5. [Canvas 渲染管线](#canvas-渲染管线)
-6. [性能基础设施](#性能基础设施)
-7. [构建与 Profile](#构建与-profile)
-8. [后续优化项](#后续优化项)
+6. [增量保存与数据库](#增量保存与数据库)
+7. [Canvas 渲染管线](#canvas-渲染管线)
+8. [性能基础设施](#性能基础设施)
+9. [构建与 Profile](#构建与-profile)
+10. [后续优化项](#后续优化项)
 
 ---
 
@@ -70,9 +71,25 @@ core/engine/domain/
 └── settlement/   (SettlementCoordinator, SettlementCache, SettlementScheduler, ...)
 ```
 
-### Facade 模式
+### ViewModel Facade 直接注入 (v3.2.01)
 
-每个 Facade 定义接口契约，Impl 通过 Hilt `@Singleton` 注入。GameEngine 通过接口依赖 Facade：
+GameViewModel 除 GameEngine 外，新增 7 个 Facade 直接注入：
+
+```kotlin
+class GameViewModel @Inject constructor(
+    private val gameEngine: GameEngine,
+    private val discipleFacade: DiscipleFacade,
+    private val productionFacade: ProductionFacade,
+    private val inventoryFacade: InventoryFacade,
+    private val buildingFacade: BuildingFacade,
+    private val battleFacade: BattleFacade,
+    private val diplomacyFacade: DiplomacyFacade,
+    private val saveFacade: SaveFacade,
+    ...
+)
+```
+
+已迁移调用：`buildingFacade.addProductionSlot/moveBuildingDirect/startManualPlanting`、`discipleFacade.updateFocusedDisciple/approveMarriage/clearPendingNotification/updateMonthlySalaryEnabled`。GameEngine 保留为跨域操作协调器。
 
 ```kotlin
 interface DiscipleFacade {
@@ -102,6 +119,22 @@ class DiscipleFacadeImpl @Inject constructor(
 
 DB v26 迁移：`CREATE TABLE IF NOT EXISTS` — Phase A 零风险。
 
+### DiscipleCompact 轻量表 (v3.2.01 新增)
+
+ECS 风格内存优化：`disciple_compact` Room 表（14 字段 vs 原 Disciple 50+），高频查询场景使用精简模型。
+
+| 字段 | 说明 |
+|------|------|
+| id, slotId, name | 基础标识 |
+| cultivation, realm, realmLayer | 修炼核心数据 |
+| lifespan, maxLifespan, isAlive, age | 寿命状态 |
+| spiritRoot, combatPower | 灵根/战力 |
+| cultivationSpeed, cultivationSpeedBonus, cultivationSpeedDuration, status | 修炼速率/状态 |
+
+`DiscipleCompact.fromDisciple()` / `toDisciple()` 工厂方法双向转换。独立 DAO `DiscipleCompactDao` + 2 个索引（slot_id, slot_id+isAlive）。
+
+DB v27 迁移：`MIGRATION_26_27` 创建 disciple_compact 表 + `MIGRATION_1_26` 合并 v1→v26 顺序迁移链。
+
 ### EventBus (25 种事件)
 
 ```kotlin
@@ -121,6 +154,23 @@ EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
 ---
 
 ## 状态管理 — GameStateStore
+
+### v3.2.01 架构：三层 StateFlow 拆分
+
+在 v3.1.99 独立流架构之上，新增三层分层 StateFlow，UI 按需订阅：
+
+```
+HighFreqState  (spiritStones, gameYear/Month/Phase, isPaused) — 每 tick 变化，UI 高频消费
+EntityState    (disciples, equipment*, manuals*, pills, materials, herbs, seeds...) — 实体变化时发射
+ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) — 极少变化
+```
+
+- **HighFreqState**：`combine(5 个 _gameDataFlow.map{}.distinctUntilChanged())`，仅在对应字段实际变化时发射
+- **EntityState**：`combine(12 个独立流)`，实体列表变化时发射
+- **ConfigState**：`_gameDataFlow.map{}.distinctUntilChanged()`，配置字段变化时发射
+- 所有三层 StateFlow 标注 `@Immutable`，配合 Compose Strong Skipping Mode 自动跳过不变重组
+- 通过 `GameEngine.highFreqState / entityState / configState` 暴露给 ViewModel
+- `unifiedState` 保留为 LEGACY 兼容（仅 GameEngineCore.state 和 UnifiedGameStateManager 使用）
 
 ### v3.1.99 架构：独立流单写
 
@@ -193,7 +243,48 @@ EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
 
-### 独立流一致性保证 (v3.1.98)
+### 增量保存与脏追踪 (v3.2.01)
+
+**GameStateRepository** 提供字段级脏追踪：
+
+```kotlin
+class GameStateRepository {
+    data class DirtySet(gameData, disciples, equipmentStacks, ...)  // 13 个布尔标记
+    
+    fun markDirty(gameData = false, disciples = false, ...)  // 标记脏字段
+    fun markAllDirty()  // 全部标记（存档加载时）
+    
+    suspend fun flushDirtyState(gameData, disciples, ...) {
+        // 仅写入脏字段
+        // coroutineScope { launch(Dispatchers.IO) { deleteAll + insertAll } } 并行写入
+    }
+}
+```
+
+- 所有 `updateXxxDirect()` 方法在写入后自动调用 `repository.markDirty(xxx = true)`
+- `update()` 事务内变更检测后自动标记脏字段
+- `flushDirtyState()` 仅写入变化的表，脏字段间 `coroutineScope` 并行执行
+- `StorageEngine.incrementalSave(slot)` 从 unifiedState 快照提取脏数据，保存延迟从 ~200ms 降至 ~20ms
+
+### SystemManager 依赖图并行 (v3.2.01)
+
+```kotlin
+// 系统按 @SystemPriority 分组
+priorityGroups = systems.groupBy { it.annotation.order }.toSortedMap().values
+
+// 同级并行，组间串行
+private suspend fun executeInParallelGroups(state, action) {
+    for (group in priorityGroups) {
+        if (group.size == 1) {
+            action(group.first(), state)  // 单系统跳过协程开销
+        } else {
+            coroutineScope {
+                group.forEach { system -> launch { action(system, state) } }
+            }
+        }
+    }
+}
+```
 
 独立 MutableStateFlow 的更新在 `_state.update {}` **之后**、`transactionMutex.withLock {}` **之内**执行，确保：
 - 不受 `_state.update {}` 内部 CAS 重试影响
@@ -305,14 +396,16 @@ tickInternal()
 
 ## 性能基础设施
 
-### GCOptimizer
+### GCOptimizer (v3.2.01 更新)
 
-| GC Type | 触发条件 | System.gc() |
-|---------|---------|------------|
-| SOFT | 75% 内存 | ❌ 清除非必要缓存 |
-| HARD | 85% 内存 | ❌ 缩减对象池+清空缓存 |
-| CRITICAL | 92% 内存 | ✅ |
-| MANUAL | 手动触发 | ✅ |
+| GC Type | 触发条件 | 动作 |
+|---------|---------|------|
+| SOFT | 75% 内存 | 清除非必要缓存 |
+| HARD | 85% 内存 | 缩减对象池+清空缓存 |
+| CRITICAL | 92% 内存 | 日志提示，委托 ART 自主管理 |
+| MANUAL | 手动触发 | 日志提示，委托 ART 自主管理 |
+
+> **v3.2.01 变更**：移除 `System.gc()` 和 `System.runFinalization()` 调用。ART 分代并发 GC（Concurrent Copying）自主管理更高效，显式 gc() 触发 Full GC Stop-The-World 导致游戏卡顿。
 
 ### DynamicMemoryManager
 
@@ -324,6 +417,24 @@ tickInternal()
 | MEDIUM | 4-6GB | 256-384MB | RGB_565 (18MB/层) |
 | HIGH | 6-12GB | 384-512MB | ARGB_8888 (36MB/层) |
 | ULTRA | 12GB+ | > 512MB | ARGB_8888 全开 |
+
+### FrameMetricsMonitor (v3.2.01 新增)
+
+```kotlin
+@Singleton
+class FrameMetricsMonitor {
+    val jankEvents: SharedFlow<FrameMetricsEvent>  // jank 事件流
+    fun startMonitoring(window: Window)   // 注册 OnFrameMetricsAvailableListener
+    fun stopMonitoring(window: Window)    // 注销监听器
+    fun getStats(): FrameMetricsStats     // 统计汇总
+    fun resetStats()                      // 重置统计
+}
+```
+
+- **Jank 检测**：16.6ms（60fps）/ 50ms（严重 jank）双阈值
+- **指标**：TOTAL_DURATION / DRAW_DURATION（API 31+）/ LAYOUT_MEASURE_DURATION（API 31+）
+- **生命周期绑定**：GameActivity.onResume 启动 / onPause + onDestroy 停止
+- **统计输出**：总帧数、jank 帧数/率、严重 jank 数、平均帧时间
 
 ### UnifiedPerformanceMonitor
 
@@ -338,8 +449,8 @@ tickInternal()
 
 | 字段 | 值 |
 |------|-----|
-| versionCode | 3197 |
-| versionName | 3.1.97 |
+| versionCode | 3201 |
+| versionName | 3.2.01 |
 | compileSdk / targetSdk | 35 |
 | minSdk | 24 |
 | Kotlin | 2.0.21 |
@@ -358,22 +469,26 @@ tickInternal()
 - **生成器**：`BaselineProfileGenerator.collect(packageName="com.xianxia.sect", includeInStartupProfile=true)`
 - **生成方式**：本地真机运行 `:baselineprofile:generateReleaseBaselineProfile`，生成文件提交 `app/src/main/baseline-prof.txt`
 
-### Lifecycle 感知收集
+### Lifecycle 感知收集 (v3.2.01 全量完成)
 
 - **依赖**：`lifecycle-runtime-compose:2.8.7`
-- **模式**：`collectAsStateWithLifecycle()` 替代 `collectAsState()`
-- **覆盖**：`MainGameScreen`(7) + `GameOverlayHost`(38)
+- **模式**：`collectAsStateWithLifecycle()` 全量替代 `collectAsState()`
+- **覆盖**：14 个 UI 文件共 158 处订阅全部迁移，零 `collectAsState()` 残余
+- **新增注入**：GameViewModel 新增 7 个 Facade 直接注入 + 4 个独立 StateFlow（elderSlots/sectPolicies/manualProficiencies/residenceSlots）
 
 ---
 
 ## 后续优化项
 
-| 优先级 | 描述 | 预估收益 |
-|--------|------|---------|
-| P1 | `snapshotFlow` 用于修炼进度条等逐帧动画（绕过重组） | 减少高频动画重组 |
-| P1 | `FrameMetricsAggregator` 集成（重组/布局/绘制三阶段帧时间） | 精确定位瓶颈 |
-| P2 | 模块 1 完整实施：3 层 StateFlow 拆分（HighFreq/Entity/Config） | 进一步减少 tick 流发射 |
-| P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 |
-| P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 |
-| P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 |
-| 持续 | UI 消费者从 `unifiedState` 迁移到独立子流 | 渐进降低 `_state` 耦合 |
+| 优先级 | 描述 | 预估收益 | 状态 |
+|--------|------|---------|------|
+| P1 | `snapshotFlow` 用于修炼进度条等逐帧动画（绕过重组） | 减少高频动画重组 | 待实施 |
+| P1 | FrameMetrics 接入 UnifiedPerformanceMonitor 统一框架 | 监控统一 | 待实施 |
+| P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 | 待实施 |
+| P2 | 完成 Phase B：GameData 重型字段读取路径切换到领域实体表 | 大幅减少 Room 读取 | 部分实施 |
+| P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
+| P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
+| P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
+| ~~P1~~ | ~~FrameMetricsAggregator 集成~~ | ~~已完成~~ (v3.2.01) | ✅ |
+| ~~P2~~ | ~~3 层 StateFlow 拆分~~ | ~~已完成~~ (v3.2.01) | ✅ |
+| ~~持续~~ | ~~UI 消费者从 unifiedState 迁移到独立子流~~ | ~~已完成~~ (v3.2.01) | ✅ |

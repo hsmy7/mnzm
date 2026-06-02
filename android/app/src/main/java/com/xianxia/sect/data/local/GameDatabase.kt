@@ -73,9 +73,10 @@ object GameDatabaseConfig {
         ProductionState::class,
         PatrolStateEntity::class,
         WorldMapStateEntity::class,
-        SectPolicyState::class
+        SectPolicyState::class,
+        DiscipleCompact::class
     ],
-    version = 26
+    version = 28
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -119,6 +120,8 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun patrolStateDao(): PatrolStateDao
     abstract fun worldMapStateDao(): WorldMapStateDao
     abstract fun sectPolicyStateDao(): SectPolicyStateDao
+
+    abstract fun discipleCompactDao(): DiscipleCompactDao
 
     private val checkpointExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "GameDB-Checkpoint")
@@ -336,169 +339,45 @@ abstract class GameDatabase : RoomDatabase() {
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
         private val threadCounter = AtomicInteger(0)
 
-        val MIGRATION_1_3 = object : Migration(1, 3) {
+        val MIGRATION_27_28 = object : Migration(27, 28) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE production_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN assignedDiscipleId TEXT")
-                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN assignedDiscipleName TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE forge_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE forge_slots ADD COLUMN assignedDiscipleId TEXT")
-                db.execSQL("ALTER TABLE forge_slots ADD COLUMN assignedDiscipleName TEXT NOT NULL DEFAULT ''")
+                // MIGRATION_26_27 创建 disciple_compact 表时带了 DEFAULT 值和索引，
+                // 但 @Entity 未声明，导致 Room 校验失败。
+                // 此迁移无需修改实际数据——仅补齐 @Entity 声明即可通过校验。
+                // 保留空迁移体以注册版本号变更。
             }
         }
 
-        val MIGRATION_3_4 = object : Migration(3, 4) {
+        val MIGRATION_26_27 = object : Migration(26, 27) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN aiSectDisciples TEXT NOT NULL DEFAULT ''")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS disciple_compact (
+                        id TEXT NOT NULL,
+                        slot_id INTEGER NOT NULL DEFAULT 0,
+                        name TEXT NOT NULL DEFAULT '',
+                        cultivation REAL NOT NULL DEFAULT 0.0,
+                        realm INTEGER NOT NULL DEFAULT 0,
+                        realmLayer INTEGER NOT NULL DEFAULT 0,
+                        lifespan INTEGER NOT NULL DEFAULT 0,
+                        maxLifespan INTEGER NOT NULL DEFAULT 0,
+                        isAlive INTEGER NOT NULL DEFAULT 1,
+                        spiritRoot INTEGER NOT NULL DEFAULT 0,
+                        combatPower INTEGER NOT NULL DEFAULT 0,
+                        cultivationSpeed REAL NOT NULL DEFAULT 1.0,
+                        cultivationSpeedBonus REAL NOT NULL DEFAULT 0.0,
+                        cultivationSpeedDuration INTEGER NOT NULL DEFAULT 0,
+                        status INTEGER NOT NULL DEFAULT 0,
+                        age INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(id)
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id ON disciple_compact(slot_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_compact(slot_id, isAlive)")
             }
         }
 
-        val MIGRATION_4_5 = object : Migration(4, 5) {
+        val MIGRATION_1_26 = object : Migration(1, 26) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN residenceSlots TEXT NOT NULL DEFAULT ''")
-            }
-        }
-
-        /**
-         * Safely drop columns from a table, compatible with all Android API levels.
-         * Always rebuilds the table via PRAGMA — ALTER TABLE DROP COLUMN requires
-         * SQLite 3.35.0+ which is not guaranteed even on API 31+ devices.
-         */
-        private fun SupportSQLiteDatabase.safeDropColumns(table: String, vararg dropCols: String) {
-            val dropped = dropCols.toSet()
-
-            // 1. 保存索引定义 (PRAGMA index_list + index_info)
-            data class IndexInfo(val name: String, val unique: Boolean, val cols: List<String>)
-            val indices = mutableListOf<IndexInfo>()
-            query("PRAGMA index_list($table)").use { c ->
-                while (c.moveToNext()) {
-                    val idxName = c.getString(c.getColumnIndexOrThrow("name"))
-                    val unique = c.getInt(c.getColumnIndexOrThrow("unique")) == 1
-                    val idxCols = mutableListOf<String>()
-                    query("PRAGMA index_info($idxName)").use { ic ->
-                        while (ic.moveToNext()) {
-                            idxCols.add(ic.getString(ic.getColumnIndexOrThrow("name")))
-                        }
-                    }
-                    // 只保留不涉及被删除列的索引
-                    if (idxCols.none { it in dropped }) {
-                        indices.add(IndexInfo(idxName, unique, idxCols))
-                    }
-                }
-            }
-
-            // 2. 读取列定义（含NOT NULL和DEFAULT）
-            data class ColDef(val name: String, val type: String, val notNull: Boolean, val dflt: String?, val pk: Int)
-            val cols = mutableListOf<ColDef>()
-            query("PRAGMA table_info($table)").use { c ->
-                while (c.moveToNext()) {
-                    val name = c.getString(c.getColumnIndexOrThrow("name"))
-                    if (name in dropped) continue
-                    cols.add(ColDef(
-                        name = name,
-                        type = c.getString(c.getColumnIndexOrThrow("type")),
-                        notNull = c.getInt(c.getColumnIndexOrThrow("notnull")) == 1,
-                        dflt = c.getString(c.getColumnIndexOrThrow("dflt_value")),
-                        pk = c.getInt(c.getColumnIndexOrThrow("pk"))
-                    ))
-                }
-            }
-
-            val colDefs = cols.joinToString(", ") {
-                val nn = if (it.notNull) " NOT NULL" else ""
-                val dflt = if (it.dflt != null) " DEFAULT ${it.dflt}" else ""
-                "${it.name} ${it.type}$nn$dflt"
-            }
-            val pkCols = cols.filter { it.pk > 0 }.sortedBy { it.pk }
-            val pk = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString { it.name }})" else ""
-            val names = cols.joinToString(", ") { it.name }
-
-            execSQL("CREATE TABLE ${table}_new ($colDefs$pk)")
-            execSQL("INSERT INTO ${table}_new ($names) SELECT $names FROM $table")
-            execSQL("DROP TABLE $table")
-            execSQL("ALTER TABLE ${table}_new RENAME TO $table")
-
-            // 3. 重建索引（跳过sqlite_autoindex内部保留名，PRIMARY KEY已自动重建）
-            indices.forEach { idx ->
-                if (idx.name.startsWith("sqlite_autoindex_")) return@forEach
-                val unique = if (idx.unique) "UNIQUE " else ""
-                execSQL("CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON $table (${idx.cols.joinToString()})")
-            }
-        }
-
-        val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.safeDropColumns("game_data", "pendingCompetitionResults", "lastCompetitionYear")
-            }
-        }
-
-        val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN activeSectId TEXT NOT NULL DEFAULT ''")
-            }
-        }
-
-        val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN spiritFieldPlants TEXT NOT NULL DEFAULT '[]'")
-            }
-        }
-
-        val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN warehouseGarrisons TEXT NOT NULL DEFAULT '[]'")
-            }
-        }
-
-        val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolSlots TEXT NOT NULL DEFAULT '[]'")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolConfig TEXT NOT NULL DEFAULT '{}'")
-            }
-        }
-
-        val MIGRATION_10_11 = object : Migration(10, 11) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolConfigs TEXT NOT NULL DEFAULT '[]'")
-            }
-        }
-
-        val MIGRATION_11_12 = object : Migration(11, 12) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN daoCompanionBannedRootCounts TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN daoCompanionConsentRequired INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        val MIGRATION_12_13 = object : Migration(12, 13) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE disciples ADD COLUMN social_childBirthMonth INTEGER DEFAULT NULL")
-            }
-        }
-
-        val MIGRATION_13_14 = object : Migration(13, 14) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolBattleResultPopup INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        val MIGRATION_14_15 = object : Migration(14, 15) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillFocused INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillRootCounts TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
-            }
-        }
-
-        val MIGRATION_15_16 = object : Migration(15, 16) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // 天制→旬制: 幂等迁移，覆盖所有可能状态
-                // Room列名规则: Kotlin属性名即列名，不转snake_case。gamePhase→gamePhase(非game_phase)
-
                 fun columnExists(table: String, col: String): Boolean {
                     db.query("PRAGMA table_info($table)").use { c ->
                         while (c.moveToNext()) {
@@ -508,14 +387,51 @@ abstract class GameDatabase : RoomDatabase() {
                     return false
                 }
 
+                db.execSQL("ALTER TABLE production_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN assignedDiscipleId TEXT")
+                db.execSQL("ALTER TABLE alchemy_slots ADD COLUMN assignedDiscipleName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE forge_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE forge_slots ADD COLUMN assignedDiscipleId TEXT")
+                db.execSQL("ALTER TABLE forge_slots ADD COLUMN assignedDiscipleName TEXT NOT NULL DEFAULT ''")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN aiSectDisciples TEXT NOT NULL DEFAULT ''")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN residenceSlots TEXT NOT NULL DEFAULT ''")
+
+                db.safeDropColumns("game_data", "pendingCompetitionResults", "lastCompetitionYear")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN activeSectId TEXT NOT NULL DEFAULT ''")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN spiritFieldPlants TEXT NOT NULL DEFAULT '[]'")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN warehouseGarrisons TEXT NOT NULL DEFAULT '[]'")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolSlots TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolConfig TEXT NOT NULL DEFAULT '{}'")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolConfigs TEXT NOT NULL DEFAULT '[]'")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN daoCompanionBannedRootCounts TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN daoCompanionConsentRequired INTEGER NOT NULL DEFAULT 0")
+
+                db.execSQL("ALTER TABLE disciples ADD COLUMN social_childBirthMonth INTEGER DEFAULT NULL")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN patrolBattleResultPopup INTEGER NOT NULL DEFAULT 0")
+
+                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN breakthroughAutoPillRootCounts TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoEquipFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseFocused INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN autoLearnFromWarehouseRootCounts TEXT NOT NULL DEFAULT ''")
+
                 val hasGamePhaseCamel = columnExists("game_data", "gamePhase")
                 val hasGamePhaseSnake = columnExists("game_data", "game_phase")
                 val hasGameDayCamel = columnExists("game_data", "gameDay")
                 val hasGameDaySnake = columnExists("game_data", "game_day")
 
-                // 清理之前错误迁移可能留下的 snake_case game_phase 列
                 if (hasGamePhaseSnake && !hasGamePhaseCamel) {
-                    // 从 snake_case 错误列复制数据
                     db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
                     db.execSQL("UPDATE game_data SET gamePhase = game_phase")
                     db.safeDropColumns("game_data", "game_phase")
@@ -523,18 +439,18 @@ abstract class GameDatabase : RoomDatabase() {
                     db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
                 }
 
-                // 从旧 gameDay 列复制修炼数据
-                val oldDayCol = if (hasGameDayCamel) "gameDay" else if (hasGameDaySnake) "game_day" else null
+                val oldDayCol = when {
+                    hasGameDayCamel -> "gameDay"
+                    hasGameDaySnake -> "game_day"
+                    else -> null
+                }
                 if (oldDayCol != null) {
-                    // gameDay 1-10→0(上旬), 11-20→1(中旬), 21-30→2(下旬)
                     db.execSQL("UPDATE game_data SET gamePhase = ($oldDayCol - 1) / 10")
                 }
 
-                // 删除旧 gameDay 列
                 if (hasGameDayCamel) db.safeDropColumns("game_data", "gameDay")
                 if (hasGameDaySnake) db.safeDropColumns("game_data", "game_day")
 
-                // save_slot_metadata 表: game_day → game_phase (snake_case, 有 @ColumnInfo)
                 val metaHasPhase = columnExists("save_slot_metadata", "game_phase")
                 val metaHasDay = columnExists("save_slot_metadata", "game_day")
                 if (!metaHasPhase && metaHasDay) {
@@ -544,54 +460,56 @@ abstract class GameDatabase : RoomDatabase() {
                 } else if (!metaHasPhase) {
                     db.execSQL("ALTER TABLE save_slot_metadata ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
                 }
-            }
-        }
 
-        val MIGRATION_16_17 = object : Migration(16, 17) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // 清理旧版迁移可能残留的 snake_case game_phase 和 game_day/gameDay 列
-                fun colExists(col: String): Boolean {
-                    db.query("PRAGMA table_info(game_data)").use { c ->
-                        while (c.moveToNext()) {
-                            if (c.getString(c.getColumnIndexOrThrow("name")) == col) return true
-                        }
-                    }
-                    return false
-                }
-                // 确保有正确的 gamePhase 列
-                if (!colExists("gamePhase") && colExists("game_phase")) {
+                if (!columnExists("game_data", "gamePhase") && columnExists("game_data", "game_phase")) {
                     db.execSQL("ALTER TABLE game_data ADD COLUMN gamePhase INTEGER NOT NULL DEFAULT 0")
                     db.execSQL("UPDATE game_data SET gamePhase = game_phase")
                 }
-                if (colExists("game_phase")) db.safeDropColumns("game_data", "game_phase")
-                if (colExists("gameDay")) db.safeDropColumns("game_data", "gameDay")
-                if (colExists("game_day")) db.safeDropColumns("game_data", "game_day")
+                if (columnExists("game_data", "game_phase")) db.safeDropColumns("game_data", "game_phase")
+                if (columnExists("game_data", "gameDay")) db.safeDropColumns("game_data", "gameDay")
+                if (columnExists("game_data", "game_day")) db.safeDropColumns("game_data", "game_day")
 
-                // save_slot_metadata 表: 清理残留的 game_day 列
-                var metaHasDay = false
-                db.query("PRAGMA table_info(save_slot_metadata)").use { c ->
-                    while (c.moveToNext()) {
-                        if (c.getString(c.getColumnIndexOrThrow("name")) == "game_day") { metaHasDay = true; break }
-                    }
-                }
-                if (metaHasDay) {
-                    var metaHasPhase = false
-                    db.query("PRAGMA table_info(save_slot_metadata)").use { c2 ->
-                        while (c2.moveToNext()) {
-                            if (c2.getString(c2.getColumnIndexOrThrow("name")) == "game_phase") { metaHasPhase = true; break }
-                        }
-                    }
-                    if (!metaHasPhase) {
+                if (columnExists("save_slot_metadata", "game_day")) {
+                    if (!columnExists("save_slot_metadata", "game_phase")) {
                         db.execSQL("ALTER TABLE save_slot_metadata ADD COLUMN game_phase INTEGER NOT NULL DEFAULT 0")
                         db.execSQL("UPDATE save_slot_metadata SET game_phase = (game_day - 1) / 10")
                     }
                     db.safeDropColumns("save_slot_metadata", "game_day")
                 }
-            }
-        }
 
-        val MIGRATION_19_20 = object : Migration(19, 20) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇皮', '蛇鳞') WHERE name LIKE '%蛇皮'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇骨', '蛇血'), category = 'BEAST_BLOOD' WHERE name LIKE '%蛇骨'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '毒牙', '蛇牙') WHERE name LIKE '%毒牙'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '龙骨', '龙爪'), category = 'BEAST_CLAW' WHERE name LIKE '%龙骨'")
+                db.execSQL("UPDATE materials SET name = REPLACE(name, '龟甲', '龟血'), category = 'BEAST_BLOOD' WHERE name LIKE '%龟甲'")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS game_heavy_data (
+                        slot_id INTEGER NOT NULL,
+                        data_key TEXT NOT NULL,
+                        data_value TEXT NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        PRIMARY KEY(slot_id, data_key)
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_game_heavy_data_slot_id ON game_heavy_data(slot_id)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_heavy_data_slot_id_data_key ON game_heavy_data(slot_id, data_key)")
+                val heavyColumns = mapOf(
+                    "aiSectDisciples" to "aiSectDisciples",
+                    "sectDetails" to "sectDetails",
+                    "exploredSects" to "exploredSects",
+                    "scoutInfo" to "scoutInfo",
+                    "manualProficiencies" to "manualProficiencies"
+                )
+                for ((key, col) in heavyColumns) {
+                    db.execSQL("INSERT INTO game_heavy_data (slot_id, data_key, data_value, updated_at) SELECT slot_id, '$key', $col, strftime('%s','now') FROM game_data WHERE $col IS NOT NULL AND length($col) > 2")
+                }
+                db.execSQL("UPDATE game_data SET aiSectDisciples = '' WHERE length(aiSectDisciples) > 2")
+                db.execSQL("UPDATE game_data SET sectDetails = '' WHERE length(sectDetails) > 2")
+                db.execSQL("UPDATE game_data SET exploredSects = '' WHERE length(exploredSects) > 2")
+                db.execSQL("UPDATE game_data SET scoutInfo = '' WHERE length(scoutInfo) > 2")
+                db.execSQL("UPDATE game_data SET manualProficiencies = '' WHERE length(manualProficiencies) > 2")
+
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS storage_bags (
                         id TEXT NOT NULL,
@@ -604,49 +522,7 @@ abstract class GameDatabase : RoomDatabase() {
                         PRIMARY KEY(id)
                     )
                 """)
-            }
-        }
 
-        val MIGRATION_20_21 = object : Migration(20, 21) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS mails (
-                        id TEXT NOT NULL,
-                        slotId INTEGER NOT NULL DEFAULT 0,
-                        source TEXT NOT NULL DEFAULT 'builtin',
-                        mailType TEXT NOT NULL DEFAULT 'reward',
-                        title TEXT NOT NULL DEFAULT '',
-                        content TEXT NOT NULL DEFAULT '',
-                        senderName TEXT NOT NULL DEFAULT '天道意志',
-                        sendTime INTEGER NOT NULL DEFAULT 0,
-                        expireTime INTEGER NOT NULL DEFAULT 0,
-                        isRead INTEGER NOT NULL DEFAULT 0,
-                        attachmentClaimed INTEGER NOT NULL DEFAULT 0,
-                        hasAttachment INTEGER NOT NULL DEFAULT 0,
-                        attachments TEXT NOT NULL DEFAULT '[]',
-                        remoteMailId TEXT DEFAULT NULL,
-                        PRIMARY KEY(id)
-                    )
-                """)
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_slotId ON mails(slotId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_remoteMailId ON mails(remoteMailId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_slotId_expireTime ON mails(slotId, expireTime)")
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS claimed_mail_records (
-                        mailGlobalId TEXT NOT NULL,
-                        slotId INTEGER NOT NULL DEFAULT 0,
-                        claimedTime INTEGER NOT NULL DEFAULT 0,
-                        PRIMARY KEY(mailGlobalId, slotId)
-                    )
-                """)
-            }
-        }
-
-        val MIGRATION_21_22 = object : Migration(21, 22) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // v20→v21 迁移中索引名和 DEFAULT 值与 Room Entity 不匹配，
-                // 重建两张新表修复（新表无业务数据，直接 DROP 安全）
-                db.execSQL("DROP TABLE IF EXISTS mails")
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS mails (
                         id TEXT NOT NULL,
@@ -670,48 +546,8 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_remoteMailId ON mails(remoteMailId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mails_slotId_expireTime ON mails(slotId, expireTime)")
 
-                db.execSQL("DROP TABLE IF EXISTS claimed_mail_records")
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS claimed_mail_records (
-                        mailGlobalId TEXT NOT NULL,
-                        slotId INTEGER NOT NULL DEFAULT 0,
-                        claimedTime INTEGER NOT NULL DEFAULT 0,
-                        PRIMARY KEY(mailGlobalId, slotId)
-                    )
-                """)
-            }
-        }
-
-        val MIGRATION_22_23 = object : Migration(22, 23) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // v20→v21 和 v21→v22 迁移中 claimed_mail_records 表 DEFAULT 值与 Room Entity 不匹配，
-                // 重建修复（新表无业务数据，直接 DROP 安全）
-                db.execSQL("DROP TABLE IF EXISTS claimed_mail_records")
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS claimed_mail_records (
-                        mailGlobalId TEXT NOT NULL,
-                        slotId INTEGER NOT NULL DEFAULT 0,
-                        claimedTime INTEGER NOT NULL DEFAULT 0,
-                        PRIMARY KEY(mailGlobalId, slotId)
-                    )
-                """)
-            }
-        }
-
-        val MIGRATION_23_24 = object : Migration(23, 24) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP TABLE IF EXISTS claimed_mail_records")
-            }
-        }
-
-        val MIGRATION_24_25 = object : Migration(24, 25) {
-            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN claimedMailIds TEXT NOT NULL DEFAULT '[]'")
-            }
-        }
 
-        val MIGRATION_25_26 = object : Migration(25, 26) {
-            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS diplomacy_state (
                         slot_id INTEGER NOT NULL,
@@ -790,44 +626,66 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATION_18_19 = object : Migration(18, 19) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS game_heavy_data (
-                        slot_id INTEGER NOT NULL,
-                        data_key TEXT NOT NULL,
-                        data_value TEXT NOT NULL,
-                        updated_at INTEGER NOT NULL,
-                        PRIMARY KEY(slot_id, data_key)
-                    )
-                """)
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_game_heavy_data_slot_id ON game_heavy_data(slot_id)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_heavy_data_slot_id_data_key ON game_heavy_data(slot_id, data_key)")
-                val heavyColumns = mapOf(
-                    "aiSectDisciples" to "aiSectDisciples",
-                    "sectDetails" to "sectDetails",
-                    "exploredSects" to "exploredSects",
-                    "scoutInfo" to "scoutInfo",
-                    "manualProficiencies" to "manualProficiencies"
-                )
-                for ((key, col) in heavyColumns) {
-                    db.execSQL("INSERT INTO game_heavy_data (slot_id, data_key, data_value, updated_at) SELECT slot_id, '$key', $col, strftime('%s','now') FROM game_data WHERE $col IS NOT NULL AND length($col) > 2")
-                }
-                db.execSQL("UPDATE game_data SET aiSectDisciples = '' WHERE length(aiSectDisciples) > 2")
-                db.execSQL("UPDATE game_data SET sectDetails = '' WHERE length(sectDetails) > 2")
-                db.execSQL("UPDATE game_data SET exploredSects = '' WHERE length(exploredSects) > 2")
-                db.execSQL("UPDATE game_data SET scoutInfo = '' WHERE length(scoutInfo) > 2")
-                db.execSQL("UPDATE game_data SET manualProficiencies = '' WHERE length(manualProficiencies) > 2")
-            }
-        }
+        /**
+         * Safely drop columns from a table, compatible with all Android API levels.
+         * Always rebuilds the table via PRAGMA — ALTER TABLE DROP COLUMN requires
+         * SQLite 3.35.0+ which is not guaranteed even on API 31+ devices.
+         */
+        private fun SupportSQLiteDatabase.safeDropColumns(table: String, vararg dropCols: String) {
+            val dropped = dropCols.toSet()
 
-        val MIGRATION_17_18 = object : Migration(17, 18) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇皮', '蛇鳞') WHERE name LIKE '%蛇皮'")
-                db.execSQL("UPDATE materials SET name = REPLACE(name, '蛇骨', '蛇血'), category = 'BEAST_BLOOD' WHERE name LIKE '%蛇骨'")
-                db.execSQL("UPDATE materials SET name = REPLACE(name, '毒牙', '蛇牙') WHERE name LIKE '%毒牙'")
-                db.execSQL("UPDATE materials SET name = REPLACE(name, '龙骨', '龙爪'), category = 'BEAST_CLAW' WHERE name LIKE '%龙骨'")
-                db.execSQL("UPDATE materials SET name = REPLACE(name, '龟甲', '龟血'), category = 'BEAST_BLOOD' WHERE name LIKE '%龟甲'")
+            data class IndexInfo(val name: String, val unique: Boolean, val cols: List<String>)
+            val indices = mutableListOf<IndexInfo>()
+            query("PRAGMA index_list($table)").use { c ->
+                while (c.moveToNext()) {
+                    val idxName = c.getString(c.getColumnIndexOrThrow("name"))
+                    val unique = c.getInt(c.getColumnIndexOrThrow("unique")) == 1
+                    val idxCols = mutableListOf<String>()
+                    query("PRAGMA index_info($idxName)").use { ic ->
+                        while (ic.moveToNext()) {
+                            idxCols.add(ic.getString(ic.getColumnIndexOrThrow("name")))
+                        }
+                    }
+                    if (idxCols.none { it in dropped }) {
+                        indices.add(IndexInfo(idxName, unique, idxCols))
+                    }
+                }
+            }
+
+            data class ColDef(val name: String, val type: String, val notNull: Boolean, val dflt: String?, val pk: Int)
+            val cols = mutableListOf<ColDef>()
+            query("PRAGMA table_info($table)").use { c ->
+                while (c.moveToNext()) {
+                    val name = c.getString(c.getColumnIndexOrThrow("name"))
+                    if (name in dropped) continue
+                    cols.add(ColDef(
+                        name = name,
+                        type = c.getString(c.getColumnIndexOrThrow("type")),
+                        notNull = c.getInt(c.getColumnIndexOrThrow("notnull")) == 1,
+                        dflt = c.getString(c.getColumnIndexOrThrow("dflt_value")),
+                        pk = c.getInt(c.getColumnIndexOrThrow("pk"))
+                    ))
+                }
+            }
+
+            val colDefs = cols.joinToString(", ") {
+                val nn = if (it.notNull) " NOT NULL" else ""
+                val dflt = if (it.dflt != null) " DEFAULT ${it.dflt}" else ""
+                "${it.name} ${it.type}$nn$dflt"
+            }
+            val pkCols = cols.filter { it.pk > 0 }.sortedBy { it.pk }
+            val pk = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString { it.name }})" else ""
+            val names = cols.joinToString(", ") { it.name }
+
+            execSQL("CREATE TABLE ${table}_new ($colDefs$pk)")
+            execSQL("INSERT INTO ${table}_new ($names) SELECT $names FROM $table")
+            execSQL("DROP TABLE $table")
+            execSQL("ALTER TABLE ${table}_new RENAME TO $table")
+
+            indices.forEach { idx ->
+                if (idx.name.startsWith("sqlite_autoindex_")) return@forEach
+                val unique = if (idx.unique) "UNIQUE " else ""
+                execSQL("CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON $table (${idx.cols.joinToString()})")
             }
         }
 
@@ -860,7 +718,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

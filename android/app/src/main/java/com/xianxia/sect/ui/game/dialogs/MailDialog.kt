@@ -16,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -49,7 +50,7 @@ fun MailDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val mails by viewModel.mails.collectAsState()
+    val mails by viewModel.mails.collectAsStateWithLifecycle()
     var selectedMailId by remember { mutableStateOf<String?>(null) }
     var capacityWarning by remember { mutableStateOf<String?>(null) }
 

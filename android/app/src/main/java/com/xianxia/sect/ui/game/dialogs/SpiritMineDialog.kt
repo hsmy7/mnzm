@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,8 +59,8 @@ fun SpiritMineDialog(
     spiritMineViewModel: SpiritMineViewModel,
     onDismiss: () -> Unit
 ) {
-    val disciples by viewModel.discipleAggregates.collectAsState()
-    val gameData by viewModel.gameData.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }

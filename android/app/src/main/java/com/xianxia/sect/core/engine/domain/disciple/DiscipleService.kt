@@ -9,8 +9,8 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.state.equipmentBagStackIds
+import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
+import com.xianxia.sect.core.util.equipmentBagStackIds
 import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
@@ -34,16 +34,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     private val state = StateAccessorFactory(stateStore, scope, null)
 
     private var currentGameData: GameData
-        get() = state.gameDataFromUnified().current
-        set(value) { state.gameDataFromUnified().current = value }
+        get() = state.gameData().current
+        set(value) { state.gameData().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = state.disciplesFromUnified().current
-        set(value) { state.disciplesFromUnified().current = value }
+        get() = state.disciples().current
+        set(value) { state.disciples().current = value }
 
     private var currentTeams: List<ExplorationTeam>
-        get() = state.teamsFromUnified().current
-        set(value) { state.teamsFromUnified().current = value }
+        get() = state.teams().current
+        set(value) { state.teams().current = value }
 
     companion object {
         private const val TAG = "DiscipleService"

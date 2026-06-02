@@ -182,8 +182,7 @@ class SectViewModel @Inject constructor(
                 val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
                     lawEnforcementReserveDisciples = updatedReserveDisciples
                 )
-                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = updatedElderSlots) }
                 showSuccess(("储备弟子添加成功"))
             } catch (e: Exception) {
                 showError((e.message ?: "添加失败"))
@@ -199,8 +198,7 @@ class SectViewModel @Inject constructor(
                 val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
                     lawEnforcementReserveDisciples = updatedReserveDisciples
                 )
-                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = updatedElderSlots) }
                 showSuccess(("储备弟子已移除"))
             } catch (e: Exception) {
                 showError((e.message ?: "移除失败"))

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,13 +60,13 @@ fun DiplomacyDialog(
 
     var showGiftedMessage by remember { mutableStateOf(false) }
 
-    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsState()
-    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsState()
-    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
-    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsState()
-    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsState()
-    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
-    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
+    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsStateWithLifecycle()
+    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsStateWithLifecycle()
+    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
+    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
+    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
+    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
+    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsStateWithLifecycle()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,

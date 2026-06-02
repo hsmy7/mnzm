@@ -14,12 +14,20 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+import com.xianxia.sect.core.engine.domain.production.ProductionFacade
+import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
+import com.xianxia.sect.core.engine.domain.building.BuildingFacade
+import com.xianxia.sect.core.engine.domain.battle.BattleFacade
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
+import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
@@ -39,7 +47,14 @@ class GameViewModel @Inject constructor(
     private val systemManager: SystemManager,
     private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val buildingConfigService: BuildingConfigService,
-    private val mailService: com.xianxia.sect.core.engine.service.MailService
+    private val mailService: com.xianxia.sect.core.engine.service.MailService,
+    private val discipleFacade: DiscipleFacade,
+    private val productionFacade: ProductionFacade,
+    private val inventoryFacade: InventoryFacade,
+    private val buildingFacade: BuildingFacade,
+    private val battleFacade: BattleFacade,
+    private val diplomacyFacade: DiplomacyFacade,
+    private val saveFacade: SaveFacade
 ) : BaseViewModel() {
 
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
@@ -202,6 +217,9 @@ class GameViewModel @Inject constructor(
                     listOf(SpiritFieldPlant(buildingInstanceId = newBuilding.instanceId, sectId = activeId))
                 } else emptyList()
 
+                @Suppress("DEPRECATION")
+                val updatedProductionSlots = if (newProductionSlot != null)
+                    data.productionSlots + newProductionSlot else data.productionSlots
                 data.copy(
                     spiritStones = data.spiritStones - cost,
                     placedBuildings = data.placedBuildings + newBuilding,
@@ -210,14 +228,12 @@ class GameViewModel @Inject constructor(
                     patrolSlots = if (newPatrolSlots.isNotEmpty()) data.patrolSlots + newPatrolSlots else data.patrolSlots,
                     patrolConfigs = if (newPatrolConfigs.isNotEmpty()) newPatrolConfigs else data.patrolConfigs,
                     residenceSlots = data.residenceSlots + newResidenceSlots,
-                    // TODO: 后续统一到 Repository 单一数据源，移除对 GameData.productionSlots 的写入
-                    productionSlots = if (newProductionSlot != null)
-                        data.productionSlots + newProductionSlot else data.productionSlots
+                    productionSlots = updatedProductionSlots
                 )
             }
 
             if (newProductionSlot != null) {
-                gameEngine.addProductionSlot(newProductionSlot)
+                buildingFacade.addProductionSlot(newProductionSlot)
             }
         }
     }
@@ -231,7 +247,7 @@ class GameViewModel @Inject constructor(
     }
 
     fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
-        gameEngine.moveBuildingDirect(instanceId, newGridX, newGridY)
+        viewModelScope.launch { buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY) }
     }
 
     /** 修正已有存档中的建筑尺寸（存档加载后调用） */
@@ -257,6 +273,30 @@ class GameViewModel @Inject constructor(
         .map { it.placedBuildings }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val elderSlots: StateFlow<ElderSlots?> = gameData
+        .map { it.elderSlots }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, null)
+
+    val sectPolicies: StateFlow<SectPolicies> = gameData
+        .map { it.sectPolicies }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, SectPolicies())
+
+    val manualProficiencies: StateFlow<Map<String, List<ManualProficiencyData>>> = gameData
+        .map { it.manualProficiencies }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, emptyMap())
+
+    val residenceSlots: StateFlow<List<ResidenceSlot>> = gameData
+        .map { it.residenceSlots }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = gameEngine.highFreqState
+    val entityState: StateFlow<GameStateStore.EntityState> get() = gameEngine.entityState
+    val configState: StateFlow<GameStateStore.ConfigState> get() = gameEngine.configState
 
     val pendingNotification: StateFlow<GameNotification?> get() = gameEngine.pendingNotification
 
@@ -412,7 +452,7 @@ class GameViewModel @Inject constructor(
         focusedRefreshJob?.cancel()
         focusedRefreshJob = viewModelScope.launch {
             while (isActive) {
-                gameEngine.updateFocusedDisciple(request.disciple.id)
+                discipleFacade.updateFocusedDisciple(request.disciple.id)
                 delay(200)
             }
         }
@@ -502,18 +542,18 @@ class GameViewModel @Inject constructor(
     fun expelDisciple(discipleId: String) = disciple.expelDisciple(discipleId)
 
     fun clearNotification() {
-        gameEngine.clearPendingNotification()
+        discipleFacade.clearPendingNotification()
     }
 
     fun enterSect(sectId: String) {
-        gameEngine.enterSect(sectId)
+        viewModelScope.launch { gameEngine.enterSect(sectId) }
     }
 
     fun expelTheftDisciple(discipleId: String) = disciple.expelTheftDisciple(discipleId)
 
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = disciple.imprisonTheftDisciple(discipleId, currentYear)
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = viewModelScope.launch { disciple.imprisonTheftDisciple(discipleId, currentYear) }
 
-    fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
+    fun releaseTheftDisciple(discipleId: String): Int = runBlocking { disciple.releaseTheftDisciple(discipleId) }
 
     fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 
@@ -599,13 +639,13 @@ class GameViewModel @Inject constructor(
 
     fun approveMarriage(maleId: String, femaleId: String) {
         viewModelScope.launch {
-            gameEngine.approveMarriage(maleId, femaleId)
-            gameEngine.clearPendingNotification()
+            discipleFacade.approveMarriage(maleId, femaleId)
+            discipleFacade.clearPendingNotification()
         }
     }
 
     fun rejectMarriage() {
-        gameEngine.clearPendingNotification()
+        discipleFacade.clearPendingNotification()
     }
 
     fun equipItem(discipleId: String, equipmentId: String) = disciple.equipItem(discipleId, equipmentId)
@@ -633,7 +673,7 @@ class GameViewModel @Inject constructor(
     fun plantSeed(slotIndex: Int, seed: com.xianxia.sect.core.model.Seed) {
         viewModelScope.launch {
             try {
-                gameEngine.startManualPlanting(slotIndex, seed.id)
+                buildingFacade.startManualPlanting(slotIndex, seed.id)
             } catch (e: Exception) {
                 showError(e.message ?: "种植失败")
             }
@@ -660,7 +700,7 @@ class GameViewModel @Inject constructor(
 
     fun setMonthlySalaryEnabled(realm: Int, enabled: Boolean) {
         viewModelScope.launch {
-            gameEngine.updateMonthlySalaryEnabled(realm, enabled)
+            discipleFacade.updateMonthlySalaryEnabled(realm, enabled)
         }
     }
 

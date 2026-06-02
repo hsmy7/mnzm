@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -23,6 +24,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class InventorySystemTest {
 
@@ -34,7 +36,7 @@ class InventorySystemTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStore(scopeProvider)
+        stateStore = GameStateStore(scopeProvider, mock(GameStateRepository::class.java))
         inventoryConfig = InventoryConfig()
         system = InventorySystem(stateStore, scopeProvider, inventoryConfig)
         system.initialize()
@@ -435,7 +437,7 @@ class InventorySystemTest {
             result = system.returnEquipmentToStack(instance)
         }
         assertEquals(AddResult.SUCCESS, result)
-        val stack = stateStore.unifiedState.value.equipmentStacks.find { it.name == "铁剑" }
+        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(6, stack!!.quantity)
     }
@@ -448,7 +450,7 @@ class InventorySystemTest {
             result = system.returnEquipmentToStack(instance)
         }
         assertEquals(AddResult.SUCCESS, result)
-        val stack = stateStore.unifiedState.value.equipmentStacks.find { it.name == "铁剑" }
+        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(1, stack!!.quantity)
     }

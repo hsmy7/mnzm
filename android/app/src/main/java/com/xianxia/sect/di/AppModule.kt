@@ -10,6 +10,7 @@ import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
+import com.xianxia.sect.data.incremental.ChangeLogDao
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
 
@@ -77,6 +78,12 @@ object AppModule {
     fun provideHerbDao(database: GameDatabase): HerbDao = database.herbDao()
 
     @Provides
+    fun provideStorageBagDao(database: GameDatabase): StorageBagDao = database.storageBagDao()
+
+    @Provides
+    fun provideChangeLogDao(database: GameDatabase): ChangeLogDao = database.changeLogDao()
+
+    @Provides
     fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()
 
     @Provides
@@ -113,6 +120,9 @@ object AppModule {
 
     @Provides
     fun provideDiscipleAttributesDao(database: GameDatabase): DiscipleAttributesDao = database.discipleAttributesDao()
+
+    @Provides
+    fun provideDiscipleCompactDao(database: GameDatabase): DiscipleCompactDao = database.discipleCompactDao()
     
     @Provides
     @Singleton

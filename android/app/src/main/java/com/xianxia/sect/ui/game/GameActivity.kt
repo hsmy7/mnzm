@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -10,6 +11,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
@@ -23,6 +25,7 @@ import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
+import com.xianxia.sect.core.perf.FrameMetricsMonitor
 import com.xianxia.sect.data.crypto.SecureKeyManager
 import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
 import com.xianxia.sect.data.facade.StorageFacade
@@ -100,6 +103,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     @Inject
     lateinit var backgroundTaskScheduler: com.xianxia.sect.core.util.BackgroundTaskScheduler
 
+    @Inject
+    lateinit var frameMetricsMonitor: FrameMetricsMonitor
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
@@ -133,11 +139,11 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val loadingProgress by saveLoadViewModel.loadingProgress.collectAsState()
+                    val loadingProgress by saveLoadViewModel.loadingProgress.collectAsStateWithLifecycle()
                     var errorMessage by remember { mutableStateOf<String?>(null) }
-                    val isRestarting by saveLoadViewModel.isRestarting.collectAsState()
+                    val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
-                    val gameData by viewModel.gameData.collectAsState()
+                    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
                     val limitAdTrackingState = remember { mutableStateOf(sessionManager.limitAdTracking) }
 
                     // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
@@ -372,6 +378,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onPause() {
         super.onPause()
+        frameMetricsMonitor.stopMonitoring(window)
         try {
             gameEngineCore.pauseForBackground()
             Log.d(TAG, "onPause: game engine paused for background")
@@ -394,6 +401,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onResume() {
         super.onResume()
         hideSystemBars()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            frameMetricsMonitor.startMonitoring(window)
+        }
         backgroundTaskScheduler.resume()
         Log.d(TAG, "onResume: background tasks resumed")
         if (gameEngineCore.wasPausedByBackground) {
@@ -426,6 +436,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
+        frameMetricsMonitor.stopMonitoring(window)
         SecureKeyManager.recoveryCallback = null
         (application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)
         // 注意：不在此处调用 gameEngineCore.shutdown()

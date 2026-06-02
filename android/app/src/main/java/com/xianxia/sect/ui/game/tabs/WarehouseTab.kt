@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -122,14 +123,14 @@ internal fun WarehouseTab(
     onBulkSellDismiss: () -> Unit = {},
     onDismiss: () -> Unit = {}
 ) {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
-    val storageBags by viewModel.storageBags.collectAsState()
-    val gameData by viewModel.gameData.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val storageBags by viewModel.storageBags.collectAsStateWithLifecycle()
+    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
     // 灵石虚拟物品（每张卡片最多100万）
     val spiritStoneCards = remember(gameData) {
@@ -522,13 +523,13 @@ internal fun DiscipleSelectForRewardDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val disciples by viewModel.discipleAggregates.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     
     val aliveDisciples = remember(disciples) {
         disciples.filter { it.isAlive && it.status != DiscipleStatus.REFLECTING }
@@ -936,12 +937,12 @@ internal fun BulkSellDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
     
     var selectedRarities by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedTypes by remember { mutableStateOf<Set<String>>(emptySet()) }

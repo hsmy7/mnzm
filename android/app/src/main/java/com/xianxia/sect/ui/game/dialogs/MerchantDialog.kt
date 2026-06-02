@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -580,13 +581,13 @@ fun InventorySelectDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val equipment by viewModel.equipmentStacks.collectAsState()
-    val manuals by viewModel.manualStacks.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
-    val gameData by viewModel.gameData.collectAsState()
+    val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
     var selectedFilter by remember { mutableStateOf(ListingFilter.ALL) }
     val selectedItems = remember { mutableStateMapOf<String, Int>() }

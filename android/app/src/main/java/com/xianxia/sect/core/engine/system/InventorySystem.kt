@@ -66,7 +66,7 @@ class InventorySystem @Inject constructor(
     }
 
     private fun getMaxSlots(): Int {
-        val buildings = stateStore.unifiedState.value.gameData.placedBuildings
+        val buildings = stateStore.gameData.value.placedBuildings
         val warehouseCount = buildings.count {
             it.displayName == com.xianxia.sect.ui.game.building.BuildingDef.WAREHOUSE.displayName
         }
@@ -158,29 +158,30 @@ class InventorySystem @Inject constructor(
 
     private fun getMaxStackForType(type: String): Int = inventoryConfig.getMaxStackSize(type)
 
+    // 事务外读取独立 StateFlow（同步更新），避免 unifiedState stateIn(Dispatchers.Default) 异步延迟
     private fun currentEquipmentStacks(): List<EquipmentStack> =
-        stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+        stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
 
     private fun currentEquipmentInstances(): List<EquipmentInstance> =
-        stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
+        stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
 
     private fun currentManualStacks(): List<ManualStack> =
-        stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.unifiedState.value.manualStacks
+        stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
 
     private fun currentManualInstances(): List<ManualInstance> =
-        stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.unifiedState.value.manualInstances
+        stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
 
     private fun currentPills(): List<Pill> =
-        stateStore.currentTransactionMutableState()?.pills ?: stateStore.unifiedState.value.pills
+        stateStore.currentTransactionMutableState()?.pills ?: stateStore.pills.value
 
     private fun currentMaterials(): List<Material> =
-        stateStore.currentTransactionMutableState()?.materials ?: stateStore.unifiedState.value.materials
+        stateStore.currentTransactionMutableState()?.materials ?: stateStore.materials.value
 
     private fun currentHerbs(): List<Herb> =
-        stateStore.currentTransactionMutableState()?.herbs ?: stateStore.unifiedState.value.herbs
+        stateStore.currentTransactionMutableState()?.herbs ?: stateStore.herbs.value
 
     private fun currentSeeds(): List<Seed> =
-        stateStore.currentTransactionMutableState()?.seeds ?: stateStore.unifiedState.value.seeds
+        stateStore.currentTransactionMutableState()?.seeds ?: stateStore.seeds.value
 
     private fun getTotalSlotCount(): Int {
         return currentEquipmentStacks().size +
@@ -216,7 +217,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+        val current = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -224,7 +225,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddPill(name: String, rarity: Int, category: PillCategory, grade: PillGrade = PillGrade.MEDIUM): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.pills ?: stateStore.unifiedState.value.pills
+        val current = ts?.pills ?: stateStore.pills.value
         val maxStack = getMaxStackForType("pill")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.grade == grade && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -232,7 +233,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
+        val current = ts?.manualStacks ?: stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -240,7 +241,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddMaterial(name: String, rarity: Int, category: MaterialCategory): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.materials ?: stateStore.unifiedState.value.materials
+        val current = ts?.materials ?: stateStore.materials.value
         val maxStack = getMaxStackForType("material")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -248,7 +249,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddHerb(name: String, rarity: Int, category: String): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.herbs ?: stateStore.unifiedState.value.herbs
+        val current = ts?.herbs ?: stateStore.herbs.value
         val maxStack = getMaxStackForType("herb")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -256,7 +257,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddSeed(name: String, rarity: Int, growTime: Int): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.seeds ?: stateStore.unifiedState.value.seeds
+        val current = ts?.seeds ?: stateStore.seeds.value
         val maxStack = getMaxStackForType("seed")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.growTime == growTime && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -274,7 +275,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
 
         val existing = currentStacks.find {
@@ -313,7 +314,7 @@ class InventorySystem @Inject constructor(
         if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentInstances = ts?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
+        val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
 
         if (ts != null) {
@@ -331,7 +332,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
+        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
 
         if (merge) {
@@ -372,7 +373,7 @@ class InventorySystem @Inject constructor(
         if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentInstances = ts?.manualInstances ?: stateStore.unifiedState.value.manualInstances
+        val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
 
         if (ts != null) {
@@ -387,7 +388,7 @@ class InventorySystem @Inject constructor(
 
     fun returnEquipmentToStack(instance: EquipmentInstance): AddResult {
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
 
         val existing = currentStacks.find {
@@ -423,7 +424,7 @@ class InventorySystem @Inject constructor(
 
     fun returnManualToStack(instance: ManualInstance): AddResult {
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
+        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
 
         val existing = currentStacks.find {
@@ -716,7 +717,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentPills = ts?.pills ?: stateStore.unifiedState.value.pills
+        val currentPills = ts?.pills ?: stateStore.pills.value
 
         if (merge) {
             val existing = currentPills.find {
@@ -913,7 +914,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentMaterials = ts?.materials ?: stateStore.unifiedState.value.materials
+        val currentMaterials = ts?.materials ?: stateStore.materials.value
 
         if (merge) {
             val existing = currentMaterials.find {
@@ -1106,7 +1107,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentHerbs = ts?.herbs ?: stateStore.unifiedState.value.herbs
+        val currentHerbs = ts?.herbs ?: stateStore.herbs.value
 
         if (merge) {
             val existing = currentHerbs.find {
@@ -1299,7 +1300,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentSeeds = ts?.seeds ?: stateStore.unifiedState.value.seeds
+        val currentSeeds = ts?.seeds ?: stateStore.seeds.value
 
         if (merge) {
             val existing = currentSeeds.find {

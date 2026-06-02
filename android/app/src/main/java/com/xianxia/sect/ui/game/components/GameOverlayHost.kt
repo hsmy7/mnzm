@@ -552,6 +552,7 @@ fun GameOverlayHost(
 
             TopOverlay.DISCIPLE_DETAIL -> {
                 val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+                val manualProficiencies by viewModel.manualProficiencies.collectAsStateWithLifecycle()
                 val request by viewModel.detailDisciple.collectAsStateWithLifecycle()
                 request?.let { req ->
                     val updatedDisciple = disciples
@@ -559,7 +560,7 @@ fun GameOverlayHost(
                     DiscipleDetailDialog(
                         disciple = updatedDisciple,
                         allDisciples = disciples,
-                        gameData = gameData,
+                        manualProficiencies = manualProficiencies,
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },
                         onNavigateToDisciple = req.onNavigateToDisciple

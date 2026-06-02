@@ -335,30 +335,6 @@ sealed class AppError {
         }
     }
 
-    @Deprecated("Use AppError.Domain.Validation", ReplaceWith("AppError.Domain.Validation.InvalidInput(message, cause)"))
-    data class Validation(
-        override val message: String,
-        override val cause: Throwable? = null
-    ) : AppError() {
-        override val code = "VALIDATION_ERROR"
-    }
-
-    @Deprecated("Use AppError.Domain.GameState.PermissionDenied", ReplaceWith("AppError.Domain.GameState.PermissionDenied(message, cause)"))
-    data class Permission(
-        override val message: String,
-        override val cause: Throwable? = null
-    ) : AppError() {
-        override val code = "PERMISSION_ERROR"
-    }
-
-    @Deprecated("Use AppError.Domain.GameState.NotFound", ReplaceWith("AppError.Domain.GameState.NotFound(message, cause)"))
-    data class NotFound(
-        override val message: String,
-        override val cause: Throwable? = null
-    ) : AppError() {
-        override val code = "NOT_FOUND_ERROR"
-    }
-
     data class Unknown(
         override val message: String = "未知错误",
         override val cause: Throwable? = null
@@ -387,16 +363,6 @@ sealed class AppError {
             }
         }
     }
-}
-
-fun GameError.toAppError(): AppError = when (this) {
-    is GameError.Validation -> AppError.Domain.Validation.InvalidInput(message, cause)
-    is GameError.GameState -> AppError.Domain.GameLoop.StateInconsistency(message, cause)
-    is GameError.SaveLoad -> AppError.Domain.Storage.SaveFailed(message, cause)
-    is GameError.Network -> AppError.Domain.Network.NoConnection(message, cause)
-    is GameError.Permission -> AppError.Domain.GameState.PermissionDenied(message, cause)
-    is GameError.NotFound -> AppError.Domain.GameState.NotFound(message, cause)
-    is GameError.Unknown -> AppError.Unknown(message, cause)
 }
 
 fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage = when (this) {

@@ -22,8 +22,8 @@ interface DiscipleFacade {
     fun recruitDisciple(): Disciple
     suspend fun expelDisciple(discipleId: String): Boolean
     suspend fun expelTheftDisciple(discipleId: String): Boolean
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
-    fun releaseTheftDisciple(discipleId: String): Int
+    suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
+    suspend fun releaseTheftDisciple(discipleId: String): Int
     suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean

@@ -35,8 +35,7 @@ class DiscipleDelegate(
 
     fun changeDiscipleType(discipleId: String, newType: String) {
         scope.launch {
-            gameEngine.updateDisciple(discipleId) { it.copy(discipleType = newType) }
-            gameEngine.syncAllDiscipleStatuses()
+            gameEngine.changeDiscipleTypeAtomic(discipleId, newType)
         }
     }
 
@@ -217,12 +216,12 @@ class DiscipleDelegate(
         }
     }
 
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
+    suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
         gameEngine.imprisonTheftDisciple(discipleId, currentYear)
         gameEngine.clearPendingNotification()
     }
 
-    fun releaseTheftDisciple(discipleId: String): Int {
+    suspend fun releaseTheftDisciple(discipleId: String): Int {
         return gameEngine.releaseTheftDisciple(discipleId)
     }
 

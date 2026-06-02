@@ -128,7 +128,7 @@ class GCOptimizer @Inject constructor(
         val startTime = System.currentTimeMillis()
 
         if (type == GCType.CRITICAL || type == GCType.MANUAL) {
-            System.gc()
+            Log.i(TAG, "GC requested (${type.name}) but System.gc() skipped — ART manages GC autonomously")
         }
 
         val endTime = System.currentTimeMillis()
@@ -233,8 +233,7 @@ class GCOptimizer @Inject constructor(
     }
     
     fun runFinalizers() {
-        Log.i(TAG, "Running finalizers")
-        System.runFinalization()
+        Log.i(TAG, "runFinalization() skipped — ART manages finalizers autonomously")
     }
     
     fun performFullGC(): GCOptimizationResult {

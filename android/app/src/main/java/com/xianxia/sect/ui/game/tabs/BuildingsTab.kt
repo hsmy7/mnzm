@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -92,17 +93,17 @@ internal fun BuildingsTab(
     spiritMineViewModel: SpiritMineViewModel,
     onDismiss: () -> Unit
 ) {
-    val gameData by viewModel.gameData.collectAsState()
-    val alchemySlots by viewModel.alchemySlots.collectAsState()
-    val forgeSlots by viewModel.forgeSlots.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val disciples by viewModel.discipleAggregates.collectAsState()
-    val equipment by viewModel.equipment.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val productionSlots by viewModel.productionSlots.collectAsState()
+    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
+    val alchemySlots by viewModel.alchemySlots.collectAsStateWithLifecycle()
+    val forgeSlots by viewModel.forgeSlots.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val productionSlots by viewModel.productionSlots.collectAsStateWithLifecycle()
 
     val buildings: List<Triple<String, String, () -> Unit>> = remember {
         BuildingRegistry.ALL.filter { def ->

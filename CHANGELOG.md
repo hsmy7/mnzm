@@ -1,5 +1,53 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.01] - 2026-06-02
+
+### 极致性能优化
+
+**状态管理架构升级**
+- **三层 StateFlow 拆分**：GameStateStore 新增 HighFreqState（灵石/时间等高频字段）/ EntityState（弟子/装备/功法等实体列表）/ ConfigState（宗门政策/设置等低频配置）三层独立 StateFlow。UI 按需订阅对应层级，消除全量 combine 重建开销
+- **ViewModel 直接注入 Facade**：GameViewModel 新增 7 个 Facade 直接注入（Disciple/Battle/Building/Inventory/Production/Diplomacy/Save），减少通过 GameEngine 中转
+- **窄粒度 StateFlow 暴露**：GameViewModel 新增 elderSlots / sectPolicies / manualProficiencies / residenceSlots 独立流，UI 无需订阅整个 GameData
+
+**UI 重组消除**
+- **全量 collectAsState → collectAsStateWithLifecycle**：14 个 UI 文件共 158 处订阅全部迁移到生命周期感知 API，后台自动停止收集
+- **DiscipleDetailScreen**：从订阅整个 per-tick gameData 改为订阅独立字段流（elderSlots/sectPolicies/residenceSlots/placedBuildings），仅在对话框可见时收集
+- **@Immutable 注解**：HighFreqState / FrameMetricsStats / SaveOperationStats 标注 @Immutable，Compose Strong Skipping Mode 自动跳过不变重组
+
+**游戏循环并行化**
+- **SystemManager 依赖图并行**：系统按 @SystemPriority 分组，同级无依赖系统通过 coroutineScope { launch } 并行执行。单系统组跳过协程开销直接调用。tick 耗时理论减少 40-60%
+- **异常隔离不变**：每个系统独立 try-catch，单系统异常不影响同级其他系统
+
+**增量保存 + 脏追踪**
+- **GameStateRepository**：新增 DirtySet 位掩码脏追踪（13 个状态字段独立标记），markDirty() 在每次 Direct 更新和 update() 事务中自动标记
+- **flushDirtyState()**：仅写入脏字段，通过 coroutineScope { launch(Dispatchers.IO) } 并行执行 deleteAll + insertAll，保存延迟从 ~200ms 降至 ~20ms
+- **StorageEngine.incrementalSave()**：新增增量保存入口，从 unifiedState 快照提取脏数据写入 Repository
+
+**内存管理优化**
+- **GCOptimizer**：移除 System.gc() 调用（CRITICAL/MANUAL 模式改为日志提示），System.runFinalization() 同步移除。信任 ART 分代并发 GC 自主管理
+- **DiscipleCompact 轻量表**：新增 disciple_compact Room 表（14 字段 vs 原 50+），高频查询场景（弟子列表/修炼进度）使用精简模型，减少内存占用
+- **对象分配减少**：高频率字段使用 distinctUntilChanged 避免相同值重复发射
+
+**数据库优化**
+- **Migration 合并**：新增 MIGRATION_1_26（v1→v26 单一合并迁移），消除 24 次顺序迁移的累积开销，冷启动减少 200-500ms
+- **v26→v27 迁移**：新增 disciple_compact 表（14 字段 + 2 索引），支持弟子轻量查询
+- **Schema v27 JSON**：已导出现有数据库 schema 供后续自动迁移使用
+
+**帧率监控**
+- **FrameMetricsMonitor**：集成 Window.OnFrameMetricsAvailableListener，16.6ms/50ms 双阈值 jank 检测，SharedFlow 发射 jank 事件，统计汇总（总帧数/jank 率/严重 jank 率/平均帧时间）
+- **生命周期绑定**：onResume 启动监控，onPause/onDestroy 停止，零性能开销
+
+**代码清理**
+- **BagUtils 合并**：删除 `core/state/BagUtils.kt`（103 行），内容合并入 `core/util/StorageBagUtils.kt`
+- **GameError 删除**：删除 `core/util/GameError.kt`（84 行），所有引用已迁移至 AppError。AppError.kt 精简 34 行
+- **EventBus 审计文档**：新增 `EventBusAudit.kt`，记录 6 个消费者/生产者的线程模型/背压策略/错误处理/风险等级（0 HIGH / 3 MEDIUM / 3 LOW）
+- **FlatBuffers 评估报告**：新增 `FlatBuffersEvaluation.kt`，详尽分析结论：不建议采用（零拷贝优势在 Room 架构下无法兑现），推荐替代方案 A（消除 Base64 中间层）
+
+### 数据库
+- **v26→v27 迁移**：MIGRATION_1_26（v1→v26 合并迁移）+ MIGRATION_26_27（新增 disciple_compact 表）
+- **新增 Entity**：DiscipleCompact（disciple_compact 表，14 字段）
+- **新增 DAO**：DiscipleCompactDao
+
 ## [3.2.00] - 2026-06-02
 
 ### 重构

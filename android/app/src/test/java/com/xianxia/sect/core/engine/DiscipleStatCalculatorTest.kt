@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.CombatAttributes

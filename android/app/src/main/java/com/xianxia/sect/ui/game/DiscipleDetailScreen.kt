@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -193,7 +194,10 @@ fun DiscipleDetailDialog(
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
 
-    val gameData by viewModel?.gameData?.collectAsState() ?: remember { mutableStateOf(null) }
+    val elderSlots by viewModel?.elderSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
+    val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }
+    val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<ResidenceSlot>()) }
+    val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
 
     val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
     val hasPrev = currentIndex > 0
@@ -257,10 +261,11 @@ fun DiscipleDetailDialog(
                                         manualProficiencies = manualProficiencies,
                                         position = viewModel?.getDisciplePosition(disciple.id),
                                         isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
-                                        elderSlots = gameData?.elderSlots,
+                                        elderSlots = elderSlots,
                                         allDisciples = allDisciples,
-                                        sectPolicies = gameData?.sectPolicies,
-                                        gameData = gameData
+                                        sectPolicies = sectPolicies,
+                                        residenceSlots = vmResidenceSlots,
+                                        placedBuildings = vmPlacedBuildings
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -428,7 +433,6 @@ fun DiscipleDetailDialog(
             spiritStones = disciple.storageBagSpiritStones,
             disciple = disciple,
             viewModel = viewModel,
-            gameData = gameData,
             onDismiss = { showStorageBagDialog = false }
         )
     }
@@ -676,15 +680,15 @@ fun DiscipleDetailDialog(
 fun DiscipleDetailDialog(
     disciple: DiscipleAggregate,
     allDisciples: List<DiscipleAggregate>,
-    gameData: GameData?,
+    manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel,
     onDismiss: () -> Unit,
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
+    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
 
     DiscipleDetailDialog(
         disciple = disciple,
@@ -693,7 +697,7 @@ fun DiscipleDetailDialog(
         allManuals = manuals,
         manualStacks = manualStacks,
         equipmentStacks = equipmentStacks,
-        manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+        manualProficiencies = manualProficiencies,
         viewModel = viewModel,
         onDismiss = onDismiss,
         onNavigateToDisciple = onNavigateToDisciple
@@ -1087,7 +1091,8 @@ private fun BasicInfoSection(
     elderSlots: ElderSlots? = null,
     allDisciples: List<DiscipleAggregate> = emptyList(),
     sectPolicies: SectPolicies? = null,
-    gameData: GameData? = null
+    residenceSlots: List<ResidenceSlot> = emptyList(),
+    placedBuildings: List<GridBuildingData> = emptyList()
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1190,10 +1195,10 @@ private fun BasicInfoSection(
                 val proficiencyMap = remember(manualProficiencies, disciple.id) {
                     manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
                 }
-                val buildingBonus = remember(disciple, gameData) {
-                    val slot = gameData?.residenceSlots?.firstOrNull { it.discipleId == disciple.id }
+                val buildingBonus = remember(disciple, residenceSlots, placedBuildings) {
+                    val slot = residenceSlots.firstOrNull { it.discipleId == disciple.id }
                     val building = slot?.let { s ->
-                        gameData?.placedBuildings?.firstOrNull { it.instanceId == s.buildingInstanceId }
+                        placedBuildings.firstOrNull { it.instanceId == s.buildingInstanceId }
                     }
                     when (building?.displayName) {
                         "中级单人住所" -> 1.50
@@ -1954,7 +1959,6 @@ private fun StorageBagDialog(
     spiritStones: Long,
     disciple: DiscipleAggregate,
     viewModel: GameViewModel?,
-    gameData: GameData?,
     onDismiss: () -> Unit
 ) {
     var showRewardDialog by remember { mutableStateOf(false) }
@@ -2070,10 +2074,9 @@ private fun StorageBagDialog(
         }
     }
 
-    if (showRewardDialog && viewModel != null && gameData != null) {
+    if (showRewardDialog && viewModel != null) {
         RewardItemsDialog(
             disciple = disciple,
-            gameData = gameData,
             viewModel = viewModel,
             onDismiss = { showRewardDialog = false }
         )
@@ -2093,7 +2096,6 @@ private enum class RewardFilter(val displayName: String) {
 @Composable
 private fun RewardItemsDialog(
     disciple: DiscipleAggregate,
-    gameData: GameData,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -2105,12 +2107,12 @@ private fun RewardItemsDialog(
     var isRewarding by remember { mutableStateOf(false) }
     val rewardScope = rememberCoroutineScope()
 
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
 
     val availableManuals = manualStacks
     val availableEquipment = equipmentStacks

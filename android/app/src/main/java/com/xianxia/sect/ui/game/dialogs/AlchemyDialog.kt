@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +78,7 @@ fun AlchemyDialog(
 
     val globalFurnaces = gameData?.placedBuildings?.filter { it.displayName == "炼丹炉" } ?: emptyList()
     val buildingIndex = globalFurnaces.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
-    val alchemySlotsState by viewModel.alchemySlots.collectAsState()
+    val alchemySlotsState by viewModel.alchemySlots.collectAsStateWithLifecycle()
     val mySlot = alchemySlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
     val assignedDiscipleId = mySlot?.assignedDiscipleId

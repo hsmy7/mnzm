@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
@@ -33,16 +34,16 @@ internal fun WorldMapDialog(
     var showLevelDetail by remember { mutableStateOf(false) }
 
     // WorldMap sub-dialogs — rendered locally to keep world map as background
-    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
-    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
-    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
-    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsState()
-    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsState()
-    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsState()
-    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsState()
-    val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsState()
-    val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsState()
-    val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsState()
+    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
+    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
+    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsStateWithLifecycle()
+    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsStateWithLifecycle()
+    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
+    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsStateWithLifecycle()
+    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
+    val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsStateWithLifecycle()
+    val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsStateWithLifecycle()
+    val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f

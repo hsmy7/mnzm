@@ -259,8 +259,7 @@ class ProductionViewModel @Inject constructor(
                 )
 
                 val updatedReserveDisciples = currentReserveDisciples + newSlot
-                gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
             } catch (e: Exception) {
                 showError(e.message ?: "添加失败")
             }
@@ -301,8 +300,7 @@ class ProductionViewModel @Inject constructor(
 
                 if (newSlots.isNotEmpty()) {
                     val updatedReserveDisciples = currentReserveDisciples + newSlots
-                    gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-                    gameEngine.syncAllDiscipleStatuses()
+                    gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
                 }
             } catch (e: Exception) {
                 showError(e.message ?: "添加失败")
@@ -315,8 +313,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
-                gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
             } catch (e: Exception) {
                 showError(e.message ?: "移除失败")
             }

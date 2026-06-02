@@ -1,8 +1,10 @@
 package com.xianxia.sect.data.engine
 
 import android.util.Log
+import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.fixStorageBagReferences
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.cache.CacheLayer
 import com.xianxia.sect.data.cache.CacheKey
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.Immutable
 import androidx.room.withTransaction
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,6 +59,7 @@ data class EngineProgress(
     }
 }
 
+@Immutable
 data class SaveOperationStats(
     val bytesWritten: Long = 0,
     val timeMs: Long = 0,
@@ -85,7 +89,9 @@ class StorageEngine @Inject internal constructor(
     private val taskScheduler: BackgroundTaskScheduler,
     private val storageIntegrity: StorageIntegrity,
     private val storageBackup: StorageBackup,
-    private val storageMetrics: StorageMetrics
+    private val storageMetrics: StorageMetrics,
+    private val stateStore: GameStateStore,
+    private val repository: GameStateRepository
 ) {
     companion object {
         private const val TAG = "StorageEngine"
@@ -448,6 +454,49 @@ class StorageEngine @Inject internal constructor(
 
     suspend fun autoSave(data: SaveData): StorageResult<SaveOperationStats> {
         return save(StorageConstants.AUTO_SAVE_SLOT, data)
+    }
+
+    suspend fun incrementalSave(slot: Int): StorageResult<SaveOperationStats> {
+        if (!lockManager.isValidSlot(slot)) {
+            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
+        }
+
+        return lockManager.withWriteLockLight(slot) {
+            try {
+                val startTime = System.currentTimeMillis()
+                _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Incremental save")
+
+                val snapshot = stateStore.unifiedState.value
+                repository.setActiveSlot(slot)
+                repository.flushDirtyState(
+                    gameData = snapshot.gameData,
+                    disciples = snapshot.disciples,
+                    equipmentStacks = snapshot.equipmentStacks,
+                    equipmentInstances = snapshot.equipmentInstances,
+                    manualStacks = snapshot.manualStacks,
+                    manualInstances = snapshot.manualInstances,
+                    pills = snapshot.pills,
+                    materials = snapshot.materials,
+                    herbs = snapshot.herbs,
+                    seeds = snapshot.seeds,
+                    storageBags = snapshot.storageBags,
+                    teams = snapshot.teams,
+                    battleLogs = snapshot.battleLogs
+                )
+
+                val elapsed = System.currentTimeMillis() - startTime
+                _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
+                StorageResult.success(SaveOperationStats(
+                    bytesWritten = 0,
+                    timeMs = elapsed,
+                    wasIncremental = true
+                ))
+            } catch (e: Exception) {
+                Log.e(TAG, "Incremental save failed for slot $slot", e)
+                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
+                StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Incremental save failed", e)
+            }
+        }
     }
 
     fun hasEmergencySave(): Boolean {

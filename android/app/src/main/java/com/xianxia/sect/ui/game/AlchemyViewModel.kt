@@ -230,8 +230,7 @@ class AlchemyViewModel @Inject constructor(
             try {
                 val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
-                gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
             } catch (e: Exception) {
                 showError(e.message ?: "移除失败")
             }

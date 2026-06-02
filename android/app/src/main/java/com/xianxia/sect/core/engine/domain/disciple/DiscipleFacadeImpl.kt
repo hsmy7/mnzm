@@ -19,10 +19,10 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.state.addManualInstanceToDiscipleBag
-import com.xianxia.sect.core.state.equipmentBagStackIds
-import com.xianxia.sect.core.state.manualBagStackIds
+import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
+import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
+import com.xianxia.sect.core.util.equipmentBagStackIds
+import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.StorageBagUtils
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -93,36 +93,32 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override suspend fun expelTheftDisciple(discipleId: String): Boolean = discipleService.expelDisciple(discipleId)
 
-    override fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
-        stateStore.updateDisciplesDirect { disciples ->
-            disciples.map {
-                if (it.id == discipleId) it.copy(
-                    status = DiscipleStatus.REFLECTING,
-                    statusData = it.statusData + mapOf(
-                        "reflectionStartYear" to currentYear.toString(),
-                        "reflectionEndYear" to (currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-                    )
-                ) else it
-            }
-        }
+    override suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
+        stateStore.update { disciples = disciples.map {
+            if (it.id == discipleId) it.copy(
+                status = DiscipleStatus.REFLECTING,
+                statusData = it.statusData + mapOf(
+                    "reflectionStartYear" to currentYear.toString(),
+                    "reflectionEndYear" to (currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                )
+            ) else it
+        } }
     }
 
-    override fun releaseTheftDisciple(discipleId: String): Int {
+    override suspend fun releaseTheftDisciple(discipleId: String): Int {
         val loyaltyChange = (1..10).random()
-        stateStore.updateDisciplesDirect { disciples ->
-            disciples.map {
-                if (it.id == discipleId) {
-                    val baseStats = DiscipleStatCalculator.getBaseStats(it)
-                    it.copy(
-                        status = DiscipleStatus.IDLE,
-                        statusData = it.statusData - setOf("reflectionStartYear", "reflectionEndYear"),
-                        skills = it.skills.copy(
-                            loyalty = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
-                        )
+        stateStore.update { disciples = disciples.map {
+            if (it.id == discipleId) {
+                val baseStats = DiscipleStatCalculator.getBaseStats(it)
+                it.copy(
+                    status = DiscipleStatus.IDLE,
+                    statusData = it.statusData - setOf("reflectionStartYear", "reflectionEndYear"),
+                    skills = it.skills.copy(
+                        loyalty = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
                     )
-                } else it
-            }
-        }
+                )
+            } else it
+        } }
         return loyaltyChange
     }
 
@@ -633,9 +629,11 @@ class DiscipleFacadeImpl @Inject constructor(
     }
 
     override fun updateElderSlots(newElderSlots: ElderSlots) {
-        stateStore.updateGameDataDirect { it.copy(elderSlots = newElderSlots) }
         gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
+            stateStore.update {
+                gameData = gameData.copy(elderSlots = newElderSlots)
+                discipleService.syncAllDiscipleStatuses()
+            }
         }
     }
 
@@ -708,11 +706,13 @@ class DiscipleFacadeImpl @Inject constructor(
             }
             else -> slots
         }
-        stateStore.updateGameDataDirect { it.copy(elderSlots = updatedSlots) }
         gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
+            stateStore.update {
+                gameData = gameData.copy(elderSlots = updatedSlots)
+                discipleService.syncAllDiscipleStatuses()
+                if (elderSlotType == "lawEnforcement") {
+                    discipleService.autoFillLawEnforcementSlots()
+                }
             }
         }
     }
@@ -762,11 +762,13 @@ class DiscipleFacadeImpl @Inject constructor(
             }
             else -> slots
         }
-        stateStore.updateGameDataDirect { it.copy(elderSlots = updatedSlots) }
         gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
+            stateStore.update {
+                gameData = gameData.copy(elderSlots = updatedSlots)
+                discipleService.syncAllDiscipleStatuses()
+                if (elderSlotType == "lawEnforcement") {
+                    discipleService.autoFillLawEnforcementSlots()
+                }
             }
         }
     }
@@ -784,8 +786,10 @@ class DiscipleFacadeImpl @Inject constructor(
             discipleName = discipleName
         )
         gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
-            discipleService.syncAllDiscipleStatuses()
+            stateStore.update {
+                gameData = gameData.copy(librarySlots = slots)
+                discipleService.syncAllDiscipleStatuses()
+            }
         }
     }
 
@@ -795,8 +799,10 @@ class DiscipleFacadeImpl @Inject constructor(
         val slots = data.librarySlots.toMutableList()
         slots[slotIndex] = LibrarySlot(index = slotIndex)
         gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
-            discipleService.syncAllDiscipleStatuses()
+            stateStore.update {
+                gameData = gameData.copy(librarySlots = slots)
+                discipleService.syncAllDiscipleStatuses()
+            }
         }
     }
 

@@ -61,9 +61,6 @@ data class UiError(
                 is AppError.Domain.GameLoop.EngineNotRunning -> Triple("游戏引擎未启动", UiErrorSeverity.ERROR, true)
                 is AppError.Domain.GameLoop.Unknown -> Triple("游戏运行错误", UiErrorSeverity.ERROR, false)
 
-                is AppError.Validation -> Triple(error.message, UiErrorSeverity.INFO, true)
-                is AppError.Permission -> Triple("权限不足", UiErrorSeverity.ERROR, false)
-                is AppError.NotFound -> Triple(error.message, UiErrorSeverity.INFO, true)
                 is AppError.Unknown -> Triple("操作失败：${error.message}", UiErrorSeverity.ERROR, false)
             }
             return UiError(
@@ -74,8 +71,6 @@ data class UiError(
                 severity = severity
             )
         }
-
-        fun fromGameError(error: GameError): UiError = fromAppError(error.toAppError())
 
         fun fromStorageError(error: com.xianxia.sect.data.result.StorageError, message: String = ""): UiError =
             fromAppError(error.toAppError(message))

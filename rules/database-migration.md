@@ -41,3 +41,48 @@
 | v18→v19 (MIGRATION_18_19) | pills 表 miningAdd 列遗漏 | 存档全部为空 |
 
 **每次都是同样的错误：Entity 改了但 Migration 没跟上。**
+
+## v3.2.01 数据库变更记录
+
+### v26 → v27
+
+**变更内容：**
+- 新增 `DiscipleCompact` Entity（`disciple_compact` 表，14 字段 + 2 索引）
+- 合并 v1→v26 顺序迁移链为 `MIGRATION_1_26`（单一合并迁移），减少冷启动开销
+- 新增 `MIGRATION_26_27`：创建 `disciple_compact` 表
+
+**迁移 SQL（MIGRATION_26_27）：**
+```sql
+CREATE TABLE IF NOT EXISTS disciple_compact (
+    id TEXT NOT NULL,
+    slot_id INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    cultivation REAL NOT NULL DEFAULT 0.0,
+    realm INTEGER NOT NULL DEFAULT 0,
+    realmLayer INTEGER NOT NULL DEFAULT 0,
+    lifespan INTEGER NOT NULL DEFAULT 0,
+    maxLifespan INTEGER NOT NULL DEFAULT 0,
+    isAlive INTEGER NOT NULL DEFAULT 1,
+    spiritRoot INTEGER NOT NULL DEFAULT 0,
+    combatPower INTEGER NOT NULL DEFAULT 0,
+    cultivationSpeed REAL NOT NULL DEFAULT 1.0,
+    cultivationSpeedBonus REAL NOT NULL DEFAULT 0.0,
+    cultivationSpeedDuration INTEGER NOT NULL DEFAULT 0,
+    status INTEGER NOT NULL DEFAULT 0,
+    age INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(id)
+);
+CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id ON disciple_compact(slot_id);
+CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_compact(slot_id, isAlive);
+```
+
+**MIGRATION_1_26（合并迁移）：**
+- 用途：新安装 / 从极旧版本升级时跳过 24 次顺序迁移，直接执行合并 DDL
+- 使用 `columnExists()` 辅助函数检查列是否已存在，实现幂等迁移
+- 覆盖：v1→v26 所有 ALTER TABLE ADD COLUMN / CREATE TABLE 操作
+
+**影响的文件：**
+- `GameDatabase.kt`：`@Database(version = 27, entities = [...+ DiscipleCompact::class])`
+- `DiscipleCompact.kt`：新增 Room Entity
+- `Daos.kt`：新增 `DiscipleCompactDao`
+- Schema JSON：`android/app/schemas/.../27.json`

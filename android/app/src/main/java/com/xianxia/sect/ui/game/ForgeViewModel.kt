@@ -238,8 +238,7 @@ class ForgeViewModel @Inject constructor(
                 val updatedElderSlots = gameEngine.gameDataSnapshot.elderSlots.copy(
                     forgeReserveDisciples = updatedReserveDisciples
                 )
-                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
-                gameEngine.syncAllDiscipleStatuses()
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = updatedElderSlots) }
             } catch (e: Exception) {
                 showError(e.message ?: "移除失败")
             }

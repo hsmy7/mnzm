@@ -120,7 +120,9 @@ object StorageModule {
         storageIntegrity: StorageIntegrity,
         storageBackup: StorageBackup,
         storageMetrics: StorageMetrics,
-        taskScheduler: BackgroundTaskScheduler
+        taskScheduler: BackgroundTaskScheduler,
+        stateStore: com.xianxia.sect.core.state.GameStateStore,
+        repository: com.xianxia.sect.data.GameStateRepository
     ): StorageEngine {
         return StorageEngine(
             database = database,
@@ -138,7 +140,9 @@ object StorageModule {
             taskScheduler = taskScheduler,
             storageIntegrity = storageIntegrity,
             storageBackup = storageBackup,
-            storageMetrics = storageMetrics
+            storageMetrics = storageMetrics,
+            stateStore = stateStore,
+            repository = repository
         )
     }
 
