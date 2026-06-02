@@ -1,5 +1,24 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.97] - 2026-06-02
+
+### 优化
+- **状态增量派发**：GameStateStore 从单一巨对象全量发射改为 16 个独立 StateFlow 增量发射，每秒 tick 仅发射实际变化的字段。消除 15 条 `.map{}` 链每 tick 的无意义重算
+- **DiscipleAggregate 缓存**：弟子聚合数据按 ID + 指纹缓存复用，仅在弟子属性变化时重建，减少 GC 压力
+- **山门地图建筑烘焙**：建筑贴图预渲染到离屏 Bitmap，Canvas 仅需 1 次 `drawImage`。低配设备自动跳过烘焙，动态绘制保帧率
+- **网格线视口裁剪**：网格线仅绘制屏幕可见范围，线长从 3072px 裁剪至 ~1080px
+- **世界地图 Path 缓存**：宗门连线 `Path` 对象缓存复用（原每帧 150+ 次 new），拖动世界地图不再卡顿
+- **Compose 重组优化**：修复 `derivedStateOf` key 参数失效 Bug；`SectInfoCard` 改为原始类型参数配合 Strong Skipping；Dialog 惰性订阅减少不必要收集
+- **后台省电**：`MainGameScreen` / `GameOverlayHost` 全部 StateFlow 收集改为 `collectAsStateWithLifecycle`，切后台自动暂停
+- **GC 优化**：`GCOptimizer` 仅在 CRITICAL/MANUAL 级别调用 `System.gc()`，SOFT/HARD 改为缓存清理
+- **冷启动加速**：新增 Baseline Profile 模块 + 移除冗余 `kotlinCompilerExtensionVersion = '1.5.8'`，启用 Kotlin 2.0 原生 Compose 编译器（Strong Skipping Mode）
+
+### 构建
+- 新增 `:baselineprofile` 模块，关键路径 AOT 预编译
+- 新增 `lifecycle-runtime-compose` 依赖
+- 新增 Compose Compiler Metrics 输出（`compose_metrics/`）
+- `proguard-rules.pro` 新增 Compose / StateFlow keep 规则
+
 ## [3.1.96] - 2026-06-02
 
 ### 新增

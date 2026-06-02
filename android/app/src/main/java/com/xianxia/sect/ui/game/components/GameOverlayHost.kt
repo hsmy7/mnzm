@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -71,10 +72,10 @@ fun GameOverlayHost(
 
     var detailBattleLog by remember { mutableStateOf<BattleLog?>(null) }
 
-    val currentDialogRoute by viewModel.currentDialogRoute.collectAsState()
+    val currentDialogRoute by viewModel.currentDialogRoute.collectAsStateWithLifecycle()
 
-    val pendingNotification by viewModel.pendingNotification.collectAsState()
-    val pendingBattleResult by viewModel.pendingBattleResult.collectAsState()
+    val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
+    val pendingBattleResult by viewModel.pendingBattleResult.collectAsStateWithLifecycle()
 
     var showBattleResult by remember { mutableStateOf(false) }
 
@@ -123,7 +124,7 @@ fun GameOverlayHost(
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
-    val gameData by viewModel.gameDataUi.collectAsState()
+    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
     if (currentDialogRoute != DialogRoute.None) {
         key(currentDialogRoute) {
@@ -180,7 +181,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.Recruit -> {
-            val recruitList by viewModel.recruitListAggregates.collectAsState()
+            val recruitList by viewModel.recruitListAggregates.collectAsStateWithLifecycle()
             RecruitDialog(
                 recruitList = recruitList,
                 gameData = gameData,
@@ -197,7 +198,7 @@ fun GameOverlayHost(
             )
         }
         is DialogRoute.Planting -> {
-            val seeds by viewModel.seeds.collectAsState()
+            val seeds by viewModel.seeds.collectAsStateWithLifecycle()
             PlantingDialog(
                 seeds = seeds,
                 gameData = gameData,
@@ -221,8 +222,8 @@ fun GameOverlayHost(
             )
         }
         is DialogRoute.WorldMap -> {
-            val mapRenderData by viewModel.worldMapRenderData.collectAsState()
-            val disciples by viewModel.discipleAggregates.collectAsState()
+            val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
+            val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             WorldMapDialog(
                 worldSects = mapRenderData.worldMapSects,
                 mapRenderData = mapRenderData,
@@ -234,7 +235,7 @@ fun GameOverlayHost(
             )
         }
         is DialogRoute.BattleLog -> {
-            val battleLogs by viewModel.battleLogs.collectAsState()
+            val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
             BattleLogListDialog(
                 battleLogs = battleLogs,
                 onDismiss = onDismiss
@@ -256,7 +257,7 @@ fun GameOverlayHost(
             )
         }
         is DialogRoute.HerbGarden -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 HerbGardenDialog(
                     gameData = gameData,
@@ -268,10 +269,10 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.Alchemy -> {
-            val alchemySlots by viewModel.alchemySlots.collectAsState()
-            val materials by viewModel.materials.collectAsState()
-            val herbs by viewModel.herbs.collectAsState()
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val alchemySlots by viewModel.alchemySlots.collectAsStateWithLifecycle()
+            val materials by viewModel.materials.collectAsStateWithLifecycle()
+            val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 AlchemyDialog(
                     buildingInstanceId = route.buildingInstanceId,
@@ -289,9 +290,9 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.Forge -> {
-            val forgeSlots by viewModel.forgeSlots.collectAsState()
-            val materials by viewModel.materials.collectAsState()
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val forgeSlots by viewModel.forgeSlots.collectAsStateWithLifecycle()
+            val materials by viewModel.materials.collectAsStateWithLifecycle()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 ForgeDialog(
                     buildingInstanceId = route.buildingInstanceId,
@@ -308,8 +309,8 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.Library -> {
-            val manuals by viewModel.manuals.collectAsState()
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 LibraryDialog(
                     manuals = manuals,
@@ -322,7 +323,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.WenDaoPeak -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 WenDaoPeakDialog(
                     disciples = aliveDisciples,
@@ -333,7 +334,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.QingyunPeak -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 QingyunPeakDialog(
                     disciples = aliveDisciples,
@@ -344,7 +345,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.TianshuHall -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 TianshuHallDialog(
                     gameData = gameData,
@@ -356,7 +357,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.LawEnforcementHall -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 LawEnforcementHallDialog(
                     disciples = aliveDisciples,
@@ -368,7 +369,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.MissionHall -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 MissionHallDialog(
                     gameData = gameData,
@@ -379,7 +380,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.ReflectionCliff -> {
-            val aliveDisciples by viewModel.aliveDisciples.collectAsState()
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 ReflectionCliffDialog(
                     disciples = aliveDisciples,
@@ -390,7 +391,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.PatrolTower -> {
-            val disciples by viewModel.discipleAggregates.collectAsState()
+            val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             PatrolTowerDialog(
                 buildingInstanceId = route.buildingInstanceId,
                 viewModel = viewModel,
@@ -402,7 +403,7 @@ fun GameOverlayHost(
         }
         is DialogRoute.Residence -> {
             if (route.buildingInstanceId.isNotEmpty()) {
-                val disciples by viewModel.discipleAggregates.collectAsState()
+                val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
                 ResidenceDialog(
                     buildingInstanceId = route.buildingInstanceId,
                     viewModel = viewModel,
@@ -414,7 +415,7 @@ fun GameOverlayHost(
         }
         is DialogRoute.WarehouseBuilding -> {
             if (route.buildingInstanceId.isNotEmpty()) {
-                val disciples by viewModel.discipleAggregates.collectAsState()
+                val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
                 WarehouseDialog(
                     buildingInstanceId = route.buildingInstanceId,
                     gameData = gameData,
@@ -459,11 +460,11 @@ fun GameOverlayHost(
         )
     }
 
-    val placedBuildings by viewModel.placedBuildings.collectAsState()
-    val activeSectBuildings = remember(placedBuildings, gameData.activeSectId) {
-        derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }
-    }
-
+    if (pendingNotification != null) {
+        val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
+        val activeSectBuildings = remember(placedBuildings, gameData.activeSectId) {
+            derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }
+        }
     pendingNotification?.let { notification ->
         val hasPrison = activeSectBuildings.value.any {
             it.displayName == "监牢" || it.buildingId == "reflection_cliff"
@@ -511,13 +512,12 @@ fun GameOverlayHost(
             }
         }
     }
-
-    val battleLogs by viewModel.battleLogs.collectAsState()
-    val disciples by viewModel.discipleAggregates.collectAsState()
+    }
 
     viewModel.overlayOrder.forEach { overlay ->
         when (overlay) {
             TopOverlay.BATTLE_RESULT -> {
+                val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
                 val result = pendingBattleResult
                 if (result != null && showBattleResult) {
                     val log = battleLogs.find { it.id == result.battleLogId }
@@ -551,7 +551,8 @@ fun GameOverlayHost(
             }
 
             TopOverlay.DISCIPLE_DETAIL -> {
-                val request by viewModel.detailDisciple.collectAsState()
+                val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+                val request by viewModel.detailDisciple.collectAsStateWithLifecycle()
                 request?.let { req ->
                     val updatedDisciple = disciples
                         .find { it.id == req.disciple.id } ?: req.disciple
@@ -572,12 +573,12 @@ fun GameOverlayHost(
 
 @Composable
 private fun DisciplesTabContent(viewModel: GameViewModel) {
-    val gameData by viewModel.gameDataUi.collectAsState()
-    val aliveDisciples by viewModel.aliveDisciples.collectAsState()
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
+    val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
+    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     DisciplesTab(
         gameData = gameData,
         disciples = aliveDisciples,
@@ -591,13 +592,13 @@ private fun DisciplesTabContent(viewModel: GameViewModel) {
 
 @Composable
 private fun FullScreenOverlayWarehouse(viewModel: GameViewModel, onDismiss: () -> Unit) {
-    val gameData by viewModel.gameDataUi.collectAsState()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-    val manualStacks by viewModel.manualStacks.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
+    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
 
     var showBulkSell by remember { mutableStateOf(false) }
     val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -131,10 +132,10 @@ fun MainGameScreen(
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
-    val gameData by viewModel.gameDataUi.collectAsState()
-    val disciples by viewModel.discipleAggregates.collectAsState()
-    val sectCombatPower by viewModel.sectCombatPower.collectAsState()
-    val aliveDisciples = remember(disciples) {
+    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
+    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+    val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+    val aliveDisciples = remember {
         derivedStateOf { disciples.filter { it.isAlive } }
     }
 
@@ -142,7 +143,7 @@ fun MainGameScreen(
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
 
     // 建筑放置状态
-    val placedBuildings by viewModel.placedBuildings.collectAsState()
+    val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
     var isPlacingBuilding by remember { mutableStateOf(false) }
     var placingBuildingName by remember { mutableStateOf("") }
     var placingWorldX by remember { mutableFloatStateOf(0f) }
@@ -344,7 +345,7 @@ fun MainGameScreen(
             cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
         }
     }
-    val isGameOver by viewModel.isGameOver.collectAsState()
+    val isGameOver by viewModel.isGameOver.collectAsStateWithLifecycle()
 
     LaunchedEffect(isGameOver) {
         if (isGameOver) {
@@ -357,7 +358,7 @@ fun MainGameScreen(
         movingBuilding = null
     }
 
-    val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsState()
+    val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
 
     CompositionLocalProvider(LocalItemSpriteCache provides preloadedItemSprites) {
     Box(
@@ -368,15 +369,49 @@ fun MainGameScreen(
                 screenHeightPx = size.height.toFloat()
             }
     ) {
-        val preloadedBuildingBitmaps by saveLoadViewModel.preloadedBuildingBitmaps.collectAsState()
+        val preloadedBuildingBitmaps by saveLoadViewModel.preloadedBuildingBitmaps.collectAsStateWithLifecycle()
         val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
             else rememberBuildingBitmaps()
+
+        // 设备分级：低配设备跳过建筑烘焙，避免额外 18-36MB Bitmap 分配
+        val maxHeapMB = remember { Runtime.getRuntime().maxMemory() / (1024 * 1024) }
+        val shouldBakeBuildings = maxHeapMB >= 256  // 低配 4GB 设备 largeHeap 后约 256MB，跳过烘焙
+        val bmpConfig = if (maxHeapMB >= 384) android.graphics.Bitmap.Config.ARGB_8888
+            else android.graphics.Bitmap.Config.RGB_565  // 中配设备用 RGB_565 省一半内存
+
+        val bakedMapBmp = remember(fullMapBmp, effectivePlacedBuildings) {
+            if (!shouldBakeBuildings) {
+                fullMapBmp  // 低配：直接用原始背景，建筑在 Canvas 中动态绘制
+            } else {
+                val src = fullMapBmp.asAndroidBitmap()
+                val copy = src.copy(bmpConfig, true) ?: src
+                val canvas = android.graphics.Canvas(copy)
+                for (building in effectivePlacedBuildings) {
+                    val bx = building.gridX * tileSize
+                    val by = building.gridY * tileSize
+                    val bw = building.width * tileSize
+                    val bh = building.height * tileSize
+                    val bmp = buildingBitmaps[building.displayName]
+                    if (bmp != null) {
+                        val androidBmp = bmp.asAndroidBitmap()
+                        val srcRect = android.graphics.Rect(0, 0, androidBmp.width, androidBmp.height)
+                        val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
+                        canvas.drawBitmap(androidBmp, srcRect, dstRect, null)
+                    } else {
+                        val paint = android.graphics.Paint().apply { color = 0xCCBDBDBD.toInt() }
+                        canvas.drawRect(android.graphics.RectF(bx.toFloat(), by.toFloat(), (bx + bw).toFloat(), (by + bh).toFloat()), paint)
+                    }
+                }
+                copy.asImageBitmap()
+            }
+        }
 
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览 + 确认按钮）
         SectMapLayer(
             cameraState = cameraState,
             placedBuildings = effectivePlacedBuildings,
-            fullMapBmp = fullMapBmp,
+            fullMapBmp = bakedMapBmp,
+            buildingsBaked = shouldBakeBuildings,
             buildingBitmaps = buildingBitmaps,
             tileSize = tileSize,
             worldWidthCells = worldWidthCells,
@@ -499,7 +534,11 @@ fun MainGameScreen(
         // UI overlay — SectInfoCard + two side button columns
         Box(modifier = Modifier.fillMaxSize()) {
             SectInfoCard(
-                gameData = gameData,
+                sectName = gameData?.sectName ?: "青云宗",
+                gameYear = gameData?.gameYear ?: 1,
+                gameMonth = gameData?.gameMonth ?: 1,
+                gamePhase = gameData?.gamePhase ?: 0,
+                spiritStones = gameData?.spiritStones ?: 0L,
                 discipleCount = aliveDisciples.value.size,
                 combatPower = sectCombatPower,
                 modifier = Modifier
@@ -578,7 +617,11 @@ fun MainGameScreen(
 
 @Composable
 private fun SectInfoCard(
-    gameData: GameData?,
+    sectName: String,
+    gameYear: Int,
+    gameMonth: Int,
+    gamePhase: Int,
+    spiritStones: Long,
     discipleCount: Int,
     combatPower: Long,
     modifier: Modifier = Modifier
@@ -607,7 +650,7 @@ private fun SectInfoCard(
                     modifier = Modifier.size(28.dp)
                 )
                 Text(
-                    text = gameData?.sectName ?: "青云宗",
+                    text = sectName,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
@@ -632,7 +675,7 @@ private fun SectInfoCard(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${GamePhase.fromValue(gameData?.gamePhase ?: 0).displayName}",
+                    text = "${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}",
                     fontSize = 12.sp,
                     color = Color.Black
                 )
@@ -642,7 +685,7 @@ private fun SectInfoCard(
                     color = Color.Black
                 )
                 Text(
-                    text = "灵石 ${gameData?.spiritStones ?: 0}",
+                    text = "灵石 $spiritStones",
                     fontSize = 12.sp,
                     color = Color.Black
                 )
@@ -660,6 +703,7 @@ private fun SectMapLayer(
     cameraState: CameraState,
     placedBuildings: List<GridBuildingData>,
     fullMapBmp: androidx.compose.ui.graphics.ImageBitmap,
+    buildingsBaked: Boolean = true,
     buildingBitmaps: Map<String, androidx.compose.ui.graphics.ImageBitmap>,
     tileSize: Int,
     worldWidthCells: Int,
@@ -700,6 +744,7 @@ private fun SectMapLayer(
     SectGroundCanvas(
         cameraState = cameraState,
         placedBuildings = placedBuildings,
+        buildingsBaked = buildingsBaked,
         buildingBitmaps = buildingBitmaps,
         fullMapBmp = fullMapBmp,
         tileSize = tileSize,
@@ -766,6 +811,7 @@ private fun SectMapLayer(
 private fun SectGroundCanvas(
     cameraState: CameraState,
     placedBuildings: List<GridBuildingData>,
+    buildingsBaked: Boolean = true,
     buildingBitmaps: Map<String, androidx.compose.ui.graphics.ImageBitmap>,
     fullMapBmp: androidx.compose.ui.graphics.ImageBitmap,
     tileSize: Int,
@@ -914,32 +960,38 @@ private fun SectGroundCanvas(
         withTransform({
             translate(-cameraState.cameraX, -cameraState.cameraY)
         }) {
-            // 1. 静态背景层
+            // 1. 静态背景层（含已烘焙建筑，或纯地形背景）
             drawImage(fullMapBmp, topLeft = Offset.Zero)
 
-            // 2. 动态建筑层（跳过正在移动的建筑）
-            for (building in placedBuildings) {
-                if (movingInstanceId != null && building.instanceId == movingInstanceId) continue
-                val bx = building.gridX * tileSize
-                val by = building.gridY * tileSize
-                val bw = building.width * tileSize
-                val bh = building.height * tileSize
-                val bxF = bx.toFloat()
-                val byF = by.toFloat()
-                val bwF = bw.toFloat()
-                val bhF = bh.toFloat()
-
-                // 建筑贴图
-                val bmp = buildingBitmaps[building.displayName]
-                if (bmp != null) {
-                    drawImage(
-                        bmp,
-                        dstOffset = IntOffset(bx, by),
-                        dstSize = IntSize(bw, bh)
-                    )
-                } else {
-                    // 贴图缺失时的回退色块
-                    drawRect(Color(0xFFBDBDBD).copy(alpha = 0.8f), Offset(bxF, byF), Size(bwF, bhF))
+            // 2. 动态建筑绘制
+            if (!buildingsBaked) {
+                // 低配设备：所有建筑动态绘制（未烘焙进 fullMapBmp）
+                for (building in placedBuildings) {
+                    if (movingInstanceId != null && building.instanceId == movingInstanceId) continue
+                    val bx = building.gridX * tileSize
+                    val by = building.gridY * tileSize
+                    val bw = building.width * tileSize
+                    val bh = building.height * tileSize
+                    val bmp = buildingBitmaps[building.displayName]
+                    if (bmp != null) {
+                        drawImage(bmp, dstOffset = IntOffset(bx, by), dstSize = IntSize(bw, bh))
+                    } else {
+                        drawRect(Color(0xFFBDBDBD).copy(alpha = 0.8f), Offset(bx.toFloat(), by.toFloat()), Size(bw.toFloat(), bh.toFloat()))
+                    }
+                }
+            }
+            // 3. 移动中的建筑（0.5 alpha）— 高配设备烘焙层排除它，低配在步骤 2 中跳过了它
+            if (movingInstanceId != null) {
+                for (building in placedBuildings) {
+                    if (building.instanceId != movingInstanceId) continue
+                    val bx = building.gridX * tileSize
+                    val by = building.gridY * tileSize
+                    val bw = building.width * tileSize
+                    val bh = building.height * tileSize
+                    val bmp = buildingBitmaps[building.displayName]
+                    if (bmp != null) {
+                        drawImage(bmp, dstOffset = IntOffset(bx, by), dstSize = IntSize(bw, bh), alpha = 0.5f)
+                    }
                 }
             }
 
@@ -986,16 +1038,20 @@ private fun SectGroundCanvas(
 
                 val firstCol = (visibleStartX / tileSize).toInt().coerceAtLeast(0)
                 val lastCol = (visibleEndX / tileSize).toInt().coerceAtMost(worldWidthCells)
+                val clippedStartY = visibleStartY.coerceAtLeast(0f)
+                val clippedEndY = visibleEndY.coerceAtMost(worldPixelHeight.toFloat())
                 for (col in firstCol..lastCol) {
                     val x = (col * tileSize).toFloat()
-                    drawLine(gridColor, Offset(x, 0f), Offset(x, worldPixelHeight.toFloat()), strokeWidth = 1f)
+                    drawLine(gridColor, Offset(x, clippedStartY), Offset(x, clippedEndY), strokeWidth = 1f)
                 }
 
                 val firstRow = (visibleStartY / tileSize).toInt().coerceAtLeast(0)
                 val lastRow = (visibleEndY / tileSize).toInt().coerceAtMost(worldHeightCells)
+                val clippedStartX = visibleStartX.coerceAtLeast(0f)
+                val clippedEndX = visibleEndX.coerceAtMost(worldPixelWidth.toFloat())
                 for (row in firstRow..lastRow) {
                     val y = (row * tileSize).toFloat()
-                    drawLine(gridColor, Offset(0f, y), Offset(worldPixelWidth.toFloat(), y), strokeWidth = 1f)
+                    drawLine(gridColor, Offset(clippedStartX, y), Offset(clippedEndX, y), strokeWidth = 1f)
                 }
             }
 

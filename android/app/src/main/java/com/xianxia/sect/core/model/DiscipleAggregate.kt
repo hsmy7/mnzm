@@ -10,7 +10,8 @@ data class DiscipleAggregate(
     val combatStats: DiscipleCombatStats?,
     val equipment: DiscipleEquipment?,
     val extended: DiscipleExtended?,
-    val attributes: DiscipleAttributes?
+    val attributes: DiscipleAttributes?,
+    val sourceRef: Disciple? = null
 ) {
     val id: String get() = core.id
     val name: String get() = core.name
@@ -384,7 +385,8 @@ data class DiscipleAggregate(
                 combatStats = DiscipleCombatStats.fromDisciple(disciple),
                 equipment = DiscipleEquipment.fromDisciple(disciple),
                 extended = DiscipleExtended.fromDisciple(disciple),
-                attributes = DiscipleAttributes.fromDisciple(disciple)
+                attributes = DiscipleAttributes.fromDisciple(disciple),
+                sourceRef = disciple
             )
         }
     }

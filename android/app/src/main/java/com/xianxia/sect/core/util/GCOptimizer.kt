@@ -126,9 +126,11 @@ class GCOptimizer @Inject constructor(
         val runtime = Runtime.getRuntime()
         val memoryBefore = runtime.totalMemory() - runtime.freeMemory()
         val startTime = System.currentTimeMillis()
-        
-        System.gc()
-        
+
+        if (type == GCType.CRITICAL || type == GCType.MANUAL) {
+            System.gc()
+        }
+
         val endTime = System.currentTimeMillis()
         val durationMs = endTime - startTime
         val memoryAfter = runtime.totalMemory() - runtime.freeMemory()

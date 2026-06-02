@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.1.97",
+            date = "2026-06-02",
+            changes = listOf(
+                "全面性能优化：游戏运行更流畅，低配手机也能稳定游玩，掉帧和卡顿问题明显改善",
+                "山门地图操作优化：拖动地图、放置建筑更加顺滑，响应速度提升",
+                "世界地图浏览优化：拖动查看各宗门时不再卡顿，滚动如丝般顺滑",
+                "后台省电：切换到其他应用后自动暂停不必要的刷新，手机更省电、发热更低",
+                "游戏启动速度提升，进入宗门世界更快"
+            )
+        ),
+        ChangelogEntry(
             version = "3.1.96",
             date = "2026-06-02",
             changes = listOf(

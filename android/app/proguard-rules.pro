@@ -175,3 +175,12 @@
     public static int d(...);
     public static int i(...);
 }
+
+# Compose
+-keepclassmembers class * extends androidx.compose.runtime.Composer
+-dontwarn androidx.compose.**
+
+# StateFlow
+-keepclassmembers class * extends kotlinx.coroutines.flow.StateFlow {
+    ** getValue();
+}
