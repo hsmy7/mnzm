@@ -8,13 +8,32 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameNotification
-import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.FormulaService
+import com.xianxia.sect.core.engine.service.MailService
+import com.xianxia.sect.core.engine.service.RedeemCodeService
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
+import com.xianxia.sect.core.engine.domain.battle.CombatService
+import com.xianxia.sect.core.engine.domain.building.BuildingService
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
+import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.engine.BattleSystem
-import com.xianxia.sect.core.engine.DisciplePillManager
-import com.xianxia.sect.core.engine.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
+import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.battle.WarRewards
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
+import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
+import com.xianxia.sect.core.engine.service.HighFrequencyData
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -23,7 +42,7 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.engine.HerbGardenSystem
+import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils
@@ -79,7 +98,14 @@ class GameEngine @Inject constructor(
     private val redeemCodeService: RedeemCodeService,
     private val formulaService: FormulaService,
     private val mailService: MailService,
-    private val database: com.xianxia.sect.data.local.GameDatabase
+    private val database: com.xianxia.sect.data.local.GameDatabase,
+    private val discipleFacade: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade,
+    private val battleFacade: com.xianxia.sect.core.engine.domain.battle.BattleFacade,
+    private val buildingFacade: com.xianxia.sect.core.engine.domain.building.BuildingFacade,
+    private val inventoryFacade: com.xianxia.sect.core.engine.domain.inventory.InventoryFacade,
+    private val diplomacyFacade: com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade,
+    private val productionFacade: com.xianxia.sect.core.engine.domain.production.ProductionFacade,
+    private val saveFacade: com.xianxia.sect.core.engine.domain.save.SaveFacade
 ) {
     companion object {
         private const val TAG = "GameEngine"
@@ -106,7 +132,7 @@ class GameEngine @Inject constructor(
     fun getCurrentMaterials(): List<Material> = stateStore.getCurrentMaterials()
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
-    fun clearPendingBattleResult() = stateStore.clearPendingBattleResult()
+    fun clearPendingBattleResult() = battleFacade.clearPendingBattleResult()
     fun setFocusedDiscipleId(id: String?) { stateStore.focusedDiscipleId = id }
     fun setActiveTab(tab: String) { stateStore.activeTab = tab }
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
@@ -130,7 +156,7 @@ class GameEngine @Inject constructor(
             )
     }
 
-    val productionSlots: StateFlow<List<ProductionSlot>> = productionCoordinator.slots
+    val productionSlots: StateFlow<List<ProductionSlot>> = productionFacade.productionSlots
 
     val worldMapRenderData: StateFlow<WorldMapRenderData> by lazy {
         stateStore.gameData.map { data ->
@@ -384,25 +410,12 @@ class GameEngine @Inject constructor(
         stateStore.update { gameData = update(gameData) }
     }
 
-    suspend fun placeBuilding(building: GridBuildingData) {
-        val sectId = currentActiveSectId()
-        updateGameData { gd ->
-            gd.copy(placedBuildings = gd.placedBuildings + building.copy(sectId = sectId))
-        }
-    }
+    suspend fun placeBuilding(building: GridBuildingData) =
+        buildingFacade.placeBuilding(building)
 
     /** 直接更新建筑位置，绕过 transactionMutex 避免与游戏 tick 竞争锁导致延迟 */
-    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
-        val sectId = currentActiveSectId()
-        stateStore.updateGameDataDirect { data ->
-            data.copy(
-                placedBuildings = data.placedBuildings.map {
-                    if (it.instanceId == instanceId && it.sectId == sectId) it.copy(gridX = newGridX, gridY = newGridY)
-                    else it
-                }
-            )
-        }
-    }
+    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) =
+        buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
 
     private fun updateGameDataSync(update: (GameData) -> GameData) {
         gameEngineCore.launchInScope {
@@ -421,240 +434,79 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun addEquipmentStack(stack: EquipmentStack) = inventorySystem.addEquipmentStack(stack)
+    fun addEquipmentStack(stack: EquipmentStack) = inventoryFacade.addEquipmentStack(stack)
 
-    fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
+    fun removeEquipment(equipmentId: String): Boolean = inventoryFacade.removeEquipment(equipmentId)
 
-    fun addManualStackToWarehouse(stack: ManualStack) = inventorySystem.addManualStack(stack)
+    fun addManualStackToWarehouse(stack: ManualStack) = inventoryFacade.addManualStackToWarehouse(stack)
 
-    fun addPillToWarehouse(pill: Pill) = inventorySystem.addPill(pill)
+    fun addPillToWarehouse(pill: Pill) = inventoryFacade.addPillToWarehouse(pill)
 
-    fun addMaterialToWarehouse(material: Material) = inventorySystem.addMaterial(material)
+    fun addMaterialToWarehouse(material: Material) = inventoryFacade.addMaterialToWarehouse(material)
 
-    fun addHerbToWarehouse(herb: Herb) = inventorySystem.addHerb(herb)
+    fun addHerbToWarehouse(herb: Herb) = inventoryFacade.addHerbToWarehouse(herb)
 
-    fun addSeedToWarehouse(seed: Seed) = inventorySystem.addSeed(seed)
+    fun addSeedToWarehouse(seed: Seed) = inventoryFacade.addSeedToWarehouse(seed)
 
-    fun sortWarehouse() = inventorySystem.sortWarehouse()
+    fun sortWarehouse() = inventoryFacade.sortWarehouse()
 
-    suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
-        stateStore.update {
-            val disciple = disciples.find { it.id == discipleId } ?: return@update
-            var updatedDisciple = disciple
-
-            // 从储物袋移除1个
-            val updatedItems = StorageBagUtils.decreaseItemQuantity(
-                disciple.equipment.storageBagItems, item.itemId, 1
-            )
-            updatedDisciple = updatedDisciple.copy(
-                equipment = updatedDisciple.equipment.copy(storageBagItems = updatedItems)
-            )
-
-            // 加入宗门仓库
-            when (item.itemType.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    val template = EquipmentDatabase.getTemplateByName(item.name)
-                    if (template != null) {
-                        val stack = com.xianxia.sect.core.model.EquipmentStack(
-                            name = template.name,
-                            slot = template.slot,
-                            rarity = template.rarity,
-                            physicalAttack = template.physicalAttack,
-                            magicAttack = template.magicAttack,
-                            physicalDefense = template.physicalDefense,
-                            magicDefense = template.magicDefense,
-                            speed = template.speed,
-                            hp = template.hp,
-                            mp = template.mp,
-                            description = template.description,
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
-                        )
-                        equipmentStacks = equipmentStacks.toMutableList().apply {
-                            val existing = find { it.name == stack.name && it.rarity == stack.rarity }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(stack.copy(quantity = 1))
-                            }
-                        }
-                    }
-                }
-                "manual" -> {
-                    val template = ManualDatabase.getByName(item.name)
-                    if (template != null) {
-                        manualStacks = manualStacks.toMutableList().apply {
-                            val existing = find { it.name == template.name && it.rarity == template.rarity }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(ManualDatabase.createFromTemplate(template).copy(quantity = 1))
-                            }
-                        }
-                    }
-                }
-                "pill" -> {
-                    val template = ItemDatabase.getPillById(item.itemId)
-                        ?: ItemDatabase.getPillByName(item.name)
-                    if (template != null) {
-                        val pill = ItemDatabase.createPillFromTemplate(template, quantity = 1)
-                        pills = pills.toMutableList().apply {
-                            val existing = find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(pill)
-                            }
-                        }
-                    }
-                }
-                "herb" -> {
-                    val herbTemplate = HerbDatabase.getHerbByName(item.name)
-                    herbs = herbs.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Herb(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = herbTemplate?.description ?: "",
-                                category = herbTemplate?.category ?: "",
-                                quantity = 1
-                            ))
-                        }
-                    }
-                }
-                "seed" -> {
-                    seeds = seeds.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Seed(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = "",
-                                growTime = 0,
-                                quantity = 1
-                            ))
-                        }
-                    }
-                }
-                "material" -> {
-                    val matTemplate = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
-                    materials = materials.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Material(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = matTemplate?.description ?: "",
-                                quantity = 1
-                            ))
-                        }
-                    }
-                }
-            }
-
-            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
-        }
-    }
+    suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) =
+        inventoryFacade.confiscateStorageBagItem(discipleId, item)
 
     fun createEquipmentStackFromRecipe(recipe: ForgeRecipeDatabase.ForgeRecipe): EquipmentStack =
-        inventorySystem.createEquipmentFromRecipe(recipe)
+        inventoryFacade.createEquipmentStackFromRecipe(recipe)
 
     fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack =
-        inventorySystem.createEquipmentFromMerchantItem(item)
+        inventoryFacade.createEquipmentStackFromMerchantItem(item)
 
     fun createManualStackFromMerchantItem(item: MerchantItem): ManualStack =
-        inventorySystem.createManualFromMerchantItem(item)
+        inventoryFacade.createManualStackFromMerchantItem(item)
 
     fun createPillFromMerchantItem(item: MerchantItem): Pill =
-        inventorySystem.createPillFromMerchantItem(item)
+        inventoryFacade.createPillFromMerchantItem(item)
 
     fun createMaterialFromMerchantItem(item: MerchantItem): Material =
-        inventorySystem.createMaterialFromMerchantItem(item)
+        inventoryFacade.createMaterialFromMerchantItem(item)
 
     fun createHerbFromMerchantItem(item: MerchantItem): Herb =
-        inventorySystem.createHerbFromMerchantItem(item)
+        inventoryFacade.createHerbFromMerchantItem(item)
 
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
-        inventorySystem.createSeedFromMerchantItem(item)
+        inventoryFacade.createSeedFromMerchantItem(item)
 
-    fun addDisciple(disciple: Disciple) = discipleService.addDisciple(disciple)
+    fun addDisciple(disciple: Disciple) = discipleFacade.addDisciple(disciple)
 
-    fun removeDisciple(discipleId: String): Boolean = discipleService.removeDisciple(discipleId)
+    fun removeDisciple(discipleId: String): Boolean = discipleFacade.removeDisciple(discipleId)
 
-    fun getDiscipleById(discipleId: String): Disciple? = discipleService.getDiscipleById(discipleId)
+    fun getDiscipleById(discipleId: String): Disciple? = discipleFacade.getDiscipleById(discipleId)
 
-    fun updateDisciple(disciple: Disciple) = discipleService.updateDisciple(disciple)
+    fun updateDisciple(disciple: Disciple) = discipleFacade.updateDisciple(disciple)
 
     fun getDiscipleStatus(discipleId: String): DiscipleStatus =
-        discipleService.getDiscipleStatus(discipleId)
+        discipleFacade.getDiscipleStatus(discipleId)
 
-    fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
+    fun syncAllDiscipleStatuses() = discipleFacade.syncAllDiscipleStatuses()
 
-    suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
+    suspend fun resetAllDisciplesStatus() = discipleFacade.resetAllDisciplesStatus()
 
-    fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
+    fun recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
 
-    suspend fun expelDisciple(discipleId: String): Boolean {
-        return discipleService.expelDisciple(discipleId)
-    }
+    suspend fun expelDisciple(discipleId: String): Boolean =
+        discipleFacade.expelDisciple(discipleId)
 
-    suspend fun expelTheftDisciple(discipleId: String): Boolean {
-        return discipleService.expelDisciple(discipleId)
-    }
+    suspend fun expelTheftDisciple(discipleId: String): Boolean =
+        discipleFacade.expelTheftDisciple(discipleId)
 
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
-        stateStore.updateDisciplesDirect { disciples ->
-            disciples.map {
-                if (it.id == discipleId) it.copy(
-                    status = DiscipleStatus.REFLECTING,
-                    statusData = it.statusData + mapOf(
-                        "reflectionStartYear" to currentYear.toString(),
-                        "reflectionEndYear" to (currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-                    )
-                ) else it
-            }
-        }
-    }
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) =
+        discipleFacade.imprisonTheftDisciple(discipleId, currentYear)
 
-    fun releaseTheftDisciple(discipleId: String): Int {
-        val loyaltyChange = (1..10).random()
-        stateStore.updateDisciplesDirect { disciples ->
-            disciples.map {
-                if (it.id == discipleId) {
-                    val baseStats = DiscipleStatCalculator.getBaseStats(it)
-                    it.copy(
-                        status = DiscipleStatus.IDLE,
-                        statusData = it.statusData - setOf("reflectionStartYear", "reflectionEndYear"),
-                        skills = it.skills.copy(
-                            loyalty = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
-                        )
-                    )
-                } else it
-            }
-        }
-        return loyaltyChange
-    }
+    fun releaseTheftDisciple(discipleId: String): Int =
+        discipleFacade.releaseTheftDisciple(discipleId)
 
-    fun clearPendingNotification() {
-        stateStore.clearPendingNotification()
-    }
+    fun clearPendingNotification() = discipleFacade.clearPendingNotification()
 
-    suspend fun approveMarriage(maleId: String, femaleId: String) {
-        updateDisciple(maleId) { it.copyWith(partnerId = femaleId) }
-        updateDisciple(femaleId) { it.copyWith(partnerId = maleId) }
-    }
+    suspend fun approveMarriage(maleId: String, femaleId: String) =
+        discipleFacade.approveMarriage(maleId, femaleId)
 
     fun enterSect(sectId: String) {
         stateStore.updateGameDataDirect { gameData ->
@@ -666,191 +518,95 @@ class GameEngine @Inject constructor(
     fun currentActiveSectId(): String = stateStore.gameDataSnapshot.activeSectId
 
     suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
-        discipleService.equipEquipment(discipleId, equipmentId)
+        discipleFacade.equipEquipment(discipleId, equipmentId)
 
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean =
-        discipleService.unequipEquipment(discipleId, equipmentId)
+        discipleFacade.unequipEquipment(discipleId, equipmentId)
 
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean =
-        discipleService.isDiscipleAssignedToSpiritMine(discipleId)
+        discipleFacade.isDiscipleAssignedToSpiritMine(discipleId)
 
     fun updateMonthlySalaryEnabled(realm: Int, enabled: Boolean) =
-        discipleService.updateMonthlySalaryEnabled(realm, enabled)
+        discipleFacade.updateMonthlySalaryEnabled(realm, enabled)
 
-    fun getAliveDisciplesCount(): Int = discipleService.getAliveDisciplesCount()
+    fun getAliveDisciplesCount(): Int = discipleFacade.getAliveDisciplesCount()
 
-    fun getIdleDisciples(): List<Disciple> = discipleService.getIdleDisciples()
+    fun getIdleDisciples(): List<Disciple> = discipleFacade.getIdleDisciples()
 
-    suspend fun autoFillLawEnforcementSlots(): Int = discipleService.autoFillLawEnforcementSlots()
+    suspend fun autoFillLawEnforcementSlots(): Int = discipleFacade.autoFillLawEnforcementSlots()
 
-    fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? {
-        val disciple = discipleService.getDiscipleById(discipleId) ?: return null
-        return disciple.toAggregate()
-    }
+    fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? =
+        discipleFacade.getDiscipleAggregate(discipleId)
 
-    fun getAllDiscipleAggregates(): List<DiscipleAggregate> {
-        return discipleService.getDisciples().value.map { it.toAggregate() }
-    }
+    fun getAllDiscipleAggregates(): List<DiscipleAggregate> =
+        discipleFacade.getAllDiscipleAggregates()
 
     suspend fun processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>, survivorMpMap: Map<String, Int> = emptyMap()) =
-        combatService.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
+        battleFacade.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
 
-    fun getTotalBattlesCount(): Int = combatService.getTotalBattlesCount()
+    fun getTotalBattlesCount(): Int = battleFacade.getTotalBattlesCount()
 
-    fun getRecentBattles(count: Int = 10): List<BattleLog> = combatService.getRecentBattles(count)
+    fun getRecentBattles(count: Int = 10): List<BattleLog> = battleFacade.getRecentBattles(count)
 
-    fun getWinRate(lastNBattles: Int = 50): Double = combatService.getWinRate(lastNBattles)
+    fun getWinRate(lastNBattles: Int = 50): Double = battleFacade.getWinRate(lastNBattles)
 
     fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) =
         explorationService.completeExploration(teamId, success, survivorIds)
 
     fun generateSectTradeItems(year: Int): List<MerchantItem> =
-        diplomacyService.generateSectTradeItems(year)
+        diplomacyFacade.generateSectTradeItems(year)
 
     fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
-        diplomacyService.getOrRefreshSectTradeItems(sectId)
+        diplomacyFacade.getOrRefreshSectTradeItems(sectId)
 
     fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) =
-        diplomacyService.buyFromSectTrade(sectId, itemId, quantity)
+        diplomacyFacade.buyFromSectTrade(sectId, itemId, quantity)
 
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) =
-        diplomacyService.buyFromSectTradeSync(sectId, itemId, quantity)
+        diplomacyFacade.buyFromSectTradeSync(sectId, itemId, quantity)
 
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) =
-        buildingService.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
+        buildingFacade.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
 
     suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) =
-        buildingService.removeDiscipleFromBuilding(buildingId, slotIndex)
+        buildingFacade.removeDiscipleFromBuilding(buildingId, slotIndex)
 
     fun getBuildingSlots(buildingId: String): List<BuildingSlot> =
-        buildingService.getBuildingSlotsForBuilding(buildingId)
+        buildingFacade.getBuildingSlots(buildingId)
 
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean =
-        buildingService.startAlchemy(slotIndex, recipeId)
+        buildingFacade.startAlchemy(slotIndex, recipeId)
 
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean =
-        buildingService.startForging(slotIndex, recipeId)
+        buildingFacade.startForging(slotIndex, recipeId)
 
-    suspend fun addProductionSlot(slot: ProductionSlot) {
-        productionCoordinator.repository.addSlot(slot)
-    }
+    suspend fun addProductionSlot(slot: ProductionSlot) =
+        buildingFacade.addProductionSlot(slot)
 
     fun assignDiscipleToProductionSlot(
         buildingType: BuildingType,
         slotIndex: Int,
         discipleId: String,
         discipleName: String
-    ) {
-        gameEngineCore.launchInScope {
-            // 写入 repository（UI 读取来源 + 持久化）
-            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-                slot.copy(
-                    assignedDiscipleId = discipleId,
-                    assignedDiscipleName = discipleName
-                )
-            }
-            // 同步写入 stateStore（getAvailableWorkers 等读取来源，后续迁移完成后移除）
-            stateStore.update { gameData = gameData.copy(
-                productionSlots = gameData.productionSlots.map { slot ->
-                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
-                        slot.copy(
-                            assignedDiscipleId = discipleId,
-                            assignedDiscipleName = discipleName
-                        )
-                    } else slot
-                }
-            )}
-        }
-    }
+    ) = buildingFacade.assignDiscipleToProductionSlot(buildingType, slotIndex, discipleId, discipleName)
 
     fun removeDiscipleFromProductionSlot(
         buildingType: BuildingType,
         slotIndex: Int
-    ) {
-        gameEngineCore.launchInScope {
-            val data = stateStore.gameDataSnapshot
-            val currentYear = data.gameYear
-            val currentMonth = data.gameMonth
-            val slot = data.productionSlots.find {
-                it.buildingType == buildingType && it.slotIndex == slotIndex
-            }
-            val discipleId = slot?.assignedDiscipleId
+    ) = buildingFacade.removeDiscipleFromProductionSlot(buildingType, slotIndex)
 
-            // 写入 repository（UI 读取来源 + 持久化）
-            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
-                if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
-                    val remaining = s.remainingTime(currentYear, currentMonth)
-                    s.copy(
-                        assignedDiscipleId = null,
-                        assignedDiscipleName = "",
-                        startYear = currentYear,
-                        startMonth = currentMonth,
-                        duration = remaining.coerceAtLeast(1)
-                    )
-                } else {
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
-            // 同步写入 stateStore（后续迁移完成后移除）
-            stateStore.update { gameData = gameData.copy(
-                productionSlots = gameData.productionSlots.map { s ->
-                    if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
-                        if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
-                            val remaining = s.remainingTime(currentYear, currentMonth)
-                            s.copy(
-                                assignedDiscipleId = null,
-                                assignedDiscipleName = "",
-                                startYear = currentYear,
-                                startMonth = currentMonth,
-                                duration = remaining.coerceAtLeast(1)
-                            )
-                        } else {
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        }
-                    } else s
-                }
-            )}
-            if (discipleId != null) {
-                stateStore.update {
-                    disciples = disciples.map { d ->
-                        if (d.id == discipleId) d.copy(status = DiscipleStatus.IDLE) else d
-                    }
-                }
-            }
-        }
-    }
+    suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) =
+        buildingFacade.toggleAutoRestart(buildingType, slotIndex)
 
-    suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
-        productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-            slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-        }
-        stateStore.update { gameData = gameData.copy(
-            productionSlots = gameData.productionSlots.map { slot ->
-                if (slot.buildingType == buildingType && slot.slotIndex == slotIndex)
-                    slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-                else slot
-            }
-        )}
-    }
+    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? =
+        buildingFacade.getAssignedDiscipleForSlot(buildingType, slotIndex)
 
-    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {
-        val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
-        val id = slot?.assignedDiscipleId
-        return if (id.isNullOrEmpty()) null else Pair(id, slot.assignedDiscipleName)
-    }
+    fun getAlchemyFurnaceCount(): Int = buildingFacade.getAlchemyFurnaceCount()
 
-    fun getAlchemyFurnaceCount(): Int {
-        val activeSectId = stateStore.gameDataSnapshot.activeSectId
-        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeSectId }
-    }
-
-    fun getForgeWorkshopCount(): Int {
-        val activeSectId = stateStore.gameDataSnapshot.activeSectId
-        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeSectId }
-    }
+    fun getForgeWorkshopCount(): Int = buildingFacade.getForgeWorkshopCount()
 
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
-        buildingService.autoHarvestCompletedAlchemySlots()
+        buildingFacade.autoHarvestCompletedAlchemySlots()
 
     /**
      * Auto-harvest all completed production slots (alchemy, forge, herb garden).
@@ -902,52 +658,16 @@ class GameEngine @Inject constructor(
         inventorySystem.addHerb(herbItem)
     }
 
-    fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
+    fun clearPlantSlot(slotIndex: Int) = buildingFacade.clearPlantSlot(slotIndex)
 
-    fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
+    fun getForgeSlots(): List<BuildingSlot> = buildingFacade.getForgeSlots()
 
-    fun getStateSnapshotSync(): GameStateSnapshot {
-        return GameStateSnapshot(
-            gameData = stateStore.gameDataSnapshot,
-            disciples = stateStore.disciplesSnapshot,
-            equipmentStacks = stateStore.equipmentStacksSnapshot,
-            equipmentInstances = stateStore.equipmentInstancesSnapshot,
-            manualStacks = stateStore.manualStacksSnapshot,
-            manualInstances = stateStore.manualInstancesSnapshot,
-            pills = stateStore.pillsSnapshot,
-            materials = stateStore.materialsSnapshot,
-            herbs = stateStore.herbsSnapshot,
-            seeds = stateStore.seedsSnapshot,
-            storageBags = stateStore.storageBagsSnapshot,
-            teams = stateStore.teamsSnapshot,
-            battleLogs = stateStore.battleLogsSnapshot,
-            alliances = stateStore.gameDataSnapshot.alliances,
-            productionSlots = productionCoordinator.repository.getSlots()
-        )
-    }
+    fun getStateSnapshotSync(): GameStateSnapshot = saveFacade.getStateSnapshotSync()
 
-    suspend fun getStateSnapshot(): GameStateSnapshot = getStateSnapshotSuspend()
+    suspend fun getStateSnapshot(): GameStateSnapshot = saveFacade.getStateSnapshot()
 
-    suspend fun getStateSnapshotSuspend(): GameStateSnapshot {
-        val gd = stateStore.gameDataSnapshot
-        return GameStateSnapshot(
-            gameData = gd,
-            disciples = stateStore.disciplesSnapshot,
-            equipmentStacks = stateStore.equipmentStacksSnapshot,
-            equipmentInstances = stateStore.equipmentInstancesSnapshot,
-            manualStacks = stateStore.manualStacksSnapshot,
-            manualInstances = stateStore.manualInstancesSnapshot,
-            pills = stateStore.pillsSnapshot,
-            materials = stateStore.materialsSnapshot,
-            herbs = stateStore.herbsSnapshot,
-            seeds = stateStore.seedsSnapshot,
-            storageBags = stateStore.storageBagsSnapshot,
-            teams = stateStore.teamsSnapshot,
-            battleLogs = stateStore.battleLogsSnapshot,
-            alliances = gd.alliances,
-            productionSlots = productionCoordinator.repository.getSlots()
-        )
-    }
+    suspend fun getStateSnapshotSuspend(): GameStateSnapshot =
+        saveFacade.getStateSnapshot()
 
     suspend fun loadFromSave(
         loadedGameData: GameData,
@@ -962,18 +682,18 @@ class GameEngine @Inject constructor(
         seeds: List<Seed>,
         battleLogs: List<BattleLog>,
         teams: List<ExplorationTeam>
-    ) = saveService.loadFromSave(
+    ) = saveFacade.loadFromSave(
         loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills,
         materials, herbs, seeds, battleLogs, teams
     )
 
-    fun validateState(): List<String> = saveService.validateState()
+    fun validateState(): List<String> = saveFacade.validateState()
 
-    fun getStateStatistics(): Map<String, Any> = saveService.getStateStatistics()
+    fun getStateStatistics(): Map<String, Any> = saveFacade.getStateStatistics()
 
-    fun isGameStarted(): Boolean = saveService.isGameStarted()
+    fun isGameStarted(): Boolean = saveFacade.isGameStarted()
 
-    fun getFormattedGameTime(): String = saveService.getFormattedGameTime()
+    fun getFormattedGameTime(): String = saveFacade.getFormattedGameTime()
 
     fun getMemoryUsageInfo(): String {
         val sb = StringBuilder()
@@ -1052,57 +772,48 @@ class GameEngine @Inject constructor(
         }
     }
 
-    suspend fun updateFocusedDisciple(discipleId: String) {
-        stateStore.update {
-            cultivationService.updateFocusedDisciple(discipleId, this)
-        }
-    }
+    suspend fun updateFocusedDisciple(discipleId: String) =
+        discipleFacade.updateFocusedDisciple(discipleId)
 
     fun resetCultivationTimer() {
         cultivationService.resetHighFrequencyData()
     }
 
-    suspend fun dismissDisciple(discipleId: String) {
-        expelDisciple(discipleId)
-    }
+    suspend fun dismissDisciple(discipleId: String) =
+        discipleFacade.dismissDisciple(discipleId)
 
-    fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String) {
-        when (itemType) {
-            "pill" -> usePill(discipleId, itemId)
-        }
-    }
+    fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String) =
+        discipleFacade.giveItemToDisciple(discipleId, itemId, itemType)
 
-    fun assignManual(discipleId: String, stackId: String) {
-        gameEngineCore.launchInScope { learnManual(discipleId, stackId) }
-    }
+    fun assignManual(discipleId: String, stackId: String) =
+        discipleFacade.assignManual(discipleId, stackId)
 
-    fun removeManual(discipleId: String, instanceId: String) {
-        gameEngineCore.launchInScope { forgetManual(discipleId, instanceId) }
-    }
+    fun removeManual(discipleId: String, instanceId: String) =
+        discipleFacade.removeManual(discipleId, instanceId)
 
     fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult =
-        diplomacyService.giftSpiritStones(sectId, tier)
+        diplomacyFacade.giftSpiritStones(sectId, tier)
 
     fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> =
-        diplomacyService.requestAlliance(sectId, envoyDiscipleId)
+        diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
 
     fun dissolveAlliance(sectId: String): Pair<Boolean, String> =
-        diplomacyService.dissolveAlliance(sectId)
+        diplomacyFacade.dissolveAlliance(sectId)
 
     fun getRejectProbability(sectLevel: Int, rarity: Int): Int =
-        diplomacyService.getRejectProbability(sectLevel, rarity)
+        diplomacyFacade.getRejectProbability(sectLevel, rarity)
 
     fun checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> =
-        diplomacyService.checkAllianceConditions(sectId, envoyDiscipleId)
+        diplomacyFacade.checkAllianceConditions(sectId, envoyDiscipleId)
 
     fun calculatePersuasionSuccessRate(favorability: Int, intelligence: Int, charm: Int): Double =
-        diplomacyService.calculatePersuasionSuccessRate(favorability, intelligence, charm)
+        diplomacyFacade.calculatePersuasionSuccessRate(favorability, intelligence, charm)
 
     fun getEnvoyRealmRequirement(sectLevel: Int): Int =
-        diplomacyService.getEnvoyRealmRequirement(sectLevel)
+        diplomacyFacade.getEnvoyRealmRequirement(sectLevel)
 
     fun getAllianceCost(sectLevel: Int): Long =
-        diplomacyService.getAllianceCost(sectLevel)
+        diplomacyFacade.getAllianceCost(sectLevel)
 
     suspend fun redeemCode(
         code: String,
@@ -1124,36 +835,15 @@ class GameEngine @Inject constructor(
         Log.w(TAG, "interactWithSect 尚未实现: sectId=$sectId, action=$action")
     }
 
-    fun isAlly(sectId: String): Boolean {
-        val data = stateStore.gameData.value
-        return data.alliances.any { it.sectIds.contains("player") && it.sectIds.contains(sectId) }
-    }
+    fun isAlly(sectId: String): Boolean = diplomacyFacade.isAlly(sectId)
 
-    fun getAllianceRemainingYears(sectId: String): Int {
-        val data = stateStore.gameData.value
-        val alliance = data.alliances.find { it.sectIds.contains("player") && it.sectIds.contains(sectId) } ?: return 0
-        val sect = data.worldMapSects.find { it.id == sectId }
-        val startYear = if (sect?.allianceStartYear != null && sect.allianceStartYear > 0) {
-            sect.allianceStartYear
-        } else {
-            alliance.startYear
-        }
-        val elapsed = data.gameYear - startYear
-        return (GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS - elapsed).coerceAtLeast(0)
-    }
+    fun getAllianceRemainingYears(sectId: String): Int =
+        diplomacyFacade.getAllianceRemainingYears(sectId)
 
-    fun getPlayerAllies(): List<String> {
-        val data = stateStore.gameData.value
-        val playerAlliance = data.alliances.find { it.sectIds.contains("player") } ?: return emptyList()
-        return playerAlliance.sectIds.filter { it != "player" }
-    }
+    fun getPlayerAllies(): List<String> = diplomacyFacade.getPlayerAllies()
 
-    fun updateElderSlots(newElderSlots: ElderSlots) {
-        stateStore.updateGameDataDirect { it.copy(elderSlots = newElderSlots) }
-        gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
-        }
-    }
+    fun updateElderSlots(newElderSlots: ElderSlots) =
+        discipleFacade.updateElderSlots(newElderSlots)
 
     fun assignDirectDisciple(
         elderSlotType: String,
@@ -1162,138 +852,13 @@ class GameEngine @Inject constructor(
         discipleName: String,
         discipleRealm: String,
         discipleSpiritRootColor: String
-    ) {
-        val data = stateStore.gameData.value
-        val slots = data.elderSlots
-        val newSlot = DirectDiscipleSlot(
-            index = slotIndex,
-            discipleId = discipleId,
-            discipleName = discipleName,
-            discipleRealm = discipleRealm,
-            discipleSpiritRootColor = discipleSpiritRootColor,
-            sectId = data.activeSectId
-        )
-        val updatedSlots = when (elderSlotType) {
-            "herbGarden" -> {
-                val list = slots.herbGardenDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(herbGardenDisciples = list)
-            }
-            "alchemy" -> {
-                val list = slots.alchemyDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(alchemyDisciples = list)
-            }
-            "forge" -> {
-                val list = slots.forgeDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(forgeDisciples = list)
-            }
-            "preaching" -> {
-                val list = slots.preachingMasters.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(preachingMasters = list)
-            }
-            "lawEnforcement" -> {
-                val list = slots.lawEnforcementDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(lawEnforcementDisciples = list)
-            }
-            "lawEnforcementReserve" -> {
-                val list = slots.lawEnforcementReserveDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(lawEnforcementReserveDisciples = list)
-            }
-            "qingyunPreaching" -> {
-                val list = slots.qingyunPreachingMasters.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(qingyunPreachingMasters = list)
-            }
-            "spiritMineDeacon" -> {
-                val list = slots.spiritMineDeaconDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(spiritMineDeaconDisciples = list)
-            }
-            else -> slots
-        }
-        stateStore.updateGameDataDirect { it.copy(elderSlots = updatedSlots) }
-        gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
-            }
-        }
-    }
+    ) = discipleFacade.assignDirectDisciple(elderSlotType, slotIndex, discipleId, discipleName, discipleRealm, discipleSpiritRootColor)
 
-    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
-        val slots = stateStore.gameData.value.elderSlots
-        val updatedSlots = when (elderSlotType) {
-            "herbGarden" -> {
-                val list = slots.herbGardenDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(herbGardenDisciples = list)
-            }
-            "alchemy" -> {
-                val list = slots.alchemyDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(alchemyDisciples = list)
-            }
-            "forge" -> {
-                val list = slots.forgeDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(forgeDisciples = list)
-            }
-            "preaching" -> {
-                val list = slots.preachingMasters.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(preachingMasters = list)
-            }
-            "lawEnforcement" -> {
-                val list = slots.lawEnforcementDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(lawEnforcementDisciples = list)
-            }
-            "lawEnforcementReserve" -> {
-                val list = slots.lawEnforcementReserveDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(lawEnforcementReserveDisciples = list)
-            }
-            "qingyunPreaching" -> {
-                val list = slots.qingyunPreachingMasters.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(qingyunPreachingMasters = list)
-            }
-            "spiritMineDeacon" -> {
-                val list = slots.spiritMineDeaconDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(spiritMineDeaconDisciples = list)
-            }
-            else -> slots
-        }
-        stateStore.updateGameDataDirect { it.copy(elderSlots = updatedSlots) }
-        gameEngineCore.launchInScope {
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
-            }
-        }
-    }
+    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
+        discipleFacade.removeDirectDisciple(elderSlotType, slotIndex)
 
-    suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        stateStore.update {
-            disciples = disciples.map {
-                if (it.id == discipleId) it.copy(status = status) else it
-            }
-        }
-    }
+    suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) =
+        discipleFacade.updateDiscipleStatus(discipleId, status)
 
     fun validateAndFixSpiritMineData() {
         val unified = stateStore.unifiedState.value
@@ -1407,614 +972,33 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(patrolConfigs = configs) }
     }
 
-    fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
-        val data = stateStore.gameData.value
-        val slots = data.librarySlots.toMutableList()
-        // Prevent assigning same disciple to multiple library slots
-        if (slots.any { it.discipleId == discipleId && it.index != slotIndex }) return
-        while (slots.size <= slotIndex) {
-            slots.add(LibrarySlot(index = slots.size))
-        }
-        slots[slotIndex] = LibrarySlot(
-            index = slotIndex,
-            discipleId = discipleId,
-            discipleName = discipleName
-        )
-        gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
-            discipleService.syncAllDiscipleStatuses()
-        }
-    }
+    fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) =
+        discipleFacade.assignDiscipleToLibrarySlot(slotIndex, discipleId, discipleName)
 
-    fun removeDiscipleFromLibrarySlot(slotIndex: Int) {
-        val data = stateStore.gameData.value
-        if (slotIndex < 0 || slotIndex >= data.librarySlots.size) return
-        val slots = data.librarySlots.toMutableList()
-        slots[slotIndex] = LibrarySlot(index = slotIndex)
-        gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
-            discipleService.syncAllDiscipleStatuses()
-        }
-    }
+    fun removeDiscipleFromLibrarySlot(slotIndex: Int) =
+        discipleFacade.removeDiscipleFromLibrarySlot(slotIndex)
 
-    fun clearAlchemySlot(slotIndex: Int) {
-        if (slotIndex < 0) return
-        gameEngineCore.launchInScope {
-            productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slotIndex)
-        }
-    }
+    fun clearAlchemySlot(slotIndex: Int) = buildingFacade.clearAlchemySlot(slotIndex)
 
-    fun clearForgeSlot(slotIndex: Int) {
-        gameEngineCore.launchInScope {
-            val slot = productionCoordinator.repository.getSlotByBuildingId("forge", slotIndex)
-            if (slot != null && !slot.isWorking) {
-                slot.assignedDiscipleId?.let { discipleId ->
-                    updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
-                }
-            }
-            productionCoordinator.resetSlotByBuildingIdAtomic("forge", slotIndex)
-        }
-    }
+    fun clearForgeSlot(slotIndex: Int) = buildingFacade.clearForgeSlot(slotIndex)
 
-    suspend fun startManualPlanting(slotIndex: Int, seedId: String) {
-        val seed = stateStore.getCurrentSeeds().find { it.id == seedId } ?: return
-        if (seed.quantity <= 0) return
+    suspend fun startManualPlanting(slotIndex: Int, seedId: String) =
+        buildingFacade.startManualPlanting(slotIndex, seedId)
 
-        val data = stateStore.gameData.value
-        val existingSlot = productionCoordinator.repository.getSlotByBuildingId("herbGarden", slotIndex)
+    suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) =
+        buildingFacade.plantOnSpiritField(buildingInstanceId, seedId, sectId)
 
-        // If existing slot is COMPLETED (e.g., from old save where auto-harvest was missed),
-        // harvest it first before planting new seed to prevent losing yield
-        if (existingSlot != null && existingSlot.isCompleted) {
-            harvestHerbFromCompletedSlot(existingSlot)
-        }
+    suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) =
+        buildingFacade.plantOnSpiritFields(instanceIds, seedId, sectId)
 
-        val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
-        val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
-        val newSlot = com.xianxia.sect.core.model.production.ProductionSlot(
-            id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
-            slotIndex = slotIndex,
-            buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-            buildingId = "herbGarden",
-            status = com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING,
-            recipeId = herbDbSeedId ?: seedId,
-            recipeName = seed.name,
-            startYear = data.gameYear,
-            startMonth = data.gameMonth,
-            duration = seed.growTime,
-            outputItemId = herbId ?: "",
-            outputItemName = seed.name,
-            expectedYield = seed.yield
-        )
+    suspend fun removePlantFromSpiritField(buildingInstanceId: String) =
+        buildingFacade.removePlantFromSpiritField(buildingInstanceId)
 
-        if (existingSlot != null) {
-            productionCoordinator.repository.updateSlotByBuildingId("herbGarden", slotIndex) { newSlot }
-        } else {
-            productionCoordinator.repository.addSlot(newSlot)
-        }
+    fun recruitDiscipleFromList(discipleId: String) =
+        discipleFacade.recruitDiscipleFromList(discipleId)
 
-        inventorySystem.removeSeedSync(seedId, 1)
-    }
-
-    suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
-        val seed = inventorySystem.getSeedById(seedId) ?: return
-        if (seed.quantity <= 0) return
-
-        updateGameData { data ->
-            val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId && it.seedId.isEmpty() }
-            if (idx < 0) return@updateGameData data
-
-            val currentYear = data.gameYear
-            val currentMonth = data.gameMonth
-            val updatedPlants = data.spiritFieldPlants.toMutableList()
-            updatedPlants[idx] = updatedPlants[idx].copy(
-                seedId = seedId,
-                seedName = seed.name,
-                growTime = seed.growTime,
-                expectedYield = seed.yield,
-                plantYear = currentYear,
-                plantMonth = currentMonth,
-                sectId = sectId
-            )
-            data.copy(spiritFieldPlants = updatedPlants)
-        }
-
-        inventorySystem.removeSeedSync(seedId, 1)
-    }
-
-    /** 批量种植：依次占用空灵田，只消耗一颗种子数量（按quantity扣除） */
-    suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
-        if (instanceIds.isEmpty()) return
-        val seed = inventorySystem.getSeedById(seedId) ?: return
-        if (seed.quantity <= 0) return
-
-        var planted = 0
-        updateGameData { data ->
-            val currentYear = data.gameYear
-            val currentMonth = data.gameMonth
-            val updatedPlants = data.spiritFieldPlants.toMutableList()
-            for (i in updatedPlants.indices) {
-                if (planted >= instanceIds.size) break
-                val p = updatedPlants[i]
-                if (p.buildingInstanceId in instanceIds && p.seedId.isEmpty()) {
-                    updatedPlants[i] = p.copy(
-                        seedId = seedId, seedName = seed.name,
-                        growTime = seed.growTime, expectedYield = seed.yield,
-                        plantYear = currentYear, plantMonth = currentMonth, sectId = sectId
-                    )
-                    planted++
-                }
-            }
-            data.copy(spiritFieldPlants = updatedPlants)
-        }
-
-        if (planted > 0) {
-            inventorySystem.removeSeedSync(seedId, planted)
-        }
-    }
-
-    suspend fun removePlantFromSpiritField(buildingInstanceId: String) {
-        updateGameData { data ->
-            val idx = data.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId }
-            if (idx < 0) return@updateGameData data
-
-            val updatedPlants = data.spiritFieldPlants.toMutableList()
-            updatedPlants[idx] = updatedPlants[idx].copy(
-                seedId = "",
-                seedName = "",
-                growTime = 0,
-                expectedYield = 0,
-                plantYear = 0,
-                plantMonth = 0
-            )
-            data.copy(spiritFieldPlants = updatedPlants)
-        }
-    }
-
-    fun recruitDiscipleFromList(discipleId: String) {
-        val data = stateStore.gameData.value
-        val disciple = data.recruitList.find { it.id == discipleId } ?: return
-        val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        val recruitedDisciple = disciple.copyWith(recruitedMonth = currentMonthValue)
-        gameEngineCore.launchInScope {
-            stateStore.update {
-                disciples = disciples + recruitedDisciple
-                gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
-            }
-        }
-    }
-
-    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
-        val data = stateStore.gameData.value
-        items.forEach { item ->
-            val quantity = item.quantity.coerceAtLeast(1)
-            when (item.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    stateStore.update {
-                        val stack = equipmentStacks.find { it.id == item.id }
-                        if (stack == null || stack.quantity < 1) return@update
-
-                        val disciple = disciples.find { it.id == discipleId }
-                        if (disciple == null) return@update
-
-                        val canEquip = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
-
-                        if (canEquip) {
-                            val slot = stack.slot
-                            val oldEquipId = when (slot) {
-                                EquipmentSlot.WEAPON -> disciple.equipment.weaponId
-                                EquipmentSlot.ARMOR -> disciple.equipment.armorId
-                                EquipmentSlot.BOOTS -> disciple.equipment.bootsId
-                                EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
-                                else -> ""
-                            }
-
-                            var updatedDisciple = disciple
-
-                            if (oldEquipId.isNotEmpty()) {
-                                val oldInstance = equipmentInstances.find { it.id == oldEquipId }
-                                if (oldInstance != null) {
-                                    val bagStackIds = updatedDisciple.equipmentBagStackIds()
-                                    val result = addEquipmentInstanceToDiscipleBag(
-                                        disciple = updatedDisciple,
-                                        instance = oldInstance,
-                                        bagStackIds = bagStackIds,
-                                        excludeStackId = stack.id,
-                                        gameYear = gameData.gameYear,
-                                        gameMonth = gameData.gameMonth,
-                                        gamePhase = gameData.gamePhase,
-                                        maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
-                                    )
-                                    updatedDisciple = result.updatedDisciple
-                                }
-
-                                updatedDisciple = when (slot) {
-                                    EquipmentSlot.WEAPON -> updatedDisciple.copyWith(weaponId = "")
-                                    EquipmentSlot.ARMOR -> updatedDisciple.copyWith(armorId = "")
-                                    EquipmentSlot.BOOTS -> updatedDisciple.copyWith(bootsId = "")
-                                    EquipmentSlot.ACCESSORY -> updatedDisciple.copyWith(accessoryId = "")
-                                    else -> updatedDisciple
-                                }
-                            }
-
-                            if (stack.quantity > 1) {
-                                equipmentStacks = equipmentStacks.map { s ->
-                                    if (s.id == item.id) s.copy(quantity = s.quantity - 1) else s
-                                }
-                            } else {
-                                equipmentStacks = equipmentStacks.filter { it.id != item.id }
-                            }
-
-                            val instanceId = java.util.UUID.randomUUID().toString()
-                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isEquipped = true)
-                            equipmentInstances = equipmentInstances + instance
-
-                            updatedDisciple = when (slot) {
-                                EquipmentSlot.WEAPON -> updatedDisciple.copyWith(weaponId = instanceId)
-                                EquipmentSlot.ARMOR -> updatedDisciple.copyWith(armorId = instanceId)
-                                EquipmentSlot.BOOTS -> updatedDisciple.copyWith(bootsId = instanceId)
-                                EquipmentSlot.ACCESSORY -> updatedDisciple.copyWith(accessoryId = instanceId)
-                                else -> updatedDisciple
-                            }
-
-                            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
-
-                        } else {
-                            if (stack.quantity > 1) {
-                                equipmentStacks = equipmentStacks.map { s ->
-                                    if (s.id == item.id) s.copy(quantity = s.quantity - 1) else s
-                                }
-                            } else {
-                                equipmentStacks = equipmentStacks.filter { it.id != item.id }
-                            }
-
-                            val bagStackIds = disciple.equipmentBagStackIds()
-                            val bagStackId: String
-                            val existingBagStack = equipmentStacks.find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("equipment_stack")
-                            }
-                            if (existingBagStack != null) {
-                                equipmentStacks = equipmentStacks.map { s ->
-                                    if (s.id == existingBagStack.id) s.copy(quantity = existingBagStack.quantity + 1) else s
-                                }
-                                bagStackId = existingBagStack.id
-                            } else {
-                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                                equipmentStacks = equipmentStacks + newStack
-                                bagStackId = newStack.id
-                            }
-
-                            disciples = disciples.map { d ->
-                                if (d.id == discipleId) {
-                                    d.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = bagStackId,
-                                                itemType = "equipment_stack",
-                                                name = stack.name,
-                                                rarity = stack.rarity,
-                                                quantity = 1,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth,
-                                                forgetYear = gameData.gameYear,
-                                                forgetMonth = gameData.gameMonth,
-                                                forgetPhase = gameData.gamePhase
-                                            ),
-                                            inventoryConfig.getMaxStackSize("equipment_stack")
-                                        )
-                                    )
-                                } else d
-                            }
-
-                        }
-                    }
-                }
-                "manual" -> {
-                    stateStore.update {
-                        val stack = manualStacks.find { it.id == item.id }
-                        if (stack == null || stack.quantity < 1) return@update
-
-                        val disciple = disciples.find { it.id == discipleId }
-                        if (disciple == null) return@update
-
-                        val canLearn = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm) &&
-                            disciple.manualIds.size < DiscipleStatCalculator.getMaxManualSlots(disciple) &&
-                            !(stack.type == ManualType.MIND && disciple.manualIds.any { mid ->
-                                manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND
-                            }) &&
-                            !disciple.manualIds.any { mid ->
-                                manualInstances.find { m -> m.id == mid }?.name == stack.name
-                            }
-
-                        if (canLearn) {
-                            val newQty = stack.quantity - 1
-                            if (newQty <= 0) {
-                                manualStacks = manualStacks.filter { it.id != item.id }
-                            } else {
-                                manualStacks = manualStacks.map {
-                                    if (it.id == item.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-
-                            val instanceId = java.util.UUID.randomUUID().toString()
-                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
-                            manualInstances = manualInstances + instance
-
-                            disciples = disciples.map {
-                                if (it.id == discipleId) {
-                                    it.copy(manualIds = it.manualIds + instanceId)
-                                } else it
-                            }
-
-                        } else {
-                            val newQty = stack.quantity - 1
-                            if (newQty <= 0) {
-                                manualStacks = manualStacks.filter { it.id != item.id }
-                            } else {
-                                manualStacks = manualStacks.map {
-                                    if (it.id == item.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-
-                            val bagStackIds = disciple.manualBagStackIds()
-
-                            val existingBagStack = manualStacks.find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("manual_stack")
-                            }
-
-                            val storageItemId: String
-                            if (existingBagStack != null) {
-                                manualStacks = manualStacks.map {
-                                    if (it.id == existingBagStack.id) it.copy(quantity = it.quantity + 1) else it
-                                }
-                                storageItemId = existingBagStack.id
-                            } else {
-                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                                manualStacks = manualStacks + newStack
-                                storageItemId = newStack.id
-                            }
-
-                            disciples = disciples.map {
-                                if (it.id == discipleId) {
-                                    it.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            it.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = storageItemId,
-                                                itemType = "manual_stack",
-                                                name = stack.name,
-                                                rarity = stack.rarity,
-                                                quantity = 1,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth,
-                                                forgetYear = gameData.gameYear,
-                                                forgetMonth = gameData.gameMonth,
-                                                forgetPhase = gameData.gamePhase
-                                            ),
-                                            inventoryConfig.getMaxStackSize("manual_stack")
-                                        )
-                                    )
-                                } else it
-                            }
-                        }
-                    }
-                }
-                "pill" -> {
-                    stateStore.update {
-                        val pill = pills.find { it.id == item.id }
-                        if (pill != null && pill.quantity >= quantity) {
-                            val disciple = disciples.find { it.id == discipleId }
-                            if (disciple == null) return@update
-                            val pillItem = StorageBagItem(
-                                itemId = item.id,
-                                itemType = "pill",
-                                name = pill.name,
-                                rarity = pill.rarity,
-                                quantity = quantity,
-                                obtainedYear = gameData.gameYear,
-                                obtainedMonth = gameData.gameMonth,
-                                effect = DisciplePillManager.pillToItemEffect(pill),
-                                grade = pill.grade.displayName
-                            )
-                            val canUse = DisciplePillManager.canUsePill(disciple, pillItem).canUse
-
-                            pills = pills.mapNotNull { p ->
-                                if (p.id == item.id) {
-                                    val newQty = p.quantity - quantity
-                                    if (newQty == 0) null else p.copy(quantity = newQty)
-                                } else p
-                            }
-
-                            if (canUse) {
-                                var updatedDisciple = disciple
-                                val effect = pill.effects
-                                if (effect.cultivationAdd > 0) {
-                                    updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
-                                }
-                                if (effect.skillExpAdd > 0) {
-                                    updatedDisciple = updatedDisciple.copy(manualMasteries = updatedDisciple.manualMasteries.mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) })
-                                }
-                                if (effect.cultivationSpeedPercent > 0) {
-                                    updatedDisciple = updatedDisciple.copy(
-                                        cultivationSpeedBonus = effect.cultivationSpeedPercent,
-                                        cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.cultivationSpeedDuration
-                                    )
-                                }
-                                if (effect.extendLife > 0) {
-                                    updatedDisciple = updatedDisciple.copy(lifespan = updatedDisciple.lifespan + effect.extendLife)
-                                    if (!updatedDisciple.usage.usedExtendLifePillIds.contains(pill.pillType)) {
-                                        updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedExtendLifePillIds = updatedDisciple.usage.usedExtendLifePillIds + pill.pillType))
-                                    }
-                                }
-                                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
-                                    effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-                                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
-                                    effect.miningAdd > 0
-                                ) {
-                                    updatedDisciple = updatedDisciple.copy(
-                                        skills = updatedDisciple.skills.copy(
-                                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
-                                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceAtLeast(0),
-                                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
-                                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
-                                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
-                                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
-                                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
-                                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
-                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceAtLeast(0),
-                                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceAtLeast(0)
-                                        )
-                                    )
-                                }
-                                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-                                    updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedFunctionalPillTypes = updatedDisciple.usage.usedFunctionalPillTypes + pill.pillType))
-                                }
-                                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
-                                    effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
-                                    effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
-                                    effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
-                                    effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
-                                ) {
-                                    updatedDisciple = updatedDisciple.copy(pillEffects = updatedDisciple.pillEffects.copy(
-                                        pillPhysicalAttackBonus = effect.physicalAttackAdd,
-                                        pillMagicAttackBonus = effect.magicAttackAdd,
-                                        pillPhysicalDefenseBonus = effect.physicalDefenseAdd,
-                                        pillMagicDefenseBonus = effect.magicDefenseAdd,
-                                        pillHpBonus = effect.hpAdd,
-                                        pillMpBonus = effect.mpAdd,
-                                        pillSpeedBonus = effect.speedAdd,
-                                        pillCritRateBonus = effect.critRateAdd,
-                                        pillCritEffectBonus = effect.critEffectAdd,
-                                        pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
-                                        pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
-                                        pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                                        pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
-                                        activePillCategory = if (effect.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
-                                    ))
-                                }
-                                if (effect.healMaxHpPercent > 0) {
-                                    updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
-                                }
-                                if (effect.clearAll) {
-                                    updatedDisciple = updatedDisciple.copy(pillEffects = PillEffects())
-                                }
-                                disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
-                            } else {
-                                disciples = disciples.map { d ->
-                                    if (d.id == discipleId) {
-                                        d.copyWith(
-                                            storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                                d.equipment.storageBagItems,
-                                                pillItem,
-                                                inventoryConfig.getMaxStackSize("pill")
-                                            )
-                                        )
-                                    } else d
-                                }
-                            }
-                        }
-                    }
-                }
-                "material" -> {
-                    stateStore.update {
-                        val material = materials.find { it.id == item.id }
-                        if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                            materials = materials.mapNotNull { m ->
-                                if (m.id == item.id) {
-                                    val newQty = m.quantity - quantity
-                                    if (newQty == 0) null else m.copy(quantity = newQty)
-                                } else m
-                            }
-                            disciples = disciples.map { d ->
-                                if (d.id == discipleId) {
-                                    d.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = item.id,
-                                                itemType = "material",
-                                                name = item.name,
-                                                rarity = item.rarity,
-                                                quantity = quantity,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
-                                            ),
-                                            inventoryConfig.getMaxStackSize("material")
-                                        )
-                                    )
-                                } else d
-                            }
-                        }
-                    }
-                }
-                "herb" -> {
-                    stateStore.update {
-                        val herb = herbs.find { it.id == item.id }
-                        if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                            herbs = herbs.mapNotNull { h ->
-                                if (h.id == item.id) {
-                                    val newQty = h.quantity - quantity
-                                    if (newQty == 0) null else h.copy(quantity = newQty)
-                                } else h
-                            }
-                            disciples = disciples.map { d ->
-                                if (d.id == discipleId) {
-                                    d.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = item.id,
-                                                itemType = "herb",
-                                                name = item.name,
-                                                rarity = item.rarity,
-                                                quantity = quantity,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
-                                            ),
-                                            inventoryConfig.getMaxStackSize("herb")
-                                        )
-                                    )
-                                } else d
-                            }
-                        }
-                    }
-                }
-                "seed" -> {
-                    stateStore.update {
-                        val seed = seeds.find { it.id == item.id }
-                        if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                            seeds = seeds.mapNotNull { s ->
-                                if (s.id == item.id) {
-                                    val newQty = s.quantity - quantity
-                                    if (newQty == 0) null else s.copy(quantity = newQty)
-                                } else s
-                            }
-                            disciples = disciples.map { d ->
-                                if (d.id == discipleId) {
-                                    d.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = item.id,
-                                                itemType = "seed",
-                                                name = item.name,
-                                                rarity = item.rarity,
-                                                quantity = quantity,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
-                                            ),
-                                            inventoryConfig.getMaxStackSize("seed")
-                                        )
-                                    )
-                                } else d
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) =
+        discipleFacade.rewardItemsToDisciple(discipleId, items)
 
     fun recruitAllFromList(): Boolean {
         val data = stateStore.gameData.value

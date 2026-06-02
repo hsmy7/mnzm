@@ -36,7 +36,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 
 import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.engine.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
@@ -183,7 +183,7 @@ fun DiscipleDetailDialog(
     }
 
     val maxManualSlots = remember(disciple.talentIds) {
-        com.xianxia.sect.core.engine.DiscipleStatCalculator.getMaxManualSlots(disciple)
+        DiscipleStatCalculator.getMaxManualSlots(disciple)
     }
 
     var showRelationsDialog by remember { mutableStateOf(false) }

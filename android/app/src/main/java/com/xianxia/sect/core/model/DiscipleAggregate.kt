@@ -2,7 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 
 @Immutable
 data class DiscipleAggregate(

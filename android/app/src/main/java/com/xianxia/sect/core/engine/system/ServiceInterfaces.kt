@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine.system
 
-import com.xianxia.sect.core.engine.BattleSystemResult
+import com.xianxia.sect.core.engine.GameStateSnapshot
+import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.state.MutableGameState

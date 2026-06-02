@@ -68,9 +68,14 @@ object GameDatabaseConfig {
         ArchivedDisciple::class,
         GameHeavyData::class,
         StorageBag::class,
-        MailEntity::class
+        MailEntity::class,
+        DiplomacyState::class,
+        ProductionState::class,
+        PatrolStateEntity::class,
+        WorldMapStateEntity::class,
+        SectPolicyState::class
     ],
-    version = 25
+    version = 26
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -108,6 +113,12 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun gameHeavyDataDao(): GameHeavyDataDao
 
     abstract fun mailDao(): MailDao
+
+    abstract fun diplomacyStateDao(): DiplomacyStateDao
+    abstract fun productionStateDao(): ProductionStateDao
+    abstract fun patrolStateDao(): PatrolStateDao
+    abstract fun worldMapStateDao(): WorldMapStateDao
+    abstract fun sectPolicyStateDao(): SectPolicyStateDao
 
     private val checkpointExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "GameDB-Checkpoint")
@@ -699,6 +710,86 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS diplomacy_state (
+                        slot_id INTEGER NOT NULL,
+                        sectRelations TEXT NOT NULL DEFAULT '[]',
+                        alliances TEXT NOT NULL DEFAULT '[]',
+                        playerAllianceSlots INTEGER NOT NULL DEFAULT 3,
+                        playerProtectionEnabled INTEGER NOT NULL DEFAULT 1,
+                        playerProtectionStartYear INTEGER NOT NULL DEFAULT 1,
+                        playerHasAttackedAI INTEGER NOT NULL DEFAULT 0,
+                        sectDetails TEXT NOT NULL DEFAULT '{}',
+                        exploredSects TEXT NOT NULL DEFAULT '{}',
+                        scoutInfo TEXT NOT NULL DEFAULT '{}',
+                        PRIMARY KEY(slot_id)
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_diplomacy_state_slot_id ON diplomacy_state(slot_id)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS production_state (
+                        slot_id INTEGER NOT NULL,
+                        spiritFieldPlants TEXT NOT NULL DEFAULT '[]',
+                        unlockedRecipes TEXT NOT NULL DEFAULT '[]',
+                        unlockedManuals TEXT NOT NULL DEFAULT '[]',
+                        manualProficiencies TEXT NOT NULL DEFAULT '{}',
+                        PRIMARY KEY(slot_id)
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_production_state_slot_id ON production_state(slot_id)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS patrol_state (
+                        slot_id INTEGER NOT NULL,
+                        patrolSlots TEXT NOT NULL DEFAULT '[]',
+                        patrolConfig TEXT NOT NULL DEFAULT '{}',
+                        patrolConfigs TEXT NOT NULL DEFAULT '[]',
+                        patrolBattleResultPopup INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(slot_id)
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_patrol_state_slot_id ON patrol_state(slot_id)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS world_map_state (
+                        slot_id INTEGER NOT NULL,
+                        worldMapSects TEXT NOT NULL DEFAULT '[]',
+                        aiSectDisciples TEXT NOT NULL DEFAULT '{}',
+                        cultivatorCaves TEXT NOT NULL DEFAULT '[]',
+                        caveExplorationTeams TEXT NOT NULL DEFAULT '[]',
+                        aiCaveTeams TEXT NOT NULL DEFAULT '[]',
+                        worldLevels TEXT NOT NULL DEFAULT '[]',
+                        PRIMARY KEY(slot_id)
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_world_map_state_slot_id ON world_map_state(slot_id)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sect_policy_state (
+                        slot_id INTEGER NOT NULL,
+                        sectPolicies TEXT NOT NULL DEFAULT '{}',
+                        autoRecruitSpiritRootFilter TEXT NOT NULL DEFAULT '[]',
+                        daoCompanionBannedRootCounts TEXT NOT NULL DEFAULT '[]',
+                        daoCompanionConsentRequired INTEGER NOT NULL DEFAULT 0,
+                        breakthroughAutoPillFocused INTEGER NOT NULL DEFAULT 0,
+                        breakthroughAutoPillRootCounts TEXT NOT NULL DEFAULT '[]',
+                        autoEquipFromWarehouseFocused INTEGER NOT NULL DEFAULT 0,
+                        autoEquipFromWarehouseRootCounts TEXT NOT NULL DEFAULT '[]',
+                        autoLearnFromWarehouseFocused INTEGER NOT NULL DEFAULT 0,
+                        autoLearnFromWarehouseRootCounts TEXT NOT NULL DEFAULT '[]',
+                        monthlySalary TEXT NOT NULL DEFAULT '{}',
+                        monthlySalaryEnabled TEXT NOT NULL DEFAULT '{}',
+                        autoSaveIntervalMonths INTEGER NOT NULL DEFAULT 3,
+                        PRIMARY KEY(slot_id)
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sect_policy_state_slot_id ON sect_policy_state(slot_id)")
+            }
+        }
+
         val MIGRATION_18_19 = object : Migration(18, 19) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -769,7 +860,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

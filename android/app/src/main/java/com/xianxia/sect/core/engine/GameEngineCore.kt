@@ -4,8 +4,8 @@ import android.util.Log
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
-import com.xianxia.sect.core.engine.service.ExplorationService
-import com.xianxia.sect.core.engine.settlement.SettlementCoordinator
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.engine.domain.settlement.SettlementCoordinator
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.event.*
@@ -52,7 +52,9 @@ class GameEngineCore @Inject constructor(
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
     private val settlementCoordinator: SettlementCoordinator,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val cultivationService: CultivationService,
+    private val explorationService: ExplorationService
 ) {
     
     companion object {
@@ -222,7 +224,7 @@ class GameEngineCore @Inject constructor(
 
     suspend fun pause() {
         stateManager.setPaused(true)
-        systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
+        cultivationService.resetHighFrequencyData()
     }
     
     suspend fun resume() {
@@ -234,7 +236,7 @@ class GameEngineCore @Inject constructor(
             stateManager.setPausedDirect(true)
             settlementCoordinator.cancelPendingWork()
             engineScope.launch {
-                systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
+                cultivationService.resetHighFrequencyData()
             }
             _wasPausedByBackground = true
         } else {
@@ -331,7 +333,7 @@ class GameEngineCore @Inject constructor(
             if (completed) settlementCoordinator.onSettlementComplete()
         }
 
-        val patrolResults = systemManager.getSystem<ExplorationService>().consumePendingPatrolResults()
+        val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
         }

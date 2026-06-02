@@ -1,5 +1,22 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.00] - 2026-06-02
+
+### 重构
+- **GameEngine 上帝类拆分**：519 方法 → 103 方法（7 个领域 Facade：Disciple/Battle/Building/Inventory/Production/Diplomacy/Save），GameEngine 降为纯协调委托器
+- **GameData 巨型类拆分 (Phase A)**：新增 5 个领域 Entity（DiplomacyState/ProductionState/PatrolState/SectPolicyState）+ 对应 DAO。game_data 旧列保留不动，业务层双读
+- **目录按域重组**：`core/engine/domain/` 下 9 个子域（battle/building/diplomacy/disciple/exploration/inventory/production/save/settlement），45 个文件按域组织
+- **GameStateStore 消除双写**：`_state` MutableStateFlow 已移除，`unifiedState` 改为 `combine(17流)` 只读派生，独立流为唯一事实源
+- **Service/System 边界清晰化**：CultivationSystem/ExplorationSystem/MailSystem 独立化，Service 不再直接实现 GameSystem
+- **EventBus 全面激活**：DomainEvent 从 13 种扩展到 25 种 + EventBusPort 接口化
+- **UseCase 层扩展**：15 个 UseCase，ViewModel 通过 Facade 接口注入
+
+### 数据库
+- **v25→v26 迁移**：新增 diplomacy_state/production_state/patrol_state/world_map_state/sect_policy_state 5 张表，game_data 列保留（Phase A 零风险策略）
+
+### 修复
+- **启动闪退**：DiplomacyService Kotlin 初始化顺序修复（subscribedTypes 在 init 块之前声明）+ EventBus 防空检查
+
 ## [3.1.98] - 2026-06-02
 
 ### 修复

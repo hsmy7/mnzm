@@ -5,31 +5,16 @@ import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.system.FormulaSystem
-import com.xianxia.sect.core.engine.system.GameSystem
-import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
 import com.xianxia.sect.core.util.BuildingNames
 import javax.inject.Inject
 import javax.inject.Singleton
 
-@SystemPriority(order = 960)
 @Singleton
 class FormulaService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository
-) : GameSystem {
-    override val systemName: String = "FormulaService"
-
-    override fun initialize() {
-        Log.d(TAG, "FormulaService initialized as GameSystem")
-    }
-
-    override fun release() {
-        Log.d(TAG, "FormulaService released")
-    }
-
-    override suspend fun clearForSlot(slotId: Int) {}
+) {
     companion object {
         private const val TAG = "FormulaService"
     }

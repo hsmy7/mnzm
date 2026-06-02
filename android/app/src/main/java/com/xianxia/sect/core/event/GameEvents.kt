@@ -140,6 +140,80 @@ data class RewardItemInfo(
     val rarity: Int
 )
 
+data class BattleStartedEvent(
+    val attackerId: String,
+    val defenderId: String,
+    val attackerName: String = "",
+    val defenderName: String = "",
+    override val type: String = "battle_started"
+) : DomainEvent
+
+data class BuildingCompletedEvent(
+    val buildingId: String,
+    val buildingName: String = "",
+    val gridX: Int = 0,
+    val gridY: Int = 0,
+    override val type: String = "building_completed"
+) : DomainEvent
+
+data class SpiritStonesChangedEvent(
+    val delta: Long,
+    val newTotal: Long,
+    val reason: String = "",
+    override val type: String = "spirit_stones_changed"
+) : DomainEvent
+
+data class SectRelationChangedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val oldFavor: Int = 0,
+    val newFavor: Int = 0,
+    override val type: String = "sect_relation_changed"
+) : DomainEvent
+
+data class DiscipleRecruitedEvent(
+    val discipleId: String,
+    val discipleName: String = "",
+    val realm: Int = 0,
+    override val type: String = "disciple_recruited"
+) : DomainEvent
+
+data class DiscipleExpelledEvent(
+    val discipleId: String,
+    val discipleName: String = "",
+    val reason: String = "",
+    override val type: String = "disciple_expelled"
+) : DomainEvent
+
+data class ProductionCompletedEvent(
+    val buildingType: String,
+    val slotIndex: Int,
+    val itemName: String = "",
+    val quantity: Int = 0,
+    override val type: String = "production_completed"
+) : DomainEvent
+
+data class AllianceFormedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val startYear: Int = 0,
+    override val type: String = "alliance_formed"
+) : DomainEvent
+
+data class AllianceDissolvedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val reason: String = "",
+    override val type: String = "alliance_dissolved"
+) : DomainEvent
+
+data class ExplorationCompletedEvent(
+    val teamId: String,
+    val success: Boolean,
+    val survivorCount: Int = 0,
+    override val type: String = "exploration_completed"
+) : DomainEvent
+
 interface DomainEventSubscriber {
     fun onEvent(event: DomainEvent)
     val subscribedTypes: Set<String>
@@ -225,7 +299,9 @@ class EventBus @Inject constructor(
     }
     
     override fun subscribe(subscriber: DomainEventSubscriber) {
-        subscriber.subscribedTypes.forEach { type ->
+        val types = subscriber.subscribedTypes
+        if (types.isEmpty()) return
+        types.forEach { type ->
             subscribers.computeIfAbsent(type) { CopyOnWriteArrayList() }.add(subscriber)
         }
     }

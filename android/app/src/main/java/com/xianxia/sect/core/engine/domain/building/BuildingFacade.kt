@@ -1,0 +1,36 @@
+package com.xianxia.sect.core.engine.domain.building
+
+import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
+
+interface BuildingFacade {
+    suspend fun placeBuilding(building: GridBuildingData)
+    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int)
+    suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String)
+    suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int)
+    fun getBuildingSlots(buildingId: String): List<BuildingSlot>
+    suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean
+    suspend fun startForging(slotIndex: Int, recipeId: String): Boolean
+    suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult>
+    fun clearPlantSlot(slotIndex: Int)
+    fun getForgeSlots(): List<BuildingSlot>
+    fun getAlchemyFurnaceCount(): Int
+    fun getForgeWorkshopCount(): Int
+    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>?
+    fun assignDiscipleToProductionSlot(
+        buildingType: BuildingType,
+        slotIndex: Int,
+        discipleId: String,
+        discipleName: String
+    )
+    fun removeDiscipleFromProductionSlot(buildingType: BuildingType, slotIndex: Int)
+    suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int)
+    suspend fun addProductionSlot(slot: ProductionSlot)
+    suspend fun startManualPlanting(slotIndex: Int, seedId: String)
+    suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String)
+    suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String)
+    suspend fun removePlantFromSpiritField(buildingInstanceId: String)
+    fun clearAlchemySlot(slotIndex: Int)
+    fun clearForgeSlot(slotIndex: Int)
+}

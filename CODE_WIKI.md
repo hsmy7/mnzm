@@ -1,13 +1,14 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-02 (v3.1.98)
+> 最后更新：2026-06-02 (v3.2.00)
 
 ## 目录
 
 1. [架构总览](#架构总览)
-2. [状态管理 — GameStateStore](#状态管理--gamestatestore)
-3. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-4. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
+2. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
+3. [状态管理 — GameStateStore](#状态管理--gamestatestore)
+4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
+5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
 5. [Canvas 渲染管线](#canvas-渲染管线)
 6. [性能基础设施](#性能基础设施)
 7. [构建与 Profile](#构建与-profile)
@@ -37,9 +38,95 @@
 
 ---
 
+## 引擎层 — 领域 Facade 架构 (v3.1.99)
+
+### 架构
+
+GameEngine（103 方法，纯协调器）→ 7 个领域 Facade 接口 → 各域 Service/System：
+
+```
+GameEngine (协调器, 103方法)
+  ├── DiscipleFacade   → DiscipleService, DiscipleEquipmentManager, ...
+  ├── BattleFacade     → CombatService, BattleSystem, AISectAttackManager, ...
+  ├── BuildingFacade   → BuildingService, HerbGardenSystem, ...
+  ├── InventoryFacade  → OptimizedWarehouseManager, ...
+  ├── ProductionFacade → ProductionCoordinator, ProductionSubsystem, ...
+  ├── DiplomacyFacade  → DiplomacyService, AISectDiscipleManager, ...
+  └── SaveFacade       → SaveService, SaveLoadCoordinator, SavePipeline
+```
+
+### 目录结构
+
+```
+core/engine/domain/
+├── battle/       (BattleFacade, BattleFacadeImpl, CombatService, BattleSystem, ...)
+├── building/     (BuildingFacade, BuildingFacadeImpl, BuildingService, ...)
+├── diplomacy/    (DiplomacyFacade, DiplomacyFacadeImpl, DiplomacyService, ...)
+├── disciple/     (DiscipleFacade, DiscipleFacadeImpl, DiscipleService, ...)
+├── exploration/  (ExplorationService, MissionSystem, CaveExplorationSystem, ...)
+├── inventory/    (InventoryFacade, InventoryFacadeImpl, ...)
+├── production/   (ProductionFacade, ProductionFacadeImpl, ProductionCoordinator, ...)
+├── save/         (SaveFacade, SaveFacadeImpl, SaveService, SaveLoadCoordinator, ...)
+└── settlement/   (SettlementCoordinator, SettlementCache, SettlementScheduler, ...)
+```
+
+### Facade 模式
+
+每个 Facade 定义接口契约，Impl 通过 Hilt `@Singleton` 注入。GameEngine 通过接口依赖 Facade：
+
+```kotlin
+interface DiscipleFacade {
+    suspend fun recruitDisciple(): Disciple
+    val disciples: StateFlow<List<Disciple>>
+    // ...
+}
+
+@Singleton
+class DiscipleFacadeImpl @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val discipleService: DiscipleService
+) : DiscipleFacade { ... }
+```
+
+### GameData 拆分 (Phase A)
+
+新增 5 个领域 Entity（独立 Room 表），game_data 旧字段保留：
+
+| 新表 | 字段 | DAO |
+|------|------|-----|
+| `diplomacy_state` | sectRelations, alliances, sectDetails, exploredSects, scoutInfo | DiplomacyStateDao |
+| `production_state` | spiritFieldPlants, unlockedRecipes, unlockedManuals, manualProficiencies | ProductionStateDao |
+| `patrol_state` | patrolSlots, patrolConfig, patrolConfigs | PatrolStateDao |
+| `world_map_state` | worldLevels, cultivatorCaves, caveExplorationTeams | WorldMapStateDao |
+| `sect_policy_state` | sectPolicies, autoRecruitFilter, breakthroughConfig 等 | SectPolicyStateDao |
+
+DB v26 迁移：`CREATE TABLE IF NOT EXISTS` — Phase A 零风险。
+
+### EventBus (25 种事件)
+
+```kotlin
+interface DomainEvent { val type: String }
+// 修炼: CultivationEvent, BreakthroughEvent
+// 战斗: CombatEvent, BattleCompletedEvent, PatrolEvent
+// 弟子: DiscipleUpdatedEvent, DiscipleJoinedEvent, DiscipleLeftEvent
+// 建筑: BuildingCompletedEvent
+// 经济: SpiritStonesChangedEvent
+// 外交: SectRelationChangedEvent
+// 物品: ItemCraftedEvent, ItemAcquiredEvent
+// ... 等 25 种
+```
+
+EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
+
+---
+
 ## 状态管理 — GameStateStore
 
-### v3.1.97 架构：增量发射
+### v3.1.99 架构：独立流单写
+
+> `_state: MutableStateFlow` 已移除。`unifiedState` 从 17 个独立流 `combine` 派生，只读。独立流为唯一事实源，消除双写不一致风险。
+
+### v3.1.97 架构：增量发射（已被 v3.1.99 取代）
 
 > 原架构：单一 `_state: MutableStateFlow<UnifiedGameState>` + 15 个 `.map{}.distinctUntilChanged().stateIn()` 派生流。每 tick 全部 `.map{}` 执行。
 >

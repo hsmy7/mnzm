@@ -5,9 +5,9 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.engine.CombatBuff
-import com.xianxia.sect.core.engine.CombatSkill
-import com.xianxia.sect.core.engine.Combatant
+import com.xianxia.sect.core.engine.domain.battle.CombatBuff
+import com.xianxia.sect.core.engine.domain.battle.CombatSkill
+import com.xianxia.sect.core.engine.domain.battle.Combatant
 import kotlin.random.Random
 
 object BattleCalculator {

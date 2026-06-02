@@ -6,8 +6,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.RedeemCodeManager
-import com.xianxia.sect.core.engine.system.GameSystem
-import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
@@ -46,7 +44,6 @@ data class MarkAllReadResult(
     val skipReasons: List<String> = emptyList()
 )
 
-@SystemPriority(order = 960)
 @Singleton
 class MailService @Inject constructor(
     private val mailDao: MailDao,
@@ -54,9 +51,7 @@ class MailService @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val secureClient: SecureHttpClient,
     @ApplicationContext private val appContext: android.content.Context
-) : GameSystem {
-    override val systemName: String = "MailService"
-
+) {
     companion object {
         private const val TAG = "MailService"
         const val MAX_MAILS_PER_SLOT = 1000
@@ -87,22 +82,19 @@ class MailService @Inject constructor(
         return slotMutexes.getOrPut(slotId) { Mutex() }
     }
 
-    override fun initialize() {
-        Log.d(TAG, "MailService initialized")
+    fun initialize() {
     }
 
-    override fun release() {
-        Log.d(TAG, "MailService released")
+    fun release() {
     }
 
-    override suspend fun clearForSlot(slotId: Int) {
+    suspend fun clearForSlot(slotId: Int) {
         getMutex(slotId).withLock {
             mailDao.deleteAllForSlot(slotId)
-            Log.d(TAG, "Cleared all mails for slot $slotId")
         }
     }
 
-    override suspend fun onMonthTick(state: MutableGameState) {
+    suspend fun processMonthlyMails(state: MutableGameState) {
         val slotId = state.gameData.slotId
         try {
             fetchOnlineMails(slotId)

@@ -1,24 +1,54 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.event.BreakthroughEvent
+import com.xianxia.sect.core.event.DomainEvent
+import com.xianxia.sect.core.event.DomainEventSubscriber
+import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.di.ApplicationScopeProvider
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 @SystemPriority(order = 240)
 class PartnerSystem @Inject constructor(
-    private val stateStore: GameStateStore
-) : GameSystem {
+    private val stateStore: GameStateStore,
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val eventBus: EventBusPort
+) : GameSystem, DomainEventSubscriber {
 
     override val systemName: String = "PartnerSystem"
+    private val scope get() = applicationScopeProvider.scope
 
-    override fun initialize() {}
+    override val subscribedTypes: Set<String> = setOf("breakthrough")
 
-    override fun release() {}
+    override fun onEvent(event: DomainEvent) {
+        if (event !is BreakthroughEvent || !event.success) return
+        scope.launch {
+            stateStore.update {
+                val partnerId = disciples.find { it.id == event.discipleId }?.social?.partnerId
+                    ?: return@update
+                disciples = disciples.map { disciple ->
+                    if (disciple.id == partnerId && disciple.isAlive) {
+                        disciple.copyWith(loyalty = (disciple.skills.loyalty + 3).coerceAtMost(100))
+                    } else disciple
+                }
+            }
+        }
+    }
+
+    override fun initialize() {
+        eventBus.subscribe(this)
+    }
+
+    override fun release() {
+        eventBus.unsubscribe(this)
+    }
 
     override suspend fun clearForSlot(slotId: Int) {}
 

@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.domain.battle.PlayerLootLossResult
+import com.xianxia.sect.core.engine.domain.battle.WarRewards
+import com.xianxia.sect.core.engine.domain.exploration.CaveRewards
 import com.xianxia.sect.core.model.SectWarehouse
 import com.xianxia.sect.core.model.WarehouseItem
 import com.xianxia.sect.core.warehouse.ItemFilter

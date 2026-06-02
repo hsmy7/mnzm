@@ -11,9 +11,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.RedeemCodeManager
-import com.xianxia.sect.core.engine.system.GameSystem
-import com.xianxia.sect.core.engine.system.RedeemCodeSystem
-import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.network.SecureHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,26 +38,13 @@ data class RedeemApiReward(
     val rarity: Int = 1
 )
 
-@SystemPriority(order = 950)
 @Singleton
 class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
 private val secureClient: SecureHttpClient,
     @ApplicationContext private val appContext: Context
-) : GameSystem {
-    override val systemName: String = "RedeemCodeService"
-
-    override fun initialize() {
-        Log.d(TAG, "RedeemCodeService initialized as GameSystem")
-    }
-
-    override fun release() {
-        Log.d(TAG, "RedeemCodeService released")
-    }
-
-    override suspend fun clearForSlot(slotId: Int) {}
-
+) {
     companion object {
         private const val TAG = "RedeemCodeService"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()

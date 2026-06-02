@@ -3,7 +3,7 @@ package com.xianxia.sect.core.warehouse
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.SectWarehouse
 import com.xianxia.sect.core.model.WarehouseItem
-import com.xianxia.sect.core.engine.CaveRewards
+import com.xianxia.sect.core.engine.domain.exploration.CaveRewards
 import java.util.concurrent.ConcurrentHashMap
 
 object OptimizedWarehouseManager {

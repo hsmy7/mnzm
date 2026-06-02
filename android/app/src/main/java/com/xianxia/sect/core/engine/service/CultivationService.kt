@@ -14,31 +14,32 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.BattleSystem
-import com.xianxia.sect.core.engine.BattleMemberData
-import com.xianxia.sect.core.engine.production.ProductionCoordinator
-import com.xianxia.sect.core.engine.HerbGardenSystem
-import com.xianxia.sect.core.engine.HerbGardenAuraService
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
+import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.registry.HerbDatabase
-import com.xianxia.sect.core.engine.CaveExplorationSystem
+import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.engine.WorldMapGenerator
-import com.xianxia.sect.core.engine.CaveGenerator
-import com.xianxia.sect.core.engine.LevelGenerator
-import com.xianxia.sect.core.engine.MSTEdge
+import com.xianxia.sect.core.engine.domain.exploration.CaveGenerator
+import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
+import com.xianxia.sect.core.engine.domain.exploration.MSTEdge
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.engine.AISectAttackManager
-import com.xianxia.sect.core.engine.AISectDiscipleManager
-import com.xianxia.sect.core.engine.AISectGarrisonManager
-import com.xianxia.sect.core.engine.AIBattleWinner
-import com.xianxia.sect.core.engine.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.DiscipleEquipmentManager
-import com.xianxia.sect.core.engine.DiscipleManualManager
-import com.xianxia.sect.core.engine.DisciplePillManager
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
+import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
+import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.engine.MissionSystem
+import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.config.InventoryConfig
@@ -50,10 +51,6 @@ import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.NameService
-import com.xianxia.sect.core.engine.system.CultivationSystem
-import com.xianxia.sect.core.engine.system.GameSystem
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
-import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -71,7 +68,6 @@ data class HighFrequencyData(
     val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap()      // discipleId -> (equipmentId -> gained)
 )
 
-@SystemPriority(order = 200)
 @Singleton
 class CultivationService @Inject constructor(
     private val stateStore: GameStateStore,
@@ -82,7 +78,7 @@ class CultivationService @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
 private val applicationScopeProvider: ApplicationScopeProvider,
     private val discipleService: DiscipleService
-) : GameSystem {
+) {
     private val scope get() = applicationScopeProvider.scope
     companion object {
         private const val TAG = "CultivationService"
@@ -221,40 +217,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
     private var _highFrequencyData = MutableStateFlow(HighFrequencyData())
-
-    override val systemName: String = "CultivationService"
-
-    override fun initialize() {
-        Log.d(TAG, "CultivationService initialized as GameSystem")
-    }
-
-    override fun release() {
-        Log.d(TAG, "CultivationService released")
-    }
-
-    override suspend fun clearForSlot(slotId: Int) {
-        resetHighFrequencyData()
-    }
-
-    // onSecondTick removed — 旬制下不再需要 per-second 修炼更新
-    // 修炼进度改为惰性计算（按需）+ 旬 tick 批量处理
-
-    override suspend fun onPhaseTick(state: MutableGameState) {
-        val data = state.gameData
-        processPhaseEvents(data.gamePhase, data.gameMonth, data.gameYear)
-    }
-
-    override suspend fun onMonthTick(state: MutableGameState) {
-        val data = state.gameData
-        processMonthlyEvents(data.gameYear, data.gameMonth)
-        updateMonthlyCultivation(state)
-        processMonthlyBreakthroughs(state)
-    }
-
-    override suspend fun onYearTick(state: MutableGameState) {
-        val data = state.gameData
-        processYearlyEvents(data.gameYear)
-    }
 
     suspend fun processMonthlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData

@@ -38,7 +38,8 @@ class GameViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val systemManager: SystemManager,
     private val disciplePositionQuery: DisciplePositionQueryUseCase,
-    private val buildingConfigService: BuildingConfigService
+    private val buildingConfigService: BuildingConfigService,
+    private val mailService: com.xianxia.sect.core.engine.service.MailService
 ) : BaseViewModel() {
 
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
@@ -861,10 +862,6 @@ class GameViewModel @Inject constructor(
 
     fun clearRedeemResult() {
         _redeemResult.value = null
-    }
-
-    private val mailService: com.xianxia.sect.core.engine.service.MailService by lazy {
-        systemManager.getSystem(com.xianxia.sect.core.engine.service.MailService::class)
     }
 
     private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0

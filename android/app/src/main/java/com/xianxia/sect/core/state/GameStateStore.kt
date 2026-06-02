@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -61,8 +60,6 @@ class GameStateStore @Inject constructor(
     @Volatile
     private var currentTransactionState: MutableGameState? = null
 
-    private val _state = MutableStateFlow(UnifiedGameState())
-
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
     private val _gameDataFlow = MutableStateFlow(GameData())
     private val _disciplesFlow = MutableStateFlow<List<Disciple>>(emptyList())
@@ -86,7 +83,35 @@ class GameStateStore @Inject constructor(
 
     val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    val unifiedState: StateFlow<UnifiedGameState> = _state.asStateFlow()
+    val unifiedState: StateFlow<UnifiedGameState> = combine(
+        _gameDataFlow, _disciplesFlow, _equipmentStacksFlow, _equipmentInstancesFlow,
+        _manualStacksFlow, _manualInstancesFlow, _pillsFlow, _materialsFlow,
+        _herbsFlow, _seedsFlow, _storageBagsFlow, _teamsFlow, _battleLogsFlow,
+        _pendingBattleResultFlow, _pendingNotificationFlow, _isPaused, _isLoading, _isSaving
+    ) { args ->
+        val gd = args[0] as GameData
+        UnifiedGameState(
+            gameData = gd,
+            disciples = args[1] as List<Disciple>,
+            equipmentStacks = args[2] as List<EquipmentStack>,
+            equipmentInstances = args[3] as List<EquipmentInstance>,
+            manualStacks = args[4] as List<ManualStack>,
+            manualInstances = args[5] as List<ManualInstance>,
+            pills = args[6] as List<Pill>,
+            materials = args[7] as List<Material>,
+            herbs = args[8] as List<Herb>,
+            seeds = args[9] as List<Seed>,
+            storageBags = args[10] as List<StorageBag>,
+            teams = args[11] as List<ExplorationTeam>,
+            battleLogs = args[12] as List<BattleLog>,
+            alliances = gd.alliances,
+            isPaused = args[15] as Boolean,
+            isLoading = args[16] as Boolean,
+            isSaving = args[17] as Boolean,
+            pendingBattleResult = args[13] as BattleResultUIData?,
+            pendingNotification = args[14] as GameNotification?
+        )
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
 
     // 公开 StateFlow——直接来自独立 MutableStateFlow，零 .map{} 开销
     val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
@@ -131,7 +156,7 @@ class GameStateStore @Inject constructor(
     private val disciplePowerCache = ConcurrentHashMap<String, CachedPower>()
     private val aiDisciplePowerCache = ConcurrentHashMap<String, CachedPower>()
 
-    // 中间流：直接从独立 MutableStateFlow 派生，不再走 _state.map{} 链
+    // 中间流：直接从独立 MutableStateFlow 派生
     // 这些独立流只在对应字段实际变化时才发射，所以 combine 的频率大幅降低
     private val disciplesFlow = _disciplesFlow
         .distinctUntilChanged { old, new -> old === new }
@@ -310,59 +335,89 @@ class GameStateStore @Inject constructor(
     )
 
     fun createShadow(): MutableGameState {
-        val current = _state.value
-        shadowOrigin = current  // 保存原始状态，swap 时用于三路合并
+        val gd = _gameDataFlow.value
+        val disc = _disciplesFlow.value
+        val es = _equipmentStacksFlow.value
+        val ei = _equipmentInstancesFlow.value
+        val ms = _manualStacksFlow.value
+        val mi = _manualInstancesFlow.value
+        val p = _pillsFlow.value
+        val mat = _materialsFlow.value
+        val h = _herbsFlow.value
+        val s = _seedsFlow.value
+        val sb = _storageBagsFlow.value
+        val t = _teamsFlow.value
+        val bl = _battleLogsFlow.value
+        val snapshot = UnifiedGameState(
+            gameData = gd,
+            disciples = disc,
+            equipmentStacks = es,
+            equipmentInstances = ei,
+            manualStacks = ms,
+            manualInstances = mi,
+            pills = p,
+            materials = mat,
+            herbs = h,
+            seeds = s,
+            storageBags = sb,
+            teams = t,
+            battleLogs = bl,
+            alliances = gd.alliances,
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            pendingNotification = _pendingNotificationFlow.value
+        )
+        shadowOrigin = snapshot
         return MutableGameState(
-            gameData = current.gameData,
-            disciples = current.disciples,
-            equipmentStacks = current.equipmentStacks,
-            equipmentInstances = current.equipmentInstances,
-            manualStacks = current.manualStacks,
-            manualInstances = current.manualInstances,
-            pills = current.pills,
-            materials = current.materials,
-            herbs = current.herbs,
-            seeds = current.seeds,
-            storageBags = current.storageBags,
-            teams = current.teams,
-            battleLogs = current.battleLogs,
-            isPaused = current.isPaused,
-            isLoading = current.isLoading,
-            isSaving = current.isSaving,
-            pendingNotification = current.pendingNotification
+            gameData = gd,
+            disciples = disc,
+            equipmentStacks = es,
+            equipmentInstances = ei,
+            manualStacks = ms,
+            manualInstances = mi,
+            pills = p,
+            materials = mat,
+            herbs = h,
+            seeds = s,
+            storageBags = sb,
+            teams = t,
+            battleLogs = bl,
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            pendingNotification = _pendingNotificationFlow.value
         )
     }
 
     fun swapFromShadow(shadow: MutableGameState) {
         val origin = shadowOrigin
-        _state.update { oldState ->
-            val finalPaused = _isPaused.value
-            val finalLoading = _isLoading.value
-            val finalSaving = _isSaving.value
+        val oldGameData = _gameDataFlow.value
+        val oldDisciples = _disciplesFlow.value
+        val oldTeams = _teamsFlow.value
+        val oldBattleLogs = _battleLogsFlow.value
 
-            val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldState.gameData)
-            _gameDataFlow.value = mergedGameData
-            // 更新可能在结算中变化的独立流
-            if (shadow.teams !== oldState.teams) _teamsFlow.value = shadow.teams
-            if (shadow.battleLogs !== oldState.battleLogs) _battleLogsFlow.value = shadow.battleLogs
-            val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
-            val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
-            val mergedDisciples = oldState.disciples.mapNotNull { mainDisciple ->
-                val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
-                if (shadowDisciple == null) {
-                    // 弟子不在 shadow 中 → 检查 origin：origin 有但 shadow 无 = 结算删除了(叛逃/处决)
-                    if (originDiscipleMap.containsKey(mainDisciple.id)) {
-                        null  // 结算删除了 → 从合并结果中移除
-                    } else {
-                        mainDisciple  // origin 也没有 → 玩家在结算期间新增的 → 保留
-                    }
+        val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
+        _gameDataFlow.value = mergedGameData
+
+        if (shadow.teams !== oldTeams) _teamsFlow.value = shadow.teams
+        if (shadow.battleLogs !== oldBattleLogs) _battleLogsFlow.value = shadow.battleLogs
+
+        val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
+        val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
+        val mergedDisciples = oldDisciples.mapNotNull { mainDisciple ->
+            val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
+            if (shadowDisciple == null) {
+                if (originDiscipleMap.containsKey(mainDisciple.id)) {
+                    null
                 } else {
-                    val originDisciple = originDiscipleMap[mainDisciple.id]
-                    if (originDisciple == null || originDisciple === shadowDisciple) {
-                        // 结算未修改此弟子 → 保留主状态版本（含玩家操作）
-                        mainDisciple
-                    } else {
-                    // 结算修改了此弟子 → 只应用结算实际变更的字段
+                    mainDisciple
+                }
+            } else {
+                val originDisciple = originDiscipleMap[mainDisciple.id]
+                if (originDisciple == null || originDisciple === shadowDisciple) {
+                    mainDisciple
+                } else {
                     val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
                     val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
                     val equipChanged = originDisciple.equipment != shadowDisciple.equipment
@@ -385,39 +440,12 @@ class GameStateStore @Inject constructor(
                             else -> mainDisciple.isAlive
                         }
                     )
-                    // 注意：status, statusData 等字段保留 mainDisciple 的值（玩家可能改了分配）
                 }
             }
-            }
-
-            // gameData 合并：每个字段的策略见 GameData.kt 的 @SettlementStrategy 注解
-            // 测试 GameDataSettlementCoverageTest 反射校验全覆盖，缺少注解 → 编译失败
-
-            // 增量发射：只在结算实际修改的字段上更新独立流
-            if (mergedDisciples !== oldState.disciples) _disciplesFlow.value = mergedDisciples
-
-            UnifiedGameState(
-                gameData = mergedGameData,
-                disciples = mergedDisciples,
-                equipmentStacks = oldState.equipmentStacks,
-                equipmentInstances = oldState.equipmentInstances,
-                manualStacks = oldState.manualStacks,
-                manualInstances = oldState.manualInstances,
-                pills = oldState.pills,
-                materials = oldState.materials,
-                herbs = oldState.herbs,
-                seeds = oldState.seeds,
-                storageBags = oldState.storageBags,
-                teams = shadow.teams,
-                battleLogs = shadow.battleLogs,
-                alliances = mergedGameData.alliances,
-                isPaused = finalPaused,
-                isLoading = finalLoading,
-                isSaving = finalSaving,
-                pendingBattleResult = oldState.pendingBattleResult,
-                pendingNotification = oldState.pendingNotification
-            )
         }
+
+        if (mergedDisciples !== oldDisciples) _disciplesFlow.value = mergedDisciples
+
         shadowOrigin = null
     }
 
@@ -431,11 +459,11 @@ class GameStateStore @Inject constructor(
         shadowTransactionThread = null
     }
 
-    fun getCurrentSeeds(): List<Seed> = _state.value.seeds
+    fun getCurrentSeeds(): List<Seed> = _seedsFlow.value
 
-    fun getCurrentHerbs(): List<Herb> = _state.value.herbs
+    fun getCurrentHerbs(): List<Herb> = _herbsFlow.value
 
-    fun getCurrentMaterials(): List<Material> = _state.value.materials
+    fun getCurrentMaterials(): List<Material> = _materialsFlow.value
 
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
@@ -459,148 +487,99 @@ class GameStateStore @Inject constructor(
 
     fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
-        _state.update { it.copy(isPaused = paused) }
     }
 
     fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
-        _state.update { it.copy(isLoading = loading) }
     }
 
     fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
-        _state.update { it.copy(isSaving = saving) }
     }
 
     fun setPendingBattleResult(result: BattleResultUIData) {
-        _state.update { it.copy(pendingBattleResult = result) }
+        _pendingBattleResultFlow.value = result
     }
 
     fun clearPendingBattleResult() {
-        _state.update { it.copy(pendingBattleResult = null) }
+        _pendingBattleResultFlow.value = null
     }
 
     fun setPendingNotification(notification: GameNotification) {
-        _state.update { it.copy(pendingNotification = notification) }
+        _pendingNotificationFlow.value = notification
     }
 
     fun clearPendingNotification() {
-        _state.update { it.copy(pendingNotification = null) }
+        _pendingNotificationFlow.value = null
     }
 
     fun updateDisciplesDirect(update: (List<Disciple>) -> List<Disciple>) {
-        _state.update { it.copy(disciples = update(it.disciples)) }
+        _disciplesFlow.value = update(_disciplesFlow.value)
     }
 
     fun updateGameDataDirect(update: (GameData) -> GameData) {
-        _state.update {
-            val newGameData = update(it.gameData)
-            _gameDataFlow.value = newGameData
-            it.copy(gameData = newGameData)
-        }
+        _gameDataFlow.value = update(_gameDataFlow.value)
     }
 
     fun updateEquipmentStacksDirect(update: (List<EquipmentStack>) -> List<EquipmentStack>) {
-        _state.update {
-            val newValue = update(it.equipmentStacks)
-            _equipmentStacksFlow.value = newValue
-            it.copy(equipmentStacks = newValue)
-        }
+        _equipmentStacksFlow.value = update(_equipmentStacksFlow.value)
     }
 
     fun updateEquipmentInstancesDirect(update: (List<EquipmentInstance>) -> List<EquipmentInstance>) {
-        _state.update {
-            val newValue = update(it.equipmentInstances)
-            _equipmentInstancesFlow.value = newValue
-            it.copy(equipmentInstances = newValue)
-        }
+        _equipmentInstancesFlow.value = update(_equipmentInstancesFlow.value)
     }
 
     fun updateManualStacksDirect(update: (List<ManualStack>) -> List<ManualStack>) {
-        _state.update {
-            val newValue = update(it.manualStacks)
-            _manualStacksFlow.value = newValue
-            it.copy(manualStacks = newValue)
-        }
+        _manualStacksFlow.value = update(_manualStacksFlow.value)
     }
 
     fun updateManualInstancesDirect(update: (List<ManualInstance>) -> List<ManualInstance>) {
-        _state.update {
-            val newValue = update(it.manualInstances)
-            _manualInstancesFlow.value = newValue
-            it.copy(manualInstances = newValue)
-        }
+        _manualInstancesFlow.value = update(_manualInstancesFlow.value)
     }
 
     fun updatePillsDirect(update: (List<Pill>) -> List<Pill>) {
-        _state.update {
-            val newValue = update(it.pills)
-            _pillsFlow.value = newValue
-            it.copy(pills = newValue)
-        }
+        _pillsFlow.value = update(_pillsFlow.value)
     }
 
     fun updateMaterialsDirect(update: (List<Material>) -> List<Material>) {
-        _state.update {
-            val newValue = update(it.materials)
-            _materialsFlow.value = newValue
-            it.copy(materials = newValue)
-        }
+        _materialsFlow.value = update(_materialsFlow.value)
     }
 
     fun updateHerbsDirect(update: (List<Herb>) -> List<Herb>) {
-        _state.update {
-            val newValue = update(it.herbs)
-            _herbsFlow.value = newValue
-            it.copy(herbs = newValue)
-        }
+        _herbsFlow.value = update(_herbsFlow.value)
     }
 
     fun updateSeedsDirect(update: (List<Seed>) -> List<Seed>) {
-        _state.update {
-            val newValue = update(it.seeds)
-            _seedsFlow.value = newValue
-            it.copy(seeds = newValue)
-        }
+        _seedsFlow.value = update(_seedsFlow.value)
     }
 
     fun updateTeamsDirect(update: (List<ExplorationTeam>) -> List<ExplorationTeam>) {
-        _state.update {
-            val newValue = update(it.teams)
-            _teamsFlow.value = newValue
-            it.copy(teams = newValue)
-        }
+        _teamsFlow.value = update(_teamsFlow.value)
     }
 
     fun updateBattleLogsDirect(update: (List<BattleLog>) -> List<BattleLog>) {
-        _state.update {
-            val newValue = update(it.battleLogs)
-            _battleLogsFlow.value = newValue
-            it.copy(battleLogs = newValue)
-        }
+        _battleLogsFlow.value = update(_battleLogsFlow.value)
     }
 
     // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
-    val gameDataSnapshot: GameData get() = _state.value.gameData
-    val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _state.value.disciples.map { it.toAggregate() }
-    val disciplesSnapshot: List<Disciple> get() = _state.value.disciples
-    val equipmentStacksSnapshot: List<EquipmentStack> get() = _state.value.equipmentStacks
-    val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _state.value.equipmentInstances
-    val manualStacksSnapshot: List<ManualStack> get() = _state.value.manualStacks
-    val manualInstancesSnapshot: List<ManualInstance> get() = _state.value.manualInstances
-    val pillsSnapshot: List<Pill> get() = _state.value.pills
-    val materialsSnapshot: List<Material> get() = _state.value.materials
-    val herbsSnapshot: List<Herb> get() = _state.value.herbs
-    val seedsSnapshot: List<Seed> get() = _state.value.seeds
-    val storageBagsSnapshot: List<StorageBag> get() = _state.value.storageBags
-    val teamsSnapshot: List<ExplorationTeam> get() = _state.value.teams
-    val battleLogsSnapshot: List<BattleLog> get() = _state.value.battleLogs
+    val gameDataSnapshot: GameData get() = _gameDataFlow.value
+    val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _disciplesFlow.value.map { it.toAggregate() }
+    val disciplesSnapshot: List<Disciple> get() = _disciplesFlow.value
+    val equipmentStacksSnapshot: List<EquipmentStack> get() = _equipmentStacksFlow.value
+    val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _equipmentInstancesFlow.value
+    val manualStacksSnapshot: List<ManualStack> get() = _manualStacksFlow.value
+    val manualInstancesSnapshot: List<ManualInstance> get() = _manualInstancesFlow.value
+    val pillsSnapshot: List<Pill> get() = _pillsFlow.value
+    val materialsSnapshot: List<Material> get() = _materialsFlow.value
+    val herbsSnapshot: List<Herb> get() = _herbsFlow.value
+    val seedsSnapshot: List<Seed> get() = _seedsFlow.value
+    val storageBagsSnapshot: List<StorageBag> get() = _storageBagsFlow.value
+    val teamsSnapshot: List<ExplorationTeam> get() = _teamsFlow.value
+    val battleLogsSnapshot: List<BattleLog> get() = _battleLogsFlow.value
 
     private var shadowTransactionThread: Thread? = null
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
-        // 仅阻止同一线程内的嵌套调用（结算流程内误调 update 属编程错误），
-        // 其他线程（如 UI）直接通过，不等待影子事务
         if (shadowTransactionThread == Thread.currentThread()) {
             check(currentTransactionState == null) {
                 "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
@@ -608,75 +587,67 @@ class GameStateStore @Inject constructor(
             }
         }
         transactionMutex.withLock {
-            val current = _state.value
+            val curGame = _gameDataFlow.value
+            val curDisc = _disciplesFlow.value
+            val curES = _equipmentStacksFlow.value
+            val curEI = _equipmentInstancesFlow.value
+            val curMS = _manualStacksFlow.value
+            val curMI = _manualInstancesFlow.value
+            val curP = _pillsFlow.value
+            val curMat = _materialsFlow.value
+            val curH = _herbsFlow.value
+            val curS = _seedsFlow.value
+            val curSB = _storageBagsFlow.value
+            val curBL = _battleLogsFlow.value
+            val curT = _teamsFlow.value
+            val curPaused = _isPaused.value
+            val curLoading = _isLoading.value
+            val curSaving = _isSaving.value
+            val curNotif = _pendingNotificationFlow.value
             reusableMutableState.apply {
-                gameData = current.gameData
-                disciples = current.disciples
-                equipmentStacks = current.equipmentStacks
-                equipmentInstances = current.equipmentInstances
-                manualStacks = current.manualStacks
-                manualInstances = current.manualInstances
-                pills = current.pills
-                materials = current.materials
-                herbs = current.herbs
-                seeds = current.seeds
-                storageBags = current.storageBags
-                battleLogs = current.battleLogs
-                teams = current.teams
-                isPaused = current.isPaused
-                isLoading = current.isLoading
-                isSaving = current.isSaving
-                pendingNotification = current.pendingNotification
+                gameData = curGame
+                disciples = curDisc
+                equipmentStacks = curES
+                equipmentInstances = curEI
+                manualStacks = curMS
+                manualInstances = curMI
+                pills = curP
+                materials = curMat
+                herbs = curH
+                seeds = curS
+                storageBags = curSB
+                battleLogs = curBL
+                teams = curT
+                isPaused = curPaused
+                isLoading = curLoading
+                isSaving = curSaving
+                pendingNotification = curNotif
             }
             currentTransactionState = reusableMutableState
             try {
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 reusableMutableState.block()
                 val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock
-                _state.update { oldState ->
-                    val finalPaused = if (_isPaused.value != current.isPaused) _isPaused.value else reusableMutableState.isPaused
-                    val finalLoading = if (_isLoading.value != current.isLoading) _isLoading.value else reusableMutableState.isLoading
-                    val finalSaving = if (_isSaving.value != current.isSaving) _isSaving.value else reusableMutableState.isSaving
-                    _isPaused.value = finalPaused
-                    _isLoading.value = finalLoading
-                    _isSaving.value = finalSaving
-                    // 增量发射：只在引用变化时更新独立 MutableStateFlow
-                    if (reusableMutableState.gameData !== current.gameData) _gameDataFlow.value = reusableMutableState.gameData
-                    if (reusableMutableState.disciples !== current.disciples) _disciplesFlow.value = reusableMutableState.disciples
-                    if (reusableMutableState.equipmentStacks !== current.equipmentStacks) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks
-                    if (reusableMutableState.equipmentInstances !== current.equipmentInstances) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances
-                    if (reusableMutableState.manualStacks !== current.manualStacks) _manualStacksFlow.value = reusableMutableState.manualStacks
-                    if (reusableMutableState.manualInstances !== current.manualInstances) _manualInstancesFlow.value = reusableMutableState.manualInstances
-                    if (reusableMutableState.pills !== current.pills) _pillsFlow.value = reusableMutableState.pills
-                    if (reusableMutableState.materials !== current.materials) _materialsFlow.value = reusableMutableState.materials
-                    if (reusableMutableState.herbs !== current.herbs) _herbsFlow.value = reusableMutableState.herbs
-                    if (reusableMutableState.seeds !== current.seeds) _seedsFlow.value = reusableMutableState.seeds
-                    if (reusableMutableState.storageBags !== current.storageBags) _storageBagsFlow.value = reusableMutableState.storageBags
-                    if (reusableMutableState.teams !== current.teams) _teamsFlow.value = reusableMutableState.teams
-                    if (reusableMutableState.battleLogs !== current.battleLogs) _battleLogsFlow.value = reusableMutableState.battleLogs
-                    if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
-                    UnifiedGameState(
-                        gameData = reusableMutableState.gameData,
-                        disciples = reusableMutableState.disciples,
-                        equipmentStacks = reusableMutableState.equipmentStacks,
-                        equipmentInstances = reusableMutableState.equipmentInstances,
-                        manualStacks = reusableMutableState.manualStacks,
-                        manualInstances = reusableMutableState.manualInstances,
-                        pills = reusableMutableState.pills,
-                        materials = reusableMutableState.materials,
-                        herbs = reusableMutableState.herbs,
-                        seeds = reusableMutableState.seeds,
-                        storageBags = reusableMutableState.storageBags,
-                        teams = reusableMutableState.teams,
-                        battleLogs = reusableMutableState.battleLogs,
-                        alliances = reusableMutableState.gameData.alliances,
-                        isPaused = finalPaused,
-                        isLoading = finalLoading,
-                        isSaving = finalSaving,
-                        pendingBattleResult = oldState.pendingBattleResult,
-                        pendingNotification = if (blockChangedNotification) reusableMutableState.pendingNotification else oldState.pendingNotification
-                    )
-                }
+                val finalPaused = if (_isPaused.value != curPaused) _isPaused.value else reusableMutableState.isPaused
+                val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading
+                val finalSaving = if (_isSaving.value != curSaving) _isSaving.value else reusableMutableState.isSaving
+                _isPaused.value = finalPaused
+                _isLoading.value = finalLoading
+                _isSaving.value = finalSaving
+                if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
+                if (reusableMutableState.disciples !== curDisc) _disciplesFlow.value = reusableMutableState.disciples
+                if (reusableMutableState.equipmentStacks !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks
+                if (reusableMutableState.equipmentInstances !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances
+                if (reusableMutableState.manualStacks !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks
+                if (reusableMutableState.manualInstances !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances
+                if (reusableMutableState.pills !== curP) _pillsFlow.value = reusableMutableState.pills
+                if (reusableMutableState.materials !== curMat) _materialsFlow.value = reusableMutableState.materials
+                if (reusableMutableState.herbs !== curH) _herbsFlow.value = reusableMutableState.herbs
+                if (reusableMutableState.seeds !== curS) _seedsFlow.value = reusableMutableState.seeds
+                if (reusableMutableState.storageBags !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags
+                if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
+                if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
+                if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
             } finally {
                 currentTransactionState = null
             }
@@ -719,27 +690,6 @@ class GameStateStore @Inject constructor(
             _storageBagsFlow.value = storageBags
             _teamsFlow.value = teams
             _battleLogsFlow.value = battleLogs
-            _state.update {
-                UnifiedGameState(
-                    gameData = gameData,
-                    disciples = disciples,
-                    equipmentStacks = equipmentStacks,
-                    equipmentInstances = equipmentInstances,
-                    manualStacks = manualStacks,
-                    manualInstances = manualInstances,
-                    pills = pills,
-                    materials = materials,
-                    herbs = herbs,
-                    seeds = seeds,
-                    storageBags = emptyList(),
-                    teams = teams,
-                    battleLogs = battleLogs,
-                    alliances = gameData.alliances,
-                    isPaused = isPaused,
-                    isLoading = isLoading,
-                    isSaving = isSaving
-                )
-            }
             _isPaused.value = isPaused
             _isLoading.value = isLoading
             _isSaving.value = isSaving
@@ -766,7 +716,6 @@ class GameStateStore @Inject constructor(
             _battleLogsFlow.value = emptyList()
             _pendingBattleResultFlow.value = null
             _pendingNotificationFlow.value = null
-            _state.update { UnifiedGameState() }
             _isPaused.value = true
             _isLoading.value = false
             _isSaving.value = false

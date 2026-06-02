@@ -9,7 +9,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
-import com.xianxia.sect.core.engine.coordinator.SavePipeline
+import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase

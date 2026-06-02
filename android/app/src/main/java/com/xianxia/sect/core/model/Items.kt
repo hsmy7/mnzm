@@ -11,7 +11,7 @@ import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.engine.CombatSkill
+import com.xianxia.sect.core.engine.domain.battle.CombatSkill
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
