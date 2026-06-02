@@ -35,7 +35,9 @@ class SettlementCoordinator @Inject constructor(
     private val scheduler: SettlementScheduler,
     private val metricsCollector: SettlementMetricsCollector
 ) {
+    @Volatile
     private var shadowState: MutableGameState? = null
+    @Volatile
     private var currentCache: SettlementCache? = null
 
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
@@ -48,11 +50,23 @@ class SettlementCoordinator @Inject constructor(
         val timeBudgetNs = (timeBudgetMs * 1_000_000).toLong()
             .coerceAtMost(SettlementScheduler.DEFAULT_TIME_BUDGET_NS)
 
-        val completed = scheduler.executeStep(shadow, timeBudgetNs)
-        if (completed) {
-            onSettlementComplete()
+        return try {
+            val completed = scheduler.executeStep(shadow, timeBudgetNs)
+            if (completed) {
+                onSettlementComplete()
+            }
+            completed
+        } catch (e: Exception) {
+            Log.e(TAG, "Settlement executeStep failed — resetting coordinator to recover", e)
+            resetOnError()
+            false
         }
-        return completed
+    }
+
+    private fun resetOnError() {
+        shadowState = null
+        currentCache = null
+        scheduler.reset()
     }
 
     fun scheduleMonthly(shadow: MutableGameState) {

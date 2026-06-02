@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [3.1.98] - 2026-06-02
+
+### 修复
+- **游戏时间停止**：`SettlementCoordinator.executeStep()` 新增异常恢复机制。结算阶段异常时自动重置状态，不再导致 `hasPendingWork` 死锁卡死游戏。`shadowState`/`currentCache` 加 `@Volatile` 解决 UI 线程并发访问
+- **功法选择不显示**：`GameViewModel.manualStacks` 移除全局储物袋过滤逻辑（原逻辑遍历所有弟子背包排除功法 ID，导致某弟子背包中的功法在其他弟子的选择界面也被隐藏）
+
 ## [3.1.97] - 2026-06-02
 
 ### 优化
