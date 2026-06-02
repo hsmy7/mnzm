@@ -185,12 +185,36 @@ class GameEngine @Inject constructor(
     suspend fun ensureHeavyDataLoaded() {
         if (heavyDataLoaded) return
         val slot = stateStore.gameDataSnapshot.currentSlot
-        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
-        if (heavyDataList.isEmpty()) {
+
+        // 安全加载：逐 key 读取并重组分块，跳过超过 CursorWindow 限制的单行
+        val keys = try {
+            database.gameHeavyDataDao().getLoadedKeys(slot)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load heavy data keys, heavy data will be regenerated", e)
             heavyDataLoaded = true
             return
         }
-        val heavyMap = heavyDataList.associate { it.dataKey to it.dataValue }
+        if (keys.isEmpty()) {
+            heavyDataLoaded = true
+            return
+        }
+
+        val heavyRows = mutableListOf<GameHeavyData>()
+        for (key in keys) {
+            try {
+                val row = database.gameHeavyDataDao().getByKey(slot, key)
+                if (row != null) heavyRows.add(row)
+            } catch (e: Exception) {
+                Log.w(TAG, "Heavy data key '$key' too large for CursorWindow, will be regenerated on next save", e)
+                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (_: Exception) {}
+            }
+        }
+        if (heavyRows.isEmpty()) {
+            heavyDataLoaded = true
+            return
+        }
+
+        val heavyMap = GameHeavyData.reassemble(heavyRows)
         val converters = com.xianxia.sect.data.local.ProtobufConverters
         stateStore.update {
             val current = this.gameData
@@ -207,7 +231,7 @@ class GameEngine @Inject constructor(
             }
         }
         heavyDataLoaded = true
-        Log.d(TAG, "ensureHeavyDataLoaded: loaded ${heavyDataList.size} heavy data entries for slot $slot")
+        Log.d(TAG, "ensureHeavyDataLoaded: loaded ${heavyRows.size} heavy data rows for slot $slot")
     }
 
     suspend fun loadData(

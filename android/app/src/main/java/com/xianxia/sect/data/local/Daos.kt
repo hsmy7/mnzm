@@ -1110,6 +1110,9 @@ interface GameHeavyDataDao {
 
     @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId AND data_key = :key")
     suspend fun deleteByKey(slotId: Int, key: String)
+
+    @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId AND data_key LIKE :pattern")
+    suspend fun deleteByKeyPattern(slotId: Int, pattern: String)
 }
 
 @Dao

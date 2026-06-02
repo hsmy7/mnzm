@@ -598,13 +598,25 @@ class StorageEngine @Inject internal constructor(
         Log.d(TAG, "writeAllDataToDatabase: slot=$slot, ${data.disciples.size} disciples, recruitList=${data.gameData.recruitList.size} unrecruited disciples")
 
         val converters = ProtobufConverters
+        val now = System.currentTimeMillis()
         val heavyEntries = listOf(
-            GameHeavyData(slot, GameHeavyData.KEY_AI_SECT_DISCIPLES, converters.fromDiscipleListMap(data.gameData.aiSectDisciples), System.currentTimeMillis()),
-            GameHeavyData(slot, GameHeavyData.KEY_SECT_DETAILS, converters.fromSectDetailMap(data.gameData.sectDetails), System.currentTimeMillis()),
-            GameHeavyData(slot, GameHeavyData.KEY_EXPLORED_SECTS, converters.fromExploredSectInfoMap(data.gameData.exploredSects), System.currentTimeMillis()),
-            GameHeavyData(slot, GameHeavyData.KEY_SCOUT_INFO, converters.fromSectScoutInfoMap(data.gameData.scoutInfo), System.currentTimeMillis()),
-            GameHeavyData(slot, GameHeavyData.KEY_MANUAL_PROFICIENCIES, converters.fromManualProficiencyDataMap(data.gameData.manualProficiencies), System.currentTimeMillis())
+            GameHeavyData.KEY_AI_SECT_DISCIPLES to converters.fromDiscipleListMap(data.gameData.aiSectDisciples),
+            GameHeavyData.KEY_SECT_DETAILS to converters.fromSectDetailMap(data.gameData.sectDetails),
+            GameHeavyData.KEY_EXPLORED_SECTS to converters.fromExploredSectInfoMap(data.gameData.exploredSects),
+            GameHeavyData.KEY_SCOUT_INFO to converters.fromSectScoutInfoMap(data.gameData.scoutInfo),
+            GameHeavyData.KEY_MANUAL_PROFICIENCIES to converters.fromManualProficiencyDataMap(data.gameData.manualProficiencies)
         )
+
+        // 分块写入：单行 data_value 超过 900KB 时自动拆分为多行，防止 CursorWindow 溢出
+        val allChunkedEntries = mutableListOf<GameHeavyData>()
+        for ((key, value) in heavyEntries) {
+            // 清除旧分块
+            database.gameHeavyDataDao().deleteByKeyPattern(slot, "${key}_chunk_%")
+            database.gameHeavyDataDao().deleteByKey(slot, key)
+            // 分块写入
+            allChunkedEntries.addAll(GameHeavyData.chunk(slot, key, value, now))
+        }
+        database.gameHeavyDataDao().upsertAll(allChunkedEntries)
 
         val lightGameData = data.gameData.copy(
             slotId = slot,
@@ -617,9 +629,6 @@ class StorageEngine @Inject internal constructor(
             manualProficiencies = emptyMap()
         )
         database.gameDataDao().insert(lightGameData)
-
-        database.gameHeavyDataDao().deleteAllForSlot(slot)
-        database.gameHeavyDataDao().upsertAll(heavyEntries)
 
         database.discipleDao().deleteAll(slot)
         database.discipleCoreDao().deleteAll(slot)
@@ -755,9 +764,9 @@ class StorageEngine @Inject internal constructor(
     }
 
     private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData {
-        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
+        val heavyDataList = loadHeavyDataSafe(slot)
         if (heavyDataList.isEmpty()) return gameData
-        val heavyMap = heavyDataList.associate { it.dataKey to it.dataValue }
+        val heavyMap = GameHeavyData.reassemble(heavyDataList)
         val converters = ProtobufConverters
         return gameData.copy(
             aiSectDisciples = if (gameData.aiSectDisciples.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_AI_SECT_DISCIPLES)) converters.toDiscipleListMap(heavyMap[GameHeavyData.KEY_AI_SECT_DISCIPLES] ?: "") else gameData.aiSectDisciples,
@@ -769,8 +778,34 @@ class StorageEngine @Inject internal constructor(
     }
 
     suspend fun loadHeavyDataForSlot(slot: Int): Map<String, String> {
-        val heavyDataList = database.gameHeavyDataDao().getAllForSlot(slot)
-        return heavyDataList.associate { it.dataKey to it.dataValue }
+        val heavyDataList = loadHeavyDataSafe(slot)
+        return GameHeavyData.reassemble(heavyDataList)
+    }
+
+    /**
+     * 安全加载重型数据：逐 key 读取，跳过超过 CursorWindow 限制的单行。
+     * 跳过的数据会在下次保存时由游戏逻辑重新生成并分块存储。
+     */
+    private suspend fun loadHeavyDataSafe(slot: Int): List<GameHeavyData> {
+        val keys = try {
+            database.gameHeavyDataDao().getLoadedKeys(slot)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load heavy data keys for slot $slot, skipping", e)
+            return emptyList()
+        }
+
+        val result = mutableListOf<GameHeavyData>()
+        for (key in keys) {
+            try {
+                val row = database.gameHeavyDataDao().getByKey(slot, key)
+                if (row != null) result.add(row)
+            } catch (e: Exception) {
+                Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, will be regenerated on next save", e)
+                // 删除超大行，下次保存时会分块重写
+                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (_: Exception) {}
+            }
+        }
+        return result
     }
 
     private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData {
