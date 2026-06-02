@@ -14,6 +14,7 @@
 4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
 5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
 6. [增量保存与数据库](#增量保存与数据库)
+   - [重型数据分块存储](#重型数据分块存储-v3202)
 7. [Canvas 渲染管线](#canvas-渲染管线)
 8. [性能基础设施](#性能基础设施)
 9. [构建与 Profile](#构建与-profile)
@@ -326,6 +327,34 @@ class GameStateRepository {
 - `flushDirtyState()` 仅写入变化的表，脏字段间 `coroutineScope` 并行执行
 - `StorageEngine.incrementalSave(slot)` 从 unifiedState 快照提取脏数据，保存延迟从 ~200ms 降至 ~20ms
 
+### 重型数据分块存储 (v3.2.02)
+
+`game_heavy_data` 表存储 5 个重型字段（aiSectDisciples / sectDetails / exploredSects / scoutInfo / manualProficiencies），以 Protobuf Base64 TEXT 列存储。随游戏进程增长，`aiSectDisciples` 单行可超过 Android CursorWindow 2MB 限制导致 `SQLiteBlobTooBigException` 崩溃。
+
+**解决方案**：应用层分块 + 逐 key 安全加载，无需 DB Migration。
+
+```
+保存：data_value > 900KB → 自动拆分
+  aiSectDisciples → aiSectDisciples_chunk_0 (≤900KB)
+                   + aiSectDisciples_chunk_1 (≤900KB)
+                   + ...
+
+加载：逐 key 安全读取 → GameHeavyData.reassemble() 自动重组
+  getLoadedKeys() → for each key → getByKey() → 分块检测 → 拼接
+  单 key 超限 → 捕获异常 → 删除超大行 → 日志告警 → 下次保存时游戏逻辑重新生成
+```
+
+**关键类**：
+
+| 类/方法 | 职责 |
+|---------|------|
+| `GameHeavyData.chunk(slot, key, value)` | 拆分大字符串为 ≤900KB 分块条目 |
+| `GameHeavyData.reassemble(rows)` | 从原始行列表重组完整数据 map |
+| `GameHeavyDataDao.getLoadedKeys(slot)` | 仅读取 data_key 列（轻量，不触发 CursorWindow 限制） |
+| `GameHeavyDataDao.deleteByKeyPattern(slot, pattern)` | 清除旧分块（LIKE 匹配） |
+| `StorageEngine.loadHeavyDataSafe(slot)` | 逐 key 容错加载，跳过超大行 |
+| `GameEngine.ensureHeavyDataLoaded()` | 启动时安全加载重型数据到 GameData |
+
 ### SystemManager 依赖图并行 (v3.2.01)
 
 ```kotlin
@@ -570,6 +599,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
+| ~~P1~~ | ~~game_heavy_data 分块存储 — CursorWindow 溢出崩溃~~ | ~~消除加载闪退~~ | ✅ v3.2.02 |
 | ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.02 |
 | ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.02 |
 | ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.02 |
