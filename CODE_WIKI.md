@@ -1,18 +1,23 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-02 (v3.2.01)
+> 最后更新：2026-06-03 (v3.2.00 状态一致性修复)
 
 ## 目录
 
 1. [架构总览](#架构总览)
 2. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
 3. [状态管理 — GameStateStore](#状态管理--gamestatestore)
+   - [三层 StateFlow 拆分](#v3201-架构三层-stateflow-拆分)
+   - [状态一致性 — Mutex 序列化](#状态一致性统一-mutex-序列化v3200-修复)
+   - [字段合并策略](#字段合并策略)
+   - [Do's and Don'ts](#dos-and-donts)
 4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
 5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
 6. [增量保存与数据库](#增量保存与数据库)
 7. [Canvas 渲染管线](#canvas-渲染管线)
 8. [性能基础设施](#性能基础设施)
 9. [构建与 Profile](#构建与-profile)
+   - [测试架构](#测试架构v3200-新增)
 10. [后续优化项](#后续优化项)
 
 ---
@@ -26,7 +31,7 @@
 │   - Dialogs managed by DialogStateManager        │
 ├──────────────────────────────────────────────────┤
 │ Layer 1: GameEngineCore + GameEngine             │
-│   - EngineCore: game loop (1000ms tick)          │
+│   - EngineCore: game loop (200ms tick)          │
 │   - Engine: business logic (cultivation, battle, │
 │     production, diplomacy, exploration, etc.)    │
 │   - Writes to GameStateStore via update()        │
@@ -225,13 +230,14 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 
 所有修改必须经过以下受控入口，确保独立流与 `_state` 同步：
 
-| 入口 | 方法 | 适用场景 |
-|------|------|---------|
-| **主事务** | `suspend fun update(block)` | tick 驱动更新、玩家操作 |
-| **快照加载** | `suspend fun loadFromSnapshot(...)` | 存档加载 |
-| **结算合并** | `fun swapFromShadow(shadow)` | 月度/年度结算 |
-| **直接更新** | `updateGameDataDirect()` / `updateXxxDirect()` | 特定字段 UI 快速更新 |
-| **重置** | `suspend fun reset()` | 新游戏 / 清档 |
+| 入口 | 方法 | 并发保护 | 适用场景 |
+|------|------|---------|---------|
+| **主事务** | `suspend fun update(block)` | `transactionMutex.withLock { }` | tick 驱动更新、玩家操作 |
+| **快照加载** | `suspend fun loadFromSnapshot(...)` | `transactionMutex.withLock { }` | 存档加载 |
+| **结算合并** | `suspend fun swapFromShadow(shadow)` | 在 `update { }` 内执行 | 月度/年度结算 |
+| **重置** | `suspend fun reset()` | `transactionMutex.withLock { }` | 新游戏 / 清档 |
+
+> ⚠️ `updateGameDataDirect()` / `updateXxxDirect()` 方法已废弃（v3.2.00）。这些方法直接写 StateFlow.value，绕过 `transactionMutex`，存在竞态条件。所有外部调用已迁移到 `stateStore.update { }`。保留仅为内部兼容，不建议新代码使用。
 
 ### 向后兼容
 
@@ -242,6 +248,60 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 - `discipleAggregates`：`ConcurrentHashMap<String, DiscipleAggregate>` 按弟子 ID 缓存，`sourceRef === disciple` 引用有效性检查
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
+
+### 状态一致性：统一 Mutex 序列化（v3.2.00 修复）
+
+#### 问题背景
+
+`swapFromShadow()` 直接读写 `_xxxFlow.value` 绕过 `transactionMutex`，与玩家操作（`stateStore.update { }`）形成竞态条件，导致状态回退（弟子身份/状态/灵草种植被覆盖）。
+
+#### 解决方案
+
+```
+修复前：                            修复后：
+玩家操作 ──→ update { mutex }       玩家操作 ──→ update { mutex }
+结算合并 ──→ swapFromShadow() 无锁   结算合并 ──→ update { mutex }
+              ↑ 竞态                          ↑ 互斥序列化
+```
+
+- `swapFromShadow()` 改为 `suspend fun`，整个合并包裹在 `stateStore.update { }` 中
+- `shadowOrigin` 在锁外读取（`@Volatile`），合并和写回在锁内
+- 所有 `updateXxxDirect()` 外部调用清零：`GameEngine.kt` 2 处 + `CultivationService.kt` 12 处全部迁移到 `stateStore.update { }`
+
+#### 状态读取规范
+
+| 场景 | ✅ 正确 | ❌ 错误 |
+|------|---------|---------|
+| 业务逻辑读 | `stateStore.disciples.value`（直接 StateFlow，零延迟） | `stateStore.unifiedState.value.disciples`（`stateIn` 有调度延迟） |
+| UI 订阅 | `store.disciples.collectAsState()` | — |
+| 事务内读 | `MutableGameState.disciples`（当前事务数据） | 读取外部 StateFlow |
+
+#### 字段合并策略
+
+**GameData**：`@SettlementStrategy` 注解驱动 + `GameDataSettlementCoverageTest` 编译期检查。
+
+**Disciple**：`mergeDiscipleAfterSettlement()` 集中管理 + `DiscipleMergeCoverageTest` 编译期检查。
+
+```
+mergeDiscipleAfterSettlement(main, shadow, origin):
+  ├── 结算修改字段（从 shadow 取值）
+  │   cultivation, realm, realmLayer, lifespan, skills,
+  │   cultivationSpeedBonus/Duration, pillEffects, isAlive
+  │   equipment*, combat*, manualIds* (conditional)
+  └── 玩家操作字段（显式保留）
+      discipleType, status, statusData
+  ← 其他所有字段由 copy() 默认保留
+```
+
+#### Do's and Don'ts
+
+| ✅ DO | ❌ DON'T |
+|-------|---------|
+| 所有状态修改用 `stateStore.update { }` | 直接写 `_xxxFlow.value` |
+| 读取快照用直接 StateFlow（`disciples.value`） | 在业务逻辑中读 `unifiedState.value` |
+| 多步操作合并到一个 `update { }` | `updateGameData()` + `syncAllDiscipleStatuses()` 分两步 |
+| 新增 Disciple 字段时更新 `DiscipleMergeCoverageTest` | 新增字段不分类 |
+| 新增 GameData 字段时加 `@SettlementStrategy` | 新增字段不加注解 |
 
 ### 增量保存与脏追踪 (v3.2.01)
 
@@ -303,7 +363,7 @@ private suspend fun executeInParallelGroups(state, action) {
 
 | 参数 | 值 | 位置 |
 |------|-----|------|
-| TICK_INTERVAL_MS | 1000ms | `GameEngineCore.kt:60` |
+| TICK_INTERVAL_MS | 200ms | `GameEngineCore.kt:60` |
 | MIN_TICK_DELAY_MS | 50ms | `GameEngineCore.kt:61` |
 | ADAPTIVE_MAX_INTERVAL_MS | 2000ms | `GameEngineCore.kt:65` |
 | 自适应策略 | 连续 3 次超时 → ×1.5；正常后 ×0.8 恢复 | `GameEngineCore.kt:158-169` |
@@ -332,7 +392,9 @@ tickInternal()
     → stateStore.createShadow()  // 快照当前状态
     → settlementCoordinator.scheduleMonthly(shadow)  // 调度结算阶段
   → executeStep(timeBudgetMs=1)  // 每 tick 执行 1ms 预算的结算
-    → 完成? → onSettlementComplete() → swapFromShadow() → 结算数据写入 _state
+    → 完成? → onSettlementComplete() [suspend]
+      → swapFromShadow() [suspend, 在 stateStore.update { } 内]
+        → mergeGameData() + mergeDiscipleAfterSettlement() → 写回主状态
 ```
 
 ### 结算阶段（按月）
@@ -445,6 +507,20 @@ class FrameMetricsMonitor {
 
 ## 构建与 Profile
 
+### 测试架构（v3.2.00 新增）
+
+| 测试类 | 目的 | 测试数 |
+|--------|------|--------|
+| `StateRevertRegressionTest` | 状态回退 bug 不重现：玩家字段保留、身份不丢失、灵草不丢失 | 3 |
+| `DiscipleMergeCoverageTest` | **编译期安全网**：Disciple 新增字段强制归类到结算修改/玩家操作/不变 | 4 |
+| `GameDataSettlementCoverageTest` | **编译期安全网**：GameData 每个字段必须有 `@SettlementStrategy` 注解 | 1 |
+
+```bash
+cd android && ./gradlew.bat test                              # 全部测试 (~930)
+cd android && ./gradlew.bat testDebugUnitTest \
+    --tests "com.xianxia.sect.core.state.*"                    # 状态层测试
+```
+
 ### 版本
 
 | 字段 | 值 |
@@ -482,6 +558,11 @@ class FrameMetricsMonitor {
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
+| P2 | Disciple 字段注解驱动合并（参照 `@SettlementStrategy` 模式） | 消除手工字段分类 | 待实施 |
+| P2 | `GameStateStore.updateXxxDirect` 方法移除 | 减少 API 表面积 | 待实施（零外部调用） |
+| P3 | 并发压力测试（100+ 协程高强度并发） | 验证极端场景 | 待实施 |
+| P3 | 结算与玩家操作的细粒度锁（分片 Mutex） | 减少锁竞争（当前无瓶颈） | 待实施 |
+| P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 | P1 | `snapshotFlow` 用于修炼进度条等逐帧动画（绕过重组） | 减少高频动画重组 | 待实施 |
 | P1 | FrameMetrics 接入 UnifiedPerformanceMonitor 统一框架 | 监控统一 | 待实施 |
 | P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 | 待实施 |
@@ -489,6 +570,10 @@ class FrameMetricsMonitor {
 | P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
+| ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.00 |
+| ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.00 |
+| ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.00 |
+| ~~P2~~ | ~~状态回退回归测试~~ | ~~防止回归~~ | ✅ v3.2.00 |
 | ~~P1~~ | ~~FrameMetricsAggregator 集成~~ | ~~已完成~~ (v3.2.01) | ✅ |
 | ~~P2~~ | ~~3 层 StateFlow 拆分~~ | ~~已完成~~ (v3.2.01) | ✅ |
 | ~~持续~~ | ~~UI 消费者从 unifiedState 迁移到独立子流~~ | ~~已完成~~ (v3.2.01) | ✅ |

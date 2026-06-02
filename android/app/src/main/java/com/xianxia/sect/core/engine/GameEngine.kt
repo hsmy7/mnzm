@@ -2210,12 +2210,10 @@ class GameEngine @Inject constructor(
         // If win, generate rewards and handle occupation
         if (battleResult.winner == AIBattleWinner.ATTACKER) {
             val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
-            stateStore.updateDisciplesDirect { disciples ->
-                disciples.map { d ->
-                    if (d.id in sectSurvivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1)
-                    else d
-                }
-            }
+            stateStore.update { disciples = disciples.map { d ->
+                if (d.id in sectSurvivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1)
+                else d
+            } }
 
             val warRewards: WarRewards
             if (battleResult.canOccupy) {
@@ -2475,40 +2473,38 @@ class GameEngine @Inject constructor(
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         if (result.victory) {
-            stateStore.updateDisciplesDirect { disciples ->
-                disciples.map { d ->
-                    if (d.id in survivorIds && d.isAlive) {
-                        var modified = d.copyWith(soulPower = d.soulPower + 1)
-                        if (modified.talentIds.any { id ->
-                            TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true
-                        }) {
-                            val r = kotlin.random.Random.nextInt(17)
-                            val s = modified.skills
-                            val c = modified.combat
-                            when (r) {
-                                0 -> s.intelligence++
-                                1 -> s.comprehension++
-                                2 -> s.charm++
-                                3 -> s.loyalty++
-                                4 -> s.artifactRefining++
-                                5 -> s.pillRefining++
-                                6 -> s.spiritPlanting++
-                                7 -> s.mining++
-                                8 -> s.teaching++
-                                9 -> s.morality++
-                                10 -> c.baseHp++
-                                11 -> c.baseMp++
-                                12 -> c.basePhysicalAttack++
-                                13 -> c.baseMagicAttack++
-                                14 -> c.basePhysicalDefense++
-                                15 -> c.baseMagicDefense++
-                                16 -> c.baseSpeed++
-                            }
+            stateStore.update { disciples = disciples.map { d ->
+                if (d.id in survivorIds && d.isAlive) {
+                    var modified = d.copyWith(soulPower = d.soulPower + 1)
+                    if (modified.talentIds.any { id ->
+                        TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true
+                    }) {
+                        val r = kotlin.random.Random.nextInt(17)
+                        val s = modified.skills
+                        val c = modified.combat
+                        when (r) {
+                            0 -> s.intelligence++
+                            1 -> s.comprehension++
+                            2 -> s.charm++
+                            3 -> s.loyalty++
+                            4 -> s.artifactRefining++
+                            5 -> s.pillRefining++
+                            6 -> s.spiritPlanting++
+                            7 -> s.mining++
+                            8 -> s.teaching++
+                            9 -> s.morality++
+                            10 -> c.baseHp++
+                            11 -> c.baseMp++
+                            12 -> c.basePhysicalAttack++
+                            13 -> c.baseMagicAttack++
+                            14 -> c.basePhysicalDefense++
+                            15 -> c.baseMagicDefense++
+                            16 -> c.baseSpeed++
                         }
-                        modified
-                    } else d
-                }
-            }
+                    }
+                    modified
+                } else d
+            } }
 
             val allRewards = mutableListOf<BattleRewardItem>()
             stateStore.update {

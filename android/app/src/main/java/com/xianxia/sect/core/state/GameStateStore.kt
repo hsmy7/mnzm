@@ -519,32 +519,7 @@ class GameStateStore @Inject constructor(
                     if (originDisciple == null || originDisciple === shadowDisciple) {
                         mainDisciple
                     } else {
-                        val diedInSettlement = originDisciple.isAlive && !shadowDisciple.isAlive
-                        val revivedInSettlement = !originDisciple.isAlive && shadowDisciple.isAlive
-                        val equipChanged = originDisciple.equipment != shadowDisciple.equipment
-                        val combatChanged = originDisciple.combat != shadowDisciple.combat
-                        val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
-                        mainDisciple.copy(
-                            cultivation = shadowDisciple.cultivation,
-                            realm = shadowDisciple.realm,
-                            realmLayer = shadowDisciple.realmLayer,
-                            lifespan = shadowDisciple.lifespan,
-                            equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
-                            combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
-                            manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
-                            skills = shadowDisciple.skills,
-                            cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
-                            cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
-                            pillEffects = shadowDisciple.pillEffects,
-                            isAlive = when {
-                                diedInSettlement || revivedInSettlement -> shadowDisciple.isAlive
-                                else -> mainDisciple.isAlive
-                            },
-                            // 玩家操作字段：始终保留玩家最新值，不被影子覆盖
-                            discipleType = mainDisciple.discipleType,
-                            status = mainDisciple.status,
-                            statusData = mainDisciple.statusData
-                        )
+                        mergeDiscipleAfterSettlement(mainDisciple, shadowDisciple, originDisciple)
                     }
                 }
             }
@@ -952,7 +927,75 @@ class GameStateStore @Inject constructor(
     }
 }
 
-fun fixStorageBagReferences(
+    // ==================== 弟子结算合并 ====================
+
+    /**
+     * 结算后合并弟子状态：将影子结算结果应用到主状态，同时保留玩家的操作。
+     *
+     * ## 字段分类
+     *
+     * **结算修改字段（从 shadow 取值）**：
+     * | 字段 | 说明 |
+     * |------|------|
+     * | cultivation, realm, realmLayer | 修炼进度、境界 |
+     * | lifespan | 寿命消耗 |
+     * | equipment (conditional) | 装备养成变化 |
+     * | combat (conditional) | 战斗属性变化 |
+     * | manualIds (conditional) | 功法变化 |
+     * | skills | 技能属性变化 |
+     * | cultivationSpeedBonus / Duration | 修炼buff |
+     * | pillEffects | 丹药效果变化 |
+     * | isAlive | 死亡/复活 |
+     *
+     * **玩家操作字段（显式保留主状态值）**：
+     * | 字段 | 说明 |
+     * |------|------|
+     * | discipleType | 内门/外门切换 |
+     * | status | 弟子状态（分配任务等） |
+     * | statusData | 状态数据 |
+     *
+     * **默认保留字段（copy() 自动保留，无需显式声明）**：
+     * autoLearnFromWarehouse, soulPower, talentIds, manualMasteries,
+     * gender, portraitRes, name, surname, spiritRootType, social, usage, age, slotId, id
+     *
+     * **⚠️ 新增 Disciple 字段时**：判断该字段属于上述哪一类，
+     * 若是结算修改字段 → 加入 copy() 参数列表；
+     * 若是玩家操作字段 → 加入显式保留列表。
+     */
+    private fun mergeDiscipleAfterSettlement(
+        mainDisciple: Disciple,
+        shadowDisciple: Disciple,
+        originDisciple: Disciple
+    ): Disciple {
+        val died = originDisciple.isAlive && !shadowDisciple.isAlive
+        val revived = !originDisciple.isAlive && shadowDisciple.isAlive
+        val equipChanged = originDisciple.equipment != shadowDisciple.equipment
+        val combatChanged = originDisciple.combat != shadowDisciple.combat
+        val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
+
+        return mainDisciple.copy(
+            // ── 结算修改字段 ──
+            cultivation = shadowDisciple.cultivation,
+            realm = shadowDisciple.realm,
+            realmLayer = shadowDisciple.realmLayer,
+            lifespan = shadowDisciple.lifespan,
+            skills = shadowDisciple.skills,
+            cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
+            cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
+            pillEffects = shadowDisciple.pillEffects,
+            isAlive = if (died || revived) shadowDisciple.isAlive else mainDisciple.isAlive,
+            // 仅当影子确实变化时才覆盖，避免无意义的新对象分配
+            equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
+            combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
+            manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
+            // ── 玩家操作字段（显式保留 — copy() 默认行为，但文档化以防遗漏）──
+            discipleType = mainDisciple.discipleType,
+            status = mainDisciple.status,
+            statusData = mainDisciple.statusData
+        )
+    }
+
+    fun fixStorageBagReferences(
     equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>,
     manualStacks: List<ManualStack>,
