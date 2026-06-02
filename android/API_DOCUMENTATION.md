@@ -16,8 +16,8 @@
 
 ```properties
 # TapTap SDK 配置
-TAPTAP_CLIENT_ID=csg5qlajcgr157ix01
-TAPTAP_CLIENT_TOKEN=bvDH35Gw2SCcgkmNFrmQxLi0xaMylxLXEB6VNMUK
+TAPTAP_CLIENT_ID=your_taptap_client_id_here
+TAPTAP_CLIENT_TOKEN=your_taptap_client_token_here
 TAPTAP_IS_CN=true
 
 # API 配置
