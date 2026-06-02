@@ -1,16 +1,17 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-02 (v3.1.97 性能优化)
+> 最后更新：2026-06-02 (v3.1.98)
 
 ## 目录
 
 1. [架构总览](#架构总览)
 2. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 3. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-4. [Canvas 渲染管线](#canvas-渲染管线)
-5. [性能基础设施](#性能基础设施)
-6. [构建与 Profile](#构建与-profile)
-7. [后续优化项](#后续优化项)
+4. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
+5. [Canvas 渲染管线](#canvas-渲染管线)
+6. [性能基础设施](#性能基础设施)
+7. [构建与 Profile](#构建与-profile)
+8. [后续优化项](#后续优化项)
 
 ---
 
@@ -105,6 +106,17 @@
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
 
+### 独立流一致性保证 (v3.1.98)
+
+独立 MutableStateFlow 的更新在 `_state.update {}` **之后**、`transactionMutex.withLock {}` **之内**执行，确保：
+- 不受 `_state.update {}` 内部 CAS 重试影响
+- `transactionMutex` 防止与 `updateGameDataDirect()` 等入口并发
+- `_state` 是最新值后再同步独立流，保证一致性
+
+### manualStacks 数据流
+
+`manualStacks` 直接从 `_manualStacksFlow` 透传，经 `GameViewModel` 以 `.stateIn()` 暴露给 UI。**不含**跨弟子背包过滤——功法选择 UI 自行按当前弟子的已学功法做同名去重。
+
 ---
 
 ## 游戏引擎 — GameEngineCore
@@ -129,6 +141,42 @@ startGameLoop() → Dispatchers.Default coroutine
     → settlement coordinator (shadow swap)
     → patrol battle results
 ```
+
+---
+
+## 结算管线 — SettlementCoordinator
+
+### 架构
+
+```
+tickInternal()
+  → monthChanged?
+    → stateStore.createShadow()  // 快照当前状态
+    → settlementCoordinator.scheduleMonthly(shadow)  // 调度结算阶段
+  → executeStep(timeBudgetMs=1)  // 每 tick 执行 1ms 预算的结算
+    → 完成? → onSettlementComplete() → swapFromShadow() → 结算数据写入 _state
+```
+
+### 结算阶段（按月）
+
+| 阶段 | 职责 |
+|------|------|
+| `Phase_BuildCache` | 构建 SettlementCache（脏标记、修炼速率） |
+| `Phase_FocusedDisciple` | 处理关注弟子（立即结算） |
+| `Phase_CleanDiscipleBatch` | 处理无变化弟子的被动增长 |
+| `Phase_DirtyDiscipleBatch` | 批量处理有变化弟子（突破、装备等） |
+| `Phase_Production` | 生产系统月结算 |
+| `Phase_WorldEvents` | 世界事件（探索、外交、生育等） |
+
+### 异常恢复 (v3.1.98)
+
+- `executeStep()` 包裹 try-catch，异常时调用 `resetOnError()` 清空 `shadowState`/`currentCache`/`scheduler`
+- `shadowState` / `currentCache` 标记 `@Volatile` 防止 UI 线程 `cancelPendingWork()` 并发问题
+- 结算异常 → 状态重置 → 下个 tick 正常继续 → 下个月重新结算（不丢数据，只推迟）
+
+### forceCompleteSettlement()
+
+当月变/年变时若仍有 pending 结算，循环执行 `executeStep(timeBudgetMs=5)` 直到完成。已在 `executeStep` 层面保护，不会死循环。
 
 ---
 
