@@ -1,5 +1,30 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.02] - 2026-06-03
+
+### 状态一致性修复（Bug 修复）
+
+**问题背景**
+- 切换弟子内门/外门身份后，过一会自动回退
+- 种植灵草后偶尔消失
+- 弟子脱离提示框重复弹出
+- 根因：月结算合并（swapFromShadow）与玩家操作并发执行，未通过同一把互斥锁序列化
+
+**修复内容**
+- **统一 Mutex 序列化**：`swapFromShadow()` 改为 `suspend fun`，整个结算合并过程包裹在 `stateStore.update { }` 事务中，与玩家操作走同一把 `transactionMutex`
+- **消除陈旧读取**：`DiscipleService` 的 `syncAllDiscipleStatuses()` 从读取 `unifiedState`（有 `stateIn` 调度延迟）改为读取直接 `StateFlow.value`（零延迟）
+- **原子化操作**：`changeDiscipleTypeAtomic()` 和 `updateGameDataAndSync()` 在单个事务中完成类型变更+状态同步
+- **字段保留加固**：提取 `mergeDiscipleAfterSettlement()` 集中管理弟子字段合并策略，结算修改字段与玩家操作字段明确分离
+- **全量迁移**：14 处 `updateXxxDirect` 调用（GameEngine 2 处 + CultivationService 12 处）全部迁移到 `stateStore.update { }`，绕过 mutex 的写入路径清零
+
+**编译期安全网**
+- **DiscipleMergeCoverageTest**：Disciple 新增主构造函数字段时强制归类（结算修改/玩家操作/不变），CI 失败阻止遗漏
+- **StateRevertRegressionTest**：3 个回归测试验证身份保留、灵草保留、字段完整性
+- 与已有 `GameDataSettlementCoverageTest`（`@SettlementStrategy` 注解检查）形成双安全网
+
+**架构文档**
+- CODE_WIKI 新增「状态一致性：统一 Mutex 序列化」章节，包含架构图、读取规范、Do's/Don'ts、字段合并策略表
+
 ## [3.2.01] - 2026-06-02
 
 ### 极致性能优化

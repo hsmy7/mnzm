@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.02",
+            date = "2026-06-03",
+            changes = listOf(
+                "修复切换弟子内门/外门身份后偶尔自动回退的问题（状态一致性全面加固）",
+                "修复种植灵草后偶尔消失的问题（结算合并与玩家操作不再冲突）",
+                "修复弟子脱离提示框重复弹出的问题",
+                "游戏状态修改全部纳入统一互斥保护，从架构层面杜绝状态回退类bug",
+                "新增编译期安全网：未来新增弟子/宗门数据字段时自动检查合并策略，防止遗漏"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.01",
             date = "2026-06-02",
             changes = listOf(

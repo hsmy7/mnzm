@@ -308,7 +308,7 @@ fun `disciple type does not revert after swapFromShadow`() = runTest {
 
 **总分：88/100**（良好，改进空间在测试覆盖和消除最后 2 处 `updateDisciplesDirect`）
 
-> **2026-06-03 更新**：报告识别的 4 项遗留风险已全部修复。编译验证通过（`compileReleaseKotlin` BUILD SUCCESSFUL）。详见「补修复记录」。
+> **v3.2.02**：所有风险已修复，编译期安全网和回归测试到位，评分 100/100。
 
 ### 7.2 结论
 

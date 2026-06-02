@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-03 (v3.2.00 状态一致性修复)
+> 最后更新：2026-06-03 (v3.2.02 状态一致性修复)
 
 ## 目录
 
@@ -249,7 +249,7 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
 
-### 状态一致性：统一 Mutex 序列化（v3.2.00 修复）
+### 状态一致性：统一 Mutex 序列化（v3.2.02 修复）
 
 #### 问题背景
 
@@ -507,7 +507,7 @@ class FrameMetricsMonitor {
 
 ## 构建与 Profile
 
-### 测试架构（v3.2.00 新增）
+### 测试架构（v3.2.02 新增）
 
 | 测试类 | 目的 | 测试数 |
 |--------|------|--------|
@@ -525,8 +525,8 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 字段 | 值 |
 |------|-----|
-| versionCode | 3201 |
-| versionName | 3.2.01 |
+| versionCode | 3202 |
+| versionName | 3.2.02 |
 | compileSdk / targetSdk | 35 |
 | minSdk | 24 |
 | Kotlin | 2.0.21 |
@@ -570,10 +570,10 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
-| ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.00 |
-| ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.00 |
-| ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.00 |
-| ~~P2~~ | ~~状态回退回归测试~~ | ~~防止回归~~ | ✅ v3.2.00 |
+| ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.02 |
+| ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.02 |
+| ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.02 |
+| ~~P2~~ | ~~状态回退回归测试~~ | ~~防止回归~~ | ✅ v3.2.02 |
 | ~~P1~~ | ~~FrameMetricsAggregator 集成~~ | ~~已完成~~ (v3.2.01) | ✅ |
 | ~~P2~~ | ~~3 层 StateFlow 拆分~~ | ~~已完成~~ (v3.2.01) | ✅ |
 | ~~持续~~ | ~~UI 消费者从 unifiedState 迁移到独立子流~~ | ~~已完成~~ (v3.2.01) | ✅ |
