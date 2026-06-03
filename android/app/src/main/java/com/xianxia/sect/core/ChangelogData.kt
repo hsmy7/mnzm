@@ -9,6 +9,19 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.05",
+            date = "2026-06-04",
+            changes = listOf(
+                "【弟子槽位统一】所有弟子槽位改为统一组件，新增分割横线分隔境界/精灵图/名称",
+                "修复功法熟练度月度结算后被回退的问题（manualProficiencies子条目delta合并）",
+                "修复灵田种植结算后被回退的问题（spiritFieldPlants合并器filter赋值Bug修复）",
+                "修复血炼池进度不增长的问题（activeBloodRefinements被结算覆盖）",
+                "血炼进度改为绿色进度条+剩余月份显示，移除全屏进行中界面",
+                "血炼中卸任/更换视为取消血炼（不消耗品阶次数，不退材料灵石）",
+                "血炼期间弟子死亡/脱离自动取消洗炼"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.04",
             date = "2026-06-03",
             changes = listOf(
@@ -20,8 +33,6 @@ object ChangelogData {
                 "支持多个血炼池同时洗炼不同弟子",
                 "新增庆祝邮件：200灵虎血免费领取（14天有效期）",
                 "邮件系统新增beastMaterial附件类型，支持指定妖兽材料发放",
-                "修复弟子功法熟练度在月度结算后被回退的问题（manualProficiencies改为子条目delta合并）",
-                "修复灵田种植在结算后被回退的问题（spiritFieldPlants合并器修复：玩家修改保留+filter赋值Bug）"
             )
         ),
         ChangelogEntry(
