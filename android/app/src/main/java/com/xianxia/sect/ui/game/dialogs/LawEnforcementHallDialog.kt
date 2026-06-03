@@ -39,7 +39,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
@@ -324,9 +324,10 @@ private fun ElderSlotItem(
             GameColors.Border
         }
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = elder,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onClick() },
             onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
@@ -365,9 +366,10 @@ private fun LawDiscipleSlotItem(
         )
         Spacer(modifier = Modifier.height(2.dp))
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onClick() },
             onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },

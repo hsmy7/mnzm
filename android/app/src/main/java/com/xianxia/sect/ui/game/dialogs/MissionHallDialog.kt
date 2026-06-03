@@ -29,8 +29,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -475,9 +474,9 @@ private fun MissionDiscipleSlot(
             )
         }
 
-        UnifiedDiscipleSlot(
+        DiscipleSlot(
             disciple = disciple,
-            onClick = { onClick() }
+            onSlotClick = { onClick() }
         )
     }
 }
@@ -666,8 +665,9 @@ private fun MissionDispatchDialog(
                             val slotIndex = row * 3 + col
                             val discipleId = selectedSlotIds[slotIndex]
                             val disciple = discipleId?.let { discipleMap[it] }
-                            DiscipleSlotWithActions(
+                            DiscipleSlot(
                                 disciple = disciple,
+                                showActions = true,
                                 onSlotClick = {
                                     if (disciple != null) {
                                         viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))

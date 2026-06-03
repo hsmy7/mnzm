@@ -35,8 +35,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -148,9 +147,10 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
             GameColors.Border
         }
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = config.elder,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { config.onClick() },
             onEmptySlotClick = { config.onSwap() },
             onDismiss = { config.onRemove() },
@@ -243,9 +243,10 @@ private fun PeakPreachingMasterSlotItem(
         }
         Spacer(modifier = Modifier.height(2.dp))
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onClick() },
             onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },

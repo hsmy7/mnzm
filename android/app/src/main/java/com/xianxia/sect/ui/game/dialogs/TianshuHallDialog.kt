@@ -29,7 +29,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
@@ -91,8 +91,9 @@ fun TianshuHallDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        DiscipleSlotWithActions(
+                        DiscipleSlot(
                             disciple = viceSectMaster,
+                            showActions = true,
                             onSlotClick = { viceSectMaster?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                             onEmptySlotClick = { showViceSectMasterSelectDialog = true },
                             onDismiss = { productionViewModel.removeViceSectMaster() },

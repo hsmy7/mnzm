@@ -96,8 +96,9 @@ fun BloodRefiningPoolDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    DiscipleSlotWithActions(
+                    DiscipleSlot(
                         disciple = uiState.selectedDisciple,
+                        showActions = true,
                         onSlotClick = { },
                         onEmptySlotClick = { showDiscipleSelection = true },
                         onDismiss = { bloodRefiningViewModel.selectDisciple(null) },

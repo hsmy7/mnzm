@@ -48,7 +48,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
@@ -166,9 +166,10 @@ private fun HerbGardenDirectDiscipleSlotItem(
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = disciple,
         borderColor = borderColor,
+        showActions = true,
         onSlotClick = { onSlotClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },

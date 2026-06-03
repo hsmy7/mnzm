@@ -18,7 +18,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -145,8 +145,9 @@ private fun ScoutSlotBox(
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = disciple,
+        showActions = true,
         onSlotClick = { onSlotClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },

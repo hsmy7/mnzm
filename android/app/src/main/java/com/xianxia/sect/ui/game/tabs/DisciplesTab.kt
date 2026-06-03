@@ -70,7 +70,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -221,8 +221,9 @@ internal fun ElderSlotWithDisciples(
         )
         Spacer(modifier = Modifier.height(4.dp))
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = elder,
+            showActions = true,
             onSlotClick = { onElderClick() },
             onEmptySlotClick = { onElderSwap() },
             onDismiss = { onElderRemove() },
@@ -270,8 +271,9 @@ internal fun DirectDiscipleSlotItem(
     onRemove: () -> Unit,
     onSwap: () -> Unit = {}
 ) {
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = if (isActive) disciple else null,
+        showActions = true,
         onSlotClick = { onClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onRemove() },

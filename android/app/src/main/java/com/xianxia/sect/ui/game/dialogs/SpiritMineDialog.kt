@@ -35,8 +35,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
@@ -318,9 +317,10 @@ private fun SpiritMineDeaconSlotItem(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = if (deaconSlot.isActive) disciple else null,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onSlotClick() },
             onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
@@ -350,9 +350,10 @@ private fun SpiritMineSlotItem(
         } else {
             GameColors.Border
         }
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = if (slot.discipleId.isNotEmpty()) disciple else null,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onSlotClick() },
             onEmptySlotClick = { onAssign() },
             onDismiss = { onRemove() },

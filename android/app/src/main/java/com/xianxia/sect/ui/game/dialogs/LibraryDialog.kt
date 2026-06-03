@@ -29,7 +29,7 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -137,9 +137,10 @@ private fun LibrarySlotItem(
         } else {
             GameColors.Border
         }
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = if (slot.discipleId.isNotEmpty()) disciple else null,
             borderColor = borderColor,
+            showActions = true,
             onSlotClick = { onSlotClick() },
             onEmptySlotClick = { onAssign() },
             onDismiss = { onRemove() },

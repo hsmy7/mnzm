@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -360,11 +362,165 @@ private fun SlotContent(
     }
 }
 
+// ==================== 统一弟子槽位 ====================
+
+/**
+ * 统一的弟子槽位组件。
+ * 所有弟子槽位（生产、建筑、战斗等）共用此组件。
+ *
+ * 布局：境界 → 分割线 → 精灵图 → 分割线 → 名称
+ * 分割线样式与 DiscipleDetailScreen 标签页一致。
+ */
+@Composable
+fun DiscipleSlot(
+    disciple: DiscipleAggregate?,
+    modifier: Modifier = Modifier,
+    borderColor: Color = GameColors.Border,
+    showActions: Boolean = false,
+    onSlotClick: () -> Unit = {},
+    onEmptySlotClick: () -> Unit = {},
+    onDismiss: (() -> Unit)? = null,
+    onSwap: (() -> Unit)? = null
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        // 槽位本体
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(88.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (disciple != null) Color.White else GameColors.PageBackground)
+                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+                .clickable {
+                    if (disciple != null) onSlotClick() else onEmptySlotClick()
+                }
+        ) {
+            if (disciple != null) {
+                val dividerColor = Color(0xFF757575)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // 境界（顶部）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(16.dp)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = disciple.realmName,
+                            fontSize = 9.sp,
+                            color = Color.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // 分割线
+                    HorizontalDivider(thickness = 1.dp, color = dividerColor)
+                    // 精灵图（中部）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (disciple.isAlive) {
+                            val context = LocalContext.current
+                            val portraitRes = disciple.portraitRes
+                            val isBeastPortrait = portraitRes.startsWith("beast_")
+                            val portraitResId = remember(portraitRes) {
+                                if (isBeastPortrait) {
+                                    val suffix = portraitRes.removePrefix("beast_")
+                                    val index = suffix.toIntOrNull() ?: -1
+                                    if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                                    else if (index > 0) index
+                                    else 0
+                                } else PortraitPool.getResourceId(context, portraitRes)
+                            }
+                            Image(
+                                painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                                          else painterResource(id = R.drawable.disciple_portrait),
+                                contentDescription = null,
+                                modifier = Modifier.width(40.dp).height(48.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Text(
+                                text = "死亡",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFF44336),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    // 分割线
+                    HorizontalDivider(thickness = 1.dp, color = dividerColor)
+                    // 名称（底部）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(16.dp)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = disciple.name,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "+",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+        }
+
+        // 操作按钮（可选）
+        if (showActions && disciple != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (onDismiss != null) {
+                    Text(
+                        text = "卸任",
+                        fontSize = 9.sp,
+                        color = Color(0xFFE53935),
+                        modifier = Modifier.clickable { onDismiss() }
+                    )
+                }
+                if (onSwap != null) {
+                    Text(
+                        text = "更换",
+                        fontSize = 9.sp,
+                        color = Color.Black,
+                        modifier = Modifier.clickable { onSwap() }
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * 统一的弟子槽位：固定 52×88dp，内部显示名称 + 头像 + 境界。
  * 空态显示 "+"，有弟子显示名称 + 肖像图 + 境界名。
  * 额外信息（血条、属性等）由调用方在槽位外部自行处理。
  */
+@Deprecated("请使用 DiscipleSlot 替代", ReplaceWith("DiscipleSlot(disciple, modifier, borderColor, onClick = onClick)"))
 @Composable
 fun UnifiedDiscipleSlot(
     disciple: DiscipleAggregate?,
@@ -405,6 +561,7 @@ fun UnifiedDiscipleSlot(
  * 已占：点击槽位触发 [onSlotClick]，下方显示"卸任"/"更换"按钮。
  * 空置：点击槽位触发 [onEmptySlotClick]。
  */
+@Deprecated("请使用 DiscipleSlot(showActions=true) 替代", ReplaceWith("DiscipleSlot(disciple, borderColor = borderColor, showActions = true, onSlotClick = onSlotClick, onEmptySlotClick = onEmptySlotClick, onDismiss = onDismiss, onSwap = onSwap, modifier = modifier)"))
 @Composable
 fun DiscipleSlotWithActions(
     disciple: DiscipleAggregate?,

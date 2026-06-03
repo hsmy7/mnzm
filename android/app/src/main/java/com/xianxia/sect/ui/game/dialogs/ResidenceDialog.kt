@@ -155,9 +155,9 @@ fun ResidenceDialog(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        UnifiedDiscipleSlot(
+                        DiscipleSlot(
                             disciple = disciple,
-                            onClick = {
+                            onSlotClick = {
                                 if (disciple != null) {
                                     // Clicking occupied slot does nothing special in this design
                                 } else {

@@ -42,8 +42,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
@@ -246,9 +245,10 @@ fun ProductionElderSection(
             ElderBonusInfoButton(bonusInfo = theme.elderBonusInfo)
         }
 
-        DiscipleSlotWithActions(
+        DiscipleSlot(
             disciple = elder,
             borderColor = elderBorderColor,
+            showActions = true,
             onSlotClick = { onSlotClick() },
             onEmptySlotClick = { onSwap() },
             onDismiss = { onElderRemove() },
@@ -306,9 +306,10 @@ private fun ProductionDirectDiscipleSlotItem(
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = disciple,
         borderColor = borderColor,
+        showActions = true,
         onSlotClick = { onSlotClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },

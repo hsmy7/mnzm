@@ -41,7 +41,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
@@ -446,9 +446,10 @@ private fun GarrisonSlotBox(
         GameColors.Border
     }
 
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = disciple,
         borderColor = borderColor,
+        showActions = true,
         onSlotClick = { onClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onRemoveClick() },

@@ -38,8 +38,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -127,8 +126,9 @@ fun AlchemyDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    DiscipleSlotWithActions(
+                    DiscipleSlot(
                         disciple = workerDisciple,
+                        showActions = true,
                         onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
                         onEmptySlotClick = { showWorkerSelection = true },
                         onDismiss = { alchemyViewModel.removeWorker(buildingIndex) },

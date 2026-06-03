@@ -29,8 +29,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
@@ -165,8 +164,9 @@ private fun AttackSlotBox(
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
-    DiscipleSlotWithActions(
+    DiscipleSlot(
         disciple = disciple,
+        showActions = true,
         onSlotClick = { onSlotClick() },
         onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },

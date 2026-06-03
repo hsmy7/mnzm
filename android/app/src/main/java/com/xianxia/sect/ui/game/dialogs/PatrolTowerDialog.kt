@@ -130,8 +130,9 @@ fun PatrolTowerDialog(
                         val index = row * colsPerRow + col
                         val slot = slots.getOrNull(index) ?: PatrolSlot(index = index)
                         val assignedDisciple = disciples.find { it.id == slot.discipleId }
-                        DiscipleSlotWithActions(
+                        DiscipleSlot(
                             disciple = assignedDisciple,
+                            showActions = true,
                             onSlotClick = {
                                 assignedDisciple?.let {
                                     viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples))

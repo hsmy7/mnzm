@@ -16,7 +16,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.DiscipleSlotWithActions
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
@@ -75,9 +75,10 @@ fun WarehouseDialog(
                 Color(0xFFE0E0E0)
             }
 
-            DiscipleSlotWithActions(
+            DiscipleSlot(
                 disciple = garrisonDisciple,
                 borderColor = borderColor,
+                showActions = true,
                 onSlotClick = {
                     garrisonDisciple?.let {
                         viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
@@ -116,13 +117,14 @@ fun WarehouseDialog(
                     Text("无可用弟子", fontSize = 12.sp, color = Color.Black)
                 } else {
                     availableDisciples.forEach { d ->
-                        DiscipleSlotWithActions(
+                        DiscipleSlot(
                             disciple = d,
                             borderColor = try {
                                 Color(android.graphics.Color.parseColor(d.spiritRoot.countColor))
                             } catch (e: Exception) {
                                 Color(0xFF4CAF50)
                             },
+                            showActions = true,
                             onSlotClick = {
                                 productionViewModel.assignWarehouseGarrison(
                                     buildingInstanceId, d.id, d.name, activeSectId
