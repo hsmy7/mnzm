@@ -19,7 +19,8 @@ object ChangelogData {
                 "每弟子每种材料仅可洗炼一次，洗炼期间弟子不可进行其他操作",
                 "支持多个血炼池同时洗炼不同弟子",
                 "新增庆祝邮件：200灵虎血免费领取（14天有效期）",
-                "邮件系统新增beastMaterial附件类型，支持指定妖兽材料发放"
+                "邮件系统新增beastMaterial附件类型，支持指定妖兽材料发放",
+                "修复弟子功法熟练度在月度结算后被回退的问题（manualProficiencies改为子条目delta合并）"
             )
         ),
         ChangelogEntry(

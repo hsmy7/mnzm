@@ -393,12 +393,54 @@ class GameStateStore @Inject constructor(
             }
         },
         "manualProficiencies" to { origin, shadow, oldState ->
-            val originKeys = origin.manualProficiencies.keys
-            val oldKeys = oldState.manualProficiencies.keys
-            val result = shadow.manualProficiencies.toMutableMap()
-            result.keys.removeAll(originKeys - oldKeys)  // 玩家删除的
-            for (key in oldKeys - originKeys) {           // 玩家新增的
-                if (key !in result) result[key] = oldState.manualProficiencies[key]!!
+            val originMap = origin.manualProficiencies
+            val shadowMap = shadow.manualProficiencies
+            val oldMap = oldState.manualProficiencies
+            val result = mutableMapOf<String, List<ManualProficiencyData>>()
+
+            val allDiscipleIds = (shadowMap.keys + oldMap.keys).toSet()
+            for (discipleId in allDiscipleIds) {
+                val originList = originMap[discipleId] ?: emptyList()
+                val shadowList = shadowMap[discipleId]
+                val oldList = oldMap[discipleId]
+
+                if (shadowList == null) {
+                    // 结算删除了该弟子的熟练度 → 保留 oldState（玩家操作）
+                    if (oldList != null) result[discipleId] = oldList
+                    continue
+                }
+                if (oldList == null) {
+                    // 结算新增 → 使用 shadow
+                    result[discipleId] = shadowList
+                    continue
+                }
+
+                // 两边都有：子条目 delta 合并
+                val originById = originList.associateBy { it.manualId }
+                val shadowById = shadowList.associateBy { it.manualId }
+                val oldById = oldList.associateBy { it.manualId }
+
+                val allManualIds = (shadowById.keys + oldById.keys).toSet()
+                val merged = allManualIds.mapNotNull { manualId ->
+                    val op = originById[manualId]
+                    val sp = shadowById[manualId]
+                    val mp = oldById[manualId]
+
+                    when {
+                        sp != null && mp != null && op != null ->
+                            sp.copy(
+                                proficiency = mp.proficiency + (sp.proficiency - op.proficiency),
+                                level = maxOf(mp.level, sp.level),
+                                masteryLevel = maxOf(mp.masteryLevel, sp.masteryLevel)
+                            )
+                        sp != null && mp != null ->
+                            sp.copy(proficiency = maxOf(mp.proficiency, sp.proficiency))
+                        sp != null -> sp    // 结算新增
+                        mp != null -> mp    // 玩家新增
+                        else -> null
+                    }
+                }
+                if (merged.isNotEmpty()) result[discipleId] = merged
             }
             result
         },
