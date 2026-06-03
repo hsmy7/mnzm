@@ -51,8 +51,9 @@ class PatrolTowerViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     portraitRes = disciple.portraitRes
                 )
+                // 先保存槽位(suspend，确保写入)，再更新弟子状态
+                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
                 gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.PATROLLING)
-                gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "任命失败")
             }
@@ -68,8 +69,9 @@ class PatrolTowerViewModel @Inject constructor(
                 if (globalIndex >= slots.size) return@launch
                 val removedId = slots[globalIndex].discipleId
                 slots[globalIndex] = PatrolSlot(index = globalIndex)
+                // 先保存槽位(suspend，确保写入)，再清除弟子状态
+                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
                 if (removedId.isNotEmpty()) gameEngine.updateDiscipleStatus(removedId, DiscipleStatus.IDLE)
-                gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
             }
@@ -92,9 +94,10 @@ class PatrolTowerViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     portraitRes = disciple.portraitRes
                 )
+                // 先保存槽位(suspend，确保写入)，再更新弟子状态
+                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
                 if (oldId.isNotEmpty()) gameEngine.updateDiscipleStatus(oldId, DiscipleStatus.IDLE)
                 gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.PATROLLING)
-                gameEngine.updatePatrolSlots(slots)
             } catch (e: Exception) {
                 showError(e.message ?: "更换失败")
             }
@@ -122,11 +125,14 @@ class PatrolTowerViewModel @Inject constructor(
                             discipleRealm = d.realmName,
                             portraitRes = d.portraitRes
                         )
-                        gameEngine.updateDiscipleStatus(d.id, DiscipleStatus.PATROLLING)
                         idx++
                     }
                 }
-                gameEngine.updatePatrolSlots(slots)
+                // 先保存槽位(suspend，确保写入)，再逐个更新弟子状态
+                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
+                for (i in 0 until idx) {
+                    gameEngine.updateDiscipleStatus(available[i].id, DiscipleStatus.PATROLLING)
+                }
             } catch (e: Exception) {
                 showError(e.message ?: "一键任命失败")
             }

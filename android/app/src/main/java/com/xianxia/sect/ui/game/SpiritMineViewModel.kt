@@ -141,16 +141,16 @@ class SpiritMineViewModel @Inject constructor(
 
                 if (slotIndex < currentSlots.size) {
                     val discipleId = currentSlots[slotIndex].discipleId
-                    discipleId?.let {
-                        gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
-                    }
-
                     currentSlots[slotIndex] = currentSlots[slotIndex].copy(
                         discipleId = "",
                         discipleName = "",
                         sectId = currentSlots[slotIndex].sectId
                     )
-                    gameEngine.updateSpiritMineSlots(currentSlots)
+                    // 先保存槽位(suspend，确保写入)，再清除弟子状态
+                    gameEngine.updateGameData { it.copy(spiritMineSlots = currentSlots) }
+                    discipleId?.let {
+                        gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
+                    }
                 }
             } catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
@@ -166,10 +166,11 @@ class SpiritMineViewModel @Inject constructor(
                 val allSlots = currentGameData.spiritMineSlots.toMutableList()
                 if (slotIndex < allSlots.size) {
                     val oldDiscipleId = allSlots[slotIndex].discipleId
-                    oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
                     val newName = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId }?.name ?: ""
                     allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)
-                    gameEngine.updateSpiritMineSlots(allSlots)
+                    // 先保存槽位(suspend，确保写入)，再更新弟子状态
+                    gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
+                    oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
                     gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)
                 }
             } catch (e: Exception) {
