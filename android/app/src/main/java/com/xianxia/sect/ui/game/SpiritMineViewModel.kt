@@ -199,7 +199,6 @@ class SpiritMineViewModel @Inject constructor(
         val mineStartIndex = mineIndex * 3
         val mineEndIndex = mineStartIndex + 3
 
-        // Ensure slot list is long enough
         while (allSlots.size < mineEndIndex) {
             allSlots.add(SpiritMineSlot(index = allSlots.size, sectId = mineSectId))
         }
@@ -218,12 +217,16 @@ class SpiritMineViewModel @Inject constructor(
                     discipleName = disciple.name,
                     sectId = mineSectId
                 )
-                gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
                 assigned++
             }
         }
 
-        gameEngine.updateSpiritMineSlots(allSlots)
+        // 先保存槽位（suspend，确保写入完成），再逐个更新弟子状态
+        gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
+        for (offset in 0 until assigned) {
+            val disciple = disciplesToAssign[offset]
+            gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
+        }
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {
