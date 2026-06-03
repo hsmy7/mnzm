@@ -137,6 +137,8 @@ class GameViewModel @Inject constructor(
 
     fun openPatrolTowerDialog(buildingInstanceId: String = "") = navigation.openPatrolTowerDialog(buildingInstanceId.ifEmpty { "" })
 
+    fun openBloodRefiningPoolDialog(buildingInstanceId: String = "") = navigation.openBloodRefiningPoolDialog(buildingInstanceId.ifEmpty { "" })
+
     fun openWorldMapDialog() = navigation.openWorldMapDialog()
 
     fun openRecruitDialog() = navigation.openRecruitDialog()
@@ -717,6 +719,12 @@ class GameViewModel @Inject constructor(
     fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
 
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
+
+    fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {
+        viewModelScope.launch {
+            gameEngine.consumeMaterialByName(name, rarity, quantity)
+        }
+    }
     fun bulkSellItems(
         selectedRarities: Set<Int>,
         selectedTypes: Set<String>

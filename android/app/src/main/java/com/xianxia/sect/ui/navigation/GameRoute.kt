@@ -22,6 +22,9 @@ sealed class GameRoute(val route: String) {
     object PatrolTower : GameRoute("patrol_tower/{buildingInstanceId}") {
         fun createRoute(buildingInstanceId: String) = "patrol_tower/$buildingInstanceId"
     }
+    object BloodRefiningPool : GameRoute("blood_refining_pool/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "blood_refining_pool/$buildingInstanceId"
+    }
 
     // Residence
     object Residence : GameRoute("residence/{buildingInstanceId}") {
@@ -79,6 +82,7 @@ sealed class DialogRoute {
     object MissionHall : DialogRoute()
     object ReflectionCliff : DialogRoute()
     data class PatrolTower(val buildingInstanceId: String) : DialogRoute()
+    data class BloodRefiningPool(val buildingInstanceId: String) : DialogRoute()
     data class Residence(val buildingInstanceId: String) : DialogRoute()
     data class WarehouseBuilding(val buildingInstanceId: String) : DialogRoute()
     object GameOver : DialogRoute()
@@ -109,6 +113,7 @@ fun GameRoute.toDialogRoute(buildingInstanceId: String = ""): DialogRoute = when
     GameRoute.MissionHall -> DialogRoute.MissionHall
     GameRoute.ReflectionCliff -> DialogRoute.ReflectionCliff
     GameRoute.PatrolTower -> DialogRoute.PatrolTower(buildingInstanceId)
+    GameRoute.BloodRefiningPool -> DialogRoute.BloodRefiningPool(buildingInstanceId)
     GameRoute.Residence -> DialogRoute.Residence(buildingInstanceId)
     GameRoute.WarehouseBuilding -> DialogRoute.WarehouseBuilding(buildingInstanceId)
     GameRoute.GameOver -> DialogRoute.GameOver

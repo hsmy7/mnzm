@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
@@ -46,7 +48,7 @@ object DiscipleStatCalculator {
         val mdVar = 1.0 + c.magicDefenseVariance / 100.0
         val spdVar = 1.0 + c.speedVariance / 100.0
 
-        return DiscipleStats(
+        val base = DiscipleStats(
             hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
             maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
             mp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt(),
@@ -65,6 +67,8 @@ object DiscipleStatCalculator {
             morality = disciple.skills.morality + moralityFlat,
             mining = disciple.skills.mining + miningFlat
         )
+
+        return base
     }
 
     fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats {
@@ -629,5 +633,81 @@ object DiscipleStatCalculator {
             preachingMasters = qingyunPreachingMasters
         )
         return elderBonus + mastersBonus
+    }
+
+    // ==================== 血炼系统属性加成 ====================
+
+    /**
+     * 计算血炼加成并应用到 CombatAttributes 的 base* 字段。
+     * 遍历 bloodRefinements 中该弟子已完成的材料ID，累加属性加成。
+     */
+    fun applyBloodRefinementBonuses(
+        disciple: Disciple,
+        bloodRefinements: Map<String, List<String>>
+    ): Disciple {
+        val completedMaterials = bloodRefinements[disciple.id] ?: return disciple
+        if (completedMaterials.isEmpty()) return disciple
+
+        var c = disciple.combat
+        for (materialId in completedMaterials) {
+            val bloodType = BeastMaterialDatabase.getBloodTypeFromMaterialId(materialId) ?: continue
+            val rule = BeastMaterialDatabase.BLOOD_RULES[bloodType] ?: continue
+            val material = BeastMaterialDatabase.getMaterialById(materialId) ?: continue
+            val percentage = BeastMaterialDatabase.getTierPercentage(material.tier)
+
+            // 每个材料只加一个属性，但这里无法知道当初随机选了哪个，
+            // 所以血炼完成时已直接修改了 base* 字段，此处无需重复计算。
+            // 此方法保留供未来查询/显示使用。
+        }
+        return disciple
+    }
+
+    /**
+     * 根据血种随机选择属性（50/50），返回属性key。
+     */
+    fun randomBloodRefineStat(bloodType: String): String {
+        val rule = BeastMaterialDatabase.BLOOD_RULES[bloodType] ?: return ""
+        return if (kotlin.random.Random.nextBoolean()) rule.statA else rule.statB
+    }
+
+    /**
+     * 获取 CombatAttributes 中指定 stat key 的 base 值。
+     */
+    fun getBaseStatValue(combat: com.xianxia.sect.core.model.CombatAttributes, statKey: String): Int = when (statKey) {
+        "speed" -> combat.baseSpeed
+        "hp" -> combat.baseHp
+        "physicalAttack" -> combat.basePhysicalAttack
+        "magicAttack" -> combat.baseMagicAttack
+        "physicalDefense" -> combat.basePhysicalDefense
+        "magicDefense" -> combat.baseMagicDefense
+        else -> 0
+    }
+
+    /**
+     * 对 CombatAttributes 应用属性加成（直接修改 base* 字段）。
+     */
+    fun applyStatBonus(combat: com.xianxia.sect.core.model.CombatAttributes, statKey: String, bonus: Int): com.xianxia.sect.core.model.CombatAttributes {
+        return when (statKey) {
+            "speed" -> combat.copy(baseSpeed = combat.baseSpeed + bonus)
+            "hp" -> combat.copy(baseHp = combat.baseHp + bonus)
+            "physicalAttack" -> combat.copy(basePhysicalAttack = combat.basePhysicalAttack + bonus)
+            "magicAttack" -> combat.copy(baseMagicAttack = combat.baseMagicAttack + bonus)
+            "physicalDefense" -> combat.copy(basePhysicalDefense = combat.basePhysicalDefense + bonus)
+            "magicDefense" -> combat.copy(baseMagicDefense = combat.baseMagicDefense + bonus)
+            else -> combat
+        }
+    }
+
+    /**
+     * 获取属性显示名称
+     */
+    fun getStatDisplayName(statKey: String): String = when (statKey) {
+        "speed" -> "速度"
+        "hp" -> "气血"
+        "physicalAttack" -> "物攻"
+        "magicAttack" -> "法攻"
+        "physicalDefense" -> "物防"
+        "magicDefense" -> "法防"
+        else -> statKey
     }
 }

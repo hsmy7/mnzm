@@ -9,6 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.04",
+            date = "2026-06-03",
+            changes = listOf(
+                "【新增建筑】血炼池 — 消耗妖兽精血淬炼弟子肉身，永久提升战斗属性",
+                "虎血提升物攻/法攻、蛇血提升速度/气血、龟血提升物防/法防（随机二选一，各50%概率）",
+                "材料品阶决定提升幅度：凡品1%、灵品3%、宝品6%、玄品12%、地品20%、天品30%",
+                "洗炼需消耗200个同类兽血材料+100万灵石，持续1~30月（依品阶而定）",
+                "每弟子每种材料仅可洗炼一次，洗炼期间弟子不可进行其他操作",
+                "支持多个血炼池同时洗炼不同弟子"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.03",
             date = "2026-06-03",
             changes = listOf(

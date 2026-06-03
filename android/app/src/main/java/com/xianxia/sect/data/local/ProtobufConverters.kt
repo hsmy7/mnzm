@@ -755,4 +755,36 @@ object ProtobufConverters {
     @JvmStatic
     fun toPatrolConfigList(value: String): List<PatrolConfig> =
         decodeFromBase64(ListSerializer(PatrolConfig.serializer()), value) { emptyList() }
+
+    // ==================== 血炼系统转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromBloodRefinementProgress(value: BloodRefinementProgress): String =
+        encodeToBase64(BloodRefinementProgress.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBloodRefinementProgress(value: String): BloodRefinementProgress =
+        decodeFromBase64(BloodRefinementProgress.serializer(), value) { BloodRefinementProgress() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromBloodRefinementProgressMap(value: Map<String, BloodRefinementProgress>): String =
+        encodeToBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBloodRefinementProgressMap(value: String): Map<String, BloodRefinementProgress> =
+        decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value) { emptyMap() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromStringListMap(value: Map<String, List<String>>): String =
+        encodeToBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toStringListMap(value: String): Map<String, List<String>> =
+        decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value) { emptyMap() }
 }

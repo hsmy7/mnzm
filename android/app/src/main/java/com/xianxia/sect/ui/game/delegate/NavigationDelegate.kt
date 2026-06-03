@@ -77,6 +77,10 @@ class NavigationDelegate(
         onNavigate(GameRoute.PatrolTower)
     }
 
+    fun openBloodRefiningPoolDialog(buildingInstanceId: String) {
+        onNavigate(GameRoute.BloodRefiningPool)
+    }
+
     fun openWorldMapDialog() {
         onNavigate(GameRoute.WorldMap)
     }

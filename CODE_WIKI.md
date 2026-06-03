@@ -519,6 +519,53 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ---
 
+## 血炼池 — Blood Refining Pool (v3.2.04)
+
+### 架构
+
+```
+点击血炼池 → BloodRefiningPoolDialog (半屏)
+  ├── 材料槽位（复用 UnifiedDiscipleSlot 同款容器 52×88dp）
+  │     ├── 空态: "材料" 灰色文字
+  │     └── 已选: 精灵图 + 名称 + 库存/需求
+  ├── 弟子槽位（DiscipleSlotWithActions）
+  │     ├── 空态: "+" → 打开 DiscipleSelectorDialog
+  │     └── 已选: 弟子肖像 + "卸任"/"更换"
+  ├── 红色小字 "消耗 100 万灵石"（11sp）
+  ├── "XX月" 时间显示
+  └── 洗炼按钮 → BloodRefiningViewModel.startRefine()
+        ├── 验证灵石/材料/弟子
+        ├── 扣除灵石 + 材料
+        ├── 随机选择属性（50/50）
+        └── 记录 activeBloodRefinements[buildingId] = BloodRefinementProgress
+
+每月结算 → SettlementCoordinator.processBloodRefinementProgress()
+  ├── 检查到期 → 计算加成 → applyStatBonus()
+  ├── 记录 bloodRefinements[discipleId] += materialId
+  └── 清除 activeBloodRefinements 条目
+```
+
+### 数据模型
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `GameData.bloodRefinements` | `Map<String, List<String>>` | discipleId → 已完成的材料ID列表 |
+| `GameData.activeBloodRefinements` | `Map<String, BloodRefinementProgress>` | buildingId → 进行中的洗炼 |
+| `BloodRefinementProgress` | data class | discipleId, materialId, startYear/Month, durationMonths, selectedStat, bonusPercent |
+
+### 血种→属性映射
+
+| 血种 | 属性A | 属性B |
+|------|-------|-------|
+| tigerBlood (虎) | basePhysicalAttack | baseMagicAttack |
+| snakeBlood (蛇) | baseSpeed | baseHp |
+| turtleBlood (龟) | basePhysicalDefense | baseMagicDefense |
+
+### DB Migration
+
+- v28→v29: `ALTER TABLE game_data ADD COLUMN bloodRefinements TEXT NOT NULL DEFAULT '{}'`
+- v28→v29: `ALTER TABLE game_data ADD COLUMN activeBloodRefinements TEXT NOT NULL DEFAULT '{}'`
+
 ## 结算管线 — SettlementCoordinator
 
 ### 架构

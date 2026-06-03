@@ -307,7 +307,17 @@ data class GameData(
     var autoLearnFromWarehouseRootCounts: Set<Int> = emptySet(),
 
     @SettlementStrategy(Strategy.USE_SHADOW)
-    var isGameOver: Boolean = false
+    var isGameOver: Boolean = false,
+
+    // 血炼系统：弟子已完成的材料ID列表（discipleId → materialId list）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    @ColumnInfo(defaultValue = "{}")
+    var bloodRefinements: Map<String, List<String>> = emptyMap(),
+
+    // 血炼系统：进行中的洗炼（buildingInstanceId → BloodRefinementProgress）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    @ColumnInfo(defaultValue = "{}")
+    var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
@@ -456,6 +466,20 @@ data class SectPolicies(
     val autoForgeFocused: Boolean = false,
     val autoForgeRootCounts: List<Int> = emptyList(),
     val autoForgeThreshold: Int = 1
+)
+
+// 血炼进度数据
+@Serializable
+data class BloodRefinementProgress(
+    val discipleId: String = "",
+    val discipleName: String = "",
+    val materialId: String = "",
+    val materialName: String = "",
+    val startYear: Int = 0,
+    val startMonth: Int = 0,
+    val durationMonths: Int = 0,
+    val selectedStat: String = "",    // "speed"/"hp"/"physicalAttack"/"magicAttack"/"physicalDefense"/"magicDefense"
+    val bonusPercent: Double = 0.0
 )
 
 // 长老槽位数据

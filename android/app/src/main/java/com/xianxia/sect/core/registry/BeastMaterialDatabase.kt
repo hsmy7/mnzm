@@ -357,4 +357,50 @@ object BeastMaterialDatabase {
     }
     
     fun getMaterialByName(name: String): BeastMaterial? = allMaterials.find { it.name == name }
+
+    // ==================== 血炼系统辅助方法 ====================
+
+    /** 获取所有血类材料（category=blood） */
+    fun getBloodMaterials(): List<BeastMaterial> = allMaterials.filter { it.category == "blood" }
+
+    /** 品阶→提升百分比 */
+    fun getTierPercentage(tier: Int): Double = when (tier) {
+        1 -> 0.01; 2 -> 0.03; 3 -> 0.06
+        4 -> 0.12; 5 -> 0.20; 6 -> 0.30
+        else -> 0.0
+    }
+
+    /** 品阶→洗炼时间（月） */
+    fun getTierDuration(tier: Int): Int = when (tier) {
+        1 -> 1; 2 -> 3; 3 -> 6
+        4 -> 12; 5 -> 20; 6 -> 30
+        else -> 0
+    }
+
+    /** 血种→属性映射规则 */
+    data class BloodRefineRule(
+        val bloodType: String,
+        val statA: String,
+        val statB: String,
+        val statADisplayName: String,
+        val statBDisplayName: String
+    )
+
+    val BLOOD_RULES = mapOf(
+        "snake" to BloodRefineRule("snake", "speed", "hp", "速度", "气血"),
+        "tiger" to BloodRefineRule("tiger", "physicalAttack", "magicAttack", "物攻", "法攻"),
+        "turtle" to BloodRefineRule("turtle", "physicalDefense", "magicDefense", "物防", "法防")
+    )
+
+    /** 从材料ID提取血种（如 tigerBlood3 → tiger） */
+    fun getBloodTypeFromMaterialId(materialId: String): String? {
+        return BLOOD_RULES.keys.find { materialId.startsWith(it) }
+    }
+
+    /** 品阶前缀 */
+    fun getTierPrefix(tier: Int): String = when (tier) {
+        1 -> "凡"; 2 -> "灵"; 3 -> "宝"
+        4 -> "玄"; 5 -> "地"; 6 -> "天"
+        else -> ""
+    }
 }

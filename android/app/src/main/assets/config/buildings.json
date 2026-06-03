@@ -200,6 +200,19 @@
       "gridHeight": 2,
       "description": "供多名弟子共同修炼，修炼速度+10%"
     },
+    "blood_refining_pool": {
+      "id": "blood_refining_pool",
+      "displayName": "血炼池",
+      "buildingType": "BLOOD_REFINING_POOL",
+      "slotCount": 1,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 50000,
+      "gridWidth": 2,
+      "gridHeight": 2,
+      "description": "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
+    },
     "single_residence_upgraded": {
       "id": "single_residence_upgraded",
       "displayName": "中级单人住所",
@@ -246,6 +259,8 @@
     "single_residence": "single_residence",
     "multiresidence": "multi_residence",
     "multi_residence": "multi_residence",
+    "bloodrefiningpool": "blood_refining_pool",
+    "blood_refining_pool": "blood_refining_pool",
     "singleresidenceupgraded": "single_residence_upgraded",
     "single_residence_upgraded": "single_residence_upgraded",
     "warehouse": "warehouse",

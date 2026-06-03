@@ -26,7 +26,8 @@ enum class BuildingDef(
     REFLECTION_CLIFF("reflection_cliff", "监牢", R.drawable.building_reflection_cliff, Color(0xFFBDBDBD)),
     SINGLE_RESIDENCE("single_residence", "单人住所", R.drawable.building_single_residence, Color(0xFFEEEEEE), noLimit = true),
     SINGLE_RESIDENCE_UPGRADED("single_residence_upgraded", "中级单人住所", R.drawable.building_single_residence_upgraded, Color(0xFFEEEEEE), noLimit = true),
-    MULTI_RESIDENCE("multi_residence", "多人住所", R.drawable.building_multi_residence, Color(0xFFEEEEEE), noLimit = true);
+    MULTI_RESIDENCE("multi_residence", "多人住所", R.drawable.building_multi_residence, Color(0xFFEEEEEE), noLimit = true),
+    BLOOD_REFINING_POOL("blood_refining_pool", "血炼池", R.drawable.blood_refining_pool, Color(0xFFB71C1C), noLimit = true);
 
     val isResidence: Boolean get() = key.endsWith("residence")
 }

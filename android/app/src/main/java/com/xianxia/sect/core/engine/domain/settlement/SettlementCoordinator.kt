@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.production.EconomySubsystem
 import com.xianxia.sect.core.engine.domain.production.ProductionSubsystem
 import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.system.PartnerSystem
+import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -398,10 +399,49 @@ class SettlementCoordinator @Inject constructor(
             explorationService.processMonthlyWorldLevels(shadow)
             childBirthSystem.onMonthTick(shadow)
             partnerSystem.onMonthTick(shadow)
+            processBloodRefinementProgress(shadow)
         } finally {
             stateStore.endShadowTransaction()
         }
         metricsBuilder.worldEventsMs = timer.stop()
+    }
+
+    /**
+     * 检查血炼进度，到期则完成洗炼。
+     */
+    private fun processBloodRefinementProgress(shadow: MutableGameState) {
+        val currentYear = shadow.gameData.gameYear
+        val currentMonth = shadow.gameData.gameMonth
+        val completedRefinements = mutableListOf<String>()
+
+        for ((buildingId, progress) in shadow.gameData.activeBloodRefinements) {
+            if (com.xianxia.sect.core.util.TimeProgressUtil.isTimeElapsed(
+                    progress.startYear, progress.startMonth,
+                    progress.durationMonths, currentYear, currentMonth
+            )) {
+                val d = shadow.disciples.find { it.id == progress.discipleId } ?: continue
+                val bonus = (DiscipleStatCalculator.getBaseStatValue(d.combat, progress.selectedStat) * progress.bonusPercent).toInt().coerceAtLeast(1)
+                val newCombat = DiscipleStatCalculator.applyStatBonus(d.combat, progress.selectedStat, bonus)
+                val newDisciple = d.copy(
+                    combat = newCombat,
+                    status = DiscipleStatus.IDLE,
+                    statusData = emptyMap()
+                )
+                shadow.disciples = shadow.disciples.map { if (it.id == d.id) newDisciple else it }
+
+                val currentRefinements = shadow.gameData.bloodRefinements.toMutableMap()
+                currentRefinements[d.id] = (currentRefinements[d.id] ?: emptyList()) + progress.materialId
+                shadow.gameData = shadow.gameData.copy(bloodRefinements = currentRefinements)
+
+                completedRefinements.add(buildingId)
+            }
+        }
+
+        if (completedRefinements.isNotEmpty()) {
+            val remaining = shadow.gameData.activeBloodRefinements.toMutableMap()
+            completedRefinements.forEach { remaining.remove(it) }
+            shadow.gameData = shadow.gameData.copy(activeBloodRefinements = remaining)
+        }
     }
 
     private suspend fun processAgingAndDeath(shadow: MutableGameState) {

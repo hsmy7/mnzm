@@ -1839,6 +1839,30 @@ class GameEngine @Inject constructor(
         return success
     }
 
+    /**
+     * 消耗指定名称的材料（不获得灵石），用于血炼等系统。
+     * @param name 材料名称
+     * @param rarity 材料品质
+     * @param quantity 消耗数量
+     * @return 是否成功消耗
+     */
+    suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val material = materials.find { it.name == name && it.rarity == rarity }
+            if (material != null && !material.isLocked && quantity in 1..material.quantity) {
+                materials = materials.mapNotNull { m ->
+                    if (m.id == material.id) {
+                        val newQty = m.quantity - quantity
+                        if (newQty == 0) null else m.copy(quantity = newQty)
+                    } else m
+                }
+                success = true
+            }
+        }
+        return success
+    }
+
     suspend fun sellHerb(herbId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {

@@ -124,6 +124,7 @@ fun MainGameScreen(
     herbGardenViewModel: HerbGardenViewModel,
     spiritMineViewModel: SpiritMineViewModel,
     patrolTowerViewModel: PatrolTowerViewModel,
+    bloodRefiningViewModel: BloodRefiningViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
@@ -257,6 +258,7 @@ fun MainGameScreen(
                 BuildingDef.MISSION_HALL -> { _ -> viewModel.navigateToDialog(DialogRoute.MissionHall) }
                 BuildingDef.REFLECTION_CLIFF -> { _ -> viewModel.navigateToDialog(DialogRoute.ReflectionCliff) }
                 BuildingDef.PATROL_TOWER -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.PatrolTower(it)) }; Unit }
+                BuildingDef.BLOOD_REFINING_POOL -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.BloodRefiningPool(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Residence(it)) }; Unit }
                 BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.WarehouseBuilding(it)) }; Unit }
                 BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
@@ -649,6 +651,7 @@ fun MainGameScreen(
             herbGardenViewModel = herbGardenViewModel,
             spiritMineViewModel = spiritMineViewModel,
             patrolTowerViewModel = patrolTowerViewModel,
+            bloodRefiningViewModel = bloodRefiningViewModel,
             worldMapViewModel = worldMapViewModel,
             battleViewModel = battleViewModel,
             onLogout = onLogout,

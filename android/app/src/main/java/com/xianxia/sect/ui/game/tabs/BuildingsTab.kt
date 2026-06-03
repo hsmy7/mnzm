@@ -122,6 +122,7 @@ internal fun BuildingsTab(
                 BuildingDef.MISSION_HALL -> "派遣弟子执行任务"
                 BuildingDef.REFLECTION_CLIFF -> "悔过自新之地"
                 BuildingDef.PATROL_TOWER -> "驻守弟子自动巡视攻击妖兽"
+                BuildingDef.BLOOD_REFINING_POOL -> "消耗兽血材料淬炼弟子肉身"
                 else -> ""
             }
             val onClick = {
@@ -138,6 +139,7 @@ internal fun BuildingsTab(
                     BuildingDef.MISSION_HALL -> viewModel.openMissionHallDialog()
                     BuildingDef.REFLECTION_CLIFF -> viewModel.openReflectionCliffDialog()
                     BuildingDef.PATROL_TOWER -> viewModel.openPatrolTowerDialog()
+                    BuildingDef.BLOOD_REFINING_POOL -> viewModel.openBloodRefiningPoolDialog()
                     else -> { }
                 }
             }

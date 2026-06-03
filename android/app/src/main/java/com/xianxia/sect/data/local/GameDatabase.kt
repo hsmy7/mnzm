@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 28
+    version = 29
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -345,6 +345,13 @@ abstract class GameDatabase : RoomDatabase() {
                 // 但 @Entity 未声明，导致 Room 校验失败。
                 // 此迁移无需修改实际数据——仅补齐 @Entity 声明即可通过校验。
                 // 保留空迁移体以注册版本号变更。
+            }
+        }
+
+        val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN bloodRefinements TEXT NOT NULL DEFAULT '{}'")
+                db.execSQL("ALTER TABLE game_data ADD COLUMN activeBloodRefinements TEXT NOT NULL DEFAULT '{}'")
             }
         }
 
@@ -718,7 +725,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

@@ -25,6 +25,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
+import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
@@ -60,6 +61,7 @@ fun GameOverlayHost(
     herbGardenViewModel: HerbGardenViewModel,
     spiritMineViewModel: SpiritMineViewModel,
     patrolTowerViewModel: PatrolTowerViewModel,
+    bloodRefiningViewModel: BloodRefiningViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
@@ -401,6 +403,21 @@ fun GameOverlayHost(
                 disciples = disciples,
                 onDismiss = onDismiss
             )
+        }
+        is DialogRoute.BloodRefiningPool -> {
+            val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+            val materials by viewModel.materials.collectAsStateWithLifecycle()
+            DeferredContent {
+                BloodRefiningPoolDialog(
+                    buildingInstanceId = route.buildingInstanceId,
+                    viewModel = viewModel,
+                    bloodRefiningViewModel = bloodRefiningViewModel,
+                    gameData = gameData,
+                    disciples = disciples,
+                    materials = materials,
+                    onDismiss = onDismiss
+                )
+            }
         }
         is DialogRoute.Residence -> {
             if (route.buildingInstanceId.isNotEmpty()) {
