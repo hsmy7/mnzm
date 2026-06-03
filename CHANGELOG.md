@@ -64,6 +64,16 @@
 - 修复巡逻塔一键任命/卸任/更换同类问题：updatePatrolSlots 全部改为 suspend
 - 修复灵矿场卸任/更换同类问题
 - 修复 ThermalMonitor Hilt 注入缺少 @ApplicationContext
+- **【状态系统重大修复】结算合并从整体覆盖改为子字段级合并，从架构层面彻底消灭状态回退**
+- 修复结算期间穿戴装备回退：EquipmentSet 14 子字段改为结算域/玩家域分离合并，storageBagItems 集合 delta 合并
+- 修复结算期间赏赐回退：同上
+- 修复结算期间学习功法回退：manualIds 从整体覆盖改为集合 delta 合并（main + 结算新增 - 结算删除）
+- 修复结算期间使用丹药回退：PillEffects 13 bonus 从 main 保留，duration 做 delta；Skills loyalty/salary 从 shadow，其余从 main
+- 修复结算期间宗门交易回退：buyFromSectTrade 标记 @Deprecated，统一使用 buyFromSectTradeSync（suspend+Mutex）
+- 修复弟子突破失败后 HP/MP 长期不恢复：提取 recoverHpMpForAllDisciples，结算期间不再跳过恢复；CombatAttributes 18 子字段改为子字段级合并
+- 修复结算期间弟子脱离后槽位残留：elderSlots/spiritMineSlots/librarySlots 从 PRESERVE_OLD 改为 CUSTOM 合并，允许结算清除操作穿透
+- 修复恢复 HP/MP 时使用基础最大属性而非最终属性（含装备/功法/丹药）的问题
+- 以上修复对标 Unreal GAS AttributeSet Aggregator、Photon Fusion Predict-Reconcile、Bevy ECS Change Detection 等 22 条行业参考
 
 ## [3.2.02] - 2026-06-03
 

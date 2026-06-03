@@ -318,6 +318,7 @@ class GameEngineCore @Inject constructor(
 
                 if (settlementCoordinator.hasPendingWork) {
                     systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
+                    cultivationService.recoverHpMpForAllDisciples(this)
                 } else {
                     systemManager.onPhaseTick(this)
                 }

@@ -237,6 +237,40 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
+     * 恢复所有弟子的 HP/MP。
+     * 从 processPhaseTick 中提取，以便结算期间也可独立调用。
+     */
+    fun recoverHpMpForAllDisciples(state: MutableGameState) {
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val allProficiencies = state.gameData.manualProficiencies
+        val multiplier = phaseMultiplier.toDouble()
+
+        state.disciples = state.disciples.map { d ->
+            if (!d.isAlive) return@map d
+            val curHp = d.combat.currentHp
+            val curMp = d.combat.currentMp
+            if (curHp < 0 && curMp < 0) return@map d
+
+            val proficiencyMap = allProficiencies[d.id]?.associateBy { it.manualId } ?: emptyMap()
+            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, proficiencyMap)
+            val maxHp = finalStats.maxHp
+            val maxMp = finalStats.maxMp
+
+            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+            if (newHp != curHp || newMp != curMp) {
+                d.copyWith(currentHp = newHp, currentMp = newMp)
+            } else {
+                d
+            }
+        }
+    }
+
+    /**
      * 月度批量修炼更新 — 遍历全体弟子，一次性补齐整月修炼进度
      */
     fun updateMonthlyCultivation(state: MutableGameState) {

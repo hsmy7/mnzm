@@ -334,20 +334,37 @@ Phase B 将把 Data 层读写逐步切换到领域 DAO（独立表），DomainSt
 
 #### 字段合并策略
 
-**GameData**：`@SettlementStrategy` 注解驱动 + `GameDataSettlementCoverageTest` 编译期检查。
+**GameData**：`@SettlementStrategy` 注解驱动 + `GameDataSettlementCoverageTest` 编译期检查。槽位字段（elderSlots/spiritMineSlots/librarySlots）使用 CUSTOM 合并器，允许结算清除操作穿透（origin 有值 shadow 清空 → 对 main 也清除）。
 
-**Disciple**：`mergeDiscipleAfterSettlement()` 集中管理 + `DiscipleMergeCoverageTest` 编译期检查。
+**Disciple**：`mergeDiscipleAfterSettlement()` 集中管理 + `DiscipleMergeCoverageTest` 编译期检查。v3.2.03 从**整体覆盖**重构为**子字段级合并**：
 
 ```
 mergeDiscipleAfterSettlement(main, shadow, origin):
-  ├── 结算修改字段（从 shadow 取值）
-  │   cultivation, realm, realmLayer, lifespan, skills,
-  │   cultivationSpeedBonus/Duration, pillEffects, isAlive
-  │   equipment*, combat*, manualIds* (conditional)
+  ├── 标量 delta 合并
+  │   cultivation, lifespan: main + (shadow - origin)
+  ├── 无条件 shadow（仅结算修改）
+  │   realm, realmLayer
+  ├── 条件保留（玩家可能修改 → main≠origin 时保留 main）
+  │   cultivationSpeedBonus/Duration
+  ├── 子字段级合并（5 个专用合并函数）
+  │   ├── mergeEquipment(main, shadow, origin)
+  │   │   ├ 结算域: nurture×4 → shadow
+  │   │   ├ 玩家域: weaponId×4, autoEquip, spiritStones → main
+  │   │   └ 共享域: storageBagItems → set delta (main + shadow新增 - shadow删除)
+  │   ├── mergeCombat(main, shadow, origin)
+  │   │   ├ 结算域: baseXxx×7, variance×7, 统计×3 → shadow
+  │   │   └ 争议域: currentHp/Mp → shadow 仅当结算显式修改时（突破失败10%惩罚）
+  │   ├── mergeManualIds(main, shadow, origin): 集合 delta
+  │   ├── mergePillEffects(main, shadow, origin): bonus×13 → main, duration → delta
+  │   └── mergeSkills(main, shadow, origin): loyalty/salary → shadow, 其余 → main
+  ├── 条件覆盖（已有模式）
+  │   isAlive: died||revived → shadow, else → main
   └── 玩家操作字段（显式保留）
       discipleType, status, statusData
   ← 其他所有字段由 copy() 默认保留
 ```
+
+**设计对标**：子字段级合并方案对标 Unreal Engine GAS 的 AttributeSet Aggregator（BaseValue + Modifier 叠加）、Bevy ECS 的 Component 级 Change Detection、Photon Fusion 的 Predict-Reconcile 模式。
 
 #### Do's and Don'ts
 
@@ -476,7 +493,9 @@ private suspend fun executeInParallelGroups(state, action) {
 startGameLoop() → Dispatchers.Default coroutine
   → tick() → tickInternal()
     → stateStore.update { ... }
-      → systemManager.onPhaseTick()
+      → hasPendingWork?
+        → YES: TimeSystem.onPhaseTick() + recoverHpMpForAllDisciples()  // v3.2.03: 结算期仍恢复HP/MP
+        → NO:  systemManager.onPhaseTick()  // 全部系统
       → auto-save check
     → settlement coordinator (shadow swap)
     → patrol battle results

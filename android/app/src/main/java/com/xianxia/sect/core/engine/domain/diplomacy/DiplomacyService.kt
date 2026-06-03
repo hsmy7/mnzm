@@ -804,6 +804,10 @@ class DiplomacyService @Inject constructor(
         return SectTradeValidation(sect, item, actualQuantity, totalPrice, updatedSectDetails)
     }
 
+    @Deprecated(
+        "Use buyFromSectTradeSync() — scope.launch 在 swapFromShadow 期间存在竞态风险",
+        ReplaceWith("buyFromSectTradeSync(sectId, itemId, quantity)")
+    )
     fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
         val data = stateStore.gameData.value
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return

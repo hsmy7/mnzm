@@ -432,6 +432,38 @@ class GameStateStore @Inject constructor(
                 result
             }
         },
+        "elderSlots" to { origin, shadow, oldState ->
+            val o = origin.elderSlots; val s = shadow.elderSlots
+            var r = oldState.elderSlots
+            if (o.viceSectMaster.isNotEmpty() && s.viceSectMaster.isEmpty()) r = r.copy(viceSectMaster = "")
+            if (o.herbGardenElder.isNotEmpty() && s.herbGardenElder.isEmpty()) r = r.copy(herbGardenElder = "")
+            if (o.alchemyElder.isNotEmpty() && s.alchemyElder.isEmpty()) r = r.copy(alchemyElder = "")
+            if (o.forgeElder.isNotEmpty() && s.forgeElder.isEmpty()) r = r.copy(forgeElder = "")
+            if (o.outerElder.isNotEmpty() && s.outerElder.isEmpty()) r = r.copy(outerElder = "")
+            if (o.preachingElder.isNotEmpty() && s.preachingElder.isEmpty()) r = r.copy(preachingElder = "")
+            if (o.lawEnforcementElder.isNotEmpty() && s.lawEnforcementElder.isEmpty()) r = r.copy(lawEnforcementElder = "")
+            if (o.innerElder.isNotEmpty() && s.innerElder.isEmpty()) r = r.copy(innerElder = "")
+            if (o.qingyunPreachingElder.isNotEmpty() && s.qingyunPreachingElder.isEmpty()) r = r.copy(qingyunPreachingElder = "")
+            r
+        },
+        "spiritMineSlots" to { origin, shadow, oldState ->
+            val oSlots = origin.spiritMineSlots.associateBy { it.index }
+            val sSlots = shadow.spiritMineSlots.associateBy { it.index }
+            oldState.spiritMineSlots.map { slot ->
+                val os = oSlots[slot.index] ?: return@map slot
+                val ss = sSlots[slot.index] ?: return@map slot
+                if (os.discipleId.isNotEmpty() && ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+        },
+        "librarySlots" to { origin, shadow, oldState ->
+            val oSlots = origin.librarySlots.associateBy { it.index }
+            val sSlots = shadow.librarySlots.associateBy { it.index }
+            oldState.librarySlots.map { slot ->
+                val os = oSlots[slot.index] ?: return@map slot
+                val ss = sSlots[slot.index] ?: return@map slot
+                if (os.discipleId.isNotEmpty() && ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+        },
     )
 
     fun createShadow(): MutableGameState {
@@ -871,10 +903,10 @@ class GameStateStore @Inject constructor(
             monthlySalary = oldState.monthlySalary,
             monthlySalaryEnabled = oldState.monthlySalaryEnabled,
             placedBuildings = oldState.placedBuildings,
-            elderSlots = oldState.elderSlots,
-            librarySlots = oldState.librarySlots,
+            elderSlots = c["elderSlots"]!!(origin, shadow, oldState) as ElderSlots,
+            librarySlots = c["librarySlots"]!!(origin, shadow, oldState) as List<LibrarySlot>,
+            spiritMineSlots = c["spiritMineSlots"]!!(origin, shadow, oldState) as List<SpiritMineSlot>,
             residenceSlots = oldState.residenceSlots,
-            spiritMineSlots = oldState.spiritMineSlots,
             patrolSlots = oldState.patrolSlots,
             patrolConfig = oldState.patrolConfig,
             patrolConfigs = oldState.patrolConfigs,
@@ -927,6 +959,103 @@ class GameStateStore @Inject constructor(
     }
 }
 
+    // ==================== 子字段级合并函数 ====================
+
+    /**
+     * EquipmentSet 子字段合并。
+     * 结算域（nurture×4）：总是从 shadow。玩家域（weaponId 等）：总是从 main。
+     * 共享域（storageBagItems）：main 做底 + 结算新增 - 结算删除。
+     */
+    private fun mergeEquipment(
+        main: EquipmentSet, shadow: EquipmentSet, origin: EquipmentSet
+    ): EquipmentSet {
+        val originBagIds = origin.storageBagItems.map { it.itemId }.toSet()
+        val shadowBagIds = shadow.storageBagItems.map { it.itemId }.toSet()
+        val addedBySettlement = shadow.storageBagItems.filter { it.itemId !in originBagIds }
+        val removedBySettlement = originBagIds - shadowBagIds
+        val mergedBag = (main.storageBagItems + addedBySettlement)
+            .filter { it.itemId !in removedBySettlement }
+
+        return main.copy(
+            weaponNurture = shadow.weaponNurture,
+            armorNurture = shadow.armorNurture,
+            bootsNurture = shadow.bootsNurture,
+            accessoryNurture = shadow.accessoryNurture,
+            storageBagItems = mergedBag,
+        )
+    }
+
+    /**
+     * CombatAttributes 子字段合并。
+     * baseXxx/variance/统计 从 shadow。currentHp/currentMp 仅在结算发生突破时从 shadow。
+     */
+    private fun mergeCombat(
+        main: CombatAttributes, shadow: CombatAttributes, origin: CombatAttributes
+    ): CombatAttributes {
+        // 突破是唯一会修改 baseHp/baseMp 的操作
+        val baseStatsChanged = shadow.baseHp != origin.baseHp || shadow.baseMp != origin.baseMp
+
+        return main.copy(
+            baseHp = shadow.baseHp,
+            baseMp = shadow.baseMp,
+            basePhysicalAttack = shadow.basePhysicalAttack,
+            baseMagicAttack = shadow.baseMagicAttack,
+            basePhysicalDefense = shadow.basePhysicalDefense,
+            baseMagicDefense = shadow.baseMagicDefense,
+            baseSpeed = shadow.baseSpeed,
+            hpVariance = shadow.hpVariance,
+            mpVariance = shadow.mpVariance,
+            physicalAttackVariance = shadow.physicalAttackVariance,
+            magicAttackVariance = shadow.magicAttackVariance,
+            physicalDefenseVariance = shadow.physicalDefenseVariance,
+            magicDefenseVariance = shadow.magicDefenseVariance,
+            speedVariance = shadow.speedVariance,
+            totalCultivation = shadow.totalCultivation,
+            breakthroughCount = shadow.breakthroughCount,
+            breakthroughFailCount = shadow.breakthroughFailCount,
+            currentHp = if (baseStatsChanged) shadow.currentHp else main.currentHp,
+            currentMp = if (baseStatsChanged) shadow.currentMp else main.currentMp,
+        )
+    }
+
+    /**
+     * manualIds 集合合并：main + 结算新增 - 结算删除。
+     */
+    private fun mergeManualIds(
+        main: List<String>, shadow: List<String>, origin: List<String>
+    ): List<String> {
+        val originSet = origin.toSet()
+        val shadowSet = shadow.toSet()
+        return (main.toSet() + (shadowSet - originSet) - (originSet - shadowSet)).toList()
+    }
+
+    /**
+     * PillEffects 子字段合并。
+     * 13 个 bonus 字段从 main（只有玩家用丹药修改），pillEffectDuration 做 delta 合并。
+     */
+    private fun mergePillEffects(
+        main: PillEffects, shadow: PillEffects, origin: PillEffects
+    ): PillEffects {
+        val durationDelta = shadow.pillEffectDuration - origin.pillEffectDuration
+        return main.copy(
+            pillEffectDuration = (main.pillEffectDuration + durationDelta).coerceAtLeast(0)
+        )
+    }
+
+    /**
+     * Skills 子字段合并。
+     * loyalty/salaryPaidCount/salaryMissedCount 从 shadow（结算修改），其余从 main。
+     */
+    private fun mergeSkills(
+        main: SkillStats, shadow: SkillStats, origin: SkillStats
+    ): SkillStats {
+        return main.copy(
+            loyalty = shadow.loyalty,
+            salaryPaidCount = shadow.salaryPaidCount,
+            salaryMissedCount = shadow.salaryMissedCount,
+        )
+    }
+
     // ==================== 弟子结算合并 ====================
 
     /**
@@ -969,29 +1098,36 @@ class GameStateStore @Inject constructor(
     ): Disciple {
         val died = originDisciple.isAlive && !shadowDisciple.isAlive
         val revived = !originDisciple.isAlive && shadowDisciple.isAlive
-        val equipChanged = originDisciple.equipment != shadowDisciple.equipment
-        val combatChanged = originDisciple.combat != shadowDisciple.combat
-        val manualsChanged = originDisciple.manualIds != shadowDisciple.manualIds
 
         return mainDisciple.copy(
-            // ── 结算修改字段 ──
-            cultivation = shadowDisciple.cultivation,
+            // 标量 delta 合并
+            cultivation = mainDisciple.cultivation + (shadowDisciple.cultivation - originDisciple.cultivation),
+            lifespan = mainDisciple.lifespan + (shadowDisciple.lifespan - originDisciple.lifespan),
+
+            // 无条件 shadow（仅结算修改）
             realm = shadowDisciple.realm,
             realmLayer = shadowDisciple.realmLayer,
-            lifespan = shadowDisciple.lifespan,
-            skills = shadowDisciple.skills,
-            cultivationSpeedBonus = shadowDisciple.cultivationSpeedBonus,
-            cultivationSpeedDuration = shadowDisciple.cultivationSpeedDuration,
-            pillEffects = shadowDisciple.pillEffects,
+
+            // 条件保留（玩家可能用丹药修改）
+            cultivationSpeedBonus = if (mainDisciple.cultivationSpeedBonus != originDisciple.cultivationSpeedBonus)
+                mainDisciple.cultivationSpeedBonus else shadowDisciple.cultivationSpeedBonus,
+            cultivationSpeedDuration = if (mainDisciple.cultivationSpeedDuration != originDisciple.cultivationSpeedDuration)
+                mainDisciple.cultivationSpeedDuration else shadowDisciple.cultivationSpeedDuration,
+
+            // 子字段级合并
+            equipment = mergeEquipment(mainDisciple.equipment, shadowDisciple.equipment, originDisciple.equipment),
+            combat = mergeCombat(mainDisciple.combat, shadowDisciple.combat, originDisciple.combat),
+            manualIds = mergeManualIds(mainDisciple.manualIds, shadowDisciple.manualIds, originDisciple.manualIds),
+            pillEffects = mergePillEffects(mainDisciple.pillEffects, shadowDisciple.pillEffects, originDisciple.pillEffects),
+            skills = mergeSkills(mainDisciple.skills, shadowDisciple.skills, originDisciple.skills),
+
+            // 条件覆盖（已有模式）
             isAlive = if (died || revived) shadowDisciple.isAlive else mainDisciple.isAlive,
-            // 仅当影子确实变化时才覆盖，避免无意义的新对象分配
-            equipment = if (equipChanged) shadowDisciple.equipment else mainDisciple.equipment,
-            combat = if (combatChanged) shadowDisciple.combat else mainDisciple.combat,
-            manualIds = if (manualsChanged) shadowDisciple.manualIds else mainDisciple.manualIds,
-            // ── 玩家操作字段（显式保留 — copy() 默认行为，但文档化以防遗漏）──
+
+            // 玩家操作字段
             discipleType = mainDisciple.discipleType,
             status = mainDisciple.status,
-            statusData = mainDisciple.statusData
+            statusData = mainDisciple.statusData,
         )
     }
 
