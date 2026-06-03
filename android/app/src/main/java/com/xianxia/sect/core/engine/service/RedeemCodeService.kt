@@ -1,6 +1,7 @@
 @file:Suppress("DEPRECATION")
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.annotation.GameService
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
@@ -38,6 +39,7 @@ data class RedeemApiReward(
     val rarity: Int = 1
 )
 
+@GameService("RedeemCodeService")
 @Singleton
 class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,

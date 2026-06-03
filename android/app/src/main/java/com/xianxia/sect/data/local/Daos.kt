@@ -110,6 +110,9 @@ interface DiscipleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(disciples: List<Disciple>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(disciples: List<Disciple>)
+
     @Update
     suspend fun update(disciple: Disciple)
 
@@ -174,6 +177,9 @@ interface EquipmentStackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(equipmentStacks: List<EquipmentStack>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(equipmentStacks: List<EquipmentStack>)
+
     @Update
     suspend fun update(equipmentStack: EquipmentStack)
 
@@ -220,6 +226,9 @@ interface EquipmentInstanceDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(equipmentInstances: List<EquipmentInstance>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(equipmentInstances: List<EquipmentInstance>)
 
     @Update
     suspend fun update(equipmentInstance: EquipmentInstance)
@@ -274,6 +283,9 @@ interface ManualStackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(manualStacks: List<ManualStack>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(manualStacks: List<ManualStack>)
+
     @Update
     suspend fun update(manualStack: ManualStack)
 
@@ -320,6 +332,9 @@ interface ManualInstanceDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(manualInstances: List<ManualInstance>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(manualInstances: List<ManualInstance>)
 
     @Update
     suspend fun update(manualInstance: ManualInstance)
@@ -391,6 +406,9 @@ interface PillDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(pills: List<Pill>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(pills: List<Pill>)
+
     @Update
     suspend fun update(pill: Pill)
 
@@ -457,6 +475,9 @@ interface MaterialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(materials: List<Material>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(materials: List<Material>)
+
     @Update
     suspend fun update(material: Material)
 
@@ -519,6 +540,9 @@ interface SeedDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(seeds: List<Seed>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(seeds: List<Seed>)
 
     @Update
     suspend fun update(seed: Seed)
@@ -583,6 +607,9 @@ interface HerbDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(herbs: List<Herb>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(herbs: List<Herb>)
+
     @Update
     suspend fun update(herb: Herb)
 
@@ -637,6 +664,9 @@ interface ExplorationTeamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(teams: List<ExplorationTeam>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(teams: List<ExplorationTeam>)
+
     @Update
     suspend fun update(team: ExplorationTeam)
 
@@ -679,6 +709,9 @@ interface BuildingSlotDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(slots: List<BuildingSlot>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(slots: List<BuildingSlot>)
 
     @Update
     suspend fun update(slot: BuildingSlot)
@@ -723,6 +756,9 @@ interface RecipeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(recipes: List<Recipe>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(recipes: List<Recipe>)
+
     @Update
     suspend fun update(recipe: Recipe)
 
@@ -766,6 +802,9 @@ interface BattleLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(logs: List<BattleLog>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(logs: List<BattleLog>)
 
     @Update
     suspend fun updateAll(logs: List<BattleLog>)
@@ -889,6 +928,9 @@ interface DiscipleCoreDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(disciplesCore: List<DiscipleCore>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(disciplesCore: List<DiscipleCore>)
+
     @Update
     suspend fun update(discipleCore: DiscipleCore)
 
@@ -951,6 +993,9 @@ interface DiscipleCombatStatsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(combatStatsList: List<DiscipleCombatStats>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(combatStatsList: List<DiscipleCombatStats>)
+
     @Update
     suspend fun updateAll(combatStatsList: List<DiscipleCombatStats>)
 
@@ -993,6 +1038,9 @@ interface DiscipleEquipmentDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(equipmentList: List<DiscipleEquipment>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(equipmentList: List<DiscipleEquipment>)
 
     @Update
     suspend fun updateAll(equipmentList: List<DiscipleEquipment>)
@@ -1037,6 +1085,9 @@ interface DiscipleExtendedDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(extendedList: List<DiscipleExtended>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(extendedList: List<DiscipleExtended>)
+
     @Update
     suspend fun updateAll(extendedList: List<DiscipleExtended>)
 
@@ -1079,6 +1130,9 @@ interface DiscipleAttributesDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(attributesList: List<DiscipleAttributes>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(attributesList: List<DiscipleAttributes>)
 
     @Update
     suspend fun updateAll(attributesList: List<DiscipleAttributes>)
@@ -1128,6 +1182,9 @@ interface StorageBagDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(storageBags: List<StorageBag>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(storageBags: List<StorageBag>)
 
     @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId")
     suspend fun getAllSync(slotId: Int): List<StorageBag>

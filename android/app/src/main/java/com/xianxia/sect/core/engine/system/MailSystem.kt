@@ -5,6 +5,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// TickSystem: "MailSystem"
 @Singleton
 @SystemPriority(order = 960)
 class MailSystem @Inject constructor(

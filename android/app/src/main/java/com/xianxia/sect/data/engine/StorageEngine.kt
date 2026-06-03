@@ -28,6 +28,7 @@ import com.xianxia.sect.data.wal.WALProvider
 import com.xianxia.sect.core.util.BackgroundTaskScheduler
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -466,23 +467,40 @@ class StorageEngine @Inject internal constructor(
                 val startTime = System.currentTimeMillis()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Incremental save")
 
-                val snapshot = stateStore.unifiedState.value
+                // 读取独立快照属性，避免触发 17-way combine
+                val gameData = stateStore.gameDataSnapshot
+                val disciples = stateStore.disciplesSnapshot
+                val equipmentStacks = stateStore.equipmentStacksSnapshot
+                val equipmentInstances = stateStore.equipmentInstancesSnapshot
+                val manualStacks = stateStore.manualStacksSnapshot
+                val manualInstances = stateStore.manualInstancesSnapshot
+                val pills = stateStore.pillsSnapshot
+                val materials = stateStore.materialsSnapshot
+                val herbs = stateStore.herbsSnapshot
+                val seeds = stateStore.seedsSnapshot
+                val storageBags = stateStore.storageBagsSnapshot
+                val teams = stateStore.teamsSnapshot
+                val battleLogs = stateStore.battleLogsSnapshot
+
                 repository.setActiveSlot(slot)
-                repository.flushDirtyState(
-                    gameData = snapshot.gameData,
-                    disciples = snapshot.disciples,
-                    equipmentStacks = snapshot.equipmentStacks,
-                    equipmentInstances = snapshot.equipmentInstances,
-                    manualStacks = snapshot.manualStacks,
-                    manualInstances = snapshot.manualInstances,
-                    pills = snapshot.pills,
-                    materials = snapshot.materials,
-                    herbs = snapshot.herbs,
-                    seeds = snapshot.seeds,
-                    storageBags = snapshot.storageBags,
-                    teams = snapshot.teams,
-                    battleLogs = snapshot.battleLogs
-                )
+
+                database.withTransaction {
+                    repository.flushDirtyState(
+                        gameData = gameData,
+                        disciples = disciples,
+                        equipmentStacks = equipmentStacks,
+                        equipmentInstances = equipmentInstances,
+                        manualStacks = manualStacks,
+                        manualInstances = manualInstances,
+                        pills = pills,
+                        materials = materials,
+                        herbs = herbs,
+                        seeds = seeds,
+                        storageBags = storageBags,
+                        teams = teams,
+                        battleLogs = battleLogs
+                    )
+                }
 
                 val elapsed = System.currentTimeMillis() - startTime
                 _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
@@ -499,14 +517,12 @@ class StorageEngine @Inject internal constructor(
         }
     }
 
-    fun hasEmergencySave(): Boolean {
+    suspend fun hasEmergencySave(): Boolean {
         return try {
             val slot = StorageConstants.EMERGENCY_SLOT
-            lockManager.isValidSlot(slot) && runCatching {
-                kotlinx.coroutines.runBlocking {
+            lockManager.isValidSlot(slot) && withContext(Dispatchers.IO) {
                 database.gameDataDao().existsBySlot(slot) != null
             }
-            }.getOrDefault(false)
         } catch (e: Exception) {
             false
         }
@@ -630,56 +646,31 @@ class StorageEngine @Inject internal constructor(
         )
         database.gameDataDao().insert(lightGameData)
 
-        database.discipleDao().deleteAll(slot)
-        database.discipleCoreDao().deleteAll(slot)
-        database.discipleCombatStatsDao().deleteAll(slot)
-        database.discipleEquipmentDao().deleteAll(slot)
-        database.discipleExtendedDao().deleteAll(slot)
-        database.discipleAttributesDao().deleteAll(slot)
-
         data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
             val withSlot = batch.map { d -> d.copy(slotId = slot) }
-            database.discipleDao().insertAll(withSlot)
-            database.discipleCoreDao().insertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
-            database.discipleCombatStatsDao().insertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
-            database.discipleEquipmentDao().insertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
-            database.discipleExtendedDao().insertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
-            database.discipleAttributesDao().insertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+            database.discipleDao().upsertAll(withSlot)
+            database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
+            database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
+            database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
+            database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
+            database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
         }
 
-        database.equipmentStackDao().deleteAll(slot)
-        database.equipmentInstanceDao().deleteAll(slot)
-        database.manualStackDao().deleteAll(slot)
-        database.manualInstanceDao().deleteAll(slot)
-        database.pillDao().deleteAll(slot)
-        database.materialDao().deleteAll(slot)
-        database.herbDao().deleteAll(slot)
-        database.seedDao().deleteAll(slot)
+        data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
+        data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
+        data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
 
-        data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
-        data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
-        data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().insertAll(it.map { p -> p.copy(slotId = slot) }) }
-        data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().insertAll(it.map { h -> h.copy(slotId = slot) }) }
-        data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().insertAll(it.map { s -> s.copy(slotId = slot) }) }
+        data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().upsertAll(it) }
 
-        database.storageBagDao().deleteAll(slot)
-        data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().insertAll(it) }
+        data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
 
-        database.explorationTeamDao().deleteAll(slot)
-        database.buildingSlotDao().deleteAll(slot)
-        database.recipeDao().deleteAll(slot)
+        data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
 
-        data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().insertAll(it.map { t -> t.copy(slotId = slot) }) }
-
-        database.battleLogDao().deleteAll(slot)
-
-        data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().insertAll(it.map { b -> b.copy(slotId = slot) }) }
-
-        database.forgeSlotDao().deleteAll(slot)
-        database.alchemySlotDao().deleteAll(slot)
         database.productionSlotDao().deleteBySlot(slot)
 
         val productionSlotsToSave = data.productionSlots.ifEmpty {
@@ -691,11 +682,11 @@ class StorageEngine @Inject internal constructor(
                 "data.gameData.productionSlots.size=${data.gameData.productionSlots?.size ?: "null"}")
         }
         productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-            database.productionSlotDao().insertAll(batch.map { it.copy(slotId = slot) })
+            database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
         }
 
         data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
-            database.recipeDao().insertAll(recipes)
+            database.recipeDao().upsertAll(recipes)
         }
 
         syncSlotMetadata(slot, data)
@@ -757,10 +748,29 @@ class StorageEngine @Inject internal constructor(
 
         if (loadHeavyData) {
             val merged = mergeHeavyData(gameData, slot)
-            return buildSaveDataFromDatabase(slot, merged)
+            val saveData = buildSaveDataFromDatabase(slot, merged)
+            if (saveData != null && !validateSaveData(saveData)) {
+                Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
+            }
+            return saveData
         }
 
-        return buildSaveDataFromDatabase(slot, gameData)
+        val saveData = buildSaveDataFromDatabase(slot, gameData)
+        if (saveData != null && !validateSaveData(saveData)) {
+            Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")
+        }
+        return saveData
+    }
+
+    /**
+     * 存档数据完整性校验。
+     * 检查关键字段是否在合法范围内，防止损坏数据导致游戏逻辑异常。
+     */
+    private fun validateSaveData(data: SaveData): Boolean {
+        if (data.gameData.gameYear < 1) return false
+        if (data.gameData.gameMonth < 1 || data.gameData.gameMonth > 12) return false
+        if (data.gameData.sectName.isBlank()) return false
+        return true
     }
 
     private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData {
@@ -808,21 +818,36 @@ class StorageEngine @Inject internal constructor(
         return result
     }
 
-    private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData {
-        val disciples = database.discipleDao().getAllSync(slot)
-        val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
-        val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
-        val manualStacks = database.manualStackDao().getAllSync(slot)
-        val manualInstances = database.manualInstanceDao().getAllSync(slot)
-        val pills = database.pillDao().getAllSync(slot)
-        val materials = database.materialDao().getAllSync(slot)
-        val herbs = database.herbDao().getAllSync(slot)
-        val seeds = database.seedDao().getAllSync(slot)
-        val storageBags = database.storageBagDao().getAll(slot)
-        val teams = database.explorationTeamDao().getAllSync(slot)
+    private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData = withContext(Dispatchers.IO) {
+        val deferredDisciples = async { database.discipleDao().getAllSync(slot) }
+        val deferredEquipmentStacks = async { database.equipmentStackDao().getAllSync(slot) }
+        val deferredEquipmentInstances = async { database.equipmentInstanceDao().getAllSync(slot) }
+        val deferredManualStacks = async { database.manualStackDao().getAllSync(slot) }
+        val deferredManualInstances = async { database.manualInstanceDao().getAllSync(slot) }
+        val deferredPills = async { database.pillDao().getAllSync(slot) }
+        val deferredMaterials = async { database.materialDao().getAllSync(slot) }
+        val deferredHerbs = async { database.herbDao().getAllSync(slot) }
+        val deferredSeeds = async { database.seedDao().getAllSync(slot) }
+        val deferredStorageBags = async { database.storageBagDao().getAll(slot) }
+        val deferredTeams = async { database.explorationTeamDao().getAllSync(slot) }
+        val deferredBattleLogs = async { database.battleLogDao().getAllSync(slot) }
+        var deferredProductionSlots = async { database.productionSlotDao().getBySlotSync(slot) }
+
+        val disciples = deferredDisciples.await()
+        val equipmentStacks = deferredEquipmentStacks.await()
+        val equipmentInstances = deferredEquipmentInstances.await()
+        val manualStacks = deferredManualStacks.await()
+        val manualInstances = deferredManualInstances.await()
+        val pills = deferredPills.await()
+        val materials = deferredMaterials.await()
+        val herbs = deferredHerbs.await()
+        val seeds = deferredSeeds.await()
+        val storageBags = deferredStorageBags.await()
+        val teams = deferredTeams.await()
+        val battleLogs = deferredBattleLogs.await()
+        var productionSlots = deferredProductionSlots.await()
+
         val alliances = gameData.alliances ?: emptyList()
-        val battleLogs = database.battleLogDao().getAllSync(slot)
-        var productionSlots = database.productionSlotDao().getBySlotSync(slot)
 
         if (productionSlots.isEmpty()) {
             val fallbackSlots = gameData.productionSlots
@@ -840,7 +865,7 @@ class StorageEngine @Inject internal constructor(
             disciples = disciples
         )
 
-        return SaveData(
+        SaveData(
             gameData = gameData,
             disciples = fixedDisciples,
             equipmentStacks = equipmentStacks,

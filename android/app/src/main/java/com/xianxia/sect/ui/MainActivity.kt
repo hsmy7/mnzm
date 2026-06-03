@@ -230,38 +230,39 @@ class MainActivity : ComponentActivity() {
     }
     
     internal fun onLoadingComplete() {
-        if (crashHandler.hasCrashed() && storageFacade.hasEmergencySave()) {
-            Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
-            showCrashRecoveryDialog()
-            return
-        }
-        
-        if (crashHandler.hasCrashed()) {
-            Log.i(TAG, "Crash detected but no emergency save, clearing crash state")
-            crashHandler.clearCrashState()
-        }
-        
-        initTapTapSDK()
-        
-        if (sessionManager.isLoggedIn) {
-            if (sessionManager.complianceVerified) {
-                showSaveSelectScreen()
-            } else {
-                val savedUnionId = sessionManager.unionId
-                if (!savedUnionId.isNullOrEmpty()) {
-                    Log.d(TAG, "已登录但未通过防沉迷验证，重新验证")
-                    showComplianceVerificationScreen(savedUnionId)
-                } else {
-                    Log.w(TAG, "已登录但缺少unionId，需要重新登录")
-                    sessionManager.clearSession()
-                    TapTapAuthManager.logout()
-                    showMainScreen()
-                }
+        lifecycleScope.launch {
+            if (crashHandler.hasCrashed() && storageFacade.hasEmergencySave()) {
+                Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
+                showCrashRecoveryDialog()
+                return@launch
             }
-            return
+
+            if (crashHandler.hasCrashed()) {
+                crashHandler.clearCrashState()
+            }
+
+            initTapTapSDK()
+
+            if (sessionManager.isLoggedIn) {
+                if (sessionManager.complianceVerified) {
+                    showSaveSelectScreen()
+                } else {
+                    val savedUnionId = sessionManager.unionId
+                    if (!savedUnionId.isNullOrEmpty()) {
+                        Log.d(TAG, "已登录但未通过防沉迷验证，重新验证")
+                        showComplianceVerificationScreen(savedUnionId)
+                    } else {
+                        Log.w(TAG, "已登录但缺少unionId，需要重新登录")
+                        sessionManager.clearSession()
+                        TapTapAuthManager.logout()
+                        showMainScreen()
+                    }
+                }
+                return@launch
+            }
+
+            showMainScreen()
         }
-        
-        showMainScreen()
     }
     
     private fun showLoadingScreen() {

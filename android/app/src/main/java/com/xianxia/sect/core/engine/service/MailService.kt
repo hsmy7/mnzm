@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.annotation.GameService
 import android.util.Log
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.GameConfig
@@ -44,6 +45,7 @@ data class MarkAllReadResult(
     val skipReasons: List<String> = emptyList()
 )
 
+@GameService("MailService")
 @Singleton
 class MailService @Inject constructor(
     private val mailDao: MailDao,

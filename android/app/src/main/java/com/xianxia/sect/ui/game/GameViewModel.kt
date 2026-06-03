@@ -331,10 +331,6 @@ class GameViewModel @Inject constructor(
         .map { data -> data.recruitList.map { it.toAggregate() } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val equipment: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
-
-    val manuals: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
-
     val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
         gameEngine.equipmentStacks,
         gameEngine.disciples
@@ -349,8 +345,7 @@ class GameViewModel @Inject constructor(
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
 
-    val manualStacks: StateFlow<List<ManualStack>> = gameEngine.manualStacks
-        .stateIn(viewModelScope, sharingStarted, emptyList())
+    val manualStacks: StateFlow<List<ManualStack>> get() = gameEngine.manualStacks
 
     val manualInstances: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
 
@@ -453,7 +448,7 @@ class GameViewModel @Inject constructor(
         focusedRefreshJob = viewModelScope.launch {
             while (isActive) {
                 discipleFacade.updateFocusedDisciple(request.disciple.id)
-                delay(200)
+                delay(1000)  // Match tick interval instead of polling at 200ms
             }
         }
     }
@@ -553,7 +548,7 @@ class GameViewModel @Inject constructor(
 
     fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = viewModelScope.launch { disciple.imprisonTheftDisciple(discipleId, currentYear) }
 
-    fun releaseTheftDisciple(discipleId: String): Int = runBlocking { disciple.releaseTheftDisciple(discipleId) }
+    suspend fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
 
     fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 

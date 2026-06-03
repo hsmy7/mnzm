@@ -16,12 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.util.BuildingSpatialIndex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.Offset
@@ -373,20 +375,56 @@ fun MainGameScreen(
         val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
             else rememberBuildingBitmaps()
 
+        // [C2 静态建筑层架构]
+        // 核心思路：将建筑预渲染（bake）到地图 Bitmap 上，Canvas 每帧只绘制单张 Bitmap，
+        // 避免逐帧遍历建筑列表。建筑变化时通过增量更新（擦除旧区域 + 绘制新建筑）修改 bakedMapBmp，
+        // 而非全量重建。低配设备（heap < 256MB）跳过烘焙，回退为动态绘制。
+        // 注意：Canvas 本身因相机平移每帧内容都变，graphicsLayer(offscreen) 无法缓存；
+        // 真正的静态层优化由 bakedMapBmp 承担。
         // 设备分级：低配设备跳过建筑烘焙，避免额外 18-36MB Bitmap 分配
         val maxHeapMB = remember { Runtime.getRuntime().maxMemory() / (1024 * 1024) }
         val shouldBakeBuildings = maxHeapMB >= 256  // 低配 4GB 设备 largeHeap 后约 256MB，跳过烘焙
         val bmpConfig = if (maxHeapMB >= 384) android.graphics.Bitmap.Config.ARGB_8888
             else android.graphics.Bitmap.Config.RGB_565  // 中配设备用 RGB_565 省一半内存
 
-        val bakedMapBmp = remember(fullMapBmp, effectivePlacedBuildings) {
+        // 增量绘制：只在建筑变化时增量更新，避免全量 copy
+        // 直接持有 Android Bitmap，避免 ImageBitmap↔Android Bitmap 反复转换
+        val bakedMapBmp: android.graphics.Bitmap? = remember(fullMapBmp) {
             if (!shouldBakeBuildings) {
-                fullMapBmp  // 低配：直接用原始背景，建筑在 Canvas 中动态绘制
+                null  // 低配设备跳过烘焙
             } else {
                 val src = fullMapBmp.asAndroidBitmap()
-                val copy = src.copy(bmpConfig, true) ?: src
-                val canvas = android.graphics.Canvas(copy)
-                for (building in effectivePlacedBuildings) {
+                src.copy(bmpConfig, true) ?: src
+            }
+        }
+
+        // 追踪上一次绘制的建筑列表，用于增量更新
+        val previousBuildings = remember { mutableListOf<GridBuildingData>() }
+
+        LaunchedEffect(effectivePlacedBuildings) {
+            val currentBmp = bakedMapBmp ?: return@LaunchedEffect
+            if (currentBmp.isRecycled) return@LaunchedEffect
+            val canvas = android.graphics.Canvas(currentBmp)
+
+            // 增量：擦除被移除的建筑区域（恢复背景）
+            val currentIds = effectivePlacedBuildings.map { it.instanceId }.toSet()
+            for (oldBuilding in previousBuildings) {
+                if (oldBuilding.instanceId !in currentIds) {
+                    val bx = oldBuilding.gridX * tileSize
+                    val by = oldBuilding.gridY * tileSize
+                    val bw = oldBuilding.width * tileSize
+                    val bh = oldBuilding.height * tileSize
+                    val srcBmp = fullMapBmp.asAndroidBitmap()
+                    val srcRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
+                    val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
+                    canvas.drawBitmap(srcBmp, srcRect, dstRect, null)
+                }
+            }
+
+            // 增量：绘制新增的建筑
+            val previousIds = previousBuildings.map { it.instanceId }.toSet()
+            for (building in effectivePlacedBuildings) {
+                if (building.instanceId !in previousIds) {
                     val bx = building.gridX * tileSize
                     val by = building.gridY * tileSize
                     val bw = building.width * tileSize
@@ -402,15 +440,28 @@ fun MainGameScreen(
                         canvas.drawRect(android.graphics.RectF(bx.toFloat(), by.toFloat(), (bx + bw).toFloat(), (by + bh).toFloat()), paint)
                     }
                 }
-                copy.asImageBitmap()
+            }
+
+            // 更新追踪列表
+            previousBuildings.clear()
+            previousBuildings.addAll(effectivePlacedBuildings)
+        }
+
+        // 主动回收 Bitmap，避免依赖 GC
+        DisposableEffect(Unit) {
+            onDispose {
+                bakedMapBmp?.takeIf { !it.isRecycled }?.recycle()
             }
         }
+
+        // 用于 Compose 渲染的 ImageBitmap（低配设备直接用原始地图）
+        val displayMapBmp = bakedMapBmp?.asImageBitmap() ?: fullMapBmp
 
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览 + 确认按钮）
         SectMapLayer(
             cameraState = cameraState,
             placedBuildings = effectivePlacedBuildings,
-            fullMapBmp = bakedMapBmp,
+            fullMapBmp = displayMapBmp,
             buildingsBaked = shouldBakeBuildings,
             buildingBitmaps = buildingBitmaps,
             tileSize = tileSize,
@@ -861,9 +912,13 @@ private fun SectGroundCanvas(
     val currentMovingInstanceId by rememberUpdatedState(movingInstanceId)
     val longPressScope = rememberCoroutineScope()
 
+    // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
+    val buildingIndex = remember { BuildingSpatialIndex() }
+    LaunchedEffect(placedBuildings) { buildingIndex.rebuild(placedBuildings) }
+
     Canvas(
         modifier = modifier
-            .pointerInput(placedBuildings, tileSize) {
+            .pointerInput(Unit) {
 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -872,13 +927,10 @@ private fun SectGroundCanvas(
                     val wx = cameraState.screenToWorldX(downPos.x)
                     val wy = cameraState.screenToWorldY(downPos.y)
 
-                    val touchedBuilding = placedBuildings.find { b ->
-                        if (b.instanceId == currentMovingInstanceId) return@find false
-                        val bx = b.gridX * tileSize
-                        val by = b.gridY * tileSize
-                        wx >= bx && wx < bx + b.width * tileSize &&
-                            wy >= by && wy < by + b.height * tileSize
-                    }
+                    val gridX = (wx / tileSize).toInt()
+                    val gridY = (wy / tileSize).toInt()
+                    val touchedBuilding = buildingIndex.findBuildingAt(gridX, gridY)
+                        ?.takeIf { it.instanceId != currentMovingInstanceId }
 
                     val onMovingBuilding = currentIsMoving && run {
                         val bw = currentMovingSize.width * tileSize
@@ -1204,15 +1256,16 @@ private fun PlacementConfirmButtons(
             ) { Text("✗", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
     }
-    // 放置预览覆盖层
-    val overlayXDp = cameraState.worldToScreenX(worldX) / density
-    val overlayYDp = cameraState.worldToScreenY(worldY) / density
+    // 放置预览覆盖层 — graphicsLayer 零重组动画（平移仅触发 draw，跳过 layout）
     val overlayWDp = (buildingSize.width * tileSize) / density
     val overlayHDp = (buildingSize.height * tileSize) / density
     val overlayColor = if (canConfirm) Color(0x664CAF50) else Color(0x66F44336)
     Box(
         modifier = Modifier
-            .offset(x = overlayXDp.dp, y = overlayYDp.dp)
+            .graphicsLayer {
+                translationX = cameraState.worldToScreenX(worldX)
+                translationY = cameraState.worldToScreenY(worldY)
+            }
             .size(width = overlayWDp.dp, height = overlayHDp.dp)
             .background(overlayColor)
     )

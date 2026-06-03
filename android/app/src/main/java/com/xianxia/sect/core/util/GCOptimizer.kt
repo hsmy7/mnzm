@@ -125,40 +125,31 @@ class GCOptimizer @Inject constructor(
     private fun performGC(type: GCType): GCOptimizationResult {
         val runtime = Runtime.getRuntime()
         val memoryBefore = runtime.totalMemory() - runtime.freeMemory()
-        val startTime = System.currentTimeMillis()
 
-        if (type == GCType.CRITICAL || type == GCType.MANUAL) {
-            Log.i(TAG, "GC requested (${type.name}) but System.gc() skipped — ART manages GC autonomously")
-        }
+        // System.gc() 已跳过 — ART 自主管理 GC，主动调用只会增加停顿
+        Log.i(TAG, "GC requested (${type.name}) but System.gc() skipped — ART manages GC autonomously")
 
-        val endTime = System.currentTimeMillis()
-        val durationMs = endTime - startTime
         val memoryAfter = runtime.totalMemory() - runtime.freeMemory()
-        val memoryFreed = memoryBefore - memoryAfter
-        
-        lastGCTime = endTime
-        gcCount++
-        totalGCTime += durationMs
-        
+
+        // 不更新统计：未实际执行 GC，不应计入 gcCount/totalGCTime
         val result = GCOptimizationResult(
-            performed = true,
+            performed = false,
             type = type,
-            durationMs = durationMs,
+            durationMs = 0L,
             memoryBefore = memoryBefore,
             memoryAfter = memoryAfter,
-            memoryFreed = memoryFreed
+            memoryFreed = memoryBefore - memoryAfter  // 仅快照差值，非本次释放
         )
-        
+
         Log.i(TAG, """
-            |GC Completed (${type.name}):
-            |  - Duration: ${durationMs}ms
+            |GC Skipped (${type.name}):
             |  - Memory before: ${MemoryFormatUtil.formatMemory(memoryBefore)}
             |  - Memory after: ${MemoryFormatUtil.formatMemory(memoryAfter)}
-            |  - Memory freed: ${MemoryFormatUtil.formatMemory(memoryFreed.coerceAtLeast(0))}
+            |  - Snapshot diff: ${MemoryFormatUtil.formatMemory((memoryBefore - memoryAfter).coerceAtLeast(0))}
         """.trimMargin())
-        
+
         notifyListeners { it.onGCPerformed(result) }
-        
+
         return result
     }
     
@@ -248,7 +239,7 @@ class GCOptimizer @Inject constructor(
     }
     
     private fun notifyListeners(action: (GCEventListener) -> Unit) {
-        scope.launch(Dispatchers.Main) {
+        scope.launch(Dispatchers.Default) {
             listeners.forEach { listener ->
                 try {
                     action(listener)

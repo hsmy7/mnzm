@@ -7,6 +7,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// TickSystem: "TimeSystem"
 @SystemPriority(order = 0)
 @Singleton
 class TimeSystem @Inject constructor(

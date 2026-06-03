@@ -23,4 +23,23 @@ class BaselineProfileGenerator {
             waitForIdleSync()
         }
     }
+
+    @Test
+    fun gamePlayScenario() = baselineProfileRule.collect(
+        packageName = "com.xianxia.sect",
+        includeInStartupProfile = false
+    ) {
+        pressHome()
+        startActivityAndWait()
+        waitForIdleSync()
+
+        // Let the game loop run for several ticks to warm up JIT for:
+        // - GameEngineCore.tick() + SystemManager pipeline
+        // - Compose rendering (Canvas, LazyColumn, StateFlow collection)
+        // - StateFlow .map{} chains and collectAsStateWithLifecycle subscribers
+        repeat(6) {
+            Thread.sleep(1200)  // slightly longer than 1000ms tick interval
+            waitForIdleSync()
+        }
+    }
 }

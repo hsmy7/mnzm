@@ -13,12 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
+
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -203,19 +203,16 @@ internal fun WarehouseTab(
     var selectedItemId by remember { mutableStateOf<String?>(null) }
     var showBagRewards by remember { mutableStateOf<List<BattleRewardItem>?>(null) }
     val coroutineScope = rememberCoroutineScope()
-    val selectedItem by remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, spiritStoneCards, sortedBags) {
+    val itemIndex = remember(allSortedItems) {
+        allSortedItems.associateBy { it.id }
+    }
+    val selectedItem by remember(selectedItemId, itemIndex) {
         derivedStateOf {
             selectedItemId?.let { id ->
                 if (id.startsWith("spirit_stone_")) {
                     spiritStoneCards.find { it.first == id }?.second
                 } else {
-                    equipment.find { it.id == id }
-                        ?: manuals.find { it.id == id }
-                        ?: sortedPills.find { it.id == id }
-                        ?: sortedMaterials.find { it.id == id }
-                        ?: sortedHerbs.find { it.id == id }
-                        ?: sortedSeeds.find { it.id == id }
-                        ?: sortedBags.find { it.id == id }
+                    itemIndex[id]?.item
                 }
             }
         }
@@ -531,11 +528,11 @@ internal fun DiscipleSelectForRewardDialog(
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     
-    val aliveDisciples = remember(disciples) {
+    val aliveDisciples = remember {
         disciples.filter { it.isAlive && it.status != DiscipleStatus.REFLECTING }
     }
     
-    val currentQuantity by remember(pills, materials, herbs, seeds, equipmentStacks, manualStacks, itemType, itemId) {
+    val currentQuantity by remember(itemType, itemId) {
         derivedStateOf {
             when (itemType) {
                 "pill" -> pills.find { it.id == itemId }?.quantity ?: 0
@@ -1025,13 +1022,13 @@ internal fun BulkSellDialog(
             sellableSeeds.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) }
     
     HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1045,7 +1042,9 @@ internal fun BulkSellDialog(
                     )
                     CloseButton(onClick = onDismiss)
                 }
-                
+            }
+
+            item {
                 // 品阶选择 - 4列显示，支持多选
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -1093,7 +1092,9 @@ internal fun BulkSellDialog(
                         }
                     }
                 }
-                
+            }
+
+            item {
                 // 类型选择 - 4列显示
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -1141,7 +1142,9 @@ internal fun BulkSellDialog(
                         }
                     }
                 }
-                
+            }
+
+            item {
                 // 可出售物品列表
                 if (totalItems > 0) {
                     Text(
@@ -1325,7 +1328,9 @@ internal fun BulkSellDialog(
                         )
                     }
                 }
-                
+            }
+
+            item {
                 // 按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1372,6 +1377,7 @@ internal fun BulkSellDialog(
                         )
                     }
                 }
+            }
             }
         }
 

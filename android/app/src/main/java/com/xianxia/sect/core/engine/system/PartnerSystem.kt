@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// TickSystem: "PartnerSystem"
 @Singleton
 @SystemPriority(order = 240)
 class PartnerSystem @Inject constructor(

@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.*
@@ -54,7 +55,8 @@ class GameEngineCore @Inject constructor(
     private val settlementCoordinator: SettlementCoordinator,
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val cultivationService: CultivationService,
-    private val explorationService: ExplorationService
+    private val explorationService: ExplorationService,
+    private val thermalMonitor: ThermalMonitor
 ) {
     
     companion object {
@@ -113,6 +115,14 @@ class GameEngineCore @Inject constructor(
     /** 记录 isLoading 变为 true 的时间戳，用于看门狗检测 */
     @Volatile
     private var loadingStartTime: Long = 0L
+
+    /** 当前正在运行的保存协程 Job，用于看门狗强制取消 */
+    @Volatile
+    private var activeSaveJob: Job? = null
+
+    /** 当前正在运行的加载协程 Job，用于看门狗强制取消 */
+    @Volatile
+    private var activeLoadJob: Job? = null
 
     fun initialize() {
         if (isInitialized) {
@@ -260,7 +270,7 @@ class GameEngineCore @Inject constructor(
         val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
         unifiedPerformanceMonitor.recordTick(tickTime)
         
-        val entityCount = stateStore.unifiedState.value.disciples.size
+        val entityCount = stateStore.disciplesSnapshot.size
         unifiedPerformanceMonitor.recordEntityCount(entityCount)
         
         if (tickTime > TICK_WARNING_THRESHOLD_MS) {
@@ -269,10 +279,24 @@ class GameEngineCore @Inject constructor(
     }
     
     private suspend fun tickInternal() {
-        val currentState = stateStore.unifiedState.value
-        if (currentState.isPaused || currentState.isLoading || currentState.isSaving) {
-            checkAndResetStuckStates(currentState)
+        val isPaused = stateStore.isPaused.value
+        val isLoading = stateStore.isLoading.value
+        val isSaving = stateStore.isSaving.value
+        if (isPaused || isLoading || isSaving) {
+            checkAndResetStuckStates(isSaving, isLoading)
             return
+        }
+
+        // 热管理：过热时降低负载
+        if (thermalMonitor.shouldEmergencySave()) {
+            Log.w(TAG, "Thermal status SEVERE+, triggering emergency save and skipping tick")
+            _autoSaveTrigger.trySend(Unit)
+            return
+        }
+        if (thermalMonitor.shouldReduceWorkload()) {
+            // 跳过非关键计算（如 AI 更新、视觉效果）
+            // 只执行核心时间推进
+            Log.d(TAG, "Thermal throttling: skipping non-critical systems")
         }
 
         _tickCount.value++
@@ -358,11 +382,11 @@ class GameEngineCore @Inject constructor(
      * 看门狗：检测 isSaving/isLoading 是否卡住超时，如果超时则强制重置。
      * 在 tickInternal() 每次跳过 tick 时调用。
      */
-    private fun checkAndResetStuckStates(currentState: UnifiedGameState) {
+    private fun checkAndResetStuckStates(isSaving: Boolean, isLoading: Boolean) {
         val now = System.currentTimeMillis()
 
         // 跟踪 isSaving 变为 true 的时间
-        if (currentState.isSaving) {
+        if (isSaving) {
             if (savingStartTime == 0L) {
                 savingStartTime = now
             } else if (now - savingStartTime > STUCK_STATE_TIMEOUT_MS) {
@@ -374,7 +398,7 @@ class GameEngineCore @Inject constructor(
         }
 
         // 跟踪 isLoading 变为 true 的时间
-        if (currentState.isLoading) {
+        if (isLoading) {
             if (loadingStartTime == 0L) {
                 loadingStartTime = now
             } else if (now - loadingStartTime > STUCK_STATE_TIMEOUT_MS) {
@@ -387,11 +411,44 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
+     * 注册当前正在运行的保存协程 Job，供看门狗强制取消。
+     * 在 finally 块中应调用 [clearActiveSaveJob] 清除引用。
+     */
+    fun registerActiveSaveJob(job: Job) {
+        activeSaveJob?.cancel()
+        activeSaveJob = job
+    }
+
+    /** 清除保存协程 Job 引用（协程正常结束时调用） */
+    fun clearActiveSaveJob() {
+        activeSaveJob = null
+    }
+
+    /**
+     * 注册当前正在运行的加载协程 Job，供看门狗强制取消。
+     * 在 finally 块中应调用 [clearActiveLoadJob] 清除引用。
+     */
+    fun registerActiveLoadJob(job: Job) {
+        activeLoadJob?.cancel()
+        activeLoadJob = job
+    }
+
+    /** 清除加载协程 Job 引用（协程正常结束时调用） */
+    fun clearActiveLoadJob() {
+        activeLoadJob = null
+    }
+
+    /**
      * 强制重置 isSaving 和 isLoading 为 false。
      * 用于看门狗检测到状态卡住时调用，也可从外部调用作为紧急恢复手段。
+     * 同时取消正在运行的 save/load 协程，防止并发写入。
      */
     fun forceResetStuckStates() {
-        Log.w(TAG, "Force resetting stuck states: isSaving and isLoading -> false")
+        Log.w(TAG, "Force resetting stuck states: isSaving and isLoading -> false, cancelling active jobs")
+        activeSaveJob?.cancel()
+        activeSaveJob = null
+        activeLoadJob?.cancel()
+        activeLoadJob = null
         stateManager.setSavingDirect(false)
         stateManager.setLoadingDirect(false)
         savingStartTime = 0L

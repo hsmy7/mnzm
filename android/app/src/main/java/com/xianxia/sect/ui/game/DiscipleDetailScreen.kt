@@ -685,8 +685,8 @@ fun DiscipleDetailDialog(
     onDismiss: () -> Unit,
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
-    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
-    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
+    val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
 
@@ -1127,10 +1127,12 @@ private fun BasicInfoSection(
                 color = Color.Black
             )
             // 根据灵根数量显示不同颜色
-            val spiritRootCountColor = try {
-                Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-            } catch (e: Exception) {
-                Color.Black
+            val spiritRootCountColor = remember(disciple.spiritRoot.countColor) {
+                try {
+                    Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                } catch (e: Exception) {
+                    Color.Black
+                }
             }
             Text(
                 text = disciple.spiritRootName,
@@ -1234,14 +1236,11 @@ private fun BasicInfoSection(
                         color = Color.Black
                     )
                     val cultivationTarget = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
-                    val prevCultivationTarget = remember { mutableStateOf(cultivationTarget) }
-                    val cultivationShouldSnap = cultivationTarget < prevCultivationTarget.value - 0.5f
                     val animatedCultivationProgress by animateFloatAsState(
                         targetValue = cultivationTarget,
-                        animationSpec = if (cultivationShouldSnap) snap() else tween(durationMillis = 300),
+                        animationSpec = snap(),  // tick=1000ms下无需过渡动画
                         label = "cultivationProgress"
                     )
-                    SideEffect { prevCultivationTarget.value = cultivationTarget }
                     Box(
                         modifier = Modifier
                             .weight(1f)

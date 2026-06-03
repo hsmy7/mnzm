@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
@@ -22,6 +23,7 @@ import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@GameService("BuildingService")
 @Singleton
 class BuildingService @Inject constructor(
     private val stateStore: GameStateStore,

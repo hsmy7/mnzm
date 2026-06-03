@@ -9,6 +9,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,10 +36,10 @@ class FrameMetricsMonitor @Inject constructor() {
     private var observer: Any? = null
     private var isMonitoring = false
 
-    private var totalFrames = 0L
-    private var jankFrames = 0L
-    private var severeJankFrames = 0L
-    private var totalDurationNs = 0L
+    private val totalFrames = AtomicLong(0)
+    private val jankFrames = AtomicLong(0)
+    private val severeJankFrames = AtomicLong(0)
+    private val totalDurationNs = AtomicLong(0)
 
     @RequiresApi(Build.VERSION_CODES.N)
     fun startMonitoring(window: Window) {
@@ -59,14 +60,14 @@ class FrameMetricsMonitor @Inject constructor() {
                         frameMetrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
                     } else -1L
 
-                    totalFrames++
-                    totalDurationNs += total
+                    totalFrames.incrementAndGet()
+                    totalDurationNs.addAndGet(total)
 
                     val isJank = total > JANK_THRESHOLD_NS
                     if (isJank) {
-                        jankFrames++
+                        jankFrames.incrementAndGet()
                         val isSevere = total > SEVERE_JANK_THRESHOLD_NS
-                        if (isSevere) severeJankFrames++
+                        if (isSevere) severeJankFrames.incrementAndGet()
 
                         _jankEvents.tryEmit(FrameMetricsEvent(
                             totalDurationNs = total,
@@ -106,21 +107,21 @@ class FrameMetricsMonitor @Inject constructor() {
     }
 
     private val getStatsSummary: String
-        get() = "frames=$totalFrames, jank=$jankFrames(${if (totalFrames > 0) jankFrames * 100 / totalFrames else 0}%), severe=$severeJankFrames"
+        get() = "frames=${totalFrames.get()}, jank=${jankFrames.get()}(${if (totalFrames.get() > 0) jankFrames.get() * 100 / totalFrames.get() else 0}%), severe=${severeJankFrames.get()}"
 
     fun getStats(): FrameMetricsStats = FrameMetricsStats(
-        totalFrames = totalFrames,
-        jankFrames = jankFrames,
-        severeJankFrames = severeJankFrames,
-        averageFrameTimeMs = if (totalFrames > 0) totalDurationNs / totalFrames / 1_000_000.0 else 0.0,
-        jankRate = if (totalFrames > 0) jankFrames.toDouble() / totalFrames else 0.0
+        totalFrames = totalFrames.get(),
+        jankFrames = jankFrames.get(),
+        severeJankFrames = severeJankFrames.get(),
+        averageFrameTimeMs = if (totalFrames.get() > 0) totalDurationNs.get() / totalFrames.get() / 1_000_000.0 else 0.0,
+        jankRate = if (totalFrames.get() > 0) jankFrames.get().toDouble() / totalFrames.get() else 0.0
     )
 
     fun resetStats() {
-        totalFrames = 0
-        jankFrames = 0
-        severeJankFrames = 0
-        totalDurationNs = 0
+        totalFrames.set(0)
+        jankFrames.set(0)
+        severeJankFrames.set(0)
+        totalDurationNs.set(0)
     }
 }
 

@@ -124,9 +124,10 @@ fun GameOverlayHost(
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
-    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
-
     if (currentDialogRoute != DialogRoute.None) {
+        // 仅在 Dialog 可见时订阅 gameData，避免无 Dialog 时的不必要 StateFlow 订阅
+        val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
+
         key(currentDialogRoute) {
             when (val route = currentDialogRoute) {
                 is DialogRoute.None -> { }
@@ -309,7 +310,7 @@ fun GameOverlayHost(
             }
         }
         is DialogRoute.Library -> {
-            val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+            val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 LibraryDialog(
@@ -461,8 +462,9 @@ fun GameOverlayHost(
     }
 
     if (pendingNotification != null) {
+        val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
         val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
-        val activeSectBuildings = remember(placedBuildings, gameData.activeSectId) {
+        val activeSectBuildings = remember {
             derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }
         }
     pendingNotification?.let { notification ->
@@ -576,8 +578,8 @@ fun GameOverlayHost(
 private fun DisciplesTabContent(viewModel: GameViewModel) {
     val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
     val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
-    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
-    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
+    val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     DisciplesTab(

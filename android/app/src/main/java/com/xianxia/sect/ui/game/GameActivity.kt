@@ -456,9 +456,14 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         super.onTrimMemory(level)
         when (level) {
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                Log.d(TAG, "UI已隐藏，可释放UI相关资源")
+                // Release UI-only resources
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                viewModel.onMemoryPressure(level)
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+                viewModel.onMemoryPressure(level)
+            }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
             ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
                 Log.w(TAG, "运行时内存压力(level=$level)")
@@ -466,7 +471,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
                 Log.w(TAG, "内存适中压力，建议释放部分资源")
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
             ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
                 Log.e(TAG, "内存严重不足(level=$level)，执行紧急保存")
                 performEmergencySaveWithDebounce()

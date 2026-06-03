@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,11 +54,12 @@ fun DiscipleTheftCaughtDialog(
     hasPrison: Boolean,
     onExpel: () -> Unit,
     onImprison: () -> Unit,
-    onRelease: () -> Int,
+    onRelease: suspend () -> Int,
     onDiscipleClick: (String) -> Unit,
     onLoyaltyDismissed: () -> Unit
 ) {
     var loyaltyResult by remember { mutableStateOf<Int?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     if (loyaltyResult != null) {
         LoyaltyChangeDialog(
@@ -79,7 +81,7 @@ fun DiscipleTheftCaughtDialog(
             Spacer(modifier = Modifier.width(8.dp))
             GameButton(text = "押入监牢", onClick = onImprison, enabled = hasPrison)
             Spacer(modifier = Modifier.width(8.dp))
-            GameButton(text = "释放", onClick = { loyaltyResult = onRelease() })
+            GameButton(text = "释放", onClick = { coroutineScope.launch { loyaltyResult = onRelease() } })
         }
     ) {
         Box(

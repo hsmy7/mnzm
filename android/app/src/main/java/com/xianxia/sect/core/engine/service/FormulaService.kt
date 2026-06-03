@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -10,6 +11,7 @@ import com.xianxia.sect.core.util.BuildingNames
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@GameService("FormulaService")
 @Singleton
 class FormulaService @Inject constructor(
     private val stateStore: GameStateStore,

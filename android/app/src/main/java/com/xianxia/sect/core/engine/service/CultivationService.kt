@@ -51,6 +51,7 @@ import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -68,6 +69,7 @@ data class HighFrequencyData(
     val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap()      // discipleId -> (equipmentId -> gained)
 )
 
+@GameService("CultivationService")
 @Singleton
 class CultivationService @Inject constructor(
     private val stateStore: GameStateStore,

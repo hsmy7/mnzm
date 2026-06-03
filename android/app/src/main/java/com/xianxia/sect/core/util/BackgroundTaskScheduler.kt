@@ -19,7 +19,7 @@ class BackgroundTaskScheduler(
     private val heartbeatMs: Long = 1000L
 ) {
     private var job: Job? = null
-    private val tasks = mutableListOf<ScheduledTask>()
+    private val tasks = java.util.concurrent.CopyOnWriteArrayList<ScheduledTask>()
     private var tickCount = 0L
 
     data class ScheduledTask(

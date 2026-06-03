@@ -397,7 +397,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 紧急存档方法 ====================
 
-    fun hasEmergencySave(): Boolean {
+    suspend fun hasEmergencySave(): Boolean {
         return try {
             engine.hasEmergencySave()
         } catch (e: Exception) {

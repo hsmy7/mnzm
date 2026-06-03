@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
@@ -22,6 +23,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 
+@GameService("DiscipleService")
 @Singleton
 class DiscipleService @Inject constructor(
     private val stateStore: GameStateStore,

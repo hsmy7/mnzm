@@ -99,9 +99,9 @@ internal fun BuildingsTab(
     val materials by viewModel.materials.collectAsStateWithLifecycle()
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
-    val manuals by viewModel.manuals.collectAsStateWithLifecycle()
+    val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
     val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val equipment by viewModel.equipment.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val productionSlots by viewModel.productionSlots.collectAsStateWithLifecycle()
 

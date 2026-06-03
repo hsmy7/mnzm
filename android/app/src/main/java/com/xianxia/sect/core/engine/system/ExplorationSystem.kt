@@ -5,6 +5,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// TickSystem: "ExplorationTickSystem"
 @Singleton
 @SystemPriority(order = 240)
 class ExplorationTickSystem @Inject constructor(

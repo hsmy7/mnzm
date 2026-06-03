@@ -66,6 +66,9 @@ interface ProductionSlotDao {
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(slots: List<ProductionSlot>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(slots: List<ProductionSlot>)
     
     @Update
     suspend fun update(slot: ProductionSlot)

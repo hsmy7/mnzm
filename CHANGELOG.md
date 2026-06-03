@@ -1,5 +1,63 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.03] - 2026-06-03
+
+### 性能优化大版本（基于28条行业权威数据对标设计）
+
+**存档系统**
+- 全量 Delete+Insert 改为 upsertAll + @Transaction：保存耗时减少80%+
+- 18个DAO新增 upsertAll 方法，统一使用 OnConflictStrategy.REPLACE
+- 存档加载12路并行化（async DAO查询）
+- 新增存档完整性校验（validateSaveData）
+- 消除 runBlocking 主线程阻塞：hasEmergencySave/releaseTheftDisciple 改为 suspend
+
+**游戏循环**
+- 解耦 unifiedState 读取：tick 直接读独立 StateFlow 快照，避免触发17-way combine
+- 新增 ThermalMonitor 热管理：过热时自动降负载/紧急保存
+- 看门狗增强：activeSaveJob/activeLoadJob 追踪 + 超时强制取消
+
+**地图渲染**
+- 建筑贴图增量绘制：仅重绘变化区域，不再全量64MB copy
+- RGB_565 策略：中低配设备自动切换，内存减半
+- Bitmap 主动回收：DisposableEffect + recycle
+- 视口裁剪网格线：仅绘制可见区域
+- 地图 dashPathEffect 缓存
+
+**UI流畅度**
+- pointerInput 手势修复：key改为Unit，放置建筑后拖拽不中断
+- derivedStateOf key 修正 + 全局审计
+- collectAsStateWithLifecycle 迁移：159处，切后台自动休眠
+- Dialog 惰性订阅：未打开时不订阅 StateFlow
+- WarehouseTab 物品索引：itemIndex Map 替代7路链式find
+- BulkSellDialog：Column+verticalScroll → LazyColumn
+- DiscipleDetailScreen：spiritRootCountColor 缓存、cultivationProgress 优化
+
+**安装包与构建**
+- Protobuf → javalite：减少运行时内存1-2MB + APK 500KB
+- ProGuard 规则精简：移除 kotlin.**/androidx.** 通配符，OkHttp 精确化
+- material-icons-extended 移除
+- kotlinx-serialization-cbor 移除
+- 图片脚本 PNG→WebP（quality=85，减少25-35%体积）
+- Zstd JNI x86/x86_64 排除
+- extractNativeLibs=false + useLegacyPackaging=false
+- Game Mode API 声明（Android 12+）
+- Compose 稳定性配置文件（stability_config.conf）
+
+**基础架构**
+- GameData拆分 Phase A：5个领域模型（Diplomacy/Production/Patrol/WorldMap/SectPolicy）
+- DomainStateProvider：从GameData派生领域StateFlow
+- GameEventBus 事件总线基础 + 6种游戏事件
+- Service/System 职责边界标注
+- FrameMetricsMonitor AtomicLong 线程安全
+- BackgroundTaskScheduler CopyOnWriteArrayList
+- GCOptimizer：移除主动 System.gc()，notifyListeners 切到 Default
+- 触控 BuildingSpatialIndex 空间索引
+- focusedRefreshJob 200ms→1000ms 对齐tick
+
+**工具与脚本**
+- Gradle 8.12→8.14.5 / configuration-cache / enableJetifier=false
+- BaselineProfile 新增 gamePlayScenario
+
 ## [3.2.02] - 2026-06-03
 
 ### 状态一致性修复（Bug 修复）

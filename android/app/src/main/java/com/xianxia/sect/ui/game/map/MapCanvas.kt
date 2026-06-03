@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.sqrt
 
@@ -77,6 +78,13 @@ fun MapCanvas(
         }
     }
 
+    val density = LocalDensity.current
+    val dashEffect = remember(density) {
+        PathEffect.dashPathEffect(
+            intervals = floatArrayOf(with(density) { 8.dp.toPx() }, with(density) { 4.dp.toPx() })
+        )
+    }
+
     Canvas(modifier = modifier.fillMaxSize()) {
         withTransform({
             translate(-cameraState.cameraX, -cameraState.cameraY)
@@ -98,9 +106,7 @@ fun MapCanvas(
             val caveColor = MapStyle.Colors.caveExplorationPath.copy(alpha = 0.6f)
             val caveStroke = Stroke(
                 width = MapStyle.Dimensions.cavePathStrokeWidth.toPx(),
-                pathEffect = PathEffect.dashPathEffect(
-                    intervals = floatArrayOf(8.dp.toPx(), 4.dp.toPx())
-                )
+                pathEffect = dashEffect
             )
             for (cavePath in cachedCavePaths) {
                 drawPath(

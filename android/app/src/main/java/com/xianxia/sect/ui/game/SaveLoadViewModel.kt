@@ -432,6 +432,9 @@ class SaveLoadViewModel @Inject constructor(
 
                 consecutiveSaveFailures.set(0)
                 Log.d(TAG, "Auto save enqueued for slot: $autoSaveSlot, source=$source")
+            } catch (e: CancellationException) {
+                Log.w(TAG, "Auto save cancelled (source=$source)", e)
+                throw e
             } catch (e: Exception) {
                 val failures = consecutiveSaveFailures.incrementAndGet()
                 Log.e(TAG, "Auto save failed (source=$source): ${e.message}", e)
@@ -442,6 +445,7 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 saveLock.set(false)
                 saveLockAcquireTime.set(0)
+                gameEngineCore.clearActiveSaveJob()
                 val pendingSource = pendingAutoSave.getAndSet(null)
                 if (pendingSource != null) {
                     if (pendingSource == SavePipeline.SaveSource.AUTO && (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0) <= 0) {
@@ -452,7 +456,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 }
             }
-        }
+        }.also { gameEngineCore.registerActiveSaveJob(it) }
     }
 
     fun performAutoSave() {
@@ -544,6 +548,9 @@ class SaveLoadViewModel @Inject constructor(
                     "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                     "totalElapsed=${System.currentTimeMillis() - startTime}ms")
+            } catch (e: CancellationException) {
+                Log.w(TAG, "startNewGame cancelled")
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
 
@@ -575,6 +582,7 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                gameEngineCore.clearActiveLoadJob()
                 if (!gameStarted) {
                     _loadingProgress.value = PROGRESS_START
                 }
@@ -586,7 +594,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 }
             }
-        }
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     private suspend fun performSynchronousSave(slot: Int): Boolean {
@@ -738,6 +746,9 @@ class SaveLoadViewModel @Inject constructor(
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                     "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                     "elapsed=${System.currentTimeMillis() - startTime}ms")
+            } catch (e: CancellationException) {
+                Log.w(TAG, "loadGame cancelled")
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
                 val partialGameData = gameEngine.gameData.value
@@ -762,8 +773,9 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                gameEngineCore.clearActiveLoadJob()
             }
-        }
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     fun loadGameFromSlot(slot: Int) {
@@ -861,6 +873,9 @@ class SaveLoadViewModel @Inject constructor(
                     Log.e(TAG, "=== loadGameFromSlot FAILED === timeout or null for slot $slot, elapsed=${elapsed}ms")
                     showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
                 }
+            } catch (e: CancellationException) {
+                Log.w(TAG, "loadGameFromSlot cancelled")
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGameFromSlot FAILED === error=${e.message}", e)
 
@@ -888,11 +903,12 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                gameEngineCore.clearActiveLoadJob()
                 if (!gameLoaded) {
                     _loadingProgress.value = PROGRESS_START
                 }
             }
-        }
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     fun saveGame(slotId: String? = null) {
@@ -975,6 +991,10 @@ class SaveLoadViewModel @Inject constructor(
                     storageFacade.setCurrentSlot(previousSlot)
                     showError("内存不足，保存失败。请关闭其他应用后重试。")
                     try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
+                } catch (e: CancellationException) {
+                    Log.w(TAG, "saveGame cancelled")
+                    storageFacade.setCurrentSlot(previousSlot)
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
                     storageFacade.setCurrentSlot(previousSlot)
@@ -993,8 +1013,9 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                gameEngineCore.clearActiveSaveJob()
             }
-        }
+        }.also { gameEngineCore.registerActiveSaveJob(it) }
     }
 
     private suspend fun waitForSaveLock(timeoutMs: Long): Boolean {
@@ -1053,12 +1074,21 @@ class SaveLoadViewModel @Inject constructor(
                 productionSlots = snapshot.productionSlots
             )
             applicationScopeProvider.ioScope.launch {
-                withTimeoutOrNull(5_000L) {
-                    storageFacade.save(autoSaveSlot, saveData)
-                } ?: run {
-                    Log.w(TAG, "pauseAndSaveForBackground: save timeout, slot: $autoSaveSlot")
+                try {
+                    withTimeoutOrNull(5_000L) {
+                        storageFacade.save(autoSaveSlot, saveData)
+                    } ?: run {
+                        Log.w(TAG, "pauseAndSaveForBackground: save timeout, slot: $autoSaveSlot")
+                    }
+                } catch (e: CancellationException) {
+                    Log.w(TAG, "pauseAndSaveForBackground: save cancelled")
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "pauseAndSaveForBackground: save error: ${e.message}", e)
+                } finally {
+                    gameEngineCore.clearActiveSaveJob()
                 }
-            }
+            }.also { gameEngineCore.registerActiveSaveJob(it) }
         } catch (e: Exception) {
             Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
         }
@@ -1128,6 +1158,9 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+            } catch (e: CancellationException) {
+                Log.w(TAG, "restartGame cancelled")
+                throw e
             } catch (e: OutOfMemoryError) {
                 Log.e(TAG, "=== restartGame FAILED === OutOfMemoryError", e)
                 storageFacade.setCurrentSlot(previousSlot)
@@ -1142,13 +1175,14 @@ class SaveLoadViewModel @Inject constructor(
                 _isRestarting.value = false
                 saveLock.set(false)
                 saveLockAcquireTime.set(0)
+                gameEngineCore.clearActiveSaveJob()
                 if (wasRunning) {
                     gameEngineCore.startGameLoop()
                     _isTimeRunning.value = true
                     Log.d(TAG, "Game loop restarted after restart operation")
                 }
             }
-        }
+        }.also { gameEngineCore.registerActiveSaveJob(it) }
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
@@ -1285,8 +1319,7 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         runBlocking { gameEngineCore.stopGameLoopAndWait(2000) }
-        stateManager.setLoadingDirect(false)
-        stateManager.setSavingDirect(false)
+        gameEngineCore.forceResetStuckStates()
         _pendingSlot.value = null
         _pendingAction.value = null
         _loadingProgress.value = PROGRESS_START

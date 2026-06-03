@@ -51,6 +51,7 @@ data class StackUpdate(
     val isDeletion: Boolean = false
 )
 
+// TickSystem: "InventorySystem"
 @SystemPriority(order = 50)
 @Singleton
 class InventorySystem @Inject constructor(

@@ -1,6 +1,7 @@
 package com.xianxia.sect.data
 
 import android.util.Log
+import androidx.room.withTransaction
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.incremental.ChangeLogDao
@@ -12,6 +13,7 @@ import javax.inject.Singleton
 
 @Singleton
 class GameStateRepository @Inject constructor(
+    private val database: GameDatabase,
     private val gameDataDao: GameDataDao,
     private val discipleDao: DiscipleDao,
     private val discipleCoreDao: DiscipleCoreDao,
@@ -138,55 +140,69 @@ class GameStateRepository @Inject constructor(
         try {
             coroutineScope {
                 if (snapshot.gameData) launch(Dispatchers.IO) {
-                    gameDataDao.insert(gameData.copy(slotId = slotId))
+                    database.withTransaction {
+                        gameDataDao.insert(gameData.copy(slotId = slotId))
+                    }
                 }
                 if (snapshot.disciples) launch(Dispatchers.IO) {
-                    discipleDao.deleteAll(slotId)
-                    discipleDao.insertAll(disciples.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        discipleDao.upsertAll(disciples.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.equipmentStacks) launch(Dispatchers.IO) {
-                    equipmentStackDao.deleteAll(slotId)
-                    equipmentStackDao.insertAll(equipmentStacks.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.equipmentInstances) launch(Dispatchers.IO) {
-                    equipmentInstanceDao.deleteAll(slotId)
-                    equipmentInstanceDao.insertAll(equipmentInstances.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        equipmentInstanceDao.upsertAll(equipmentInstances.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.manualStacks) launch(Dispatchers.IO) {
-                    manualStackDao.deleteAll(slotId)
-                    manualStackDao.insertAll(manualStacks.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        manualStackDao.upsertAll(manualStacks.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.manualInstances) launch(Dispatchers.IO) {
-                    manualInstanceDao.deleteAll(slotId)
-                    manualInstanceDao.insertAll(manualInstances.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        manualInstanceDao.upsertAll(manualInstances.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.pills) launch(Dispatchers.IO) {
-                    pillDao.deleteAll(slotId)
-                    pillDao.insertAll(pills.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        pillDao.upsertAll(pills.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.materials) launch(Dispatchers.IO) {
-                    materialDao.deleteAll(slotId)
-                    materialDao.insertAll(materials.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        materialDao.upsertAll(materials.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.herbs) launch(Dispatchers.IO) {
-                    herbDao.deleteAll(slotId)
-                    herbDao.insertAll(herbs.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        herbDao.upsertAll(herbs.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.seeds) launch(Dispatchers.IO) {
-                    seedDao.deleteAll(slotId)
-                    seedDao.insertAll(seeds.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        seedDao.upsertAll(seeds.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.storageBags) launch(Dispatchers.IO) {
-                    storageBagDao.deleteAll(slotId)
-                    storageBagDao.insertAll(storageBags.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.teams) launch(Dispatchers.IO) {
-                    explorationTeamDao.deleteAll(slotId)
-                    explorationTeamDao.insertAll(teams.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
+                    }
                 }
                 if (snapshot.battleLogs) launch(Dispatchers.IO) {
-                    battleLogDao.deleteAll(slotId)
-                    battleLogDao.insertAll(battleLogs.map { it.copy(slotId = slotId) })
+                    database.withTransaction {
+                        battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
+                    }
                 }
             }
             dirty = DirtySet()

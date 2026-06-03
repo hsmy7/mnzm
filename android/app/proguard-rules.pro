@@ -32,7 +32,6 @@
 }
 
 # Kotlin
--keep class kotlin.** { *; }
 -keep class kotlin.Metadata { *; }
 -dontwarn kotlin.**
 -keepclassmembers class **$WhenMappings {
@@ -89,7 +88,7 @@
 -dontwarn androidx.room.paging.**
 
 # Google Protobuf - generated message classes used by ManualDatabase and save system
--keep class com.google.protobuf.** { *; }
+-keep class com.google.protobuf.GeneratedMessageLite { *; }
 -dontwarn com.google.protobuf.**
 -keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
     <fields>;
@@ -116,8 +115,9 @@
 # OkHttp
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
+-keep class okhttp3.OkHttpClient { *; }
+-keep class okhttp3.Request$Builder { *; }
+-keep interface okhttp3.Interceptor { *; }
 
 # Retrofit
 -dontwarn retrofit2.**
@@ -130,10 +130,20 @@
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
 
-# AndroidX
--keep class androidx.** { *; }
--keep interface androidx.** { *; }
+# AndroidX — precise rules (replaces broad androidx.** wildcard)
+# Compose runtime: only keep runtime-accessed annotations; library's own proguard.txt handles internals
+-keep @interface androidx.compose.runtime.Composable
+-keep @interface androidx.compose.runtime.Stable
+-keep @interface androidx.compose.runtime.Immutable
+-keep class androidx.lifecycle.** { *; }
+-keep class androidx.room.** { *; }
 -dontwarn androidx.**
+
+# Compose optimization rules
+-dontwarn androidx.compose.**
+-keepclassmembers class androidx.compose.runtime.** {
+    *** Companion;
+}
 
 # Keep native methods
 -keepclasseswithmembernames class * {
@@ -169,11 +179,12 @@
     public static ** valueOf(java.lang.String);
 }
 
-# Remove logs in release
+# Remove logs in release — extended to include warn level
 -assumenosideeffects class android.util.Log {
     public static int v(...);
     public static int d(...);
     public static int i(...);
+    public static int w(...);
 }
 
 # Compose

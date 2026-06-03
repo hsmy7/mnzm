@@ -8,7 +8,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE_DIR = 'D:/模拟宗门美术素材';
 const DRAWABLE_DIR = path.resolve(__dirname, '..', 'android/app/src/main/res/drawable-nodpi');
 const BACKUP_DIR = path.resolve(__dirname, '..', 'android/app/src/main/drawable-nodpi-backup');
-const SHORT_SIDE = 400;
+const QUALITY_PRESETS = {
+    thumbnail: { shortSide: 200, webpQuality: 75 },
+    main:      { shortSide: 400, webpQuality: 85 },
+    hd:        { shortSide: 800, webpQuality: 90 },
+};
+
+const SHORT_SIDE = QUALITY_PRESETS.main.shortSide;
 
 const BUILDINGS = {
   '炼丹炉': { drawable: 'building_alchemy',          gridW: 2, gridH: 2 },
@@ -29,7 +35,7 @@ async function main() {
 
   for (const [name, cfg] of Object.entries(BUILDINGS)) {
     const srcFile = path.join(SOURCE_DIR, name + '.png');
-    const dstFile = path.join(DRAWABLE_DIR, cfg.drawable + '.png');
+    const dstFile = path.join(DRAWABLE_DIR, cfg.drawable + '.webp');
 
     if (!fs.existsSync(srcFile)) {
       console.log(`SKIP: source not found: ${name}`);
@@ -38,7 +44,7 @@ async function main() {
 
     // Backup current drawable
     if (fs.existsSync(dstFile)) {
-      fs.copyFileSync(dstFile, path.join(BACKUP_DIR, cfg.drawable + '.png'));
+      fs.copyFileSync(dstFile, path.join(BACKUP_DIR, cfg.drawable + '.webp'));
     }
 
     const meta = await sharp(srcFile).metadata();
@@ -85,7 +91,7 @@ async function main() {
         right: extendRight,
         background: { r: 0, g: 0, b: 0, alpha: 0 }
       })
-      .png()
+      .webp({ quality: QUALITY_PRESETS.main.webpQuality, effort: 4 })
       .toBuffer();
 
     fs.writeFileSync(dstFile, result);
