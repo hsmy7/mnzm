@@ -73,83 +73,98 @@ fun BloodRefiningPoolDialog(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (uiState.isRefining && uiState.currentProgress != null) {
-                RefiningInProgressSection(uiState.currentProgress!!, uiState.remainingMonths)
-            } else {
-                // ===== 放入材料区域 =====
-                Text("放入材料", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    MaterialSlotBox(
-                        selectedMaterial = uiState.selectedMaterial,
-                        selectedQuantity = uiState.selectedMaterialQuantity,
-                        requiredQuantity = BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT,
-                        onClick = { showMaterialSelection = true }
-                    )
-                }
+            val isRefining = uiState.isRefining && uiState.currentProgress != null
 
-                // ===== 放入弟子区域 =====
-                Text("放入弟子", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    DiscipleSlot(
-                        disciple = uiState.selectedDisciple,
-                        showActions = true,
-                        onSlotClick = { },
-                        onEmptySlotClick = { showDiscipleSelection = true },
-                        onDismiss = { bloodRefiningViewModel.selectDisciple(null) },
-                        onSwap = { showDiscipleSelection = true }
-                    )
-                }
-
-                // 时间显示（弟子槽位下方）
-                if (uiState.selectedMaterial != null) {
-                    val duration = BeastMaterialDatabase.getTierDuration(uiState.selectedMaterial!!.tier)
-                    Text(
-                        text = "${duration}月",
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // 红色小字（按钮上方）
-                Text(
-                    text = "消耗 100 万灵石",
-                    color = Color(0xFFCC0000),
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+            // ===== 放入材料区域 =====
+            Text("放入材料", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                MaterialSlotBox(
+                    selectedMaterial = uiState.selectedMaterial,
+                    selectedQuantity = uiState.selectedMaterialQuantity,
+                    requiredQuantity = BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT,
+                    onClick = { if (!isRefining) showMaterialSelection = true }
                 )
+            }
 
-                // 洗炼按钮
+            // ===== 放入弟子区域 =====
+            Text("放入弟子", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+            // 血炼中：进度条 + 剩余月份（弟子槽位上方，宽度=52dp）
+            if (isRefining) {
+                val progress = uiState.currentProgress!!
+                val remaining = uiState.remainingMonths
+                val total = progress.durationMonths
+                val fraction = if (total > 0) (total - remaining).toFloat() / total else 0f
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    GameButton(
-                        text = "洗炼",
-                        onClick = { bloodRefiningViewModel.startRefine(buildingInstanceId = buildingInstanceId) },
-                        enabled = uiState.canStartRefine,
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${remaining}月",
+                            color = Color.Black,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier.width(52.dp).height(4.dp),
+                            color = Color(0xFFB71C1C),
+                            trackColor = Color(0x33B71C1C),
+                        )
+                    }
                 }
+            }
 
-                // 错误提示
-                uiState.errorMessage?.let { error ->
-                    Text(text = error, color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center)
-                    LaunchedEffect(error) { bloodRefiningViewModel.clearError() }
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                DiscipleSlot(
+                    disciple = uiState.selectedDisciple,
+                    showActions = !isRefining && uiState.selectedDisciple != null,
+                    onSlotClick = { },
+                    onEmptySlotClick = { if (!isRefining) showDiscipleSelection = true },
+                    onDismiss = { bloodRefiningViewModel.selectDisciple(null) },
+                    onSwap = { showDiscipleSelection = true }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 红色小字（按钮上方）
+            Text(
+                text = "消耗 100 万灵石",
+                color = Color(0xFFCC0000),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // 洗炼按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameButton(
+                    text = if (isRefining) "血炼中..." else "洗炼",
+                    onClick = { bloodRefiningViewModel.startRefine(buildingInstanceId = buildingInstanceId) },
+                    enabled = !isRefining && uiState.canStartRefine,
+                    modifier = Modifier
+                        .width(ButtonSizes.StandardWidth)
+                        .height(ButtonSizes.StandardHeight)
+                )
+            }
+
+            // 错误提示
+            uiState.errorMessage?.let { error ->
+                Text(text = error, color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center)
+                LaunchedEffect(error) { bloodRefiningViewModel.clearError() }
             }
         }
     }
@@ -179,30 +194,6 @@ fun BloodRefiningPoolDialog(
                 selected.firstOrNull()?.let { bloodRefiningViewModel.selectDisciple(it) }
                 showDiscipleSelection = false
             }
-        )
-    }
-}
-
-// ==================== 进行中状态 ====================
-
-@Composable
-private fun RefiningInProgressSection(progress: BloodRefinementProgress, remainingMonths: Int) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("血炼进行中", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Text("弟子：${progress.discipleName}", fontSize = 14.sp, color = Color.Black)
-        Text("材料：${progress.materialName}", fontSize = 14.sp, color = Color.Black)
-        Text("剩余时间：${remainingMonths}月", fontSize = 14.sp, color = Color.Black)
-
-        val elapsed = (progress.durationMonths - remainingMonths).coerceAtLeast(0)
-        val fraction = if (progress.durationMonths > 0) elapsed.toFloat() / progress.durationMonths else 0f
-        LinearProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier.fillMaxWidth().height(6.dp),
-            color = Color(0xFFB71C1C),
-            trackColor = Color(0x33B71C1C),
         )
     }
 }
