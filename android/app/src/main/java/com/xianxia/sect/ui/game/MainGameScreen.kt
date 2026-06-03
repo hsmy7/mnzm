@@ -231,65 +231,6 @@ fun MainGameScreen(
         data
     }
 
-    val clearedDecorationCells = remember { mutableSetOf<Long>() }
-    LaunchedEffect(activeSectBuildings) {
-        val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
-        val fullBmp = fullMapBmp.asAndroidBitmap()
-        val canvas = android.graphics.Canvas(fullBmp)
-
-        val buildingCells = mutableSetOf<Long>()
-        for (b in activeSectBuildings) {
-            for (cx in b.gridX until b.gridX + b.width) {
-                for (cy in b.gridY until b.gridY + b.height) {
-                    if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
-                        buildingCells.add((cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
-                    }
-                }
-            }
-        }
-
-        val cellsToClear = mutableSetOf<Long>()
-        cellsToClear.addAll(buildingCells)
-
-        for (cellKey in buildingCells) {
-            val bx = (cellKey shr 32).toInt()
-            val by = (cellKey and 0xFFFF_FFFF).toInt()
-            for (dx in -1..1) {
-                for (dy in -1..1) {
-                    val tx = bx + dx
-                    val ty = by + dy
-                    if (ty in rawTileData.indices && tx in rawTileData[ty].indices && rawTileData[ty][tx] == TILE_TREE) {
-                        for (ex in tx - 1..tx + 1) {
-                            for (ey in ty - 1..ty + 1) {
-                                if (ey in rawTileData.indices && ex in rawTileData[ey].indices) {
-                                    cellsToClear.add((ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for (cellKey in cellsToClear) {
-            if (cellKey !in clearedDecorationCells) {
-                clearedDecorationCells.add(cellKey)
-                val cx = (cellKey shr 32).toInt()
-                val cy = (cellKey and 0xFFFF_FFFF).toInt()
-                rawTileData[cy][cx] = TILE_GROUND
-                val srcRect = android.graphics.Rect(
-                    cx * tileSize, cy * tileSize,
-                    (cx + 1) * tileSize, (cy + 1) * tileSize
-                )
-                val dstRect = android.graphics.Rect(
-                    cx * tileSize, cy * tileSize,
-                    (cx + 1) * tileSize, (cy + 1) * tileSize
-                )
-                canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
-            }
-        }
-    }
-
     // 网格系统（管理建筑放置与占用格查询）
     val gridSystem = remember(tileSize, worldWidthCells, worldHeightCells) {
         GridSystem(tileSize, worldWidthCells, worldHeightCells)
@@ -401,12 +342,67 @@ fun MainGameScreen(
         // 追踪上一次绘制的建筑列表，用于增量更新
         val previousBuildings = remember { mutableListOf<GridBuildingData>() }
 
+        // 已清除装饰物的格子（避免反复清除同一格）
+        val clearedDecorationCells = remember { mutableSetOf<Long>() }
+
         LaunchedEffect(effectivePlacedBuildings) {
             val currentBmp = bakedMapBmp ?: return@LaunchedEffect
             if (currentBmp.isRecycled) return@LaunchedEffect
             val canvas = android.graphics.Canvas(currentBmp)
+            val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
 
-            // 增量：擦除被移除的建筑区域（恢复背景）
+            // === 1. 清除新增建筑覆盖的装饰物 ===
+            val buildingCells = mutableSetOf<Long>()
+            for (b in effectivePlacedBuildings) {
+                for (cx in b.gridX until b.gridX + b.width) {
+                    for (cy in b.gridY until b.gridY + b.height) {
+                        if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
+                            buildingCells.add((cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
+                        }
+                    }
+                }
+            }
+            val cellsToClear = mutableSetOf<Long>()
+            cellsToClear.addAll(buildingCells)
+            // 建筑周围的树也要清除（树是 2×2 格大装饰物）
+            for (cellKey in buildingCells) {
+                val bx = (cellKey shr 32).toInt()
+                val by = (cellKey and 0xFFFF_FFFF).toInt()
+                for (dx in -1..1) {
+                    for (dy in -1..1) {
+                        val tx = bx + dx
+                        val ty = by + dy
+                        if (ty in rawTileData.indices && tx in rawTileData[ty].indices && rawTileData[ty][tx] == TILE_TREE) {
+                            for (ex in tx - 1..tx + 1) {
+                                for (ey in ty - 1..ty + 1) {
+                                    if (ey in rawTileData.indices && ex in rawTileData[ey].indices) {
+                                        cellsToClear.add((ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            for (cellKey in cellsToClear) {
+                if (cellKey !in clearedDecorationCells) {
+                    clearedDecorationCells.add(cellKey)
+                    val cx = (cellKey shr 32).toInt()
+                    val cy = (cellKey and 0xFFFF_FFFF).toInt()
+                    rawTileData[cy][cx] = TILE_GROUND
+                    val srcRect = android.graphics.Rect(
+                        cx * tileSize, cy * tileSize,
+                        (cx + 1) * tileSize, (cy + 1) * tileSize
+                    )
+                    val dstRect = android.graphics.Rect(
+                        cx * tileSize, cy * tileSize,
+                        (cx + 1) * tileSize, (cy + 1) * tileSize
+                    )
+                    canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
+                }
+            }
+
+            // === 2. 擦除被移除的建筑区域（恢复原始背景含装饰物） ===
             val currentIds = effectivePlacedBuildings.map { it.instanceId }.toSet()
             for (oldBuilding in previousBuildings) {
                 if (oldBuilding.instanceId !in currentIds) {
@@ -421,7 +417,7 @@ fun MainGameScreen(
                 }
             }
 
-            // 增量：绘制新增的建筑
+            // === 3. 绘制新增的建筑 ===
             val previousIds = previousBuildings.map { it.instanceId }.toSet()
             for (building in effectivePlacedBuildings) {
                 if (building.instanceId !in previousIds) {
