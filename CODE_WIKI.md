@@ -724,17 +724,4 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
 | P3 | 巡逻塔 `updatePatrolConfigs` fire-and-forget → suspend | 与灵矿场/巡逻塔修复同模式 | 待实施 |
-| ~~P2~~ | ~~`GameStateStore.updateXxxDirect` 方法移除~~ | ~~减少 API 表面积~~ | ✅ v3.2.03 |
-| ~~P1~~ | ~~game_heavy_data 分块存储 — CursorWindow 溢出崩溃~~ | ~~消除加载闪退~~ | ✅ v3.2.02 |
-| ~~P1~~ | ~~save/load 路径 runBlocking 消除~~ | ~~消除主线程阻塞~~ | ✅ v3.2.03 |
-| ~~P1~~ | ~~增量保存 upsertAll + @Transaction~~ | ~~保存耗时减少 80%+~~ | ✅ v3.2.03 |
-| ~~P1~~ | ~~灵矿场/巡逻塔 slot 写入 fire-and-forget → suspend~~ | ~~消除状态不一致~~ | ✅ v3.2.03 |
-| ~~P1~~ | ~~地图增量绘制 + 装饰清除~~ | ~~建筑操作不再卡顿~~ | ✅ v3.2.03 |
-| ~~P2~~ | ~~Compile 级代码规范（文件级 CL、BaseViewModel 等）~~ | ~~v3.2.06, v3.2.10~~ | ✅ |
-| ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.02 |
-| ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.02 |
-| ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.02 |
-| ~~P2~~ | ~~状态回退回归测试~~ | ~~防止回归~~ | ✅ v3.2.02 |
-| ~~P1~~ | ~~FrameMetricsAggregator 集成~~ | ~~已完成~~ (v3.2.01) | ✅ |
-| ~~P2~~ | ~~3 层 StateFlow 拆分~~ | ~~已完成~~ (v3.2.01) | ✅ |
-| ~~持续~~ | ~~UI 消费者从 unifiedState 迁移到独立子流~~ | ~~已完成~~ (v3.2.01) | ✅ |
+| P3 | `GameStateStore.updateXxxDirect` 方法移除 | 减少 API 表面积 | 待实施 |
