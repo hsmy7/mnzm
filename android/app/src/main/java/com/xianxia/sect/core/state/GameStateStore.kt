@@ -455,6 +455,21 @@ class GameStateStore @Inject constructor(
             }
             result
         },
+        "bloodRefinements" to { origin, shadow, oldState ->
+            // 结算新增的完成记录 + oldState 已有的
+            val result = oldState.bloodRefinements.toMutableMap()
+            for ((discipleId, materials) in shadow.bloodRefinements) {
+                result[discipleId] = (result[discipleId] ?: emptyList()) + materials
+            }
+            result
+        },
+        "activeBloodRefinements" to { origin, shadow, oldState ->
+            // oldState 做底（保留玩家在结算期间新增的），移除结算完成的
+            val result = oldState.activeBloodRefinements.toMutableMap()
+            val completedBySettlement = origin.activeBloodRefinements.keys - shadow.activeBloodRefinements.keys
+            completedBySettlement.forEach { result.remove(it) }
+            result
+        },
         "spiritFieldPlants" to { origin, shadow, oldState ->
             val originMap = origin.spiritFieldPlants.associateBy { it.buildingInstanceId }
             val shadowMap = shadow.spiritFieldPlants.associateBy { it.buildingInstanceId }
@@ -999,6 +1014,8 @@ class GameStateStore @Inject constructor(
             manualProficiencies = c["manualProficiencies"]!!(origin, shadow, oldState) as Map<String, List<ManualProficiencyData>>,
             aiSectDisciples = c["aiSectDisciples"]!!(origin, shadow, oldState) as Map<String, List<Disciple>>,
             spiritFieldPlants = c["spiritFieldPlants"]!!(origin, shadow, oldState) as List<SpiritFieldPlant>,
+            bloodRefinements = c["bloodRefinements"]!!(origin, shadow, oldState) as Map<String, List<String>>,
+            activeBloodRefinements = c["activeBloodRefinements"]!!(origin, shadow, oldState) as Map<String, BloodRefinementProgress>,
         )
     }
 }

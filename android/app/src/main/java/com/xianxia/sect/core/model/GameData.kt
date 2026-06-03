@@ -310,12 +310,12 @@ data class GameData(
     var isGameOver: Boolean = false,
 
     // 血炼系统：弟子已完成的材料ID列表（discipleId → materialId list）
-    @SettlementStrategy(Strategy.USE_SHADOW)
+    @SettlementStrategy(Strategy.CUSTOM)
     @ColumnInfo(defaultValue = "{}")
     var bloodRefinements: Map<String, List<String>> = emptyMap(),
 
     // 血炼系统：进行中的洗炼（buildingInstanceId → BloodRefinementProgress）
-    @SettlementStrategy(Strategy.USE_SHADOW)
+    @SettlementStrategy(Strategy.CUSTOM)
     @ColumnInfo(defaultValue = "{}")
     var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap()
 ) {
