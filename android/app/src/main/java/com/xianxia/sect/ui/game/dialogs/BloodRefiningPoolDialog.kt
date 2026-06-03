@@ -220,37 +220,57 @@ private fun MaterialSlotBox(
             .width(52.dp)
             .height(88.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(if (selectedMaterial != null) Color.White else GameColors.PageBackground)
             .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .clickable(onClick = onClick)
     ) {
         if (selectedMaterial != null) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(4.dp)
-            ) {
-                val spriteRes = materialSpriteRes(selectedMaterial.name)
-                if (spriteRes != null) {
-                    Image(
-                        painter = painterResource(id = spriteRes),
-                        contentDescription = selectedMaterial.name,
-                        modifier = Modifier.size(32.dp),
-                        contentScale = ContentScale.Fit
+            val rarityColor = getRarityColor(selectedMaterial.rarity)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 精灵图区域 — 品阶色背景
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(rarityColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val spriteRes = materialSpriteRes(selectedMaterial.name)
+                    if (spriteRes != null) {
+                        Image(
+                            painter = painterResource(id = spriteRes),
+                            contentDescription = selectedMaterial.name,
+                            modifier = Modifier.fillMaxSize().padding(3.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+                // 分隔线
+                HorizontalDivider(thickness = 1.dp, color = GameColors.Border)
+                // 名称区域 — 白色背景
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        selectedMaterial.name,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    selectedMaterial.name,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2
-                )
             }
         } else {
-            Text("材料", color = Color(0xFF999999), fontSize = 10.sp)
+            Box(
+                modifier = Modifier.fillMaxSize().background(GameColors.PageBackground),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("材料", color = Color(0xFF999999), fontSize = 10.sp)
+            }
         }
     }
 }
