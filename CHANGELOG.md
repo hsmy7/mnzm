@@ -12,6 +12,11 @@
 - 建筑费用50000灵石，占地2×2，无建造上限
 - 新增 GameData.bloodRefinements + activeBloodRefinements 字段（DB Migration 28→29）
 
+### 邮件系统
+
+- 新增庆祝血炼池上线邮件：奖励200灵虎血（14天有效期）
+- 新增 beastMaterial 邮件附件类型，支持发放指定妖兽材料
+
 ### 材料系统
 
 - 虎骨重命名为虎血（含所有品阶），精灵图同步替换
