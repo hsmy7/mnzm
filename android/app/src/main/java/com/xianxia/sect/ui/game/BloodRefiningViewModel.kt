@@ -145,6 +145,22 @@ class BloodRefiningViewModel @Inject constructor(
         }
     }
 
+    fun cancelRefine(buildingInstanceId: String) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { gameData ->
+                gameData.copy(
+                    activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
+                )
+            }
+            _uiState.value = _uiState.value.copy(
+                isRefining = false,
+                currentProgress = null,
+                remainingMonths = 0,
+                selectedDisciple = null
+            )
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }

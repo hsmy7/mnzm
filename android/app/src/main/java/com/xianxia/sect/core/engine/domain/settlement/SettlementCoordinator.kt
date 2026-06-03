@@ -413,13 +413,19 @@ class SettlementCoordinator @Inject constructor(
         val currentYear = shadow.gameData.gameYear
         val currentMonth = shadow.gameData.gameMonth
         val completedRefinements = mutableListOf<String>()
+        val cancelledRefinements = mutableListOf<String>()
 
         for ((buildingId, progress) in shadow.gameData.activeBloodRefinements) {
+            val d = shadow.disciples.find { it.id == progress.discipleId }
+            if (d == null || !d.isAlive) {
+                // 弟子死亡或脱离 → 取消洗炼，不扣除次数
+                cancelledRefinements.add(buildingId)
+                continue
+            }
             if (com.xianxia.sect.core.util.TimeProgressUtil.isTimeElapsed(
                     progress.startYear, progress.startMonth,
                     progress.durationMonths, currentYear, currentMonth
             )) {
-                val d = shadow.disciples.find { it.id == progress.discipleId } ?: continue
                 val bonus = (DiscipleStatCalculator.getBaseStatValue(d.combat, progress.selectedStat) * progress.bonusPercent).toInt().coerceAtLeast(1)
                 val newCombat = DiscipleStatCalculator.applyStatBonus(d.combat, progress.selectedStat, bonus)
                 val newDisciple = d.copy(
@@ -437,9 +443,10 @@ class SettlementCoordinator @Inject constructor(
             }
         }
 
-        if (completedRefinements.isNotEmpty()) {
+        val removedIds = (completedRefinements + cancelledRefinements).toSet()
+        if (removedIds.isNotEmpty()) {
             val remaining = shadow.gameData.activeBloodRefinements.toMutableMap()
-            completedRefinements.forEach { remaining.remove(it) }
+            removedIds.forEach { remaining.remove(it) }
             shadow.gameData = shadow.gameData.copy(activeBloodRefinements = remaining)
         }
     }

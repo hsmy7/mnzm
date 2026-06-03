@@ -114,8 +114,8 @@ fun BloodRefiningPoolDialog(
                         LinearProgressIndicator(
                             progress = { fraction },
                             modifier = Modifier.width(52.dp).height(4.dp),
-                            color = Color(0xFFB71C1C),
-                            trackColor = Color(0x33B71C1C),
+                            color = Color(0xFF4CAF50),
+                            trackColor = Color(0x334CAF50),
                         )
                     }
                 }
@@ -127,11 +127,17 @@ fun BloodRefiningPoolDialog(
             ) {
                 DiscipleSlot(
                     disciple = uiState.selectedDisciple,
-                    showActions = !isRefining && uiState.selectedDisciple != null,
+                    showActions = uiState.selectedDisciple != null,
                     onSlotClick = { },
                     onEmptySlotClick = { if (!isRefining) showDiscipleSelection = true },
-                    onDismiss = { bloodRefiningViewModel.selectDisciple(null) },
-                    onSwap = { showDiscipleSelection = true }
+                    onDismiss = {
+                        if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
+                        else bloodRefiningViewModel.selectDisciple(null)
+                    },
+                    onSwap = {
+                        if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
+                        showDiscipleSelection = true
+                    }
                 )
             }
 
