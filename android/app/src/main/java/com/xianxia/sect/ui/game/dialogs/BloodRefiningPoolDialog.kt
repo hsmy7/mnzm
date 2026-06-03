@@ -86,9 +86,7 @@ fun BloodRefiningPoolDialog(
                         selectedMaterial = uiState.selectedMaterial,
                         selectedQuantity = uiState.selectedMaterialQuantity,
                         requiredQuantity = BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT,
-                        onClick = {
-                            if (bloodMaterials.isNotEmpty()) showMaterialSelection = true
-                        }
+                        onClick = { showMaterialSelection = true }
                     )
                 }
 
@@ -276,7 +274,7 @@ private fun MaterialSelectorDialog(
         ) {
             if (bloodMaterials.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("仓库中没有血类材料", fontSize = 14.sp, color = Color.Black)
+                    Text("无符合条件的材料", fontSize = 14.sp, color = Color.Black)
                 }
             } else {
                 val bloodOrder = listOf("tiger", "snake", "turtle")
