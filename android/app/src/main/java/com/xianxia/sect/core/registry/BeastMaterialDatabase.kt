@@ -36,32 +36,32 @@ object BeastMaterialDatabase {
         // ========== 虎妖材料（高攻击型）==========
         // 凡品
         BeastMaterial("tigerHide0", "凡虎皮", 1, 1, "hide", "凡品虎妖的皮毛，蕴含狂暴之力", "🟧", 1.0),
-        BeastMaterial("tigerBone0", "凡虎骨", 1, 1, "bone", "凡品虎妖的骨骼，坚硬有力", "🦴", 1.0),
+        BeastMaterial("tigerBlood0", "凡虎血", 1, 1, "blood", "凡品虎妖的精血，蕴含狂暴之力", "🩸", 1.0),
         BeastMaterial("tigerTooth0", "凡虎牙", 1, 1, "tooth", "凡品虎妖的利齿，锋利异常", "🦷", 0.8),
         BeastMaterial("tigerCore0", "凡虎内丹", 1, 1, "core", "凡品虎妖的内丹，蕴含狂暴灵力", "🔮", 0.5),
         // 灵品
         BeastMaterial("tigerHide1", "灵虎皮", 2, 2, "hide", "灵品虎妖的皮毛，蕴含灵气与狂暴", "🟧", 0.8),
-        BeastMaterial("tigerBone1", "灵虎骨", 2, 2, "bone", "灵品虎妖的骨骼，坚韧有力", "🦴", 0.8),
+        BeastMaterial("tigerBlood1", "灵虎血", 2, 2, "blood", "灵品虎妖的精血，蕴含灵力与狂暴", "🩸", 0.8),
         BeastMaterial("tigerTooth1", "灵虎牙", 2, 2, "tooth", "灵品虎妖的利齿，削铁如泥", "🦷", 0.6),
         BeastMaterial("tigerCore1", "灵虎内丹", 2, 2, "core", "灵品虎妖的内丹，蕴含浓郁狂暴灵力", "🔮", 0.4),
         // 宝品
         BeastMaterial("tigerHide2", "宝虎皮", 3, 3, "hide", "宝品虎妖的皮毛，珍贵且蕴含强大力量", "🟧", 0.6),
-        BeastMaterial("tigerBone2", "宝虎骨", 3, 3, "bone", "宝品虎妖的骨骼，坚如精钢", "🦴", 0.6),
+        BeastMaterial("tigerBlood2", "宝虎血", 3, 3, "blood", "宝品虎妖的精血，蕴含强大狂暴之力", "🩸", 0.6),
         BeastMaterial("tigerTooth2", "宝虎牙", 3, 3, "tooth", "宝品虎妖的利齿，可碎金石", "🦷", 0.5),
         BeastMaterial("tigerCore2", "宝虎内丹", 3, 3, "core", "宝品虎妖的内丹，蕴含强大狂暴之力", "🔮", 0.3),
         // 玄品
         BeastMaterial("tigerHide3", "玄虎皮", 4, 4, "hide", "玄品虎妖的皮毛，蕴含玄妙狂暴之力", "🟧", 0.4),
-        BeastMaterial("tigerBone3", "玄虎骨", 4, 4, "bone", "玄品虎妖的骨骼，蕴含玄妙之力", "🦴", 0.4),
+        BeastMaterial("tigerBlood3", "玄虎血", 4, 4, "blood", "玄品虎妖的精血，蕴含玄妙狂暴", "🩸", 0.4),
         BeastMaterial("tigerTooth3", "玄虎牙", 4, 4, "tooth", "玄品虎妖的利齿，蕴含玄妙锋芒", "🦷", 0.3),
         BeastMaterial("tigerCore3", "玄虎内丹", 4, 4, "core", "玄品虎妖的内丹，蕴含玄妙狂暴灵力", "🔮", 0.2),
         // 地品
         BeastMaterial("tigerHide4", "地虎皮", 5, 5, "hide", "地品虎妖的皮毛，蕴含大地狂暴之力", "🟧", 0.25),
-        BeastMaterial("tigerBone4", "地虎骨", 5, 5, "bone", "地品虎妖的骨骼，蕴含大地之力", "🦴", 0.25),
+        BeastMaterial("tigerBlood4", "地虎血", 5, 5, "blood", "地品虎妖的精血，蕴含大地狂暴", "🩸", 0.25),
         BeastMaterial("tigerTooth4", "地虎牙", 5, 5, "tooth", "地品虎妖的利齿，蕴含大地锋芒", "🦷", 0.2),
         BeastMaterial("tigerCore4", "地虎内丹", 5, 5, "core", "地品虎妖的内丹，蕴含大地狂暴灵力", "🔮", 0.12),
         // 天品
         BeastMaterial("tigerHide5", "天虎皮", 6, 6, "hide", "天品虎妖的皮毛，蕴含天道狂暴之力", "🟧", 0.12),
-        BeastMaterial("tigerBone5", "天虎骨", 6, 6, "bone", "天品虎妖的骨骼，蕴含天道之力", "🦴", 0.12),
+        BeastMaterial("tigerBlood5", "天虎血", 6, 6, "blood", "天品虎妖的精血，蕴含天道狂暴", "🩸", 0.12),
         BeastMaterial("tigerTooth5", "天虎牙", 6, 6, "tooth", "天品虎妖的利齿，蕴含天道锋芒", "🦷", 0.1),
         BeastMaterial("tigerCore5", "天虎内丹", 6, 6, "core", "天品虎妖的内丹，蕴含天道狂暴灵力", "🔮", 0.06),
 

@@ -109,7 +109,7 @@ fun materialSpriteRes(name: String): Int? {
         .removePrefix("地").removePrefix("天")
     return when (baseName) {
         "虎皮" -> R.drawable.tiger_hide
-        "虎骨" -> R.drawable.tiger_bone
+        "虎血" -> R.drawable.tiger_blood
         "虎牙" -> R.drawable.tiger_tooth
         "虎内丹" -> R.drawable.tiger_core
         "狼皮" -> R.drawable.wolf_hide

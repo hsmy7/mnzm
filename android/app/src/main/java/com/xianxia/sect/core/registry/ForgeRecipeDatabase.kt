@@ -19,7 +19,7 @@ object ForgeRecipeDatabase {
     )
 
     private val tier1Recipes = listOf(
-        ForgeRecipe("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, 1, "普通铁匠打造的精铁剑", mapOf("tigerBone0" to 3, "tigerTooth0" to 2), 2, 0.70),
+        ForgeRecipe("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, 1, "普通铁匠打造的精铁剑", mapOf("tigerBlood0" to 3, "tigerTooth0" to 2), 2, 0.70),
         ForgeRecipe("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, 1, "精铁锻造的宝刀", mapOf("tigerTooth0" to 4, "eagleClaw0" to 2), 2, 0.70),
         ForgeRecipe("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, 1, "百年桃木制成的法杖", mapOf("snakeBlood0" to 3, "snakeCore0" to 2), 2, 0.70),
         ForgeRecipe("crystalOrb", "碧木扇", EquipmentSlot.WEAPON, 1, 1, "蕴含微量灵气的碧木扇", mapOf("snakeCore0" to 3, "foxCore0" to 2), 2, 0.70),
@@ -34,8 +34,8 @@ object ForgeRecipeDatabase {
     )
 
     private val tier2Recipes = listOf(
-        ForgeRecipe("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, 2, "注入灵气的锋利长剑", mapOf("tigerBone1" to 4, "tigerTooth1" to 3), 5, 0.65),
-        ForgeRecipe("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, 2, "刀光凌厉如华", mapOf("tigerBone1" to 5, "eagleClaw1" to 2), 5, 0.65),
+        ForgeRecipe("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, 2, "注入灵气的锋利长剑", mapOf("tigerBlood1" to 4, "tigerTooth1" to 3), 5, 0.65),
+        ForgeRecipe("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, 2, "刀光凌厉如华", mapOf("tigerBlood1" to 5, "eagleClaw1" to 2), 5, 0.65),
         ForgeRecipe("jadeStaff", "碧玉杖", EquipmentSlot.WEAPON, 2, 2, "碧玉雕刻的法杖", mapOf("snakeBlood1" to 4, "snakeCore1" to 2), 5, 0.65),
         ForgeRecipe("spiritFan", "灵风扇", EquipmentSlot.WEAPON, 2, 2, "可扇出灵风的法器", mapOf("eagleFeather1" to 4, "snakeCore1" to 2), 5, 0.65),
         ForgeRecipe("ironPlate", "碧叶甲", EquipmentSlot.ARMOR, 2, 2, "碧玉叶片打造的护甲", mapOf("bearHide1" to 5, "bearBone1" to 2), 5, 0.65),
@@ -49,8 +49,8 @@ object ForgeRecipeDatabase {
     )
 
     private val tier3Recipes = listOf(
-        ForgeRecipe("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, 3, "蕴含青碧灵力的宝刀", mapOf("tigerBone2" to 5, "snakeScale2" to 3, "tigerTooth2" to 2), 9, 0.60),
-        ForgeRecipe("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, 3, "燃烧着火焰的灵剑", mapOf("tigerBone2" to 4, "tigerCore2" to 2, "tigerTooth2" to 3), 9, 0.60),
+        ForgeRecipe("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, 3, "蕴含青碧灵力的宝刀", mapOf("tigerBlood2" to 5, "snakeScale2" to 3, "tigerTooth2" to 2), 9, 0.60),
+        ForgeRecipe("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, 3, "燃烧着火焰的灵剑", mapOf("tigerBlood2" to 4, "tigerCore2" to 2, "tigerTooth2" to 3), 9, 0.60),
         ForgeRecipe("thunderStaff", "玄雷杖", EquipmentSlot.WEAPON, 3, 3, "可召唤雷电的法杖", mapOf("snakeBlood2" to 4, "snakeCore2" to 3, "eagleFeather2" to 2), 9, 0.60),
         ForgeRecipe("frostOrb", "玄冰扇", EquipmentSlot.WEAPON, 3, 3, "蕴含玄冰之力的宝扇", mapOf("snakeCore2" to 4, "foxCore2" to 2, "snakeBlood2" to 2), 9, 0.60),
         ForgeRecipe("scaleArmor", "青鳞铠", EquipmentSlot.ARMOR, 3, 3, "妖兽青鳞打造的铠甲", mapOf("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2), 9, 0.60),
@@ -64,8 +64,8 @@ object ForgeRecipeDatabase {
     )
 
     private val tier4Recipes = listOf(
-        ForgeRecipe("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, 4, "引动天雷的玄妙飞剑", mapOf("tigerBone3" to 6, "tigerHide3" to 4, "tigerCore3" to 2), 18, 0.35),
-        ForgeRecipe("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, 4, "融入暗影的短刃", mapOf("tigerBone3" to 5, "eagleClaw3" to 4, "foxCore3" to 2), 18, 0.35),
+        ForgeRecipe("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, 4, "引动天雷的玄妙飞剑", mapOf("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2), 18, 0.35),
+        ForgeRecipe("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, 4, "融入暗影的短刃", mapOf("tigerBlood3" to 5, "eagleClaw3" to 4, "foxCore3" to 2), 18, 0.35),
         ForgeRecipe("voidStaff", "虚华杖", EquipmentSlot.WEAPON, 4, 4, "虚华流转的玄妙法杖", mapOf("snakeBlood3" to 5, "snakeCore3" to 4, "foxCore3" to 2), 18, 0.35),
         ForgeRecipe("phoenixFan", "凰焰扇", EquipmentSlot.WEAPON, 4, 4, "凰焰淬炼的神扇", mapOf("eagleFeather3" to 6, "eagleClaw3" to 3, "eagleCore3" to 2), 18, 0.35),
         ForgeRecipe("dragonScale", "龙鳞铠", EquipmentSlot.ARMOR, 4, 4, "真龙鳞片锻造的铠甲", mapOf("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2), 18, 0.35),
@@ -79,8 +79,8 @@ object ForgeRecipeDatabase {
     )
 
     private val tier5Recipes = listOf(
-        ForgeRecipe("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, 5, "蕴含凤炎之力的绝世神兵", mapOf("tigerBone4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2), 30, 0.30),
-        ForgeRecipe("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, 5, "自青莲中诞生的神剑", mapOf("tigerBone4" to 5, "tigerTooth4" to 4, "eagleClaw4" to 3, "tigerCore4" to 2), 30, 0.30),
+        ForgeRecipe("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, 5, "蕴含凤炎之力的绝世神兵", mapOf("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2), 30, 0.30),
+        ForgeRecipe("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, 5, "自青莲中诞生的神剑", mapOf("tigerBlood4" to 5, "tigerTooth4" to 4, "eagleClaw4" to 3, "tigerCore4" to 2), 30, 0.30),
         ForgeRecipe("phoenixWing", "阴阳扇", EquipmentSlot.WEAPON, 5, 5, "蕴含阴阳之力的神扇", mapOf("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2), 30, 0.30),
         ForgeRecipe("celestialOrb", "天玄杖", EquipmentSlot.WEAPON, 5, 5, "蕴含天玄之力的神杖", mapOf("snakeBlood4" to 5, "snakeCore4" to 4, "foxCore4" to 2, "dragonCore4" to 2), 30, 0.30),
         ForgeRecipe("earthArmor", "玄幽袍", EquipmentSlot.ARMOR, 5, 5, "承载玄幽之力的法袍", mapOf("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2), 30, 0.30),
@@ -94,8 +94,8 @@ object ForgeRecipeDatabase {
     )
 
     private val tier6Recipes = listOf(
-        ForgeRecipe("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, 6, "上古仙人遗留的仙器", mapOf("tigerBone5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3), 48, 0.25),
-        ForgeRecipe("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, 6, "玄玉淬炼的神刃", mapOf("tigerBone5" to 6, "tigerTooth5" to 5, "eagleClaw5" to 4, "tigerCore5" to 3), 48, 0.25),
+        ForgeRecipe("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, 6, "上古仙人遗留的仙器", mapOf("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3), 48, 0.25),
+        ForgeRecipe("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, 6, "玄玉淬炼的神刃", mapOf("tigerBlood5" to 6, "tigerTooth5" to 5, "eagleClaw5" to 4, "tigerCore5" to 3), 48, 0.25),
         ForgeRecipe("primordialStaff", "天星杖", EquipmentSlot.WEAPON, 6, 6, "凝聚天星之力的法杖", mapOf("snakeBlood5" to 7, "snakeCore5" to 5, "eagleFeather5" to 3, "dragonCore5" to 3), 48, 0.25),
         ForgeRecipe("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, 6, "蕴含天玄道韵的至宝", mapOf("snakeBlood5" to 6, "snakeCore5" to 5, "foxCore5" to 3, "dragonCore5" to 3), 48, 0.25),
         ForgeRecipe("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, 6, "仙界神甲", mapOf("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3), 48, 0.25),
