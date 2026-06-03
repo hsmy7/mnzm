@@ -58,6 +58,13 @@
 - Gradle 8.12→8.14.5 / configuration-cache / enableJetifier=false
 - BaselineProfile 新增 gamePlayScenario
 
+**Bug 修复**
+- 修复建筑放置后装饰物未被清除：装饰清除从 fullMapBmp 同步到 bakedMapBmp，绘制建筑前先用 groundBmp 擦除装饰物
+- 修复灵矿场一键任命偶尔只任命一名弟子：updateSpiritMineSlots fire-and-forget 改为 suspend updateGameData，确保槽位先写入再更新弟子状态
+- 修复巡逻塔一键任命/卸任/更换同类问题：updatePatrolSlots 全部改为 suspend
+- 修复灵矿场卸任/更换同类问题
+- 修复 ThermalMonitor Hilt 注入缺少 @ApplicationContext
+
 ## [3.2.02] - 2026-06-03
 
 ### 状态一致性修复（Bug 修复）
