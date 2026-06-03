@@ -8,6 +8,7 @@ import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
@@ -288,7 +289,7 @@ class MailService @Inject constructor(
         for (attachment in attachments) {
             when (attachment.type) {
                 "spiritStones", "spiritHerbs", "storageBag" -> {}
-                "equipment", "pill", "material", "herb", "seed" -> {
+                "equipment", "pill", "material", "beastMaterial", "herb", "seed" -> {
                     var totalItems = stateStore.equipmentStacks.value.size +
                             stateStore.manualStacks.value.size +
                             stateStore.pills.value.size +
@@ -401,6 +402,31 @@ class MailService @Inject constructor(
                             }
                         } else {
                             materials = materials + material
+                        }
+                    }
+                    "beastMaterial" -> {
+                        val beastMat = BeastMaterialDatabase.getMaterialById(attachment.itemId ?: "")
+                        if (beastMat != null) {
+                            val qty = attachment.quantity.coerceAtLeast(1)
+                            val mat = Material(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = beastMat.name,
+                                rarity = beastMat.rarity,
+                                category = beastMat.materialCategory,
+                                quantity = qty
+                            )
+                            val existing = materials.find {
+                                it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
+                            }
+                            if (existing != null) {
+                                val newQty = (existing.quantity + mat.quantity)
+                                    .coerceAtMost(inventoryConfig.getMaxStackSize("material"))
+                                materials = materials.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            } else {
+                                materials = materials + mat
+                            }
                         }
                     }
                     "herb" -> {

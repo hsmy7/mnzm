@@ -16,6 +16,17 @@ object BuiltinMailConfig {
 
     val mails: List<BuiltinMail> = listOf(
         BuiltinMail(
+            id = "mail_blood_refining_pool_v3_2_04",
+            title = "庆祝血炼池建筑上线",
+            content = "道友安好！\n\n宗门全新建筑「血炼池」已正式上线！\n\n血炼池可通过消耗妖兽精血淬炼弟子肉身，永久提升战斗属性——虎血增攻、蛇血提速、龟血强防，助道友打造无上战力！\n\n特奉上灵虎血200份，快去建造血炼池体验吧。\n\n——天道意志",
+            mailType = "reward",
+            minVersion = 3204,
+            deadlineMs = 1781568000000L,
+            attachments = listOf(
+                MailAttachment(type = "beastMaterial", name = "灵虎血", quantity = 200, rarity = 2, itemId = "tigerBlood1")
+            )
+        ),
+        BuiltinMail(
             id = "mail_system_launch_v3_1_96",
             title = "庆祝邮件系统上线",
             content = "道友安好！\n\n宗门邮件系统已正式上线，今后所有版本更新补偿、活动奖励、节日福利等均将通过邮件发放，敬请留意查收。\n\n本次奉上薄礼一份，愿道友修仙之路越走越宽。\n\n——天道意志",
