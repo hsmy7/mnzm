@@ -396,7 +396,8 @@ fun DiscipleSlot(
                 .border(1.dp, borderColor, RoundedCornerShape(6.dp))
                 .clickable {
                     if (disciple != null) onSlotClick() else onEmptySlotClick()
-                }
+                },
+            contentAlignment = Alignment.Center
         ) {
             if (disciple != null) {
                 val dividerColor = Color(0xFF757575)
