@@ -456,22 +456,24 @@ class GameStateStore @Inject constructor(
             result
         },
         "spiritFieldPlants" to { origin, shadow, oldState ->
-            val originIds = origin.spiritFieldPlants.map { it.buildingInstanceId }.toSet()
-            val oldIds = oldState.spiritFieldPlants.map { it.buildingInstanceId }.toSet()
+            val originMap = origin.spiritFieldPlants.associateBy { it.buildingInstanceId }
             val shadowMap = shadow.spiritFieldPlants.associateBy { it.buildingInstanceId }
-            val result = shadow.spiritFieldPlants.toMutableList()
-            // 玩家在结算期间种植的（oldState 有，origin 无）
-            for (plant in oldState.spiritFieldPlants) {
-                if (plant.buildingInstanceId !in originIds && plant.buildingInstanceId !in shadowMap) {
-                    result.add(plant)
+            val oldMap = oldState.spiritFieldPlants.associateBy { it.buildingInstanceId }
+
+            val allIds = (shadowMap.keys + oldMap.keys).toSet()
+            allIds.mapNotNull { id ->
+                val op = originMap[id]
+                val sp = shadowMap[id]
+                val mp = oldMap[id]
+                when {
+                    sp != null && mp != null && op != null && op != mp ->
+                        mp  // 玩家修改了 → 保留 oldState
+                    sp != null && mp != null ->
+                        sp  // 结算修改 → 保留 shadow
+                    sp != null -> sp     // 仅 shadow 有
+                    mp != null -> mp     // 仅 oldState 有（玩家新增）
+                    else -> null
                 }
-            }
-            // 玩家在结算期间移除的（origin 有，oldState 无）
-            val removedByPlayer = originIds - oldIds
-            if (removedByPlayer.isNotEmpty()) {
-                result.filter { it.buildingInstanceId !in removedByPlayer }
-            } else {
-                result
             }
         },
         "elderSlots" to { origin, shadow, oldState ->
