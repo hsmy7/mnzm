@@ -124,3 +124,6 @@ android/app/release/
 decompiled_source/
 *.zip
 .worktrees/
+
+# Kotlin compiler sessions (build artifacts)
+android/.kotlin/sessions/
