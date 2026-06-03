@@ -55,7 +55,7 @@ fun BloodRefiningPoolDialog(
             val totalQty = materials
                 .filter { it.name == beastMat.name && it.rarity == beastMat.rarity }
                 .sumOf { it.quantity }
-            if (totalQty > 0) beastMat to totalQty else null
+            if (totalQty >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) beastMat to totalQty else null
         }
     }
 
@@ -250,12 +250,6 @@ private fun MaterialSlotBox(
                     textAlign = TextAlign.Center,
                     maxLines = 2
                 )
-                Text(
-                    "$selectedQuantity/$requiredQuantity",
-                    fontSize = 9.sp,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center
-                )
             }
         } else {
             Text("材料", color = Color(0xFF999999), fontSize = 10.sp)
@@ -291,8 +285,6 @@ private fun MaterialSelectorDialog(
                 bloodOrder.forEach { bloodType ->
                     val items = grouped[bloodType] ?: return@forEach
                     items.sortedByDescending { it.first.tier }.forEach { (beastMat, qty) ->
-                        val canAfford = qty >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT
-                        // 材料选择卡片 — 匹配槽位样式
                         UnifiedItemCard(
                             data = ItemCardData(
                                 id = beastMat.id,
@@ -304,8 +296,7 @@ private fun MaterialSelectorDialog(
                             ),
                             isSelected = false,
                             showQuantity = true,
-                            craftable = canAfford,
-                            onClick = { if (canAfford) onSelect(beastMat, qty) }
+                            onClick = { onSelect(beastMat, qty) }
                         )
                     }
                 }
