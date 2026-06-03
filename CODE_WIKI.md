@@ -1,22 +1,29 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-03 (v3.2.02 状态一致性修复)
+> 最后更新：2026-06-03 (v3.2.03 性能优化大版本)
 
 ## 目录
 
 1. [架构总览](#架构总览)
 2. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
+   - [GameService / GameSystem 职责标注](#gameservice--gamesystem-职责标注v3203)
 3. [状态管理 — GameStateStore](#状态管理--gamestatestore)
    - [三层 StateFlow 拆分](#v3201-架构三层-stateflow-拆分)
+   - [DomainStateProvider — 领域状态提供者](#domainstateprovider--领域状态提供者v3203)
    - [状态一致性 — Mutex 序列化](#状态一致性统一-mutex-序列化v3200-修复)
    - [字段合并策略](#字段合并策略)
    - [Do's and Don'ts](#dos-and-donts)
 4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
+   - [热管理与看门狗](#热管理与看门狗v3203)
 5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
 6. [增量保存与数据库](#增量保存与数据库)
+   - [Save Slot 写入顺序](#save-slot-写入顺序v3203-修复)
    - [重型数据分块存储](#重型数据分块存储-v3202)
 7. [Canvas 渲染管线](#canvas-渲染管线)
+   - [增量绘制与装饰清除](#增量绘制与装饰清除v3203)
 8. [性能基础设施](#性能基础设施)
+   - [ThermalMonitor](#thermalmonitorv3203)
+   - [BuildingSpatialIndex](#buildingspatialindexv3203)
 9. [构建与 Profile](#构建与-profile)
    - [测试架构](#测试架构v3200-新增)
 10. [后续优化项](#后续优化项)
@@ -76,6 +83,31 @@ core/engine/domain/
 ├── save/         (SaveFacade, SaveFacadeImpl, SaveService, SaveLoadCoordinator, ...)
 └── settlement/   (SettlementCoordinator, SettlementCache, SettlementScheduler, ...)
 ```
+
+### GameService / GameSystem 职责标注 (v3.2.03)
+
+两类标注注解用于标记 Service 和 System 的职责边界，便于代码导航和依赖审计：
+
+```kotlin
+// Annotation 定义 (core/engine/annotation/)
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class GameService(val name: String)
+
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class AutoTickSystem(val name: String)
+```
+
+| 标注 | 用途 | 文件数 |
+|------|------|--------|
+| `@GameService` | UI/Facade 驱动的业务 Service | 6 个 |
+| `@AutoTickSystem` | Tick 自动执行的 System（仅文档用途） | 7 个 |
+
+**边界规则**：
+- Service 不得在 tick 内被直接调用
+- System 之间不得直接调用（通过 EventBus 通知）
+- `@AutoTickSystem` 使用 `@Retention(SOURCE)` 避免与 `core.engine.system.GameSystem` 接口同名冲突
 
 ### ViewModel Facade 直接注入 (v3.2.01)
 
@@ -250,6 +282,29 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
 
+### DomainStateProvider — 领域状态提供者 (v3.2.03)
+
+为 GameData 拆分 Phase B 做准备，`DomainStateProvider` 从 `GameData` 的 263 个字段中按领域提取 5 个子 StateFlow：
+
+```
+stateStore.gameData (StateFlow<GameData>)
+  ├── .map { it.extractDiplomacyState() }
+  │   → diplomacyState: StateFlow<DiplomacyDomainState>
+  ├── .map { it.extractProductionState() }
+  │   → productionState: StateFlow<ProductionDomainState>
+  ├── .map { it.extractPatrolState() }
+  │   → patrolState: StateFlow<PatrolDomainState>
+  ├── .map { it.extractWorldMapState() }
+  │   → worldMapState: StateFlow<WorldMapDomainState>
+  └── .map { it.extractSectPolicyState() }
+      → sectPolicyState: StateFlow<SectPolicyDomainState>
+```
+
+每个 `extractXxxState()` / `mergeXxxState()` 定义在对应的 domain 模型中 (core/model/domain/)。
+领域模型不标注 `@Serializable`，序列化仍由 `GameData` 负责，避免 ProtoBuf Set/Map 兼容问题。
+
+Phase B 将把 Data 层读写逐步切换到领域 DAO（独立表），DomainStateProvider 届时改为从 Repository 读取。
+
 ### 状态一致性：统一 Mutex 序列化（v3.2.02 修复）
 
 #### 问题背景
@@ -326,6 +381,24 @@ class GameStateRepository {
 - `update()` 事务内变更检测后自动标记脏字段
 - `flushDirtyState()` 仅写入变化的表，脏字段间 `coroutineScope` 并行执行
 - `StorageEngine.incrementalSave(slot)` 从 unifiedState 快照提取脏数据，保存延迟从 ~200ms 降至 ~20ms
+
+### Save Slot 写入顺序 (v3.2.03 修复)
+
+`updateSpiritMineSlots` / `updatePatrolSlots` 走 `updateGameDataSync → launchInScope`，是 fire-and-forget。在 ViewModel 中与 `updateDiscipleStatus`（suspend）混用时，slot 更新可能延迟执行，导致状态不一致。
+
+**修复原则**：先 `updateGameData(suspend)` 保存 slot，再 `updateDiscipleStatus(suspend)` 更新弟子状态。
+
+```kotlin
+// ❌ 错误 — slot fire-and-forget + 弟子状态 suspend
+gameEngine.updateDiscipleStatus(discipleId, MINING)  // await
+gameEngine.updateSpiritMineSlots(slots)               // fire-and-forget，可能延迟
+
+// ✅ 正确 — 先槽位后弟子，都 await
+gameEngine.updateGameData { it.copy(spiritMineSlots = slots) }  // await
+gameEngine.updateDiscipleStatus(discipleId, MINING)              // await
+```
+
+**修复范围**：SpiritMineViewModel（autoAssign / remove / swap）、PatrolTowerViewModel（autoAssign / assign / remove / swap），共 7 处。
 
 ### 重型数据分块存储 (v3.2.02)
 
@@ -409,6 +482,22 @@ startGameLoop() → Dispatchers.Default coroutine
     → patrol battle results
 ```
 
+### 热管理与看门狗 (v3.2.03)
+
+**ThermalMonitor**：通过 ADPF Thermal API 监控设备热状态，过热时自动降负载或紧急保存：
+
+```kotlin
+@Singleton
+class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
+    fun shouldReduceWorkload(): Boolean  // THERMAL_STATUS_MODERATE+ → 跳过非关键系统
+    fun shouldEmergencySave(): Boolean   // THERMAL_STATUS_SEVERE+ → 紧急保存并暂停
+}
+```
+
+在 `tickInternal()` 中优先检查热状态——过热时跳过 tick 或被限流执行。`@ApplicationContext` 限定符由 Hilt 自动提供。
+
+**看门狗增强**：`activeSaveJob` / `activeLoadJob` 追踪当前运行的 save/load 协程。超时后 `forceResetStuckStates()` 主动 cancel 协程并重置状态位。`SaveLoadViewModel` 的所有 save/load 协程通过 `.also { registerActiveSaveJob(it) }` 注册，finally 块中 `clearActiveSaveJob()` 清除。
+
 ---
 
 ## 结算管线 — SettlementCoordinator
@@ -475,6 +564,16 @@ tickInternal()
 
 **移动建筑**：从烘焙层排除，0.5f alpha 独立绘制——每帧不重建 Bitmap。
 
+### 增量绘制与装饰清除 (v3.2.03)
+
+`bakedMapBmp` 从 `remember(fullMapBmp, effectivePlacedBuildings)` 全量重建改为 `remember(fullMapBmp)` 创建后 `LaunchedEffect(effectivePlacedBuildings)` 增量更新：
+
+1. **装饰清除**：新建筑放置时，先用 `groundBmp`（纯地形）覆盖建筑区域，擦除装饰物
+2. **增量绘制**：仅绘制新增建筑；移除的建筑区域从 `fullMapBmp` 恢复
+3. **Bitmap 生命周期**：`DisposableEffect` 主动 `recycle()`，不依赖 GC
+
+`previousBuildings` 追踪上次建筑列表用于 diff；`clearedDecorationCells` 避免重复擦除同一格。
+
 ### 世界地图 (MapCanvas)
 
 | 优化项 | 实现 |
@@ -532,6 +631,30 @@ class FrameMetricsMonitor {
 已有：tick 耗时、帧时间(Choreographer.FrameCallback)、内存、FPS、保存队列。
 待加：重组计数、内存分配追踪。
 
+### ThermalMonitor (v3.2.03)
+
+```kotlin
+@Singleton
+class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
+    val currentThermalStatus: Int           // 0=NONE ~ 6=SHUTDOWN
+    fun shouldReduceWorkload(): Boolean     // MODERATE+ 降负载
+    fun shouldEmergencySave(): Boolean      // SEVERE+ 紧急保存
+}
+```
+
+基于 Android ADPF Thermal API（`PowerManager.getCurrentThermalStatus()`）。在 `GameEngineCore.tickInternal()` 入口处优先检查，过热时跳过整个 tick 或限流执行。
+
+### BuildingSpatialIndex (v3.2.03)
+
+```kotlin
+class BuildingSpatialIndex {
+    fun rebuild(buildings: List<GridBuildingData>)  // 按网格单元建索引
+    fun findBuildingAt(gridX: Int, gridY: Int): GridBuildingData?  // O(1) 查找
+}
+```
+
+将建筑按占用的所有网格单元建 Hash 索引（Long key = (gridX << 32) | gridY），触控检测从 O(n) 线性查找改为 O(1) Hash 查找。在 `SectGroundCanvas` 的 `pointerInput` 手势处理中使用。
+
 ---
 
 ## 构建与 Profile
@@ -554,18 +677,20 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 字段 | 值 |
 |------|-----|
-| versionCode | 3202 |
-| versionName | 3.2.02 |
+| versionCode | 3203 |
+| versionName | 3.2.03 |
 | compileSdk / targetSdk | 35 |
 | minSdk | 24 |
 | Kotlin | 2.0.21 |
 | Compose BOM | 2025.02.00 |
+| Gradle | 8.14.5 |
 
 ### Compose Compiler
 
 - **插件**：`org.jetbrains.kotlin.plugin.compose`（Kotlin 2.0 原生）
 - **已移除**：`composeOptions { kotlinCompilerExtensionVersion = '1.5.8' }`（冗余/冲突）
 - **默认启用**：Strong Skipping Mode
+- **稳定性配置**：`stability_config.conf` — 26 个类的显式稳定性声明
 - **指标**：`composeCompiler { reportsDestination / metricsDestination }` → `build/compose_metrics/`
 
 ### Baseline Profile
@@ -588,18 +713,24 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
 | P2 | Disciple 字段注解驱动合并（参照 `@SettlementStrategy` 模式） | 消除手工字段分类 | 待实施 |
-| P2 | `GameStateStore.updateXxxDirect` 方法移除 | 减少 API 表面积 | 待实施（零外部调用） |
 | P3 | 并发压力测试（100+ 协程高强度并发） | 验证极端场景 | 待实施 |
 | P3 | 结算与玩家操作的细粒度锁（分片 Mutex） | 减少锁竞争（当前无瓶颈） | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 | P1 | `snapshotFlow` 用于修炼进度条等逐帧动画（绕过重组） | 减少高频动画重组 | 待实施 |
 | P1 | FrameMetrics 接入 UnifiedPerformanceMonitor 统一框架 | 监控统一 | 待实施 |
 | P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 | 待实施 |
-| P2 | 完成 Phase B：GameData 重型字段读取路径切换到领域实体表 | 大幅减少 Room 读取 | 部分实施 |
+| P2 | 完成 Phase B：GameData 重型字段读取路径切换到领域实体表 | 大幅减少 Room 读取 | 部分实施（DomainStateProvider 就位） |
 | P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
+| P3 | 巡逻塔 `updatePatrolConfigs` fire-and-forget → suspend | 与灵矿场/巡逻塔修复同模式 | 待实施 |
+| ~~P2~~ | ~~`GameStateStore.updateXxxDirect` 方法移除~~ | ~~减少 API 表面积~~ | ✅ v3.2.03 |
 | ~~P1~~ | ~~game_heavy_data 分块存储 — CursorWindow 溢出崩溃~~ | ~~消除加载闪退~~ | ✅ v3.2.02 |
+| ~~P1~~ | ~~save/load 路径 runBlocking 消除~~ | ~~消除主线程阻塞~~ | ✅ v3.2.03 |
+| ~~P1~~ | ~~增量保存 upsertAll + @Transaction~~ | ~~保存耗时减少 80%+~~ | ✅ v3.2.03 |
+| ~~P1~~ | ~~灵矿场/巡逻塔 slot 写入 fire-and-forget → suspend~~ | ~~消除状态不一致~~ | ✅ v3.2.03 |
+| ~~P1~~ | ~~地图增量绘制 + 装饰清除~~ | ~~建筑操作不再卡顿~~ | ✅ v3.2.03 |
+| ~~P2~~ | ~~Compile 级代码规范（文件级 CL、BaseViewModel 等）~~ | ~~v3.2.06, v3.2.10~~ | ✅ |
 | ~~P1~~ | ~~状态一致性修复 — swapFromShadow mutex 保护~~ | ~~消除状态回退 bug~~ | ✅ v3.2.02 |
 | ~~P1~~ | ~~updateXxxDirect 调用清零~~ | ~~消除竞态条件~~ | ✅ v3.2.02 |
 | ~~P2~~ | ~~Disciple 字段合并编译期安全网~~ | ~~强制字段分类~~ | ✅ v3.2.02 |
