@@ -301,8 +301,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             // 功法精通（扣除高频已发量）
             val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
             val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-            val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
-            val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * monthSeconds
+            val proficiencyGainPerSecond = ManualProficiencySystem.calculateProficiencyGainPerSecond(disciple.comprehension, libraryBonus)
+            val proficiencyGain = proficiencyGainPerSecond * monthSeconds
             val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
             d.manualIds.forEach { manualId ->
                 manualInstanceMap[manualId]?.let { manual ->
@@ -310,13 +310,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     val profIndex = profList.indexOfFirst { it.manualId == manualId }
                     val alreadyGainedProf = profAlreadyGained[manualId] ?: 0.0
                     val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
+                    val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
                     if (profIndex >= 0) {
                         val cp = profList[profIndex]
-                        val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
-                        val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
+                        val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
                         profList[profIndex] = cp.copy(proficiency = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
                     } else {
-                        val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
                         profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = netProfGain.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
                     }
                     updatedManualProficiencies[d.id] = profList
@@ -408,12 +407,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val manualInstanceMap = state.manualInstances.associateBy { it.id }
         val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
-        val proficiencyGainPerTick = baseProficiencyRate * (1.0 + libraryBonus) * perTickSeconds
+        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerSecond(currentDisciple.comprehension, libraryBonus) * perTickSeconds
 
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val profUpdatesMap = currentHfd.proficiencyUpdates.toMutableMap()
         val discipleProfUpdates = profUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
 
         currentDisciple.manualIds.forEach { manualId ->
             manualInstanceMap[manualId]?.let { manual ->
@@ -421,11 +420,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 val profIndex = profList.indexOfFirst { it.manualId == manualId }
                 if (profIndex >= 0) {
                     val cp = profList[profIndex]
-                    val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
-                    val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
+                    val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
                     profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
                 } else {
-                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
                     profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGainPerTick.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
                 }
                 updatedManualProficiencies[discipleId] = profList

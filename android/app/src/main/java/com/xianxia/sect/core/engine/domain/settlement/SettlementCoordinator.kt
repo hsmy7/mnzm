@@ -598,8 +598,9 @@ class SettlementCoordinator @Inject constructor(
 
         val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
-        val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * monthSeconds
+        val proficiencyGainPerSecond = ManualProficiencySystem.calculateProficiencyGainPerSecond(disciple.comprehension, libraryBonus)
+        val proficiencyGain = proficiencyGainPerSecond * monthSeconds
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
 
         val profList = data.manualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
 
@@ -610,14 +611,12 @@ class SettlementCoordinator @Inject constructor(
                 val profIndex = profList.indexOfFirst { it.manualId == manualId }
                 if (profIndex >= 0) {
                     val cp = profList[profIndex]
-                    val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
-                    val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
+                    val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
                     profList[profIndex] = cp.copy(
                         proficiency = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble()),
                         maxProficiency = fixedMaxProf
                     )
                 } else {
-                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
                     profList.add(
                         ManualProficiencyData(
                             manualId = manualId,

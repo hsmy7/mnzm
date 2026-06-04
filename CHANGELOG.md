@@ -1,5 +1,31 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.09] - 2026-06-05
+
+### 平衡调整
+
+- 功法熟练度阈值各品阶统一：入门 1000 / 小成 3000 / 大成 10000 / 圆满 30000（原按品阶倍率 400~2000）
+- 最大熟练度统一为 30000（原按品阶 400~2000）
+- 精通效果倍率调整：入门 150% / 小成 200% / 大成 300% / 圆满 400%（原入门 100% / 小成 120% / 大成 150% / 圆满 200%）
+
+### 机制调整
+
+- 功法熟练度增长速度改为每秒 6 点基础值，受悟性影响：悟性超过 70 后每多 1 点增加 10%（悟性 80 = 2 倍速度）
+- 藏经阁加成保持 +50% 不变，与悟性加成叠加
+- 删除 `manualResearch` 政策对熟练度速率的影响（原 5.0/6.0 区分）
+- 删除品阶对熟练度上限和阈值的倍率影响
+- 统一为单一公式 `calculateProficiencyGainPerSecond(comprehension, libraryBonus)`，删除旧的 `calculateProficiencyGain`（含境界/品阶/天赋参数，从未被实际调用）
+
+### 代码清理
+
+- 删除 `ManualProficiencySystem` 中 7 个从未被调用的方法：`getProficiencyThresholds`、`getMaxProficiency`、`calculateProficiencyGain`、`updateProficiency`、`calculateManualStatsBonus`、`shouldAutoLearnManual`、`selectBestManualToLearn`、`generateProficiencyGainMessage` 及 `ManualInfo` 数据类
+- 删除废弃常量 `BASE_PROFICIENCY_GAIN`、`MASTERY_THRESHOLD`
+- `MasteryLevel.fromProficiency()` 不再需要 `manualRarity` 参数
+
+### 数据库迁移
+
+- v30→v31：更新 `manualProficiencies` JSON 中所有条目的 `maxProficiency` 为 30000，`masteryLevel` 按新阈值重新计算
+
 ## [3.2.08] - 2026-06-05
 
 ### 平衡调整

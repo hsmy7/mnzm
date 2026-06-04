@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 30
+    version = 31
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -361,6 +361,24 @@ abstract class GameDatabase : RoomDatabase() {
                 // disciple_compact.cultivationSpeed 缓存值在下次 fromDisciple 同步时自动更新
                 // 此处更新旧存档中 cultivationSpeed 的默认值，按灵根数量重新计算
                 db.execSQL("UPDATE disciple_compact SET cultivationSpeed = CASE spiritRoot WHEN 1 THEN 50.0 WHEN 2 THEN 30.0 WHEN 3 THEN 15.0 WHEN 4 THEN 6.0 WHEN 5 THEN 3.0 ELSE 8.0 END WHERE cultivationSpeed <= 8.0")
+            }
+        }
+
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 功法熟练度重平衡：各品阶统一阈值和上限
+                // manualProficiencies 存储为 JSON，运行时已有 fixedMaxProf 修复逻辑
+                // 此处将所有 maxProficiency 更新为 30000（新统一上限）
+                // masteryLevel 在运行时按新阈值自动重新计算
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":100', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":200', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":300', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":400', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":600', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":800', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":1200', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":1600', '\"maxProficiency\":30000')")
+                db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":2000', '\"maxProficiency\":30000')")
             }
         }
 
@@ -734,7 +752,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

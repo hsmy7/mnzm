@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.09",
+            date = "2026-06-05",
+            changes = listOf(
+                "【功法熟练度重平衡】各品阶统一阈值：入门1000/小成3000/大成10000/圆满30000",
+                "【精通效果增强】入门150%/小成200%/大成300%/圆满400%效果倍率",
+                "【悟性影响修炼】基础每秒6点，悟性超70每点+10%",
+                "【公式统一】删除旧的多套公式，全场景统一使用一套计算"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.08",
             date = "2026-06-05",
             changes = listOf(

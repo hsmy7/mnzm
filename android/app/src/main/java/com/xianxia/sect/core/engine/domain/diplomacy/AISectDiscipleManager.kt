@@ -187,10 +187,10 @@ object AISectDiscipleManager {
             val randomMasteryLevel = Random.nextInt(0, maxMasteryLevel + 1)
             val masteryLevel = ManualProficiencySystem.MasteryLevel.fromLevel(randomMasteryLevel)
             val proficiency = when (masteryLevel) {
-                ManualProficiencySystem.MasteryLevel.NOVICE -> Random.nextDouble(0.0, 100.0)
-                ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> Random.nextDouble(100.0, 200.0)
-                ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> Random.nextDouble(200.0, 300.0)
-                ManualProficiencySystem.MasteryLevel.PERFECTION -> 300.0 + Random.nextDouble(0.0, 100.0)
+                ManualProficiencySystem.MasteryLevel.NOVICE -> Random.nextDouble(0.0, 1000.0)
+                ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> Random.nextDouble(1000.0, 10000.0)
+                ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> Random.nextDouble(10000.0, 30000.0)
+                ManualProficiencySystem.MasteryLevel.PERFECTION -> 30000.0
             }
             Pair(manual.id, proficiency.toInt())
         }

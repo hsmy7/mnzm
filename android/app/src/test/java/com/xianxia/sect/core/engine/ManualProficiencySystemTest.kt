@@ -31,10 +31,22 @@ class ManualProficiencySystemTest {
     }
 
     @Test
+    fun `MasteryLevel - 效果倍率正确`() {
+        assertEquals(1.5, ManualProficiencySystem.MasteryLevel.NOVICE.bonus, 0.01)
+        assertEquals(2.0, ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS.bonus, 0.01)
+        assertEquals(3.0, ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS.bonus, 0.01)
+        assertEquals(4.0, ManualProficiencySystem.MasteryLevel.PERFECTION.bonus, 0.01)
+    }
+
+    @Test
     fun `MasteryLevel - fromProficiency 入门`() {
         assertEquals(
             ManualProficiencySystem.MasteryLevel.NOVICE,
             ManualProficiencySystem.MasteryLevel.fromProficiency(0.0)
+        )
+        assertEquals(
+            ManualProficiencySystem.MasteryLevel.NOVICE,
+            ManualProficiencySystem.MasteryLevel.fromProficiency(999.0)
         )
     }
 
@@ -42,7 +54,11 @@ class ManualProficiencySystemTest {
     fun `MasteryLevel - fromProficiency 小成`() {
         assertEquals(
             ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS,
-            ManualProficiencySystem.MasteryLevel.fromProficiency(100.0)
+            ManualProficiencySystem.MasteryLevel.fromProficiency(1000.0)
+        )
+        assertEquals(
+            ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS,
+            ManualProficiencySystem.MasteryLevel.fromProficiency(9999.0)
         )
     }
 
@@ -50,7 +66,11 @@ class ManualProficiencySystemTest {
     fun `MasteryLevel - fromProficiency 大成`() {
         assertEquals(
             ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS,
-            ManualProficiencySystem.MasteryLevel.fromProficiency(200.0)
+            ManualProficiencySystem.MasteryLevel.fromProficiency(10000.0)
+        )
+        assertEquals(
+            ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS,
+            ManualProficiencySystem.MasteryLevel.fromProficiency(29999.0)
         )
     }
 
@@ -58,7 +78,7 @@ class ManualProficiencySystemTest {
     fun `MasteryLevel - fromProficiency 圆满`() {
         assertEquals(
             ManualProficiencySystem.MasteryLevel.PERFECTION,
-            ManualProficiencySystem.MasteryLevel.fromProficiency(300.0)
+            ManualProficiencySystem.MasteryLevel.fromProficiency(30000.0)
         )
     }
 
@@ -91,47 +111,27 @@ class ManualProficiencySystemTest {
     }
 
     @Test
-    fun `getProficiencyThresholds - 凡品阈值`() {
-        val thresholds = ManualProficiencySystem.getProficiencyThresholds(1)
+    fun `PROFICIENCY_THRESHOLDS - 统一阈值`() {
+        val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
         assertEquals(0.0, thresholds[ManualProficiencySystem.MasteryLevel.NOVICE]!!, 0.01)
-        assertEquals(100.0, thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS]!!, 0.01)
-        assertEquals(200.0, thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS]!!, 0.01)
-        assertEquals(300.0, thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION]!!, 0.01)
+        assertEquals(1000.0, thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS]!!, 0.01)
+        assertEquals(10000.0, thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS]!!, 0.01)
+        assertEquals(30000.0, thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION]!!, 0.01)
     }
 
     @Test
-    fun `getProficiencyThresholds - 品阶越高阈值越高`() {
-        val lowThresholds = ManualProficiencySystem.getProficiencyThresholds(1)
-        val highThresholds = ManualProficiencySystem.getProficiencyThresholds(6)
-        assertTrue(
-            highThresholds[ManualProficiencySystem.MasteryLevel.PERFECTION]!! >
-            lowThresholds[ManualProficiencySystem.MasteryLevel.PERFECTION]!!
-        )
+    fun `MAX_PROFICIENCY 为30000`() {
+        assertEquals(30000.0, ManualProficiencySystem.MAX_PROFICIENCY, 0.01)
     }
 
     @Test
-    fun `getMaxProficiency - 凡品为400`() {
-        assertEquals(400.0, ManualProficiencySystem.getMaxProficiency(1), 0.01)
+    fun `BASE_PROFICIENCY_RATE 为6`() {
+        assertEquals(6.0, ManualProficiencySystem.BASE_PROFICIENCY_RATE, 0.01)
     }
 
     @Test
-    fun `getMaxProficiency - 品阶越高上限越高`() {
-        for (rarity in 1..5) {
-            assertTrue(
-                ManualProficiencySystem.getMaxProficiency(rarity) <
-                ManualProficiencySystem.getMaxProficiency(rarity + 1)
-            )
-        }
-    }
-
-    @Test
-    fun `BASE_PROFICIENCY_GAIN 为1`() {
-        assertEquals(1.0, ManualProficiencySystem.BASE_PROFICIENCY_GAIN, 0.01)
-    }
-
-    @Test
-    fun `MASTERY_THRESHOLD 为100`() {
-        assertEquals(100.0, ManualProficiencySystem.MASTERY_THRESHOLD, 0.01)
+    fun `COMPREHENSION_BASELINE 为70`() {
+        assertEquals(70, ManualProficiencySystem.COMPREHENSION_BASELINE)
     }
 
     @Test
@@ -140,9 +140,45 @@ class ManualProficiencySystemTest {
     }
 
     @Test
-    fun `calculateSkillDamageMultiplier - 入门无加成`() {
+    fun `calculateProficiencyGainPerSecond - 悟性70无加成`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(70)
+        assertEquals(6.0, gain, 0.01)
+    }
+
+    @Test
+    fun `calculateProficiencyGainPerSecond - 悟性低于基准无加成`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(50)
+        assertEquals(6.0, gain, 0.01)
+    }
+
+    @Test
+    fun `calculateProficiencyGainPerSecond - 悟性80加成翻倍`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(80)
+        assertEquals(12.0, gain, 0.01)
+    }
+
+    @Test
+    fun `calculateProficiencyGainPerSecond - 藏经阁加成50%`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(70, 0.5)
+        assertEquals(9.0, gain, 0.01)
+    }
+
+    @Test
+    fun `calculateProficiencyGainPerSecond - 悟性加成与藏经阁加成叠加`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(80, 0.5)
+        assertEquals(18.0, gain, 0.01)
+    }
+
+    @Test
+    fun `calculateSkillDamageMultiplier - 入门1_5倍`() {
         val multiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(1.0, 0)
-        assertEquals(1.0, multiplier, 0.01)
+        assertEquals(1.5, multiplier, 0.01)
+    }
+
+    @Test
+    fun `calculateSkillDamageMultiplier - 圆满4倍`() {
+        val multiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(1.0, 3)
+        assertEquals(4.0, multiplier, 0.01)
     }
 
     @Test

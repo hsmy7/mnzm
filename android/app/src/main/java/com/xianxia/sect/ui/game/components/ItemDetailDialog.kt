@@ -293,19 +293,19 @@ fun LearnedManualDetailDialog(
     val proficiency = proficiencyData?.proficiency ?: 0.0
     val masteryLevel = proficiencyData?.masteryLevel ?: 0
     val mastery = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel)
-    val thresholds = ManualProficiencySystem.getProficiencyThresholds(manual.rarity)
-    val maxProficiency = ManualProficiencySystem.getMaxProficiency(manual.rarity)
+    val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
+    val maxProficiency = ManualProficiencySystem.MAX_PROFICIENCY
 
     val currentThreshold = when (mastery) {
         ManualProficiencySystem.MasteryLevel.NOVICE -> 0.0
         ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.NOVICE] ?: 0.0
-        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 100.0
-        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 200.0
+        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
+        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
     }
     val nextThreshold = when (mastery) {
-        ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 100.0
-        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 200.0
-        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 300.0
+        ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
+        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
+        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0
         ManualProficiencySystem.MasteryLevel.PERFECTION -> maxProficiency
     }
 
