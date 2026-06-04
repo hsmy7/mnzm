@@ -672,41 +672,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     /**
      * Advance game time by one phase (上/中/下旬)
      */
+    /**
+     * 处理当前 phase 的修炼事件。TimeSystem 已推进 phase，
+     * 此方法仅读取当前时间并触发对应事件，不再次推进。
+     */
     suspend fun advancePhase(state: MutableGameState? = null) {
         val data = state?.gameData ?: currentGameData
-        var newPhase = data.gamePhase + 1
-        var newMonth = data.gameMonth
-        var newYear = data.gameYear
-        var monthChanged = false
+        val phase = data.gamePhase
+        val month = data.gameMonth
+        val year = data.gameYear
 
-        if (newPhase >= GamePhase.PHASES_PER_MONTH) {
-            newPhase = 0
-            newMonth++
-            monthChanged = true
-            if (newMonth > 12) {
-                newMonth = 1
-                newYear++
-            }
-        }
-
-        val isYearChanged = newYear > data.gameYear
-
-        val updatedData = data.copy(
-            gamePhase = newPhase,
-            gameMonth = newMonth,
-            gameYear = newYear
-        )
-        if (state != null) state.gameData = updatedData else currentGameData = updatedData
-
-        processPhaseEvents(newPhase, newMonth, newYear)
-
-        if (isYearChanged) {
-            processYearlyEvents(newYear)
-        }
-
-        if (monthChanged) {
-            processMonthlyEvents(newYear, newMonth)
-        }
+        processPhaseEvents(phase, month, year)
     }
 
     /**
