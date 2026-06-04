@@ -53,7 +53,9 @@ data class DiscipleCore(
     val maxCultivation: Double get() {
         if (realm == 0) return cultivation
         val base = GameConfig.Realm.get(realm).cultivationBase
-        return base * (1.0 + (realmLayer - 1) * 0.2)
+        val nextBase = GameConfig.Realm.get(realm - 1).cultivationBase
+        val maxLayers = GameConfig.Realm.get(realm).maxLayers
+        return base + (realmLayer - 1) * (nextBase - base).toDouble() / maxLayers
     }
     val cultivationProgress: Double get() = if (maxCultivation > 0) cultivation / maxCultivation else 0.0
     val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)

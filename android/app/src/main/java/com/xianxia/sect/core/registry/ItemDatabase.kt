@@ -78,7 +78,7 @@ object ItemDatabase {
     private val REFERENCE_BASE_PD = mapOf(1 to 10, 2 to 65, 3 to 170, 4 to 450, 5 to 1100, 6 to 5800)
     private val REFERENCE_BASE_MD = mapOf(1 to 8, 2 to 52, 3 to 136, 4 to 360, 5 to 880, 6 to 4640)
     private val REFERENCE_BASE_SPD = mapOf(1 to 15, 2 to 97, 3 to 255, 4 to 675, 5 to 1650, 6 to 8700)
-    private val REFERENCE_CULT_BASE = mapOf(1 to 225, 2 to 900, 3 to 1800, 4 to 3600, 5 to 16000, 6 to 64000)
+    private val REFERENCE_CULT_BASE = mapOf(1 to 600, 2 to 8000, 3 to 20000, 4 to 50000, 5 to 100000, 6 to 300000)
 
     private val SPEED_PERCENT_MEDIUM = mapOf(1 to 0.30, 2 to 0.35, 3 to 0.40, 4 to 0.50, 5 to 0.60, 6 to 0.80)
     private val CRIT_RATE_MEDIUM = mapOf(1 to 0.03, 2 to 0.05, 3 to 0.07, 4 to 0.10, 5 to 0.13, 6 to 0.16)

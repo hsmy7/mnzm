@@ -16,8 +16,6 @@ import kotlin.math.roundToInt
 
 object DiscipleStatCalculator {
 
-    private const val BASE_CULTIVATION_SPEED = 8.0
-
     fun getBaseStats(disciple: Disciple): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(disciple.realm)
         val layerMult = 1.0 + (disciple.realmLayer - 1) * 0.1
@@ -338,11 +336,9 @@ object DiscipleStatCalculator {
         preachingMastersBonus: Double = 0.0,
         cultivationSubsidyBonus: Double = 0.0
     ): Double {
-        val baseCultivation = BASE_CULTIVATION_SPEED
+        val baseCultivation = disciple.spiritRoot.cultivationBonus
 
         var totalBonus = 0.0
-
-        totalBonus += (disciple.spiritRoot.cultivationBonus - 1.0)
 
         totalBonus += (disciple.skills.comprehensionSpeedBonus - 1.0)
 
@@ -396,11 +392,9 @@ object DiscipleStatCalculator {
         preachingMastersBonus: Double = 0.0,
         cultivationSubsidyBonus: Double = 0.0
     ): Double {
-        val baseCultivation = BASE_CULTIVATION_SPEED
+        val baseCultivation = aggregate.spiritRoot.cultivationBonus
 
         var totalBonus = 0.0
-
-        totalBonus += (aggregate.spiritRoot.cultivationBonus - 1.0)
 
         totalBonus += (aggregate.comprehensionSpeedBonus - 1.0)
 

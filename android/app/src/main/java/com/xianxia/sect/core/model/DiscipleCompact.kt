@@ -48,8 +48,8 @@ data class DiscipleCompact(
     @ColumnInfo(name = "combatPower", defaultValue = "0")
     val combatPower: Long = 0,
 
-    @ColumnInfo(name = "cultivationSpeed", defaultValue = "1.0")
-    val cultivationSpeed: Double = 1.0,
+    @ColumnInfo(name = "cultivationSpeed", defaultValue = "8.0")
+    val cultivationSpeed: Double = 8.0,
 
     @ColumnInfo(name = "cultivationSpeedBonus", defaultValue = "0.0")
     val cultivationSpeedBonus: Double = 0.0,

@@ -560,7 +560,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             while (shouldContinue && newRealm > 0) {
                 val currentMaxCultivation = if (newRealm == 0) Double.MAX_VALUE else {
                     val base = GameConfig.Realm.get(newRealm).cultivationBase
-                    base * (1.0 + (newRealmLayer - 1) * 0.2)
+                    val nextBase = GameConfig.Realm.get(newRealm - 1).cultivationBase
+                    val maxLayers = GameConfig.Realm.get(newRealm).maxLayers
+                    base + (newRealmLayer - 1) * (nextBase - base).toDouble() / maxLayers
                 }
                 if (newCultivation < currentMaxCultivation) break
 

@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 29
+    version = 30
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -352,6 +352,15 @@ abstract class GameDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN bloodRefinements TEXT NOT NULL DEFAULT '{}'")
                 db.execSQL("ALTER TABLE game_data ADD COLUMN activeBloodRefinements TEXT NOT NULL DEFAULT '{}'")
+            }
+        }
+
+        val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 基础修炼速度从固定8.0改为灵根决定（单50/双30/三15/四6/五3）
+                // disciple_compact.cultivationSpeed 缓存值在下次 fromDisciple 同步时自动更新
+                // 此处更新旧存档中 cultivationSpeed 的默认值，按灵根数量重新计算
+                db.execSQL("UPDATE disciple_compact SET cultivationSpeed = CASE spiritRoot WHEN 1 THEN 50.0 WHEN 2 THEN 30.0 WHEN 3 THEN 15.0 WHEN 4 THEN 6.0 WHEN 5 THEN 3.0 ELSE 8.0 END WHERE cultivationSpeed <= 8.0")
             }
         }
 
@@ -725,7 +734,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

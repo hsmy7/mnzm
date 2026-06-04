@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.08",
+            date = "2026-06-05",
+            changes = listOf(
+                "【境界修为重平衡】全境界修为值重新调整，修炼进度更平滑",
+                "【小层修为线性化】小层境界修为均匀递增，9层修为不再超过下一境界1层",
+                "【灵根修炼速度】弟子基础修炼速度由灵根决定：单灵根最快，五灵根最慢"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.07",
             date = "2026-06-04",
             changes = listOf(

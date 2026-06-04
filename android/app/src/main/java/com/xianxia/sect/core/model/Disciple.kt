@@ -290,8 +290,9 @@ data class Disciple(
         // 仙人境界修为直接显示满值
         if (realm == 0) return cultivation
         val base = GameConfig.Realm.get(realm).cultivationBase
-        // 每层修为要求递增 20%
-        return base * (1.0 + (realmLayer - 1) * 0.2)
+        val nextBase = GameConfig.Realm.get(realm - 1).cultivationBase
+        val maxLayers = GameConfig.Realm.get(realm).maxLayers
+        return base + (realmLayer - 1) * (nextBase - base).toDouble() / maxLayers
     }
     val cultivationProgress: Double get() = if (maxCultivation > 0) cultivation / maxCultivation else 0.0
 
@@ -732,12 +733,12 @@ data class SpiritRoot(
     val cultivationBonus: Double
         get() {
             return when (types.size) {
-                1 -> 3.0
-                2 -> 2.0
-                3 -> 1.5
-                4 -> 1.0
-                5 -> 0.7
-                else -> 1.0
+                1 -> 50.0
+                2 -> 30.0
+                3 -> 15.0
+                4 -> 6.0
+                5 -> 3.0
+                else -> 8.0
             }
         }
 }
