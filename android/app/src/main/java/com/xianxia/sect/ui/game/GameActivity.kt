@@ -409,12 +409,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         backgroundTaskScheduler.resume()
         Log.d(TAG, "onResume: background tasks resumed")
         if (gameEngineCore.wasPausedByBackground) {
-            gameEngineCore.clearBackgroundPauseFlag()
-            try {
-                saveLoadViewModel.resumeGameLoop()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during onResume", e)
-            }
+            gameEngineCore.resumeFromBackground()
         }
     }
 

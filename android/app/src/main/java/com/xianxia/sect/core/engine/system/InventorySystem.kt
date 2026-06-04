@@ -66,6 +66,8 @@ class InventorySystem @Inject constructor(
         private val VALID_RARITY_RANGE = 1..6
     }
 
+    override val focusDomain = FocusDomain.WAREHOUSE
+
     private fun getMaxSlots(): Int {
         val buildings = stateStore.gameData.value.placedBuildings
         val warehouseCount = buildings.count {

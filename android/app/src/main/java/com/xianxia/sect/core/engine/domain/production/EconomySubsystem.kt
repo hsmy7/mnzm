@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.production
 
 import android.util.Log
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.event.BuildingCompletedEvent
@@ -30,6 +31,7 @@ class EconomySubsystem @Inject constructor(
     private val scope get() = applicationScopeProvider.scope
 
     override val systemName: String = SYSTEM_NAME
+    override val focusDomain = FocusDomain.BUILDINGS
 
     override val subscribedTypes: Set<String> = setOf("building_completed")
 

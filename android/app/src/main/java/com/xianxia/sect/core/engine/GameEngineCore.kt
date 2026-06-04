@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.settlement.SettlementCoordinator
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -61,15 +62,34 @@ class GameEngineCore @Inject constructor(
     
     companion object {
         private const val TAG = "GameEngineCore"
-        private const val TICK_INTERVAL_MS = 1000L
-        private const val MIN_TICK_DELAY_MS = 50L
+        private const val TICK_INTERVAL_MS = 100L
+        private const val MIN_TICK_DELAY_MS = 16L
         private const val TICK_WARNING_THRESHOLD_MS = 100f
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
-        private const val ADAPTIVE_MAX_INTERVAL_MS = 2000L
+        private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
+        private const val IDLE_TICK_INTERVAL_MS = 2000L
+        private const val IDLE_DETECTION_MS = 10_000L
+        private const val NON_FOCUS_TICK_INTERVAL = 30_000L
+        private const val TICK_TIME_BUDGET_MS = 50L
     }
 
     private var currentTickInterval = TICK_INTERVAL_MS
     private var consecutiveOverruns = 0
+
+    // 焦点分频：各域上次执行时间戳
+    private val domainLastTickTime = java.util.concurrent.ConcurrentHashMap<FocusDomain, Long>()
+
+    // 上次用户交互时间戳
+    @Volatile
+    private var lastUserInteractionTime = System.currentTimeMillis()
+
+    // 自适应降频因子
+    @Volatile
+    private var adaptiveSlowdownFactor = 1.0
+
+    // 后台停止时保存状态
+    @Volatile
+    private var wasRunningBeforeBackground = false
     
     private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
@@ -165,20 +185,17 @@ class GameEngineCore @Inject constructor(
                 lastFrameTime = currentTime
                 
                 val elapsed = currentTime - startTime
-                val delayMs = (currentTickInterval - elapsed).coerceAtLeast(MIN_TICK_DELAY_MS)
-
-                // 自适应：连续超时则降频，正常则恢复
-                if (elapsed > currentTickInterval) {
-                    consecutiveOverruns++
-                    if (consecutiveOverruns > 3) {
-                        currentTickInterval = (currentTickInterval * 1.5).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
-                        consecutiveOverruns = 0
-                    }
-                } else if (consecutiveOverruns == 0 && currentTickInterval > TICK_INTERVAL_MS) {
-                    currentTickInterval = (currentTickInterval * 0.8).toLong().coerceAtLeast(TICK_INTERVAL_MS)
-                } else {
-                    consecutiveOverruns = 0
+                val isIdle = (System.currentTimeMillis() - lastUserInteractionTime) > IDLE_DETECTION_MS
+                val effectiveInterval = when {
+                    thermalMonitor.shouldEmergencySave() -> 500L
+                    thermalMonitor.shouldReduceWorkload() -> 200L
+                    thermalMonitor.isLightThrottle() -> 150L
+                    isIdle && !settlementCoordinator.hasPendingWork -> IDLE_TICK_INTERVAL_MS
+                    adaptiveSlowdownFactor > 1.0 -> (TICK_INTERVAL_MS * adaptiveSlowdownFactor).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
+                    else -> TICK_INTERVAL_MS
                 }
+                currentTickInterval = effectiveInterval
+                val delayMs = (effectiveInterval - elapsed).coerceAtLeast(MIN_TICK_DELAY_MS)
 
                 updateFps(actualFrameInterval)
 
@@ -242,16 +259,27 @@ class GameEngineCore @Inject constructor(
     }
 
     fun pauseForBackground() {
-        if (!stateStore.unifiedState.value.isPaused) {
-            stateManager.setPausedDirect(true)
-            settlementCoordinator.cancelPendingWork()
-            engineScope.launch {
-                cultivationService.resetHighFrequencyData()
-            }
-            _wasPausedByBackground = true
+        if (isGameLoopRunning) {
+            wasRunningBeforeBackground = true
+            stopGameLoop()
+            Log.i(TAG, "Game loop stopped for background")
         } else {
-            _wasPausedByBackground = false
+            wasRunningBeforeBackground = false
         }
+        settlementCoordinator.cancelPendingWork()
+        engineScope.launch {
+            cultivationService.resetHighFrequencyData()
+        }
+        _wasPausedByBackground = true
+    }
+
+    fun resumeFromBackground() {
+        if (_wasPausedByBackground && wasRunningBeforeBackground) {
+            stateManager.setPausedDirect(false)
+            startGameLoop()
+            Log.i(TAG, "Game loop resumed from background")
+        }
+        clearBackgroundPauseFlag()
     }
 
     @Volatile
@@ -261,18 +289,89 @@ class GameEngineCore @Inject constructor(
     fun clearBackgroundPauseFlag() {
         _wasPausedByBackground = false
     }
+
+    /** UI 层调用：记录用户交互时间，唤醒空闲状态 */
+    fun onUserInteraction() {
+        lastUserInteractionTime = System.currentTimeMillis()
+    }
+
+    /**
+     * 当玩家打开某个界面时调用，触发该域立即追赶结算。
+     */
+    fun catchUpDomain(domain: FocusDomain) {
+        domainLastTickTime.remove(domain)
+        onUserInteraction()
+    }
+
+    /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点） */
+    private fun getActiveDomains(): Set<FocusDomain> {
+        val tab = stateStore.activeTab
+        val dialog = stateStore.activeDialog
+        val focusedDiscipleId = stateStore.focusedDiscipleId
+
+        val domains = mutableSetOf(FocusDomain.ALWAYS)
+
+        when (tab) {
+            "OVERVIEW" -> {
+                domains.add(FocusDomain.DISCIPLES)
+                domains.add(FocusDomain.BUILDINGS)
+            }
+            "DISCIPLES" -> domains.add(FocusDomain.DISCIPLES)
+            "BUILDINGS" -> domains.add(FocusDomain.BUILDINGS)
+            "WAREHOUSE" -> domains.add(FocusDomain.WAREHOUSE)
+            "SETTINGS" -> {}
+        }
+
+        if (focusedDiscipleId != null) {
+            domains.add(FocusDomain.DISCIPLES)
+        }
+
+        when (dialog) {
+            "Alchemy", "Forge", "HerbGarden", "SpiritMine",
+            "WarehouseBuilding", "Residence" -> domains.add(FocusDomain.BUILDINGS)
+            "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
+            "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
+            "MissionHall", "PatrolTower" -> domains.add(FocusDomain.EXPLORATION)
+            "Warehouse" -> domains.add(FocusDomain.WAREHOUSE)
+        }
+
+        return domains
+    }
+
+    /** 判断某个域在本 tick 是否应执行 */
+    private fun shouldExecuteDomain(domain: FocusDomain, activeDomains: Set<FocusDomain>): Boolean {
+        if (domain == FocusDomain.ALWAYS) return true
+        if (domain in activeDomains) return true
+
+        val lastTime = domainLastTickTime[domain] ?: 0L
+        return (System.currentTimeMillis() - lastTime) >= NON_FOCUS_TICK_INTERVAL
+    }
+
+    /** 记录域执行时间 */
+    private fun markDomainExecuted(domain: FocusDomain) {
+        if (domain != FocusDomain.ALWAYS) {
+            domainLastTickTime[domain] = System.currentTimeMillis()
+        }
+    }
     
     private suspend fun tick() {
         val tickStartTime = System.currentTimeMillis()
-        
+
         tickInternal()
-        
+
         val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
         unifiedPerformanceMonitor.recordTick(tickTime)
-        
+
         val entityCount = stateStore.disciplesSnapshot.size
         unifiedPerformanceMonitor.recordEntityCount(entityCount)
-        
+
+        if (tickTime > TICK_TIME_BUDGET_MS) {
+            Log.w(TAG, "Tick over budget: ${tickTime}ms (budget=${TICK_TIME_BUDGET_MS}ms)")
+            adaptiveSlowdownFactor = (adaptiveSlowdownFactor * 1.5).coerceAtMost(5.0)
+        } else if (tickTime < TICK_TIME_BUDGET_MS / 2 && adaptiveSlowdownFactor > 1.0) {
+            adaptiveSlowdownFactor = (adaptiveSlowdownFactor * 0.9).coerceAtLeast(1.0)
+        }
+
         if (tickTime > TICK_WARNING_THRESHOLD_MS) {
             Log.w(TAG, "Slow tick detected: ${tickTime}ms")
         }
@@ -299,6 +398,8 @@ class GameEngineCore @Inject constructor(
             Log.d(TAG, "Thermal throttling: skipping non-critical systems")
         }
 
+        val activeDomains = getActiveDomains()
+
         _tickCount.value++
 
         var monthChanged = false
@@ -320,7 +421,15 @@ class GameEngineCore @Inject constructor(
                     systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
                     cultivationService.recoverHpMpForAllDisciples(this)
                 } else {
-                    systemManager.onPhaseTick(this)
+                    // 两档制：活跃域每 tick 执行，非活跃域最多 30 秒一次
+                    systemManager.onPhaseTickWithDomainFilter(
+                        this, activeDomains, ::shouldExecuteDomain, ::markDomainExecuted
+                    )
+                    // HP/MP 恢复跟 DISCIPLES 域走：活跃时每 phase，不活跃时 30s 一次
+                    if (shouldExecuteDomain(FocusDomain.DISCIPLES, activeDomains)) {
+                        cultivationService.recoverHpMpForAllDisciples(this)
+                        markDomainExecuted(FocusDomain.DISCIPLES)
+                    }
                 }
 
                 if (this.gameData.gameMonth != prevMonth) monthChanged = true

@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
@@ -387,9 +388,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val currentDisciple = postBreakthroughDisciples.find { it.id == discipleId } ?: return
 
         val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
-        // 每 tick 分发 1 旬（= 6秒/3旬 = 2秒）修炼值，3 tick 均匀分发整月修炼量
-        val perPhaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble() / GameConfig.Time.PHASES_PER_MONTH
-        val gained = cultivationPerSecond * perPhaseSeconds
+        // 按 GameConfig 基准 tick 间隔分发（100ms），高频平滑推进进度条
+        val perTickSeconds = GameConfig.Time.TICK_INTERVAL.toDouble() / 1000.0
+        val gained = cultivationPerSecond * perTickSeconds
 
         state.disciples = postBreakthroughDisciples.map { d ->
             if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
@@ -405,7 +406,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
-        val proficiencyGainPerTick = baseProficiencyRate * (1.0 + libraryBonus) * perPhaseSeconds
+        val proficiencyGainPerTick = baseProficiencyRate * (1.0 + libraryBonus) * perTickSeconds
 
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val profUpdatesMap = currentHfd.proficiencyUpdates.toMutableMap()
@@ -432,7 +433,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // —— 装备孕养高频分发（每月总量均摊到每旬） ——
         val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
-        val nurtureGainPerTick = 5.0 * perPhaseSeconds
+        val nurtureGainPerTick = 5.0 * perTickSeconds
         val nurtureUpdatesMap = currentHfd.nurtureUpdates.toMutableMap()
         val discipleNurtureUpdates = nurtureUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
@@ -2892,79 +2893,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     private suspend fun clearDiscipleFromAllSlots(discipleId: String) {
-        val data = currentGameData
-
-        val updatedSpiritMineSlots = data.spiritMineSlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
-        val updatedLibrarySlots = data.librarySlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
-        val updatedElderSlots = data.elderSlots.let { slots ->
-            var updated = slots
-
-            if (updated.viceSectMaster == discipleId) updated = updated.copy(viceSectMaster = "")
-            if (updated.herbGardenElder == discipleId) updated = updated.copy(herbGardenElder = "")
-            if (updated.alchemyElder == discipleId) updated = updated.copy(alchemyElder = "")
-            if (updated.forgeElder == discipleId) updated = updated.copy(forgeElder = "")
-            if (updated.outerElder == discipleId) updated = updated.copy(outerElder = "")
-            if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = "")
-            if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = "")
-            if (updated.innerElder == discipleId) updated = updated.copy(innerElder = "")
-            if (updated.qingyunPreachingElder == discipleId) updated = updated.copy(qingyunPreachingElder = "")
-
-            // 清理列表槽位
-            updated = updated.copy(
-                preachingMasters = updated.preachingMasters.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                qingyunPreachingMasters = updated.qingyunPreachingMasters.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                },
-                spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.mapNotNull { slot ->
-                    if (slot.discipleId == discipleId) DirectDiscipleSlot(index = slot.index) else slot
-                }
-            )
-
-            updated
-        }
-
-        val updatedResidenceSlots = data.residenceSlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
-        currentGameData = data.copy(
-            spiritMineSlots = updatedSpiritMineSlots,
-            librarySlots = updatedLibrarySlots,
-            elderSlots = updatedElderSlots,
-            residenceSlots = updatedResidenceSlots
-        )
+        currentGameData = DiscipleSlotCleanup.clearAllSlots(currentGameData, discipleId)
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         for (slot in forgeSlots) {

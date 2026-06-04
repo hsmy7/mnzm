@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
@@ -570,15 +571,18 @@ fun GameOverlayHost(
             }
 
             TopOverlay.DISCIPLE_DETAIL -> {
-                val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+                val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
                 val manualProficiencies by viewModel.manualProficiencies.collectAsStateWithLifecycle()
                 val request by viewModel.detailDisciple.collectAsStateWithLifecycle()
                 request?.let { req ->
-                    val updatedDisciple = disciples
+                    val sortedDisciples = remember(aliveDisciples) {
+                        aliveDisciples.sortedByFollowAttributeAndRealm()
+                    }
+                    val updatedDisciple = sortedDisciples
                         .find { it.id == req.disciple.id } ?: req.disciple
                     DiscipleDetailDialog(
                         disciple = updatedDisciple,
-                        allDisciples = disciples,
+                        allDisciples = sortedDisciples,
                         manualProficiencies = manualProficiencies,
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },

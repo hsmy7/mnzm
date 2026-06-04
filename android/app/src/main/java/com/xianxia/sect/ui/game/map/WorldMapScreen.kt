@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import com.xianxia.sect.core.model.MapCoordinateSystem
-import com.xianxia.sect.ui.game.map.markers.CaveExplorationTeamMarker
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
 
@@ -18,7 +17,6 @@ import com.xianxia.sect.ui.game.map.markers.SectMarker
 fun WorldMapScreen(
     items: List<MapItem>,
     paths: List<MapPathData>,
-    caveExplorationPaths: List<CaveExplorationPathData>,
     cameraState: CameraState = rememberCameraState(
         worldWidth = MapCoordinateSystem.WORLD_WIDTH,
         worldHeight = MapCoordinateSystem.WORLD_HEIGHT
@@ -51,7 +49,6 @@ fun WorldMapScreen(
     ) {
         MapCanvas(
             paths = paths,
-            caveExplorationPaths = caveExplorationPaths,
             cameraState = cameraState,
             modifier = Modifier.fillMaxSize()
         )
@@ -64,11 +61,6 @@ fun WorldMapScreen(
                     item = item,
                     cameraState = cameraState,
                     onClick = { onSectClick(item) }
-                )
-
-                is MapItem.CaveExplorationTeam -> CaveExplorationTeamMarker(
-                    item = item,
-                    cameraState = cameraState
                 )
 
                 is MapItem.Level -> LevelMarker(

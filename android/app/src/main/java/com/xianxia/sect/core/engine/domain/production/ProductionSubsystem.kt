@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.production
 
 import android.util.Log
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
@@ -20,6 +21,7 @@ class ProductionSubsystem @Inject constructor(
     }
 
     override val systemName: String = SYSTEM_NAME
+    override val focusDomain = FocusDomain.BUILDINGS
 
     override fun initialize() {
         Log.d(TAG, "ProductionSubsystem initialized")

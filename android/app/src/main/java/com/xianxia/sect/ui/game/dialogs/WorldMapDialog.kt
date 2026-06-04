@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldMapRenderData
@@ -12,7 +11,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
-import com.xianxia.sect.ui.game.map.CaveExplorationPathData
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
@@ -47,36 +45,20 @@ internal fun WorldMapDialog(
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
-    val caveExplorationTeams: List<CaveExplorationTeam> = mapRenderData.caveExplorationTeams
-
     val sectItems = remember(worldSects) {
         MapItemMapper.fromWorldSects(worldSects, emptySet())
     }
 
-    val dynamicItems = remember(caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
-        val items = mutableListOf<MapItem>()
-        items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
-        items.addAll(MapItemMapper.fromLevels(mapRenderData.worldLevels))
-        items
+    val levelItems = remember(mapRenderData.worldLevels) {
+        MapItemMapper.fromLevels(mapRenderData.worldLevels)
     }
 
-    val mapItems = remember(sectItems, dynamicItems) {
-        sectItems + dynamicItems
+    val mapItems = remember(sectItems, levelItems) {
+        sectItems + levelItems
     }
 
     val paths = remember(worldSects) {
         MapItemMapper.fromPaths(worldSects)
-    }
-
-    val caveExplorationPaths = remember(caveExplorationTeams) {
-        caveExplorationTeams.filter { it.isMoving }.map { team ->
-            CaveExplorationPathData(
-                startWorldX = team.startX,
-                startWorldY = team.startY,
-                endWorldX = team.targetX,
-                endWorldY = team.targetY
-            )
-        }
     }
 
     BackHandler(onBack = onDismiss)
@@ -84,7 +66,6 @@ internal fun WorldMapDialog(
     WorldMapScreen(
         items = mapItems,
         paths = paths,
-        caveExplorationPaths = caveExplorationPaths,
         focusWorldX = playerSectX,
         focusWorldY = playerSectY,
         onBack = onDismiss,

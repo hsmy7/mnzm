@@ -654,7 +654,6 @@ enum class TeamStatus {
 data class WorldMapRenderData(
     val worldMapSects: List<WorldSect> = emptyList(),
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
-    val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
     val worldLevels: List<WorldLevel> = emptyList()
 )
 

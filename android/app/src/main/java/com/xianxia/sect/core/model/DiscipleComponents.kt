@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
  * 包含基础战斗属性、浮动系数、战斗统计等共18个字段
  */
 @Serializable
+@Immutable
 data class CombatAttributes(
     // 基础战斗属性（创建时根据浮动系数计算并存储）
     var baseHp: Int = 120,
@@ -85,6 +87,7 @@ data class PillEffects(
  * 包含装备ID、培养数据、储物袋资源等共14个字段
  */
 @Serializable
+@Immutable
 data class EquipmentSet(
     var weaponId: String = "",
     var armorId: String = "",

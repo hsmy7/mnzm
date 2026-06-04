@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,15 +41,15 @@ class BloodRefiningViewModel @Inject constructor(
     }
 
     fun selectMaterial(material: BeastMaterialDatabase.BeastMaterial?, quantity: Int) {
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             selectedMaterial = material,
             selectedMaterialQuantity = quantity
-        )
+        ) }
         updateCanStartRefine()
     }
 
     fun selectDisciple(disciple: DiscipleAggregate?) {
-        _uiState.value = _uiState.value.copy(selectedDisciple = disciple)
+        _uiState.update { it.copy(selectedDisciple = disciple) }
         updateCanStartRefine()
     }
 
@@ -62,17 +63,17 @@ class BloodRefiningViewModel @Inject constructor(
                 progress.startYear, progress.startMonth,
                 progress.durationMonths, currentYear, currentMonth
             )
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 isRefining = true,
                 currentProgress = progress,
                 remainingMonths = remaining
-            )
+            ) }
         } else {
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 isRefining = false,
                 currentProgress = null,
                 remainingMonths = 0
-            )
+            ) }
         }
     }
 
@@ -83,12 +84,12 @@ class BloodRefiningViewModel @Inject constructor(
         val data = gameEngine.gameData.value ?: return
 
         if (data.spiritStones < REQUIRED_SPIRIT_STONES) {
-            _uiState.value = state.copy(errorMessage = "灵石不足100万")
+            _uiState.update { it.copy(errorMessage = "灵石不足100万") }
             return
         }
 
         if (state.selectedMaterialQuantity < REQUIRED_MATERIAL_COUNT) {
-            _uiState.value = state.copy(errorMessage = "材料不足200个")
+            _uiState.update { it.copy(errorMessage = "材料不足200个") }
             return
         }
 
@@ -135,12 +136,12 @@ class BloodRefiningViewModel @Inject constructor(
             val updatedData = gameEngine.gameData.value
             val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
             if (savedProgress != null) {
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     isRefining = true,
                     currentProgress = savedProgress,
                     remainingMonths = durationMonths,
                     errorMessage = null
-                )
+                ) }
             }
         }
     }
@@ -152,17 +153,17 @@ class BloodRefiningViewModel @Inject constructor(
                     activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
                 )
             }
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 isRefining = false,
                 currentProgress = null,
                 remainingMonths = 0,
                 selectedDisciple = null
-            )
+            ) }
         }
     }
 
     fun clearError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     private fun updateCanStartRefine() {
@@ -173,7 +174,7 @@ class BloodRefiningViewModel @Inject constructor(
                 state.selectedDisciple != null &&
                 data.spiritStones >= REQUIRED_SPIRIT_STONES &&
                 !state.isRefining
-        _uiState.value = state.copy(canStartRefine = canStart)
+        _uiState.update { it.copy(canStartRefine = canStart) }
     }
 
     fun refreshCanStartRefine() {

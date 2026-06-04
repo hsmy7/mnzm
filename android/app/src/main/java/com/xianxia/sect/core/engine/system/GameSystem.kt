@@ -4,6 +4,8 @@ import com.xianxia.sect.core.state.MutableGameState
 
 interface GameSystem {
     val systemName: String
+    /** 所属关注域，默认 BACKGROUND（最慢频率） */
+    val focusDomain: FocusDomain get() = FocusDomain.BACKGROUND
 
     fun initialize() {}
     fun release() {}

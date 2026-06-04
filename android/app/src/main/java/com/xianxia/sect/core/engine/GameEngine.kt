@@ -19,6 +19,7 @@ import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.system.AddResult
+import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
@@ -133,8 +134,62 @@ class GameEngine @Inject constructor(
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
     fun clearPendingBattleResult() = battleFacade.clearPendingBattleResult()
-    fun setFocusedDiscipleId(id: String?) { stateStore.focusedDiscipleId = id }
-    fun setActiveTab(tab: String) { stateStore.activeTab = tab }
+    fun setFocusedDiscipleId(id: String?) {
+        stateStore.focusedDiscipleId = id
+        if (id != null) {
+            gameEngineCore.catchUpDomain(FocusDomain.DISCIPLES)
+            gameEngineCore.onUserInteraction()
+        }
+    }
+    fun setActiveTab(tab: String) {
+        val oldTab = stateStore.activeTab
+        stateStore.activeTab = tab
+        if (oldTab != tab) {
+            gameEngineCore.catchUpDomain(domainForTab(tab))
+        }
+        gameEngineCore.onUserInteraction()
+    }
+
+    private fun domainForTab(tab: String): FocusDomain = when (tab) {
+        "DISCIPLES" -> FocusDomain.DISCIPLES
+        "BUILDINGS" -> FocusDomain.BUILDINGS
+        "WAREHOUSE" -> FocusDomain.WAREHOUSE
+        else -> FocusDomain.ALWAYS
+    }
+
+    fun setActiveDialog(route: com.xianxia.sect.ui.navigation.DialogRoute?) {
+        if (route == null || route == com.xianxia.sect.ui.navigation.DialogRoute.None) {
+            stateStore.activeDialog = null
+        } else {
+            stateStore.activeDialog = route.toString()
+            gameEngineCore.catchUpDomain(domainForDialog(route))
+        }
+        gameEngineCore.onUserInteraction()
+    }
+
+    private fun domainForDialog(route: com.xianxia.sect.ui.navigation.DialogRoute): FocusDomain = when (route) {
+        is com.xianxia.sect.ui.navigation.DialogRoute.Alchemy,
+        is com.xianxia.sect.ui.navigation.DialogRoute.Forge,
+        is com.xianxia.sect.ui.navigation.DialogRoute.HerbGarden,
+        is com.xianxia.sect.ui.navigation.DialogRoute.SpiritMine,
+        is com.xianxia.sect.ui.navigation.DialogRoute.Residence,
+        is com.xianxia.sect.ui.navigation.DialogRoute.WarehouseBuilding -> FocusDomain.BUILDINGS
+        is com.xianxia.sect.ui.navigation.DialogRoute.WorldMap -> FocusDomain.WORLD_MAP
+        is com.xianxia.sect.ui.navigation.DialogRoute.Diplomacy -> FocusDomain.DIPLOMACY
+        is com.xianxia.sect.ui.navigation.DialogRoute.MissionHall,
+        is com.xianxia.sect.ui.navigation.DialogRoute.PatrolTower -> FocusDomain.EXPLORATION
+        is com.xianxia.sect.ui.navigation.DialogRoute.Warehouse,
+        is com.xianxia.sect.ui.navigation.DialogRoute.Merchant -> FocusDomain.WAREHOUSE
+        is com.xianxia.sect.ui.navigation.DialogRoute.Disciples -> FocusDomain.DISCIPLES
+        is com.xianxia.sect.ui.navigation.DialogRoute.Buildings -> FocusDomain.BUILDINGS
+        is com.xianxia.sect.ui.navigation.DialogRoute.BattleLog -> FocusDomain.EXPLORATION
+        is com.xianxia.sect.ui.navigation.DialogRoute.Mail -> FocusDomain.BACKGROUND
+        else -> FocusDomain.ALWAYS
+    }
+
+    fun notifyUserInteraction() {
+        gameEngineCore.onUserInteraction()
+    }
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
@@ -167,7 +222,6 @@ class GameEngine @Inject constructor(
             WorldMapRenderData(
                 worldMapSects = data.worldMapSects,
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
-                caveExplorationTeams = data.caveExplorationTeams ?: emptyList(),
                 worldLevels = data.worldLevels ?: emptyList()
             )
         }.distinctUntilChanged()

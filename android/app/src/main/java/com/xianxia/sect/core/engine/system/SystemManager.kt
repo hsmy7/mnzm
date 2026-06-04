@@ -139,6 +139,53 @@ class SystemManager @Inject constructor(
         executeInParallelGroups(state) { system, s -> system.onPhaseTick(s) }
     }
 
+    /**
+     * 两档制执行：活跃域每 tick 都跑，非活跃域按时间间隔执行。
+     *
+     * @param activeDomains 当前活跃的关注域集合
+     * @param shouldExecute 判断某系统是否应在当前 tick 执行
+     * @param markExecuted 记录系统已执行（用于非活跃域计时）
+     */
+    suspend fun onPhaseTickWithDomainFilter(
+        state: MutableGameState,
+        activeDomains: Set<FocusDomain>,
+        shouldExecute: (FocusDomain, Set<FocusDomain>) -> Boolean,
+        markExecuted: (FocusDomain) -> Unit
+    ) {
+        for (group in priorityGroups) {
+            if (group.size == 1) {
+                val system = group.first()
+                val domain = system.focusDomain
+                if (shouldExecute(domain, activeDomains)) {
+                    try {
+                        system.onPhaseTick(state)
+                        markExecuted(domain)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in ${system.systemName}", e)
+                        _errors.trySend(SystemError(system.systemName, "tick", e))
+                    }
+                }
+            } else {
+                coroutineScope {
+                    group.forEach { system ->
+                        val domain = system.focusDomain
+                        if (shouldExecute(domain, activeDomains)) {
+                            launch {
+                                try {
+                                    system.onPhaseTick(state)
+                                    markExecuted(domain)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error in ${system.systemName}", e)
+                                    _errors.trySend(SystemError(system.systemName, "tick", e))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun onMonthTick(state: MutableGameState) {
         executeInParallelGroups(state) { system, s -> system.onMonthTick(s) }
     }

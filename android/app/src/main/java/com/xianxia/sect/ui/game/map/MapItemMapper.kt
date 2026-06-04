@@ -1,7 +1,5 @@
 package com.xianxia.sect.ui.game.map
 
-import com.xianxia.sect.core.model.CaveExplorationTeam
-import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.WorldLevel
@@ -67,20 +65,6 @@ object MapItemMapper {
         }
         return paths
     }
-
-    fun fromCaveExplorationTeams(teams: List<CaveExplorationTeam>): List<MapItem.CaveExplorationTeam> =
-        teams.filter { it.isMoving }
-            .map { team ->
-                MapItem.CaveExplorationTeam(
-                    id = team.id,
-                    worldX = team.currentX,
-                    worldY = team.currentY,
-                    startX = team.startX,
-                    startY = team.startY,
-                    targetX = team.targetX,
-                    targetY = team.targetY
-                )
-            }
 
     fun fromLevels(levels: List<WorldLevel>): List<MapItem.Level> =
         levels.filter { !it.defeated }

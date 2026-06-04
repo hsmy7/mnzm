@@ -147,7 +147,7 @@ interface DiscipleDao {
 
     @Transaction
     suspend fun updateBatch(disciples: List<Disciple>) {
-        disciples.forEach { update(it) }
+        updateAll(disciples)
     }
 }
 
@@ -203,7 +203,7 @@ interface EquipmentStackDao {
 
     @Transaction
     suspend fun updateBatch(equipmentStacks: List<EquipmentStack>) {
-        equipmentStacks.forEach { update(it) }
+        updateAll(equipmentStacks)
     }
 }
 
@@ -253,7 +253,7 @@ interface EquipmentInstanceDao {
 
     @Transaction
     suspend fun updateBatch(equipmentInstances: List<EquipmentInstance>) {
-        equipmentInstances.forEach { update(it) }
+        updateAll(equipmentInstances)
     }
 }
 
@@ -309,7 +309,7 @@ interface ManualStackDao {
 
     @Transaction
     suspend fun updateBatch(manualStacks: List<ManualStack>) {
-        manualStacks.forEach { update(it) }
+        updateAll(manualStacks)
     }
 }
 
@@ -359,7 +359,7 @@ interface ManualInstanceDao {
 
     @Transaction
     suspend fun updateBatch(manualInstances: List<ManualInstance>) {
-        manualInstances.forEach { update(it) }
+        updateAll(manualInstances)
     }
 }
 
@@ -437,7 +437,7 @@ interface PillDao {
 
     @Transaction
     suspend fun updateBatch(pills: List<Pill>) {
-        pills.forEach { update(it) }
+        updateAll(pills)
     }
 }
 
@@ -506,7 +506,7 @@ interface MaterialDao {
 
     @Transaction
     suspend fun updateBatch(materials: List<Material>) {
-        materials.forEach { update(it) }
+        updateAll(materials)
     }
 }
 
@@ -572,7 +572,7 @@ interface SeedDao {
 
     @Transaction
     suspend fun updateBatch(seeds: List<Seed>) {
-        seeds.forEach { update(it) }
+        updateAll(seeds)
     }
 }
 
@@ -638,7 +638,7 @@ interface HerbDao {
 
     @Transaction
     suspend fun updateBatch(herbs: List<Herb>) {
-        herbs.forEach { update(it) }
+        updateAll(herbs)
     }
 }
 

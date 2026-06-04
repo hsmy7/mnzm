@@ -758,23 +758,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * Clear disciple from all slots and assignments
      */
     suspend fun clearDiscipleFromAllSlots(discipleId: String) {
-        val data = currentGameData
-
-        val updatedSpiritMineSlots = data.spiritMineSlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
-        val updatedLibrarySlots = data.librarySlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-        }
-
-        val updatedElderSlots = clearDiscipleFromElderSlots(data.elderSlots, discipleId)
-
-        currentGameData = data.copy(
-            spiritMineSlots = updatedSpiritMineSlots,
-            librarySlots = updatedLibrarySlots,
-            elderSlots = updatedElderSlots
-        )
+        currentGameData = DiscipleSlotCleanup.clearAllSlots(currentGameData, discipleId)
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         for (slot in forgeSlots) {
@@ -786,59 +770,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         autoFillLawEnforcementSlots()
-    }
-
-    /**
-     * Clear disciple from elder slots
-     */
-    private fun clearDiscipleFromElderSlots(slots: ElderSlots, discipleId: String): ElderSlots {
-        var updated = slots
-
-        if (updated.viceSectMaster == discipleId) updated = updated.copy(viceSectMaster = "")
-        if (updated.herbGardenElder == discipleId) updated = updated.copy(herbGardenElder = "")
-        if (updated.alchemyElder == discipleId) updated = updated.copy(alchemyElder = "")
-        if (updated.forgeElder == discipleId) updated = updated.copy(forgeElder = "")
-        if (updated.outerElder == discipleId) updated = updated.copy(outerElder = "")
-        if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = "")
-        if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = "")
-        if (updated.innerElder == discipleId) updated = updated.copy(innerElder = "")
-        if (updated.qingyunPreachingElder == discipleId) updated = updated.copy(qingyunPreachingElder = "")
-
-        // Clear from position slots
-        updated = updated.copy(
-            preachingMasters = updated.preachingMasters.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            qingyunPreachingMasters = updated.qingyunPreachingMasters.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            },
-            forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            }
-        )
-
-        return updated
     }
 
     /**

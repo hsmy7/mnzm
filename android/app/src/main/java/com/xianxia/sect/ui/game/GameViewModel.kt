@@ -88,6 +88,7 @@ class GameViewModel @Inject constructor(
 
     fun navigateToDialog(route: DialogRoute) {
         _currentDialogRoute.value = route
+        gameEngine.setActiveDialog(route)
         viewModelScope.launch {
             _dialogOpenTrigger.emit(Unit)
         }
@@ -95,6 +96,11 @@ class GameViewModel @Inject constructor(
 
     fun dismissDialog() {
         _currentDialogRoute.value = DialogRoute.None
+        gameEngine.setActiveDialog(null)
+    }
+
+    fun notifyUserInteraction() {
+        gameEngine.notifyUserInteraction()
     }
 
     init {
@@ -450,7 +456,7 @@ class GameViewModel @Inject constructor(
         focusedRefreshJob = viewModelScope.launch {
             while (isActive) {
                 discipleFacade.updateFocusedDisciple(request.disciple.id)
-                delay(1000)  // Match tick interval instead of polling at 200ms
+                delay(100)  // 100ms tick — 高频平滑推进修炼进度条
             }
         }
     }
@@ -466,7 +472,7 @@ class GameViewModel @Inject constructor(
     fun navigateDiscipleDetail(disciple: DiscipleAggregate) {
         val current = _detailDisciple.value ?: return
         val target = current.allDisciples.find { it.id == disciple.id } ?: disciple
-        _detailDisciple.value = current.copy(disciple = target)
+        _detailDisciple.update { it?.copy(disciple = target) }
     }
 
     private val _selectedBuildingId = MutableStateFlow<String?>(null)

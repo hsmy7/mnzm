@@ -54,7 +54,7 @@ fun SalaryConfigDialog(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(realms) { (realm, name) ->
+                    items(realms, key = { it.first }) { (realm, name) ->
                         val salary = monthlySalary[realm] ?: 0
                         val enabled = monthlySalaryEnabled[realm] ?: true
 

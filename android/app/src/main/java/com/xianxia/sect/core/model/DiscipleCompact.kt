@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -11,6 +12,7 @@ import androidx.room.PrimaryKey
         androidx.room.Index(value = ["slot_id", "isAlive"], name = "index_disciple_compact_slot_id_isAlive")
     ]
 )
+@Immutable
 data class DiscipleCompact(
     @PrimaryKey
     @ColumnInfo(name = "id")

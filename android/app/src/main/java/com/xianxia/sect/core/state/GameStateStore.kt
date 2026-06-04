@@ -54,6 +54,9 @@ class GameStateStore @Inject constructor(
     @Volatile
     var activeTab: String = "OVERVIEW"
 
+    @Volatile
+    var activeDialog: String? = null
+
     companion object {
         private const val TAG = "GameStateStore"
     }

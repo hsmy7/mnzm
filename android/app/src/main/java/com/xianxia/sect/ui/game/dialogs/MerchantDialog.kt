@@ -793,7 +793,17 @@ private fun <T> InventorySelectGrid(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(items) { item ->
+            items(items, key = { item ->
+                when (item) {
+                    is EquipmentStack -> "equipment_${item.id}"
+                    is ManualStack -> "manual_${item.id}"
+                    is Pill -> "pill_${item.id}_${item.quantity}"
+                    is Material -> "material_${item.id}_${item.quantity}"
+                    is Herb -> "herb_${item.id}_${item.quantity}"
+                    is Seed -> "seed_${item.id}_${item.quantity}"
+                    else -> item.hashCode().toString()
+                }
+            }) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {
                     is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
@@ -943,7 +953,17 @@ private fun AllItemsSelectGrid(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(allItems) { item ->
+            items(allItems, key = { item ->
+                when (item) {
+                    is EquipmentStack -> "equipment_${item.id}"
+                    is ManualStack -> "manual_${item.id}"
+                    is Pill -> "pill_${item.id}_${item.quantity}"
+                    is Material -> "material_${item.id}_${item.quantity}"
+                    is Herb -> "herb_${item.id}_${item.quantity}"
+                    is Seed -> "seed_${item.id}_${item.quantity}"
+                    else -> item.hashCode().toString()
+                }
+            }) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {
                     is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)

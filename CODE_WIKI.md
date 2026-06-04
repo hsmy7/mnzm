@@ -482,9 +482,36 @@ private suspend fun executeInParallelGroups(state, action) {
 
 | 参数 | 值 | 位置 |
 |------|-----|------|
-| TICK_INTERVAL_MS | 200ms | `GameEngineCore.kt:60` |
-| MIN_TICK_DELAY_MS | 50ms | `GameEngineCore.kt:61` |
-| ADAPTIVE_MAX_INTERVAL_MS | 2000ms | `GameEngineCore.kt:65` |
+| TICK_INTERVAL_MS | 100ms | `GameEngineCore.kt` |
+| MIN_TICK_DELAY_MS | 16ms | `GameEngineCore.kt` |
+| ADAPTIVE_MAX_INTERVAL_MS | 1000ms | `GameEngineCore.kt` |
+| IDLE_TICK_INTERVAL_MS | 2000ms | `GameEngineCore.kt` (10秒无操作后降频) |
+| IDLE_DETECTION_MS | 10000ms | `GameEngineCore.kt` |
+| NON_FOCUS_TICK_INTERVAL | 30000ms | `GameEngineCore.kt` (非焦点域结算间隔) |
+
+### 焦点分频机制 (v3.2.06)
+
+每个 `GameSystem` 声明 `focusDomain`(`FocusDomain` 枚举)：
+- **ALWAYS** — 每 tick 必执行（TimeSystem）
+- **DISCIPLES** — 弟子相关（修炼、突破、HP/MP 恢复）
+- **BUILDINGS** — 建筑/生产（生产队列、经济、药园、炼丹、锻器）
+- **WAREHOUSE** — 仓库/物品
+- **WORLD_MAP** — 世界地图
+- **DIPLOMACY** — 外交
+- **EXPLORATION** — 探索/巡逻/战斗
+- **BACKGROUND** — 后台系统（邮件、生育、道侣、AI 宗门）
+
+**两档制**：活跃域每 tick(100ms)执行，非活跃域最长 30 秒一次。玩家切换 Tab/Dialog/弟子焦点时触发 `catchUpDomain()` 立即追赶。
+
+**实现**：`SystemManager.onPhaseTickWithDomainFilter(state, activeDomains, shouldExecute, markExecuted)`
+
+**Tick 频率自适应**：
+- 正常：100ms
+- 空闲(10s 无操作)：2000ms
+- 热节流：150ms(LIGHT)/200ms(MODERATE)/500ms(SEVERE)
+- 自适应：单 tick 超预算时降频系数自动增大
+
+**后台行为**：`pauseForBackground()` 调用 `stopGameLoop()` 完全停止循环（不再空转）。`resumeFromBackground()` 重新启动。
 | 自适应策略 | 连续 3 次超时 → ×1.5；正常后 ×0.8 恢复 | `GameEngineCore.kt:158-169` |
 
 ### 关键路径

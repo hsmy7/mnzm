@@ -23,10 +23,6 @@ object MapStyle {
 
         val caveText = Color.Red
 
-        val caveExplorationBg = Color(0xFFFF9800)
-        val caveExplorationBorder = Color(0xFFF57C00)
-        val caveExplorationPath = Color(0xFFFF9800)
-
         val controlButtonBg = Color(0xFF4CAF50)
         val controlButtonDisabled = Color(0xFFCCCCCC)
         val controlButtonBorder = Color(0xFF6B5344)
@@ -41,7 +37,6 @@ object MapStyle {
     object Typography {
         val sectNamePlayer = 12.sp
         val sectNameNormal = 10.sp
-        val teamLabel = 9.sp
         val controlButton = 11.sp
         val closeButton = 18.sp
     }
@@ -53,13 +48,7 @@ object MapStyle {
         val sectHighlightedBorderWidth = 3.dp
         val sectBorderRadius = 6.dp
 
-        val teamPaddingH = 6.dp
-        val teamPaddingV = 3.dp
-        val teamBorderWidth = 2.dp
-        val teamBorderRadius = 6.dp
-
         val pathStrokeWidth = 4.dp
-        val cavePathStrokeWidth = 2.dp
 
         val controlButtonPaddingH = 12.dp
         val controlButtonPaddingV = 6.dp

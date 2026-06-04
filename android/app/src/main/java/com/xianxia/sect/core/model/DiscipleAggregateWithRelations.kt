@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Embedded
 import androidx.room.Relation
 
+@Immutable
 data class DiscipleAggregateWithRelations(
     @Embedded val core: DiscipleCore,
     

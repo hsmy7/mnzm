@@ -217,7 +217,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    items(log.teamMembers.chunked(4)) { rowMembers ->
+                    items(log.teamMembers.chunked(4), key = { it.hashCode() }) { rowMembers ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -251,7 +251,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    items(log.enemies.chunked(4)) { rowEnemies ->
+                    items(log.enemies.chunked(4), key = { it.hashCode() }) { rowEnemies ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -292,7 +292,7 @@ internal fun BattleLogDetailDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        items(log.rounds) { round ->
+                        items(log.rounds, key = { it.roundNumber }) { round ->
                             BattleRoundItem(round = round)
                         }
                     }

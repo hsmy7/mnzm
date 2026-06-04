@@ -6,19 +6,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
 import kotlin.math.sqrt
 
 @Composable
 fun MapCanvas(
     paths: List<MapPathData>,
-    caveExplorationPaths: List<CaveExplorationPathData>,
     cameraState: CameraState,
     modifier: Modifier = Modifier
 ) {
@@ -69,22 +65,6 @@ fun MapCanvas(
         }.filterNotNull()
     }
 
-    val cachedCavePaths = remember(caveExplorationPaths) {
-        caveExplorationPaths.map { pathData ->
-            Path().apply {
-                moveTo(pathData.startWorldX, pathData.startWorldY)
-                lineTo(pathData.endWorldX, pathData.endWorldY)
-            }
-        }
-    }
-
-    val density = LocalDensity.current
-    val dashEffect = remember(density) {
-        PathEffect.dashPathEffect(
-            intervals = floatArrayOf(with(density) { 8.dp.toPx() }, with(density) { 4.dp.toPx() })
-        )
-    }
-
     Canvas(modifier = modifier.fillMaxSize()) {
         withTransform({
             translate(-cameraState.cameraX, -cameraState.cameraY)
@@ -102,26 +82,6 @@ fun MapCanvas(
                     style = pathStroke
                 )
             }
-
-            val caveColor = MapStyle.Colors.caveExplorationPath.copy(alpha = 0.6f)
-            val caveStroke = Stroke(
-                width = MapStyle.Dimensions.cavePathStrokeWidth.toPx(),
-                pathEffect = dashEffect
-            )
-            for (cavePath in cachedCavePaths) {
-                drawPath(
-                    path = cavePath,
-                    color = caveColor,
-                    style = caveStroke
-                )
-            }
         }
     }
 }
-
-data class CaveExplorationPathData(
-    val startWorldX: Float,
-    val startWorldY: Float,
-    val endWorldX: Float,
-    val endWorldY: Float
-)

@@ -9,6 +9,24 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.06",
+            date = "2026-06-04",
+            changes = listOf(
+                "【性能优化】游戏循环 1000ms→100ms，操作响应更流畅，后台完全停止循环省电",
+                "【焦点机制】玩家当前界面100ms高频结算，非当前界面最长30秒慢结算，极致省电",
+                "【界面切换追赶】打开任意界面瞬间补齐积压进度，打开即最新状态",
+                "【空闲降频】10秒无操作后tick降至2秒一次，触碰屏幕立即恢复",
+                "【发烫控制】ADPF热状态感知，过热时自动降频保护设备",
+                "【修炼速度修复】修正每秒修炼值显示与实际不符的问题，进度条100ms平滑推进",
+                "【弟子翻页修复】弟子详情翻页改用排序列表，与Tab显示顺序一致",
+                "【槽位清理补全】弟子死亡/脱离时补全血炼池、巡逻塔、仓库驻守、战斗队伍、世界地图驻军清理",
+                "【槽位清理统一】死亡与脱离共用DiscipleSlotCleanup组件，新增槽位类型不再遗漏",
+                "【根触摸修复】移除根Box触摸拦截，恢复宗门地图和世界地图拖动",
+                "【移动队伍残留清理】删除已废弃的CaveExplorationTeamMarker、探索队路径绘制、移动动画代码",
+                "批量写入优化：9个DAO的updateBatch从forEach改为单次updateAll"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.05",
             date = "2026-06-04",
             changes = listOf(

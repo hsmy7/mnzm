@@ -13,38 +13,7 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import kotlin.random.Random
 
 object CaveExplorationSystem {
-    
-    const val TRAVEL_DURATION = 1
-    
-    fun createCaveExplorationTeam(
-        cave: CultivatorCave,
-        disciples: List<Disciple>,
-        currentYear: Int,
-        currentMonth: Int,
-        sectX: Float = 2000f,
-        sectY: Float = 1750f,
-        travelDuration: Int = TRAVEL_DURATION
-    ): CaveExplorationTeam {
-        return CaveExplorationTeam(
-            id = "cave_exp_${cave.id}_${System.currentTimeMillis()}",
-            caveId = cave.id,
-            caveName = cave.name,
-            memberIds = disciples.map { it.id },
-            memberNames = disciples.map { it.name },
-            startYear = currentYear,
-            startMonth = currentMonth,
-            duration = travelDuration,
-            status = CaveExplorationStatus.TRAVELING,
-            startX = sectX,
-            startY = sectY,
-            targetX = cave.x.toFloat(),
-            targetY = cave.y.toFloat(),
-            currentX = sectX,
-            currentY = sectY,
-            moveProgress = 0f
-        )
-    }
-    
+
     fun createAIBattle(
         playerDisciples: List<Disciple>,
         playerEquipmentMap: Map<String, EquipmentInstance>,
