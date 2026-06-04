@@ -80,9 +80,7 @@ object BattleCalculator {
 
         val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-
-        val baseDamage = (attack * skillDamageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
+        val baseDamage = (attack * skillDamageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()
         val variance = calculateDamageVariance()
         val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
@@ -116,16 +114,6 @@ object BattleCalculator {
             1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
         } else {
             (1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM).coerceAtLeast(0.0)
-        }
-    }
-
-    fun calculateElementMultiplier(attackerElement: String, defenderElement: String): Double {
-        if (attackerElement.isEmpty() || defenderElement.isEmpty()) return 1.0
-        val advantage = GameConfig.Battle.Element.ADVANTAGES[attackerElement]
-        return when {
-            advantage == defenderElement -> GameConfig.Battle.Element.ADVANTAGE_MULTIPLIER
-            GameConfig.Battle.Element.ADVANTAGES[defenderElement] == attackerElement -> GameConfig.Battle.Element.DISADVANTAGE_MULTIPLIER
-            else -> 1.0
         }
     }
 
@@ -179,9 +167,7 @@ object BattleCalculator {
 
         val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-
-        val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
+        val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()
         val variance = calculateDamageVariance()
         val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
@@ -276,13 +262,6 @@ object BattleCalculator {
         }
         if (lowDefenseTargets.isNotEmpty() && Random.nextDouble() < 0.4) {
             return lowDefenseTargets.random()
-        }
-
-        val elementAdvantageTargets = targets.filter { target ->
-            calculateElementMultiplier(attacker.element, target.element) > 1.0
-        }
-        if (elementAdvantageTargets.isNotEmpty() && Random.nextDouble() < 0.3) {
-            return elementAdvantageTargets.random()
         }
 
         return targets.random()

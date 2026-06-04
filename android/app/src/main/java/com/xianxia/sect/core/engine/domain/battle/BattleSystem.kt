@@ -650,10 +650,6 @@ class BattleSystem @Inject constructor() {
         return BattleCalculator.calculateRealmGapMultiplier(attackerRealm, defenderRealm)
     }
 
-    fun calculateElementMultiplier(attackerElement: String, defenderElement: String): Double {
-        return BattleCalculator.calculateElementMultiplier(attackerElement, defenderElement)
-    }
-
     private fun selectSkill(
         combatant: Combatant,
         enemies: List<Combatant>,

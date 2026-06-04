@@ -308,24 +308,6 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateElementMultiplier - advantage returns higher`() {
-        val multiplier = BattleCalculator.calculateElementMultiplier("metal", "wood")
-        assertTrue(multiplier > 1.0)
-    }
-
-    @Test
-    fun `calculateElementMultiplier - disadvantage returns lower`() {
-        val multiplier = BattleCalculator.calculateElementMultiplier("wood", "metal")
-        assertTrue(multiplier < 1.0)
-    }
-
-    @Test
-    fun `calculateElementMultiplier - neutral returns 1`() {
-        val multiplier = BattleCalculator.calculateElementMultiplier("metal", "water")
-        assertEquals(1.0, multiplier, 0.001)
-    }
-
-    @Test
     fun `generateBattleMessage - dodge message`() {
         val result = DamageResult(damage = 0, isCrit = false, isPhysical = true, isDodged = true)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)

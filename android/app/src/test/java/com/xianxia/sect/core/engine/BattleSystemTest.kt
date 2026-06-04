@@ -218,24 +218,6 @@ class BattleSystemTest {
     }
 
     @Test
-    fun `calculateElementMultiplier - advantage returns higher`() {
-        val multiplier = battleSystem.calculateElementMultiplier("metal", "wood")
-        assertTrue(multiplier > 1.0)
-    }
-
-    @Test
-    fun `calculateElementMultiplier - disadvantage returns lower`() {
-        val multiplier = battleSystem.calculateElementMultiplier("wood", "metal")
-        assertTrue(multiplier < 1.0)
-    }
-
-    @Test
-    fun `calculateElementMultiplier - neutral returns 1`() {
-        val multiplier = battleSystem.calculateElementMultiplier("metal", "water")
-        assertEquals(1.0, multiplier, 0.001)
-    }
-
-    @Test
     fun `Combatant - hasControlEffect with stun`() {
         val stunBuff = CombatBuff(BuffType.STUN, 1.0, 2)
         val combatant = Combatant(

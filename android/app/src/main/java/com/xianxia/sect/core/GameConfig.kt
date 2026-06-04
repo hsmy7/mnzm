@@ -408,18 +408,6 @@ object GameConfig {
         const val DISCIPLE_SLOTS = 8
         const val MIN_FORMATION_SIZE = ELDER_SLOTS + DISCIPLE_SLOTS
 
-        object Element {
-            const val ADVANTAGE_MULTIPLIER: Double = 1.3
-            const val DISADVANTAGE_MULTIPLIER: Double = 0.8
-            val ADVANTAGES = mapOf(
-                "metal" to "wood",
-                "wood" to "earth",
-                "earth" to "water",
-                "water" to "fire",
-                "fire" to "metal"
-            )
-        }
-
         object RealmGap {
             const val DAMAGE_BONUS_PER_REALM: Double = 0.50
             const val DAMAGE_PENALTY_PER_REALM: Double = 0.50
