@@ -2,10 +2,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Android 11+ 包可见性配置（Dirichlet Ad SDK 需要） -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
+        <package android:name="com.tencent.mm" />
+    </queries>
+
     <!-- 基本网络权限 - 用于云存档和网络功能 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Dirichlet Ad SDK 建议权限 - 获取更精准的广告推送数据 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!-- targetSdk 31 及以上建议添加 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- 获取更好的广告体验，建议加上位置权限 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 提高广告转化率 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- 存储权限 - 用于存档功能 -->
     <!-- 注意：在 Android 10 (API 29) 及以上版本，应用只能访问自己的私有目录 -->
@@ -88,6 +109,17 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Dirichlet Ad SDK FileProvider（使用 AndroidX FileProvider 替代 SDK 内置的 Support 版本） -->
+        <provider
+            android:authorities="${applicationId}.com.tds.ad.fileprovider"
+            android:name="androidx.core.content.FileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/tapad_ad_file_path"/>
         </provider>
 
         <!-- 禁用 TapTap SDK 的 ContentProvider 自动初始化，确保在用户同意隐私政策后才初始化 SDK -->

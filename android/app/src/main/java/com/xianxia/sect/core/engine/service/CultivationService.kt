@@ -312,9 +312,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
                     if (profIndex >= 0) {
                         val cp = profList[profIndex]
-                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + netProfGain).coerceAtMost(cp.maxProficiency.toDouble()))
+                        val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                        val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
+                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
                     } else {
-                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = netProfGain.coerceAtMost(100.0)))
+                        val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = netProfGain.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
                     }
                     updatedManualProficiencies[d.id] = profList
                 }
@@ -418,9 +421,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 val profIndex = profList.indexOfFirst { it.manualId == manualId }
                 if (profIndex >= 0) {
                     val cp = profList[profIndex]
-                    profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(cp.maxProficiency.toDouble()))
+                    val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                    val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
+                    profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
                 } else {
-                    profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGainPerTick.coerceAtMost(100.0)))
+                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                    profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGainPerTick.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
                 }
                 updatedManualProficiencies[discipleId] = profList
                 discipleProfUpdates[manualId] = (discipleProfUpdates[manualId] ?: 0.0) + proficiencyGainPerTick
@@ -621,6 +627,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 }
             }
 
+            // 突破尝试后清除广告突破加成（无论成功或失败，一次性的）
+            val cleanedStatusData = (disciple.statusData ?: emptyMap()).toMutableMap().apply {
+                remove("adBreakthroughBonus")
+            }
+
             disciple.copyWith(
                 cultivation = newCultivation,
                 realm = newRealm,
@@ -628,7 +639,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 lifespan = newLifespan,
                 currentHp = newCurrentHp,
                 currentMp = newCurrentMp,
-                storageBagItems = newStorageItems
+                storageBagItems = newStorageItems,
+                statusData = cleanedStatusData
             )
         }
 
@@ -1293,11 +1305,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data, allDisciples)
 
+        // 从 statusData 读取广告突破加成
+        val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
+
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehensionBonus = outerElderComprehensionBonus,
-            pillBonus = pillBonus
+            pillBonus = pillBonus,
+            adBonus = adBonus
         )
         val success = Random.nextDouble() < chance
 

@@ -42,6 +42,7 @@ class ForgeViewModel @Inject constructor(
                         ProductionSlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
                         else -> ForgeSlotStatus.IDLE
                     },
+                    successRate = slot.successRate,
                     autoRestartEnabled = slot.autoRestartEnabled,
                     assignedDiscipleId = slot.assignedDiscipleId,
                     assignedDiscipleName = slot.assignedDiscipleName

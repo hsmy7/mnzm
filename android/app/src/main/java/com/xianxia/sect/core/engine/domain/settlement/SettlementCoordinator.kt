@@ -610,15 +610,20 @@ class SettlementCoordinator @Inject constructor(
                 val profIndex = profList.indexOfFirst { it.manualId == manualId }
                 if (profIndex >= 0) {
                     val cp = profList[profIndex]
+                    val correctMaxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                    val fixedMaxProf = if (cp.maxProficiency != correctMaxProf) correctMaxProf else cp.maxProficiency
                     profList[profIndex] = cp.copy(
-                        proficiency = (cp.proficiency + netProfGain).coerceAtMost(cp.maxProficiency.toDouble())
+                        proficiency = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble()),
+                        maxProficiency = fixedMaxProf
                     )
                 } else {
+                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
                     profList.add(
                         ManualProficiencyData(
                             manualId = manualId,
                             manualName = manual.name,
-                            proficiency = netProfGain.coerceAtMost(100.0)
+                            proficiency = netProfGain.coerceAtMost(maxProf.toDouble()),
+                            maxProficiency = maxProf
                         )
                     )
                 }

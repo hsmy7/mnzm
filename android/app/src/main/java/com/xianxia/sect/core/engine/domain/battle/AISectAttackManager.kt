@@ -400,9 +400,11 @@ object AISectAttackManager {
             val masteryLevel = if (manual != null) {
                 ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble(), manual.rarity).level
             } else 0
+            val maxProf = if (manual != null) ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt() else 100
             ManualProficiencyData(
                 manualId = mId,
-                proficiency = mastery.toDouble(),
+                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                maxProficiency = maxProf,
                 masteryLevel = masteryLevel
             )
         }

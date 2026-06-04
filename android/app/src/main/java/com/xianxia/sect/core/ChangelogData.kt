@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.07",
+            date = "2026-06-04",
+            changes = listOf(
+                "【住所槽位修复】修复弟子住所空槽位点击无法弹出选择弟子界面的问题",
+                "【锻造成功率修复】修复锻造成功率始终显示为0%的问题（ForgeViewModel映射遗漏successRate字段，FormulaService锻造弟子加成被跳过）",
+                "【功法熟练度修复】修复弟子功法熟练度无法增长的问题（ManualProficiencyData创建时maxProficiency默认为100，而实际按品阶应为400~2000；新增条目proficiency被硬性截断至100；已有存档条目maxProficiency不会自动修正）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.06",
             date = "2026-06-04",
             changes = listOf(

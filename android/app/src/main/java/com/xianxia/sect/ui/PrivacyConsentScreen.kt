@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.theme.GameColors
 
 private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
+private const val DIRICHLET_AD_SDK_PRIVACY_URL = "https://ssp.dirichlet.cn/docs/agreement/"
 private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/mnzm/"
 
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
@@ -94,7 +95,8 @@ fun PrivacyConsentScreen(
                     PrivacySummaryContent(
                         onPrivacyLinkClick = { showFullPolicy = true },
                         onTapTapSdkLinkClick = { openUrlInBrowser(context, TAPTAP_SDK_PRIVACY_URL) },
-                        onMmkvLinkClick = { openUrlInBrowser(context, MMKV_URL) }
+                        onMmkvLinkClick = { openUrlInBrowser(context, MMKV_URL) },
+                        onDirichletAdSdkLinkClick = { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }
                     )
                 }
             }
@@ -175,7 +177,8 @@ fun PrivacyConsentScreen(
 private fun PrivacySummaryContent(
     onPrivacyLinkClick: () -> Unit = {},
     onTapTapSdkLinkClick: () -> Unit = {},
-    onMmkvLinkClick: () -> Unit = {}
+    onMmkvLinkClick: () -> Unit = {},
+    onDirichletAdSdkLinkClick: () -> Unit = {}
 ) {
     val sectionTitleStyle = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
     val bodyStyle = SpanStyle(fontSize = 13.sp, color = Color.Black)
@@ -245,7 +248,7 @@ private fun PrivacySummaryContent(
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp)
     ) {
         Text(
-            text = "【广告标识符收集特别提示】\n\nTapTap SDK 可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）。\n\n本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID。您可以在应用设置 → 隐私设置中管理此选项。若您关闭\"限制广告追踪\"，TapTap SDK 将可能收集您的 OAID 用于广告效果分析。",
+            text = "【广告标识符收集特别提示】\n\nTapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，用于广告效果分析和广告投放归因。\n\n本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID。Dirichlet Ad SDK 收集 OAID 用于广告投放和效果归因，受其隐私政策约束。您可以在应用设置 → 隐私设置中管理此选项。若您关闭\"限制广告追踪\"，TapTap SDK 将可能收集您的 OAID 用于广告效果分析。",
             fontSize = 12.sp,
             color = Color(0xFFC62828),
             modifier = Modifier.padding(10.dp),
@@ -328,11 +331,34 @@ private fun PrivacySummaryContent(
     Text(
         text = mmkvAnnotatedString,
         modifier = Modifier
-            .padding(bottom = 12.dp, start = 8.dp)
+            .padding(bottom = 4.dp, start = 8.dp)
             .pointerInput(mmkvAnnotatedString) {
                 detectTapGestures { offset ->
                     mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
                         .firstOrNull()?.let { onMmkvLinkClick() }
+                }
+            }
+    )
+
+    val dirichletAnnotatedString = buildAnnotatedString {
+        withStyle(ParagraphStyle(lineHeight = 19.sp)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("Dirichlet Ad SDK / TapADN SDK（v4.2.5.0）") }
+            append("\n")
+            withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。可能收集：设备信息（型号、系统版本、Android ID、OAID、IMEI/Device ID、MAC地址）、网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（展示、点击、转化）。") }
+            append("\n")
+            pushStringAnnotation(tag = "URL", annotation = DIRICHLET_AD_SDK_PRIVACY_URL)
+            withStyle(linkStyle) { append("Dirichlet Ad SDK隐私政策 >") }
+            pop()
+        }
+    }
+    Text(
+        text = dirichletAnnotatedString,
+        modifier = Modifier
+            .padding(bottom = 12.dp, start = 8.dp)
+            .pointerInput(dirichletAnnotatedString) {
+                detectTapGestures { offset ->
+                    dirichletAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                        .firstOrNull()?.let { onDirichletAdSdkLinkClick() }
                 }
             }
     )
@@ -346,6 +372,7 @@ private fun PrivacySummaryContent(
 
     listOf(
         "提供游戏核心功能：存档管理、TapTap登录、防沉迷合规",
+        "广告变现：通过激励视频广告为玩家提供游戏内奖励",
         "保障本地数据安全：加密密钥派生、通信请求签名",
         "崩溃恢复和数据保护：异常退出后的游戏数据恢复",
         "安全防护：兑换码防刷、请求防伪造和防重放"
@@ -438,7 +465,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年4月26日 | 生效日期：2026年4月26日",
+                    text = "更新日期：2026年6月4日 | 生效日期：2026年6月4日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -560,7 +587,7 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "关于 Android ID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
+                                text = "关于 Android ID 与第三方 SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID，用于广告投放和效果归因。上述 SDK 对 Android ID 的收集和处理受各自隐私政策约束，详见下方第二节。",
                                 fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp)
                             )
@@ -572,7 +599,7 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）\n• 收集方式：由 TapTap SDK 在初始化时自动获取\n• 默认保护：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID\n• 您的权利：您可以在应用设置 → 隐私设置中管理\"限制广告追踪\"选项。若您关闭此选项，TapTap SDK 将可能收集您的 OAID\n• 功能影响：限制广告追踪不影响游戏的正常使用和 TapTap 登录功能",
+                                text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析；Dirichlet Ad SDK 使用 OAID 进行广告投放和效果归因\n• 收集方式：由各 SDK 在初始化时自动获取\n• 默认保护：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID\n• 您的权利：您可以在应用设置 → 隐私设置中管理\"限制广告追踪\"选项。若您关闭此选项，TapTap SDK 将可能收集您的 OAID\n• 功能影响：限制广告追踪不影响游戏的正常使用和 TapTap 登录功能",
                                 fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
                             )
@@ -647,11 +674,27 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.clickable { openUrlInBrowser(context, MMKV_URL) }
                         )
                     }
+
+                    FullPolicySubSection("2.3 Dirichlet Ad SDK / TapADN SDK（v4.2.5.0）") {
+                        Text(
+                            text = "由上海艾得蒽数字科技有限公司提供。仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。\n\n• TapADN SDK：激励视频广告 — 可能收集设备信息（设备型号、操作系统版本、Android ID、OAID、IMEI/Device ID、MAC地址）、网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）",
+                            fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Dirichlet Ad SDK隐私政策",
+                            fontSize = 13.sp,
+                            color = GameColors.SpiritBlue,
+                            fontWeight = FontWeight.Medium,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }
+                        )
+                    }
                 }
 
                 FullPolicySection("三、信息使用目的") {
                     Text(
-                        text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n• 崩溃恢复和数据保护：异常退出后的游戏数据恢复\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
+                        text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n• 崩溃恢复和数据保护：异常退出后的游戏数据恢复\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
@@ -665,7 +708,7 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("五、信息共享") {
                     Text(
-                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n• 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
+                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n• Dirichlet Ad SDK：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司交互\n• 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }

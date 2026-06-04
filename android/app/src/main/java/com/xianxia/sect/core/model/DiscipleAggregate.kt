@@ -246,7 +246,8 @@ data class DiscipleAggregate(
      * 计算突破成功率
      */
     fun getBreakthroughChance(): Double {
-        return DiscipleStatCalculator.getBreakthroughChance(this)
+        val adBonus = statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
+        return DiscipleStatCalculator.getBreakthroughChance(this, adBonus = adBonus)
     }
     
     fun toDisciple(): Disciple {

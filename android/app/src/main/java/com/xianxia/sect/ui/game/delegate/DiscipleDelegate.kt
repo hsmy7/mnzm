@@ -33,6 +33,19 @@ class DiscipleDelegate(
         }
     }
 
+    /** 观看广告后为弟子添加一次性突破率加成 */
+    fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) {
+        scope.launch {
+            gameEngine.updateDisciple(discipleId) { disciple ->
+                val currentBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
+                val newStatusData = disciple.statusData.toMutableMap().apply {
+                    this["adBreakthroughBonus"] = (currentBonus + bonus).toString()
+                }
+                disciple.copy(statusData = newStatusData)
+            }
+        }
+    }
+
     fun changeDiscipleType(discipleId: String, newType: String) {
         scope.launch {
             gameEngine.changeDiscipleTypeAtomic(discipleId, newType)

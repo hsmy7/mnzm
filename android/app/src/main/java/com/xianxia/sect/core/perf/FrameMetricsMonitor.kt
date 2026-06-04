@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.perf
 
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.FrameMetrics
 import android.view.Window
@@ -84,7 +86,7 @@ class FrameMetricsMonitor @Inject constructor() {
             }
             window.addOnFrameMetricsAvailableListener(
                 observer as Window.OnFrameMetricsAvailableListener,
-                null
+                Handler(Looper.getMainLooper())
             )
             isMonitoring = true
             Log.i(TAG, "FrameMetrics monitoring started")

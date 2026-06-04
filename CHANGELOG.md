@@ -1,5 +1,13 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.07] - 2026-06-04
+
+### Bug 修复
+
+- 修复弟子住所空槽位点击无法弹出选择弟子界面（onSlotClick/onEmptySlotClick 参数误用）
+- 修复锻造成功率始终显示为 0%（ForgeViewModel 映射遗漏 successRate 字段；FormulaService 中锻造弟子成功率加成被硬编码跳过）
+- 修复弟子功法熟练度无法增长：`ManualProficiencyData` 创建时 `maxProficiency` 默认为 100，而按品阶实际应为 400~2000；新增条目 `proficiency` 被硬性截断至 100；已有存档条目的 `maxProficiency` 不会自动修正
+
 ## [3.2.06] - 2026-06-04
 
 ### 性能优化大版本

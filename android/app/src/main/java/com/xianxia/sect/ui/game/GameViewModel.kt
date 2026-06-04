@@ -502,6 +502,7 @@ class GameViewModel @Inject constructor(
                         com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
                         else -> ForgeSlotStatus.IDLE
                     },
+                    successRate = slot.successRate,
                     assignedDiscipleId = slot.assignedDiscipleId,
                     assignedDiscipleName = slot.assignedDiscipleName,
                     autoRestartEnabled = slot.autoRestartEnabled
@@ -561,6 +562,8 @@ class GameViewModel @Inject constructor(
     fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
+
+    fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) = disciple.applyAdBreakthroughBonus(discipleId, bonus)
 
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)
 

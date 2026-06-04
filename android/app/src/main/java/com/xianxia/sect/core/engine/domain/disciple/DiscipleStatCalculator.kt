@@ -450,7 +450,8 @@ object DiscipleStatCalculator {
         disciple: Disciple,
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
-        pillBonus: Double = 0.0
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0
     ): Double {
         if (disciple.realm < 0) return 0.0
 
@@ -468,7 +469,7 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -476,7 +477,8 @@ object DiscipleStatCalculator {
         aggregate: DiscipleAggregate,
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
-        pillBonus: Double = 0.0
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
 
@@ -494,7 +496,7 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -509,6 +511,7 @@ object DiscipleStatCalculator {
         val talentBonus: Double,
         val soulPowerBonus: Double,
         val pillBonus: Double,
+        val adBonus: Double,
         val total: Double
     )
 
@@ -516,16 +519,17 @@ object DiscipleStatCalculator {
         aggregate: DiscipleAggregate,
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
-        pillBonus: Double = 0.0
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0
     ): BreakthroughBonusDetail {
-        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
         val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - 80) / 4) * 0.01 else 0.0
         val talentEffects = getTalentEffects(aggregate)
         val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus
+        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus + adBonus
         return BreakthroughBonusDetail(
             baseChance = baseChance,
             innerElderBonus = innerElderBonus,
@@ -533,6 +537,7 @@ object DiscipleStatCalculator {
             talentBonus = talentBonus,
             soulPowerBonus = soulPowerBonus,
             pillBonus = pillBonus,
+            adBonus = adBonus,
             total = total.coerceIn(0.0, 1.0)
         )
     }

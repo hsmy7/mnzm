@@ -61,6 +61,7 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.R
+import com.xianxia.sect.taptap.RewardVideoAdManager
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
@@ -265,7 +266,8 @@ fun DiscipleDetailDialog(
                                         allDisciples = allDisciples,
                                         sectPolicies = sectPolicies,
                                         residenceSlots = vmResidenceSlots,
-                                        placedBuildings = vmPlacedBuildings
+                                        placedBuildings = vmPlacedBuildings,
+                                        viewModel = viewModel
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -1092,7 +1094,8 @@ private fun BasicInfoSection(
     allDisciples: List<DiscipleAggregate> = emptyList(),
     sectPolicies: SectPolicies? = null,
     residenceSlots: List<ResidenceSlot> = emptyList(),
-    placedBuildings: List<GridBuildingData> = emptyList()
+    placedBuildings: List<GridBuildingData> = emptyList(),
+    viewModel: GameViewModel? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1158,9 +1161,12 @@ private fun BasicInfoSection(
             val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
                 disciple,
                 innerElderComprehension = innerElderComp,
-                outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - 80) / 4) * 0.01 else 0.0
+                outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - 80) / 4) * 0.01 else 0.0,
+                adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
             )
             var showBreakthroughDetail by remember { mutableStateOf(false) }
+            val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
+            val context = LocalContext.current
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
@@ -1180,6 +1186,42 @@ private fun BasicInfoSection(
                         .clickable { showBreakthroughDetail = true },
                     contentScale = ContentScale.FillBounds
                 )
+                // 观看广告提升突破率按钮
+                if (adBonusValue < 0.25) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_play_button),
+                        contentDescription = "观看广告提升突破率",
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                val activity = context as? android.app.Activity ?: return@clickable
+                                RewardVideoAdManager.setCallback(object : RewardVideoAdManager.RewardVideoCallback {
+                                    override fun onRewardVerify(rewardVerify: Boolean, rewardAmount: Int, rewardName: String, code: Int, msg: String) {
+                                        if (rewardVerify) {
+                                            viewModel?.applyAdBreakthroughBonus(disciple.id, 0.25)
+                                        }
+                                    }
+                                    override fun onAdClose() {
+                                        RewardVideoAdManager.removeCallback()
+                                        RewardVideoAdManager.destroyAd()
+                                    }
+                                    override fun onAdLoadError(code: Int, message: String) {
+                                        RewardVideoAdManager.removeCallback()
+                                        RewardVideoAdManager.destroyAd()
+                                    }
+                                })
+                                RewardVideoAdManager.loadAd(
+                                    activity = activity,
+                                    userId = disciple.id,
+                                    rewardName = "突破率提升",
+                                    rewardAmount = 25
+                                )
+                            },
+                        contentScale = ContentScale.FillBounds
+                    )
+                }
             }
             if (showBreakthroughDetail) {
                 BreakthroughDetailDialog(
@@ -1807,6 +1849,7 @@ private fun BreakthroughDetailDialog(
         if (detail.talentBonus > 0) add("天赋加成" to detail.talentBonus)
         if (detail.soulPowerBonus > 0) add("神魂加成" to detail.soulPowerBonus)
         if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
+        if (detail.adBonus > 0) add("广告加成" to detail.adBonus)
     }
 
     Dialog(onDismissRequest = onDismiss) {

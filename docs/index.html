@@ -115,7 +115,7 @@
 <div class="container">
 
 <h1>模拟宗门 隐私政策</h1>
-<p class="update-date">更新日期：2026年6月3日 &nbsp;|&nbsp; 生效日期：2026年6月3日</p>
+<p class="update-date">更新日期：2026年6月4日 &nbsp;|&nbsp; 生效日期：2026年6月4日</p>
 
 <div class="intro">
     欢迎使用模拟宗门！【静书工作室】（以下简称"我们"）系移动应用程序"模拟宗门"（以下简称"本游戏"）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。
@@ -201,7 +201,7 @@
     上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造，不足以还原原始设备信息。
 </div>
 <div class="note" style="background:#e3f2fd; border-left:4px solid #1976d2;">
-    <strong>关于 Android ID、OAID 与 TapTap SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。TapTap SDK 对 Android ID 和 OAID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。
+    <strong>关于 Android ID、OAID 与第三方 SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID 和 OAID，用于广告投放和效果归因。上述 SDK 对 Android ID 和 OAID 的收集和处理受各自隐私政策约束，详见下方第二节。
 </div>
 
 <h3>1.4 网络状态信息</h3>
@@ -261,11 +261,22 @@
     <p>MMKV 开源地址：<a href="https://github.com/Tencent/MMKV" target="_blank">https://github.com/Tencent/MMKV</a></p>
 </div>
 
+<div class="sdk-section">
+    <h3>2.3 Dirichlet Ad SDK / TapADN SDK（由上海艾得蒽数字科技有限公司提供）</h3>
+    <p><strong>初始化时机：</strong>仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。</p>
+    <table>
+        <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
+        <tr><td>TapADN SDK（v4.2.5.0）</td><td>激励视频广告</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、IMEI/Device ID、MAC 地址）、网络信息（网络类型、IP 地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）</td></tr>
+    </table>
+    <p>Dirichlet Ad SDK 隐私政策：<a href="https://ssp.dirichlet.cn/docs/agreement/" target="_blank">https://ssp.dirichlet.cn/docs/agreement/</a></p>
+</div>
+
 <h2>三、信息使用目的</h2>
 
 <p>我们收集的信息仅用于以下目的：</p>
 <ul>
     <li><strong>提供游戏核心功能</strong>：存档管理、TapTap 登录、防沉迷合规</li>
+    <li><strong>广告变现</strong>：通过激励视频广告为玩家提供游戏内奖励</li>
     <li><strong>保障本地数据安全</strong>：加密密钥派生、通信请求签名和完整性验证</li>
     <li><strong>崩溃恢复和数据保护</strong>：异常退出后的游戏数据恢复</li>
     <li><strong>安全防护</strong>：兑换码防刷、请求防伪造和防重放</li>
@@ -306,6 +317,7 @@
 <p>我们不会与任何第三方共享您的个人信息，以下情况除外：</p>
 <ul>
     <li><strong>TapTap SDK</strong>：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互，受 TapTap 隐私政策约束。</li>
+    <li><strong>Dirichlet Ad SDK</strong>：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司交互，受 Dirichlet Ad SDK 隐私政策约束。</li>
     <li><strong>法律要求</strong>：在法律法规要求或政府主管部门依法要求的情况下。</li>
 </ul>
 

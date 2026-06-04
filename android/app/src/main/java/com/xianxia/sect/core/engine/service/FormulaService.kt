@@ -44,8 +44,6 @@ class FormulaService @Inject constructor(
     fun calculateSuccessRateBonus(disciple: Disciple?, buildingId: String): Double {
         if (disciple == null) return 0.0
 
-        if (buildingId == "forge") return 0.0
-
         var bonus = 0.0
 
         bonus += getRealmSuccessRateBonus(disciple.realm)

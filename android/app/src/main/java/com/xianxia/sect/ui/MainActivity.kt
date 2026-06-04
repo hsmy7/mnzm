@@ -448,6 +448,7 @@ class MainActivity : ComponentActivity() {
                     sessionManager.limitAdTracking
                 )
                 Log.d(TAG, "TapTap SDK初始化成功")
+                com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
                 withContext(Dispatchers.Main) {
                     ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
                 }
@@ -455,7 +456,6 @@ class MainActivity : ComponentActivity() {
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
             }
         }
-        com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
     }
     
     internal fun handleUserExit() {

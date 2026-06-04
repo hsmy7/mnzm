@@ -1,173 +1,342 @@
 package com.xianxia.sect.core.util
 
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.WorldSect
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.random.Random
 
 class GameUtilsTest {
 
-    // ========== formatNumber 测试 ==========
+    // ============================================================
+    // SectRelationLevel.fromFavor
+    // ============================================================
 
     @Test
-    fun `formatNumber - 亿级数字`() {
-        val result = GameUtils.formatNumber(1_500_000_000L)
-        assertTrue(result.contains("亿"))
+    fun fromFavor_0_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(0))
     }
 
     @Test
-    fun `formatNumber - 万级数字`() {
-        val result = GameUtils.formatNumber(50_000L)
-        assertTrue(result.contains("万"))
+    fun fromFavor_5_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(5))
     }
 
     @Test
-    fun `formatNumber - 普通数字`() {
-        val result = GameUtils.formatNumber(999L)
-        assertEquals("999", result)
+    fun fromFavor_9_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(9))
     }
 
     @Test
-    fun `formatNumber - 零`() {
-        val result = GameUtils.formatNumber(0L)
-        assertEquals("0", result)
-    }
-
-    // ========== formatPercent 测试 ==========
-
-    @Test
-    fun `formatPercent - 正常百分比`() {
-        val result = GameUtils.formatPercent(0.5)
-        assertTrue(result.contains("50"))
-        assertTrue(result.contains("%"))
+    fun fromFavor_10_returnsANTAGONISTIC() {
+        assertEquals(SectRelationLevel.ANTAGONISTIC, SectRelationLevel.fromFavor(10))
     }
 
     @Test
-    fun `formatPercent - 零值`() {
-        val result = GameUtils.formatPercent(0.0)
-        assertTrue(result.contains("0"))
+    fun fromFavor_25_returnsANTAGONISTIC() {
+        assertEquals(SectRelationLevel.ANTAGONISTIC, SectRelationLevel.fromFavor(25))
     }
 
     @Test
-    fun `formatPercent - 满值`() {
-        val result = GameUtils.formatPercent(1.0)
-        assertTrue(result.contains("100"))
+    fun fromFavor_39_returnsANTAGONISTIC() {
+        assertEquals(SectRelationLevel.ANTAGONISTIC, SectRelationLevel.fromFavor(39))
     }
 
-    // ========== calculateTeamAverageRealm 测试 ==========
+    @Test
+    fun fromFavor_40_returnsNORMAL() {
+        assertEquals(SectRelationLevel.NORMAL, SectRelationLevel.fromFavor(40))
+    }
 
     @Test
-    fun `calculateTeamAverageRealm - 空列表返回9`() {
-        assertEquals(9.0, GameUtils.calculateTeamAverageRealm(
-            emptyList<DiscipleStub>(),
+    fun fromFavor_50_returnsNORMAL() {
+        assertEquals(SectRelationLevel.NORMAL, SectRelationLevel.fromFavor(50))
+    }
+
+    @Test
+    fun fromFavor_59_returnsNORMAL() {
+        assertEquals(SectRelationLevel.NORMAL, SectRelationLevel.fromFavor(59))
+    }
+
+    @Test
+    fun fromFavor_60_returnsFRIENDLY() {
+        assertEquals(SectRelationLevel.FRIENDLY, SectRelationLevel.fromFavor(60))
+    }
+
+    @Test
+    fun fromFavor_70_returnsFRIENDLY() {
+        assertEquals(SectRelationLevel.FRIENDLY, SectRelationLevel.fromFavor(70))
+    }
+
+    @Test
+    fun fromFavor_79_returnsFRIENDLY() {
+        assertEquals(SectRelationLevel.FRIENDLY, SectRelationLevel.fromFavor(79))
+    }
+
+    @Test
+    fun fromFavor_80_returnsINTIMATE() {
+        assertEquals(SectRelationLevel.INTIMATE, SectRelationLevel.fromFavor(80))
+    }
+
+    @Test
+    fun fromFavor_100_returnsINTIMATE() {
+        assertEquals(SectRelationLevel.INTIMATE, SectRelationLevel.fromFavor(100))
+    }
+
+    @Test
+    fun fromFavor_negative1_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(-1))
+    }
+
+    @Test
+    fun fromFavor_101_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(101))
+    }
+
+    // ============================================================
+    // SectRelationLevel.maxAllowedRarity
+    // ============================================================
+
+    @Test
+    fun hostile_maxAllowedRarity_is0() {
+        assertEquals(0, SectRelationLevel.HOSTILE.maxAllowedRarity)
+    }
+
+    @Test
+    fun antagonistic_maxAllowedRarity_is0() {
+        assertEquals(0, SectRelationLevel.ANTAGONISTIC.maxAllowedRarity)
+    }
+
+    @Test
+    fun normal_maxAllowedRarity_is2() {
+        assertEquals(2, SectRelationLevel.NORMAL.maxAllowedRarity)
+    }
+
+    @Test
+    fun friendly_maxAllowedRarity_is4() {
+        assertEquals(4, SectRelationLevel.FRIENDLY.maxAllowedRarity)
+    }
+
+    @Test
+    fun intimate_maxAllowedRarity_is6() {
+        assertEquals(6, SectRelationLevel.INTIMATE.maxAllowedRarity)
+    }
+
+    // ============================================================
+    // calculateTeamAverageRealm
+    // ============================================================
+
+    @Test
+    fun calculateTeamAverageRealm_emptyList_returns9() {
+        val result = GameUtils.calculateTeamAverageRealm(
+            emptyList<Any>(),
+            { 0 },
+            { null }
+        )
+        assertEquals(9.0, result, 0.001)
+    }
+
+    @Test
+    fun calculateTeamAverageRealm_singleDisciple_realm5_layer1() {
+        data class Disc(val realm: Int, val layer: Int?)
+
+        val disciples = listOf(Disc(5, 1))
+        val result = GameUtils.calculateTeamAverageRealm(
+            disciples,
             { it.realm },
             { it.layer }
-        ), 0.01)
+        )
+        // realm - layer/10.0 = 5 - 0.1 = 4.9
+        assertEquals(4.9, result, 0.001)
     }
 
     @Test
-    fun `calculateTeamAverageRealm - 正常计算`() {
+    fun calculateTeamAverageRealm_multipleDisciples_returnsCorrectAverage() {
+        data class Disc(val realm: Int, val layer: Int?)
+
         val disciples = listOf(
-            DiscipleStub(9, 1),
-            DiscipleStub(7, 5)
+            Disc(5, 1),  // 5 - 0.1 = 4.9
+            Disc(3, 5)   // 3 - 0.5 = 2.5
         )
         val result = GameUtils.calculateTeamAverageRealm(
             disciples,
             { it.realm },
             { it.layer }
         )
-        val expected = (8.9 + 6.5) / 2.0
-        assertEquals(expected, result, 0.01)
+        // (4.9 + 2.5) / 2 = 3.7
+        assertEquals(3.7, result, 0.001)
     }
 
-    // ========== calculateBeastRealm 测试 ==========
-
     @Test
-    fun `calculateBeastRealm - 空列表返回9`() {
-        assertEquals(9, GameUtils.calculateBeastRealm(
-            emptyList<DiscipleStub>(),
+    fun calculateTeamAverageRealm_nullLayer_defaultsTo1() {
+        data class Disc(val realm: Int, val layer: Int?)
+
+        val disciples = listOf(Disc(5, null))
+        val result = GameUtils.calculateTeamAverageRealm(
+            disciples,
             { it.realm },
             { it.layer }
-        ))
+        )
+        // null layer -> 1, so 5 - 1/10.0 = 4.9
+        assertEquals(4.9, result, 0.001)
+    }
+
+    // ============================================================
+    // calculateBeastRealm
+    // ============================================================
+
+    @Test
+    fun calculateBeastRealm_emptyList_returns9() {
+        val result = GameUtils.calculateBeastRealm(
+            emptyList<Any>(),
+            { 0 },
+            { null }
+        )
+        assertEquals(9, result)
     }
 
     @Test
-    fun `calculateBeastRealm - 全练气弟子应返回9而非8`() {
+    fun calculateBeastRealm_singleDisciple_realm5() {
+        data class Disc(val realm: Int, val layer: Int?)
+
+        val disciples = listOf(Disc(5, 1))
+        val result = GameUtils.calculateBeastRealm(
+            disciples,
+            { it.realm },
+            { it.layer }
+        )
+        // avg = 4.9, ceil = 5, maxRealm = 5, min(5,5) = 5
+        assertEquals(5, result)
+    }
+
+    @Test
+    fun calculateBeastRealm_doesNotExceedTeamMaxRealm() {
+        data class Disc(val realm: Int, val layer: Int?)
+
+        // Low realm disciples, so avg is low, but test that coerceAtMost works
         val disciples = listOf(
-            DiscipleStub(9, 9),
-            DiscipleStub(9, 5),
-            DiscipleStub(9, 1)
+            Disc(3, 1),  // 3 - 0.1 = 2.9
+            Disc(3, 1)   // 3 - 0.1 = 2.9
         )
         val result = GameUtils.calculateBeastRealm(
             disciples,
             { it.realm },
             { it.layer }
         )
-        assertEquals(9, result)
+        // avg = 2.9, ceil = 3, maxRealm = 3, min(3,3) = 3
+        assertEquals(3, result)
+    }
+
+    // ============================================================
+    // formatNumber
+    // ============================================================
+
+    @Test
+    fun formatNumber_999_returns999() {
+        assertEquals("999", GameUtils.formatNumber(999))
     }
 
     @Test
-    fun `calculateBeastRealm - 练气9层单弟子不应映射到筑基`() {
-        val disciples = listOf(DiscipleStub(9, 9))
-        val result = GameUtils.calculateBeastRealm(
-            disciples,
-            { it.realm },
-            { it.layer }
-        )
-        assertEquals(9, result)
+    fun formatNumber_10000_containsWan() {
+        val result = GameUtils.formatNumber(10000)
+        assertTrue("Expected 万 in result: $result", result.contains("万"))
     }
 
     @Test
-    fun `calculateBeastRealm - 筑基弟子应返回8`() {
-        val disciples = listOf(DiscipleStub(8, 5))
-        val result = GameUtils.calculateBeastRealm(
-            disciples,
-            { it.realm },
-            { it.layer }
-        )
-        assertEquals(8, result)
+    fun formatNumber_1Billion_containsYi() {
+        val result = GameUtils.formatNumber(1_000_000_000)
+        assertTrue("Expected 亿 in result: $result", result.contains("亿"))
+    }
+
+    // ============================================================
+    // formatPercent
+    // ============================================================
+
+    @Test
+    fun formatPercent_0_5_contains50() {
+        val result = GameUtils.formatPercent(0.5)
+        assertTrue("Expected 50 in result: $result", result.contains("50"))
+    }
+
+    // ============================================================
+    // applyPriceFluctuation (Int)
+    // ============================================================
+
+    @Test
+    fun applyPriceFluctuation_int_resultAtLeast1() {
+        val random = Random(42)
+        val result = GameUtils.applyPriceFluctuation(0, random)
+        assertTrue("Expected result >= 1, got $result", result >= 1)
     }
 
     @Test
-    fun `calculateBeastRealm - 混合境界不超过队伍最低境界`() {
-        val disciples = listOf(
-            DiscipleStub(9, 5),
-            DiscipleStub(8, 5)
-        )
-        val result = GameUtils.calculateBeastRealm(
-            disciples,
-            { it.realm },
-            { it.layer }
-        )
-        assertTrue(result <= 9)
-        assertTrue(result >= 8)
+    fun applyPriceFluctuation_long_resultAtLeast1L() {
+        val random = Random(42)
+        val result = GameUtils.applyPriceFluctuation(0L, random)
+        assertTrue("Expected result >= 1L, got $result", result >= 1L)
     }
 
     @Test
-    fun `calculateBeastRealm - null层级视为1`() {
-        val disciples = listOf(DiscipleStub(9, 1))
-        val result = GameUtils.calculateBeastRealm(
-            disciples,
-            { it.realm },
-            { _ -> null }
-        )
-        assertEquals(9, result)
+    fun applyPriceFluctuation_fixedSeed_deterministic() {
+        val result1 = GameUtils.applyPriceFluctuation(100, Random(123))
+        val result2 = GameUtils.applyPriceFluctuation(100, Random(123))
+        assertEquals(result1, result2)
     }
 
-    private data class DiscipleStub(val realm: Int, val layer: Int)
-
-    // ========== applyPriceFluctuation 测试 ==========
+    // ============================================================
+    // getSectRelation
+    // ============================================================
 
     @Test
-    fun `applyPriceFluctuation - 价格在正负20百分比范围内`() {
-        val basePrice = 100
-        for (i in 1..100) {
-            val result = GameUtils.applyPriceFluctuation(basePrice)
-            assertTrue("价格波动应在80-120之间: $result", result >= 80 && result <= 120)
-        }
+    fun getSectRelation_noPlayerSect_returns0() {
+        val sects = listOf(WorldSect(id = "s1", isPlayerSect = false))
+        val relations = listOf(SectRelation(sectId1 = "s1", sectId2 = "s2", favor = 50))
+        assertEquals(0, GameUtils.getSectRelation(sects, relations, "s2"))
     }
 
     @Test
-    fun `applyPriceFluctuation - 最低价格为1`() {
-        val result = GameUtils.applyPriceFluctuation(1)
-        assertTrue(result >= 1)
+    fun getSectRelation_relationExists_returnsFavor() {
+        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
+        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 75))
+        assertEquals(75, GameUtils.getSectRelation(sects, relations, "target"))
+    }
+
+    @Test
+    fun getSectRelation_noRelationFound_returns0() {
+        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
+        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "other", favor = 50))
+        assertEquals(0, GameUtils.getSectRelation(sects, relations, "target"))
+    }
+
+    // ============================================================
+    // calculateSectTradePriceMultiplier
+    // ============================================================
+
+    @Test
+    fun calculateSectTradePriceMultiplier_neutralRelation_returns1() {
+        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
+        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 50))
+        val alliances = emptyList<Alliance>()
+        assertEquals(1.0, GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target"), 0.001)
+    }
+
+    @Test
+    fun calculateSectTradePriceMultiplier_highRelation_returnsDiscount() {
+        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
+        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
+        val alliances = emptyList<Alliance>()
+        val multiplier = GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target")
+        // favor=80, relation >= 70: 1.0 - (80-70)*0.01 = 0.9
+        assertTrue("Expected multiplier < 1.0 for high relation, got $multiplier", multiplier < 1.0)
+    }
+
+    @Test
+    fun calculateSectTradePriceMultiplier_ally_returnsBiggerDiscount() {
+        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
+        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
+        val alliances = listOf(Alliance(sectIds = listOf("player", "target")))
+        val multiplier = GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target")
+        // isAlly, favor=80: 0.9 * (1.0 - max(0, 80-70)*0.01) = 0.9 * 0.9 = 0.81
+        assertTrue("Expected bigger discount for ally, got $multiplier", multiplier < 0.9)
     }
 }

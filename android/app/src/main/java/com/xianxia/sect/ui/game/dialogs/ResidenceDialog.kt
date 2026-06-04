@@ -157,14 +157,10 @@ fun ResidenceDialog(
                     ) {
                         DiscipleSlot(
                             disciple = disciple,
-                            onSlotClick = {
-                                if (disciple != null) {
-                                    // Clicking occupied slot does nothing special in this design
-                                } else {
-                                    selectedSlotIndex = slot.slotIndex
-                                    isSwapping = false
-                                    showDiscipleSelector = true
-                                }
+                            onEmptySlotClick = {
+                                selectedSlotIndex = slot.slotIndex
+                                isSwapping = false
+                                showDiscipleSelector = true
                             }
                         )
                         if (disciple != null) {
