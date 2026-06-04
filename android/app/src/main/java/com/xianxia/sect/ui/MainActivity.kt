@@ -440,6 +440,9 @@ class MainActivity : ComponentActivity() {
     private fun initTapTapSDK() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // 初始化广告SDK（必须在用户同意隐私政策后）
+                initAdSdk()
+
                 TapTapAuthManager.init(
                     this@MainActivity,
                     BuildConfig.TAPTAP_CLIENT_ID,
@@ -455,6 +458,23 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
             }
+        }
+    }
+
+    /** 初始化 Dirichlet Ad SDK（仅在用户同意隐私政策后调用） */
+    private fun initAdSdk() {
+        try {
+            val config = com.tapsdk.tapad.TapAdConfig.Builder()
+                .withMediaId(1102528)
+                .withMediaName("模拟宗门")
+                .withMediaKey("mVqNo2pNuostrqythQ9HXeLOMF4flzBA71skS5P9vNqChyIWIhbj1Qotmutf0Dbn")
+                .enableDebug(BuildConfig.DEBUG)
+                .shakeEnabled(true)
+                .build()
+            com.tapsdk.tapad.TapAdSdk.init(application, config)
+            Log.i(TAG, "Dirichlet Ad SDK 初始化完成（用户已同意隐私政策）")
+        } catch (e: Exception) {
+            Log.e(TAG, "Dirichlet Ad SDK 初始化失败: ${e.message}", e)
         }
     }
     

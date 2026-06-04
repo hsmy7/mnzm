@@ -4,8 +4,6 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
-import com.tapsdk.tapad.TapAdConfig
-import com.tapsdk.tapad.TapAdSdk
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.crypto.SaveCrypto
@@ -62,8 +60,7 @@ class XianxiaApplication : Application() {
         super.onCreate()
         instance = this
 
-        // 初始化 Dirichlet Ad SDK
-        initAdSdk()
+        // 广告SDK初始化移至 MainActivity.initTapTapSDK()，确保用户同意隐私政策后再初始化
 
         SaveCrypto.initialize(applicationScopeProvider)
 
@@ -166,22 +163,5 @@ class XianxiaApplication : Application() {
         instance = null
 
         Log.i(TAG, "Application terminated, all resources cleaned up successfully")
-    }
-
-    /** 初始化 Dirichlet Ad SDK */
-    private fun initAdSdk() {
-        try {
-            val config = TapAdConfig.Builder()
-                .withMediaId(1102528)
-                .withMediaName("模拟宗门")
-                .withMediaKey("mVqNo2pNuostrqythQ9HXeLOMF4flzBA71skS5P9vNqChyIWIhbj1Qotmutf0Dbn")
-                .enableDebug(BuildConfig.DEBUG)
-                .shakeEnabled(true)
-                .build()
-            TapAdSdk.init(this, config)
-            Log.i(TAG, "Dirichlet Ad SDK 初始化完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "Dirichlet Ad SDK 初始化失败: ${e.message}", e)
-        }
     }
 }

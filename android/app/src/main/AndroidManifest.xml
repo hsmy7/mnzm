@@ -135,6 +135,13 @@
             android:exported="false"
             tools:node="remove"
             tools:ignore="MissingClass" />
+        <!-- 禁用 Dirichlet Ad SDK 的 ContentProvider 自动初始化，避免在用户同意隐私政策前收集传感器等信息 -->
+        <provider
+            android:name="com.tapsdk.tapad.TapAdInitProvider"
+            android:authorities="${applicationId}.TapAdInitProvider"
+            android:exported="false"
+            tools:node="remove"
+            tools:ignore="MissingClass" />
 
     </application>
 
