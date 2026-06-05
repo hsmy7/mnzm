@@ -65,8 +65,9 @@ public class TapTapAuthManager {
         Future<?> future = initExecutor.submit(() -> {
             TapTapSdk.init(activity.getApplicationContext(), options, eventOptions);
         });
+        long timeoutMs = com.xianxia.sect.core.util.DeviceCompatibilityHelper.getTapTapInitTimeoutMs();
         try {
-            future.get(8, TimeUnit.SECONDS);
+            future.get(timeoutMs, TimeUnit.MILLISECONDS);
             isInitialized = true;
             Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL") + "，限制广告追踪: " + limitAdTracking);
         } catch (TimeoutException e) {

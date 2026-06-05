@@ -65,20 +65,19 @@ object VivoGCJITOptimizer {
     }
 
     private fun doInitialize() {
-        val info = getDeviceInfo()
-        isVivoDevice = info.isVivo
+        isVivoDevice = DeviceCompatibilityHelper.isVivo
 
         if (!isVivoDevice) {
-            Log.d(TAG, "Not a vivo/iQOO device (${info.manufacturer} ${info.model}), skipping GC/JIT optimization")
+            Log.d(TAG, "Not a vivo/iQOO device (${Build.MANUFACTURER} ${Build.MODEL}), skipping GC/JIT optimization")
             return
         }
 
         Log.i(TAG, """
             |=== Vivo GC/JIT Optimizer ===
-            |Manufacturer: ${info.manufacturer}
-            |Model: ${info.model}
-            |SDK: ${info.sdkInt}
-            |ART Version: ${info.artVersion ?: "unknown"}
+            |Manufacturer: ${Build.MANUFACTURER}
+            |Model: ${Build.MODEL}
+            |SDK: ${Build.VERSION.SDK_INT}
+            |ART Version: ${System.getProperty("java.vm.version") ?: "unknown"}
             |==============================
         """.trimMargin())
 

@@ -68,7 +68,7 @@
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:largeHeap="true"
-        android:extractNativeLibs="false"
+        android:extractNativeLibs="true"
         android:hardwareAccelerated="true">
 
         <!-- Game Mode API (Android 12+) -->

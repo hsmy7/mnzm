@@ -107,6 +107,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     @Inject
     lateinit var frameMetricsMonitor: FrameMetricsMonitor
 
+    // 持有地图预加载数据引用，供 onTrimMemory 中释放 Bitmap 使用
+    @Volatile
+    private var mapPreloadDataRef: MapPreloadData? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
@@ -189,7 +193,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 if (groundBmp != null && grassBmp != null && treeBmp != null) {
                                     // 预渲染完整静态地图（地面纹理 + 全部草/树装饰）
                                     val fullBmp = android.graphics.Bitmap.createBitmap(
-                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.ARGB_8888
+                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.RGB_565
                                     )
                                     val canvas = android.graphics.Canvas(fullBmp)
                                     canvas.drawBitmap(groundBmp, 0f, 0f, null)
@@ -259,6 +263,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
                             if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect
                             mapPreloadData = result
+                            mapPreloadDataRef = result  // 同步到类级引用，供 onTrimMemory 使用
                             saveLoadViewModel.setLoadingProgress(1.0f)
                             com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
                             com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
@@ -460,6 +465,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
                 viewModel.onMemoryPressure(level)
+                // 释放地图 Bitmap 引用以允许 GC 回收内存（ImageBitmap 无 recycle API）
+                mapPreloadDataRef = null
             }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
             ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {

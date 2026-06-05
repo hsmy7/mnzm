@@ -141,7 +141,7 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = false
+            useLegacyPackaging = true  // 恢复传统 .so 打包方式，解决华为原生库加载失败
             excludes += ["**/x86/**", "**/x86_64/**"]
         }
     }
@@ -219,6 +219,9 @@ dependencies {
 
     // Zstd 压缩 - 高压缩比冷数据压缩
     implementation 'com.github.luben:zstd-jni:1.5.6-6'
+
+    // ReLinker - 原生库加载失败时的兜底方案
+    implementation 'com.getkeepsafe.relinker:relinker:1.4.5'
 
     // Dirichlet Ad SDK（激励视频广告）
     implementation(name: "dirichlet_ad_4.2.5.0", ext: "aar")

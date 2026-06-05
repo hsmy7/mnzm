@@ -440,7 +440,6 @@ class MainActivity : ComponentActivity() {
     private fun initTapTapSDK() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // 初始化广告SDK（必须在用户同意隐私政策后）
                 initAdSdk()
 
                 TapTapAuthManager.init(
@@ -455,8 +454,15 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.Main) {
                     ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
                 }
+            } catch (e: java.util.concurrent.TimeoutException) {
+                Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
+                // 华为设备可能初始化较慢，不阻塞进入游戏
+                withContext(Dispatchers.Main) {
+                    showSaveSelectScreen()  // 跳过合规验证直接进入
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
+                Log.e(TAG, "TapTap SDK初始化失败: ${e.message}", e)
+                // 不崩溃，记录错误后继续
             }
         }
     }

@@ -179,12 +179,11 @@
     public static ** valueOf(java.lang.String);
 }
 
-# Remove logs in release — extended to include warn level
+# Remove verbose/debug/info logs in release; keep warn/error for production diagnostics
 -assumenosideeffects class android.util.Log {
     public static int v(...);
     public static int d(...);
     public static int i(...);
-    public static int w(...);
 }
 
 # Compose

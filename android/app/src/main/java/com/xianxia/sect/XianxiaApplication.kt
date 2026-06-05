@@ -6,9 +6,12 @@ import android.content.res.Configuration
 import android.util.Log
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
+import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.recovery.RecoveryManager
+import com.tencent.mmkv.MMKV
+import com.getkeepsafe.relinker.ReLinker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,7 +63,26 @@ class XianxiaApplication : Application() {
         super.onCreate()
         instance = this
 
-        // 广告SDK初始化移至 MainActivity.initTapTapSDK()，确保用户同意隐私政策后再初始化
+        DeviceCompatibilityHelper.logDeviceInfo()
+
+        // P0修复：MMKV 显式初始化，使用 ReLinker 兜底原生库加载
+        // 华为 HarmonyOS/EMUI 的 linker 不支持从 APK 直接 mmap 加载 .so，
+        // ReLinker 会在系统加载失败后手动从 APK 提取 .so 到私有目录再加载
+        try {
+            MMKV.initialize(this, object : MMKV.LibLoader {
+                override fun loadLibrary(libName: String?) {
+                    ReLinker.loadLibrary(this@XianxiaApplication, libName!!)
+                }
+            })
+            Log.i(TAG, "MMKV initialized with ReLinker fallback")
+        } catch (e: Exception) {
+            Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
+            try {
+                MMKV.initialize(this)
+            } catch (e2: Exception) {
+                Log.e(TAG, "MMKV default initialization also failed", e2)
+            }
+        }
 
         SaveCrypto.initialize(applicationScopeProvider)
 

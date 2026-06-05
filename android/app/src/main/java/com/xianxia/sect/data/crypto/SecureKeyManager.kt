@@ -657,7 +657,7 @@ object SecureKeyManager {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
-                    builder.setIsStrongBoxBacked(true)
+                    builder.setIsStrongBoxBacked(false)
                 } catch (e: java.security.InvalidAlgorithmParameterException) {
                     Log.w(TAG, "StrongBox not available on this device")
                 }
