@@ -379,6 +379,16 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":1200', '\"maxProficiency\":30000')")
                 db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":1600', '\"maxProficiency\":30000')")
                 db.execSQL("UPDATE game_data SET manualProficiencies = REPLACE(manualProficiencies, '\"maxProficiency\":2000', '\"maxProficiency\":30000')")
+
+                // 修复 disciple_compact 表 cultivationSpeed 列 DEFAULT 值
+                // MIGRATION_26_27 创建时 DEFAULT 1.0，但 @Entity 声明 defaultValue = "8.0"
+                // SQLite 不支持 ALTER COLUMN，需重建表
+                db.execSQL("CREATE TABLE IF NOT EXISTS disciple_compact_new (id TEXT NOT NULL, slot_id INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT '', cultivation REAL NOT NULL DEFAULT 0.0, realm INTEGER NOT NULL DEFAULT 0, realmLayer INTEGER NOT NULL DEFAULT 0, lifespan INTEGER NOT NULL DEFAULT 0, maxLifespan INTEGER NOT NULL DEFAULT 0, isAlive INTEGER NOT NULL DEFAULT 1, spiritRoot INTEGER NOT NULL DEFAULT 0, combatPower INTEGER NOT NULL DEFAULT 0, cultivationSpeed REAL NOT NULL DEFAULT 8.0, cultivationSpeedBonus REAL NOT NULL DEFAULT 0.0, cultivationSpeedDuration INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0, age INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(id))")
+                db.execSQL("INSERT INTO disciple_compact_new SELECT * FROM disciple_compact")
+                db.execSQL("DROP TABLE disciple_compact")
+                db.execSQL("ALTER TABLE disciple_compact_new RENAME TO disciple_compact")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id ON disciple_compact(slot_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_compact(slot_id, isAlive)")
             }
         }
 
