@@ -928,13 +928,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             d = pillResult.disciple
         }
 
-        val equipResult = DiscipleEquipmentManager.processAutoEquip(
-            disciple = d, equipmentStacks = equipmentStacksList,
-            equipmentInstances = equipmentMap,
-            gameYear = year, gameMonth = month, gamePhase = phase,
-            maxStack = maxEquipStack
-        )
-        if (equipResult.newInstances.isNotEmpty()) {
+        // 仅储物袋有装备时才检测自动装备（绝大部分弟子无装备可穿，跳过省CPU）
+        val hasEquipmentInBag = d.equipment.storageBagItems.any { it.itemType == "equipment" }
+        val equipResult = if (hasEquipmentInBag) {
+            DiscipleEquipmentManager.processAutoEquip(
+                disciple = d, equipmentStacks = equipmentStacksList,
+                equipmentInstances = equipmentMap,
+                gameYear = year, gameMonth = month, gamePhase = phase,
+                maxStack = maxEquipStack
+            )
+        } else null
+        if (equipResult != null && equipResult.newInstances.isNotEmpty()) {
             d = equipResult.disciple
             acc.equipInstancesToAdd.addAll(equipResult.newInstances)
             equipResult.replacedInstances.forEach { acc.equipInstanceIdsToRemove.add(it.id) }
@@ -950,13 +954,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
-        val manualResult = DiscipleManualManager.processAutoLearn(
-            disciple = d, manualStacks = manualStacksList,
-            manualInstances = manualMap,
-            gameYear = year, gameMonth = month, gamePhase = phase,
-            maxStack = maxManualStack
-        )
-        if (manualResult.newInstance != null) {
+        // 仅储物袋有功法时才检测自动学习（绝大部分弟子无功法可学，跳过省CPU）
+        val hasManualInBag = d.equipment.storageBagItems.any { it.itemType == "manual" }
+        val manualResult = if (hasManualInBag) {
+            DiscipleManualManager.processAutoLearn(
+                disciple = d, manualStacks = manualStacksList,
+                manualInstances = manualMap,
+                gameYear = year, gameMonth = month, gamePhase = phase,
+                maxStack = maxManualStack
+            )
+        } else null
+        if (manualResult != null && manualResult.newInstance != null) {
             d = manualResult.disciple
             manualResult.newInstance?.let { acc.manualInstancesToAdd.add(it) }
             manualResult.replacedInstance?.let { replaced ->
