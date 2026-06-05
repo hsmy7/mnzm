@@ -272,6 +272,8 @@ class SettlementCoordinator @Inject constructor(
         for ((index, disciple) in shadow.disciples.withIndex()) {
             if (!disciple.isAlive || disciple.id == focusedId) continue
             if (disciple.id !in cache.cleanDiscipleIds) continue
+            // 惰性跳过：距离突破超过2个月，等快满时再月结
+            if (disciple.id in cache.farFromCompletionIds) continue
 
             var d = disciple
             val rate = cache.cultivationRateCache[d.id] ?: 0.0
@@ -317,6 +319,8 @@ class SettlementCoordinator @Inject constructor(
 
         val dirtyDisciples = shadow.disciples.filter {
             it.isAlive && it.id != focusedId && it.id in cache.dirtyDiscipleIds
+                // 惰性跳过：距离突破超过2个月，等快满时再月结（但手动标记的脏弟子仍结算以更新completionMonth）
+                && it.id !in cache.farFromCompletionIds
         }
 
         val batch = dirtyDisciples.drop(offset).take(MAX_DIRTY_BATCH_SIZE)

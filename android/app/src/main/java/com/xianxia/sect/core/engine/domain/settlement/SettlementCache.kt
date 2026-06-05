@@ -49,6 +49,13 @@ class SettlementCache(state: MutableGameState) {
     val cleanDiscipleIds: Set<String>
     val dirtyDiscipleIds: Set<String>
 
+    /**
+     * 距离突破超过 2 个月的弟子 — 本月跳过结算。
+     * 仅当 remainingCultivation / (rate * monthSeconds) > 2 时才跳过。
+     * 焦点域强制结算，不受此限制。
+     */
+    val farFromCompletionIds: Set<String>
+
     init {
         dirtyFlags = buildDirtyFlags(state)
         cleanDiscipleIds = dirtyFlags.filter { DiscipleDirtyFlag.NONE in it.value }.keys
@@ -56,6 +63,25 @@ class SettlementCache(state: MutableGameState) {
 
         cultivationRateCache = buildCultivationRateCache(state)
         preachingBonusCache = buildPreachingBonusCache(state)
+        farFromCompletionIds = computeFarFromCompletion(state, cultivationRateCache)
+    }
+
+    /**
+     * 计算距离突破超过 2 个月的弟子集合。
+     * remaining / (rate * monthSeconds) > 2 → 跳过本月结算，等快满时再月结。
+     */
+    private fun computeFarFromCompletion(
+        state: MutableGameState,
+        rateCache: Map<String, Double>
+    ): Set<String> {
+        val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
+        return state.disciples.filter { it.isAlive }.mapNotNull { d ->
+            val rate = rateCache[d.id] ?: return@mapNotNull null
+            val remaining = d.maxCultivation - d.cultivation
+            if (remaining <= 0) return@mapNotNull null  // 已满，必须结算
+            val monthsToFull = if (rate > 0) remaining / (rate * monthSeconds) else 999.0
+            if (monthsToFull > 2.0) d.id else null
+        }.toSet()
     }
 
     private fun buildDirtyFlags(state: MutableGameState): Map<String, Set<DiscipleDirtyFlag>> {
