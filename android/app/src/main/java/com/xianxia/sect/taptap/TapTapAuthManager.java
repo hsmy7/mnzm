@@ -65,7 +65,7 @@ public class TapTapAuthManager {
         Future<?> future = initExecutor.submit(() -> {
             TapTapSdk.init(activity.getApplicationContext(), options, eventOptions);
         });
-        long timeoutMs = com.xianxia.sect.core.util.DeviceCompatibilityHelper.getTapTapInitTimeoutMs();
+        long timeoutMs = com.xianxia.sect.core.util.DeviceCompatibilityHelper.INSTANCE.getTapTapInitTimeoutMs();
         try {
             future.get(timeoutMs, TimeUnit.MILLISECONDS);
             isInitialized = true;

@@ -32,8 +32,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3208
-        versionName = "3.2.08"
+        versionCode = 3209
+        versionName = "3.2.09"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -214,8 +214,8 @@ dependencies {
     // AndroidX Security - EncryptedSharedPreferences
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
-    // MMKV - 高性能键值存储（静态链接版本，避免与其他 SDK 的 MMKV 冲突）
-    implementation 'com.tencent:mmkv-static:2.2.0'
+    // MMKV - 高性能键值存储
+    implementation 'com.tencent:mmkv:2.3.0'
 
     // LZ4 压缩 - 极速压缩
     implementation 'org.lz4:lz4-java:1.8.0'
@@ -256,11 +256,6 @@ dependencies {
 
     baselineProfile project(':baselineprofile')
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
-}
-
-// 排除 TapTap SDK 可能自带的旧版 MMKV
-configurations.all {
-    exclude group: 'com.tencent', module: 'mmkv'
 }
 
 ksp {
