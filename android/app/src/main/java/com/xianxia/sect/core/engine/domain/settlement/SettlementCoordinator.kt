@@ -562,11 +562,19 @@ class SettlementCoordinator @Inject constructor(
 
         val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data, allDisciples)
 
+        // 亲人逝世对突破率的影响
+        val griefBreakthroughPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
+            DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
+        } else {
+            0.0
+        }
+
         return DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehensionBonus = outerElderComprehensionBonus,
-            pillBonus = pillBonus
+            pillBonus = pillBonus,
+            griefBreakthroughPenalty = griefBreakthroughPenalty
         )
     }
 

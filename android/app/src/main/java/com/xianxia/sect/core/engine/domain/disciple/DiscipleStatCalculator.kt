@@ -334,7 +334,9 @@ object DiscipleStatCalculator {
         additionalBonus: Double = 0.0,
         preachingElderBonus: Double = 0.0,
         preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0
     ): Double {
         val baseCultivation = disciple.spiritRoot.cultivationBonus
 
@@ -379,6 +381,12 @@ object DiscipleStatCalculator {
             totalBonus += disciple.cultivationSpeedBonus
         }
 
+        // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
+        totalBonus += parentCultivationBonus
+
+        // 亲人逝世对修炼速度的影响
+        totalBonus -= griefCultivationSpeedPenalty
+
         return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
@@ -390,7 +398,9 @@ object DiscipleStatCalculator {
         additionalBonus: Double = 0.0,
         preachingElderBonus: Double = 0.0,
         preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0
     ): Double {
         val baseCultivation = aggregate.spiritRoot.cultivationBonus
 
@@ -437,6 +447,12 @@ object DiscipleStatCalculator {
             totalBonus += ext.cultivationSpeedBonus
         }
 
+        // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
+        totalBonus += parentCultivationBonus
+
+        // 亲人逝世对修炼速度的影响
+        totalBonus -= griefCultivationSpeedPenalty
+
         return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
@@ -445,7 +461,8 @@ object DiscipleStatCalculator {
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
-        adBonus: Double = 0.0
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0
     ): Double {
         if (disciple.realm < 0) return 0.0
 
@@ -463,7 +480,7 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -472,7 +489,8 @@ object DiscipleStatCalculator {
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
-        adBonus: Double = 0.0
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
 
@@ -490,7 +508,7 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -506,6 +524,7 @@ object DiscipleStatCalculator {
         val soulPowerBonus: Double,
         val pillBonus: Double,
         val adBonus: Double,
+        val griefPenalty: Double,
         val total: Double
     )
 
@@ -514,16 +533,17 @@ object DiscipleStatCalculator {
         innerElderComprehension: Int = 0,
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
-        adBonus: Double = 0.0
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0
     ): BreakthroughBonusDetail {
-        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
         val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - 80) / 4) * 0.01 else 0.0
         val talentEffects = getTalentEffects(aggregate)
         val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus + adBonus
+        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
         return BreakthroughBonusDetail(
             baseChance = baseChance,
             innerElderBonus = innerElderBonus,
@@ -532,6 +552,7 @@ object DiscipleStatCalculator {
             soulPowerBonus = soulPowerBonus,
             pillBonus = pillBonus,
             adBonus = adBonus,
+            griefPenalty = griefBreakthroughPenalty,
             total = total.coerceIn(0.0, 1.0)
         )
     }
@@ -708,5 +729,126 @@ object DiscipleStatCalculator {
         "physicalDefense" -> "物防"
         "magicDefense" -> "法防"
         else -> statKey
+    }
+
+    // ==================== 父母灵根对子嗣修炼速度的影响 ====================
+
+    /**
+     * 根据灵根数量计算父母对子嗣修炼速度的加成比例
+     * 单灵根 +10%, 双灵根 +5%, 三灵根 0%, 四灵根 -5%, 五灵根 -10%
+     */
+    fun getParentSpiritRootBonus(spiritRootCount: Int): Double {
+        return when (spiritRootCount) {
+            1 -> 0.10
+            2 -> 0.05
+            3 -> 0.0
+            4 -> -0.05
+            5 -> -0.10
+            else -> 0.0
+        }
+    }
+
+    /**
+     * 计算父母灵根对子嗣修炼速度的总加成
+     * 仅存活父母影响，父母各自独立计算
+     * @param parent1 父亲（或父母之一），null表示不存在或已故
+     * @param parent2 母亲（或父母之一），null表示不存在或已故
+     * @return 总加成比例（如 0.20 表示 +20%）
+     */
+    fun calculateParentCultivationBonus(parent1: Disciple?, parent2: Disciple?): Double {
+        var bonus = 0.0
+        if (parent1 != null && parent1.isAlive) {
+            bonus += getParentSpiritRootBonus(parent1.spiritRoot.types.size)
+        }
+        if (parent2 != null && parent2.isAlive) {
+            bonus += getParentSpiritRootBonus(parent2.spiritRoot.types.size)
+        }
+        return bonus
+    }
+
+    /**
+     * 计算父母灵根对子嗣修炼速度的总加成（DiscipleAggregate版本）
+     */
+    fun calculateParentCultivationBonusForAggregate(parent1: DiscipleAggregate?, parent2: DiscipleAggregate?): Double {
+        var bonus = 0.0
+        if (parent1 != null && parent1.isAlive) {
+            bonus += getParentSpiritRootBonus(parent1.spiritRoot.types.size)
+        }
+        if (parent2 != null && parent2.isAlive) {
+            bonus += getParentSpiritRootBonus(parent2.spiritRoot.types.size)
+        }
+        return bonus
+    }
+
+    // ==================== 亲人逝世影响 ====================
+
+    /**
+     * 亲人逝世对修炼速度的惩罚比例：降低50%
+     */
+    const val GRIEF_CULTIVATION_SPEED_PENALTY = 0.50
+
+    /**
+     * 亲人逝世对突破率的惩罚比例：降低20%
+     */
+    const val GRIEF_BREAKTHROUGH_CHANCE_PENALTY = 0.20
+
+    /**
+     * 判断弟子是否处于丧亲悲痛期
+     * @param griefEndYear 悲痛结束年份，null表示未处于悲痛期
+     * @param currentYear 当前游戏年份
+     */
+    fun isGrieving(griefEndYear: Int?, currentYear: Int): Boolean {
+        return griefEndYear != null && currentYear < griefEndYear
+    }
+
+    // ==================== 亲属关系判定 ====================
+
+    /**
+     * 判断两个弟子是否为亲属关系（道侣、父母/子嗣、兄弟姐妹）
+     * 用于丧亲悲痛系统
+     */
+    fun areRelatives(a: Disciple, b: Disciple): Boolean {
+        // 道侣关系
+        if (a.social.partnerId == b.id || b.social.partnerId == a.id) return true
+
+        // 父母-子女关系：a是b的父母 或 b是a的父母
+        if (a.id == b.social.parentId1 || a.id == b.social.parentId2) return true
+        if (b.id == a.social.parentId1 || b.id == a.social.parentId2) return true
+
+        // 兄弟姐妹关系：有共同父母（支持单亲匹配）
+        val aParents = setOfNotNull(a.social.parentId1, a.social.parentId2)
+        val bParents = setOfNotNull(b.social.parentId1, b.social.parentId2)
+        if (aParents.isNotEmpty() && aParents.intersect(bParents).isNotEmpty()) return true
+
+        return false
+    }
+
+    /**
+     * 为所有存活亲属设置悲痛期（持续1年），支持多个逝者批量处理
+     * @param disciples 当前弟子列表
+     * @param deceasedList 阵亡/逝世的弟子列表
+     * @param currentYear 当前游戏年份
+     * @return 更新后的弟子列表
+     */
+    fun applyGriefToRelatives(
+        disciples: List<Disciple>,
+        deceasedList: List<Disciple>,
+        currentYear: Int
+    ): List<Disciple> {
+        val griefEndYear = currentYear + 1
+        var updated = disciples
+        for (deceased in deceasedList) {
+            updated = updated.map { d ->
+                if (!d.isAlive || d.id == deceased.id) return@map d
+                if (areRelatives(d, deceased)) {
+                    val existingGriefEnd = d.social.griefEndYear
+                    val newGriefEnd = if (existingGriefEnd != null && existingGriefEnd > griefEndYear) existingGriefEnd else griefEndYear
+                    d.copy(social = d.social.copy(griefEndYear = newGriefEnd))
+                } else {
+                    d
+                }
+            }
+        }
+        return updated
     }
 }

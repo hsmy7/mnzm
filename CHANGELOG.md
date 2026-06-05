@@ -1,6 +1,42 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.09] - 2026-06-05
+
+### Bug 修复
+
+- 修复华为/荣耀手机启动闪退问题（原生库加载兼容性优化）
+
 ## [3.2.08] - 2026-06-05
+
+### 新增功能：父母灵根影响子嗣修炼
+
+- 父母灵根直接影响子嗣修炼速度加成：单灵根 +10%、双灵根 +5%、三灵根 0%、四灵根 -5%、五灵根 -10%
+- 仅存活父母生效（已故父母不计入加成），父母各自独立计算，叠加生效（如双单灵根父母 = +20%）
+- 计算函数统一在 `DiscipleStatCalculator`：`getParentSpiritRootBonus()` 返回单亲加成、`calculateParentCultivationBonus()` 返回双亲总加成
+- 影响范围：`CultivationService` 月度/高频修炼计算、`DiscipleAggregate` 聚合统计、弟子详情修炼速度显示
+
+### 新增功能：丧亲悲痛系统
+
+- 弟子死亡后其亲属进入悲痛期，持续 1 年（griefEndYear = 死亡年份 + 1），多次丧亲取最晚结束日期
+- 亲属判定覆盖道侣（partnerId）、父母/子女（parentId1/parentId2）、兄弟姐妹（共享至少一位父母）
+- 丧亲惩罚：修炼速度 -50%（`GRIEF_CULTIVATION_SPEED_PENALTY = 0.50`）、突破率 -20%（`GRIEF_BREAKTHROUGH_CHANCE_PENALTY = 0.20`）
+- 触发场景：战斗阵亡（CombatService）、探索阵亡（ExplorationService）、自然死亡/执行处决（CultivationService.handleDiscipleDeath）、宗门防御战阵亡（applyPlayerDefenseResult）
+- 悲痛期满后自动清除：`CultivationService.processGriefExpiry()` 在年度结算末尾执行
+- 亲属判定和悲痛应用统一提取到 `DiscipleStatCalculator.areRelatives()` 和 `applyGriefToRelatives()`，各 Service 不再重复实现
+- 突破详情弹窗新增"丧亲减益"行，显示当前悲痛期突破率扣减
+
+### 空闲检测优化
+
+- 空闲检测时间 10 秒 → 60 秒（`IDLE_DETECTION_MS`），减少误判
+- 游戏时间推进改为墙上时钟驱动（`elapsedMs`），不再依赖 tick 次数。无论 tick 是 100ms 还是 2000ms，游戏内 1 个月始终 ≈ 6 秒真实时间
+- 修复空闲降频期间游戏时间变慢的问题（上旬→中旬原先需 40 秒，修复后仍为 2 秒）
+- 非活跃焦点域调度基于 `System.currentTimeMillis()` 墙上时间，不受 tick 间隔影响
+
+### Bug 修复
+
+- 修复功法熟练度突破阈值后 `masteryLevel` 不更新的问题：`CultivationService` 月度/高频熟练度更新时同步计算 `MasteryLevel.fromProficiency()`，不再停留在初始值
+- 修复功法详情进度条 `currentThreshold` 映射偏移一级导致进度计算错误的问题
+- 功法熟练度显示上限从固定 30000 改为下一阶段阈值（入门 1000、小成 10000、大成 30000）
 
 ### 平衡调整
 

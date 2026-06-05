@@ -68,7 +68,7 @@ class GameEngineCore @Inject constructor(
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
         private const val IDLE_TICK_INTERVAL_MS = 2000L
-        private const val IDLE_DETECTION_MS = 10_000L
+        private const val IDLE_DETECTION_MS = 60_000L
         private const val NON_FOCUS_TICK_INTERVAL = 30_000L
         private const val TICK_TIME_BUDGET_MS = 50L
     }
@@ -121,7 +121,10 @@ class GameEngineCore @Inject constructor(
     val events: Flow<DomainEvent> get() = eventBus.events
     
     private var phaseAccumulator = 0.0
-    
+
+    /** 上一次 tick 开始的墙上时间戳（ms），用于基于真实时间计算 phase 推进 */
+    private var lastTickStartMs = 0L
+
     @Volatile
     private var _autoSaveTrigger = Channel<Unit>(capacity = Channel.BUFFERED)
     val autoSaveTrigger: Flow<Unit> get() = _autoSaveTrigger.receiveAsFlow()
@@ -164,6 +167,7 @@ class GameEngineCore @Inject constructor(
         }
         
         phaseAccumulator = 0.0
+        lastTickStartMs = 0
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
 
@@ -402,13 +406,28 @@ class GameEngineCore @Inject constructor(
 
         _tickCount.value++
 
+        // 基于真实墙上时间计算阶段推进，避免空闲/降频时游戏内时间变慢
+        val now = System.currentTimeMillis()
+        val elapsedMs = if (lastTickStartMs > 0) {
+            (now - lastTickStartMs).coerceIn(0, 5000)
+        } else {
+            0L  // 首次 tick 使用固定公式兜底
+        }
+        lastTickStartMs = now
+
         var monthChanged = false
         var yearChanged = false
 
         stateStore.update {
             val speed = this.gameData.gameSpeed.coerceIn(1, 2)
-            val phasesPerTick = (GamePhase.PHASES_PER_MONTH.toDouble() * speed) /
-                (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
+            val phasesPerTick = if (elapsedMs > 0) {
+                (GamePhase.PHASES_PER_MONTH.toDouble() * speed) * elapsedMs /
+                    (GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000.0)
+            } else {
+                // 首次 tick 兜底：基于预期的 100ms 间隔
+                (GamePhase.PHASES_PER_MONTH.toDouble() * speed) /
+                    (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
+            }
             phaseAccumulator += phasesPerTick
 
             while (phaseAccumulator >= 1.0) {

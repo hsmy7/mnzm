@@ -298,9 +298,9 @@ fun LearnedManualDetailDialog(
 
     val currentThreshold = when (mastery) {
         ManualProficiencySystem.MasteryLevel.NOVICE -> 0.0
-        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.NOVICE] ?: 0.0
-        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
-        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
+        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
+        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0
+        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0
     }
     val nextThreshold = when (mastery) {
         ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0
@@ -381,7 +381,7 @@ fun LearnedManualDetailDialog(
                         color = rarityColor
                     )
                     Text(
-                        text = "${proficiency.toInt()}/${maxProficiency.toInt()}",
+                        text = "${proficiency.toInt()}/${nextThreshold.toInt()}",
                         fontSize = 11.sp,
                         color = Color.Black
                     )

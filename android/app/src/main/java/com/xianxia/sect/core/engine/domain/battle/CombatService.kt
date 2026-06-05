@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.battle
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -123,6 +124,14 @@ private val eventBus: EventBusPort,
         survivorMpMap: Map<String, Int> = emptyMap(),
         isOutsideSect: Boolean = true
     ) {
+        // 亲人逝世影响：为所有存活亲属设置悲痛期
+        val deadDisciples = currentDisciples.filter { it.id in deadMemberIds }
+        if (deadDisciples.isNotEmpty()) {
+            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+                currentDisciples, deadDisciples, currentGameData.gameYear
+            )
+        }
+
         deadMemberIds.forEach { memberId ->
             val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
             if (discipleIndex < 0) return@forEach

@@ -227,7 +227,9 @@ data class DiscipleAggregate(
         buildingBonus: Double = 1.0,
         preachingElderBonus: Double = 0.0,
         preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0
     ): Double {
         return DiscipleStatCalculator.calculateCultivationSpeed(
             this, manuals, manualProficiencies,
@@ -235,7 +237,9 @@ data class DiscipleAggregate(
             additionalBonus = additionalBonus,
             preachingElderBonus = preachingElderBonus,
             preachingMastersBonus = preachingMastersBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            parentCultivationBonus = parentCultivationBonus,
+            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty
         )
     }
     

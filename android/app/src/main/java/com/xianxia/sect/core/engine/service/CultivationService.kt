@@ -314,9 +314,21 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     if (profIndex >= 0) {
                         val cp = profList[profIndex]
                         val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
-                        profList[profIndex] = cp.copy(proficiency = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
+                        val newProf = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble())
+                        profList[profIndex] = cp.copy(
+                            proficiency = newProf,
+                            maxProficiency = fixedMaxProf,
+                            masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProf).level
+                        )
                     } else {
-                        profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = netProfGain.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
+                        val initProf = netProfGain.coerceAtMost(maxProf.toDouble())
+                        profList.add(ManualProficiencyData(
+                            manualId = manualId,
+                            manualName = manual.name,
+                            proficiency = initProf,
+                            maxProficiency = maxProf,
+                            masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
+                        ))
                     }
                     updatedManualProficiencies[d.id] = profList
                 }
@@ -421,9 +433,21 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 if (profIndex >= 0) {
                     val cp = profList[profIndex]
                     val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
-                    profList[profIndex] = cp.copy(proficiency = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(fixedMaxProf.toDouble()), maxProficiency = fixedMaxProf)
+                    val newProf = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(fixedMaxProf.toDouble())
+                    profList[profIndex] = cp.copy(
+                        proficiency = newProf,
+                        maxProficiency = fixedMaxProf,
+                        masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProf).level
+                    )
                 } else {
-                    profList.add(ManualProficiencyData(manualId = manualId, manualName = manual.name, proficiency = proficiencyGainPerTick.coerceAtMost(maxProf.toDouble()), maxProficiency = maxProf))
+                    val initProf = proficiencyGainPerTick.coerceAtMost(maxProf.toDouble())
+                    profList.add(ManualProficiencyData(
+                        manualId = manualId,
+                        manualName = manual.name,
+                        proficiency = initProf,
+                        maxProficiency = maxProf,
+                        masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
+                    ))
                 }
                 updatedManualProficiencies[discipleId] = profList
                 discipleProfUpdates[manualId] = (discipleProfUpdates[manualId] ?: 0.0) + proficiencyGainPerTick
@@ -490,6 +514,18 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
+        // 父母灵根对子嗣修炼速度的影响
+        val parent1 = disciple.social.parentId1?.let { allDisciples[it] }
+        val parent2 = disciple.social.parentId2?.let { allDisciples[it] }
+        val parentCultivationBonus = DiscipleStatCalculator.calculateParentCultivationBonus(parent1, parent2)
+
+        // 亲人逝世对修炼速度的影响
+        val griefPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
+            DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
+        } else {
+            0.0
+        }
+
         return DiscipleStatCalculator.calculateCultivationSpeed(
             disciple = disciple,
             manuals = manualInstanceMap,
@@ -497,7 +533,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            parentCultivationBonus = parentCultivationBonus,
+            griefCultivationSpeedPenalty = griefPenalty
         ).coerceIn(1.0, 1000.0)
     }
 
@@ -1190,6 +1228,23 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 12. Yearly AI garrison rotation — top 10 stay home, rest fill occupied sect garrisons
         currentGameData = AISectGarrisonManager.rotateGarrisonSlots(currentGameData)
+
+        // 13. 清理过期的悲痛期
+        processGriefExpiry(year)
+    }
+
+    /**
+     * 清理过期的悲痛期
+     */
+    private fun processGriefExpiry(currentYear: Int) {
+        currentDisciples = currentDisciples.map { disciple ->
+            val griefEnd = disciple.social.griefEndYear
+            if (griefEnd != null && currentYear >= griefEnd) {
+                disciple.copy(social = disciple.social.copy(griefEndYear = null))
+            } else {
+                disciple
+            }
+        }
     }
 
     /**
@@ -1231,6 +1286,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      */
     private suspend fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         clearDiscipleFromAllSlots(disciple.id)
+
+        // 亲人逝世影响：为所有存活亲属设置悲痛期（持续1年）
+        currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+            currentDisciples, listOf(disciple), currentGameData.gameYear
+        )
 
         if (isOutsideSect) {
             disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
@@ -1307,12 +1367,20 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         // 从 statusData 读取广告突破加成
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
+        // 亲人逝世对突破率的影响
+        val griefBreakthroughPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
+            DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
+        } else {
+            0.0
+        }
+
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehensionBonus = outerElderComprehensionBonus,
             pillBonus = pillBonus,
-            adBonus = adBonus
+            adBonus = adBonus,
+            griefBreakthroughPenalty = griefBreakthroughPenalty
         )
         val success = Random.nextDouble() < chance
 
@@ -2829,9 +2897,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
         val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
 
+        // 亲人逝世影响：为阵亡弟子的存活亲属设置悲痛期
+        val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
+        if (deadDefenders.isNotEmpty()) {
+            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+                currentDisciples, deadDefenders, currentGameData.gameYear
+            )
+        }
+
         // Apply player defender casualties
         currentDisciples = currentDisciples.map { d ->
-            if (d.id in result.deadDefenderIds) d.copy(isAlive = false) else d
+            if (d.id in result.deadDefenderIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
         }
 
         var updatedData = currentGameData.copy(

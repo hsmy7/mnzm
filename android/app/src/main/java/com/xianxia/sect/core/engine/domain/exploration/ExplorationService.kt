@@ -6,6 +6,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -131,6 +132,7 @@ class ExplorationService @Inject constructor(
             // 更新弟子状态
             val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
             val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+            val deadDisciples = disciples.filter { it.id in towerDiscipleIds && it.id !in survivorIds }
             disciples = disciples.map { d ->
                 val (hp, mp) = hpMap[d.id] ?: return@map d
                 if (d.id !in survivorIds) {
@@ -141,6 +143,13 @@ class ExplorationService @Inject constructor(
                         currentMp = mp.coerceIn(0, d.maxMp)
                     ))
                 }
+            }
+
+            // 亲人逝世影响：为阵亡弟子的存活亲属设置悲痛期
+            if (deadDisciples.isNotEmpty()) {
+                disciples = DiscipleStatCalculator.applyGriefToRelatives(
+                    disciples, deadDisciples, gd.gameYear
+                )
             }
 
             // 构建 BattleLog
@@ -372,7 +381,13 @@ class ExplorationService @Inject constructor(
         currentDisciples = currentDisciples.map {
             if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.DEAD) else it
         }
-        disciple?.let { eventBus.emitSync(DeathEvent(it.id, it.name, "探索阵亡")) }
+        disciple?.let { d ->
+            eventBus.emitSync(DeathEvent(d.id, d.name, "探索阵亡"))
+            // 亲人逝世影响：为存活亲属设置悲痛期
+            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+                currentDisciples, listOf(d), currentGameData.gameYear
+            )
+        }
     }
 
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
@@ -380,5 +395,4 @@ class ExplorationService @Inject constructor(
             if (it.id == discipleId) it.copy(status = status) else it
         }
     }
-
 }
