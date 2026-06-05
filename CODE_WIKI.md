@@ -801,6 +801,36 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 ---
 
+## 事件驱动惰性求值 (v3.2.15)
+
+### 核心思想
+
+每种耗时操作存储 `completionMonth` + `completionPhase`，仅在 `currentMonth >= completionMonth && currentPhase >= completionPhase` 时才结算。**焦点域强制立即结算**（100ms tick），保证玩家体验。
+
+### 关键文件
+
+- `LazyEvaluationDispatcher` — 统一调度器：`shouldSettle()` / `shouldSettleWithThermal()` / `isInFocusDomain()`
+- `GameSystem.settlementPhase` — 每个系统声明自己属于哪个结算旬（1=上旬/2=中旬/3=下旬/0=每旬）
+- `SystemManager.onPhaseTickWithDomainFilter()` — 分旬过滤 + 热状态联动
+
+### 数据模型新增字段
+
+- `Disciple`: `cultivationCompletionMonth/Phase`, `manualCompletionMonth/Phase`, `equipmentNurturingCompletionMonth/Phase`
+- `ProductionSlot`: `completionMonth`, `completionPhase`
+- `SpiritFieldPlant`: `completionMonth`, `completionPhase`
+- DB Migration v32→v33：ALTER TABLE 新增 8 列
+
+### 其他性能改进
+
+- `GameStateStore` 版本计数器 + `sample(50)` 批处理 StateFlow 发射
+- `ThermalMonitor` ADPF Performance Hint API 集成（API 31+）
+- `MainGameScreen` 热状态自适应渲染分辨率（NORMAL→1.0 / MODERATE→0.75 / SEVERE→0.6 / EMERGENCY→0.5）
+- `CultivationService` 微批次 yield（每 50 人 yield）、PhaseTickAccumulator 合并副作用
+- `GameEngineCore` 专用游戏线程（`GAME_DISPATCHER`）、空闲检测保留 tick 改降域
+- 月度结算精简：薪水脏标记、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
+
+---
+
 ## 后续优化项
 
 | 优先级 | 描述 | 预估收益 | 状态 |
@@ -817,4 +847,5 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
 | P3 | 巡逻塔 `updatePatrolConfigs` fire-and-forget → suspend | 与灵矿场/巡逻塔修复同模式 | 待实施 |
+| ~~P0~~ | ~~手机发热优化~~ | ~~95% CPU削减~~ | ✅ 已完成 (v3.2.15) |
 | P3 | `GameStateStore.updateXxxDirect` 方法移除 | 减少 API 表面积 | 待实施 |

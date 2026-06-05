@@ -55,6 +55,7 @@ import com.xianxia.sect.ui.navigation.toDialogRoute
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
+import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
@@ -292,6 +293,19 @@ fun MainGameScreen(
     }
     val isGameOver by viewModel.isGameOver.collectAsStateWithLifecycle()
 
+    // 热状态自适应分辨率 — 根据设备发热程度降低 Canvas 渲染分辨率
+    val thermalState by viewModel.thermalState.collectAsStateWithLifecycle()
+    val renderScale by remember {
+        derivedStateOf {
+            when (thermalState) {
+                ThermalState.EMERGENCY -> 0.5f
+                ThermalState.SEVERE -> 0.6f
+                ThermalState.MODERATE -> 0.75f
+                else -> 1.0f
+            }
+        }
+    }
+
     LaunchedEffect(isGameOver) {
         if (isGameOver) {
             viewModel.openGameOverDialog()
@@ -467,6 +481,7 @@ fun MainGameScreen(
             worldHeightCells = worldHeightCells,
             worldPixelWidth = worldPixelWidth,
             worldPixelHeight = worldPixelHeight,
+            renderScale = renderScale,
             isPlacing = isPlacingBuilding,
             placingBuildingName = placingBuildingName,
             buildingBarExpanded = buildingBarExpanded,
@@ -491,8 +506,8 @@ fun MainGameScreen(
                     placingBuildingSize.width, placingBuildingSize.height
                 )
                 val edgePx = 80f
-                val screenX = cameraState.worldToScreenX(placingWorldX)
-                val screenY = cameraState.worldToScreenY(placingWorldY)
+                val screenX = cameraState.worldToScreenX(placingWorldX) * renderScale
+                val screenY = cameraState.worldToScreenY(placingWorldY) * renderScale
                 val panSpeed = 8f
                 if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
                 if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
@@ -547,8 +562,8 @@ fun MainGameScreen(
                 )
                 // 边缘自动平移
                 val edgePx = 80f
-                val screenX = cameraState.worldToScreenX(movingWorldX)
-                val screenY = cameraState.worldToScreenY(movingWorldY)
+                val screenX = cameraState.worldToScreenX(movingWorldX) * renderScale
+                val screenY = cameraState.worldToScreenY(movingWorldY) * renderScale
                 val panSpeed = 8f
                 if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
                 if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
@@ -566,6 +581,7 @@ fun MainGameScreen(
                 cameraState = cameraState,
                 tileSize = tileSize,
                 validity = movingValid,
+                renderScale = renderScale,
                 onConfirm = {
                     movingBuilding?.let { b ->
                         if (movingValid == GridSnapHelper.PlacementValidity.Valid &&
@@ -581,7 +597,17 @@ fun MainGameScreen(
         }
 
         // UI overlay — SectInfoCard + two side button columns
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent()
+                        viewModel.onUserInteraction()
+                    }
+                }
+            }
+        ) {
             SectInfoCard(
                 sectName = gameData?.sectName ?: "青云宗",
                 gameYear = gameData?.gameYear ?: 1,
@@ -760,6 +786,7 @@ private fun SectMapLayer(
     worldHeightCells: Int,
     worldPixelWidth: Int,
     worldPixelHeight: Int,
+    renderScale: Float = 1.0f,
     isPlacing: Boolean,
     placingBuildingName: String,
     buildingBarExpanded: Boolean,
@@ -802,6 +829,7 @@ private fun SectMapLayer(
         worldHeightCells = worldHeightCells,
         worldPixelWidth = worldPixelWidth,
         worldPixelHeight = worldPixelHeight,
+        renderScale = renderScale,
         isPlacing = isPlacing,
         placingBuildingName = placingBuildingName,
         buildingBarExpanded = buildingBarExpanded,
@@ -851,6 +879,7 @@ private fun SectMapLayer(
             cameraState = cameraState,
             tileSize = tileSize,
             validity = previewValid,
+            renderScale = renderScale,
             onConfirm = onPlacementConfirm,
             onCancel = onPlacementCancel
         )
@@ -869,6 +898,7 @@ private fun SectGroundCanvas(
     worldHeightCells: Int,
     worldPixelWidth: Int,
     worldPixelHeight: Int,
+    renderScale: Float = 1.0f,
     isPlacing: Boolean = false,
     placingBuildingName: String = "",
     buildingBarExpanded: Boolean = false,
@@ -909,6 +939,7 @@ private fun SectGroundCanvas(
     val currentMovingSize by rememberUpdatedState(movingSize)
     val currentPreviewSize by rememberUpdatedState(previewSize)
     val currentMovingInstanceId by rememberUpdatedState(movingInstanceId)
+    val currentRenderScale by rememberUpdatedState(renderScale)
     val longPressScope = rememberCoroutineScope()
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
@@ -922,9 +953,11 @@ private fun SectGroundCanvas(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downPos = down.position
+                    // 补偿 Canvas scale 变换对触控坐标的影响
+                    val scaledPos = Offset(downPos.x / currentRenderScale, downPos.y / currentRenderScale)
 
-                    val wx = cameraState.screenToWorldX(downPos.x)
-                    val wy = cameraState.screenToWorldY(downPos.y)
+                    val wx = cameraState.screenToWorldX(scaledPos.x)
+                    val wy = cameraState.screenToWorldY(scaledPos.y)
 
                     val gridX = (wx / tileSize).toInt()
                     val gridY = (wy / tileSize).toInt()
@@ -991,8 +1024,8 @@ private fun SectGroundCanvas(
 
                         if (dragStarted) {
                             change.consume()
-                            val dragAmountX = change.position.x - lastPos.x
-                            val dragAmountY = change.position.y - lastPos.y
+                            val dragAmountX = (change.position.x - lastPos.x) / currentRenderScale
+                            val dragAmountY = (change.position.y - lastPos.y) / currentRenderScale
                             when (dragTarget) {
                                 DragTarget.BUILDING_MOVE -> currentOnMovingDrag(dragAmountX, dragAmountY)
                                 DragTarget.BUILDING_PLACE -> currentOnPlacementDrag(dragAmountX, dragAmountY)
@@ -1005,10 +1038,12 @@ private fun SectGroundCanvas(
                 }
             }
     ) {
-        val sw = size.width
-        val sh = size.height
+        val sw = size.width / renderScale
+        val sh = size.height / renderScale
 
+        // 热状态自适应分辨率：通过 scale 变换降低实际渲染像素量
         withTransform({
+            scale(renderScale, renderScale, pivot = Offset.Zero)
             translate(-cameraState.cameraX, -cameraState.cameraY)
         }) {
             // 1. 静态背景层（含已烘焙建筑，或纯地形背景）
@@ -1218,14 +1253,15 @@ private fun PlacementConfirmButtons(
     cameraState: CameraState,
     tileSize: Int,
     validity: GridSnapHelper.PlacementValidity,
+    renderScale: Float = 1.0f,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val worldX = GridSnapHelper.gridToWorld(snappedGridX, tileSize).toFloat()
     val worldY = GridSnapHelper.gridToWorld(snappedGridY, tileSize).toFloat()
-    val buildingCenterXDp = cameraState.worldToScreenX(worldX + buildingSize.width * tileSize / 2f) / density
-    val buildingTopYDp = cameraState.worldToScreenY(worldY) / density
+    val buildingCenterXDp = cameraState.worldToScreenX(worldX + buildingSize.width * tileSize / 2f) * renderScale / density
+    val buildingTopYDp = cameraState.worldToScreenY(worldY) * renderScale / density
     val canConfirm = validity == GridSnapHelper.PlacementValidity.Valid
     val btnDp = (tileSize / density).dp
     val spacerDp = btnDp * 0.4f
@@ -1256,14 +1292,14 @@ private fun PlacementConfirmButtons(
         }
     }
     // 放置预览覆盖层 — graphicsLayer 零重组动画（平移仅触发 draw，跳过 layout）
-    val overlayWDp = (buildingSize.width * tileSize) / density
-    val overlayHDp = (buildingSize.height * tileSize) / density
+    val overlayWDp = (buildingSize.width * tileSize * renderScale) / density
+    val overlayHDp = (buildingSize.height * tileSize * renderScale) / density
     val overlayColor = if (canConfirm) Color(0x664CAF50) else Color(0x66F44336)
     Box(
         modifier = Modifier
             .graphicsLayer {
-                translationX = cameraState.worldToScreenX(worldX)
-                translationY = cameraState.worldToScreenY(worldY)
+                translationX = cameraState.worldToScreenX(worldX) * renderScale
+                translationY = cameraState.worldToScreenY(worldY) * renderScale
             }
             .size(width = overlayWDp.dp, height = overlayHDp.dp)
             .background(overlayColor)

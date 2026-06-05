@@ -185,6 +185,7 @@ class BuildingFacadeImpl @Inject constructor(
 
         val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
         val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val newSlot = ProductionSlot(
             id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
             slotIndex = slotIndex,
@@ -198,7 +199,9 @@ class BuildingFacadeImpl @Inject constructor(
             duration = seed.growTime,
             outputItemId = herbId ?: "",
             outputItemName = seed.name,
-            expectedYield = seed.yield
+            expectedYield = seed.yield,
+            completionMonth = currentAbsoluteMonth + seed.growTime.coerceAtLeast(1),
+            completionPhase = 3  // 种植下旬
         )
 
         if (existingSlot != null) {
@@ -220,6 +223,7 @@ class BuildingFacadeImpl @Inject constructor(
 
             val currentYear = gameData.gameYear
             val currentMonth = gameData.gameMonth
+            val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
             val updatedPlants = gameData.spiritFieldPlants.toMutableList()
             updatedPlants[idx] = updatedPlants[idx].copy(
                 seedId = seedId,
@@ -228,7 +232,9 @@ class BuildingFacadeImpl @Inject constructor(
                 expectedYield = seed.yield,
                 plantYear = currentYear,
                 plantMonth = currentMonth,
-                sectId = sectId
+                sectId = sectId,
+                completionMonth = currentAbsoluteMonth + seed.growTime.coerceAtLeast(1),
+                completionPhase = 3  // 种植下旬
             )
             gameData = gameData.copy(spiritFieldPlants = updatedPlants)
         }
@@ -245,6 +251,7 @@ class BuildingFacadeImpl @Inject constructor(
         stateStore.update {
             val currentYear = gameData.gameYear
             val currentMonth = gameData.gameMonth
+            val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
             val updatedPlants = gameData.spiritFieldPlants.toMutableList()
             for (i in updatedPlants.indices) {
                 if (planted >= instanceIds.size) break
@@ -253,7 +260,9 @@ class BuildingFacadeImpl @Inject constructor(
                     updatedPlants[i] = p.copy(
                         seedId = seedId, seedName = seed.name,
                         growTime = seed.growTime, expectedYield = seed.yield,
-                        plantYear = currentYear, plantMonth = currentMonth, sectId = sectId
+                        plantYear = currentYear, plantMonth = currentMonth, sectId = sectId,
+                        completionMonth = currentAbsoluteMonth + seed.growTime.coerceAtLeast(1),
+                        completionPhase = 3  // 种植下旬
                     )
                     planted++
                 }
@@ -278,7 +287,9 @@ class BuildingFacadeImpl @Inject constructor(
                 growTime = 0,
                 expectedYield = 0,
                 plantYear = 0,
-                plantMonth = 0
+                plantMonth = 0,
+                completionMonth = 0,
+                completionPhase = 1
             )
             gameData = gameData.copy(spiritFieldPlants = updatedPlants)
         }

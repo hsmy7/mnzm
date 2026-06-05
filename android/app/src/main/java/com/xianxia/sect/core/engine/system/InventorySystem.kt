@@ -67,6 +67,7 @@ class InventorySystem @Inject constructor(
     }
 
     override val focusDomain = FocusDomain.WAREHOUSE
+    override val settlementPhase = 1  // 上旬：功法熟练度 + 装备孕养
 
     private fun getMaxSlots(): Int {
         val buildings = stateStore.gameData.value.placedBuildings

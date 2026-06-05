@@ -191,6 +191,7 @@ private val inventorySystem: InventorySystem,
 
                 scope.launch {
                     val existingSlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
+                    val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
                     if (existingSlot != null) {
                         productionSlotRepository.updateSlotByBuildingId("alchemy", slotIndex) { slot ->
                             slot.copy(
@@ -204,7 +205,9 @@ private val inventorySystem: InventorySystem,
                                 requiredMaterials = recipe.materials,
                                 outputItemId = recipeId,
                                 outputItemName = recipe.name,
-                                outputItemRarity = recipe.rarity
+                                outputItemRarity = recipe.rarity,
+                                completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                                completionPhase = 2  // 炼丹中旬
                             )
                         }
                     } else {
@@ -222,7 +225,9 @@ private val inventorySystem: InventorySystem,
                             requiredMaterials = recipe.materials,
                             outputItemId = recipeId,
                             outputItemName = recipe.name,
-                            outputItemRarity = recipe.rarity
+                            outputItemRarity = recipe.rarity,
+                            completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                            completionPhase = 2  // 炼丹中旬
                         ))
                     }
                 }
@@ -268,6 +273,7 @@ private val inventorySystem: InventorySystem,
 
                 scope.launch {
                     val existingSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
+                    val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
                     if (existingSlot != null) {
                         productionSlotRepository.updateSlotByBuildingId("forge", slotIndex) { slot ->
                             slot.copy(
@@ -280,7 +286,9 @@ private val inventorySystem: InventorySystem,
                                 outputItemId = recipeId,
                                 outputItemName = recipe.name,
                                 outputItemRarity = recipe.rarity,
-                                outputItemSlot = recipe.type.name
+                                outputItemSlot = recipe.type.name,
+                                completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                                completionPhase = 2  // 锻造中旬
                             )
                         }
                     } else {
@@ -299,7 +307,9 @@ private val inventorySystem: InventorySystem,
                             outputItemRarity = recipe.rarity,
                             outputItemSlot = recipe.type.name,
                             assignedDiscipleId = existingSlot?.assignedDiscipleId,
-                            assignedDiscipleName = existingSlot?.assignedDiscipleName ?: ""
+                            assignedDiscipleName = existingSlot?.assignedDiscipleName ?: "",
+                            completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                            completionPhase = 2  // 锻造中旬
                         ))
                     }
                 }

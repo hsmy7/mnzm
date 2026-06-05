@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 32
+    version = 33
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -405,6 +405,19 @@ abstract class GameDatabase : RoomDatabase() {
                     // alchemy_slots 表（旧炼丹表）
                     db.execSQL("UPDATE alchemy_slots SET duration = $new WHERE duration = $old AND status = 'WORKING'")
                 }
+            }
+        }
+
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN cultivationCompletionMonth INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN cultivationCompletionPhase INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN manualCompletionMonth INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN manualCompletionPhase INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN equipmentNurturingCompletionMonth INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN equipmentNurturingCompletionPhase INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE production_slots ADD COLUMN completionMonth INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE production_slots ADD COLUMN completionPhase INTEGER NOT NULL DEFAULT 1")
             }
         }
 
@@ -778,7 +791,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

@@ -23,7 +23,7 @@ import kotlin.random.Random
 
 object MissionSystem {
     const val REFRESH_INTERVAL_MONTHS = 3
-    const val MAX_REFRESH_COUNT = 5
+    const val MAX_REFRESH_COUNT = 6
 
     data class MissionResult(
         val spiritStones: Int = 0,

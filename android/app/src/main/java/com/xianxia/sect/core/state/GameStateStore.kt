@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -42,6 +44,7 @@ data class MutableGameState(
     var pendingNotification: GameNotification? = null
 )
 
+@OptIn(FlowPreview::class)
 @Singleton
 class GameStateStore @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
@@ -87,39 +90,42 @@ class GameStateStore @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
 
+    // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
+    private val _updateVersion = MutableStateFlow(0L)
+
     val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    // LEGACY: 全量 combine，仅用于 GameEngineCore.state 和 UnifiedGameStateManager
+    // LEGACY: 按版本触发的批处理模式，50ms 内多次更新合并为一次
     // 新代码应使用 highFreqState / entityState / configState 或独立 StateFlow
-    val unifiedState: StateFlow<UnifiedGameState> = combine(
-        _gameDataFlow, _disciplesFlow, _equipmentStacksFlow, _equipmentInstancesFlow,
-        _manualStacksFlow, _manualInstancesFlow, _pillsFlow, _materialsFlow,
-        _herbsFlow, _seedsFlow, _storageBagsFlow, _teamsFlow, _battleLogsFlow,
-        _pendingBattleResultFlow, _pendingNotificationFlow, _isPaused, _isLoading, _isSaving
-    ) { args ->
-        val gd = args[0] as GameData
-        UnifiedGameState(
+    val unifiedState: StateFlow<UnifiedGameState> = _updateVersion
+        .sample(50)
+        .map { buildUnifiedState() }
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
+
+    private fun buildUnifiedState(): UnifiedGameState {
+        val gd = _gameDataFlow.value
+        return UnifiedGameState(
             gameData = gd,
-            disciples = args[1] as List<Disciple>,
-            equipmentStacks = args[2] as List<EquipmentStack>,
-            equipmentInstances = args[3] as List<EquipmentInstance>,
-            manualStacks = args[4] as List<ManualStack>,
-            manualInstances = args[5] as List<ManualInstance>,
-            pills = args[6] as List<Pill>,
-            materials = args[7] as List<Material>,
-            herbs = args[8] as List<Herb>,
-            seeds = args[9] as List<Seed>,
-            storageBags = args[10] as List<StorageBag>,
-            teams = args[11] as List<ExplorationTeam>,
-            battleLogs = args[12] as List<BattleLog>,
+            disciples = _disciplesFlow.value,
+            equipmentStacks = _equipmentStacksFlow.value,
+            equipmentInstances = _equipmentInstancesFlow.value,
+            manualStacks = _manualStacksFlow.value,
+            manualInstances = _manualInstancesFlow.value,
+            pills = _pillsFlow.value,
+            materials = _materialsFlow.value,
+            herbs = _herbsFlow.value,
+            seeds = _seedsFlow.value,
+            storageBags = _storageBagsFlow.value,
+            teams = _teamsFlow.value,
+            battleLogs = _battleLogsFlow.value,
             alliances = gd.alliances,
-            isPaused = args[15] as Boolean,
-            isLoading = args[16] as Boolean,
-            isSaving = args[17] as Boolean,
-            pendingBattleResult = args[13] as BattleResultUIData?,
-            pendingNotification = args[14] as GameNotification?
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            pendingBattleResult = _pendingBattleResultFlow.value,
+            pendingNotification = _pendingNotificationFlow.value
         )
-    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
+    }
 
     // 公开 StateFlow——直接来自独立 MutableStateFlow，零 .map{} 开销
     val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
@@ -661,90 +667,109 @@ class GameStateStore @Inject constructor(
 
     fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
+        _updateVersion.value++
     }
 
     fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
+        _updateVersion.value++
     }
 
     fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
+        _updateVersion.value++
     }
 
     fun setPendingBattleResult(result: BattleResultUIData) {
         _pendingBattleResultFlow.value = result
+        _updateVersion.value++
     }
 
     fun clearPendingBattleResult() {
         _pendingBattleResultFlow.value = null
+        _updateVersion.value++
     }
 
     fun setPendingNotification(notification: GameNotification) {
         _pendingNotificationFlow.value = notification
+        _updateVersion.value++
     }
 
     fun clearPendingNotification() {
         _pendingNotificationFlow.value = null
+        _updateVersion.value++
     }
 
     fun updateDisciplesDirect(update: (List<Disciple>) -> List<Disciple>) {
         _disciplesFlow.value = update(_disciplesFlow.value)
         repository.markDirty(disciples = true)
+        _updateVersion.value++
     }
 
     fun updateGameDataDirect(update: (GameData) -> GameData) {
         _gameDataFlow.value = update(_gameDataFlow.value)
         repository.markDirty(gameData = true)
+        _updateVersion.value++
     }
 
     fun updateEquipmentStacksDirect(update: (List<EquipmentStack>) -> List<EquipmentStack>) {
         _equipmentStacksFlow.value = update(_equipmentStacksFlow.value)
         repository.markDirty(equipmentStacks = true)
+        _updateVersion.value++
     }
 
     fun updateEquipmentInstancesDirect(update: (List<EquipmentInstance>) -> List<EquipmentInstance>) {
         _equipmentInstancesFlow.value = update(_equipmentInstancesFlow.value)
         repository.markDirty(equipmentInstances = true)
+        _updateVersion.value++
     }
 
     fun updateManualStacksDirect(update: (List<ManualStack>) -> List<ManualStack>) {
         _manualStacksFlow.value = update(_manualStacksFlow.value)
         repository.markDirty(manualStacks = true)
+        _updateVersion.value++
     }
 
     fun updateManualInstancesDirect(update: (List<ManualInstance>) -> List<ManualInstance>) {
         _manualInstancesFlow.value = update(_manualInstancesFlow.value)
         repository.markDirty(manualInstances = true)
+        _updateVersion.value++
     }
 
     fun updatePillsDirect(update: (List<Pill>) -> List<Pill>) {
         _pillsFlow.value = update(_pillsFlow.value)
         repository.markDirty(pills = true)
+        _updateVersion.value++
     }
 
     fun updateMaterialsDirect(update: (List<Material>) -> List<Material>) {
         _materialsFlow.value = update(_materialsFlow.value)
         repository.markDirty(materials = true)
+        _updateVersion.value++
     }
 
     fun updateHerbsDirect(update: (List<Herb>) -> List<Herb>) {
         _herbsFlow.value = update(_herbsFlow.value)
         repository.markDirty(herbs = true)
+        _updateVersion.value++
     }
 
     fun updateSeedsDirect(update: (List<Seed>) -> List<Seed>) {
         _seedsFlow.value = update(_seedsFlow.value)
         repository.markDirty(seeds = true)
+        _updateVersion.value++
     }
 
     fun updateTeamsDirect(update: (List<ExplorationTeam>) -> List<ExplorationTeam>) {
         _teamsFlow.value = update(_teamsFlow.value)
         repository.markDirty(teams = true)
+        _updateVersion.value++
     }
 
     fun updateBattleLogsDirect(update: (List<BattleLog>) -> List<BattleLog>) {
         _battleLogsFlow.value = update(_battleLogsFlow.value)
         repository.markDirty(battleLogs = true)
+        _updateVersion.value++
     }
 
     // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
@@ -849,6 +874,25 @@ class GameStateStore @Inject constructor(
                     teams = reusableMutableState.teams !== curT,
                     battleLogs = reusableMutableState.battleLogs !== curBL
                 )
+                // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
+                val anyFieldChanged = reusableMutableState.gameData !== curGame
+                    || reusableMutableState.disciples !== curDisc
+                    || reusableMutableState.equipmentStacks !== curES
+                    || reusableMutableState.equipmentInstances !== curEI
+                    || reusableMutableState.manualStacks !== curMS
+                    || reusableMutableState.manualInstances !== curMI
+                    || reusableMutableState.pills !== curP
+                    || reusableMutableState.materials !== curMat
+                    || reusableMutableState.herbs !== curH
+                    || reusableMutableState.seeds !== curS
+                    || reusableMutableState.storageBags !== curSB
+                    || reusableMutableState.teams !== curT
+                    || reusableMutableState.battleLogs !== curBL
+                    || finalPaused != curPaused
+                    || finalLoading != curLoading
+                    || finalSaving != curSaving
+                    || blockChangedNotification
+                if (anyFieldChanged) _updateVersion.value++
             } finally {
                 currentTransactionState = null
             }
@@ -895,6 +939,7 @@ class GameStateStore @Inject constructor(
             _isSaving.value = isSaving
             repository.setActiveSlot(gameData.slotId)
             repository.markAllDirty()
+            _updateVersion.value++
         }
     }
 
@@ -921,6 +966,7 @@ class GameStateStore @Inject constructor(
             _isPaused.value = true
             _isLoading.value = false
             _isSaving.value = false
+            _updateVersion.value++
         }
     }
 

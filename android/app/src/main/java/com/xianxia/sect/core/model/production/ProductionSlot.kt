@@ -52,7 +52,11 @@ data class ProductionSlot(
     @ColumnInfo(defaultValue = "0")
     val harvestAmount: Int = 0,
     @ColumnInfo(defaultValue = "0")
-    val autoRestartEnabled: Boolean = false
+    val autoRestartEnabled: Boolean = false,
+    @ColumnInfo(defaultValue = "0")
+    val completionMonth: Int = 0,
+    @ColumnInfo(defaultValue = "1")
+    val completionPhase: Int = 1
 ) {
     val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
     val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING

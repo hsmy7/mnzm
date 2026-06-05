@@ -56,6 +56,12 @@ object SlotStateMachine {
         outputItemRarity: Int
     ): Result<ProductionSlot> {
         return validateTransition(slot.status, ProductionSlotStatus.WORKING).mapCatching {
+            val absoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
+            val completionPhase = when (slot.buildingType) {
+                BuildingType.FORGE, BuildingType.ALCHEMY -> 2  // 锻造/炼丹中旬
+                BuildingType.HERB_GARDEN, BuildingType.MINING -> 3  // 种植/灵矿下旬
+                else -> 1
+            }
             slot.copy(
                 status = ProductionSlotStatus.WORKING,
                 recipeId = recipeId,
@@ -69,7 +75,9 @@ object SlotStateMachine {
                 requiredMaterials = materials,
                 outputItemId = outputItemId,
                 outputItemName = outputItemName,
-                outputItemRarity = outputItemRarity
+                outputItemRarity = outputItemRarity,
+                completionMonth = absoluteMonth + duration.coerceAtLeast(1),
+                completionPhase = completionPhase
             )
         }
     }

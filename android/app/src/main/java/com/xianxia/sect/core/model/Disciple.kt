@@ -103,6 +103,19 @@ data class Disciple(
 
     var soulPower: Int = 0,
 
+    @ColumnInfo(defaultValue = "0")
+    var cultivationCompletionMonth: Int = 0,
+    @ColumnInfo(defaultValue = "1")
+    var cultivationCompletionPhase: Int = 1,
+    @ColumnInfo(defaultValue = "0")
+    var manualCompletionMonth: Int = 0,
+    @ColumnInfo(defaultValue = "1")
+    var manualCompletionPhase: Int = 1,
+    @ColumnInfo(defaultValue = "0")
+    var equipmentNurturingCompletionMonth: Int = 0,
+    @ColumnInfo(defaultValue = "1")
+    var equipmentNurturingCompletionPhase: Int = 1,
+
     // ========== @Embedded 组件 ==========
     @Embedded
     var combat: CombatAttributes = CombatAttributes(),
@@ -411,6 +424,12 @@ data class Disciple(
         storageBagSpiritStones: Long = this.storageBagSpiritStones,
         spiritStones: Int = this.spiritStones,
         soulPower: Int = this.soulPower,
+        cultivationCompletionMonth: Int = this.cultivationCompletionMonth,
+        cultivationCompletionPhase: Int = this.cultivationCompletionPhase,
+        manualCompletionMonth: Int = this.manualCompletionMonth,
+        manualCompletionPhase: Int = this.manualCompletionPhase,
+        equipmentNurturingCompletionMonth: Int = this.equipmentNurturingCompletionMonth,
+        equipmentNurturingCompletionPhase: Int = this.equipmentNurturingCompletionPhase,
         autoEquipFromWarehouse: Boolean = this.equipment.autoEquipFromWarehouse,
 
         // SocialData
@@ -466,6 +485,12 @@ data class Disciple(
             discipleType = discipleType,
             autoLearnFromWarehouse = autoLearnFromWarehouse,
             soulPower = soulPower,
+            cultivationCompletionMonth = cultivationCompletionMonth,
+            cultivationCompletionPhase = cultivationCompletionPhase,
+            manualCompletionMonth = manualCompletionMonth,
+            manualCompletionPhase = manualCompletionPhase,
+            equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonth,
+            equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhase,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,

@@ -592,7 +592,9 @@ data class SpiritFieldPlant(
     val expectedYield: Int = 0,
     val plantYear: Int = 0,
     val plantMonth: Int = 0,
-    val sectId: String = ""
+    val sectId: String = "",
+    val completionMonth: Int = 0,
+    val completionPhase: Int = 1
 )
 
 // 商人商品

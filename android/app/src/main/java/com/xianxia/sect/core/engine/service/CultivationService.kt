@@ -1,9 +1,11 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -80,9 +82,18 @@ class CultivationService @Inject constructor(
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
 private val applicationScopeProvider: ApplicationScopeProvider,
-    private val discipleService: DiscipleService
+    private val discipleService: DiscipleService,
+    private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor
 ) {
     private val scope get() = applicationScopeProvider.scope
+
+    // 外交事件计数器：每月最多触发 2 次随机外交事件
+    private var diplomacyEventsThisMonth = 0
+    private var diplomacyEventsMonth = 0
+
+    // 薪水脏标记：仅薪资配置变更或弟子进出时需要重算
+    private var salaryDirty = true
+
     companion object {
         private const val TAG = "CultivationService"
         private const val TRAVELING_MERCHANT_ITEM_COUNT = 40
@@ -669,6 +680,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 remove("adBreakthroughBonus")
             }
 
+            // 结算后计算下一次完成时间
+            val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
+                currentGameData.gameYear, currentGameData.gameMonth
+            )
+            val cultivationRate = calculateDiscipleCultivationPerSecond(disciple, currentGameData)
+            val remainingCultivation = if (newCultivation < disciple.maxCultivation) disciple.maxCultivation - newCultivation else 0.0
+            val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
+                .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)
+
             disciple.copyWith(
                 cultivation = newCultivation,
                 realm = newRealm,
@@ -677,7 +697,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 currentHp = newCurrentHp,
                 currentMp = newCurrentMp,
                 storageBagItems = newStorageItems,
-                statusData = cleanedStatusData
+                statusData = cleanedStatusData,
+                cultivationCompletionMonth = currentAbsoluteMonth + monthsToNext,
+                cultivationCompletionPhase = 1
             )
         }
 
@@ -802,10 +824,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     private val phaseMultiplier: Int get() = 10
 
-    private fun processPhaseTick(year: Int, month: Int, phase: Int) {
+    private suspend fun processPhaseTick(year: Int, month: Int, phase: Int) {
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }
         val manualMap = currentManualInstances.associateBy { it.id }
-        val allProficiencies = currentGameData.manualProficiencies
+        val proficienciesMap = currentGameData.manualProficiencies
         val multiplier = phaseMultiplier.toDouble()
         val decay = phaseMultiplier
         val equipmentStacksList = currentEquipmentStacks
@@ -813,131 +835,185 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
         val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
 
-        // 副作用累积器：.map{} 闭包内不修改外部状态，收集变更后批量应用
-        val equipInstancesToAdd = mutableListOf<EquipmentInstance>()
-        val equipInstanceIdsToRemove = mutableSetOf<String>()
-        val equipStackDeletions = mutableSetOf<String>()
-        val equipStackQuantityDeltas = mutableMapOf<String, Int>() // stackId -> delta
-        val equipStackAdditions = mutableListOf<EquipmentStack>()
-        val manualInstancesToAdd = mutableListOf<ManualInstance>()
-        val manualInstanceIdsToRemove = mutableSetOf<String>()
-        val manualStackDeletions = mutableSetOf<String>()
-        val manualStackQuantityDeltas = mutableMapOf<String, Int>()
-        val manualStackAdditions = mutableListOf<ManualStack>()
-        val profRemovals = mutableMapOf<String, MutableSet<String>>() // discipleId -> manualIds
+        // 提前过滤：只处理存活弟子
+        val aliveDisciples = currentDisciples.filter { it.isAlive }
 
-        currentDisciples = currentDisciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
+        // 统一累加器：合并分散的 MutableList/MutableMap
+        val acc = PhaseTickAccumulator()
 
-            var d = disciple
-
-            if (d.cultivationSpeedDuration > 0) {
-                val newDuration = d.cultivationSpeedDuration - decay
-                if (newDuration <= 0) {
-                    d = d.copy(cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 0)
-                } else {
-                    d = d.copy(cultivationSpeedDuration = newDuration)
-                }
-            }
-
-            if (d.pillEffects.pillEffectDuration > 0) {
-                val newDuration = d.pillEffects.pillEffectDuration - decay
-                if (newDuration <= 0) {
-                    d = d.copy(pillEffects = PillEffects())
-                } else {
-                    d = d.copy(pillEffects = d.pillEffects.copy(pillEffectDuration = newDuration))
-                }
-            }
-
-            val discipleProficiencies = allProficiencies.getOrDefault(d.id, emptyList())
-                .associateBy { it.manualId }
-            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
-            val maxHp = finalStats.maxHp
-            val maxMp = finalStats.maxMp
-            val curHp = d.combat.currentHp
-            val curMp = d.combat.currentMp
-
-            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-
-            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
-            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
-
-            if (newHp != curHp || newMp != curMp) {
-                d = d.copyWith(currentHp = newHp, currentMp = newMp)
-            }
-
-            val pillResult = DisciplePillManager.processAutoUsePills(
-                disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
+        // 分批处理弟子，每 50 个 yield 一次，避免长时间占用游戏线程
+        val batchSize = 50
+        val processedAlive = mutableListOf<Disciple>()
+        for ((index, disciple) in aliveDisciples.withIndex()) {
+            processedAlive.add(
+                processDiscipleTick(disciple, year, month, phase, equipmentMap, manualMap, proficienciesMap,
+                    multiplier, decay, equipmentStacksList, manualStacksList, maxEquipStack, maxManualStack, acc)
             )
-            if (pillResult.disciple != d) {
-                d = pillResult.disciple
-            }
-
-            val equipResult = DiscipleEquipmentManager.processAutoEquip(
-                disciple = d, equipmentStacks = equipmentStacksList,
-                equipmentInstances = equipmentMap,
-                gameYear = year, gameMonth = month, gamePhase = phase,
-                maxStack = maxEquipStack
-            )
-            if (equipResult.newInstances.isNotEmpty()) {
-                d = equipResult.disciple
-                equipInstancesToAdd.addAll(equipResult.newInstances)
-                equipResult.replacedInstances.forEach { equipInstanceIdsToRemove.add(it.id) }
-                equipResult.stackUpdates.forEach { update ->
-                    if (update.isDeletion) {
-                        equipStackDeletions.add(update.stackId)
-                    } else {
-                        equipStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
-                    }
-                }
-                equipResult.replacedEquipmentStacks.forEach { replacedStack ->
-                    equipStackAdditions.add(replacedStack)
+            if ((index + 1) % batchSize == 0) {
+                yield()
+                if (thermalMonitor.shouldReduceWorkload()) {
+                    delay(5)  // 发热时批次间暂停
                 }
             }
-
-            val manualResult = DiscipleManualManager.processAutoLearn(
-                disciple = d, manualStacks = manualStacksList,
-                manualInstances = manualMap,
-                gameYear = year, gameMonth = month, gamePhase = phase,
-                maxStack = maxManualStack
-            )
-            if (manualResult.newInstance != null) {
-                d = manualResult.disciple
-                manualInstancesToAdd.add(manualResult.newInstance)
-                manualResult.replacedInstance?.let { replaced ->
-                    manualInstanceIdsToRemove.add(replaced.id)
-                    profRemovals.getOrPut(d.id) { mutableSetOf() }.add(replaced.id)
-                }
-                manualResult.stackUpdate?.let { update ->
-                    if (update.isDeletion) {
-                        manualStackDeletions.add(update.stackId)
-                    } else {
-                        manualStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
-                    }
-                }
-                manualResult.replacedManualStack?.let { replacedStack ->
-                    manualStackAdditions.add(replacedStack)
-                }
-            }
-
-            d
         }
 
-        // 批量应用副作用
-        if (equipInstancesToAdd.isNotEmpty() || equipInstanceIdsToRemove.isNotEmpty()) {
+        // 合并：存活弟子用处理后的，死亡弟子保持原样
+        val aliveMap = processedAlive.associateBy { it.id }
+        currentDisciples = currentDisciples.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
+
+        // 一次性应用副作用
+        applyAccumulator(acc, maxEquipStack, maxManualStack)
+
+        processAutoFromWarehouse(year, month, phase)
+    }
+
+    /**
+     * 处理单个弟子的 phase tick 逻辑。
+     * 纯计算 + 累加器收集副作用，不修改外部状态。
+     */
+    private fun processDiscipleTick(
+        disciple: Disciple,
+        year: Int, month: Int, phase: Int,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        proficienciesMap: Map<String, List<ManualProficiencyData>>,
+        multiplier: Double, decay: Int,
+        equipmentStacksList: List<EquipmentStack>,
+        manualStacksList: List<ManualStack>,
+        maxEquipStack: Int, maxManualStack: Int,
+        acc: PhaseTickAccumulator
+    ): Disciple {
+        var d = disciple
+
+        if (d.cultivationSpeedDuration > 0) {
+            val newDuration = d.cultivationSpeedDuration - decay
+            if (newDuration <= 0) {
+                d = d.copy(cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 0)
+            } else {
+                d = d.copy(cultivationSpeedDuration = newDuration)
+            }
+        }
+
+        if (d.pillEffects.pillEffectDuration > 0) {
+            val newDuration = d.pillEffects.pillEffectDuration - decay
+            if (newDuration <= 0) {
+                d = d.copy(pillEffects = PillEffects())
+            } else {
+                d = d.copy(pillEffects = d.pillEffects.copy(pillEffectDuration = newDuration))
+            }
+        }
+
+        val discipleProficiencies = proficienciesMap.getOrDefault(d.id, emptyList())
+            .associateBy { it.manualId }
+        val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
+        val maxHp = finalStats.maxHp
+        val maxMp = finalStats.maxMp
+        val curHp = d.combat.currentHp
+        val curMp = d.combat.currentMp
+
+        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+
+        val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+        val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+        if (newHp != curHp || newMp != curMp) {
+            d = d.copyWith(currentHp = newHp, currentMp = newMp)
+        }
+
+        val pillResult = DisciplePillManager.processAutoUsePills(
+            disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
+        )
+        if (pillResult.disciple != d) {
+            d = pillResult.disciple
+        }
+
+        val equipResult = DiscipleEquipmentManager.processAutoEquip(
+            disciple = d, equipmentStacks = equipmentStacksList,
+            equipmentInstances = equipmentMap,
+            gameYear = year, gameMonth = month, gamePhase = phase,
+            maxStack = maxEquipStack
+        )
+        if (equipResult.newInstances.isNotEmpty()) {
+            d = equipResult.disciple
+            acc.equipInstancesToAdd.addAll(equipResult.newInstances)
+            equipResult.replacedInstances.forEach { acc.equipInstanceIdsToRemove.add(it.id) }
+            equipResult.stackUpdates.forEach { update ->
+                if (update.isDeletion) {
+                    acc.equipStackDeletions.add(update.stackId)
+                } else {
+                    acc.equipStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
+                }
+            }
+            equipResult.replacedEquipmentStacks.forEach { replacedStack ->
+                acc.equipStackAdditions.add(replacedStack)
+            }
+        }
+
+        val manualResult = DiscipleManualManager.processAutoLearn(
+            disciple = d, manualStacks = manualStacksList,
+            manualInstances = manualMap,
+            gameYear = year, gameMonth = month, gamePhase = phase,
+            maxStack = maxManualStack
+        )
+        if (manualResult.newInstance != null) {
+            d = manualResult.disciple
+            manualResult.newInstance?.let { acc.manualInstancesToAdd.add(it) }
+            manualResult.replacedInstance?.let { replaced ->
+                acc.manualInstanceIdsToRemove.add(replaced.id)
+                acc.profRemovals.getOrPut(d.id) { mutableSetOf() }.add(replaced.id)
+            }
+            manualResult.stackUpdate?.let { update ->
+                if (update.isDeletion) {
+                    acc.manualStackDeletions.add(update.stackId)
+                } else {
+                    acc.manualStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
+                }
+            }
+            manualResult.replacedManualStack?.let { replacedStack ->
+                acc.manualStackAdditions.add(replacedStack)
+            }
+        }
+
+        return d
+    }
+
+    /**
+     * PhaseTick 副作用统一累加器。
+     * 将分散的 11+ 个 MutableList/MutableMap 合并为一个数据类，
+     * 在 processDiscipleTick 中收集，在 applyAccumulator 中一次性应用。
+     */
+    private data class PhaseTickAccumulator(
+        val equipInstancesToAdd: MutableList<EquipmentInstance> = mutableListOf(),
+        val equipInstanceIdsToRemove: MutableSet<String> = mutableSetOf(),
+        val equipStackDeletions: MutableSet<String> = mutableSetOf(),
+        val equipStackQuantityDeltas: MutableMap<String, Int> = mutableMapOf(),
+        val equipStackAdditions: MutableList<EquipmentStack> = mutableListOf(),
+        val manualInstancesToAdd: MutableList<ManualInstance> = mutableListOf(),
+        val manualInstanceIdsToRemove: MutableSet<String> = mutableSetOf(),
+        val manualStackDeletions: MutableSet<String> = mutableSetOf(),
+        val manualStackQuantityDeltas: MutableMap<String, Int> = mutableMapOf(),
+        val manualStackAdditions: MutableList<ManualStack> = mutableListOf(),
+        val profRemovals: MutableMap<String, MutableSet<String>> = mutableMapOf()
+    )
+
+    /**
+     * 一次性应用累加器中的副作用到全局状态。
+     */
+    private fun applyAccumulator(acc: PhaseTickAccumulator, maxEquipStack: Int, maxManualStack: Int) {
+        if (acc.equipInstancesToAdd.isNotEmpty() || acc.equipInstanceIdsToRemove.isNotEmpty()) {
             currentEquipmentInstances = currentEquipmentInstances
-                .filter { it.id !in equipInstanceIdsToRemove } + equipInstancesToAdd
+                .filter { it.id !in acc.equipInstanceIdsToRemove } + acc.equipInstancesToAdd
         }
-        if (equipStackDeletions.isNotEmpty()) {
-            currentEquipmentStacks = currentEquipmentStacks.filter { it.id !in equipStackDeletions }
+        if (acc.equipStackDeletions.isNotEmpty()) {
+            currentEquipmentStacks = currentEquipmentStacks.filter { it.id !in acc.equipStackDeletions }
         }
-        equipStackQuantityDeltas.forEach { (stackId, newQty) ->
+        acc.equipStackQuantityDeltas.forEach { (stackId, newQty) ->
             currentEquipmentStacks = currentEquipmentStacks.map {
                 if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxEquipStack)) else it
             }
         }
-        equipStackAdditions.forEach { stack ->
+        acc.equipStackAdditions.forEach { stack ->
             val existing = currentEquipmentStacks.find { it.id == stack.id }
             currentEquipmentStacks = if (existing != null) {
                 currentEquipmentStacks.map {
@@ -948,13 +1024,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
-        if (manualInstancesToAdd.isNotEmpty() || manualInstanceIdsToRemove.isNotEmpty()) {
+        if (acc.manualInstancesToAdd.isNotEmpty() || acc.manualInstanceIdsToRemove.isNotEmpty()) {
             currentManualInstances = currentManualInstances
-                .filter { it.id !in manualInstanceIdsToRemove } + manualInstancesToAdd
+                .filter { it.id !in acc.manualInstanceIdsToRemove } + acc.manualInstancesToAdd
         }
-        if (profRemovals.isNotEmpty()) {
+        if (acc.profRemovals.isNotEmpty()) {
             val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-            profRemovals.forEach { (discipleId, manualIds) ->
+            acc.profRemovals.forEach { (discipleId, manualIds) ->
                 updatedProficiencies[discipleId]?.let { profList ->
                     val filtered = profList.filter { it.manualId !in manualIds }
                     if (filtered.isEmpty()) updatedProficiencies.remove(discipleId)
@@ -963,15 +1039,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
             currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
         }
-        if (manualStackDeletions.isNotEmpty()) {
-            currentManualStacks = currentManualStacks.filter { it.id !in manualStackDeletions }
+        if (acc.manualStackDeletions.isNotEmpty()) {
+            currentManualStacks = currentManualStacks.filter { it.id !in acc.manualStackDeletions }
         }
-        manualStackQuantityDeltas.forEach { (stackId, newQty) ->
+        acc.manualStackQuantityDeltas.forEach { (stackId, newQty) ->
             currentManualStacks = currentManualStacks.map {
                 if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxManualStack)) else it
             }
         }
-        manualStackAdditions.forEach { stack ->
+        acc.manualStackAdditions.forEach { stack ->
             val existing = currentManualStacks.find { it.id == stack.id }
             currentManualStacks = if (existing != null) {
                 currentManualStacks.map {
@@ -981,8 +1057,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 currentManualStacks + stack
             }
         }
-
-        processAutoFromWarehouse(year, month, phase)
     }
 
     private fun processAutoFromWarehouse(year: Int, month: Int, phase: Int) {
@@ -1090,38 +1164,52 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 4. 藏经阁加成已在 updateRealtimeCultivation() 中实时处理，无需月度处理
 
-        // 6. Process cave exploration
-        processCaveLifecycle(year, month)
+        // 6. Cave exploration is now real-time combat — no monthly processing needed
+        // (previously: processCaveLifecycle)
 
-        // 8. Process AI sect operations
+        // 8. Process AI sect operations (probabilistic — must run monthly)
         processAISectOperations(year, month)
 
         // 8.5 Check game over condition
         checkGameOverCondition()
 
-        // 9. Process scout info expiry
-        processScoutInfoExpiry(year, month)
+        // 9. Process scout info expiry — lazy: only check when expiry reached
+        processScoutInfoExpiryLazy(year, month)
 
-        // 10. Process diplomacy events
-        processDiplomacyMonthlyEvents(year, month)
+        // 10. Process diplomacy events — capped at 2/month
+        processDiplomacyMonthlyEventsCapped(year, month)
 
-        // 11. Process law enforcement monthly check
-        processLawEnforcementMonthly()
+        // 11. Law enforcement is now passive — triggered only after theft detection
+        // (previously: processLawEnforcementMonthly → processTheftMonthly)
 
-        // 14. Process completed missions and refresh available missions
-        processCompletedMissions()
-        processMissionRefresh()
+        // 12. Process theft — early exit if no low-morality disciples
+        processTheftIfNeeded()
+
+        // 14. Mission refresh: every 3 months. Completion: lazy via completionMonth
+        processMissionRefreshIfDue(month)
+        processCompletedMissionsLazy(year, month)
     }
 
-    private fun processCompletedMissions() {
+    /**
+     * 惰性任务完成检查：仅检查到期任务。
+     * 计算每个任务的 completionMonth，跳过未到期的。
+     */
+    private fun processCompletedMissionsLazy(year: Int, month: Int) {
         val data = currentGameData
-        val currentYear = data.gameYear
-        val currentMonth = data.gameMonth
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val completedIds = mutableListOf<String>()
         val remainingActive = mutableListOf<ActiveMission>()
 
         for (activeMission in data.activeMissions) {
-            if (activeMission.isComplete(currentYear, currentMonth)) {
+            // 惰性跳过：任务完成月份未到
+            val missionCompletionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
+                activeMission.startYear, activeMission.startMonth
+            ) + activeMission.duration
+            if (currentAbsoluteMonth < missionCompletionMonth) {
+                remainingActive.add(activeMission)
+                continue
+            }
+            if (activeMission.isComplete(year, month)) {
                 completedIds.add(activeMission.id)
 
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
@@ -1177,6 +1265,58 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         if (completedIds.isNotEmpty()) {
             currentGameData = currentGameData.copy(activeMissions = remainingActive)
         }
+    }
+
+    /**
+     * 任务刷新 — 每 3 个月一次。
+     * 刷新前清除未被接取的旧任务，新任务持续 3 个月。
+     */
+    private fun processMissionRefreshIfDue(month: Int) {
+        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 1) return
+        processMissionRefresh()
+    }
+
+    /**
+     * 侦察情报过期 — 惰性处理，仅在过期月份检查。
+     */
+    private fun processScoutInfoExpiryLazy(year: Int, month: Int) {
+        // 惰性：仅检查是否有过期的情报
+        val data = currentGameData
+        val hasExpired = data.scoutInfo.any { (_, info) ->
+            year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
+        }
+        if (!hasExpired) return
+        processScoutInfoExpiry(year, month)
+    }
+
+    /**
+     * 外交事件 — 每月最多 2 次。
+     * 计数器在进入新月时自动重置。
+     */
+    private fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
+        if (currentAbsoluteMonth != diplomacyEventsMonth) {
+            diplomacyEventsMonth = currentAbsoluteMonth
+            diplomacyEventsThisMonth = 0
+        }
+        if (diplomacyEventsThisMonth >= 2) return
+        diplomacyEventsThisMonth++
+        processDiplomacyMonthlyEvents(year, month)
+    }
+
+    /**
+     * 盗窃检查 — 仅在存在低道德弟子时执行。
+     * 执法检查改为被动触发：盗窃发生后在此方法内触发执法判定。
+     */
+    private suspend fun processTheftIfNeeded() {
+        if (currentGameData.spiritStones <= 0) return
+        val hasLowMoralityDisciple = currentDisciples.any {
+            it.isAlive && it.status == DiscipleStatus.IDLE &&
+            DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
+            DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        }
+        if (!hasLowMoralityDisciple) return
+        processTheftMonthly()
     }
 
     private fun processMissionRefresh() {
@@ -1564,7 +1704,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 outputItemId = herbId ?: "",
                 outputItemName = seedToPlant.name,
                 expectedYield = seedToPlant.yield,
-                autoRestartEnabled = slot.autoRestartEnabled
+                autoRestartEnabled = slot.autoRestartEnabled,
+                completionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth) + seedToPlant.growTime.coerceAtLeast(1),
+                completionPhase = 3  // 种植下旬
             )
 
             productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { newSlot }
@@ -1629,16 +1771,20 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     val existingSeed = currentSeeds.find { s ->
                         s.name == plant.seedName && s.rarity == (matchingSeed?.rarity ?: 1) && s.growTime == plant.growTime && s.quantity > 0
                     }
+                    val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
                     updatedPlants = updatedPlants.toMutableList().also {
                         if (existingSeed != null) {
                             inventorySystem.removeSeedSync(existingSeed.id, 1)
                             it[idx] = it[idx].copy(
-                                plantYear = currentYear, plantMonth = currentMonth
+                                plantYear = currentYear, plantMonth = currentMonth,
+                                completionMonth = currentAbsoluteMonth + plant.growTime.coerceAtLeast(1),
+                                completionPhase = 3  // 种植下旬
                             )
                         } else {
                             it[idx] = it[idx].copy(
                                 seedId = "", seedName = "", growTime = 0, expectedYield = 0,
-                                plantYear = 0, plantMonth = 0
+                                plantYear = 0, plantMonth = 0,
+                                completionMonth = 0, completionPhase = 1
                             )
                         }
                     }
@@ -1956,14 +2102,18 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * Process salary payment
      */
     internal fun processSalaryPayment(year: Int, month: Int) {
+        if (!salaryDirty) return  // 无配置变更或无新弟子，跳过
         val data = currentGameData
         val salaryConfig = data.monthlySalary
         val enabledConfig = data.monthlySalaryEnabled
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         var totalSalary = 0L
 
         currentDisciples.filter { it.isAlive }.forEach { disciple ->
             val realm = disciple.realm
             if (enabledConfig[realm] == true) {
+                // 满忠诚度且发薪（不会降忠诚）→ 跳过
+                if (disciple.skills.loyalty >= maxLoyalty) return@forEach
                 val salary = (salaryConfig[realm] ?: 0).toLong()
                 totalSalary += salary
             }
@@ -2004,13 +2154,20 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 currentDisciples = discipleUpdates
             }
         }
+        salaryDirty = false  // 处理后清除脏标记
+    }
+
+    /** 标脏薪水计算：薪资配置变更或弟子进出时调用 */
+    fun markSalaryDirty() {
+        salaryDirty = true
     }
 
     internal fun processResidenceLoyalty() {
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         val residentIds = currentGameData.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
         currentDisciples = currentDisciples.map { d ->
-            if (d.id in residentIds) {
-                d.copyWith(loyalty = d.skills.loyalty + 1)
+            if (d.id in residentIds && d.skills.loyalty < maxLoyalty) {
+                d.copyWith(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty))
             } else d
         }
     }

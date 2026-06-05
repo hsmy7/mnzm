@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.production.EconomySubsystem
+import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.engine.domain.production.ProductionSubsystem
 import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.system.PartnerSystem
@@ -21,6 +22,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.yield
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -238,6 +240,11 @@ class SettlementCoordinator @Inject constructor(
             )
         }
 
+        // 结算后计算下一次完成时间
+        val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
+        val cultivationRate = cache.cultivationRateCache[updatedDisciple.id] ?: 0.0
+        updatedDisciple = updatedDisciple.withNextCultivationCompletion(currentAbsoluteMonth, cultivationRate)
+
         shadow.disciples = shadow.disciples.map { d ->
             if (d.id == focusedId) updatedDisciple else d
         }
@@ -254,11 +261,15 @@ class SettlementCoordinator @Inject constructor(
         val data = shadow.gameData
         val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
         val focusedId = stateStore.focusedDiscipleId
+        val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
 
         var spiritStoneDelta = 0L
-        val updatedDisciples = shadow.disciples.map { disciple ->
-            if (!disciple.isAlive || disciple.id == focusedId) return@map disciple
-            if (disciple.id !in cache.cleanDiscipleIds) return@map disciple
+        // 分批处理弟子，每 50 个 yield 一次，避免长时间占用游戏线程
+        val batchSize = 50
+        val updatedDisciples = shadow.disciples.toMutableList()
+        for ((index, disciple) in shadow.disciples.withIndex()) {
+            if (!disciple.isAlive || disciple.id == focusedId) continue
+            if (disciple.id !in cache.cleanDiscipleIds) continue
 
             var d = disciple
             val rate = cache.cultivationRateCache[d.id] ?: 0.0
@@ -278,10 +289,17 @@ class SettlementCoordinator @Inject constructor(
             if (loyaltyDelta != 0) {
                 d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
             }
-            d
+            // 结算后计算下一次完成时间
+            d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
+
+            updatedDisciples[index] = d
+
+            if ((index + 1) % batchSize == 0) {
+                yield()
+            }
         }
 
-        shadow.disciples = updatedDisciples
+        shadow.disciples = updatedDisciples.toList()
         if (spiritStoneDelta != 0L) {
             shadow.gameData = data.copy(spiritStones = data.spiritStones + spiritStoneDelta)
         }
@@ -293,6 +311,7 @@ class SettlementCoordinator @Inject constructor(
         val data = shadow.gameData
         val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
         val focusedId = stateStore.focusedDiscipleId
+        val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
 
         val dirtyDisciples = shadow.disciples.filter {
             it.isAlive && it.id != focusedId && it.id in cache.dirtyDiscipleIds
@@ -313,7 +332,9 @@ class SettlementCoordinator @Inject constructor(
         val updatedDisciples = shadow.disciples.toMutableList()
         var spiritStoneDelta = 0L
 
-        for (disciple in batch) {
+        // 分批处理弟子，每 50 个 yield 一次，避免长时间占用游戏线程
+        val batchSize = 50
+        for ((batchIndex, disciple) in batch.withIndex()) {
             var d = disciple
             val rate = cache.cultivationRateCache[d.id] ?: 0.0
             val monthlyGain = rate * monthSeconds
@@ -353,8 +374,15 @@ class SettlementCoordinator @Inject constructor(
                 d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
             }
 
+            // 结算后计算下一次完成时间
+            d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
+
             val idx = updatedDisciples.indexOfFirst { it.id == d.id }
             if (idx >= 0) updatedDisciples[idx] = d
+
+            if ((batchIndex + 1) % batchSize == 0) {
+                yield()
+            }
         }
 
         shadow.disciples = updatedDisciples.toList()
@@ -762,6 +790,21 @@ class SettlementCoordinator @Inject constructor(
             4 -> 800; 3 -> 1500; 2 -> 3000; 1 -> 5000
             0 -> 10000; else -> 0
         }
+    }
+
+    /**
+     * 结算完成后计算弟子下一次完成时间。
+     */
+    private fun Disciple.withNextCultivationCompletion(
+        currentMonth: Int,
+        cultivationRate: Double
+    ): Disciple {
+        val remaining = maxCultivation - cultivation
+        val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, cultivationRate)
+        return copy(
+            cultivationCompletionMonth = currentMonth + monthsToNext,
+            cultivationCompletionPhase = 1  // 修炼始终上旬
+        )
     }
 
     companion object {

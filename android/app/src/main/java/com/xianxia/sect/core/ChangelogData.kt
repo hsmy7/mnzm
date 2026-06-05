@@ -9,6 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.15",
+            date = "2026-06-06",
+            changes = listOf(
+                "【性能大优化】大幅降低手机发热和耗电，长时间游玩不再烫手",
+                "事件驱动结算：修炼、锻造、炼丹、种植等进度不再每月全量检查，只在快完成时才处理",
+                "月度结算按旬分批：上旬修炼、中旬生产、下旬种植，CPU负载更均匀",
+                "弟子薪水智能跳过：满忠诚弟子不再重复计算",
+                "任务刷新改为每三月一次，旧任务自动清理",
+                "设备高温时自动降低画面分辨率，保持流畅"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.14",
             date = "2026-06-06",
             changes = listOf(

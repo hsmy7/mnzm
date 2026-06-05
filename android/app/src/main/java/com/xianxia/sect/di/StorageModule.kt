@@ -56,9 +56,10 @@ object StorageModule {
     @Singleton
     fun provideWAL(
         @ApplicationContext context: Context,
-        applicationScopeProvider: ApplicationScopeProvider
+        applicationScopeProvider: ApplicationScopeProvider,
+        thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor
     ): WALProvider {
-        return FunctionalWAL(context, applicationScopeProvider)
+        return FunctionalWAL(context, applicationScopeProvider, thermalMonitor)
     }
 
     @Provides

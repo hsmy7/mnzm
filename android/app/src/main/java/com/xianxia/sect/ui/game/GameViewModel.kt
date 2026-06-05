@@ -12,6 +12,8 @@ import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.perf.ThermalMonitor
+import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
@@ -54,7 +56,8 @@ class GameViewModel @Inject constructor(
     private val buildingFacade: BuildingFacade,
     private val battleFacade: BattleFacade,
     private val diplomacyFacade: DiplomacyFacade,
-    private val saveFacade: SaveFacade
+    private val saveFacade: SaveFacade,
+    private val thermalMonitor: ThermalMonitor
 ) : BaseViewModel() {
 
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
@@ -70,7 +73,7 @@ class GameViewModel @Inject constructor(
         private const val TAG = "GameViewModel"
     }
 
-    private var focusedRefreshJob: Job? = null
+
 
     // Navigation events — emitted by ViewModel for code-triggered dialogs (GameOver, etc.)
     private val _navigationEvents = Channel<GameRoute>(Channel.BUFFERED)
@@ -92,6 +95,11 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             _dialogOpenTrigger.emit(Unit)
         }
+    }
+
+    /** 通知引擎有用户交互 — 防止拖动地图等触控操作被误判为空闲 */
+    fun onUserInteraction() {
+        gameEngine.notifyUserInteraction()
     }
 
     fun dismissDialog() {
@@ -273,7 +281,7 @@ class GameViewModel @Inject constructor(
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     val gameDataUi: StateFlow<GameData> = merge(
-        gameEngine.gameData.sample(400),
+        gameEngine.gameData.sample(100),
         _dialogOpenTrigger.map { gameEngine.gameData.value ?: GameData() }
     ).stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
 
@@ -319,6 +327,9 @@ class GameViewModel @Inject constructor(
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = gameEngine.discipleAggregates
 
     val sectCombatPower: StateFlow<Long> get() = gameEngine.sectCombatPower
+
+    /** 设备热状态 — 供 UI 层自适应分辨率使用 */
+    val thermalState: StateFlow<ThermalState> = thermalMonitor.thermalState
 
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = gameEngine.aiSectCombatPowers
 
@@ -452,18 +463,9 @@ class GameViewModel @Inject constructor(
         _detailDisciple.value = request
         gameEngine.setFocusedDiscipleId(request.disciple.id)
         pushOverlay(TopOverlay.DISCIPLE_DETAIL)
-        focusedRefreshJob?.cancel()
-        focusedRefreshJob = viewModelScope.launch {
-            while (isActive) {
-                discipleFacade.updateFocusedDisciple(request.disciple.id)
-                delay(100)  // 100ms tick — 高频平滑推进修炼进度条
-            }
-        }
     }
 
     fun dismissDiscipleDetail() {
-        focusedRefreshJob?.cancel()
-        focusedRefreshJob = null
         _detailDisciple.value = null
         gameEngine.setFocusedDiscipleId(null)
         popOverlay(TopOverlay.DISCIPLE_DETAIL)

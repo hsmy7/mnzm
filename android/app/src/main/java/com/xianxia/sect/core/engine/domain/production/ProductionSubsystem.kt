@@ -22,6 +22,7 @@ class ProductionSubsystem @Inject constructor(
 
     override val systemName: String = SYSTEM_NAME
     override val focusDomain = FocusDomain.BUILDINGS
+    override val settlementPhase = 2  // 中旬：锻造/炼丹/血炼池（种植/灵矿在 onMonthTick 中处理）
 
     override fun initialize() {
         Log.d(TAG, "ProductionSubsystem initialized")

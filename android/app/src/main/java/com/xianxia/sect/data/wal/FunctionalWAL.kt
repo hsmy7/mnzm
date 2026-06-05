@@ -43,7 +43,8 @@ import kotlin.concurrent.withLock
 @Singleton
 class FunctionalWAL @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor
 ) : WALProvider {
     companion object {
         private const val TAG = "FunctionalWAL"
@@ -174,7 +175,12 @@ class FunctionalWAL @Inject constructor(
         flushJob?.cancel()
         flushJob = scope.launch {
             while (isActive && !isShutdown.get()) {
-                delay(StorageConstants.WAL_FLUSH_INTERVAL_MS)
+                val interval = when {
+                    thermalMonitor.shouldEmergencySave() -> 5000L
+                    thermalMonitor.shouldReduceWorkload() -> 3000L
+                    else -> StorageConstants.WAL_FLUSH_INTERVAL_MS
+                }
+                delay(interval)
                 try {
                     flushInternal()
                 } catch (e: Exception) {
@@ -596,7 +602,9 @@ class FunctionalWAL @Inject constructor(
 
                     val sinceCp = commitsSinceCheckpoint.incrementAndGet()
                     if (sinceCp >= StorageConstants.CHECKPOINT_INTERVAL) {
-                        launchCheckpoint()
+                        if (!thermalMonitor.shouldReduceWorkload()) {
+                            launchCheckpoint()
+                        }
                     } else {
                         val fileSize = try { walFile.length() } catch (_: Exception) { 0L }
                         if (fileSize > StorageConstants.MAX_WAL_SIZE_BYTES) {

@@ -16,8 +16,11 @@ import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.*
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -57,7 +60,8 @@ class GameEngineCore @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
-    private val thermalMonitor: ThermalMonitor
+    private val thermalMonitor: ThermalMonitor,
+    private val lazyEvaluationDispatcher: LazyEvaluationDispatcher
 ) {
     
     companion object {
@@ -68,9 +72,19 @@ class GameEngineCore @Inject constructor(
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
         private const val IDLE_TICK_INTERVAL_MS = 2000L
-        private const val IDLE_DETECTION_MS = 60_000L
+        private const val IDLE_DETECTION_MS = 30_000L
         private const val NON_FOCUS_TICK_INTERVAL = 30_000L
         private const val TICK_TIME_BUDGET_MS = 50L
+
+        private val gameThreadFactory = ThreadFactory {
+            val thread = Thread(it, "GameEngine-Thread")
+            thread.priority = Thread.NORM_PRIORITY - 1  // 略低于正常优先级，避免抢占 UI
+            thread.isDaemon = true
+            thread
+        }
+
+        private val GAME_DISPATCHER = Executors.newSingleThreadExecutor(gameThreadFactory)
+            .asCoroutineDispatcher()
     }
 
     private var currentTickInterval = TICK_INTERVAL_MS
@@ -87,6 +101,13 @@ class GameEngineCore @Inject constructor(
     @Volatile
     private var adaptiveSlowdownFactor = 1.0
 
+    // 空闲状态焦点域切换
+    @Volatile
+    private var previousFocusDomain: FocusDomain? = null
+
+    @Volatile
+    private var isInIdleState = false
+
     // 后台停止时保存状态
     @Volatile
     private var wasRunningBeforeBackground = false
@@ -97,7 +118,7 @@ class GameEngineCore @Inject constructor(
         }
     }
     private var engineJob = SupervisorJob(applicationScopeProvider.scope.coroutineContext[Job])
-    private var engineScope: CoroutineScope = CoroutineScope(engineJob + Dispatchers.Default + engineExceptionHandler)
+    private var engineScope: CoroutineScope = CoroutineScope(engineJob + GAME_DISPATCHER + engineExceptionHandler)
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
@@ -170,6 +191,7 @@ class GameEngineCore @Inject constructor(
         lastTickStartMs = 0
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
+        thermalMonitor.createHintSession(100_000_000L)  // 100ms target
 
         stateManager.setPausedDirect(false)
         Log.i(TAG, "Game state resumed (isPaused=false)")
@@ -194,7 +216,6 @@ class GameEngineCore @Inject constructor(
                     thermalMonitor.shouldEmergencySave() -> 500L
                     thermalMonitor.shouldReduceWorkload() -> 200L
                     thermalMonitor.isLightThrottle() -> 150L
-                    isIdle && !settlementCoordinator.hasPendingWork -> IDLE_TICK_INTERVAL_MS
                     adaptiveSlowdownFactor > 1.0 -> (TICK_INTERVAL_MS * adaptiveSlowdownFactor).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
                     else -> TICK_INTERVAL_MS
                 }
@@ -240,13 +261,16 @@ class GameEngineCore @Inject constructor(
     
     fun shutdown() {
         stopGameLoop()
+        thermalMonitor.closeHintSession()
         deathEventJob?.cancel()
         deathEventJob = null
         systemManager.releaseAll()
         _autoSaveTrigger.close()
         engineJob.cancel()
+        // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
+        // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
         engineJob = SupervisorJob(applicationScopeProvider.scope.coroutineContext[Job])
-        engineScope = CoroutineScope(engineJob + Dispatchers.Default + engineExceptionHandler)
+        engineScope = CoroutineScope(engineJob + GAME_DISPATCHER + engineExceptionHandler)
         isInitialized = false
         Log.i(TAG, "GameEngineCore shutdown complete")
     }
@@ -297,6 +321,11 @@ class GameEngineCore @Inject constructor(
     /** UI 层调用：记录用户交互时间，唤醒空闲状态 */
     fun onUserInteraction() {
         lastUserInteractionTime = System.currentTimeMillis()
+        // 空闲恢复：恢复之前的焦点域
+        if (isInIdleState && previousFocusDomain != null) {
+            isInIdleState = false
+            previousFocusDomain = null
+        }
     }
 
     /**
@@ -309,6 +338,15 @@ class GameEngineCore @Inject constructor(
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点） */
     private fun getActiveDomains(): Set<FocusDomain> {
+        // 空闲检测：30s 无交互 → 所有系统按 BACKGROUND 域频率执行
+        val idleTimeMs = System.currentTimeMillis() - lastUserInteractionTime
+        if (idleTimeMs > IDLE_DETECTION_MS) {
+            if (!isInIdleState) {
+                isInIdleState = true
+            }
+            return setOf(FocusDomain.ALWAYS, FocusDomain.BACKGROUND)
+        }
+
         val tab = stateStore.activeTab
         val dialog = stateStore.activeDialog
         val focusedDiscipleId = stateStore.focusedDiscipleId
@@ -360,8 +398,12 @@ class GameEngineCore @Inject constructor(
     
     private suspend fun tick() {
         val tickStartTime = System.currentTimeMillis()
+        val tickStartNanos = System.nanoTime()
 
         tickInternal()
+
+        val tickDurationNanos = System.nanoTime() - tickStartNanos
+        thermalMonitor.reportActualWorkDuration(tickDurationNanos)
 
         val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
         unifiedPerformanceMonitor.recordTick(tickTime)
@@ -400,6 +442,9 @@ class GameEngineCore @Inject constructor(
             // 跳过非关键计算（如 AI 更新、视觉效果）
             // 只执行核心时间推进
             Log.d(TAG, "Thermal throttling: skipping non-critical systems")
+            thermalMonitor.updateTargetDuration(200_000_000L)  // 200ms target
+        } else {
+            thermalMonitor.updateTargetDuration(100_000_000L)  // 100ms target
         }
 
         val activeDomains = getActiveDomains()
@@ -440,9 +485,13 @@ class GameEngineCore @Inject constructor(
                     systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
                     cultivationService.recoverHpMpForAllDisciples(this)
                 } else {
-                    // 两档制：活跃域每 tick 执行，非活跃域最多 30 秒一次
+                    // 两档制 + 分旬调度 + 热状态联动
+                    // gamePhase 为 0-based（0=上旬,1=中旬,2=下旬），转换为 1-based 匹配 settlementPhase
+                    val currentPhase1Based = this.gameData.gamePhase + 1
                     systemManager.onPhaseTickWithDomainFilter(
-                        this, activeDomains, ::shouldExecuteDomain, ::markDomainExecuted
+                        this, activeDomains, ::shouldExecuteDomain, ::markDomainExecuted,
+                        currentPhase = currentPhase1Based,
+                        lazyEvaluationDispatcher = lazyEvaluationDispatcher
                     )
                     // HP/MP 恢复跟 DISCIPLES 域走：活跃时每 phase，不活跃时 30s 一次
                     if (shouldExecuteDomain(FocusDomain.DISCIPLES, activeDomains)) {
