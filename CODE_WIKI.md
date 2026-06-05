@@ -820,6 +820,19 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - `SpiritFieldPlant`: `completionMonth`, `completionPhase`
 - DB Migration v32→v33：ALTER TABLE 新增 8 列
 
+### 焦点域实时化 (v3.2.16)
+
+- **DISCIPLES Tab**: `processDiscipleTick` 每 100ms 推进全体弟子修炼值（`rate × 0.1s`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
+- **BUILDINGS Tab**: `ProductionSubsystem.onPhaseTick` 每 200ms 检测生产槽位完成 + 触发自动锻造/自动炼丹
+- **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前强制恢复（`CombatService`）
+
+### 修炼惰性结算 (v3.2.16)
+
+- `SettlementCache.farFromCompletionIds`：距突破 >2 月的弟子跳过月度结算
+- 距突破 ≤2 月自动进入窗口，逐月推进
+- 修炼速度变化 → 脏标记 → 强制下一次结算 → 重算 `completionMonth`
+- 突破被动触发：仅 `cultivation >= maxCultivation` 时判定
+
 ### 其他性能改进
 
 - `GameStateStore` 版本计数器 + `sample(50)` 批处理 StateFlow 发射
@@ -827,7 +840,8 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - `MainGameScreen` 热状态自适应渲染分辨率（NORMAL→1.0 / MODERATE→0.75 / SEVERE→0.6 / EMERGENCY→0.5）
 - `CultivationService` 微批次 yield（每 50 人 yield）、PhaseTickAccumulator 合并副作用
 - `GameEngineCore` 专用游戏线程（`GAME_DISPATCHER`）、空闲检测保留 tick 改降域
-- 月度结算精简：薪水脏标记、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
+- 月度结算精简：薪水年度化、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
+- 自动装备/自动学习脏标记：仅储物袋有物品或装备/功法变更时检测（`ConcurrentHashMap.newKeySet`）
 
 ---
 

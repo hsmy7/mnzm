@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.16",
+            date = "2026-06-06",
+            changes = listOf(
+                "【焦点域全面实时化】弟子修炼进度、功法熟练度、装备孕养100ms平滑推进，锻造炼丹实时检测完成",
+                "修炼进度智能结算：距突破>2月跳过结算，接近突破时自动进入月度窗口",
+                "HP/MP动态恢复：结算繁忙时自动延后，战斗前强制补满参战弟子",
+                "弟子薪水改为年度结算，突破时自动结算累积薪水",
+                "自动装备/自动学习仅储物袋有物品时才检测，卸下和遗忘时触发重新检测"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.15",
             date = "2026-06-06",
             changes = listOf(
