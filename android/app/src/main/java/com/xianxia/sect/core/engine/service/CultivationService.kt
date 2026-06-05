@@ -101,10 +101,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     fun markAutoEquipDirty(discipleId: String) { autoEquipDirty.add(discipleId) }
     fun markAutoLearnDirty(discipleId: String) { autoLearnDirty.add(discipleId) }
 
-    /** 修炼速率缓存：SettlementCoordinator 每月结算后更新，processDiscipleTick 用此值推进修炼 */
+    /** 修炼/孕养/熟练度速率缓存：SettlementCoordinator 每月结算后更新 */
     @Volatile var cachedCultivationRates: Map<String, Double> = emptyMap()
+    @Volatile var cachedNurtureRates: Map<String, Double> = emptyMap()  // equipmentId -> nurturePerSecond
+    @Volatile var cachedProficiencyRates: Map<String, Map<String, Double>> = emptyMap()  // discipleId -> (manualId -> rate)
 
-    /** 焦点域每 tick 推进的修炼秒数（100ms tick ≈ 0.1 秒） */
+    /** 焦点域每 tick 推进的秒数（100ms tick ≈ 0.1 秒） */
     private val tickSeconds = 0.1
 
     /** 战斗前对参战弟子强制结算气血和灵力恢复 */
@@ -784,12 +786,19 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * 此方法仅读取当前时间并触发对应事件，不再次推进。
      */
     suspend fun advancePhase(state: MutableGameState? = null) {
-        val data = state?.gameData ?: currentGameData
+        val targetState = state ?: return
+        val data = targetState.gameData
         val phase = data.gamePhase
         val month = data.gameMonth
         val year = data.gameYear
 
         processPhaseEvents(phase, month, year)
+
+        // 焦点弟子实时更新：功法熟练度 + 装备孕养 每 tick 推进
+        val focusedId = stateStore.focusedDiscipleId
+        if (focusedId != null) {
+            updateFocusedDisciple(focusedId, targetState)
+        }
     }
 
     /**
@@ -958,15 +967,18 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         // 焦点域每 100ms tick 推进修炼值，玩家看到实时进度
-        val cultivationRate = cachedCultivationRates[d.id] ?: 0.0
-        if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-            val gain = cultivationRate * tickSeconds
-            d = d.copy(cultivation = (d.cultivation + gain).coerceAtMost(d.maxCultivation))
-            // 记录累积量：月度结算时扣除已推进的进度，避免重复计算
-            val currentHfd = _highFrequencyData.value
-            val accumGains = currentHfd.cultivationUpdates.toMutableMap()
-            accumGains[d.id] = (accumGains[d.id] ?: 0.0) + gain
-            _highFrequencyData.value = currentHfd.copy(cultivationUpdates = accumGains)
+        // 焦点弟子由 updateFocusedDisciple 单独处理（含突破检查+熟练度+孕养），此处跳过
+        if (d.id != stateStore.focusedDiscipleId) {
+            val cultivationRate = cachedCultivationRates[d.id] ?: 0.0
+            if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
+                val gain = cultivationRate * tickSeconds
+                d = d.copy(cultivation = (d.cultivation + gain).coerceAtMost(d.maxCultivation))
+                // 记录累积量：月度结算时扣除已推进的进度，避免重复计算
+                val currentHfd = _highFrequencyData.value
+                val accumGains = currentHfd.cultivationUpdates.toMutableMap()
+                accumGains[d.id] = (accumGains[d.id] ?: 0.0) + gain
+                _highFrequencyData.value = currentHfd.copy(cultivationUpdates = accumGains)
+            }
         }
 
         val pillResult = DisciplePillManager.processAutoUsePills(
