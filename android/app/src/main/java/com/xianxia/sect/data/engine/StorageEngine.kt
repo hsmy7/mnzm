@@ -484,9 +484,11 @@ class StorageEngine @Inject internal constructor(
 
                 repository.setActiveSlot(slot)
 
+                val gameDataWithTimestamp = gameData.copy(lastSaveTime = System.currentTimeMillis())
+
                 database.withTransaction {
                     repository.flushDirtyState(
-                        gameData = gameData,
+                        gameData = gameDataWithTimestamp,
                         disciples = disciples,
                         equipmentStacks = equipmentStacks,
                         equipmentInstances = equipmentInstances,

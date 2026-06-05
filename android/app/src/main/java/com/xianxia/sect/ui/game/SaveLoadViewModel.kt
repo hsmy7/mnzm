@@ -408,6 +408,11 @@ class SaveLoadViewModel @Inject constructor(
                     if (incrementalResult != null && incrementalResult.isSuccess) {
                         consecutiveSaveFailures.set(0)
                         Log.d(TAG, "Auto incremental save succeeded for slot: $currentSlot")
+                        try {
+                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to refresh slots after incremental save", e)
+                        }
                         return@launch
                     }
 
