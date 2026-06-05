@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.14] - 2026-06-06
+
+### Bug 修复
+
+- 修复 Dirichlet 广告 SDK 依赖旧 Support 库导致 ClassNotFoundException（启用 Jetifier）
+- Bugly 显式设置应用版本号，解决崩溃报表中版本显示异常
+
 ## [3.2.13] - 2026-06-06
 
 ### Bug 修复

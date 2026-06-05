@@ -83,6 +83,7 @@ class XianxiaApplication : Application() {
         // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
         try {
             CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
+            CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
             CrashReport.setUserId("unknown")
             CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
             CrashReport.putUserData(this, "model", android.os.Build.MODEL)

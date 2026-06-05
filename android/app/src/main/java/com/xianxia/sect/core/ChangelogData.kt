@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.14",
+            date = "2026-06-06",
+            changes = listOf(
+                "修复 Dirichlet 广告 SDK 依赖旧 Support 库导致 ClassNotFoundException（启用 Jetifier）",
+                "Bugly 显式设置应用版本号，解决崩溃报表中版本显示异常"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.13",
             date = "2026-06-06",
             changes = listOf(
