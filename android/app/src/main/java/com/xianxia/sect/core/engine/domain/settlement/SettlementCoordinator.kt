@@ -167,6 +167,11 @@ class SettlementCoordinator @Inject constructor(
         stateStore.swapFromShadow(shadow)
         val swapMs = timer.stop()
 
+        // 同步修炼速率缓存到 CultivationService，供焦点域 100ms tick 推进修炼值
+        currentCache?.let { cache ->
+            cultivationService.cachedCultivationRates = cache.cultivationRateCache
+        }
+
         val metrics = metricsBuilder.build(
             monthYear = shadow.gameData.gameYear to shadow.gameData.gameMonth,
             totalDiscipleCount = shadow.disciples.count { it.isAlive },
