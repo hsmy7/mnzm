@@ -1141,14 +1141,17 @@ class GameEngine @Inject constructor(
         }
         if (equipId.isNotEmpty()) {
             discipleService.unequipEquipment(discipleId, equipId)
+            cultivationService.markAutoEquipDirty(discipleId)
         }
     }
 
     suspend fun unequipItemById(discipleId: String, equipmentId: String) {
         discipleService.unequipEquipment(discipleId, equipmentId)
+        cultivationService.markAutoEquipDirty(discipleId)
     }
 
     suspend fun forgetManual(discipleId: String, instanceId: String) {
+        cultivationService.markAutoLearnDirty(discipleId)
         stateStore.update {
             val instance = manualInstances.find { it.id == instanceId } ?: return@update
             val currentDisciple = disciples.find { it.id == discipleId } ?: return@update

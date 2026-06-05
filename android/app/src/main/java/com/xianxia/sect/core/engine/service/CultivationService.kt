@@ -94,6 +94,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     // 薪水年度结算：记录每个弟子上次结算的游戏年份
     private val lastSalaryYear = mutableMapOf<String, Int>()
 
+    // 自动装备/自动学习脏标记：仅储物袋有物品或装备/功法变更时检测
+    private val autoEquipDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val autoLearnDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun markAutoEquipDirty(discipleId: String) { autoEquipDirty.add(discipleId) }
+    fun markAutoLearnDirty(discipleId: String) { autoLearnDirty.add(discipleId) }
+
     companion object {
         private const val TAG = "CultivationService"
         private const val TRAVELING_MERCHANT_ITEM_COUNT = 40
@@ -928,9 +935,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             d = pillResult.disciple
         }
 
-        // 仅储物袋有装备时才检测自动装备（绝大部分弟子无装备可穿，跳过省CPU）
+        // 仅储物袋有装备或装备栏发生变更时检测（绝大部分弟子无装备可穿，跳过省CPU）
         val hasEquipmentInBag = d.equipment.storageBagItems.any { it.itemType == "equipment" }
-        val equipResult = if (hasEquipmentInBag) {
+        val needEquipCheck = hasEquipmentInBag || d.id in autoEquipDirty
+        val equipResult = if (needEquipCheck) {
             DiscipleEquipmentManager.processAutoEquip(
                 disciple = d, equipmentStacks = equipmentStacksList,
                 equipmentInstances = equipmentMap,
@@ -954,9 +962,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
-        // 仅储物袋有功法时才检测自动学习（绝大部分弟子无功法可学，跳过省CPU）
+        // 仅储物袋有功法或功法栏变更时检测（绝大部分弟子无功法可学，跳过省CPU）
         val hasManualInBag = d.equipment.storageBagItems.any { it.itemType == "manual" }
-        val manualResult = if (hasManualInBag) {
+        val needLearnCheck = hasManualInBag || d.id in autoLearnDirty
+        val manualResult = if (needLearnCheck) {
             DiscipleManualManager.processAutoLearn(
                 disciple = d, manualStacks = manualStacksList,
                 manualInstances = manualMap,
@@ -983,6 +992,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
+        autoEquipDirty.remove(d.id)
+        autoLearnDirty.remove(d.id)
         return d
     }
 
