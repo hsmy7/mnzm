@@ -22,7 +22,8 @@ class CombatService @Inject constructor(
     private val battleSystem: BattleSystem,
     private val productionSlotRepository: ProductionSlotRepository,
 private val eventBus: EventBusPort,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
 ) {
     private val scope get() = applicationScopeProvider.scope
 
@@ -68,6 +69,8 @@ private val eventBus: EventBusPort,
         playerDisciples: List<Disciple>,
         aiTeam: AICaveTeam
     ): BattleSystemResult {
+        // 战斗前兜底：先结算参战弟子气血灵力恢复
+        cultivationService.recoverHpMpForBattleParticipants(playerDisciples.map { it.id })
         val data = currentGameData
 
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }
@@ -94,6 +97,8 @@ private val eventBus: EventBusPort,
         playerDisciples: List<Disciple>,
         cave: CultivatorCave
     ): BattleSystemResult {
+        // 战斗前兜底：先结算参战弟子气血灵力恢复
+        cultivationService.recoverHpMpForBattleParticipants(playerDisciples.map { it.id })
         val data = currentGameData
 
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }

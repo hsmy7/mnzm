@@ -101,6 +101,29 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     fun markAutoEquipDirty(discipleId: String) { autoEquipDirty.add(discipleId) }
     fun markAutoLearnDirty(discipleId: String) { autoLearnDirty.add(discipleId) }
 
+    /** 战斗前对参战弟子强制结算气血和灵力恢复 */
+    fun recoverHpMpForBattleParticipants(discipleIds: List<String>) {
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
+        val allProficiencies = currentGameData.manualProficiencies
+        val multiplier = phaseMultiplier.toDouble()
+
+        currentDisciples = currentDisciples.map { d ->
+            if (d.id !in discipleIds || !d.isAlive) return@map d
+            val discipleProficiencies = allProficiencies[d.id]?.associateBy { it.manualId } ?: emptyMap()
+            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
+            val maxHp = finalStats.maxHp
+            val maxMp = finalStats.maxMp
+            val curHp = d.combat.currentHp
+            val curMp = d.combat.currentMp
+            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+            if (newHp != curHp || newMp != curMp) d.copyWith(currentHp = newHp, currentMp = newMp) else d
+        }
+    }
+
     companion object {
         private const val TAG = "CultivationService"
         private const val TRAVELING_MERCHANT_ITEM_COUNT = 40

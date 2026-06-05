@@ -482,8 +482,8 @@ class GameEngineCore @Inject constructor(
                 val prevYear = this.gameData.gameYear
 
                 if (settlementCoordinator.hasPendingWork) {
+                    // 结算繁忙时跳过 HP/MP 恢复，减轻负载（战斗前兜底 + 焦点域兜底）
                     systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
-                    cultivationService.recoverHpMpForAllDisciples(this)
                 } else {
                     // 两档制 + 分旬调度 + 热状态联动
                     // gamePhase 为 0-based（0=上旬,1=中旬,2=下旬），转换为 1-based 匹配 settlementPhase
