@@ -217,6 +217,8 @@ class SettlementCoordinator @Inject constructor(
             isDiscipleFullHpMp(updatedDisciple)
         ) {
             updatedDisciple = processBreakthroughForDisciple(updatedDisciple, shadow, cache)
+            // 突破时结算累积薪水（突破前旧境界薪资）
+            settleSalaryOnBreakthrough(updatedDisciple.id, shadow)
         }
 
         val profUpdates = calculateProficiencyGains(updatedDisciple, data, cache, monthSeconds, focusedProfGains[disciple.id] ?: emptyMap())
@@ -346,6 +348,8 @@ class SettlementCoordinator @Inject constructor(
             if (DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[d.id] ?: emptySet())) {
                 if (d.cultivation >= d.maxCultivation && isDiscipleFullHpMp(d)) {
                     d = processBreakthroughForDisciple(d, shadow, cache)
+                    // 突破时结算累积薪水
+                    settleSalaryOnBreakthrough(d.id, shadow)
                 }
             }
 
@@ -571,6 +575,42 @@ class SettlementCoordinator @Inject constructor(
             }
         }
         return d
+    }
+
+    /**
+     * 弟子突破时结算累积薪水。
+     * 突破后境界改变，必须先用旧境界薪资结算到突破当月，年度结算再按新境界算。
+     */
+    private fun settleSalaryOnBreakthrough(discipleId: String, shadow: MutableGameState) {
+        val disciple = shadow.disciples.find { it.id == discipleId && it.isAlive } ?: return
+        val data = shadow.gameData
+        val enabledConfig = data.monthlySalaryEnabled
+        if (enabledConfig[disciple.realm] != true) return
+
+        val salaryConfig = data.monthlySalary
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+        if (disciple.skills.loyalty >= maxLoyalty) return
+
+        val yearlySalary = (salaryConfig[disciple.realm] ?: 0).toLong() * 12
+        if (yearlySalary <= 0) return
+
+        if (data.spiritStones >= yearlySalary) {
+            shadow.disciples = shadow.disciples.map {
+                if (it.id == discipleId) it.copyWith(
+                    storageBagSpiritStones = it.equipment.storageBagSpiritStones + yearlySalary,
+                    salaryPaidCount = it.skills.salaryPaidCount + 12,
+                    loyalty = (it.skills.loyalty + 1).coerceAtMost(maxLoyalty)
+                ) else it
+            }
+            shadow.gameData = data.copy(spiritStones = data.spiritStones - yearlySalary)
+        } else {
+            shadow.disciples = shadow.disciples.map {
+                if (it.id == discipleId) it.copyWith(
+                    salaryMissedCount = it.skills.salaryMissedCount + 12,
+                    loyalty = (it.skills.loyalty - 1).coerceAtLeast(0)
+                ) else it
+            }
+        }
     }
 
     private fun calculateBreakthroughChance(

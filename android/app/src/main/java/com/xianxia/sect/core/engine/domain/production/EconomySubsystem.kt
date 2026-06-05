@@ -56,7 +56,7 @@ class EconomySubsystem @Inject constructor(
 
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processPolicyCosts()
-        cultivationService.processSalaryPayment(state.gameData.gameYear, state.gameData.gameMonth)
+        // 薪水改为年度结算，由 processYearlySalary 在年度结算时处理
         cultivationService.processResidenceLoyalty()
     }
 }

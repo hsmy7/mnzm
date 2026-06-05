@@ -91,8 +91,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     private var diplomacyEventsThisMonth = 0
     private var diplomacyEventsMonth = 0
 
-    // 薪水脏标记：仅薪资配置变更或弟子进出时需要重算
-    private var salaryDirty = true
+    // 薪水年度结算：记录每个弟子上次结算的游戏年份
+    private val lastSalaryYear = mutableMapOf<String, Int>()
 
     companion object {
         private const val TAG = "CultivationService"
@@ -1342,6 +1342,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         // 2. Process yearly aging effects
         processYearlyAging(year)
 
+        // 2.5 年度薪水结算（12个月批量，替代月度）
+        processSalaryYearly(year)
+
         // 3. Refresh recruit list (每年一月刷新招募弟子列表)
         refreshRecruitList(year)
 
@@ -2099,67 +2102,99 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     }
 
     /**
-     * Process salary payment
+     * 年度薪水结算：一次性结算 12 个月（或从上次结算至今的累计月份）。
+     * 由年度结算（processYearlyEvents）触发。
      */
-    internal fun processSalaryPayment(year: Int, month: Int) {
-        if (!salaryDirty) return  // 无配置变更或无新弟子，跳过
+    internal fun processSalaryYearly(year: Int) {
         val data = currentGameData
         val salaryConfig = data.monthlySalary
         val enabledConfig = data.monthlySalaryEnabled
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        var totalSalary = 0L
+        var totalCost = 0L
+        var anyChanged = false
 
-        currentDisciples.filter { it.isAlive }.forEach { disciple ->
-            val realm = disciple.realm
-            if (enabledConfig[realm] == true) {
-                // 满忠诚度且发薪（不会降忠诚）→ 跳过
-                if (disciple.skills.loyalty >= maxLoyalty) return@forEach
-                val salary = (salaryConfig[realm] ?: 0).toLong()
-                totalSalary += salary
-            }
-        }
+        val updatedDisciples = currentDisciples.map { disciple ->
+            if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
 
-        if (totalSalary > 0) {
-            if (data.spiritStones >= totalSalary) {
-                val discipleUpdates = currentDisciples.map { disciple ->
-                    if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
+            val lastYear = lastSalaryYear[disciple.id] ?: (year - 1)
+            if (lastYear >= year) return@map disciple  // 已结算过
 
-                    val salary = salaryConfig[disciple.realm] ?: 0
-                    val newPaidCount = disciple.skills.salaryPaidCount + 1
-                    val newLoyalty = (disciple.skills.loyalty + 1).coerceAtLeast(0)
+            val elapsedYears = year - lastYear
+            val yearlySalary = (salaryConfig[disciple.realm] ?: 0).toLong() * 12 * elapsedYears
+            if (yearlySalary <= 0) return@map disciple
 
-                    disciple.copyWith(
-                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary.toLong(),
-                        salaryPaidCount = newPaidCount,
-                        loyalty = newLoyalty
-                    )
-                }
+            // 满忠诚度跳过
+            if (disciple.skills.loyalty >= maxLoyalty) return@map disciple
 
-                currentDisciples = discipleUpdates
-                currentGameData = data.copy(spiritStones = data.spiritStones - totalSalary)
-                val paidCount = currentDisciples.count { it.isAlive && enabledConfig[it.realm] == true }
+            if (data.spiritStones >= totalCost + yearlySalary) {
+                totalCost += yearlySalary
+                anyChanged = true
+                disciple.copyWith(
+                    storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + yearlySalary,
+                    salaryPaidCount = disciple.skills.salaryPaidCount + 12 * elapsedYears,
+                    loyalty = (disciple.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                )
             } else {
-                val discipleUpdates = currentDisciples.map { disciple ->
-                    if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
-
-                    val newMissedCount = disciple.skills.salaryMissedCount + 1
-                    val newLoyalty = (disciple.skills.loyalty - 1).coerceAtLeast(0)
-
-                    disciple.copyWith(
-                        salaryMissedCount = newMissedCount,
-                        loyalty = newLoyalty
-                    )
-                }
-
-                currentDisciples = discipleUpdates
+                // 发不起 → 降忠诚
+                anyChanged = true
+                disciple.copyWith(
+                    salaryMissedCount = disciple.skills.salaryMissedCount + 12 * elapsedYears,
+                    loyalty = (disciple.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                )
             }
         }
-        salaryDirty = false  // 处理后清除脏标记
+
+        if (anyChanged) {
+            currentDisciples = updatedDisciples
+            currentGameData = data.copy(spiritStones = data.spiritStones - totalCost)
+            currentDisciples.filter { it.isAlive && enabledConfig[it.realm] == true }.forEach {
+                lastSalaryYear[it.id] = year
+            }
+        }
     }
 
-    /** 标脏薪水计算：薪资配置变更或弟子进出时调用 */
-    fun markSalaryDirty() {
-        salaryDirty = true
+    /**
+     * 弟子突破时结算累积薪水（突破前旧境界的薪水，到当前月为止）。
+     * 先结算再突破，确保薪水按突破前境界计算。
+     */
+    fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
+        val disciple = currentDisciples.find { it.id == discipleId && it.isAlive } ?: return
+        val data = currentGameData
+        val enabledConfig = data.monthlySalaryEnabled
+        if (enabledConfig[disciple.realm] != true) return
+
+        val lastYear = lastSalaryYear[discipleId] ?: (currentYear - 1)
+        if (lastYear >= currentYear) return  // 今年已结算
+
+        val salaryConfig = data.monthlySalary
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+        if (disciple.skills.loyalty >= maxLoyalty) {
+            lastSalaryYear[discipleId] = currentYear
+            return
+        }
+
+        val elapsedYears = currentYear - lastYear
+        val accumulated = (salaryConfig[disciple.realm] ?: 0).toLong() * 12 * elapsedYears
+        if (accumulated <= 0) return
+
+        if (data.spiritStones >= accumulated) {
+            currentDisciples = currentDisciples.map {
+                if (it.id == discipleId) it.copyWith(
+                    storageBagSpiritStones = it.equipment.storageBagSpiritStones + accumulated,
+                    salaryPaidCount = it.skills.salaryPaidCount + 12 * elapsedYears,
+                    loyalty = (it.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                ) else it
+            }
+            currentGameData = data.copy(spiritStones = data.spiritStones - accumulated)
+        } else {
+            currentDisciples = currentDisciples.map {
+                if (it.id == discipleId) it.copyWith(
+                    salaryMissedCount = it.skills.salaryMissedCount + 12 * elapsedYears,
+                    loyalty = (it.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                ) else it
+            }
+        }
+        lastSalaryYear[discipleId] = currentYear
     }
 
     internal fun processResidenceLoyalty() {
