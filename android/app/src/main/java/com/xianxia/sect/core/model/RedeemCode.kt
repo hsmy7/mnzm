@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 enum class RedeemRewardType {
     SPIRIT_STONES,
@@ -16,6 +18,7 @@ enum class RedeemRewardType {
     MANUAL_PACK
 }
 
+@Keep
 @Serializable
 data class DiscipleRewardConfig(
     val realm: Int = 9,
@@ -38,6 +41,7 @@ data class DiscipleRewardConfig(
     val gender: String = "random"
 )
 
+@Keep
 @Serializable
 data class RedeemCode(
     val code: String,
@@ -55,6 +59,7 @@ data class RedeemCode(
         get() = usedCount >= maxUses
 }
 
+@Keep
 @Serializable
 data class RedeemResult(
     val success: Boolean,

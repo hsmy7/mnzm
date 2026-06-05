@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 /**
@@ -9,6 +10,7 @@ import kotlinx.serialization.Serializable
  * 解锁内容（副本/配方/功法）、功法熟练度等探索相关数据。
  * 从 GameData 上帝对象中拆分出来，降低 copy() 时的复制开销。
  */
+@Keep
 @Serializable
 data class ExplorationState(
     val recruitList: List<Disciple> = emptyList(),

@@ -7,6 +7,9 @@ plugins {
     id 'com.google.dagger.hilt.android'
     id 'com.google.protobuf' version '0.9.4'
     id 'androidx.baselineprofile'
+    // TODO: 待华为/Google 凭证就绪后启用
+    // id 'com.huawei.agconnect'
+    // id 'com.google.gms.google-services'
 }
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -211,8 +214,8 @@ dependencies {
     // AndroidX Security - EncryptedSharedPreferences
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
-    // MMKV - 高性能键值存储
-    implementation 'com.tencent:mmkv:2.3.0'
+    // MMKV - 高性能键值存储（静态链接版本，避免与其他 SDK 的 MMKV 冲突）
+    implementation 'com.tencent:mmkv-static:2.2.0'
 
     // LZ4 压缩 - 极速压缩
     implementation 'org.lz4:lz4-java:1.8.0'
@@ -222,6 +225,9 @@ dependencies {
 
     // ReLinker - 原生库加载失败时的兜底方案
     implementation 'com.getkeepsafe.relinker:relinker:1.4.5'
+
+    // 华为 AGC Crash SDK — 待华为开发者账号开通后启用
+    // implementation 'com.huawei.agconnect:agconnect-crash:1.9.1.300'
 
     // Dirichlet Ad SDK（激励视频广告）
     implementation(name: "dirichlet_ad_4.2.5.0", ext: "aar")
@@ -244,9 +250,17 @@ dependencies {
     testImplementation 'org.jetbrains.kotlin:kotlin-reflect:2.0.21'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    // Firebase Test Lab 依赖（仅用于自动化测试，不增加 APK 体积）
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
 
     baselineProfile project(':baselineprofile')
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
+}
+
+// 排除 TapTap SDK 可能自带的旧版 MMKV
+configurations.all {
+    exclude group: 'com.tencent', module: 'mmkv'
 }
 
 ksp {
@@ -268,4 +282,23 @@ protobuf {
     }
 }
 
+// 构建后将 mapping 文件复制到固定目录
+tasks.whenTaskAdded { task ->
+    if (task.name == 'minifyReleaseWithR8') {
+        task.doLast {
+            def mappingFile = file("${buildDir}/outputs/mapping/release/mapping.txt")
+            if (mappingFile.exists()) {
+                def destDir = file("${rootDir}/mappings/${android.defaultConfig.versionName}")
+                destDir.mkdirs()
+                copy {
+                    from mappingFile
+                    into destDir
+                    rename { "mapping-${android.defaultConfig.versionName}.txt" }
+                }
+            }
+        }
+    }
+}
 
+// 华为 AGC Crash：崩溃收集在 Application.onCreate() 中初始化，
+// 符号表由 AGC 插件自动上传，无需额外配置

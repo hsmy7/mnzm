@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 data class PatrolSlot(
     val index: Int = 0,
@@ -13,6 +15,7 @@ data class PatrolSlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class PatrolConfig(
     val targetRealms: Set<Int> = setOf(9),

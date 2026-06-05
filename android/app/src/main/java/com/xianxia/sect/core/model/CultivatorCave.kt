@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -7,6 +8,7 @@ import com.xianxia.sect.core.model.production.SlotType
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 @Entity(
     tableName = "exploration_teams",
@@ -65,6 +67,7 @@ data class ExplorationTeam(
     }
 }
 
+@Keep
 @Serializable
 enum class ExplorationStatus {
     TRAVELING,
@@ -82,6 +85,7 @@ enum class ExplorationStatus {
     }
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "building_slots",
@@ -117,6 +121,7 @@ data class BuildingSlot(
     }
 }
 
+@Keep
 @Serializable
 enum class SlotStatus {
     IDLE,
@@ -131,6 +136,7 @@ enum class SlotStatus {
 }
 
 
+@Keep
 @Serializable
 @Entity(
     tableName = "recipes",
@@ -156,6 +162,7 @@ data class Recipe(
     val duration: Int = 1
 )
 
+@Keep
 @Serializable
 enum class RecipeType {
     PILL,
@@ -167,6 +174,7 @@ enum class RecipeType {
     }
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "battle_logs",
@@ -201,6 +209,7 @@ data class BattleLog(
     val displayTime: String get() = "第${year}年${month}月"
 }
 
+@Keep
 @Serializable
 enum class BattleType {
     PVE,
@@ -218,6 +227,7 @@ enum class BattleType {
     }
 }
 
+@Keep
 @Serializable
 enum class BattleResult {
     WIN,
@@ -237,6 +247,7 @@ enum class BattleResult {
     }
 }
 
+@Keep
 @Serializable
 data class CultivatorCave(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -275,6 +286,7 @@ data class CultivatorCave(
     }
 }
 
+@Keep
 @Serializable
 enum class CaveStatus {
     AVAILABLE,
@@ -290,6 +302,7 @@ enum class CaveStatus {
     }
 }
 
+@Keep
 @Serializable
 enum class AITeamStatus {
     EXPLORING,
@@ -301,6 +314,7 @@ enum class AITeamStatus {
     }
 }
 
+@Keep
 @Serializable
 data class AICaveDisciple(
     val id: String = "",
@@ -324,6 +338,7 @@ data class AICaveDisciple(
     val hpPercent: Int get() = if (maxHp > 0) ((hp.toDouble() / maxHp) * 100).toInt() else 0
 }
 
+@Keep
 @Serializable
 data class AIRandomEquipment(
     val slot: EquipmentSlot,
@@ -339,6 +354,7 @@ data class AIRandomEquipment(
     val mp: Int = 0
 )
 
+@Keep
 @Serializable
 data class AIRandomManual(
     val name: String,
@@ -347,6 +363,7 @@ data class AIRandomManual(
     val stats: Map<String, Int> = emptyMap()
 )
 
+@Keep
 @Serializable
 data class CaveExplorationTeam(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -381,6 +398,7 @@ data class CaveExplorationTeam(
     }
 }
 
+@Keep
 @Serializable
 enum class CaveExplorationStatus {
     TRAVELING,
@@ -395,6 +413,7 @@ enum class CaveExplorationStatus {
 }
 
 // 战斗日志成员
+@Keep
 @Serializable
 data class BattleLogMember(
     val id: String = "",
@@ -410,6 +429,7 @@ data class BattleLogMember(
     val portraitRes: String = ""
 )
 
+@Keep
 @Serializable
 data class BattleLogEnemy(
     val id: String = "",
@@ -424,6 +444,7 @@ data class BattleLogEnemy(
 )
 
 // 战斗日志回合
+@Keep
 @Serializable
 data class BattleLogRound(
     val roundNumber: Int = 1,
@@ -431,6 +452,7 @@ data class BattleLogRound(
 )
 
 // 战斗日志动作
+@Keep
 @Serializable
 data class BattleLogAction(
     val type: String = "",
@@ -446,6 +468,7 @@ data class BattleLogAction(
 )
 
 // 战斗日志结果
+@Keep
 @Serializable
 data class BattleLogResult(
     val winner: String = "",
@@ -458,6 +481,7 @@ data class BattleLogResult(
 )
 
 // 战斗奖励物品（用于战斗结算界面展示战利品）
+@Keep
 @Serializable
 data class BattleRewardItem(
     val itemId: String = "",
@@ -468,6 +492,7 @@ data class BattleRewardItem(
 )
 
 // AI洞府探索队伍（用于GameData）
+@Keep
 @Serializable
 data class AICaveTeam(
     val id: String = java.util.UUID.randomUUID().toString(),

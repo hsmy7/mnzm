@@ -1,11 +1,13 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 /**
  * 游戏时间旬枚举
  * 每旬 = 1/3 月 ≈ 10 天（仙侠世界观中的上中下旬）
  */
+@Keep
 @Serializable
 enum class GamePhase(val displayName: String, val value: Int) {
     EARLY("上旬", 0),

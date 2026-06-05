@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -13,6 +14,7 @@ import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
+@Keep
 @Serializable
 @Entity(
     tableName = "game_data",
@@ -441,6 +443,7 @@ data class GameData(
 }
 
 // 宗门政策数据
+@Keep
 @Serializable
 data class SectPolicies(
     val spiritMineBoost: Boolean = false,
@@ -469,6 +472,7 @@ data class SectPolicies(
 )
 
 // 血炼进度数据
+@Keep
 @Serializable
 data class BloodRefinementProgress(
     val discipleId: String = "",
@@ -483,6 +487,7 @@ data class BloodRefinementProgress(
 )
 
 // 长老槽位数据
+@Keep
 @Serializable
 data class ElderSlots(
     val viceSectMaster: String = "",
@@ -528,6 +533,7 @@ data class ElderSlots(
 }
 
 // 亲传弟子槽位数据
+@Keep
 @Serializable
 data class DirectDiscipleSlot(
     val index: Int = 0,
@@ -541,6 +547,7 @@ data class DirectDiscipleSlot(
 }
 
 // 种植槽位数据
+@Keep
 @Serializable
 data class PlantSlotData(
     val index: Int = 0,
@@ -575,6 +582,7 @@ data class PlantSlotData(
 }
 
 // 灵田种植数据
+@Keep
 @Serializable
 data class SpiritFieldPlant(
     val buildingInstanceId: String,
@@ -588,6 +596,7 @@ data class SpiritFieldPlant(
 )
 
 // 商人商品
+@Keep
 @Serializable
 data class MerchantItem(
     val id: String = "",
@@ -604,6 +613,7 @@ data class MerchantItem(
 )
 
 // 游戏设置数据
+@Keep
 @Serializable
 data class GameSettingsData(
     val soundEnabled: Boolean = true,
@@ -614,6 +624,7 @@ data class GameSettingsData(
 )
 
 // 功法熟练度数据
+@Keep
 @Serializable
 data class ManualProficiencyData(
     val manualId: String = "",
@@ -625,6 +636,7 @@ data class ManualProficiencyData(
 )
 
 // 矿脉槽位
+@Keep
 @Serializable
 data class MineSlot(
     val index: Int = 0,
@@ -636,6 +648,7 @@ data class MineSlot(
 )
 
 // 队伍状态
+@Keep
 @Serializable
 enum class TeamStatus {
     IDLE,
@@ -659,6 +672,7 @@ data class WorldMapRenderData(
 
 // 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）
 @Immutable
+@Keep
 @Serializable
 data class WorldSect(
     val id: String = "",
@@ -694,6 +708,7 @@ data class WorldSect(
     }
 )
 
+@Keep
 @Serializable
 data class SectDetail(
     val sectId: String = "",
@@ -710,12 +725,14 @@ data class SectDetail(
     val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
 )
 
+@Keep
 @Serializable
 data class SectWarehouse(
     val items: List<WarehouseItem> = emptyList(),
     val spiritStones: Long = 0
 )
 
+@Keep
 @Serializable
 data class WarehouseItem(
     val itemId: String = "",
@@ -726,6 +743,7 @@ data class WarehouseItem(
 )
 
 // 已探索宗门信息
+@Keep
 @Serializable
 data class ExploredSectInfo(
     val sectId: String = "",
@@ -744,6 +762,7 @@ data class ExploredSectInfo(
 )
 
 // 宗门侦查信息
+@Keep
 @Serializable
 data class SectScoutInfo(
     val sectId: String = "",
@@ -760,6 +779,7 @@ data class SectScoutInfo(
 )
 
 // 灵矿槽位
+@Keep
 @Serializable
 data class SpiritMineSlot(
     val index: Int = 0,
@@ -771,6 +791,7 @@ data class SpiritMineSlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class ResidenceSlot(
     val buildingInstanceId: String = "",
@@ -781,6 +802,7 @@ data class ResidenceSlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class WarehouseGarrisonSlot(
     val buildingInstanceId: String = "",
@@ -791,6 +813,7 @@ data class WarehouseGarrisonSlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class LibrarySlot(
     val index: Int = 0,
@@ -800,6 +823,7 @@ data class LibrarySlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class Alliance(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -812,6 +836,7 @@ data class Alliance(
 /**
  * AI 宗门间关系
  */
+@Keep
 @Serializable
 data class SectRelation(
     val sectId1: String,
@@ -821,6 +846,7 @@ data class SectRelation(
     var noGiftYears: Int = 0
 )
 
+@Keep
 @Serializable
 data class GarrisonSlot(
     val index: Int = 0,
@@ -833,6 +859,7 @@ data class GarrisonSlot(
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
+@Keep
 @Serializable
 data class BattleTeam(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -862,12 +889,14 @@ data class BattleTeam(
     val isReturning: Boolean = false
 )
 
+@Keep
 @Serializable
 enum class BattleSlotType {
     ELDER,
     DISCIPLE
 }
 
+@Keep
 @Serializable
 data class BattleTeamSlot(
     val index: Int = 0,
@@ -878,6 +907,7 @@ data class BattleTeamSlot(
     val isAlive: Boolean = true
 )
 
+@Keep
 @Serializable
 data class AIBattleTeam(
     val id: String = java.util.UUID.randomUUID().toString(),

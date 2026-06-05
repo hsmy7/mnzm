@@ -127,3 +127,6 @@ decompiled_source/
 
 # Kotlin compiler sessions (build artifacts)
 android/.kotlin/sessions/
+
+# 华为 AGC 凭证
+android/app/agconnect-services.json

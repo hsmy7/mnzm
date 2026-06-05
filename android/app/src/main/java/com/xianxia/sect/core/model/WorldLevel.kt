@@ -1,10 +1,12 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
 @Immutable
+@Keep
 @Serializable
 data class WorldLevel(
     val id: String = UUID.randomUUID().toString(),
@@ -52,6 +54,7 @@ data class WorldLevel(
     }
 }
 
+@Keep
 @Serializable
 enum class LevelType {
     BEAST,

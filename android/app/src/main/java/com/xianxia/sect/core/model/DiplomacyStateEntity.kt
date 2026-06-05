@@ -1,10 +1,12 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 @Entity(
     tableName = "diplomacy_state",

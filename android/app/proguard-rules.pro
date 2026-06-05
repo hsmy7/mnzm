@@ -194,3 +194,30 @@
 -keepclassmembers class * extends kotlinx.coroutines.flow.StateFlow {
     ** getValue();
 }
+
+# === 华为 HarmonyOS AOT 兼容规则 ===
+
+# Compose runtime stability annotations
+-keep @interface androidx.compose.runtime.Stable
+-keep @interface androidx.compose.runtime.Immutable
+-keepclasseswithmembers @androidx.compose.runtime.Stable class * { *; }
+-keepclasseswithmembers @androidx.compose.runtime.Immutable class * { *; }
+
+# Hilt generated components
+-keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper { *; }
+-keep class * extends dagger.hilt.android.internal.managers.ActivityComponentManager$ActivityContextWrapper { *; }
+
+# Manual proficiency — accessed via reflection
+-keep class com.xianxia.sect.core.model.ManualProficiencyData { *; }
+
+# Room TypeConverters
+-keep class * extends androidx.room.TypeConverter { *; }
+
+# Compose runtime internal reflection
+-keep class kotlin.coroutines.Continuation { *; }
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+
+# ReLinker native methods
+-keep class com.getkeepsafe.relinker.** { *; }

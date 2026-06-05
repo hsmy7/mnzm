@@ -5,13 +5,20 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Process
 import android.util.Log
+import com.xianxia.sect.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+// import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
+import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -92,6 +99,13 @@ class CrashHandler @Inject constructor(
         Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
 
         try {
+            // TODO: 上报到华为 AGC Crash — 待 agconnect-crash 依赖就绪后启用
+            // if (DeviceCompatibilityHelper.isHuaweiOrHonor) {
+            //     try {
+            //         AGConnectCrash.getInstance().recordException(throwable)
+            //     } catch (_: Exception) { }
+            // }
+
             // 1. 尝试紧急保存
             performEmergencySave()
 
@@ -100,6 +114,9 @@ class CrashHandler @Inject constructor(
 
             // 3. 保存崩溃状态到 SharedPreferences
             saveCrashState(throwable, crashLogFile)
+
+            // 4. 上传崩溃日志到远程服务器
+            tryUploadCrashLog(crashLogFile)
 
             Log.i(TAG, "Crash handling completed, crash log saved to: ${crashLogFile?.absolutePath}")
         } catch (e: Exception) {
@@ -110,6 +127,35 @@ class CrashHandler @Inject constructor(
         // 调用默认的异常处理器
         defaultExceptionHandler?.uncaughtException(thread, throwable)
             ?: Process.killProcess(Process.myPid())
+    }
+
+    /**
+     * 尝试上传崩溃日志到远程服务器
+     */
+    private fun tryUploadCrashLog(crashLogFile: File?) {
+        try {
+            if (crashLogFile == null || !crashLogFile.exists()) return
+            val content = crashLogFile.readText().take(8000)
+
+            Thread {
+                try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(3, TimeUnit.SECONDS)
+                        .build()
+                    val body = okhttp3.FormBody.Builder()
+                        .add("version", BuildConfig.VERSION_NAME)
+                        .add("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+                        .add("sdk", Build.VERSION.SDK_INT.toString())
+                        .add("stack", content)
+                        .build()
+                    val request = okhttp3.Request.Builder()
+                        .url("${BuildConfig.API_BASE_URL}crash-report")
+                        .post(body)
+                        .build()
+                    client.newCall(request).execute().close()
+                } catch (_: Exception) { /* 静默失败 */ }
+            }.start()
+        } catch (_: Exception) { /* 静默失败 */ }
     }
 
     /**

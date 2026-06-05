@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
  * 弟子战斗属性组件
  * 包含基础战斗属性、浮动系数、战斗统计等共18个字段
  */
+@Keep
 @Serializable
 @Immutable
 data class CombatAttributes(
@@ -64,6 +66,7 @@ data class CombatAttributes(
  * 丹药效果组件
  * 包含丹药临时属性加成和持续时间，共8个字段
  */
+@Keep
 @Serializable
 data class PillEffects(
     var pillPhysicalAttackBonus: Int = 0,

@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.model
 
+import androidx.annotation.Keep
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -25,6 +26,7 @@ data class SaveSlot(
     val displayName: String get() = if (isAutoSave) "自动存档" else (if (customName.isNotBlank()) customName else name)
 }
 
+@Keep
 @Serializable
 data class SaveData(
     val version: String = GameConfig.Game.VERSION,

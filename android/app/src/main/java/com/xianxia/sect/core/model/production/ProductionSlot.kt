@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model.production
 
+import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -9,6 +10,7 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 @Entity(
     tableName = "production_slots",
@@ -198,6 +200,7 @@ data class ProductionSlot(
     }
 }
 
+@Keep
 @Serializable
 enum class BuildingType {
     ALCHEMY,
@@ -245,6 +248,7 @@ enum class BuildingType {
     }
 }
 
+@Keep
 @Serializable
 enum class ProductionSlotStatus {
     IDLE,
@@ -258,6 +262,7 @@ enum class ProductionSlotStatus {
     }
 }
 
+@Keep
 @Serializable
 enum class SlotType {
     IDLE,

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 /**
@@ -9,6 +10,7 @@ import kotlinx.serialization.Serializable
  * 任务阁系统、兑换码使用记录等组织管理数据。
  * 从 GameData 上帝对象中拆分出来，降低 copy() 时的复制开销。
  */
+@Keep
 @Serializable
 data class SectOrganizationState(
     val elderSlots: ElderSlots = ElderSlots(),

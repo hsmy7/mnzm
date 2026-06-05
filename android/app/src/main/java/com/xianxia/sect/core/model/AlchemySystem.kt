@@ -1,10 +1,12 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 @Entity(
     tableName = "alchemy_slots",
@@ -52,6 +54,7 @@ data class AlchemySlot(
     }
 }
 
+@Keep
 @Serializable
 enum class AlchemySlotStatus {
     IDLE,
@@ -65,6 +68,7 @@ enum class AlchemySlotStatus {
     }
 }
 
+@Keep
 @Serializable
 data class AlchemyRecipe(
     val id: String,
@@ -83,6 +87,7 @@ data class AlchemyRecipe(
     override val requiredMaterials: Map<String, Int> get() = materials
 }
 
+@Keep
 @Serializable
 data class AlchemyResult(
     val success: Boolean,
@@ -90,6 +95,7 @@ data class AlchemyResult(
     val message: String = ""
 )
 
+@Keep
 @Serializable
 @Entity(
     tableName = "forge_slots",
@@ -138,6 +144,7 @@ data class ForgeSlot(
     }
 }
 
+@Keep
 @Serializable
 enum class ForgeSlotStatus {
     IDLE,
@@ -151,6 +158,7 @@ enum class ForgeSlotStatus {
     }
 }
 
+@Keep
 @Serializable
 data class ForgeRecipe(
     val id: String,
@@ -168,6 +176,7 @@ data class ForgeRecipe(
     override val requiredMaterials: Map<String, Int> get() = materials
 }
 
+@Keep
 @Serializable
 data class ForgeResult(
     val success: Boolean,

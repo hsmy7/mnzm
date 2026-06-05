@@ -2,6 +2,7 @@
 
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
@@ -46,6 +47,7 @@ import kotlinx.serialization.Serializable
  * - [getBreakthroughChance] → 委托给 [DiscipleStatCalculator.getBreakthroughChance]
  * - [getTalentEffects] → 委托给 [DiscipleStatCalculator.getTalentEffects]
  */
+@Keep
 @Serializable
 @Entity(
     tableName = "disciples",
@@ -684,6 +686,7 @@ data class Disciple(
     }
 }
 
+@Keep
 @Serializable
 enum class DiscipleStatus {
     IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, DEAD;
@@ -705,6 +708,7 @@ enum class DiscipleStatus {
     }
 }
 
+@Keep
 @Serializable
 data class SpiritRoot(
     val type: String
@@ -747,6 +751,7 @@ data class SpiritRoot(
         }
 }
 
+@Keep
 @Serializable
 data class Talent(
     val id: String,
@@ -760,6 +765,7 @@ data class Talent(
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
 
+@Keep
 @Serializable
 data class DiscipleStats(
     val hp: Int = 0,
@@ -803,6 +809,7 @@ data class DiscipleStats(
     }
 }
 
+@Keep
 @Serializable
 data class BaseCombatStats(
     val baseHp: Int = 120,
@@ -814,6 +821,7 @@ data class BaseCombatStats(
     val baseSpeed: Int = 15
 )
 
+@Keep
 @Serializable
 data class StorageBagItem(
     val itemId: String,
@@ -833,6 +841,7 @@ data class StorageBagItem(
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
 
+@Keep
 @Serializable
 data class ItemEffect(
     val cultivationSpeedPercent: Double = 0.0,
@@ -875,6 +884,7 @@ data class ItemEffect(
     val pillType: String = ""
 )
 
+@Keep
 @Serializable
 data class RewardSelectedItem(
     val id: String,
@@ -885,6 +895,7 @@ data class RewardSelectedItem(
     val grade: String? = null
 )
 
+@Keep
 @Serializable
 data class EquipmentNurtureData(
     val equipmentId: String,

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
@@ -26,6 +27,7 @@ sealed class GameItem {
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "equipment_stacks",
@@ -101,6 +103,7 @@ data class EquipmentStack(
     )
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "equipment_instances",
@@ -217,6 +220,7 @@ data class EquipmentInstance(
     )
 }
 
+@Keep
 @Serializable
 enum class EquipmentSlot {
     WEAPON, ARMOR, BOOTS, ACCESSORY;
@@ -229,6 +233,7 @@ enum class EquipmentSlot {
     }
 }
 
+@Keep
 @Serializable
 data class EquipmentStats(
     val physicalAttack: Int = 0,
@@ -264,6 +269,7 @@ data class EquipmentStats(
     )
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "manual_stacks",
@@ -348,6 +354,7 @@ data class ManualStack(
     )
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "manual_instances",
@@ -491,6 +498,7 @@ data class ManualInstance(
     )
 }
 
+@Keep
 @Serializable
 enum class ManualType {
     ATTACK, DEFENSE, SUPPORT, MIND;
@@ -503,6 +511,7 @@ enum class ManualType {
     }
 }
 
+@Keep
 @Serializable
 data class ManualSkill(
     val name: String,
@@ -543,6 +552,7 @@ data class ManualSkill(
     )
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "pills",
@@ -622,6 +632,7 @@ data class Pill(
     val clearAll: Boolean get() = effects.clearAll
 }
 
+@Keep
 @Serializable
 enum class PillCategory {
     CULTIVATION, BATTLE, FUNCTIONAL;
@@ -633,6 +644,7 @@ enum class PillCategory {
     }
 }
 
+@Keep
 @Serializable
 enum class PillGrade {
     LOW, MEDIUM, HIGH;
@@ -667,6 +679,7 @@ enum class PillGrade {
     }
 }
 
+@Keep
 @Serializable
 data class PillEffect(
     val breakthroughChance: Double = 0.0,
@@ -706,6 +719,7 @@ data class PillEffect(
     val clearAll: Boolean = false
 )
 
+@Keep
 @Serializable
 @Entity(
     tableName = "materials",
@@ -739,6 +753,7 @@ data class Material(
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
 }
 
+@Keep
 @Serializable
 enum class MaterialCategory {
     BEAST_HIDE,
@@ -770,6 +785,7 @@ enum class MaterialCategory {
     }
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "herbs",
@@ -803,6 +819,7 @@ data class Herb(
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
 }
 
+@Keep
 @Serializable
 @Entity(
     tableName = "seeds",
@@ -837,6 +854,7 @@ data class Seed(
 }
 
 @Entity(tableName = "storage_bags")
+@Keep
 @Serializable
 @Immutable
 data class StorageBag(

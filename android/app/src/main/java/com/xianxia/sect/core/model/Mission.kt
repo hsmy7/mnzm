@@ -1,9 +1,11 @@
 package com.xianxia.sect.core.model
 
+import androidx.annotation.Keep
 import java.util.UUID
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 enum class MissionDifficulty {
     SIMPLE,
@@ -75,6 +77,7 @@ enum class MissionDifficulty {
     }
 }
 
+@Keep
 @Serializable
 enum class MissionType {
     NO_COMBAT,
@@ -82,12 +85,14 @@ enum class MissionType {
     COMBAT_RANDOM
 }
 
+@Keep
 @Serializable
 enum class EnemyType {
     BEAST,
     HUMAN
 }
 
+@Keep
 @Serializable
 enum class MissionTemplate {
     ESCORT_CARAVAN,
@@ -276,6 +281,7 @@ enum class MissionTemplate {
     }
 }
 
+@Keep
 @Serializable
 data class MissionRewardConfig(
     val spiritStones: Int = 0,
@@ -301,6 +307,7 @@ data class MissionRewardConfig(
     val baseMaterialMaxRarity: Int = 1
 )
 
+@Keep
 @Serializable
 data class Mission(
     val id: String = UUID.randomUUID().toString(),
@@ -319,6 +326,7 @@ data class Mission(
     val memberCount: Int get() = template.requiredMemberCount
 }
 
+@Keep
 @Serializable
 data class ActiveMission(
     val id: String = UUID.randomUUID().toString(),
