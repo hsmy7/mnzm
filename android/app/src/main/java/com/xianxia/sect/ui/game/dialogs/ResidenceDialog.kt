@@ -51,8 +51,8 @@ fun ResidenceDialog(
     }
 
     val bonusText = when (building.displayName) {
-        "中级单人住所" -> "修炼速度+50%"
-        "单人住所" -> "修炼速度+25%"
+        "中级单人住所" -> "修炼速度+40%"
+        "单人住所" -> "修炼速度+20%"
         "多人住所" -> "修炼速度+10%"
         else -> ""
     }
@@ -66,7 +66,7 @@ fun ResidenceDialog(
 
     // Upgrade confirmation dialog
     if (showUpgradeConfirm) {
-        val canAfford = gameData.spiritStones >= 5000L
+        val canAfford = gameData.spiritStones >= 50000L
         val config = LocalConfiguration.current
         val dialogWidth = (config.screenWidthDp * 0.4f).dp
         val dialogHeight = (config.screenHeightDp * 0.3f).dp
@@ -92,7 +92,7 @@ fun ResidenceDialog(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "升级需要消耗 5000 灵石",
+                        text = "升级需要消耗 50000 灵石",
                         fontSize = 12.sp,
                         color = Color.Black
                     )

@@ -19,6 +19,16 @@
 - 删除品阶对熟练度上限和阈值的倍率影响
 - 统一为单一公式 `calculateProficiencyGainPerSecond(comprehension, libraryBonus)`，删除旧的 `calculateProficiencyGain`（含境界/品阶/天赋参数，从未被实际调用）
 
+### 建筑费用调整
+
+- 单人住所建造费用 800 → 20000 灵石
+- 多人住所建造费用 2000 → 30000 灵石
+- 巡视楼建造费用 5000 → 50000 灵石
+- 天枢殿建造费用 5000 → 20000 灵石
+- 单人住所升级费用 5000 → 50000 灵石
+- 初级单人住所修炼加成 +25% → +20%（倍率 1.25 → 1.20）
+- 中级单人住所修炼加成 +50% → +40%（倍率 1.50 → 1.40）
+
 ### 代码清理
 
 - 删除 `ManualProficiencySystem` 中 7 个从未被调用的方法：`getProficiencyThresholds`、`getMaxProficiency`、`calculateProficiencyGain`、`updateProficiency`、`calculateManualStatsBonus`、`shouldAutoLearnManual`、`selectBestManualToLearn`、`generateProficiencyGainMessage` 及 `ManualInfo` 数据类

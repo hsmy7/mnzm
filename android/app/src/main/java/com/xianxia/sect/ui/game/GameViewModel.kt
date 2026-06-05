@@ -1007,10 +1007,10 @@ class GameViewModel @Inject constructor(
     fun upgradeSingleResidence(buildingInstanceId: String) {
         viewModelScope.launch {
             gameEngine.updateGameData { data ->
-                val canAfford = data.spiritStones >= 5000L
+                val canAfford = data.spiritStones >= 50000L
                 if (!canAfford) return@updateGameData data
                 data.copy(
-                    spiritStones = data.spiritStones - 5000L,
+                    spiritStones = data.spiritStones - 50000L,
                     placedBuildings = data.placedBuildings.map { b ->
                         if (b.instanceId == buildingInstanceId && b.displayName == "单人住所")
                             b.copy(displayName = "中级单人住所")

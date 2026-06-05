@@ -236,7 +236,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "ADMINISTRATION",
                     slotCount = 2,
                     baseSuccessRate = 1.0,
-                    cost = 5000,
+                    cost = 20000,
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "处理宗门事务的核心建筑"
@@ -313,10 +313,10 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "SINGLE_RESIDENCE",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 800,
+                    cost = 20000,
                     gridWidth = 3,
                     gridHeight = 2,
-                    description = "为弟子提供清修之所，修炼速度+25%，可升级"
+                    description = "为弟子提供清修之所，修炼速度+20%，可升级"
                 ),
                 "multi_residence" to BuildingConfigModel(
                     id = "multi_residence",
@@ -324,7 +324,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "MULTI_RESIDENCE",
                     slotCount = 4,
                     baseSuccessRate = 1.0,
-                    cost = 2000,
+                    cost = 30000,
                     gridWidth = 3,
                     gridHeight = 3,
                     description = "供多名弟子共同修炼，修炼速度+10%"
@@ -335,10 +335,10 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "SINGLE_RESIDENCE",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 5000,
+                    cost = 50000,
                     gridWidth = 3,
                     gridHeight = 2,
-                    description = "单人修炼之所，修炼速度+50%"
+                    description = "单人修炼之所，修炼速度+40%"
                 ),
                 "spirit_field" to BuildingConfigModel(
                     id = "spirit_field",
@@ -365,7 +365,7 @@ class BuildingConfigService @Inject constructor(
                     displayName = "巡视楼",
                     buildingType = "PATROL",
                     slotCount = 8,
-                    cost = 5000,
+                    cost = 50000,
                     gridWidth = 2,
                     gridHeight = 3,
                     description = "驻守弟子自动巡视地图攻击妖兽"

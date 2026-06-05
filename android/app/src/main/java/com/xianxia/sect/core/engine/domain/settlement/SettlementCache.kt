@@ -124,8 +124,8 @@ class SettlementCache(state: MutableGameState) {
         val slot = data.residenceSlots.firstOrNull { it.discipleId == disciple.id } ?: return 1.0
         val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
         return when (building.displayName) {
-            "中级单人住所" -> 1.50
-            "单人住所" -> 1.25
+            "中级单人住所" -> 1.40
+            "单人住所" -> 1.20
             "多人住所" -> 1.10
             else -> 1.0
         }
