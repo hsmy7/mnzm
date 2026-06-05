@@ -40,6 +40,10 @@
 - 删除废弃常量 `BASE_PROFICIENCY_GAIN`、`MASTERY_THRESHOLD`
 - `MasteryLevel.fromProficiency()` 不再需要 `manualRarity` 参数
 
+### Bug 修复
+
+- 修复自动存档数据写入手动存档槽位的问题：`enqueueAutoSave` 增量保存使用了 `currentSlot`（手动存档槽位 1-6）而非 `AUTO_SAVE_SLOT`（0），导致自动存档数据存到手动存档槽位，自动存档槽位无变化
+
 ### 数据库迁移
 
 - v29→v30：同步更新弟子修炼速度缓存（cultivationSpeed 字段）
