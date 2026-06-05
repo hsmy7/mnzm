@@ -109,7 +109,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     /** 焦点域每 tick 推进的秒数（100ms tick ≈ 0.1 秒） */
     private val tickSeconds = 0.1
 
-    /** 战斗前对参战弟子强制结算气血和灵力恢复 */
+    /** 战斗前对参战弟子进行一次 HP/MP 恢复结算（脏标记：满状态跳过） */
     fun recoverHpMpForBattleParticipants(discipleIds: List<String>) {
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }
         val manualMap = currentManualInstances.associateBy { it.id }
@@ -118,17 +118,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         currentDisciples = currentDisciples.map { d ->
             if (d.id !in discipleIds || !d.isAlive) return@map d
+            var curHp = d.combat.currentHp
+            var curMp = d.combat.currentMp
+            // 满状态弟子跳过（脏标记：无需恢复）
+            if (curHp >= d.maxHp && curMp >= d.maxMp) return@map d
             val discipleProficiencies = allProficiencies[d.id]?.associateBy { it.manualId } ?: emptyMap()
             val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
-            val curHp = d.combat.currentHp
-            val curMp = d.combat.currentMp
-            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
-            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
-            if (newHp != curHp || newMp != curMp) d.copyWith(currentHp = newHp, currentMp = newMp) else d
+            curHp = if (curHp < 0) curHp else (curHp + (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxHp)
+            curMp = if (curMp < 0) curMp else (curMp + (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxMp)
+            if (curHp != d.combat.currentHp || curMp != d.combat.currentMp) d.copyWith(currentHp = curHp, currentMp = curMp) else d
         }
     }
 
