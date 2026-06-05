@@ -34,16 +34,6 @@ class ProductionSubsystem @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
-    /**
-     * 焦点域相位级实时检测：检查到期槽位并立即结算。
-     * 玩家在 BUILDINGS Tab 或打开生产对话框时，每 100ms 检测一次到期槽位。
-     */
-    override suspend fun onPhaseTick(state: MutableGameState) {
-        cultivationService.processFocusedProductionCheck(
-            state.gameData.gameYear, state.gameData.gameMonth
-        )
-    }
-
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processHerbGardenGrowth(state.gameData.gameYear, state.gameData.gameMonth)

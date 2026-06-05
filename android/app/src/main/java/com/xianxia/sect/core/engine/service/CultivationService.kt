@@ -98,6 +98,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     private val autoEquipDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val autoLearnDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
+    // 焦点域弟子修炼速度缓存：仅限 prcoessPhaseTick 使用，避免每 tick 重复计算完整 rate
+    private val focusCultivationRates = java.util.concurrent.ConcurrentHashMap<String, Double>()
+
     fun markAutoEquipDirty(discipleId: String) { autoEquipDirty.add(discipleId) }
     fun markAutoLearnDirty(discipleId: String) { autoLearnDirty.add(discipleId) }
 
@@ -864,9 +867,22 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val manualStacksList = currentManualStacks
         val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
         val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
+        val secondsPerPhase = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble() / 3.0  // 2s/phase
 
         // 提前过滤：只处理存活弟子
         val aliveDisciples = currentDisciples.filter { it.isAlive }
+
+        // 焦点域修炼速度缓存：仅脏弟子重算，其余复用
+        for (d in aliveDisciples) {
+            val needRecalc = !focusCultivationRates.containsKey(d.id)
+                || autoEquipDirty.contains(d.id) || autoLearnDirty.contains(d.id)
+            if (needRecalc) {
+                val prof = proficienciesMap[d.id]?.associateBy { it.manualId } ?: emptyMap()
+                focusCultivationRates[d.id] = DiscipleStatCalculator.calculateCultivationSpeed(
+                    disciple = d, manuals = manualMap, manualProficiencies = prof
+                )
+            }
+        }
 
         // 统一累加器：合并分散的 MutableList/MutableMap
         val acc = PhaseTickAccumulator()
@@ -877,7 +893,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         for ((index, disciple) in aliveDisciples.withIndex()) {
             processedAlive.add(
                 processDiscipleTick(disciple, year, month, phase, equipmentMap, manualMap, proficienciesMap,
-                    multiplier, decay, equipmentStacksList, manualStacksList, maxEquipStack, maxManualStack, acc)
+                    multiplier, decay, equipmentStacksList, manualStacksList, maxEquipStack, maxManualStack,
+                    secondsPerPhase, acc)
             )
             if ((index + 1) % batchSize == 0) {
                 yield()
@@ -911,9 +928,17 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         equipmentStacksList: List<EquipmentStack>,
         manualStacksList: List<ManualStack>,
         maxEquipStack: Int, maxManualStack: Int,
+        secondsPerPhase: Double,
         acc: PhaseTickAccumulator
     ): Disciple {
         var d = disciple
+
+        // 焦点域实时修炼进度：每 phase (2s) 推进一次，保证玩家看到的进度条平滑移动
+        val rate = focusCultivationRates[d.id]
+        if (rate != null && d.cultivation < d.maxCultivation) {
+            val delta = rate * secondsPerPhase
+            d = d.copy(cultivation = (d.cultivation + delta).coerceAtMost(d.maxCultivation))
+        }
 
         if (d.cultivationSpeedDuration > 0) {
             val newDuration = d.cultivationSpeedDuration - decay
@@ -930,27 +955,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 d = d.copy(pillEffects = PillEffects())
             } else {
                 d = d.copy(pillEffects = d.pillEffects.copy(pillEffectDuration = newDuration))
-            }
-        }
-
-        // 焦点弟子实时推进修炼值 — 月度结算时自动扣减已推进部分
-        if (d.id == stateStore.focusedDiscipleId && d.cultivation < d.maxCultivation) {
-            val rate = calculateDiscipleCultivationPerSecond(d, currentGameData)
-            // 每旬 2 秒（6秒/月 ÷ 3旬），按旬比例推进
-            val phaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH / 3.0
-            val phaseGain = rate * phaseSeconds
-            val newCultivation = (d.cultivation + phaseGain).coerceAtMost(d.maxCultivation)
-            val gained = newCultivation - d.cultivation
-            if (gained > 0) {
-                d = d.copy(cultivation = newCultivation)
-                val current = _highFrequencyData.value
-                val updated = (current.cultivationUpdates.toMutableMap()).apply {
-                    this[d.id] = (this[d.id] ?: 0.0) + gained
-                }
-                _highFrequencyData.value = current.copy(
-                    cultivationUpdates = updated,
-                    lastCultivationTime = System.currentTimeMillis()
-                )
             }
         }
 
@@ -981,7 +985,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 仅储物袋有装备或装备栏发生变更时检测（绝大部分弟子无装备可穿，跳过省CPU）
         val hasEquipmentInBag = d.equipment.storageBagItems.any { it.itemType == "equipment" }
-        val needEquipCheck = hasEquipmentInBag || d.id in autoEquipDirty
+        val needEquipCheck = hasEquipmentInBag || autoEquipDirty.contains(d.id)
         val equipResult = if (needEquipCheck) {
             DiscipleEquipmentManager.processAutoEquip(
                 disciple = d, equipmentStacks = equipmentStacksList,
@@ -1008,7 +1012,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // 仅储物袋有功法或功法栏变更时检测（绝大部分弟子无功法可学，跳过省CPU）
         val hasManualInBag = d.equipment.storageBagItems.any { it.itemType == "manual" }
-        val needLearnCheck = hasManualInBag || d.id in autoLearnDirty
+        val needLearnCheck = hasManualInBag || autoLearnDirty.contains(d.id)
         val manualResult = if (needLearnCheck) {
             DiscipleManualManager.processAutoLearn(
                 disciple = d, manualStacks = manualStacksList,
@@ -1615,25 +1619,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * Process building production (forge, alchemy, herb garden)
      * Auto-harvest completed slots and reset to IDLE
      */
-    /**
-     * 焦点域实时检测：检查所有进行中的生产槽位是否到期，立即结算。
-     * 玩家在 BUILDINGS Tab 或打开生产对话框时，每 100ms 调用一次。
-     * 仅检查 completionMonth 到期的槽位，不做全量月度处理。
-     */
-    suspend fun processFocusedProductionCheck(year: Int, month: Int) {
-        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
-        val workingSlots = productionSlotRepository.getSlots().filter {
-            it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING
-                && it.completionMonth > 0
-                && it.completionMonth <= currentAbsoluteMonth
-        }
-        if (workingSlots.isEmpty()) return
-
-        // 到期槽位触发月度处理（复用以保证一致性）
-        processBuildingProduction(year, month)
-        processHerbGardenGrowth(year, month)
-    }
-
     internal suspend fun processBuildingProduction(year: Int, month: Int) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         forgeSlots.forEach { slot ->
