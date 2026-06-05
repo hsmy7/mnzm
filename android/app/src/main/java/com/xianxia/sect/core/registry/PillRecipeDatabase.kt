@@ -48,7 +48,7 @@ object PillRecipeDatabase {
         val miningAdd: Int = 0
     )
 
-    private val TIER_DURATION = mapOf(1 to 2, 2 to 5, 3 to 9, 4 to 18, 5 to 30, 6 to 48)
+    private val TIER_DURATION: Map<Int, Int> get() = ForgeRecipeDatabase.TIER_DURATION
     private val TIER_SUCCESS_RATE = mapOf(1 to 0.75, 2 to 0.65, 3 to 0.60, 4 to 0.45, 5 to 0.35, 6 to 0.20)
 
     private val TIER_HERB_IDS = mapOf(

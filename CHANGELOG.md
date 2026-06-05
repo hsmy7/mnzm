@@ -29,6 +29,11 @@
 - 初级单人住所修炼加成 +25% → +20%（倍率 1.25 → 1.20）
 - 中级单人住所修炼加成 +50% → +40%（倍率 1.50 → 1.40）
 
+### 生产时间调整
+
+- 锻造/炼制时间按阶级统一调整：1阶 2→3、2阶 5→6、3阶 9→12、4阶 18→36、5阶 30→72、6阶 48→120
+- 锻造与炼制时间配置合并为 `ForgeRecipeDatabase.TIER_DURATION` 单一数据源，`PillRecipeDatabase` 和 `PillRecipeRegistry` 均委托引用
+
 ### 代码清理
 
 - 删除 `ManualProficiencySystem` 中 7 个从未被调用的方法：`getProficiencyThresholds`、`getMaxProficiency`、`calculateProficiencyGain`、`updateProficiency`、`calculateManualStatsBonus`、`shouldAutoLearnManual`、`selectBestManualToLearn`、`generateProficiencyGainMessage` 及 `ManualInfo` 数据类
@@ -39,6 +44,7 @@
 
 - v29→v30：同步更新弟子修炼速度缓存（cultivationSpeed 字段）
 - v30→v31：更新 `manualProficiencies` JSON 中所有条目的 `maxProficiency` 为 30000，`masteryLevel` 按新阈值重新计算
+- v31→v32：更新进行中锻造/炼丹槽位的 duration 为新时间（production_slots、forge_slots、alchemy_slots 三表）
 
 ## [3.2.07] - 2026-06-04
 

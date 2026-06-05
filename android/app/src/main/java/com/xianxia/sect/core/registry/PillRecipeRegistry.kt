@@ -124,15 +124,7 @@ class PillRecipeRegistry(
      * @param tier 层级
      * @return 炼制所需时间单位
      */
-    fun getDurationByTier(tier: Int): Int = when (tier) {
-        1 -> 2
-        2 -> 5
-        3 -> 9
-        4 -> 18
-        5 -> 30
-        6 -> 48
-        else -> 2
-    }
+    fun getDurationByTier(tier: Int): Int = ForgeRecipeDatabase.getDurationByTier(tier)
 
     /**
      * 获取层级名称
