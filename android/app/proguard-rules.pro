@@ -4,8 +4,13 @@
 -dontwarn com.taptap.**
 
 # Dirichlet Ad SDK（com.tapsdk.tapad，与 TapTap 不同包名）
+# 以下规则与 AAR 自带 proguard.txt 保持一致
+-keepattributes *Annotation*
+-keepattributes Signature
 -keep class com.tapsdk.tapad.** { *; }
 -keep interface com.tapsdk.tapad.** { *; }
+-keep enum com.tapsdk.tapad.** { *; }
+-keeppackagenames com.tapsdk.tapad.**
 -dontwarn com.tapsdk.tapad.**
 
 # TapTap SDK annotations

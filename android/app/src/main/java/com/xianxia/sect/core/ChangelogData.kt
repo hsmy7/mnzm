@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.13",
+            date = "2026-06-06",
+            changes = listOf(
+                "修复 Dirichlet 广告 SDK ProGuard 规则缺失 -keeppackagenames 导致类查找失败"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.12",
             date = "2026-06-05",
             changes = listOf(
