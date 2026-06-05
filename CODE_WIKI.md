@@ -824,7 +824,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 - **DISCIPLES Tab**: `processDiscipleTick` 每 100ms 推进全体弟子修炼值（`rate × 0.1s`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
 - **BUILDINGS Tab**: `ProductionSubsystem.onPhaseTick` 每 200ms 检测生产槽位完成 + 触发自动锻造/自动炼丹
-- **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前强制恢复（`CombatService`）
+- **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前正常恢复（`CombatService`，满状态跳过）
 
 ### 修炼惰性结算 (v3.2.16)
 
@@ -842,6 +842,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - `GameEngineCore` 专用游戏线程（`GAME_DISPATCHER`）、空闲检测保留 tick 改降域
 - 月度结算精简：薪水年度化、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
 - 自动装备/自动学习脏标记：仅储物袋有物品或装备/功法变更时检测（`ConcurrentHashMap.newKeySet`）
+- **战斗前 HP/MP 恢复**：`recoverHpMpForBattleParticipants` 仅对非满状态弟子做正常恢复结算（`rate × multiplier`），满 HP+MP 跳过
 
 ---
 
