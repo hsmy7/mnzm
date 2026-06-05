@@ -1,0 +1,34 @@
+name: Device Compatibility Test
+
+on:
+  workflow_dispatch:     # 手动触发
+  release:
+    types: [published]   # 发布时自动触发
+
+jobs:
+  huawei-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build Release APK + Test APK
+        run: |
+          cd android
+          ./gradlew assembleRelease assembleAndroidTest
+
+      - name: Run Firebase Test Lab on Huawei Devices
+        run: |
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app android/app/build/outputs/apk/release/app-release.apk \
+            --test android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk \
+            --device model=huawei_mate60pro,version=34.0,locale=zh_CN,orientation=landscape \
+            --device model=huawei_nova11,version=33.0,locale=zh_CN,orientation=landscape \
+            --device model=honor_magic6pro,version=34.0,locale=zh_CN,orientation=landscape \
+            --device model=vivo_x100pro,version=34.0,locale=zh_CN,orientation=landscape \
+            --timeout 15m \
+            --results-bucket gs://xianxia-test-results \
+            --results-dir "$(date +%Y%m%d_%H%M%S)"

@@ -3,6 +3,7 @@ buildscript {
     repositories {
         maven { url = 'https://maven.aliyun.com/repository/google' }
         maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url = 'https://developer.huawei.com/repo/' }
         google()
         mavenCentral()
     }
@@ -10,6 +11,8 @@ buildscript {
         classpath 'com.android.tools.build:gradle:8.8.0'
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
         classpath 'com.google.dagger:hilt-android-gradle-plugin:2.56'
+        classpath 'com.huawei.agconnect:agcp:1.9.1.301'
+        classpath 'com.google.gms:google-services:4.4.2'
     }
 }
 

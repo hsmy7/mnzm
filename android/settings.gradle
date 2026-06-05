@@ -16,6 +16,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven { url = 'https://jitpack.io' }
         maven { url = 'https://maven.taptap.io' }
+        maven { url = 'https://developer.huawei.com/repo/' }
         // Dirichlet Ad SDK AAR 本地仓库
         flatDir { dirs 'app/src/main/libs' }
     }

@@ -1,0 +1,18 @@
+# Firebase Test Lab 华为设备矩阵
+
+devices:
+  # 华为旗舰（Kirin 9000+）
+  - model: huawei_mate60pro    # HarmonyOS 4.x
+  - model: huawei_pura70       # HarmonyOS 4.x
+  - model: huawei_mate50pro    # EMUI 13 / HarmonyOS 3
+
+  # 华为中端（Kirin 710/810/820）
+  - model: huawei_nova11       # HarmonyOS 3
+  - model: huawei_nova9        # EMUI 12
+
+  # 荣耀独立后机型（MagicOS）
+  - model: honor_magic6pro     # MagicOS 8.0
+  - model: honor_90            # MagicOS 7.1
+
+  # 对比测试（vivo）
+  - model: vivo_x100pro        # 参考设备，验证无退化

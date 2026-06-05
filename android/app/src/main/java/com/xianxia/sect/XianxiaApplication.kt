@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.util.Log
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
+// import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
@@ -62,6 +63,15 @@ class XianxiaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // TODO: 华为 AGC Crash — 待 agconnect-crash 依赖就绪后启用
+        // if (DeviceCompatibilityHelper.isHuaweiOrHonor) {
+        //     try {
+        //         AGConnectCrash.getInstance().enableCrashCollection(true)
+        //     } catch (e: Exception) {
+        //         Log.w(TAG, "AGC Crash init failed", e)
+        //     }
+        // }
 
         DeviceCompatibilityHelper.logDeviceInfo()
 
