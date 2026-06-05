@@ -3,6 +3,11 @@
 -keep interface com.taptap.** { *; }
 -dontwarn com.taptap.**
 
+# Dirichlet Ad SDK（com.tapsdk.tapad，与 TapTap 不同包名）
+-keep class com.tapsdk.tapad.** { *; }
+-keep interface com.tapsdk.tapad.** { *; }
+-dontwarn com.tapsdk.tapad.**
+
 # TapTap SDK annotations
 -keep class com.taptap.sdk.servicemanager.annotation.** { *; }
 -keep class com.taptap.sdk.startup.annotation.** { *; }

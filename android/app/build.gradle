@@ -32,8 +32,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3211
-        versionName = "3.2.11"
+        versionCode = 3212
+        versionName = "3.2.12"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -283,31 +283,41 @@ protobuf {
     }
 }
 
-// 构建后将 mapping 文件复制到固定目录
-tasks.whenTaskAdded { task ->
-    if (task.name == 'minifyReleaseWithR8') {
-        task.doLast {
-            def mappingFile = file("${buildDir}/outputs/mapping/release/mapping.txt")
-            if (mappingFile.exists()) {
-                def destDir = file("${rootDir}/mappings/${android.defaultConfig.versionName}")
-                destDir.mkdirs()
-                copy {
-                    from mappingFile
-                    into destDir
-                    rename { "mapping-${android.defaultConfig.versionName}.txt" }
-                }
-            }
+// Bugly mapping 存档 + 上传（assembleRelease 后运行 ./gradlew archiveAndUploadMapping）
+def buglyAppId = findProperty('BUGLY_APP_ID') ?: 'e63e93230e'
+def buglyAppKey = findProperty('BUGLY_APP_KEY') ?: '2fc5f3ab-dcab-4456-b8d0-424ff83fc653'
+def mappingVersionName = android.defaultConfig.versionName
+def mappingPkgName = android.defaultConfig.applicationId
+def mappingBuildDir = layout.buildDirectory
+def mappingRootDir = layout.projectDirectory.dir("..")
+
+tasks.register('archiveAndUploadMapping') {
+    group = 'bugly'
+    description = 'Archive mapping.txt and upload to Bugly for symbolication'
+    doLast {
+        def mappingFile = mappingBuildDir.file("outputs/mapping/release/mapping.txt").get().asFile
+        if (!mappingFile.exists()) {
+            logger.warn("mapping.txt not found, run assembleRelease first")
+            return
         }
+        def destDir = mappingRootDir.dir("mappings/${mappingVersionName}").asFile
+        destDir.mkdirs()
+        mappingFile.renameTo(new File(destDir, "mapping-${mappingVersionName}.txt"))
+        logger.lifecycle("Mapping archived to ${destDir}")
+
+        logger.lifecycle("Uploading mapping to Bugly...")
+        def cmd = [
+            'curl', '-k', '-s',
+            "https://api.bugly.qq.com/openapi/file/upload/symbol?app_key=${buglyAppKey}&app_id=${buglyAppId}",
+            '--form', 'api_version=1',
+            '--form', "app_id=${buglyAppId}",
+            '--form', "app_key=${buglyAppKey}",
+            '--form', 'symbolType=1',
+            '--form', "bundleId=${mappingPkgName}",
+            '--form', "productVersion=${mappingVersionName}",
+            '--form', 'fileName=mapping.txt',
+            '--form', "file=@${destDir}/mapping-${mappingVersionName}.txt"
+        ]
+        logger.lifecycle("Bugly response: ${cmd.execute().text.trim()}")
     }
-}
-
-// 华为 AGC Crash：崩溃收集在 Application.onCreate() 中初始化，
-// 符号表由 AGC 插件自动上传，无需额外配置
-
-// 腾讯 Bugly 符号表自动上传（release 构建时自动上传 mapping 文件）
-apply plugin: 'bugly'
-bugly {
-    appId = apiProperties.getProperty('BUGLY_APP_ID', 'e63e93230e')
-    appKey = apiProperties.getProperty('BUGLY_APP_KEY', '2fc5f3ab-dcab-4456-b8d0-424ff83fc653')
-    upload = true
 }

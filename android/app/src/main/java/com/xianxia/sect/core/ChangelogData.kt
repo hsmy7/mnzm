@@ -9,6 +9,28 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.12",
+            date = "2026-06-05",
+            changes = listOf(
+                "修复 Dirichlet 广告 SDK 被 R8 混淆移除导致 ClassNotFoundException"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.2.11",
+            date = "2026-06-05",
+            changes = listOf(
+                "【全厂商适配】新增 ManufacturerAdapter 兼容层，覆盖华为/小米/OPPO/vivo/荣耀/三星",
+                "【崩溃收集】集成腾讯 Bugly 崩溃收集 SDK，自动上传符号表实现堆栈可读"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.2.10",
+            date = "2026-06-05",
+            changes = listOf(
+                "修复 MMKV 加载 + Java/Kotlin 互操作兼容性问题"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.09",
             date = "2026-06-05",
             changes = listOf(
