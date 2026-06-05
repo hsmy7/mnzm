@@ -933,6 +933,27 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             }
         }
 
+        // 焦点弟子实时推进修炼值 — 月度结算时自动扣减已推进部分
+        if (d.id == stateStore.focusedDiscipleId && d.cultivation < d.maxCultivation) {
+            val rate = calculateDiscipleCultivationPerSecond(d, currentGameData)
+            // 每旬 2 秒（6秒/月 ÷ 3旬），按旬比例推进
+            val phaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH / 3.0
+            val phaseGain = rate * phaseSeconds
+            val newCultivation = (d.cultivation + phaseGain).coerceAtMost(d.maxCultivation)
+            val gained = newCultivation - d.cultivation
+            if (gained > 0) {
+                d = d.copy(cultivation = newCultivation)
+                val current = _highFrequencyData.value
+                val updated = (current.cultivationUpdates.toMutableMap()).apply {
+                    this[d.id] = (this[d.id] ?: 0.0) + gained
+                }
+                _highFrequencyData.value = current.copy(
+                    cultivationUpdates = updated,
+                    lastCultivationTime = System.currentTimeMillis()
+                )
+            }
+        }
+
         val discipleProficiencies = proficienciesMap.getOrDefault(d.id, emptyList())
             .associateBy { it.manualId }
         val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
@@ -1594,6 +1615,25 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      * Process building production (forge, alchemy, herb garden)
      * Auto-harvest completed slots and reset to IDLE
      */
+    /**
+     * 焦点域实时检测：检查所有进行中的生产槽位是否到期，立即结算。
+     * 玩家在 BUILDINGS Tab 或打开生产对话框时，每 100ms 调用一次。
+     * 仅检查 completionMonth 到期的槽位，不做全量月度处理。
+     */
+    suspend fun processFocusedProductionCheck(year: Int, month: Int) {
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
+        val workingSlots = productionSlotRepository.getSlots().filter {
+            it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING
+                && it.completionMonth > 0
+                && it.completionMonth <= currentAbsoluteMonth
+        }
+        if (workingSlots.isEmpty()) return
+
+        // 到期槽位触发月度处理（复用以保证一致性）
+        processBuildingProduction(year, month)
+        processHerbGardenGrowth(year, month)
+    }
+
     internal suspend fun processBuildingProduction(year: Int, month: Int) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         forgeSlots.forEach { slot ->
