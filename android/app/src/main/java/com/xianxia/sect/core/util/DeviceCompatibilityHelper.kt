@@ -12,15 +12,12 @@ object DeviceCompatibilityHelper {
     private const val TAG = "DeviceCompat"
 
     val isHuaweiOrHonor: Boolean by lazy {
-        val m = Build.MANUFACTURER.lowercase()
-        val b = Build.BRAND.lowercase()
-        listOf(m, b).any { it.contains("huawei") || it.contains("honor") }
+        ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HUAWEI ||
+        ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HONOR
     }
 
     val isVivo: Boolean by lazy {
-        val m = Build.MANUFACTURER.lowercase()
-        val b = Build.BRAND.lowercase()
-        listOf(m, b).any { it.contains("vivo") || it.contains("iqoo") }
+        ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.VIVO
     }
 
     /**
@@ -49,6 +46,7 @@ object DeviceCompatibilityHelper {
             |SDK: ${Build.VERSION.SDK_INT}
             |Is Huawei/Honor: $isHuaweiOrHonor
             |Is Vivo: $isVivo
+            |ManufacturerAdapter: ${ManufacturerAdapter.current}
             |======================================
         """.trimMargin())
     }

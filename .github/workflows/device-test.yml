@@ -6,8 +6,17 @@ on:
     types: [published]   # 发布时自动触发
 
 jobs:
-  huawei-compatibility:
+  compatibility-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device:
+          - model=huawei_mate60pro,version=34.0
+          - model=xiaomi_14,version=34.0
+          - model=oppo_findx7,version=34.0
+          - model=vivo_x100pro,version=34.0
+          - model=honor_magic6pro,version=34.0
+          - model=samsung_galaxys24,version=34.0
     steps:
       - uses: actions/checkout@v4
 
@@ -19,16 +28,13 @@ jobs:
           cd android
           ./gradlew assembleRelease assembleAndroidTest
 
-      - name: Run Firebase Test Lab on Huawei Devices
+      - name: Run Firebase Test Lab on ${{ matrix.device }}
         run: |
           gcloud firebase test android run \
             --type instrumentation \
             --app android/app/build/outputs/apk/release/app-release.apk \
             --test android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk \
-            --device model=huawei_mate60pro,version=34.0,locale=zh_CN,orientation=landscape \
-            --device model=huawei_nova11,version=33.0,locale=zh_CN,orientation=landscape \
-            --device model=honor_magic6pro,version=34.0,locale=zh_CN,orientation=landscape \
-            --device model=vivo_x100pro,version=34.0,locale=zh_CN,orientation=landscape \
+            --device ${{ matrix.device }},locale=zh_CN,orientation=landscape \
             --timeout 15m \
             --results-bucket gs://xianxia-test-results \
-            --results-dir "$(date +%Y%m%d_%H%M%S)"
+            --results-dir "$(date +%Y%m%d_%H%M%S)_$(echo ${{ matrix.device }} | cut -d= -f2 | cut -d, -f1)"

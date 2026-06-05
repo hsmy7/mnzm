@@ -8,11 +8,13 @@ import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
+import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.recovery.RecoveryManager
 import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
+import com.tencent.bugly.crashreport.CrashReport
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -74,6 +76,20 @@ class XianxiaApplication : Application() {
         // }
 
         DeviceCompatibilityHelper.logDeviceInfo()
+
+        // 全厂商适配：根据当前设备厂商执行差异化适配策略
+        ManufacturerAdapter.apply(this)
+
+        // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
+        try {
+            CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
+            CrashReport.setUserId("unknown")
+            CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
+            CrashReport.putUserData(this, "model", android.os.Build.MODEL)
+            Log.i(TAG, "Bugly crash report initialized")
+        } catch (e: Exception) {
+            Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
+        }
 
         // P0修复：MMKV 显式初始化，使用 ReLinker 兜底原生库加载
         // 华为 HarmonyOS/EMUI 的 linker 不支持从 APK 直接 mmap 加载 .so，

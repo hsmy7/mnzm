@@ -221,3 +221,8 @@
 
 # ReLinker native methods
 -keep class com.getkeepsafe.relinker.** { *; }
+
+# Bugly - 崩溃收集 SDK
+-dontwarn com.tencent.bugly.**
+-keep public class com.tencent.bugly.**{*;}
+-keep class android.support.**{*;}

@@ -32,8 +32,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3209
-        versionName = "3.2.09"
+        versionCode = 3211
+        versionName = "3.2.11"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -41,6 +41,8 @@ android {
         buildConfigField "boolean", "TAPTAP_IS_CN", apiProperties.getProperty('TAPTAP_IS_CN', 'true')
         buildConfigField "String", "TAPDB_CHANNEL", '"' + apiProperties.getProperty('TAPDB_CHANNEL', 'taptap') + '"'
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
+        buildConfigField "String", "BUGLY_APP_ID", '"' + apiProperties.getProperty('BUGLY_APP_ID', 'e63e93230e') + '"'
+        buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '2fc5f3ab-dcab-4456-b8d0-424ff83fc653') + '"'
 
         // 仅保留 ARM 架构，模拟器通过 libhoudini 翻译运行（与主流国产手游一致）
         ndk {
@@ -226,6 +228,10 @@ dependencies {
     // ReLinker - 原生库加载失败时的兜底方案
     implementation 'com.getkeepsafe.relinker:relinker:1.4.5'
 
+    // 腾讯 Bugly - 崩溃收集 + 符号化堆栈
+    implementation 'com.tencent.bugly:crashreport:4.1.9.3'
+    implementation 'com.tencent.bugly:nativecrashreport:3.9.2'
+
     // 华为 AGC Crash SDK — 待华为开发者账号开通后启用
     // implementation 'com.huawei.agconnect:agconnect-crash:1.9.1.300'
 
@@ -297,3 +303,11 @@ tasks.whenTaskAdded { task ->
 
 // 华为 AGC Crash：崩溃收集在 Application.onCreate() 中初始化，
 // 符号表由 AGC 插件自动上传，无需额外配置
+
+// 腾讯 Bugly 符号表自动上传（release 构建时自动上传 mapping 文件）
+apply plugin: 'bugly'
+bugly {
+    appId = apiProperties.getProperty('BUGLY_APP_ID', 'e63e93230e')
+    appKey = apiProperties.getProperty('BUGLY_APP_KEY', '2fc5f3ab-dcab-4456-b8d0-424ff83fc653')
+    upload = true
+}
