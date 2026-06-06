@@ -184,7 +184,7 @@ dependencies {
     // Hilt
     implementation 'com.google.dagger:hilt-android:2.56'
     ksp 'com.google.dagger:hilt-compiler:2.56'
-    ksp(project(':ksp-processor'))
+    // ksp-processor 模块保留用于未来 KSP 代码生成
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // Coroutines

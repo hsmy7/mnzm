@@ -869,12 +869,12 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| P2 | Disciple 字段注解驱动合并（KSP） | 消除手工字段分类 | 注解就位，KSP 待产出 |
 | P3 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
 | P4 | 巡逻塔 fire-and-forget → suspend | API 风格一致性 | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 
-> 已删除项：
+> 已删除/已完成项：
+> - ~~Disciple 字段注解驱动合并~~ → ✅ 已完成（扩展属性提取到 DiscipleDelegates.kt，v3.2.21）
 > - ~~细粒度锁/分片 Mutex~~ → 无瓶颈证据，过早优化
 > - ~~Cloud Profiles~~ → Google Play 自动提供，无需干预
-> - ~~`updateXxxDirect` 方法移除~~ → 死代码，已直接删除（2026-06-06）
+> - ~~`updateXxxDirect` 方法移除~~ → 死代码，已直接删除（v3.2.21）
