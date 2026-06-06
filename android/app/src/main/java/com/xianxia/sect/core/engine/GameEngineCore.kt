@@ -189,8 +189,11 @@ class GameEngineCore @Inject constructor(
             return
         }
         
-        monthStartEffectiveMs = 0L
-        accumulatedPauseMs = 0L
+        // 非后台恢复时重置墙上时钟基准
+        if (!_wasPausedByBackground) {
+            monthStartEffectiveMs = 0L
+            accumulatedPauseMs = 0L
+        }
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
         thermalMonitor.createHintSession(100_000_000L)  // 100ms target
@@ -679,6 +682,9 @@ class GameEngineCore @Inject constructor(
     }
     
     suspend fun loadSnapshot(snapshot: GameStateSnapshot) {
+        // 读档时重置墙上时钟基准，由 tickInternal 根据新 gamePhase 重新推导
+        monthStartEffectiveMs = 0L
+        accumulatedPauseMs = 0L
         stateStore.loadFromSnapshot(
             gameData = snapshot.gameData,
             disciples = snapshot.disciples,
