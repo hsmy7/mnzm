@@ -787,4 +787,260 @@ object ProtobufConverters {
     @JvmStatic
     fun toStringListMap(value: String): Map<String, List<String>> =
         decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value) { emptyMap() }
+
+    // ═══════════════════════════════════════════════════════════
+    // 增量编码 API（无 Base64，逐项/分批序列化）
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Map<String, List<Disciple>> — 每个宗门独立一行
+     * 用例：aiSectDisciples
+     */
+    suspend fun encodeDiscipleListMapIncremental(
+        value: Map<String, List<Disciple>>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = ListSerializer(Disciple.serializer())
+        for ((sectName, disciples) in value) {
+            val bytes = encodeToBlobInternal(serializer, disciples)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+        }
+    }
+
+    fun decodeDiscipleListMapFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): Map<String, List<Disciple>> {
+        val serializer = ListSerializer(Disciple.serializer())
+        val result = mutableMapOf<String, List<Disciple>>()
+        for (row in rows) {
+            val sectName = GameHeavyData.parseChunkKey(row.dataKey, keyPrefix) ?: continue
+            result[sectName] = decodeFromBlobInternal(serializer, row.dataValue) { emptyList() }
+        }
+        return result
+    }
+
+    /**
+     * Map<String, SectDetail> — 每个宗门独立一行
+     * 用例：sectDetails
+     */
+    suspend fun encodeSectDetailMapIncremental(
+        value: Map<String, SectDetail>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = SectDetail.serializer()
+        for ((sectName, detail) in value) {
+            val bytes = encodeToBlobInternal(serializer, detail)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+        }
+    }
+
+    fun decodeSectDetailMapFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): Map<String, SectDetail> {
+        val serializer = SectDetail.serializer()
+        val result = mutableMapOf<String, SectDetail>()
+        for (row in rows) {
+            val sectName = GameHeavyData.parseChunkKey(row.dataKey, keyPrefix) ?: continue
+            result[sectName] = decodeFromBlobInternal(serializer, row.dataValue) { SectDetail() }
+        }
+        return result
+    }
+
+    /**
+     * Map<String, ExploredSectInfo> — 逐项
+     * 用例：exploredSects
+     */
+    suspend fun encodeExploredSectInfoMapIncremental(
+        value: Map<String, ExploredSectInfo>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = ExploredSectInfo.serializer()
+        for ((sectName, info) in value) {
+            val bytes = encodeToBlobInternal(serializer, info)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+        }
+    }
+
+    fun decodeExploredSectInfoMapFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): Map<String, ExploredSectInfo> {
+        val serializer = ExploredSectInfo.serializer()
+        val result = mutableMapOf<String, ExploredSectInfo>()
+        for (row in rows) {
+            val sectName = GameHeavyData.parseChunkKey(row.dataKey, keyPrefix) ?: continue
+            result[sectName] = decodeFromBlobInternal(serializer, row.dataValue) { ExploredSectInfo() }
+        }
+        return result
+    }
+
+    /**
+     * Map<String, SectScoutInfo> — 逐项
+     * 用例：scoutInfo
+     */
+    suspend fun encodeSectScoutInfoMapIncremental(
+        value: Map<String, SectScoutInfo>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = SectScoutInfo.serializer()
+        for ((sectName, info) in value) {
+            val bytes = encodeToBlobInternal(serializer, info)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+        }
+    }
+
+    fun decodeSectScoutInfoMapFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): Map<String, SectScoutInfo> {
+        val serializer = SectScoutInfo.serializer()
+        val result = mutableMapOf<String, SectScoutInfo>()
+        for (row in rows) {
+            val sectName = GameHeavyData.parseChunkKey(row.dataKey, keyPrefix) ?: continue
+            result[sectName] = decodeFromBlobInternal(serializer, row.dataValue) { SectScoutInfo() }
+        }
+        return result
+    }
+
+    /**
+     * Map<String, List<ManualProficiencyData>> — 逐项
+     * 用例：manualProficiencies
+     */
+    suspend fun encodeManualProficiencyMapIncremental(
+        value: Map<String, List<ManualProficiencyData>>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = ListSerializer(ManualProficiencyData.serializer())
+        for ((key, proficiencies) in value) {
+            val bytes = encodeToBlobInternal(serializer, proficiencies)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, key), bytes))
+        }
+    }
+
+    fun decodeManualProficiencyMapFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): Map<String, List<ManualProficiencyData>> {
+        val serializer = ListSerializer(ManualProficiencyData.serializer())
+        val result = mutableMapOf<String, List<ManualProficiencyData>>()
+        for (row in rows) {
+            val key = GameHeavyData.parseChunkKey(row.dataKey, keyPrefix) ?: continue
+            result[key] = decodeFromBlobInternal(serializer, row.dataValue) { emptyList() }
+        }
+        return result
+    }
+
+    /**
+     * List<Disciple> — 每 100 条一批
+     * 用例：recruitList
+     */
+    suspend fun encodeDiscipleListIncremental(
+        value: List<Disciple>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = ListSerializer(Disciple.serializer())
+        value.chunked(100).forEachIndexed { index, batch ->
+            val bytes = encodeToBlobInternal(serializer, batch)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
+        }
+    }
+
+    fun decodeDiscipleListFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): List<Disciple> {
+        val serializer = ListSerializer(Disciple.serializer())
+        val result = mutableListOf<Disciple>()
+        val relevant = rows.filter { it.dataKey.startsWith("$keyPrefix/") }
+            .sortedBy { it.dataKey }
+        for (row in relevant) {
+            result.addAll(decodeFromBlobInternal(serializer, row.dataValue) { emptyList() })
+        }
+        return result
+    }
+
+    /**
+     * List<WorldSect> — 每 50 条一批
+     * 用例：worldMapSects
+     */
+    suspend fun encodeWorldSectListIncremental(
+        value: List<WorldSect>,
+        slotId: Int,
+        keyPrefix: String,
+        writer: suspend (List<GameHeavyData>) -> Unit
+    ) {
+        val serializer = ListSerializer(WorldSect.serializer())
+        value.chunked(50).forEachIndexed { index, batch ->
+            val bytes = encodeToBlobInternal(serializer, batch)
+            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
+        }
+    }
+
+    fun decodeWorldSectListFromRows(
+        rows: List<GameHeavyData>,
+        keyPrefix: String
+    ): List<WorldSect> {
+        val serializer = ListSerializer(WorldSect.serializer())
+        val result = mutableListOf<WorldSect>()
+        val relevant = rows.filter { it.dataKey.startsWith("$keyPrefix/") }
+            .sortedBy { it.dataKey }
+        for (row in relevant) {
+            result.addAll(decodeFromBlobInternal(serializer, row.dataValue) { emptyList() })
+        }
+        return result
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 底层 BLOB 编解码（无 Base64）
+    // ═══════════════════════════════════════════════════════════
+
+    private fun <T : Any> encodeToBlobInternal(serializer: KSerializer<T>, value: T): ByteArray {
+        try {
+            return protoBuf.encodeToByteArray(serializer, value)
+        } catch (e: Exception) {
+            Log.e(TAG, "Protobuf BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
+            return ByteArray(0)
+        }
+    }
+
+    private fun <T> decodeFromBlobInternal(
+        serializer: KSerializer<T>,
+        data: ByteArray,
+        default: () -> T
+    ): T {
+        if (data.isEmpty()) return default()
+
+        // 第一步：直接 protobuf 解码（新 BLOB 格式）
+        try {
+            return protoBuf.decodeFromByteArray(serializer, data)
+        } catch (e1: Exception) {
+            // 第二步：尝试 Base64 回退（旧数据经 CAST 迁移到 BLOB 列的 Base64 字符串）
+            try {
+                val base64String = data.decodeToString()
+                val rawBytes = Base64.getDecoder().decode(base64String)
+                return protoBuf.decodeFromByteArray(serializer, rawBytes)
+            } catch (e2: Exception) {
+                Log.e(TAG,
+                    "BLOB decode FAILED for ${serializer.descriptor.serialName}, " +
+                    "data.size=${data.size}, firstByte=${data.getOrNull(0)}, " +
+                    "protoErr=${e1.message?.take(80)}, base64Err=${e2.message?.take(80)}"
+                )
+                return default()
+            }
+        }
+    }
 }

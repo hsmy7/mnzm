@@ -268,19 +268,21 @@ class GameEngine @Inject constructor(
             return
         }
 
-        val heavyMap = GameHeavyData.reassemble(heavyRows)
         val converters = com.xianxia.sect.data.local.ProtobufConverters
         stateStore.update {
             val current = this.gameData
             val needsUpdate = current.aiSectDisciples.isEmpty() || current.sectDetails.isEmpty() ||
-                current.exploredSects.isEmpty() || current.scoutInfo.isEmpty() || current.manualProficiencies.isEmpty()
+                current.exploredSects.isEmpty() || current.scoutInfo.isEmpty() || current.manualProficiencies.isEmpty() ||
+                current.recruitList.isEmpty() || current.worldMapSects.isEmpty()
             if (needsUpdate) {
                 this.gameData = current.copy(
-                    aiSectDisciples = if (current.aiSectDisciples.isEmpty()) converters.toDiscipleListMap(heavyMap[GameHeavyData.KEY_AI_SECT_DISCIPLES] ?: "") else current.aiSectDisciples,
-                    sectDetails = if (current.sectDetails.isEmpty()) converters.toSectDetailMap(heavyMap[GameHeavyData.KEY_SECT_DETAILS] ?: "") else current.sectDetails,
-                    exploredSects = if (current.exploredSects.isEmpty()) converters.toExploredSectInfoMap(heavyMap[GameHeavyData.KEY_EXPLORED_SECTS] ?: "") else current.exploredSects,
-                    scoutInfo = if (current.scoutInfo.isEmpty()) converters.toSectScoutInfoMap(heavyMap[GameHeavyData.KEY_SCOUT_INFO] ?: "") else current.scoutInfo,
-                    manualProficiencies = if (current.manualProficiencies.isEmpty()) converters.toManualProficiencyDataMap(heavyMap[GameHeavyData.KEY_MANUAL_PROFICIENCIES] ?: "") else current.manualProficiencies
+                    aiSectDisciples = if (current.aiSectDisciples.isEmpty()) converters.decodeDiscipleListMapFromRows(heavyRows, GameHeavyData.KEY_AI_SECT_DISCIPLES) else current.aiSectDisciples,
+                    sectDetails = if (current.sectDetails.isEmpty()) converters.decodeSectDetailMapFromRows(heavyRows, GameHeavyData.KEY_SECT_DETAILS) else current.sectDetails,
+                    exploredSects = if (current.exploredSects.isEmpty()) converters.decodeExploredSectInfoMapFromRows(heavyRows, GameHeavyData.KEY_EXPLORED_SECTS) else current.exploredSects,
+                    scoutInfo = if (current.scoutInfo.isEmpty()) converters.decodeSectScoutInfoMapFromRows(heavyRows, GameHeavyData.KEY_SCOUT_INFO) else current.scoutInfo,
+                    manualProficiencies = if (current.manualProficiencies.isEmpty()) converters.decodeManualProficiencyMapFromRows(heavyRows, GameHeavyData.KEY_MANUAL_PROFICIENCIES) else current.manualProficiencies,
+                    recruitList = if (current.recruitList.isEmpty()) converters.decodeDiscipleListFromRows(heavyRows, GameHeavyData.KEY_RECRUIT_LIST) else current.recruitList,
+                    worldMapSects = if (current.worldMapSects.isEmpty()) converters.decodeWorldSectListFromRows(heavyRows, GameHeavyData.KEY_WORLD_MAP_SECTS) else current.worldMapSects
                 )
             }
         }

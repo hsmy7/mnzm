@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-03 (v3.2.03 性能优化大版本)
+> 最后更新：2026-06-06 (v3.2.17 BLOB 直存架构)
 
 ## 目录
 
@@ -417,33 +417,52 @@ gameEngine.updateDiscipleStatus(discipleId, MINING)              // await
 
 **修复范围**：SpiritMineViewModel（autoAssign / remove / swap）、PatrolTowerViewModel（autoAssign / assign / remove / swap），共 7 处。
 
-### 重型数据分块存储 (v3.2.02)
+### 重型数据 BLOB 直存 (v3.2.17)
 
-`game_heavy_data` 表存储 5 个重型字段（aiSectDisciples / sectDetails / exploredSects / scoutInfo / manualProficiencies），以 Protobuf Base64 TEXT 列存储。随游戏进程增长，`aiSectDisciples` 单行可超过 Android CursorWindow 2MB 限制导致 `SQLiteBlobTooBigException` 崩溃。
+`game_heavy_data` 表存储 **7 个**重型字段（aiSectDisciples / sectDetails / exploredSects / scoutInfo / manualProficiencies / recruitList / worldMapSects），以 **Protobuf BLOB** 列直存。此前使用 Base64 TEXT 列存储，长时间存档中大字段（如 `aiSectDisciples` 包含数百宗门 × 上百弟子）序列化后的 Base64 编码可导致峰值内存超过 300MB（139MB ByteArray + 186MB Base64 String），触发 `OutOfMemoryError`。
 
-**解决方案**：应用层分块 + 逐 key 安全加载，无需 DB Migration。
+**v3.2.17 解决方案：增量编码 + BLOB 直存**
+- **列类型 TEXT → BLOB**：`data_value` 改为 `@ColumnInfo(typeAffinity = ColumnInfo.BLOB) ByteArray`，Room 原生支持，无需 TypeConverter，消除 Base64 33% 膨胀
+- **增量编码**：不再一次性 `encodeToByteArray(全集)`，改为逐项迭代（Map 每项独立一行，List 每 N 条一批），每批独立写入 DB **后立即释放** ByteArray
+- **内存守卫**：写入前 `Runtime.getRuntime().freeMemory()` 检查，<100MB 时跳过自动存档
+- **扩展卸载**：相比 v3.2.16 新增 `recruitList` 和 `worldMapSects` 两个大字段的卸载
+- **DB Migration 33→34**：`game_heavy_data` 表重建，`CAST(data_value AS BLOB)` 无损迁移旧 Base64 数据
+
+**Key 格式变更**：旧格式 `aiSectDisciples_chunk_0` → 新格式 `aiSectDisciples/青云宗`（`/` 分隔前缀和实体标识）。`_overflow_N` 后缀仅用于单条目超 900KB 的极端情况。
 
 ```
-保存：data_value > 900KB → 自动拆分
-  aiSectDisciples → aiSectDisciples_chunk_0 (≤900KB)
-                   + aiSectDisciples_chunk_1 (≤900KB)
-                   + ...
+保存流程：
+  for each (sectName, disciples) in aiSectDisciples:
+      bytes = encodeToByteArray(ListSerializer, disciples)  → ~1-3MB per sect
+      → GameHeavyData(slotId, "aiSectDisciples/$sectName", bytes)
+      → heavyDao.upsertAll() 立即写入，立即释放 bytes
 
-加载：逐 key 安全读取 → GameHeavyData.reassemble() 自动重组
-  getLoadedKeys() → for each key → getByKey() → 分块检测 → 拼接
-  单 key 超限 → 捕获异常 → 删除超大行 → 日志告警 → 下次保存时游戏逻辑重新生成
+  GameData 主表行清空所有重型字段为 emptyMap/emptyList
+
+加载流程：
+  loadHeavyDataSafe() → 逐 key 容错加载所有 BLOB 行
+  → decodeXxxFromRows() 按前缀匹配 → 每行独立 protobuf 解码 → 组装完整对象
+  → mergeHeavyData() 合并到 GameData
 ```
+
+**向下兼容**：`decodeFromBlobInternal()` 两步回退 — 先直接 protobuf 解码（新 BLOB），失败则 `decodeToString` → `Base64.decode` → protobuf 解码（旧 CAST 数据）。旧存档首次加载后下次保存自动转为新格式。
 
 **关键类**：
 
 | 类/方法 | 职责 |
 |---------|------|
-| `GameHeavyData.chunk(slot, key, value)` | 拆分大字符串为 ≤900KB 分块条目 |
-| `GameHeavyData.reassemble(rows)` | 从原始行列表重组完整数据 map |
-| `GameHeavyDataDao.getLoadedKeys(slot)` | 仅读取 data_key 列（轻量，不触发 CursorWindow 限制） |
-| `GameHeavyDataDao.deleteByKeyPattern(slot, pattern)` | 清除旧分块（LIKE 匹配） |
-| `StorageEngine.loadHeavyDataSafe(slot)` | 逐 key 容错加载，跳过超大行 |
-| `GameEngine.ensureHeavyDataLoaded()` | 启动时安全加载重型数据到 GameData |
+| `GameHeavyData.chunk(slot, key, value: ByteArray)` | 拆分大 BLOB（>900KB 的极端情况）为溢出分块 |
+| `GameHeavyData.reassemble(rows)` | 从原始行列表重组 `Map<String, ByteArray>` |
+| `GameHeavyData.chunkKey(prefix, id)` | 构造分块 key：`"prefix/id"` |
+| `GameHeavyData.parseChunkKey(key, prefix)` | 从 key 提取 id |
+| `ProtobufConverters.encodeXxxIncremental()` | 逐项 protobuf 编码（永不分配完整集合的 ByteArray）|
+| `ProtobufConverters.decodeXxxFromRows()` | 按前缀过滤行 → 逐行解码 → 组装 |
+| `ProtobufConverters.decodeFromBlobInternal()` | 两步回退解码（protobuf → Base64 → default）|
+| `GameHeavyDataDao.deleteByKeyPrefix(slot, prefix)` | 写入前按前缀批量清理旧数据 |
+| `GameHeavyDataDao.getByPrefix(slot, prefix)` | 按前缀批量查询（替代逐 key 查询） |
+| `StorageEngine.writeAllDataToDatabase()` | 内存守卫 + 增量编码写入 + 轻型 GameData 写入 |
+| `StorageEngine.mergeHeavyData()` | 加载后合并重型数据到 GameData |
+| `GameEngine.ensureHeavyDataLoaded()` | 启动时安全加载 7 个重型字段 + 2 个新增字段 |
 
 ### SystemManager 依赖图并行 (v3.2.01)
 
@@ -858,7 +877,8 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P1 | FrameMetrics 接入 UnifiedPerformanceMonitor 统一框架 | 监控统一 | 待实施 |
 | P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 | 待实施 |
 | P2 | 完成 Phase B：GameData 重型字段读取路径切换到领域实体表 | 大幅减少 Room 读取 | 部分实施（DomainStateProvider 就位） |
-| P2 | 消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）| 序列化性能提升 30-40% | 待实施 |
+| ~~P2~~ | ~~消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）~~ | ~~序列化性能提升 30-40%~~ | ✅ 已完成 (v3.2.17) |
+| P2 | LZ4 压缩集成到重型数据 BLOB 存储（通过 DataCompressor） | 存储减少 30-50% | 待实施 |
 | P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
 | P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
 | P3 | 巡逻塔 `updatePatrolConfigs` fire-and-forget → suspend | 与灵矿场/巡逻塔修复同模式 | 待实施 |

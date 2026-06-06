@@ -1167,6 +1167,20 @@ interface GameHeavyDataDao {
 
     @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId AND data_key LIKE :pattern")
     suspend fun deleteByKeyPattern(slotId: Int, pattern: String)
+
+    /**
+     * 按前缀删除（写入前批量清理旧数据）。
+     * 例如删除 key 以 "aiSectDisciples/" 开头的所有行。
+     */
+    @Query("DELETE FROM game_heavy_data WHERE slot_id = :slot AND data_key LIKE :prefix || '%'")
+    suspend fun deleteByKeyPrefix(slot: Int, prefix: String)
+
+    /**
+     * 按前缀批量查询（替代逐 key 查询，减少 DB 往返）。
+     * 例如读取 key 以 "aiSectDisciples/" 开头的所有行。
+     */
+    @Query("SELECT * FROM game_heavy_data WHERE slot_id = :slot AND data_key LIKE :prefix || '%' ORDER BY data_key")
+    suspend fun getByPrefix(slot: Int, prefix: String): List<GameHeavyData>
 }
 
 @Dao

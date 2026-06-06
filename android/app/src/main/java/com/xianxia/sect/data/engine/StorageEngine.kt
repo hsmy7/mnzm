@@ -613,29 +613,70 @@ class StorageEngine @Inject internal constructor(
     }
 
     private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {
-        Log.d(TAG, "writeAllDataToDatabase: slot=$slot, ${data.disciples.size} disciples, recruitList=${data.gameData.recruitList.size} unrecruited disciples")
+        Log.d(TAG, "writeAllDataToDatabase: slot=$slot, " +
+            "${data.disciples.size} disciples, " +
+            "recruitList=${data.gameData.recruitList.size} unrecruited")
 
-        val converters = ProtobufConverters
-        val now = System.currentTimeMillis()
-        val heavyEntries = listOf(
-            GameHeavyData.KEY_AI_SECT_DISCIPLES to converters.fromDiscipleListMap(data.gameData.aiSectDisciples),
-            GameHeavyData.KEY_SECT_DETAILS to converters.fromSectDetailMap(data.gameData.sectDetails),
-            GameHeavyData.KEY_EXPLORED_SECTS to converters.fromExploredSectInfoMap(data.gameData.exploredSects),
-            GameHeavyData.KEY_SCOUT_INFO to converters.fromSectScoutInfoMap(data.gameData.scoutInfo),
-            GameHeavyData.KEY_MANUAL_PROFICIENCIES to converters.fromManualProficiencyDataMap(data.gameData.manualProficiencies)
-        )
-
-        // 分块写入：单行 data_value 超过 900KB 时自动拆分为多行，防止 CursorWindow 溢出
-        val allChunkedEntries = mutableListOf<GameHeavyData>()
-        for ((key, value) in heavyEntries) {
-            // 清除旧分块
-            database.gameHeavyDataDao().deleteByKeyPattern(slot, "${key}_chunk_%")
-            database.gameHeavyDataDao().deleteByKey(slot, key)
-            // 分块写入
-            allChunkedEntries.addAll(GameHeavyData.chunk(slot, key, value, now))
+        // ── 内存守卫 ──
+        val runtime = Runtime.getRuntime()
+        val maxMem = runtime.maxMemory()
+        val usedMem = runtime.totalMemory() - runtime.freeMemory()
+        val availableMem = maxMem - usedMem
+        if (availableMem < 100L * 1024 * 1024) {
+            Log.w(TAG, "Low memory (${availableMem / 1024 / 1024}MB available), " +
+                "skipping auto-save for slot $slot")
+            return
         }
-        database.gameHeavyDataDao().upsertAll(allChunkedEntries)
 
+        val now = System.currentTimeMillis()
+        val heavyDao = database.gameHeavyDataDao()
+
+        // ── 清除旧重型数据（按前缀批量删除）──
+        val allPrefixes = listOf(
+            GameHeavyData.KEY_AI_SECT_DISCIPLES,
+            GameHeavyData.KEY_SECT_DETAILS,
+            GameHeavyData.KEY_EXPLORED_SECTS,
+            GameHeavyData.KEY_SCOUT_INFO,
+            GameHeavyData.KEY_MANUAL_PROFICIENCIES,
+            GameHeavyData.KEY_RECRUIT_LIST,
+            GameHeavyData.KEY_WORLD_MAP_SECTS
+        )
+        for (prefix in allPrefixes) {
+            heavyDao.deleteByKeyPrefix(slot, prefix)
+            // 同时清理 v33 及之前的旧格式单 key（无 "/" 分隔符）
+            heavyDao.deleteByKey(slot, prefix)
+        }
+
+        // ── 增量编码写入（每项编码完立即写入，立即释放 ByteArray）──
+        ProtobufConverters.encodeDiscipleListMapIncremental(
+            data.gameData.aiSectDisciples, slot, GameHeavyData.KEY_AI_SECT_DISCIPLES
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeSectDetailMapIncremental(
+            data.gameData.sectDetails, slot, GameHeavyData.KEY_SECT_DETAILS
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeExploredSectInfoMapIncremental(
+            data.gameData.exploredSects, slot, GameHeavyData.KEY_EXPLORED_SECTS
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeSectScoutInfoMapIncremental(
+            data.gameData.scoutInfo, slot, GameHeavyData.KEY_SCOUT_INFO
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeManualProficiencyMapIncremental(
+            data.gameData.manualProficiencies, slot, GameHeavyData.KEY_MANUAL_PROFICIENCIES
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeDiscipleListIncremental(
+            data.gameData.recruitList, slot, GameHeavyData.KEY_RECRUIT_LIST
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        ProtobufConverters.encodeWorldSectListIncremental(
+            data.gameData.worldMapSects, slot, GameHeavyData.KEY_WORLD_MAP_SECTS
+        ) { chunks -> heavyDao.upsertAll(chunks) }
+
+        // ── 轻型 GameData（所有大型字段已清空，TypeConverter 编码近乎零开销）──
         val lightGameData = data.gameData.copy(
             slotId = slot,
             id = "game_data_$slot",
@@ -644,7 +685,9 @@ class StorageEngine @Inject internal constructor(
             sectDetails = emptyMap(),
             exploredSects = emptyMap(),
             scoutInfo = emptyMap(),
-            manualProficiencies = emptyMap()
+            manualProficiencies = emptyMap(),
+            recruitList = emptyList(),
+            worldMapSects = emptyList()
         )
         database.gameDataDao().insert(lightGameData)
 
@@ -776,20 +819,41 @@ class StorageEngine @Inject internal constructor(
     }
 
     private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData {
-        val heavyDataList = loadHeavyDataSafe(slot)
-        if (heavyDataList.isEmpty()) return gameData
-        val heavyMap = GameHeavyData.reassemble(heavyDataList)
-        val converters = ProtobufConverters
+        val allRows = loadHeavyDataSafe(slot)
+        if (allRows.isEmpty()) return gameData
+
         return gameData.copy(
-            aiSectDisciples = if (gameData.aiSectDisciples.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_AI_SECT_DISCIPLES)) converters.toDiscipleListMap(heavyMap[GameHeavyData.KEY_AI_SECT_DISCIPLES] ?: "") else gameData.aiSectDisciples,
-            sectDetails = if (gameData.sectDetails.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_SECT_DETAILS)) converters.toSectDetailMap(heavyMap[GameHeavyData.KEY_SECT_DETAILS] ?: "") else gameData.sectDetails,
-            exploredSects = if (gameData.exploredSects.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_EXPLORED_SECTS)) converters.toExploredSectInfoMap(heavyMap[GameHeavyData.KEY_EXPLORED_SECTS] ?: "") else gameData.exploredSects,
-            scoutInfo = if (gameData.scoutInfo.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_SCOUT_INFO)) converters.toSectScoutInfoMap(heavyMap[GameHeavyData.KEY_SCOUT_INFO] ?: "") else gameData.scoutInfo,
-            manualProficiencies = if (gameData.manualProficiencies.isEmpty() && heavyMap.containsKey(GameHeavyData.KEY_MANUAL_PROFICIENCIES)) converters.toManualProficiencyDataMap(heavyMap[GameHeavyData.KEY_MANUAL_PROFICIENCIES] ?: "") else gameData.manualProficiencies
+            aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())
+                ProtobufConverters.decodeDiscipleListMapFromRows(allRows, GameHeavyData.KEY_AI_SECT_DISCIPLES)
+            else gameData.aiSectDisciples,
+
+            sectDetails = if (gameData.sectDetails.isEmpty())
+                ProtobufConverters.decodeSectDetailMapFromRows(allRows, GameHeavyData.KEY_SECT_DETAILS)
+            else gameData.sectDetails,
+
+            exploredSects = if (gameData.exploredSects.isEmpty())
+                ProtobufConverters.decodeExploredSectInfoMapFromRows(allRows, GameHeavyData.KEY_EXPLORED_SECTS)
+            else gameData.exploredSects,
+
+            scoutInfo = if (gameData.scoutInfo.isEmpty())
+                ProtobufConverters.decodeSectScoutInfoMapFromRows(allRows, GameHeavyData.KEY_SCOUT_INFO)
+            else gameData.scoutInfo,
+
+            manualProficiencies = if (gameData.manualProficiencies.isEmpty())
+                ProtobufConverters.decodeManualProficiencyMapFromRows(allRows, GameHeavyData.KEY_MANUAL_PROFICIENCIES)
+            else gameData.manualProficiencies,
+
+            recruitList = if (gameData.recruitList.isEmpty())
+                ProtobufConverters.decodeDiscipleListFromRows(allRows, GameHeavyData.KEY_RECRUIT_LIST)
+            else gameData.recruitList,
+
+            worldMapSects = if (gameData.worldMapSects.isEmpty())
+                ProtobufConverters.decodeWorldSectListFromRows(allRows, GameHeavyData.KEY_WORLD_MAP_SECTS)
+            else gameData.worldMapSects
         )
     }
 
-    suspend fun loadHeavyDataForSlot(slot: Int): Map<String, String> {
+    suspend fun loadHeavyDataForSlot(slot: Int): Map<String, ByteArray> {
         val heavyDataList = loadHeavyDataSafe(slot)
         return GameHeavyData.reassemble(heavyDataList)
     }

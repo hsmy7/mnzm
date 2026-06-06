@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.17",
+            date = "2026-06-06",
+            changes = listOf(
+                "【修复】修复长时间游玩后存档时偶发闪退的问题（OutOfMemoryError）",
+                "【优化】存档存储结构全面升级：大型数据采用二进制直存（BLOB），内存峰值从 300MB+ 降至 3MB 以下",
+                "【优化】增量存档机制：逐项序列化替代全集序列化，极端数据量下也能稳定保存",
+                "【优化】低内存时自动推迟自动存档，防止数据损坏"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.16",
             date = "2026-06-06",
             changes = listOf(

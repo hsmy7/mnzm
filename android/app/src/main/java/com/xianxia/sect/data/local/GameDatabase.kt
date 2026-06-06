@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 33
+    version = 34
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -418,6 +418,39 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE disciples ADD COLUMN equipmentNurturingCompletionPhase INTEGER NOT NULL DEFAULT 1")
                 db.execSQL("ALTER TABLE production_slots ADD COLUMN completionMonth INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE production_slots ADD COLUMN completionPhase INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 重建 game_heavy_data 表：data_value 从 TEXT 改为 BLOB
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS game_heavy_data_new (
+                        slot_id INTEGER NOT NULL,
+                        data_key TEXT NOT NULL,
+                        data_value BLOB NOT NULL DEFAULT x'',
+                        updated_at INTEGER NOT NULL,
+                        PRIMARY KEY(slot_id, data_key)
+                    )
+                """)
+
+                // 复制数据：CAST TEXT → BLOB（旧 Base64 字符串的字节被保留）
+                db.execSQL("""
+                    INSERT OR REPLACE INTO game_heavy_data_new
+                        (slot_id, data_key, data_value, updated_at)
+                    SELECT slot_id, data_key, CAST(data_value AS BLOB), updated_at
+                    FROM game_heavy_data
+                """)
+
+                db.execSQL("DROP TABLE game_heavy_data")
+                db.execSQL("ALTER TABLE game_heavy_data_new RENAME TO game_heavy_data")
+
+                // 重建索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_game_heavy_data_slot_id " +
+                    "ON game_heavy_data(slot_id)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "index_game_heavy_data_slot_id_data_key " +
+                    "ON game_heavy_data(slot_id, data_key)")
             }
         }
 
@@ -791,7 +824,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
+                .addMigrations(MIGRATION_1_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
