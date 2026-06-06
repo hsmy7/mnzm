@@ -470,8 +470,8 @@ class GameEngineCore @Inject constructor(
         val monthMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / speed   // 月总墙上时间
         val phaseMs = monthMs / GamePhase.PHASES_PER_MONTH                      // 每旬墙上时间
         val monthElapsed = effectiveMs - monthStartEffectiveMs
-        // 墙上时钟推导当前旬（0=上旬, 1=中旬, 2=下旬）
-        val expectedPhase = (monthElapsed / phaseMs).toInt().coerceIn(0, 2)
+        // 墙上时钟推导当前旬（不设上限，跨月时 >2）
+        val expectedPhaseRaw = (monthElapsed / phaseMs).toInt()
 
         var monthChanged = false
         var yearChanged = false
@@ -480,12 +480,12 @@ class GameEngineCore @Inject constructor(
             val currentPhase = this.gameData.gamePhase
 
             // 下旬兜底：只有过了下旬时间且结算完成才允许跨月
-            val canAdvanceMonth = expectedPhase >= 2 && monthElapsed >= monthMs &&
+            val canAdvanceMonth = expectedPhaseRaw >= GamePhase.PHASES_PER_MONTH &&
                     !settlementCoordinator.hasPendingWork
             val maxAllowedPhase = if (canAdvanceMonth) {
-                expectedPhase
+                expectedPhaseRaw  // 允许跨月追赶
             } else {
-                minOf(expectedPhase, GamePhase.LATE.value)  // 卡在 下旬
+                minOf(expectedPhaseRaw, GamePhase.LATE.value)  // 卡在 下旬
             }
             var phasesToAdvance = (maxAllowedPhase - currentPhase).coerceAtLeast(0)
             phasesToAdvance = minOf(phasesToAdvance, GamePhase.PHASES_PER_MONTH)  // 单 tick 上限
