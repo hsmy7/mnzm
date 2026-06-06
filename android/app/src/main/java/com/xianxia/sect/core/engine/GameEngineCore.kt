@@ -143,6 +143,8 @@ class GameEngineCore @Inject constructor(
     
     // 旬制墙上时钟：当月起始有效时间（墙上时间 - 累计暂停）
     private var monthStartEffectiveMs = 0L
+    // 上次变速检测用
+    private var lastSpeed = 1
     // 累计暂停时长（ms）
     private var accumulatedPauseMs = 0L
     // 暂停开始时的墙上时间
@@ -193,6 +195,7 @@ class GameEngineCore @Inject constructor(
         if (!_wasPausedByBackground) {
             monthStartEffectiveMs = 0L
             accumulatedPauseMs = 0L
+            lastSpeed = 1
         }
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
@@ -461,17 +464,16 @@ class GameEngineCore @Inject constructor(
         // 基于墙上时钟直接推导旬制，不受结算 / tick 频率影响
         val now = System.currentTimeMillis()
         val effectiveMs = now - accumulatedPauseMs
-        if (monthStartEffectiveMs == 0L) {
-            // 首次 tick 或读档后：根据当前 gamePhase 反推月起始
-            val currentPhase = stateStore.gameDataSnapshot.gamePhase
-            val speed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
-            val phaseMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / GamePhase.PHASES_PER_MONTH / speed
+        val currentPhase = stateStore.gameDataSnapshot.gamePhase
+        val speed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
+        val phaseMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / GamePhase.PHASES_PER_MONTH / speed
+
+        // 首次 tick、读档、或变速时重新校准月基准
+        if (monthStartEffectiveMs == 0L || speed != lastSpeed) {
             monthStartEffectiveMs = effectiveMs - currentPhase * phaseMs
+            lastSpeed = speed
         }
 
-        val speed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
-        val monthMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / speed   // 月总墙上时间
-        val phaseMs = monthMs / GamePhase.PHASES_PER_MONTH                      // 每旬墙上时间
         val monthElapsed = effectiveMs - monthStartEffectiveMs
         // 墙上时钟推导目标旬（不设上限，跨月时 >2）
         val targetPhase = (monthElapsed / phaseMs).toInt()
@@ -684,6 +686,7 @@ class GameEngineCore @Inject constructor(
         // 读档时重置墙上时钟基准，由 tickInternal 根据新 gamePhase 重新推导
         monthStartEffectiveMs = 0L
         accumulatedPauseMs = 0L
+        lastSpeed = 1
         stateStore.loadFromSnapshot(
             gameData = snapshot.gameData,
             disciples = snapshot.disciples,
