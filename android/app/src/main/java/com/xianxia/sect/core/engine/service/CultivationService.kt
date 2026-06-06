@@ -1713,7 +1713,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      */
     internal suspend fun processHerbGardenGrowth(year: Int, month: Int) {
         val data = currentGameData
-        val events = mutableListOf<Pair<String, String>>()
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         herbGardenSlots.forEach { slot ->
@@ -1731,8 +1730,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                         category = herb.category,
                         quantity = actualYield
                     )
-                    inventorySystem.addHerb(herbItem)
-                    events.add("${herb.name}已成熟，收获${actualYield}个" to "SUCCESS")
+                    val result = inventorySystem.addHerb(herbItem)
+                    if (result != AddResult.SUCCESS) {
+                        Log.w(TAG, "HerbGarden harvest addHerb failed: ${herb.name} x${actualYield}, result=$result")
+                    }
                 }
 
                 productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { s ->

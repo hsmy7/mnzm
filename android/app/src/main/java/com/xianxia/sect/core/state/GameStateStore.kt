@@ -597,6 +597,15 @@ class GameStateStore @Inject constructor(
             val oldDisciples = this.disciples
             val oldTeams = this.teams
             val oldBattleLogs = this.battleLogs
+            // 物品列表旧引用 — 月度结算中生产/消耗的物品变更需要传播回 live state
+            val oldHerbs = this.herbs
+            val oldSeeds = this.seeds
+            val oldEquipmentStacks = this.equipmentStacks
+            val oldEquipmentInstances = this.equipmentInstances
+            val oldPills = this.pills
+            val oldMaterials = this.materials
+            val oldManualStacks = this.manualStacks
+            val oldManualInstances = this.manualInstances
 
             val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
             this.gameData = mergedGameData
@@ -625,6 +634,16 @@ class GameStateStore @Inject constructor(
             }
 
             if (mergedDisciples !== oldDisciples) this.disciples = mergedDisciples
+
+            // 传播物品列表变更：月度结算中的收获/消耗必须同步回 live state
+            if (shadow.herbs !== oldHerbs) this.herbs = shadow.herbs
+            if (shadow.seeds !== oldSeeds) this.seeds = shadow.seeds
+            if (shadow.equipmentStacks !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
+            if (shadow.equipmentInstances !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
+            if (shadow.pills !== oldPills) this.pills = shadow.pills
+            if (shadow.materials !== oldMaterials) this.materials = shadow.materials
+            if (shadow.manualStacks !== oldManualStacks) this.manualStacks = shadow.manualStacks
+            if (shadow.manualInstances !== oldManualInstances) this.manualInstances = shadow.manualInstances
         }
         shadowOrigin = null
     }

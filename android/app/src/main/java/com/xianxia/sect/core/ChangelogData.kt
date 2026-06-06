@@ -20,7 +20,8 @@ object ChangelogData {
                 "【优化】FrameMetrics 帧率监控统一接入 UnifiedPerformanceMonitor",
                 "【优化】按钮按压缩放改用 graphicsLayer 零重组动画",
                 "【优化】Disciple 委托属性重构为扩展属性（DiscipleDelegates.kt），消除 67 个样板 get()/set()",
-                "【修复】LazyColumn 弟子列表重复 key 崩溃，过滤链加 distinctBy 去重"
+                "【修复】LazyColumn 弟子列表重复 key 崩溃，过滤链加 distinctBy 去重",
+                "【修复】修复灵植阁种植收获草药未入库的问题（月度结算 Shadow 事务物品变更传播缺失）"
             )
         ),
         ChangelogEntry(
