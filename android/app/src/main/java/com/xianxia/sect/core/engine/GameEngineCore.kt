@@ -491,7 +491,8 @@ class GameEngineCore @Inject constructor(
                 minOf(expectedPhaseRaw, GamePhase.LATE.value)  // 卡在 下旬
             }
             var phasesToAdvance = (maxAllowedPhase - currentPhase).coerceAtLeast(0)
-            phasesToAdvance = minOf(phasesToAdvance, GamePhase.PHASES_PER_MONTH)  // 单 tick 上限
+            // 每 tick 最多 1 旬，杜绝跳跃，追赶由墙上时钟自然驱动
+            phasesToAdvance = minOf(phasesToAdvance, 1)
 
             repeat(phasesToAdvance) {
                 val prevMonth = this.gameData.gameMonth
