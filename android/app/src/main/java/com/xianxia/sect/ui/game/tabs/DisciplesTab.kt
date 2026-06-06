@@ -123,6 +123,7 @@ internal fun DisciplesTab(
 
     val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
+            .distinctBy { it.id }
     }
 
         Column(
@@ -316,6 +317,7 @@ internal fun DirectDiscipleSelectionDialog(
 
     val filteredDisciples = remember(filteredDisciplesBase, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute) {
         filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
+            .distinctBy { it.id }
     }
 
     UnifiedGameDialog(
@@ -438,6 +440,7 @@ internal fun ElderDiscipleSelectionDialog(
 
     val filteredDisciples = remember(filteredDisciplesBase, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute) {
         filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
+            .distinctBy { it.id }
     }
 
     UnifiedGameDialog(

@@ -565,6 +565,7 @@ internal fun DiscipleSelectForRewardDialog(
 
     val filteredAndSortedDisciples = remember(aliveDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
         aliveDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
+            .distinctBy { it.id }
     }
     
     HalfScreenDialog(onDismissRequest = onDismiss) {
