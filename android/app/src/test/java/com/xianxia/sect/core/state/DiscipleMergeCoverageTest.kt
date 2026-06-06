@@ -62,6 +62,9 @@ class DiscipleMergeCoverageTest {
         "manualMasteries",
         "autoLearnFromWarehouse",
         "soulPower",
+        "cultivationCompletionMonth", "cultivationCompletionPhase",
+        "manualCompletionMonth", "manualCompletionPhase",
+        "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
         "social",
         "usage"
     )
@@ -112,7 +115,7 @@ class DiscipleMergeCoverageTest {
      * @Serializable 数据类会生成 seen0（默认参数位掩码）和 serializationConstructorMarker。
      */
     private val syntheticParams = setOf(
-        "seen0",
+        "seen0", "seen1",
         "serializationConstructorMarker"
     )
 

@@ -168,7 +168,7 @@ class DiscipleModelsTest {
         assertEquals(0, compact.realm)
         assertEquals(0, compact.realmLayer)
         assertTrue(compact.isAlive)
-        assertEquals(1.0, compact.cultivationSpeed, 0.001)
+        assertEquals(8.0, compact.cultivationSpeed, 0.001)
         assertEquals(0, compact.status)
     }
 

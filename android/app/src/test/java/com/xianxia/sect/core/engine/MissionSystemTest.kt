@@ -180,8 +180,8 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `MAX_REFRESH_COUNT 为5`() {
-        assertEquals(5, MissionSystem.MAX_REFRESH_COUNT)
+    fun `MAX_REFRESH_COUNT 为6`() {
+        assertEquals(6, MissionSystem.MAX_REFRESH_COUNT)
     }
 
     @Test

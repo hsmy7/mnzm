@@ -440,8 +440,8 @@ class MainActivity : ComponentActivity() {
     private fun initTapTapSDK() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                initAdSdk()
-
+                // 必须先初始化 TapTap 核心 SDK，再初始化 Ad SDK
+                // TapAdSdk 内部依赖 TapTapKit.context，反序会导致 lateinit context 未初始化崩溃
                 TapTapAuthManager.init(
                     this@MainActivity,
                     BuildConfig.TAPTAP_CLIENT_ID,
@@ -450,6 +450,8 @@ class MainActivity : ComponentActivity() {
                     sessionManager.limitAdTracking
                 )
                 Log.d(TAG, "TapTap SDK初始化成功")
+
+                initAdSdk()
                 com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
                 withContext(Dispatchers.Main) {
                     ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))

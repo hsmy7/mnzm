@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
@@ -1278,36 +1280,29 @@ private fun BasicInfoSection(
                         color = Color.Black
                     )
                     val cultivationTarget = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
-                    val animatedCultivationProgress by animateFloatAsState(
-                        targetValue = cultivationTarget,
-                        animationSpec = snap(),  // tick=1000ms下无需过渡动画
-                        label = "cultivationProgress"
-                    )
-                    Box(
+                    val cultivationProgressState = rememberUpdatedState(cultivationTarget)
+                    Canvas(
                         modifier = Modifier
                             .weight(1f)
                             .height(10.dp)
                             .clip(RoundedCornerShape(5.dp))
-                            .background(Color(0xFFE8E8E8)),
-                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(fraction = animatedCultivationProgress)
-                                .fillMaxHeight()
-                                .background(Color(0xFF4CAF50))
-                        )
-                        Text(
-                            text = "${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
-                            fontSize = 7.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            style = TextStyle(
-                                platformStyle = PlatformTextStyle(includeFontPadding = false)
-                            ),
-                            modifier = Modifier.align(Alignment.Center)
+                        val progress = cultivationProgressState.value
+                        drawRect(Color(0xFFE8E8E8))
+                        drawRect(
+                            Color(0xFF4CAF50),
+                            size = Size(size.width * progress, size.height)
                         )
                     }
+                    Text(
+                        text = "${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
+                        fontSize = 7.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        style = TextStyle(
+                            platformStyle = PlatformTextStyle(includeFontPadding = false)
+                        )
+                    )
                     Text(
                         text = "${String.format(Locale.getDefault(), "%.1f", cultivationSpeed)}/秒",
                         fontSize = 10.sp,
@@ -1372,6 +1367,8 @@ private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, ma
         animationSpec = if (mpShouldSnap) snap() else tween(durationMillis = 300),
         label = "mpProgress"
     )
+    val hpProgressState = rememberUpdatedState(animatedHpFraction)
+    val mpProgressState = rememberUpdatedState(animatedMpFraction)
     SideEffect {
         prevHpTarget.value = hpFraction
         prevMpTarget.value = mpFraction
@@ -1393,31 +1390,27 @@ private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, ma
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(1.dp))
-            Box(
+            Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFE8E8E8)),
-                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = animatedHpFraction)
-                        .fillMaxHeight()
-                        .background(Color(0xFFE74C3C))
-                )
-                Text(
-                    text = "$currentHpDisplay/$maxHp",
-                    fontSize = 7.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
-                    ),
-                    modifier = Modifier.align(Alignment.Center)
+                drawRect(Color(0xFFE8E8E8))
+                drawRect(
+                    Color(0xFFE74C3C),
+                    size = Size(size.width * hpProgressState.value, size.height)
                 )
             }
+            Text(
+                text = "$currentHpDisplay/$maxHp",
+                fontSize = 7.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                )
+            )
         }
         Column(
             modifier = Modifier.weight(1f),
@@ -1431,31 +1424,27 @@ private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, ma
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(1.dp))
-            Box(
+            Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFE8E8E8)),
-                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = animatedMpFraction)
-                        .fillMaxHeight()
-                        .background(Color(0xFF3498DB))
-                )
-                Text(
-                    text = "$currentMpDisplay/$maxMp",
-                    fontSize = 7.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
-                    ),
-                    modifier = Modifier.align(Alignment.Center)
+                drawRect(Color(0xFFE8E8E8))
+                drawRect(
+                    Color(0xFF3498DB),
+                    size = Size(size.width * mpProgressState.value, size.height)
                 )
             }
+            Text(
+                text = "$currentMpDisplay/$maxMp",
+                fontSize = 7.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                )
+            )
         }
     }
 }

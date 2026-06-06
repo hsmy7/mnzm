@@ -12,6 +12,9 @@ import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import java.util.Base64
+import net.jpountz.lz4.LZ4Compressor
+import net.jpountz.lz4.LZ4Factory
+import net.jpountz.lz4.LZ4FastDecompressor
 
 /**
  * ## ProtobufConverters - 纯 Protobuf 的 Room TypeConverter
@@ -53,6 +56,18 @@ object ProtobufConverters {
         MapSerializer(Int.serializer(), Boolean.serializer())
     private val intSetSerializer: KSerializer<Set<Int>> =
         SetSerializer(Int.serializer())
+
+    // LZ4 BLOB 压缩（写入前压缩，读出时解压）
+    private const val LZ4_COMPRESSION_THRESHOLD = 1024
+    private const val BLOB_COMPRESSED_MARKER: Byte = 0x01
+
+    private val lz4Compressor: LZ4Compressor by lazy {
+        LZ4Factory.fastestInstance().fastCompressor()
+    }
+
+    private val lz4Decompressor: LZ4FastDecompressor by lazy {
+        LZ4Factory.fastestInstance().fastDecompressor()
+    }
 
     // ==================== 工具方法 ====================
 
@@ -1010,7 +1025,24 @@ object ProtobufConverters {
 
     private fun <T : Any> encodeToBlobInternal(serializer: KSerializer<T>, value: T): ByteArray {
         try {
-            return protoBuf.encodeToByteArray(serializer, value)
+            val bytes = protoBuf.encodeToByteArray(serializer, value)
+            if (bytes.size >= LZ4_COMPRESSION_THRESHOLD) {
+                val maxCompressedLength = lz4Compressor.maxCompressedLength(bytes.size)
+                val compressed = ByteArray(maxCompressedLength)
+                val compressedLength = lz4Compressor.compress(bytes, 0, bytes.size, compressed, 0)
+                if (compressedLength < bytes.size) {
+                    // 0x01 marker + 4 bytes original size + LZ4 compressed data
+                    val result = ByteArray(1 + 4 + compressedLength)
+                    result[0] = BLOB_COMPRESSED_MARKER
+                    result[1] = (bytes.size shr 24).toByte()
+                    result[2] = (bytes.size shr 16).toByte()
+                    result[3] = (bytes.size shr 8).toByte()
+                    result[4] = bytes.size.toByte()
+                    System.arraycopy(compressed, 0, result, 5, compressedLength)
+                    return result
+                }
+            }
+            return bytes
         } catch (e: Exception) {
             Log.e(TAG, "Protobuf BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
             return ByteArray(0)
@@ -1023,6 +1055,22 @@ object ProtobufConverters {
         default: () -> T
     ): T {
         if (data.isEmpty()) return default()
+
+        // LZ4 压缩数据：0x01 标记 + 4 字节原始大小 + 压缩数据
+        if (data.size > 5 && data[0] == BLOB_COMPRESSED_MARKER) {
+            try {
+                val originalSize = ((data[1].toInt() and 0xFF) shl 24) or
+                                  ((data[2].toInt() and 0xFF) shl 16) or
+                                  ((data[3].toInt() and 0xFF) shl 8) or
+                                  (data[4].toInt() and 0xFF)
+                val compressedData = data.copyOfRange(5, data.size)
+                val decompressed = ByteArray(originalSize)
+                lz4Decompressor.decompress(compressedData, 0, decompressed, 0, originalSize)
+                return protoBuf.decodeFromByteArray(serializer, decompressed)
+            } catch (e: Exception) {
+                Log.w(TAG, "LZ4 decompression failed for ${serializer.descriptor.serialName}, falling back to direct decode", e)
+            }
+        }
 
         // 第一步：直接 protobuf 解码（新 BLOB 格式）
         try {

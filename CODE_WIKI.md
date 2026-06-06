@@ -869,18 +869,12 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| P2 | Disciple 字段注解驱动合并（参照 `@SettlementStrategy` 模式） | 消除手工字段分类 | 待实施 |
-| P3 | 并发压力测试（100+ 协程高强度并发） | 验证极端场景 | 待实施 |
-| P3 | 结算与玩家操作的细粒度锁（分片 Mutex） | 减少锁竞争（当前无瓶颈） | 待实施 |
+| P2 | Disciple 字段注解驱动合并（KSP） | 消除手工字段分类 | 注解就位，KSP 待产出 |
+| P3 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
+| P4 | 巡逻塔 fire-and-forget → suspend | API 风格一致性 | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
-| P1 | `snapshotFlow` 用于修炼进度条等逐帧动画（绕过重组） | 减少高频动画重组 | 待实施 |
-| P1 | FrameMetrics 接入 UnifiedPerformanceMonitor 统一框架 | 监控统一 | 待实施 |
-| P2 | `graphicsLayer` 用于地图平移/按钮缩放等视觉动画 | 零重组动画 | 待实施 |
-| P2 | 完成 Phase B：GameData 重型字段读取路径切换到领域实体表 | 大幅减少 Room 读取 | 部分实施（DomainStateProvider 就位） |
-| ~~P2~~ | ~~消除 Protobuf Base64 中间层（TEXT → BLOB 直存 ByteArray）~~ | ~~序列化性能提升 30-40%~~ | ✅ 已完成 (v3.2.17) |
-| P2 | LZ4 压缩集成到重型数据 BLOB 存储（通过 DataCompressor） | 存储减少 30-50% | 待实施 |
-| P3 | Cloud Profiles 替代本地生成 Baseline Profile | CI 自动化 | 待实施 |
-| P3 | R8 full mode (`-Pandroid.enableR8.fullMode=true`) | 更激进字节码优化 | 待实施 |
-| P3 | 巡逻塔 `updatePatrolConfigs` fire-and-forget → suspend | 与灵矿场/巡逻塔修复同模式 | 待实施 |
-| ~~P0~~ | ~~手机发热优化~~ | ~~95% CPU削减~~ | ✅ 已完成 (v3.2.15) |
-| P3 | `GameStateStore.updateXxxDirect` 方法移除 | 减少 API 表面积 | 待实施 |
+
+> 已删除项：
+> - ~~细粒度锁/分片 Mutex~~ → 无瓶颈证据，过早优化
+> - ~~Cloud Profiles~~ → Google Play 自动提供，无需干预
+> - ~~`updateXxxDirect` 方法移除~~ → 死代码，已直接删除（2026-06-06）

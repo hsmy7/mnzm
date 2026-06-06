@@ -9,6 +9,19 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.21",
+            date = "2026-06-06",
+            changes = listOf(
+                "【修复】修复 TapTap SDK 初始化时序问题导致部分设备闪退（lateinit context 未初始化）",
+                "【优化】启用 R8 full mode 编译优化（预期启动提速 30%+、帧渲染提升 25%）",
+                "【优化】游戏数据 BLOB 存储集成 LZ4 压缩，存储空间减少 30%-50%，旧存档无缝兼容",
+                "【优化】领域实体表拆分（Phase B），外交/生产/巡逻/世界地图/宗门政策走细粒度 DAO 读取，减少 Room 查询延迟",
+                "【优化】修炼进度条和 HP/MP 条改用 Canvas 直绘，减少高频重组",
+                "【优化】FrameMetrics 帧率监控统一接入 UnifiedPerformanceMonitor",
+                "【优化】按钮按压缩放改用 graphicsLayer 零重组动画"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.20",
             date = "2026-06-06",
             changes = listOf(

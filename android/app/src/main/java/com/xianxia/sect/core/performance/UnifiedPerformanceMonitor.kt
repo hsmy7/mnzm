@@ -2,6 +2,8 @@ package com.xianxia.sect.core.performance
 
 import android.util.Log
 import android.view.Choreographer
+import com.xianxia.sect.core.perf.FrameMetricsMonitor
+import com.xianxia.sect.core.perf.FrameMetricsStats
 import com.xianxia.sect.core.util.GCOptimizer
 import com.xianxia.sect.core.util.MemoryMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -21,7 +23,8 @@ import javax.inject.Singleton
 class UnifiedPerformanceMonitor @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
     private val gcOptimizer: GCOptimizer,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val frameMetricsMonitor: FrameMetricsMonitor
 ) {
     companion object {
         private const val TAG = "UnifiedPerformanceMonitor"
@@ -485,6 +488,8 @@ class UnifiedPerformanceMonitor @Inject constructor(
         )
     }
 
+    fun getFrameMetricsStats(): FrameMetricsStats = frameMetricsMonitor.getStats()
+
     fun getOperationMetrics(): Map<String, OperationMetric> {
         return synchronized(operationMetrics) {
             operationMetrics.toMap()
@@ -789,6 +794,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
         val allMetrics = getMetrics()
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
         val gcStats = gcOptimizer.getGCStats()
+        val frameMetricsStats = frameMetricsMonitor.getStats()
         val recommendations = generateRecommendations(allMetrics, memoryInfo, gcStats)
 
         return PerformanceReport(
@@ -809,6 +815,13 @@ class UnifiedPerformanceMonitor @Inject constructor(
                 totalGCTimeMs = gcStats.totalGCTimeMs,
                 averageGCTimeMs = gcStats.averageGCTimeMs,
                 timeSinceLastGC = gcStats.timeSinceLastGC
+            ),
+            frameMetricsStats = FrameMetricsStatsReport(
+                totalFrames = frameMetricsStats.totalFrames,
+                jankFrames = frameMetricsStats.jankFrames,
+                severeJankFrames = frameMetricsStats.severeJankFrames,
+                averageFrameTimeMs = frameMetricsStats.averageFrameTimeMs,
+                jankRate = frameMetricsStats.jankRate
             ),
             recommendations = recommendations
         )
@@ -940,6 +953,7 @@ data class PerformanceReport(
     val metrics: Map<String, MetricStats>,
     val memoryInfo: MemoryInfoReport?,
     val gcStats: GCStatsReport,
+    val frameMetricsStats: FrameMetricsStatsReport,
     val recommendations: List<String>
 )
 
@@ -957,6 +971,14 @@ data class GCStatsReport(
     val totalGCTimeMs: Long,
     val averageGCTimeMs: Double,
     val timeSinceLastGC: Long
+)
+
+data class FrameMetricsStatsReport(
+    val totalFrames: Long,
+    val jankFrames: Long,
+    val severeJankFrames: Long,
+    val averageFrameTimeMs: Double,
+    val jankRate: Double
 )
 
 data class PerformanceMetrics(

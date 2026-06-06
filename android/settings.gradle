@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "XianxiaSect"
 include ':app'
+include ':ksp-processor'
 include ':baselineprofile'

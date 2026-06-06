@@ -735,6 +735,60 @@ class StorageEngine @Inject internal constructor(
         }
 
         syncSlotMetadata(slot, data)
+
+        // ── 领域实体表写入（Phase B：细粒度读取路径）──
+        val gd = data.gameData
+        database.diplomacyStateDao().upsert(DiplomacyState(
+            slotId = slot,
+            sectRelations = gd.sectRelations,
+            alliances = gd.alliances,
+            playerAllianceSlots = gd.playerAllianceSlots,
+            playerProtectionEnabled = gd.playerProtectionEnabled,
+            playerProtectionStartYear = gd.playerProtectionStartYear,
+            playerHasAttackedAI = gd.playerHasAttackedAI,
+            sectDetails = gd.sectDetails,
+            exploredSects = gd.exploredSects,
+            scoutInfo = gd.scoutInfo
+        ))
+        database.productionStateDao().upsert(ProductionState(
+            slotId = slot,
+            spiritFieldPlants = gd.spiritFieldPlants,
+            unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
+            unlockedManuals = gd.unlockedManuals ?: emptyList(),
+            manualProficiencies = gd.manualProficiencies
+        ))
+        database.patrolStateDao().upsert(PatrolStateEntity(
+            slotId = slot,
+            patrolSlots = gd.patrolSlots,
+            patrolConfig = gd.patrolConfig,
+            patrolConfigs = gd.patrolConfigs,
+            patrolBattleResultPopup = gd.patrolBattleResultPopup
+        ))
+        database.worldMapStateDao().upsert(WorldMapStateEntity(
+            slotId = slot,
+            worldMapSects = gd.worldMapSects,
+            aiSectDisciples = gd.aiSectDisciples,
+            cultivatorCaves = gd.cultivatorCaves,
+            caveExplorationTeams = gd.caveExplorationTeams,
+            aiCaveTeams = gd.aiCaveTeams,
+            worldLevels = gd.worldLevels
+        ))
+        database.sectPolicyStateDao().upsert(SectPolicyState(
+            slotId = slot,
+            sectPolicies = gd.sectPolicies,
+            autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
+            daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
+            daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
+            breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
+            breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
+            autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,
+            autoEquipFromWarehouseRootCounts = gd.autoEquipFromWarehouseRootCounts,
+            autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
+            autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
+            monthlySalary = gd.monthlySalary,
+            monthlySalaryEnabled = gd.monthlySalaryEnabled,
+            autoSaveIntervalMonths = gd.autoSaveIntervalMonths
+        ))
     }
 
     private suspend fun syncSlotMetadata(slot: Int, data: SaveData) {

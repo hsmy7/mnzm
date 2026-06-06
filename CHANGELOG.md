@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.21] - 2026-06-06
+
+### 修复
+
+- **修复**：TapTap SDK 初始化时序导致部分设备闪退（`lateinit property context has not been initialized`）
+
+### 优化
+
+- **优化**：启用 R8 full mode 编译优化，预期启动提速 30%+、帧渲染提升 25%
+- **优化**：BLOB 存储集成 LZ4 压缩，存储空间减少 30%-50%，旧存档向后兼容
+- **优化**：领域实体表拆分（Phase B），外交/生产/巡逻/世界地图/宗门政策走细粒度 DAO 读取
+- **优化**：修炼进度条和 HP/MP 条改用 Canvas 直绘，减少高频重组
+- **优化**：FrameMetrics 帧率监控统一接入 UnifiedPerformanceMonitor
+- **优化**：按钮按压缩放改用 graphicsLayer 零重组动画
+
 ## [3.2.20] - 2026-06-06
 
 ### 修复

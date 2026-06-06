@@ -11,6 +11,7 @@ import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.state.DelegateField
 import com.xianxia.sect.core.util.GameRandom
 import kotlinx.serialization.Serializable
 
@@ -141,154 +142,222 @@ data class Disciple(
 
     // --- CombatAttributes 委托 ---
     /** @deprecated 请改用 [combat.baseHp] */
+    @DelegateField(source = "combat", property = "baseHp")
     var baseHp: Int get() = combat.baseHp; set(value) { combat.baseHp = value }
     /** @deprecated 请改用 [combat.baseMp] */
+    @DelegateField(source = "combat", property = "baseMp")
     var baseMp: Int get() = combat.baseMp; set(value) { combat.baseMp = value }
     /** @deprecated 请改用 [combat.basePhysicalAttack] */
+    @DelegateField(source = "combat", property = "basePhysicalAttack")
     var basePhysicalAttack: Int get() = combat.basePhysicalAttack; set(value) { combat.basePhysicalAttack = value }
     /** @deprecated 请改用 [combat.baseMagicAttack] */
+    @DelegateField(source = "combat", property = "baseMagicAttack")
     var baseMagicAttack: Int get() = combat.baseMagicAttack; set(value) { combat.baseMagicAttack = value }
     /** @deprecated 请改用 [combat.basePhysicalDefense] */
+    @DelegateField(source = "combat", property = "basePhysicalDefense")
     var basePhysicalDefense: Int get() = combat.basePhysicalDefense; set(value) { combat.basePhysicalDefense = value }
     /** @deprecated 请改用 [combat.baseMagicDefense] */
+    @DelegateField(source = "combat", property = "baseMagicDefense")
     var baseMagicDefense: Int get() = combat.baseMagicDefense; set(value) { combat.baseMagicDefense = value }
     /** @deprecated 请改用 [combat.baseSpeed] */
+    @DelegateField(source = "combat", property = "baseSpeed")
     var baseSpeed: Int get() = combat.baseSpeed; set(value) { combat.baseSpeed = value }
 
     /** @deprecated 请改用 [combat.hpVariance] */
+    @DelegateField(source = "combat", property = "hpVariance")
     var hpVariance: Int get() = combat.hpVariance; set(value) { combat.hpVariance = value }
     /** @deprecated 请改用 [combat.mpVariance] */
+    @DelegateField(source = "combat", property = "mpVariance")
     var mpVariance: Int get() = combat.mpVariance; set(value) { combat.mpVariance = value }
     /** @deprecated 请改用 [combat.physicalAttackVariance] */
+    @DelegateField(source = "combat", property = "physicalAttackVariance")
     var physicalAttackVariance: Int get() = combat.physicalAttackVariance; set(value) { combat.physicalAttackVariance = value }
     /** @deprecated 请改用 [combat.magicAttackVariance] */
+    @DelegateField(source = "combat", property = "magicAttackVariance")
     var magicAttackVariance: Int get() = combat.magicAttackVariance; set(value) { combat.magicAttackVariance = value }
     /** @deprecated 请改用 [combat.physicalDefenseVariance] */
+    @DelegateField(source = "combat", property = "physicalDefenseVariance")
     var physicalDefenseVariance: Int get() = combat.physicalDefenseVariance; set(value) { combat.physicalDefenseVariance = value }
     /** @deprecated 请改用 [combat.magicDefenseVariance] */
+    @DelegateField(source = "combat", property = "magicDefenseVariance")
     var magicDefenseVariance: Int get() = combat.magicDefenseVariance; set(value) { combat.magicDefenseVariance = value }
     /** @deprecated 请改用 [combat.speedVariance] */
+    @DelegateField(source = "combat", property = "speedVariance")
     var speedVariance: Int get() = combat.speedVariance; set(value) { combat.speedVariance = value }
 
     /** @deprecated 请改用 [combat.totalCultivation] */
+    @DelegateField(source = "combat", property = "totalCultivation")
     var totalCultivation: Long get() = combat.totalCultivation; set(value) { combat.totalCultivation = value }
     /** @deprecated 请改用 [combat.breakthroughCount] */
+    @DelegateField(source = "combat", property = "breakthroughCount")
     var breakthroughCount: Int get() = combat.breakthroughCount; set(value) { combat.breakthroughCount = value }
     /** @deprecated 请改用 [combat.breakthroughFailCount] */
+    @DelegateField(source = "combat", property = "breakthroughFailCount")
     var breakthroughFailCount: Int get() = combat.breakthroughFailCount; set(value) { combat.breakthroughFailCount = value }
 
     /** @deprecated 请改用 [combat.currentHp] */
+    @DelegateField(source = "combat", property = "currentHp")
     var currentHp: Int get() = combat.currentHp; set(value) { combat.currentHp = value }
     /** @deprecated 请改用 [combat.currentMp] */
+    @DelegateField(source = "combat", property = "currentMp")
     var currentMp: Int get() = combat.currentMp; set(value) { combat.currentMp = value }
 
     // --- PillEffects 委托 ---
     /** @deprecated 请改用 [pillEffects.pillPhysicalAttackBonus] */
+    @DelegateField(source = "pillEffects", property = "pillPhysicalAttackBonus")
     var pillPhysicalAttackBonus: Int get() = pillEffects.pillPhysicalAttackBonus; set(value) { pillEffects.pillPhysicalAttackBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMagicAttackBonus] */
+    @DelegateField(source = "pillEffects", property = "pillMagicAttackBonus")
     var pillMagicAttackBonus: Int get() = pillEffects.pillMagicAttackBonus; set(value) { pillEffects.pillMagicAttackBonus = value }
     /** @deprecated 请改用 [pillEffects.pillPhysicalDefenseBonus] */
+    @DelegateField(source = "pillEffects", property = "pillPhysicalDefenseBonus")
     var pillPhysicalDefenseBonus: Int get() = pillEffects.pillPhysicalDefenseBonus; set(value) { pillEffects.pillPhysicalDefenseBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMagicDefenseBonus] */
+    @DelegateField(source = "pillEffects", property = "pillMagicDefenseBonus")
     var pillMagicDefenseBonus: Int get() = pillEffects.pillMagicDefenseBonus; set(value) { pillEffects.pillMagicDefenseBonus = value }
     /** @deprecated 请改用 [pillEffects.pillHpBonus] */
+    @DelegateField(source = "pillEffects", property = "pillHpBonus")
     var pillHpBonus: Int get() = pillEffects.pillHpBonus; set(value) { pillEffects.pillHpBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMpBonus] */
+    @DelegateField(source = "pillEffects", property = "pillMpBonus")
     var pillMpBonus: Int get() = pillEffects.pillMpBonus; set(value) { pillEffects.pillMpBonus = value }
     /** @deprecated 请改用 [pillEffects.pillSpeedBonus] */
+    @DelegateField(source = "pillEffects", property = "pillSpeedBonus")
     var pillSpeedBonus: Int get() = pillEffects.pillSpeedBonus; set(value) { pillEffects.pillSpeedBonus = value }
     /** @deprecated 请改用 [pillEffects.pillEffectDuration] */
+    @DelegateField(source = "pillEffects", property = "pillEffectDuration")
     var pillEffectDuration: Int get() = pillEffects.pillEffectDuration; set(value) { pillEffects.pillEffectDuration = value }
     /** @deprecated 请改用 [pillEffects.pillCritRateBonus] */
+    @DelegateField(source = "pillEffects", property = "pillCritRateBonus")
     var pillCritRateBonus: Double get() = pillEffects.pillCritRateBonus; set(value) { pillEffects.pillCritRateBonus = value }
     /** @deprecated 请改用 [pillEffects.pillCritEffectBonus] */
+    @DelegateField(source = "pillEffects", property = "pillCritEffectBonus")
     var pillCritEffectBonus: Double get() = pillEffects.pillCritEffectBonus; set(value) { pillEffects.pillCritEffectBonus = value }
     /** @deprecated 请改用 [pillEffects.pillCultivationSpeedBonus] */
+    @DelegateField(source = "pillEffects", property = "pillCultivationSpeedBonus")
     var pillCultivationSpeedBonus: Double get() = pillEffects.pillCultivationSpeedBonus; set(value) { pillEffects.pillCultivationSpeedBonus = value }
     /** @deprecated 请改用 [pillEffects.pillSkillExpSpeedBonus] */
+    @DelegateField(source = "pillEffects", property = "pillSkillExpSpeedBonus")
     var pillSkillExpSpeedBonus: Double get() = pillEffects.pillSkillExpSpeedBonus; set(value) { pillEffects.pillSkillExpSpeedBonus = value }
     /** @deprecated 请改用 [pillEffects.pillNurtureSpeedBonus] */
+    @DelegateField(source = "pillEffects", property = "pillNurtureSpeedBonus")
     var pillNurtureSpeedBonus: Double get() = pillEffects.pillNurtureSpeedBonus; set(value) { pillEffects.pillNurtureSpeedBonus = value }
     /** @deprecated 请改用 [pillEffects.activePillCategory] */
+    @DelegateField(source = "pillEffects", property = "activePillCategory")
     var activePillCategory: String get() = pillEffects.activePillCategory; set(value) { pillEffects.activePillCategory = value }
 
     // --- EquipmentSet 委托 ---
     /** @deprecated 请改用 [equipment.weaponId] */
+    @DelegateField(source = "equipment", property = "weaponId")
     var weaponId: String get() = equipment.weaponId; set(value) { equipment.weaponId = value }
     /** @deprecated 请改用 [equipment.armorId] */
+    @DelegateField(source = "equipment", property = "armorId")
     var armorId: String get() = equipment.armorId; set(value) { equipment.armorId = value }
     /** @deprecated 请改用 [equipment.bootsId] */
+    @DelegateField(source = "equipment", property = "bootsId")
     var bootsId: String get() = equipment.bootsId; set(value) { equipment.bootsId = value }
     /** @deprecated 请改用 [equipment.accessoryId] */
+    @DelegateField(source = "equipment", property = "accessoryId")
     var accessoryId: String get() = equipment.accessoryId; set(value) { equipment.accessoryId = value }
 
     /** @deprecated 请改用 [equipment.weaponNurture] */
+    @DelegateField(source = "equipment", property = "weaponNurture")
     var weaponNurture: EquipmentNurtureData get() = equipment.weaponNurture; set(value) { equipment.weaponNurture = value }
     /** @deprecated 请改用 [equipment.armorNurture] */
+    @DelegateField(source = "equipment", property = "armorNurture")
     var armorNurture: EquipmentNurtureData get() = equipment.armorNurture; set(value) { equipment.armorNurture = value }
     /** @deprecated 请改用 [equipment.bootsNurture] */
+    @DelegateField(source = "equipment", property = "bootsNurture")
     var bootsNurture: EquipmentNurtureData get() = equipment.bootsNurture; set(value) { equipment.bootsNurture = value }
     /** @deprecated 请改用 [equipment.accessoryNurture] */
+    @DelegateField(source = "equipment", property = "accessoryNurture")
     var accessoryNurture: EquipmentNurtureData get() = equipment.accessoryNurture; set(value) { equipment.accessoryNurture = value }
 
     /** @deprecated 请改用 [equipment.storageBagItems] */
+    @DelegateField(source = "equipment", property = "storageBagItems")
     var storageBagItems: List<StorageBagItem> get() = equipment.storageBagItems; set(value) { equipment.storageBagItems = value }
     /** @deprecated 请改用 [equipment.storageBagSpiritStones] */
+    @DelegateField(source = "equipment", property = "storageBagSpiritStones")
     var storageBagSpiritStones: Long get() = equipment.storageBagSpiritStones; set(value) { equipment.storageBagSpiritStones = value }
     /** @deprecated 请改用 [equipment.spiritStones] */
+    @DelegateField(source = "equipment", property = "spiritStones")
     var spiritStones: Int get() = equipment.spiritStones; set(value) { equipment.spiritStones = value }
     // --- SocialData 委托 ---
     /** @deprecated 请改用 [social.partnerId] */
+    @DelegateField(source = "social", property = "partnerId")
     var partnerId: String? get() = social.partnerId; set(value) { social.partnerId = value }
     /** @deprecated 请改用 [social.partnerSectId] */
+    @DelegateField(source = "social", property = "partnerSectId")
     var partnerSectId: String? get() = social.partnerSectId; set(value) { social.partnerSectId = value }
     /** @deprecated 请改用 [social.parentId1] */
+    @DelegateField(source = "social", property = "parentId1")
     var parentId1: String? get() = social.parentId1; set(value) { social.parentId1 = value }
     /** @deprecated 请改用 [social.parentId2] */
+    @DelegateField(source = "social", property = "parentId2")
     var parentId2: String? get() = social.parentId2; set(value) { social.parentId2 = value }
     /** @deprecated 请改用 [social.lastChildYear] */
+    @DelegateField(source = "social", property = "lastChildYear")
     var lastChildYear: Int get() = social.lastChildYear; set(value) { social.lastChildYear = value }
+    @DelegateField(source = "social", property = "childBirthMonth")
     var childBirthMonth: Int? get() = social.childBirthMonth; set(value) { social.childBirthMonth = value }
     /** @deprecated 请改用 [social.griefEndYear] */
+    @DelegateField(source = "social", property = "griefEndYear")
     var griefEndYear: Int? get() = social.griefEndYear; set(value) { social.griefEndYear = value }
 
     // --- SkillStats 委托 ---
     /** @deprecated 请改用 [skills.intelligence] */
+    @DelegateField(source = "skills", property = "intelligence")
     var intelligence: Int get() = skills.intelligence; set(value) { skills.intelligence = value }
     /** @deprecated 请改用 [skills.charm] */
+    @DelegateField(source = "skills", property = "charm")
     var charm: Int get() = skills.charm; set(value) { skills.charm = value }
     /** @deprecated 请改用 [skills.loyalty] */
+    @DelegateField(source = "skills", property = "loyalty")
     var loyalty: Int get() = skills.loyalty; set(value) { skills.loyalty = value }
     /** @deprecated 请改用 [skills.comprehension] */
+    @DelegateField(source = "skills", property = "comprehension")
     var comprehension: Int get() = skills.comprehension; set(value) { skills.comprehension = value }
     /** @deprecated 请改用 [skills.artifactRefining] */
+    @DelegateField(source = "skills", property = "artifactRefining")
     var artifactRefining: Int get() = skills.artifactRefining; set(value) { skills.artifactRefining = value }
     /** @deprecated 请改用 [skills.pillRefining] */
+    @DelegateField(source = "skills", property = "pillRefining")
     var pillRefining: Int get() = skills.pillRefining; set(value) { skills.pillRefining = value }
     /** @deprecated 请改用 [skills.spiritPlanting] */
+    @DelegateField(source = "skills", property = "spiritPlanting")
     var spiritPlanting: Int get() = skills.spiritPlanting; set(value) { skills.spiritPlanting = value }
     /** @deprecated 请改用 [skills.teaching] */
+    @DelegateField(source = "skills", property = "teaching")
     var teaching: Int get() = skills.teaching; set(value) { skills.teaching = value }
     /** @deprecated 请改用 [skills.mining] */
+    @DelegateField(source = "skills", property = "mining")
     var mining: Int get() = skills.mining; set(value) { skills.mining = value }
     /** @deprecated 请改用 [skills.morality] */
+    @DelegateField(source = "skills", property = "morality")
     var morality: Int get() = skills.morality; set(value) { skills.morality = value }
 
     /** @deprecated 请改用 [skills.salaryPaidCount] */
+    @DelegateField(source = "skills", property = "salaryPaidCount")
     var salaryPaidCount: Int get() = skills.salaryPaidCount; set(value) { skills.salaryPaidCount = value }
     /** @deprecated 请改用 [skills.salaryMissedCount] */
+    @DelegateField(source = "skills", property = "salaryMissedCount")
     var salaryMissedCount: Int get() = skills.salaryMissedCount; set(value) { skills.salaryMissedCount = value }
 
     // --- UsageTracking 委托 ---
     /** @deprecated 请改用 [usage.usedFunctionalPillTypes] */
+    @DelegateField(source = "usage", property = "usedFunctionalPillTypes")
     var monthlyUsedPillIds: List<String> get() = usage.usedFunctionalPillTypes; set(value) { usage.usedFunctionalPillTypes = value }
     /** @deprecated 请改用 [usage.usedExtendLifePillIds] */
+    @DelegateField(source = "usage", property = "usedExtendLifePillIds")
     var usedExtendLifePillIds: List<String> get() = usage.usedExtendLifePillIds; set(value) { usage.usedExtendLifePillIds = value }
     /** @deprecated 请改用 [usage.recruitedMonth] */
+    @DelegateField(source = "usage", property = "recruitedMonth")
     var recruitedMonth: Int get() = usage.recruitedMonth; set(value) { usage.recruitedMonth = value }
     /** @deprecated 请改用 [usage.hasReviveEffect] */
+    @DelegateField(source = "usage", property = "hasReviveEffect")
     var hasReviveEffect: Boolean get() = usage.hasReviveEffect; set(value) { usage.hasReviveEffect = value }
     /** @deprecated 请改用 [usage.hasClearAllEffect] */
+    @DelegateField(source = "usage", property = "hasClearAllEffect")
     var hasClearAllEffect: Boolean get() = usage.hasClearAllEffect; set(value) { usage.hasClearAllEffect = value }
 
     // ==================== 计算属性（保持不变）====================
