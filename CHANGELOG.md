@@ -14,6 +14,11 @@
 - **优化**：修炼进度条和 HP/MP 条改用 Canvas 直绘，减少高频重组
 - **优化**：FrameMetrics 帧率监控统一接入 UnifiedPerformanceMonitor
 - **优化**：按钮按压缩放改用 graphicsLayer 零重组动画
+- **优化**：Disciple 委托属性重构为扩展属性（DiscipleDelegates.kt），消除 67 个样板 get()/set()
+
+### 修复
+
+- **修复**：LazyColumn 重复 key 崩溃 — 弟子过滤链末尾添加 distinctBy 去重
 
 ## [3.2.20] - 2026-06-06
 

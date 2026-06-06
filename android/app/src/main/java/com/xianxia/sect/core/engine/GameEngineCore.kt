@@ -141,14 +141,10 @@ class GameEngineCore @Inject constructor(
     val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
     
-    // 旬制墙上时钟：当月起始有效时间（墙上时间 - 累计暂停）
-    private var monthStartEffectiveMs = 0L
-    // 上次变速检测用
-    private var lastSpeed = 1
-    // 累计暂停时长（ms）
-    private var accumulatedPauseMs = 0L
-    // 暂停开始时的墙上时间
-    private var pauseStartWallMs = 0L
+    private var phaseAccumulator = 0.0
+
+    /** 上一次 tick 开始的墙上时间戳（ms），用于基于真实时间计算 phase 推进 */
+    private var lastTickStartMs = 0L
 
     @Volatile
     private var _autoSaveTrigger = Channel<Unit>(capacity = Channel.BUFFERED)
@@ -191,12 +187,8 @@ class GameEngineCore @Inject constructor(
             return
         }
         
-        // 非后台恢复时重置墙上时钟基准
-        if (!_wasPausedByBackground) {
-            monthStartEffectiveMs = 0L
-            accumulatedPauseMs = 0L
-            lastSpeed = 1
-        }
+        phaseAccumulator = 0.0
+        lastTickStartMs = 0
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
         thermalMonitor.createHintSession(100_000_000L)  // 100ms target
@@ -295,7 +287,6 @@ class GameEngineCore @Inject constructor(
     }
 
     fun pauseForBackground() {
-        pauseStartWallMs = System.currentTimeMillis()
         if (isGameLoopRunning) {
             wasRunningBeforeBackground = true
             stopGameLoop()
@@ -311,7 +302,6 @@ class GameEngineCore @Inject constructor(
     }
 
     fun resumeFromBackground() {
-        accumulatedPauseMs += System.currentTimeMillis() - pauseStartWallMs
         if (_wasPausedByBackground && wasRunningBeforeBackground) {
             stateManager.setPausedDirect(false)
             startGameLoop()
@@ -461,80 +451,71 @@ class GameEngineCore @Inject constructor(
 
         _tickCount.value++
 
-        // 基于墙上时钟直接推导旬制，不受结算 / tick 频率影响
+        // 基于真实墙上时间计算阶段推进，避免空闲/降频时游戏内时间变慢
         val now = System.currentTimeMillis()
-        val effectiveMs = now - accumulatedPauseMs
-        val currentPhase = stateStore.gameDataSnapshot.gamePhase
-        val speed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
-        val phaseMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / GamePhase.PHASES_PER_MONTH / speed
-
-        // 首次 tick、读档、或变速时重新校准月基准
-        if (monthStartEffectiveMs == 0L || speed != lastSpeed) {
-            monthStartEffectiveMs = effectiveMs - currentPhase * phaseMs
-            lastSpeed = speed
+        val elapsedMs = if (lastTickStartMs > 0) {
+            (now - lastTickStartMs).coerceIn(0, 5000)
+        } else {
+            0L  // 首次 tick 使用固定公式兜底
         }
-
-        val monthElapsed = effectiveMs - monthStartEffectiveMs
-        // 墙上时钟推导目标旬（不设上限，跨月时 >2）
-        val targetPhase = (monthElapsed / phaseMs).toInt()
+        lastTickStartMs = now
 
         var monthChanged = false
         var yearChanged = false
 
         stateStore.update {
-            val currentPhase = this.gameData.gamePhase
-
-            // 下旬兜底：结算未完且时间已过下旬 → 停在 下旬等结算
-            val effectiveTarget = if (settlementCoordinator.hasPendingWork &&
-                targetPhase >= GamePhase.PHASES_PER_MONTH) {
-                GamePhase.LATE.value
+            val speed = this.gameData.gameSpeed.coerceIn(1, 2)
+            val phasesPerTick = if (elapsedMs > 0) {
+                (GamePhase.PHASES_PER_MONTH.toDouble() * speed) * elapsedMs /
+                    (GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000.0)
             } else {
-                targetPhase
+                // 首次 tick 兜底：基于预期的 100ms 间隔
+                (GamePhase.PHASES_PER_MONTH.toDouble() * speed) /
+                    (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
             }
-            var phasesToAdvance = (effectiveTarget - currentPhase).coerceAtLeast(0)
+            phaseAccumulator += phasesPerTick
 
-            repeat(phasesToAdvance) {
+            while (phaseAccumulator >= 1.0) {
+                phaseAccumulator -= 1.0
+
                 val prevMonth = this.gameData.gameMonth
                 val prevYear = this.gameData.gameYear
 
-                // 始终推进时间
-                systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
-
                 if (settlementCoordinator.hasPendingWork) {
-                    // 保留：结算繁忙时跳过领域系统，降低负载
+                    // 结算繁忙时跳过 HP/MP 恢复，减轻负载（战斗前兜底 + 焦点域兜底）
+                    systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
                 } else {
+                    // 两档制 + 分旬调度 + 热状态联动
+                    // gamePhase 为 0-based（0=上旬,1=中旬,2=下旬），转换为 1-based 匹配 settlementPhase
                     val currentPhase1Based = this.gameData.gamePhase + 1
                     systemManager.onPhaseTickWithDomainFilter(
                         this, activeDomains, ::shouldExecuteDomain, ::markDomainExecuted,
                         currentPhase = currentPhase1Based,
                         lazyEvaluationDispatcher = lazyEvaluationDispatcher
                     )
+                    // HP/MP 恢复跟 DISCIPLES 域走：活跃时每 phase，不活跃时 30s 一次
                     if (shouldExecuteDomain(FocusDomain.DISCIPLES, activeDomains)) {
                         cultivationService.recoverHpMpForAllDisciples(this)
                         markDomainExecuted(FocusDomain.DISCIPLES)
                     }
                 }
 
-                if (this.gameData.gameMonth != prevMonth) {
-                    monthChanged = true
-                }
+                if (this.gameData.gameMonth != prevMonth) monthChanged = true
                 if (this.gameData.gameYear != prevYear) yearChanged = true
 
-                val gd = this.gameData
-                val autoSaveInterval = gd.autoSaveIntervalMonths
-                if (autoSaveInterval > 0 &&
-                    gd.gamePhase == GamePhase.EARLY.value &&
-                    gd.gameMonth % autoSaveInterval == 0
-                ) {
-                    _autoSaveTrigger.trySend(Unit)
+                val gameDataSnapshot = this.gameData
+                val autoSaveInterval = gameDataSnapshot.autoSaveIntervalMonths
+                if (autoSaveInterval > 0) {
+                    if (gameDataSnapshot.gamePhase == GamePhase.EARLY.value && gameDataSnapshot.gameMonth % autoSaveInterval == 0) {
+                        val result = _autoSaveTrigger.trySend(Unit)
+                        if (result.isSuccess) {
+                            if (BuildConfig.DEBUG) Log.d(TAG, "Auto save triggered: year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}, phase=${gameDataSnapshot.gamePhase}")
+                        } else {
+                            Log.w(TAG, "Auto save trigger failed to send: $result, year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}")
+                        }
+                    }
                 }
             }
-        }
-
-        // 月变更后根据新的 gamePhase 重新计算基准
-        if (monthChanged) {
-            val newPhase = stateStore.gameDataSnapshot.gamePhase
-            monthStartEffectiveMs = effectiveMs - newPhase * phaseMs
         }
 
         if (settlementCoordinator.hasPendingWork && (monthChanged || yearChanged)) {
@@ -683,10 +664,6 @@ class GameEngineCore @Inject constructor(
     }
     
     suspend fun loadSnapshot(snapshot: GameStateSnapshot) {
-        // 读档时重置墙上时钟基准，由 tickInternal 根据新 gamePhase 重新推导
-        monthStartEffectiveMs = 0L
-        accumulatedPauseMs = 0L
-        lastSpeed = 1
         stateStore.loadFromSnapshot(
             gameData = snapshot.gameData,
             disciples = snapshot.disciples,
