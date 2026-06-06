@@ -69,6 +69,7 @@ internal fun WorldMapDialog(
         focusWorldX = playerSectX,
         focusWorldY = playerSectY,
         onBack = onDismiss,
+        onUserInteraction = viewModel::onUserInteraction,
         onSectClick = { sectItem ->
             val sect = worldSects.find { it.id == sectItem.id }
             if (sect != null) {

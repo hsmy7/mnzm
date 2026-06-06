@@ -569,7 +569,8 @@ fun MainGameScreen(
                 if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
                 if (screenY < edgePx) cameraState.pan(0f, panSpeed)
                 if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
-            }
+            },
+            onUserInteraction = viewModel::onUserInteraction
         )
 
         // 移动模式确认按钮
@@ -597,17 +598,7 @@ fun MainGameScreen(
         }
 
         // UI overlay — SectInfoCard + two side button columns
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent()
-                        viewModel.onUserInteraction()
-                    }
-                }
-            }
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             SectInfoCard(
                 sectName = gameData?.sectName ?: "青云宗",
                 gameYear = gameData?.gameYear ?: 1,
@@ -815,7 +806,8 @@ private fun SectMapLayer(
     movingValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
     movingInstanceId: String? = null,
     onBuildingLongPress: (GridBuildingData) -> Unit = {},
-    onMovingDrag: (Float, Float) -> Unit = { _, _ -> }
+    onMovingDrag: (Float, Float) -> Unit = { _, _ -> },
+    onUserInteraction: () -> Unit = {}
 ) {
     val textMeasurer = rememberTextMeasurer()
     SectGroundCanvas(
@@ -868,6 +860,7 @@ private fun SectMapLayer(
         movingInstanceId = movingInstanceId,
         onBuildingLongPress = onBuildingLongPress,
         onMovingDrag = onMovingDrag,
+        onUserInteraction = onUserInteraction,
         modifier = Modifier.fillMaxSize()
     )
 
@@ -922,6 +915,7 @@ private fun SectGroundCanvas(
     movingValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
     onBuildingLongPress: (GridBuildingData) -> Unit = {},
     onMovingDrag: (Float, Float) -> Unit = { _, _ -> },
+    onUserInteraction: () -> Unit = {},
     // 正在移动的建筑instanceId（用于从渲染列表排除）
     movingInstanceId: String? = null,
     modifier: Modifier = Modifier
@@ -930,6 +924,7 @@ private fun SectGroundCanvas(
     val currentOnBuildingLongPress by rememberUpdatedState(onBuildingLongPress)
     val currentOnPlacementDrag by rememberUpdatedState(onPlacementDrag)
     val currentOnMovingDrag by rememberUpdatedState(onMovingDrag)
+    val currentOnUserInteraction by rememberUpdatedState(onUserInteraction)
     val currentIsMoving by rememberUpdatedState(isMoving)
     val currentIsPlacing by rememberUpdatedState(isPlacing)
     val currentMovingWorldX by rememberUpdatedState(movingWorldX)
@@ -1029,7 +1024,10 @@ private fun SectGroundCanvas(
                             when (dragTarget) {
                                 DragTarget.BUILDING_MOVE -> currentOnMovingDrag(dragAmountX, dragAmountY)
                                 DragTarget.BUILDING_PLACE -> currentOnPlacementDrag(dragAmountX, dragAmountY)
-                                DragTarget.CAMERA -> cameraState.pan(dragAmountX, dragAmountY)
+                                DragTarget.CAMERA -> {
+                                    cameraState.pan(dragAmountX, dragAmountY)
+                                    currentOnUserInteraction()
+                                }
                             }
                         }
 
@@ -1038,6 +1036,12 @@ private fun SectGroundCanvas(
                 }
             }
     ) {
+        val canvasWidth = size.width.toFloat()
+        val canvasHeight = size.height.toFloat()
+
+        // 绘制背景色填充整个 Canvas，防止 renderScale 缩放后出现白边
+        drawRect(Color(0xFFA8B878), Offset.Zero, Size(canvasWidth, canvasHeight))
+
         val sw = size.width / renderScale
         val sh = size.height / renderScale
 

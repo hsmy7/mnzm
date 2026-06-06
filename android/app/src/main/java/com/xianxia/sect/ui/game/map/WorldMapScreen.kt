@@ -25,7 +25,8 @@ fun WorldMapScreen(
     focusWorldY: Float? = null,
     onBack: () -> Unit = {},
     onSectClick: (MapItem.Sect) -> Unit = {},
-    onLevelClick: (MapItem.Level) -> Unit = {}
+    onLevelClick: (MapItem.Level) -> Unit = {},
+    onUserInteraction: () -> Unit = {}
 ) {
     LaunchedEffect(focusWorldX, focusWorldY) {
         if (focusWorldX != null && focusWorldY != null) {
@@ -44,6 +45,7 @@ fun WorldMapScreen(
                 detectDragGestures { change, dragAmount ->
                     change.consume()
                     cameraState.pan(dragAmount.x, dragAmount.y)
+                    onUserInteraction()
                 }
             }
     ) {

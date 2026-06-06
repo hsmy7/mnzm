@@ -1031,7 +1031,7 @@ class GameStateStore @Inject constructor(
             autoLearnFromWarehouseRootCounts = oldState.autoLearnFromWarehouseRootCounts,
             battleTeams = oldState.battleTeams,
             usedTeamNumbers = oldState.usedTeamNumbers,
-            travelingMerchantItems = oldState.travelingMerchantItems,
+            // travelingMerchantItems 由年度结算刷新，不保留旧值（Phase_AgingAndDeath 已更新 shadow）
             playerListedItems = oldState.playerListedItems,
             usedRedeemCodes = oldState.usedRedeemCodes,
             activeSectId = oldState.activeSectId,

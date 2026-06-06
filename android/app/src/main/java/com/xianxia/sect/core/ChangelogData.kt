@@ -9,6 +9,29 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.20",
+            date = "2026-06-06",
+            changes = listOf(
+                "【修复】修复宗门地图出现白边的问题（Canvas 热状态缩放后画布留白）"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.2.19",
+            date = "2026-06-06",
+            changes = listOf(
+                "【修复】修复新一年云游商人商品不刷新的问题"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.2.18",
+            date = "2026-06-06",
+            changes = listOf(
+                "【修复】修复拖动地图和点击建筑无响应的问题",
+                "修复空闲检测全屏覆盖层拦截所有触摸事件导致手势失效的 bug",
+                "地图拖拽操作现在正确阻止空闲检测，不会导致焦点域降级"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.17",
             date = "2026-06-06",
             changes = listOf(
