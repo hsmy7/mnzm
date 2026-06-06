@@ -473,8 +473,8 @@ class GameEngineCore @Inject constructor(
         val monthMs = GameConfig.Time.SECONDS_PER_REAL_MONTH * 1000L / speed   // 月总墙上时间
         val phaseMs = monthMs / GamePhase.PHASES_PER_MONTH                      // 每旬墙上时间
         val monthElapsed = effectiveMs - monthStartEffectiveMs
-        // 墙上时钟推导当前旬（不设上限，跨月时 >2）
-        val expectedPhaseRaw = (monthElapsed / phaseMs).toInt()
+        // 墙上时钟推导目标旬（不设上限，跨月时 >2）
+        val targetPhase = (monthElapsed / phaseMs).toInt()
 
         var monthChanged = false
         var yearChanged = false
@@ -482,17 +482,14 @@ class GameEngineCore @Inject constructor(
         stateStore.update {
             val currentPhase = this.gameData.gamePhase
 
-            // 下旬兜底：只有过了下旬时间且结算完成才允许跨月
-            val canAdvanceMonth = expectedPhaseRaw >= GamePhase.PHASES_PER_MONTH &&
-                    !settlementCoordinator.hasPendingWork
-            val maxAllowedPhase = if (canAdvanceMonth) {
-                expectedPhaseRaw  // 允许跨月追赶
+            // 下旬兜底：结算未完且时间已过下旬 → 停在 下旬等结算
+            val effectiveTarget = if (settlementCoordinator.hasPendingWork &&
+                targetPhase >= GamePhase.PHASES_PER_MONTH) {
+                GamePhase.LATE.value
             } else {
-                minOf(expectedPhaseRaw, GamePhase.LATE.value)  // 卡在 下旬
+                targetPhase
             }
-            var phasesToAdvance = (maxAllowedPhase - currentPhase).coerceAtLeast(0)
-            // 每 tick 最多 1 旬，杜绝跳跃，追赶由墙上时钟自然驱动
-            phasesToAdvance = minOf(phasesToAdvance, 1)
+            var phasesToAdvance = (effectiveTarget - currentPhase).coerceAtLeast(0)
 
             repeat(phasesToAdvance) {
                 val prevMonth = this.gameData.gameMonth
@@ -532,9 +529,10 @@ class GameEngineCore @Inject constructor(
             }
         }
 
-        // 月变更后重置基准
+        // 月变更后根据新的 gamePhase 重新计算基准
         if (monthChanged) {
-            monthStartEffectiveMs += monthMs
+            val newPhase = stateStore.gameDataSnapshot.gamePhase
+            monthStartEffectiveMs = effectiveMs - newPhase * phaseMs
         }
 
         if (settlementCoordinator.hasPendingWork && (monthChanged || yearChanged)) {
