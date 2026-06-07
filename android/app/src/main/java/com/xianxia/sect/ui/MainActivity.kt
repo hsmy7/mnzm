@@ -133,9 +133,9 @@ class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_XianxiaSect)
-        
+
         super.onCreate(savedInstanceState)
-        
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
         
@@ -458,13 +458,11 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: java.util.concurrent.TimeoutException) {
                 Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
-                // 华为设备可能初始化较慢，不阻塞进入游戏
                 withContext(Dispatchers.Main) {
-                    showSaveSelectScreen()  // 跳过合规验证直接进入
+                    showSaveSelectScreen()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}", e)
-                // 不崩溃，记录错误后继续
             }
         }
     }

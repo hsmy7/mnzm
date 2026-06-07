@@ -2059,7 +2059,7 @@ private fun StorageBagDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            itemsIndexed(items, key = { _, item -> item.itemId }) { index, item ->
+                            itemsIndexed(items, key = { index, item -> "${item.itemId}_$index" }) { index, item ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = item.itemId,

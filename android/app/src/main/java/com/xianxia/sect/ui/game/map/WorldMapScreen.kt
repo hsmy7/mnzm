@@ -28,7 +28,7 @@ fun WorldMapScreen(
     onLevelClick: (MapItem.Level) -> Unit = {},
     onUserInteraction: () -> Unit = {}
 ) {
-    LaunchedEffect(focusWorldX, focusWorldY) {
+    LaunchedEffect(focusWorldX, focusWorldY, cameraState.viewportWidth, cameraState.viewportHeight) {
         if (focusWorldX != null && focusWorldY != null) {
             cameraState.tryCenterOn(focusWorldX, focusWorldY)
         }

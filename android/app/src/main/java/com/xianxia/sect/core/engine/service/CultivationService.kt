@@ -106,8 +106,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     @Volatile var cachedNurtureRates: Map<String, Double> = emptyMap()  // equipmentId -> nurturePerSecond
     @Volatile var cachedProficiencyRates: Map<String, Map<String, Double>> = emptyMap()  // discipleId -> (manualId -> rate)
 
-    /** 焦点域每 tick 推进的秒数（100ms tick ≈ 0.1 秒） */
-    private val tickSeconds = 0.1
+    /** 焦点域每旬推进的实际秒数 = SECONDS_PER_REAL_MONTH / PHASES_PER_MONTH / gameSpeed */
+    private var phaseSeconds: Double = 2.0   // speed=1 时 6/3=2s，运行时每 tick 动态更新
 
     /** 战斗前对参战弟子进行一次 HP/MP 恢复结算（脏标记：满状态跳过） */
     fun recoverHpMpForBattleParticipants(discipleIds: List<String>) {
@@ -451,9 +451,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val currentDisciple = postBreakthroughDisciples.find { it.id == discipleId } ?: return
 
         val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
-        // 按 GameConfig 基准 tick 间隔分发（100ms），高频平滑推进进度条
-        val perTickSeconds = GameConfig.Time.TICK_INTERVAL.toDouble() / 1000.0
-        val gained = cultivationPerSecond * perTickSeconds
+        // 每旬实际秒数 = SECONDS_PER_REAL_MONTH / PHASES_PER_MONTH / gameSpeed
+        // 与 GameEngineCore phaseAccumulator 公式一致：phasesPerTick = 3 * speed * 100 / (6 * 1000) = 0.05*speed
+        val speed = data.gameSpeed.coerceIn(1, 2)
+        val perPhaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble() / GameConfig.Time.PHASES_PER_MONTH / speed
+        val gained = cultivationPerSecond * perPhaseSeconds
 
         state.disciples = postBreakthroughDisciples.map { d ->
             if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
@@ -468,7 +470,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val manualInstanceMap = state.manualInstances.associateBy { it.id }
         val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerSecond(currentDisciple.comprehension, libraryBonus) * perTickSeconds
+        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerSecond(currentDisciple.comprehension, libraryBonus) * perPhaseSeconds
 
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val profUpdatesMap = currentHfd.proficiencyUpdates.toMutableMap()
@@ -509,7 +511,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         // —— 装备孕养高频分发（每月总量均摊到每旬） ——
         val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
-        val nurtureGainPerTick = 5.0 * perTickSeconds
+        val nurtureGainPerTick = 5.0 * perPhaseSeconds
         val nurtureUpdatesMap = currentHfd.nurtureUpdates.toMutableMap()
         val discipleNurtureUpdates = nurtureUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
@@ -870,6 +872,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     private val phaseMultiplier: Int get() = 10
 
     private suspend fun processPhaseTick(year: Int, month: Int, phase: Int) {
+        // 每旬实际秒数 = 游戏月真实秒数 / 旬数 / 游戏速度（与 GameEngineCore 的 phaseAccumulator 公式一致）
+        val speed = currentGameData.gameSpeed.coerceIn(1, 2)
+        phaseSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble() / GameConfig.Time.PHASES_PER_MONTH / speed
         val equipmentMap = currentEquipmentInstances.associateBy { it.id }
         val manualMap = currentManualInstances.associateBy { it.id }
         val proficienciesMap = currentGameData.manualProficiencies
@@ -971,7 +976,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         if (d.id != stateStore.focusedDiscipleId) {
             val cultivationRate = cachedCultivationRates[d.id] ?: 0.0
             if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                val gain = cultivationRate * tickSeconds
+                val gain = cultivationRate * phaseSeconds
                 d = d.copy(cultivation = (d.cultivation + gain).coerceAtMost(d.maxCultivation))
                 // 记录累积量：月度结算时扣除已推进的进度，避免重复计算
                 val currentHfd = _highFrequencyData.value

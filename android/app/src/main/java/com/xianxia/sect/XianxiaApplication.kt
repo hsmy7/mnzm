@@ -116,6 +116,20 @@ class XianxiaApplication : Application() {
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
 
+        // 合规：TapTap SDK 必须在用户同意隐私政策后才能初始化。
+        // 但在同意前，TapTap 内部可能触发 Toast 等操作访问 lateinit context 导致崩溃。
+        // 此处安装全局异常守卫，仅拦截 TapTap SDK 内部的 UninitializedPropertyAccessException。
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            if (throwable is kotlin.UninitializedPropertyAccessException
+                && throwable.stackTrace.any { it.className?.contains("taptap", ignoreCase = true) == true }
+            ) {
+                Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)
+                return@setDefaultUncaughtExceptionHandler
+            }
+            originalHandler?.uncaughtException(thread, throwable)
+        }
+
         Log.i(TAG, "Application initialized with monitoring systems")
 
         applicationScopeProvider.ioScope.launch(Dispatchers.IO) {

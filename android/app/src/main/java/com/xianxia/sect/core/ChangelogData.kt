@@ -9,6 +9,19 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.23",
+            date = "2026-06-07",
+            changes = listOf(
+                "【修复】世界地图宗门不显示——tryCenterOn 追踪上次居中位置，焦点变化 >100px 允许重定位",
+                "【修复】功法熟练度显示入门——月度结算 calculateProficiencyGains 遗漏 masteryLevel 重算",
+                "【修复】弟子修炼进度条增长极慢——perTickSeconds 与相位推进实际间隔不匹配（20x 偏差），修正为每旬实际秒数",
+                "【修复】API 29 以下设备闪退——ThermalMonitor 添加 SDK 版本检查，降级返回正常温度状态",
+                "【修复】存档加载时 OOM 闪退——decodeFromBase64 添加 50MB 警告 + 500MB 硬上限，拦截异常巨型 Base64 反序列化",
+                "【修复】储物袋物品列表崩溃——StorageBagItem.itemId 非唯一 ID，LazyVerticalGrid key 加 index 后缀",
+                "【修复】TapTap SDK 合规前崩溃——全局异常守卫拦截 TapTap 内部 UninitializedPropertyAccessException，不动初始化时序"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.22",
             date = "2026-06-07",
             changes = listOf(

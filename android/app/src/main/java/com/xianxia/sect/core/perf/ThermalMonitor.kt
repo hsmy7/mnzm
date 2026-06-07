@@ -56,9 +56,14 @@ class ThermalMonitor @Inject constructor(
         }
     }
 
-    /** 当前热状态 (0=NONE, 1=LIGHT, 2=MODERATE, 3=SEVERE, 4=Critical, 5=Emergency, 6=Shutdown) */
+    /** 当前热状态 (0=NONE, 1=LIGHT, 2=MODERATE, 3=SEVERE, 4=Critical, 5=Emergency, 6=Shutdown)
+     *  API 29+ 才支持；低版本始终返回 THERMAL_STATUS_NONE (0) */
     val currentThermalStatus: Int
-        get() = powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            powerManager?.currentThermalStatus ?: 0  // THERMAL_STATUS_NONE
+        } else {
+            0  // THERMAL_STATUS_NONE not available on API < 29
+        }
 
     /** 是否应降低非关键计算负载 (MODERATE 及以上) */
     fun shouldReduceWorkload(): Boolean =

@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.23] - 2026-06-07
+
+### 修复
+
+- **修复**：世界地图打开后不显示宗门 — `tryCenterOn` 的 `hasInitialized` 守卫阻止实际坐标到达后重新居中；改为追踪上次居中位置，焦点坐标变化 >100px 时允许重定位，同时避免数据延迟到达导致的重复居中闪烁
+- **修复**：弟子修炼进度条增长极慢 — `perTickSeconds=0.1s` 与相位推进实际间隔 2s 不匹配（20x 偏差），修正为 `SECONDS_PER_REAL_MONTH/PHASES_PER_MONTH/gameSpeed`，同步修复功法熟练度和装备孕养时间
+- **修复**：弟子功法熟练度全部显示"入门"— `calculateProficiencyGains`（月度结算）更新已有条目时遗漏 `masteryLevel` 重算，非焦点弟子的熟练度等级永远停在 0
+- **修复**：API < 29 设备闪退 — `PowerManager.currentThermalStatus` 为 API 29 新增，添加 SDK 版本检查降级
+- **修复**：存档时 OOM — `encodeToBase64`/`encodeToBlobInternal` 序列化路径未设防，巨型对象图触发 1GB byte array 分配。三路守卫：`encodeToBase64` + `encodeNullableToBase64` + `encodeToBlobInternal` 均添加 Collection/Map >100k 条目预检 + OutOfMemoryError 兜底
+- **修复**：储物袋物品列表重复 key 崩溃 — `StorageBagItem.itemId` 非唯一 ID，LazyVerticalGrid key 改为 `"${itemId}_$index"`
+- **修复**：TapTap SDK `lateinit context` 崩溃 — 添加全局异常守卫，仅拦截 TapTap 内部 `UninitializedPropertyAccessException`，不动初始化时序（保持合规：用户同意隐私政策后才初始化 SDK）
+
 ## [3.2.22] - 2026-06-07
 
 ### 优化

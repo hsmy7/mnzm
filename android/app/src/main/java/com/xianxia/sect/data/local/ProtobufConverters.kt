@@ -83,14 +83,21 @@ object ProtobufConverters {
             ByteArray(0)
         }
 
+    // 预检查：Collection/Map 超过此大小拒绝序列化，防止 protoBuf 分配 GB 级 byte array
+    private const val MAX_COLLECTION_SIZE = 100_000
+
     /**
      * 通用序列化方法：将任意 @Serializable 对象编码为 Base64 字符串
      * encodeDefaults=false 使可空字段为 null 时自动省略，符合 ProtoBuf proto3 语义
      */
     private fun <T : Any> encodeToBase64(serializer: KSerializer<T>, value: T): String {
+        if (isTooLarge(value, serializer.descriptor.serialName)) return ""
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM during serialization of ${serializer.descriptor.serialName}!")
+            return ""
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
             return ""
@@ -102,17 +109,46 @@ object ProtobufConverters {
      */
     private fun <T : Any> encodeNullableToBase64(serializer: KSerializer<T>, value: T?): String {
         if (value == null) return ""
+        if (isTooLarge(value, serializer.descriptor.serialName)) return ""
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM during nullable serialization of ${serializer.descriptor.serialName}!")
+            return ""
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
             return ""
         }
     }
 
+    /** 检查集合/Map 大小是否异常，防止序列化分配 GB 级内存 */
+    private fun isTooLarge(value: Any, name: String): Boolean {
+        val size = when (value) {
+            is Collection<*> -> value.size
+            is Map<*, *> -> value.size
+            else -> -1
+        }
+        if (size > MAX_COLLECTION_SIZE) {
+            Log.e(TAG, "CRITICAL: $name has $size entries (>$MAX_COLLECTION_SIZE), refusing to serialize to prevent OOM!")
+            return true
+        }
+        return false
+    }
+
+    // 超过 50MB 打印警告（正常值远小于此），超过 500MB 硬拒绝防 OOM
+    private const val DECODE_WARN_LENGTH =  50_000_000  // 50MB Base64 — 异常偏大，记录警告
+    private const val DECODE_HARD_LIMIT   = 500_000_000  // 500MB Base64 — 必然异常，拒绝解码
+
     private fun <T> decodeFromBase64(serializer: KSerializer<T>, encoded: String, default: () -> T): T {
         if (encoded.isEmpty()) return default()
+        if (encoded.length > DECODE_HARD_LIMIT) {
+            Log.e(TAG, "Deserialization REJECTED for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds hard limit $DECODE_HARD_LIMIT, returning default to prevent OOM")
+            return default()
+        }
+        if (encoded.length > DECODE_WARN_LENGTH) {
+            Log.w(TAG, "Deserialization WARNING for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds warn threshold $DECODE_WARN_LENGTH, attempting decode")
+        }
         try {
             val bytes = base64ToBytes(encoded)
             if (bytes.isEmpty()) return default()
@@ -1031,6 +1067,15 @@ object ProtobufConverters {
 
     private fun <T : Any> encodeToBlobInternal(serializer: KSerializer<T>, value: T): ByteArray {
         try {
+            val sizeCheck = when (value) {
+                is Collection<*> -> value.size
+                is Map<*, *> -> value.size
+                else -> -1
+            }
+            if (sizeCheck > MAX_COLLECTION_SIZE) {
+                Log.e(TAG, "CRITICAL: BLOB encode ${serializer.descriptor.serialName} has $sizeCheck entries, refusing to prevent OOM!")
+                return ByteArray(0)
+            }
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             if (bytes.size >= LZ4_COMPRESSION_THRESHOLD) {
                 val maxCompressedLength = lz4Compressor.maxCompressedLength(bytes.size)

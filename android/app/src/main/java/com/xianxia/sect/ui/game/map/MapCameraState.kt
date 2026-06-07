@@ -30,6 +30,8 @@ class CameraState(
         private set
 
     private var hasInitialized = false
+    private var lastCenterX = 0f
+    private var lastCenterY = 0f
 
     // -- 坐标转换 --
 
@@ -65,8 +67,13 @@ class CameraState(
     }
 
     fun tryCenterOn(worldX: Float, worldY: Float) {
-        if (!hasInitialized && viewportWidth > 0 && viewportHeight > 0) {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return
+        // 首次初始化；或焦点坐标相比上次居中位置变化超过 100px → 允许重定位
+        // 用户拖拽不会改变 focusWorldX/Y，因此不会误触发
+        if (!hasInitialized || kotlin.math.abs(worldX - lastCenterX) > 100f || kotlin.math.abs(worldY - lastCenterY) > 100f) {
             centerOn(worldX, worldY)
+            lastCenterX = worldX
+            lastCenterY = worldY
             hasInitialized = true
         }
     }
