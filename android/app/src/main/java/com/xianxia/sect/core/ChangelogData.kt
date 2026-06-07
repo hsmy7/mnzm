@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.2.25",
+            date = "2026-06-08",
+            changes = listOf(
+                "【优化】游戏时间系统重构——新建 GameTimeClock 统一时钟源，替代墙上时间累加器。1x 速度严格 2s/旬 6s/月，2x 速度 1s/旬 3s/月，切换速度不丢时间进度",
+                "【优化】下旬动态延长——月度结算未完成时时间暂停等待，结算完成后立即推进至下月上旬，避免强制完成导致的数据丢失",
+                "【优化】修炼/结算/熟练度/孕养等模块统一从 GameTimeClock 读取时间，消除分散在多处的 gameSpeed 计算逻辑",
+                "【优化】时间进度实时可见——顶部栏新增旬进度条，显示当前旬倒计时及结算状态"
+            )
+        ),
+        ChangelogEntry(
             version = "3.2.24",
             date = "2026-06-08",
             changes = listOf(

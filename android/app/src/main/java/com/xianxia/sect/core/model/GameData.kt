@@ -54,6 +54,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var isGameStarted: Boolean = false,
     @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @Deprecated("使用 GameTimeClock.speed 代替")
     var gameSpeed: Int = 1,
 
     // 资源

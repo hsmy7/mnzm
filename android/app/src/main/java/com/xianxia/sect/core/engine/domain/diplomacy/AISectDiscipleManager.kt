@@ -15,7 +15,8 @@ import kotlin.random.Random
 
 object AISectDiscipleManager {
 
-    private val SECONDS_PER_MONTH = GameConfig.Time.SECONDS_PER_REAL_MONTH
+    /** 每月真实秒数 = 3 旬 × MS_PER_PHASE_1X / 1000 = 6.0s */
+    private val SECONDS_PER_MONTH = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0
 
     data class BattleItems(
         val manuals: List<Pair<String, Int>>,

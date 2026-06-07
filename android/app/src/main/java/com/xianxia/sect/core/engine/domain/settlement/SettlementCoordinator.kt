@@ -35,7 +35,8 @@ class SettlementCoordinator @Inject constructor(
     private val partnerSystem: PartnerSystem,
     private val stateStore: GameStateStore,
     private val scheduler: SettlementScheduler,
-    private val metricsCollector: SettlementMetricsCollector
+    private val metricsCollector: SettlementMetricsCollector,
+    private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock
 ) {
     @Volatile
     private var shadowState: MutableGameState? = null
@@ -226,7 +227,7 @@ class SettlementCoordinator @Inject constructor(
         }
 
         val data = shadow.gameData
-        val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
+        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
         val monthlyGain = rate * monthSeconds
 
@@ -289,7 +290,7 @@ class SettlementCoordinator @Inject constructor(
     private suspend fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
         val data = shadow.gameData
-        val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
+        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
 
@@ -354,7 +355,7 @@ class SettlementCoordinator @Inject constructor(
     private suspend fun processDirtyDiscipleBatch(shadow: MutableGameState, cache: SettlementCache, offset: Int): Int {
         timer.start()
         val data = shadow.gameData
-        val monthSeconds = GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
+        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
 

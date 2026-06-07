@@ -495,6 +495,29 @@ private suspend fun executeInParallelGroups(state, action) {
 
 ---
 
+## 游戏时间系统 — GameTimeClock (v3.2.25)
+
+全项目唯一的时间推进入口，基于三层时钟模型：
+
+```
+墙上时间 (System.currentTimeMillis())  ← 仅 GameTimeClock 调用
+        ↓
+  游戏时间 (墙上时间 × speed)          ← 暂停/1x/2x 速度控制
+        ↓
+  旬推进 (固定步长 2s/tick @ 1x)      ← 累积器消费游戏时间产出旬数
+```
+
+| 速度 | 每旬间隔 | 每月间隔 |
+|------|---------|---------|
+| 暂停 | ∞ | ∞ |
+| 1x | 2.0s | 6.0s |
+| 2x | 1.0s | 3.0s |
+
+**下旬动态延长**：当月度结算未完成时，GameTimeClock 消费已累积的游戏时间但不推进旬数（时间暂停）。结算完成后立即推进至下月上旬。
+
+**文件**：`core/engine/system/GameTimeClock.kt`  
+**测试**：`GameTimeClockTest.kt` (15 个用例，覆盖率 100%)
+
 ## 游戏引擎 — GameEngineCore
 
 ### Tick 循环
@@ -507,6 +530,7 @@ private suspend fun executeInParallelGroups(state, action) {
 | IDLE_TICK_INTERVAL_MS | 2000ms | `GameEngineCore.kt` (10秒无操作后降频) |
 | IDLE_DETECTION_MS | 10000ms | `GameEngineCore.kt` |
 | NON_FOCUS_TICK_INTERVAL | 30000ms | `GameEngineCore.kt` (非焦点域结算间隔) |
+| MS_PER_PHASE_1X | 2000ms | `GameTimeClock.kt` |
 
 ### 焦点分频机制 (v3.2.06)
 
@@ -531,19 +555,18 @@ private suspend fun executeInParallelGroups(state, action) {
 - 自适应：单 tick 超预算时降频系数自动增大
 
 **后台行为**：`pauseForBackground()` 调用 `stopGameLoop()` 完全停止循环（不再空转）。`resumeFromBackground()` 重新启动。
-| 自适应策略 | 连续 3 次超时 → ×1.5；正常后 ×0.8 恢复 | `GameEngineCore.kt:158-169` |
+| 自适应策略 | 连续 3 次超时 → ×1.5；正常后 ×0.8 恢复 | `GameEngineCore.kt` |
 
 ### 关键路径
 
 ```
-startGameLoop() → Dispatchers.Default coroutine
+startGameLoop() → gameClock.start()
   → tick() → tickInternal()
-    → stateStore.update { ... }
-      → hasPendingWork?
-        → YES: TimeSystem.onPhaseTick() + recoverHpMpForAllDisciples()  // v3.2.03: 结算期仍恢复HP/MP
-        → NO:  systemManager.onPhaseTick()  // 全部系统
-      → auto-save check
-    → settlement coordinator (shadow swap)
+    → gameClock.tick(isSettlementPending) → TickResult(phasesToAdvance)
+    → for each phase:
+        → LATE + pending → gameClock.forceConsumeOnePhase() + break (时间暂停)
+        → EARLY/MID → advancePhase() / advanceToNextMonth()
+    → settlement coordinator (scheduleMonthly/scheduleYearly + executeStep)
     → patrol battle results
 ```
 

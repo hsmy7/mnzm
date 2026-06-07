@@ -107,6 +107,9 @@ class LazyEvaluationDispatcher @Inject constructor(
         /** 将游戏年月转换为绝对月份编号 */
         fun toAbsoluteMonth(year: Int, month: Int): Int = (year - 1) * 12 + month
 
+        /** 每月真实秒数 = 3 旬 × MS_PER_PHASE_1X / 1000 = 6.0s */
+        private val MONTH_SECONDS = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0
+
         /** 估算到下次突破所需的月数，基于修炼速率和剩余修为。 */
         fun estimateMonthsToNextBreakthrough(
             remainingCultivation: Double,
@@ -114,8 +117,7 @@ class LazyEvaluationDispatcher @Inject constructor(
             minMonths: Int = 1,
             maxMonths: Int = 120
         ): Int {
-            val monthSeconds = com.xianxia.sect.core.GameConfig.Time.SECONDS_PER_REAL_MONTH.toDouble()
-            val monthlyGain = cultivationRatePerSecond * monthSeconds
+            val monthlyGain = cultivationRatePerSecond * MONTH_SECONDS
             return if (monthlyGain > 0 && remainingCultivation > 0) {
                 (remainingCultivation / monthlyGain).toInt().coerceIn(minMonths, maxMonths)
             } else if (monthlyGain <= 0) {

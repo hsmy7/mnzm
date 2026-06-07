@@ -45,7 +45,8 @@ class SaveLoadViewModel @Inject constructor(
     private val savePipeline: SavePipeline,
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val buildingConfigService: BuildingConfigService,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock
 ) : BaseViewModel() {
 
     companion object {
@@ -1382,8 +1383,7 @@ class SaveLoadViewModel @Inject constructor(
     private val _timeScale = MutableStateFlow(1)
     val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
 
-    val timeSpeed: StateFlow<Int> = gameEngine.gameData
-        .map { it.gameSpeed.coerceIn(1, 2) }
+    val timeSpeed: StateFlow<Int> = gameClock.speedFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, 1)
 
     val isPaused: StateFlow<Boolean> = gameEngineCore.state
@@ -1391,14 +1391,16 @@ class SaveLoadViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
     fun setTimeSpeed(speed: Int) {
-        val clamped = speed.coerceIn(1, 2)
-        _timeScale.value = clamped  // UI 即时反馈，不依赖 GameData 写入
+        val clamped = speed.coerceIn(0, 2)
+        _timeScale.value = clamped  // UI 即时反馈
+        gameClock.setSpeed(clamped)
+        @Suppress("DEPRECATION")
         viewModelScope.launch {
             try {
                 gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
             } catch (e: IllegalStateException) {
-                // 影子事务进行中（结算分帧），延迟一帧后重试
                 delay(16)
+                @Suppress("DEPRECATION")
                 gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
             }
         }
