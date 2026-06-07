@@ -8,6 +8,10 @@ import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 @SystemPriority(order = 205)
 @Singleton
@@ -55,13 +59,24 @@ class ProductionSubsystem @Inject constructor(
     }
 
     override suspend fun onMonthTick(state: MutableGameState) {
+        // 组 A（并行）：纯独立方法——autoAlchemy 只写 herbs，autoForge 只写 materials
+        coroutineScope {
+            val alchemyJob = async(Dispatchers.Default) { cultivationService.processAutoAlchemy() }
+            val forgeJob = async(Dispatchers.Default) { cultivationService.processAutoForge() }
+            awaitAll(alchemyJob, forgeJob)
+        }
+
+        // spiritMineProduction 和 autoAssign 都写 currentGameData + currentDisciples，
+        // 不能并行，必须串行以避免数据竞争
+        cultivationService.processSpiritMineProduction()
+        cultivationService.processAutoAssign()
+
+        // 组 B（串行，依赖 A 产出）
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processHerbGardenGrowth(state.gameData.gameYear, state.gameData.gameMonth)
+
+        // 组 C（串行）
         cultivationService.processSpiritFieldHarvest()
-        cultivationService.processSpiritMineProduction()
         cultivationService.processAutoPlant()
-        cultivationService.processAutoAlchemy()
-        cultivationService.processAutoForge()
-        cultivationService.processAutoAssign()
     }
 }

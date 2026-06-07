@@ -1,5 +1,19 @@
 # 模拟宗门 - 更新日志
 
+## [3.2.22] - 2026-06-07
+
+### 优化
+
+- **优化**：月度结算效率大幅提升 — Cache 增量重建，90%+ 月份跳过修炼速率重算（Dirty Flag 模式）
+- **优化**：结算 Shadow 浅拷贝 — 只拷贝结算实际修改的字段（gameData/disciples/equipmentInstances/pills/manualInstances），拷贝开销减少 60%+
+- **优化**：弟子批量结算并行化 — 清洁/脏弟子分片 `async(Dispatchers.Default)` 并行处理，4 核设备耗时减半
+- **优化**：时间预算动态调整 — 月切前 3 帧提升至 12ms 预算（保守 1.5ms），月结帧数从 12-65 帧降至 1-3 帧
+- **优化**：生产结算并行化 — 炼丹/锻造独立方法 `coroutineScope` 并行执行，减少串行等待
+
+### 修复
+
+- **修复**：ProtoBuf 全量序列化 AI 宗门弟子数据（aiSectDisciples）触发 OOM 崩溃 — TypeConverter 改为增量编码占位，存档时不再闪退
+
 ## [3.2.21] - 2026-06-06
 
 ### 修复

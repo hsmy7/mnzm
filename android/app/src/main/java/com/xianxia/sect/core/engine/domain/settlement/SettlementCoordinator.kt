@@ -18,7 +18,10 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -39,18 +42,19 @@ class SettlementCoordinator @Inject constructor(
     @Volatile
     private var currentCache: SettlementCache? = null
 
+    private var lastFingerprint: CultivationRateFingerprint? = null
+    private var reusableCache: SettlementCache? = null
+
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
 
     private val timer = SettlementTimer()
     private var metricsBuilder = SettlementMetricsBuilder()
 
-    suspend fun executeStep(timeBudgetMs: Long = 1): Boolean {
+    suspend fun executeStep(): Boolean {
         val shadow = shadowState ?: return true
-        val timeBudgetNs = (timeBudgetMs * 1_000_000).toLong()
-            .coerceAtMost(SettlementScheduler.DEFAULT_TIME_BUDGET_NS)
 
         return try {
-            val completed = scheduler.executeStep(shadow, timeBudgetNs)
+            val completed = scheduler.executeStep(shadow)
             if (completed) {
                 onSettlementComplete()
             }
@@ -72,12 +76,23 @@ class SettlementCoordinator @Inject constructor(
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
 
-        timer.start()
-        val cachePhase = Phase_BuildCache { state ->
-            val cache = SettlementCache(state)
-            currentCache = cache
-            metricsBuilder.cacheBuildMs = timer.stop()
-            cache
+        val fingerprint = computeFingerprint(shadow)
+        val cachePhase: Phase_BuildCache?
+
+        if (fingerprint == lastFingerprint && reusableCache != null) {
+            currentCache = reusableCache
+            cachePhase = null
+            metricsBuilder.cacheBuildMs = 0f
+        } else {
+            timer.start()
+            cachePhase = Phase_BuildCache { state ->
+                val cache = SettlementCache(state)
+                currentCache = cache
+                reusableCache = cache
+                lastFingerprint = fingerprint
+                metricsBuilder.cacheBuildMs = timer.stop()
+                cache
+            }
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -113,11 +128,23 @@ class SettlementCoordinator @Inject constructor(
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
 
-        val cachePhase = Phase_BuildCache { state ->
-            val cache = SettlementCache(state)
-            currentCache = cache
-            metricsBuilder.cacheBuildMs = timer.stop()
-            cache
+        val fingerprint = computeFingerprint(shadow)
+        val cachePhase: Phase_BuildCache?
+
+        if (fingerprint == lastFingerprint && reusableCache != null) {
+            currentCache = reusableCache
+            cachePhase = null
+            metricsBuilder.cacheBuildMs = 0f
+        } else {
+            timer.start()
+            cachePhase = Phase_BuildCache { state ->
+                val cache = SettlementCache(state)
+                currentCache = cache
+                reusableCache = cache
+                lastFingerprint = fingerprint
+                metricsBuilder.cacheBuildMs = timer.stop()
+                cache
+            }
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -266,47 +293,60 @@ class SettlementCoordinator @Inject constructor(
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
 
-        var spiritStoneDelta = 0L
-        // 分批处理弟子，每 50 个 yield 一次，避免长时间占用游戏线程
-        val batchSize = 50
+        val cleanDisciplesWithIndex = shadow.disciples.mapIndexedNotNull { index, disciple ->
+            if (!disciple.isAlive || disciple.id == focusedId) return@mapIndexedNotNull null
+            if (disciple.id !in cache.cleanDiscipleIds) return@mapIndexedNotNull null
+            if (disciple.id in cache.farFromCompletionIds) return@mapIndexedNotNull null
+            index to disciple
+        }
+
+        if (cleanDisciplesWithIndex.isEmpty()) {
+            metricsBuilder.cleanBatchMs = timer.stop()
+            return
+        }
+
+        val chunks = cleanDisciplesWithIndex.chunked(100)
+        val results = coroutineScope {
+            chunks.map { chunk ->
+                async(Dispatchers.Default) {
+                    chunk.map { (index, disciple) ->
+                        var d = disciple
+                        val rate = cache.cultivationRateCache[d.id] ?: 0.0
+                        val cultivationDelta = rate * monthSeconds
+                        d = d.copy(
+                            cultivation = (d.cultivation + cultivationDelta).coerceIn(0.0, d.maxCultivation)
+                        )
+
+                        var spiritStoneDelta = 0L
+                        val salaryResult = calculateSalaryChange(d, data)
+                        if (salaryResult != null) {
+                            d = applySalaryChange(d, salaryResult)
+                            if (salaryResult.isPaid) spiritStoneDelta -= salaryResult.amount.toLong()
+                        }
+                        val loyaltyDelta = calculateLoyaltyDelta(d, cache, data)
+                        if (loyaltyDelta != 0) {
+                            d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
+                        }
+                        d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
+
+                        Triple(index, d, spiritStoneDelta)
+                    }
+                }
+            }.awaitAll()
+        }
+
         val updatedDisciples = shadow.disciples.toMutableList()
-        for ((index, disciple) in shadow.disciples.withIndex()) {
-            if (!disciple.isAlive || disciple.id == focusedId) continue
-            if (disciple.id !in cache.cleanDiscipleIds) continue
-            // 惰性跳过：距离突破超过2个月，等快满时再月结
-            if (disciple.id in cache.farFromCompletionIds) continue
-
-            var d = disciple
-            val rate = cache.cultivationRateCache[d.id] ?: 0.0
-            val cultivationDelta = rate * monthSeconds
-            d = d.copy(
-                cultivation = (d.cultivation + cultivationDelta).coerceIn(0.0, d.maxCultivation)
-            )
-
-            // 薪水处理
-            val salaryResult = calculateSalaryChange(d, data)
-            if (salaryResult != null) {
-                d = applySalaryChange(d, salaryResult)
-                if (salaryResult.isPaid) spiritStoneDelta -= salaryResult.amount.toLong()
-            }
-            // 忠诚度
-            val loyaltyDelta = calculateLoyaltyDelta(d, cache, data)
-            if (loyaltyDelta != 0) {
-                d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
-            }
-            // 结算后计算下一次完成时间
-            d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
-
-            updatedDisciples[index] = d
-
-            if ((index + 1) % batchSize == 0) {
-                yield()
+        var totalSpiritStoneDelta = 0L
+        for (chunkResults in results) {
+            for ((index, disciple, spiritStoneDelta) in chunkResults) {
+                updatedDisciples[index] = disciple
+                totalSpiritStoneDelta += spiritStoneDelta
             }
         }
 
         shadow.disciples = updatedDisciples.toList()
-        if (spiritStoneDelta != 0L) {
-            shadow.gameData = data.copy(spiritStones = data.spiritStones + spiritStoneDelta)
+        if (totalSpiritStoneDelta != 0L) {
+            shadow.gameData = data.copy(spiritStones = data.spiritStones + totalSpiritStoneDelta)
         }
         metricsBuilder.cleanBatchMs = timer.stop()
     }
@@ -320,7 +360,6 @@ class SettlementCoordinator @Inject constructor(
 
         val dirtyDisciples = shadow.disciples.filter {
             it.isAlive && it.id != focusedId && it.id in cache.dirtyDiscipleIds
-                // 惰性跳过：距离突破超过2个月，等快满时再月结（但手动标记的脏弟子仍结算以更新completionMonth）
                 && it.id !in cache.farFromCompletionIds
         }
 
@@ -334,63 +373,79 @@ class SettlementCoordinator @Inject constructor(
         val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
         val focusedNurtureGains = cultivationService.getHighFrequencyData().value.nurtureUpdates
 
+        // 分片并行处理：纯计算部分（修炼、薪水、忠诚度、熟练度、养成）
+        val chunks = batch.chunked(50)
+        val parallelResults = coroutineScope {
+            chunks.map { chunk ->
+                async(Dispatchers.Default) {
+                    chunk.map { disciple ->
+                        var d = disciple
+                        val rate = cache.cultivationRateCache[d.id] ?: 0.0
+                        val monthlyGain = rate * monthSeconds
+                        val alreadyGained = focusedGains[d.id] ?: 0.0
+                        val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+
+                        d = d.copy(cultivation = (d.cultivation + netGain).coerceIn(0.0, d.maxCultivation))
+
+                        val needsBreakthrough = DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[d.id] ?: emptySet()) &&
+                            d.cultivation >= d.maxCultivation && isDiscipleFullHpMp(d)
+
+                        var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
+                        if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[d.id] ?: emptySet())) {
+                            val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
+                            profUpdates = calculateProficiencyGains(d, data, cache, monthSeconds, profAlreadyGained)
+                        }
+
+                        var nurtureUpdates = emptyMap<String, EquipmentInstance>()
+                        if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[d.id] ?: emptySet())) {
+                            val nurtureAlreadyGained = focusedNurtureGains[d.id] ?: emptyMap()
+                            nurtureUpdates = calculateNurtureGains(d, shadow, cache, monthSeconds, nurtureAlreadyGained)
+                        }
+
+                        var spiritStoneDelta = 0L
+                        val salaryResult = calculateSalaryChange(d, data)
+                        if (salaryResult != null) {
+                            d = applySalaryChange(d, salaryResult)
+                            spiritStoneDelta += if (salaryResult.isPaid) -salaryResult.amount.toLong() else 0L
+                        }
+
+                        val loyaltyDelta = calculateLoyaltyDelta(d, cache, data)
+                        if (loyaltyDelta != 0) {
+                            d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
+                        }
+
+                        d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
+
+                        DirtyDiscipleParallelResult(d, needsBreakthrough, spiritStoneDelta, profUpdates, nurtureUpdates)
+                    }
+                }
+            }.awaitAll()
+        }
+
+        // 串行合并结果
+        val updatedDisciples = shadow.disciples.toMutableList()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-        val updatedDisciples = shadow.disciples.toMutableList()
         var spiritStoneDelta = 0L
 
-        // 分批处理弟子，每 50 个 yield 一次，避免长时间占用游戏线程
-        val batchSize = 50
-        for ((batchIndex, disciple) in batch.withIndex()) {
-            var d = disciple
-            val rate = cache.cultivationRateCache[d.id] ?: 0.0
-            val monthlyGain = rate * monthSeconds
-            val alreadyGained = focusedGains[d.id] ?: 0.0
-            val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+        for (chunkResults in parallelResults) {
+            for (result in chunkResults) {
+                var d = result.disciple
 
-            d = d.copy(cultivation = (d.cultivation + netGain).coerceIn(0.0, d.maxCultivation))
-
-            if (DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[d.id] ?: emptySet())) {
-                if (d.cultivation >= d.maxCultivation && isDiscipleFullHpMp(d)) {
+                // 串行处理突破（需要消费 shadow.pills）
+                if (result.needsBreakthrough) {
                     d = processBreakthroughForDisciple(d, shadow, cache)
-                    // 突破时结算累积薪水
                     settleSalaryOnBreakthrough(d.id, shadow)
                 }
-            }
 
-            if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[d.id] ?: emptySet())) {
-                val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
-                val profUpdates = calculateProficiencyGains(d, data, cache, monthSeconds, profAlreadyGained)
-                for ((discipleId, profList) in profUpdates) {
+                val idx = updatedDisciples.indexOfFirst { it.id == d.id }
+                if (idx >= 0) updatedDisciples[idx] = d
+
+                spiritStoneDelta += result.spiritStoneDelta
+                equipmentInstanceUpdates.putAll(result.nurtureUpdates)
+                for ((discipleId, profList) in result.profUpdates) {
                     updatedManualProficiencies[discipleId] = profList
                 }
-            }
-
-            if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[d.id] ?: emptySet())) {
-                val nurtureAlreadyGained = focusedNurtureGains[d.id] ?: emptyMap()
-                val nurtureUpdates = calculateNurtureGains(d, shadow, cache, monthSeconds, nurtureAlreadyGained)
-                equipmentInstanceUpdates.putAll(nurtureUpdates)
-            }
-
-            val salaryResult = calculateSalaryChange(d, data)
-            if (salaryResult != null) {
-                d = applySalaryChange(d, salaryResult)
-                spiritStoneDelta += if (salaryResult.isPaid) -salaryResult.amount.toLong() else 0L
-            }
-
-            val loyaltyDelta = calculateLoyaltyDelta(d, cache, data)
-            if (loyaltyDelta != 0) {
-                d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
-            }
-
-            // 结算后计算下一次完成时间
-            d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
-
-            val idx = updatedDisciples.indexOfFirst { it.id == d.id }
-            if (idx >= 0) updatedDisciples[idx] = d
-
-            if ((batchIndex + 1) % batchSize == 0) {
-                yield()
             }
         }
 
@@ -416,6 +471,14 @@ class SettlementCoordinator @Inject constructor(
         metricsBuilder.dirtyBatchMs += timer.stop()
         return batch.size
     }
+
+    private data class DirtyDiscipleParallelResult(
+        val disciple: Disciple,
+        val needsBreakthrough: Boolean,
+        val spiritStoneDelta: Long,
+        val profUpdates: Map<String, List<ManualProficiencyData>>,
+        val nurtureUpdates: Map<String, EquipmentInstance>
+    )
 
     private suspend fun processProduction(shadow: MutableGameState) {
         timer.start()
@@ -855,6 +918,19 @@ class SettlementCoordinator @Inject constructor(
     companion object {
         private const val TAG = "SettlementCoordinator"
         private const val MAX_DIRTY_BATCH_SIZE = 100
+    }
+
+    private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
+        val data = shadow.gameData
+        return CultivationRateFingerprint(
+            residenceLayout = data.residenceSlots.hashCode() * 31 + data.placedBuildings.hashCode(),
+            elderAssignments = data.elderSlots.hashCode(),
+            preachingAssignments = (data.elderSlots.preachingElder.hashCode() * 31
+                + data.elderSlots.preachingMasters.hashCode() * 31
+                + data.elderSlots.qingyunPreachingElder.hashCode() * 31
+                + data.elderSlots.qingyunPreachingMasters.hashCode()),
+            policyFlags = data.sectPolicies.hashCode()
+        )
     }
 }
 

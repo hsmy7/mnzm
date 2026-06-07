@@ -41,7 +41,8 @@ data class MutableGameState(
     var isPaused: Boolean,
     var isLoading: Boolean,
     var isSaving: Boolean,
-    var pendingNotification: GameNotification? = null
+    var pendingNotification: GameNotification? = null,
+    var isSettlementShadow: Boolean = false
 )
 
 @OptIn(FlowPreview::class)
@@ -590,28 +591,98 @@ class GameStateStore @Inject constructor(
         )
     }
 
+    fun createSettlementShadow(): MutableGameState {
+        val gd = _gameDataFlow.value
+        val disc = _disciplesFlow.value
+        val ei = _equipmentInstancesFlow.value
+        val mi = _manualInstancesFlow.value
+        val p = _pillsFlow.value
+        // 生产方法会读写这些字段——必须拷贝
+        val es = _equipmentStacksFlow.value
+        val ms = _manualStacksFlow.value
+        val mat = _materialsFlow.value
+        val h = _herbsFlow.value
+        val s = _seedsFlow.value
+        val snapshot = UnifiedGameState(
+            gameData = gd,
+            disciples = disc,
+            equipmentStacks = es,
+            equipmentInstances = ei,
+            manualStacks = ms,
+            manualInstances = mi,
+            pills = p,
+            materials = mat,
+            herbs = h,
+            seeds = s,
+            storageBags = emptyList(),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            alliances = gd.alliances,
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            pendingNotification = _pendingNotificationFlow.value
+        )
+        shadowOrigin = snapshot
+        return MutableGameState(
+            gameData = gd,
+            disciples = disc,
+            equipmentStacks = es,
+            equipmentInstances = ei,
+            manualStacks = ms,
+            manualInstances = mi,
+            pills = p,
+            materials = mat,
+            herbs = h,
+            seeds = s,
+            storageBags = emptyList(),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            pendingNotification = _pendingNotificationFlow.value,
+            isSettlementShadow = true
+        )
+    }
+
     suspend fun swapFromShadow(shadow: MutableGameState) {
         val origin = shadowOrigin
+        val isSettlement = shadow.isSettlementShadow
         update {
             val oldGameData = this.gameData
             val oldDisciples = this.disciples
-            val oldTeams = this.teams
-            val oldBattleLogs = this.battleLogs
-            // 物品列表旧引用 — 月度结算中生产/消耗的物品变更需要传播回 live state
+            // 结算修改字段（始终同步）
+            val oldEquipmentInstances = this.equipmentInstances
+            val oldPills = this.pills
+            val oldManualInstances = this.manualInstances
             val oldHerbs = this.herbs
             val oldSeeds = this.seeds
             val oldEquipmentStacks = this.equipmentStacks
-            val oldEquipmentInstances = this.equipmentInstances
-            val oldPills = this.pills
             val oldMaterials = this.materials
             val oldManualStacks = this.manualStacks
-            val oldManualInstances = this.manualInstances
+            // 非结算字段（仅在非结算 shadow 时同步）
+            val oldTeams = if (!isSettlement) this.teams else null
+            val oldBattleLogs = if (!isSettlement) this.battleLogs else null
 
             val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
             this.gameData = mergedGameData
 
-            if (shadow.teams !== oldTeams) this.teams = shadow.teams
-            if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
+            // 结算修改字段始终同步（生产消耗/产出）
+            if (shadow.equipmentInstances !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
+            if (shadow.pills !== oldPills) this.pills = shadow.pills
+            if (shadow.manualInstances !== oldManualInstances) this.manualInstances = shadow.manualInstances
+            if (shadow.herbs !== oldHerbs) this.herbs = shadow.herbs
+            if (shadow.seeds !== oldSeeds) this.seeds = shadow.seeds
+            if (shadow.equipmentStacks !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
+            if (shadow.materials !== oldMaterials) this.materials = shadow.materials
+            if (shadow.manualStacks !== oldManualStacks) this.manualStacks = shadow.manualStacks
+
+            // 非结算字段仅在非结算 shadow 时同步
+            if (!isSettlement) {
+                if (shadow.teams !== oldTeams) this.teams = shadow.teams
+                if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
+            }
 
             val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
             val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
@@ -634,16 +705,6 @@ class GameStateStore @Inject constructor(
             }
 
             if (mergedDisciples !== oldDisciples) this.disciples = mergedDisciples
-
-            // 传播物品列表变更：月度结算中的收获/消耗必须同步回 live state
-            if (shadow.herbs !== oldHerbs) this.herbs = shadow.herbs
-            if (shadow.seeds !== oldSeeds) this.seeds = shadow.seeds
-            if (shadow.equipmentStacks !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
-            if (shadow.equipmentInstances !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
-            if (shadow.pills !== oldPills) this.pills = shadow.pills
-            if (shadow.materials !== oldMaterials) this.materials = shadow.materials
-            if (shadow.manualStacks !== oldManualStacks) this.manualStacks = shadow.manualStacks
-            if (shadow.manualInstances !== oldManualInstances) this.manualInstances = shadow.manualInstances
         }
         shadowOrigin = null
     }

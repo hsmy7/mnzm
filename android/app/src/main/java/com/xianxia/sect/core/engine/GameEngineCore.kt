@@ -523,15 +523,15 @@ class GameEngineCore @Inject constructor(
         }
 
         if (yearChanged) {
-            val shadow = stateStore.createShadow()
+            val shadow = stateStore.createSettlementShadow()
             settlementCoordinator.scheduleYearly(shadow)
         } else if (monthChanged) {
-            val shadow = stateStore.createShadow()
+            val shadow = stateStore.createSettlementShadow()
             settlementCoordinator.scheduleMonthly(shadow)
         }
 
         if (settlementCoordinator.hasPendingWork) {
-            val completed = settlementCoordinator.executeStep(timeBudgetMs = 1)
+            val completed = settlementCoordinator.executeStep()
             if (completed) settlementCoordinator.onSettlementComplete()
         }
 
@@ -548,7 +548,7 @@ class GameEngineCore @Inject constructor(
         isForceCompleting = true
         try {
             while (settlementCoordinator.hasPendingWork) {
-                settlementCoordinator.executeStep(timeBudgetMs = 5)
+                settlementCoordinator.executeStep()
             }
             settlementCoordinator.onSettlementComplete()
         } finally {

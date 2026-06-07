@@ -118,12 +118,13 @@ class SettlementScheduler @Inject constructor() {
     private val pendingPhases = mutableListOf<SettlementPhase>()
     private var currentPhaseIndex = 0
     private var frameCount = 0
+    private var aggressiveFrameCount = 0
 
     val hasPendingWork: Boolean get() = currentPhaseIndex < pendingPhases.size
 
     fun scheduleMonthly(
         shadow: MutableGameState,
-        cachePhase: Phase_BuildCache,
+        cachePhase: Phase_BuildCache?,
         focusedPhase: Phase_FocusedDisciple,
         cleanPhase: Phase_CleanDiscipleBatch,
         dirtyPhase: Phase_DirtyDiscipleBatch,
@@ -131,7 +132,10 @@ class SettlementScheduler @Inject constructor() {
         worldEventsPhase: Phase_WorldEvents
     ) {
         reset()
-        pendingPhases.add(cachePhase)
+        aggressiveFrameCount = 0
+        if (cachePhase != null) {
+            pendingPhases.add(cachePhase)
+        }
         pendingPhases.add(focusedPhase)
         pendingPhases.add(cleanPhase)
         pendingPhases.add(dirtyPhase)
@@ -141,7 +145,7 @@ class SettlementScheduler @Inject constructor() {
 
     fun scheduleYearly(
         shadow: MutableGameState,
-        cachePhase: Phase_BuildCache,
+        cachePhase: Phase_BuildCache?,
         focusedPhase: Phase_FocusedDisciple,
         cleanPhase: Phase_CleanDiscipleBatch,
         dirtyPhase: Phase_DirtyDiscipleBatch,
@@ -153,7 +157,10 @@ class SettlementScheduler @Inject constructor() {
         alliancePhase: Phase_AllianceExpiry
     ) {
         reset()
-        pendingPhases.add(cachePhase)
+        aggressiveFrameCount = 0
+        if (cachePhase != null) {
+            pendingPhases.add(cachePhase)
+        }
         pendingPhases.add(focusedPhase)
         pendingPhases.add(cleanPhase)
         pendingPhases.add(dirtyPhase)
@@ -165,10 +172,12 @@ class SettlementScheduler @Inject constructor() {
         pendingPhases.add(alliancePhase)
     }
 
-    suspend fun executeStep(shadow: MutableGameState, timeBudgetNs: Long = DEFAULT_TIME_BUDGET_NS): Boolean {
+    suspend fun executeStep(shadow: MutableGameState): Boolean {
         if (!hasPendingWork) return true
 
-        val deadline = System.nanoTime() + timeBudgetNs
+        val isAggressive = aggressiveFrameCount < AGGRESSIVE_FRAME_LIMIT
+        val budget = if (isAggressive) AGGRESSIVE_BUDGET_NS else CONSERVATIVE_BUDGET_NS
+        val deadline = System.nanoTime() + budget
         frameCount++
 
         while (System.nanoTime() < deadline && hasPendingWork) {
@@ -178,6 +187,7 @@ class SettlementScheduler @Inject constructor() {
             }
         }
 
+        if (isAggressive) aggressiveFrameCount++
         return !hasPendingWork
     }
 
@@ -195,6 +205,8 @@ class SettlementScheduler @Inject constructor() {
     fun getFrameCount(): Int = frameCount
 
     companion object {
-        const val DEFAULT_TIME_BUDGET_NS = 1_500_000L
+        const val CONSERVATIVE_BUDGET_NS = 1_500_000L    // 1.5ms
+        const val AGGRESSIVE_BUDGET_NS = 12_000_000L     // 12ms（保证 60fps）
+        const val AGGRESSIVE_FRAME_LIMIT = 3              // 只在前 3 帧使用激进预算
     }
 }

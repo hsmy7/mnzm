@@ -14,6 +14,13 @@ enum class DiscipleDirtyFlag {
     MANUAL
 }
 
+data class CultivationRateFingerprint(
+    val residenceLayout: Int,
+    val elderAssignments: Int,
+    val preachingAssignments: Int,
+    val policyFlags: Int
+)
+
 class SettlementCache(state: MutableGameState) {
 
     val equipmentInstanceMap: Map<String, EquipmentInstance> =

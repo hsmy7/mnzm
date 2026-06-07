@@ -91,7 +91,7 @@ object ProtobufConverters {
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Protobuf serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
             return ""
         }
@@ -105,7 +105,7 @@ object ProtobufConverters {
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
             return ""
         }
@@ -117,7 +117,7 @@ object ProtobufConverters {
             val bytes = base64ToBytes(encoded)
             if (bytes.isEmpty()) return default()
             return protoBuf.decodeFromByteArray(serializer, bytes)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)
             return default()
         }
@@ -386,15 +386,21 @@ object ProtobufConverters {
         return result
     }
 
+    // aiSectDisciples — 数据量极大（全 AI 宗门弟子），走增量编码，TypeConverter 仅做 Room 兼容占位
     @TypeConverter
     @JvmStatic
-    fun fromDiscipleListMap(value: Map<String, List<Disciple>>): String =
-        encodeToBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value)
+    fun fromDiscipleListMap(value: Map<String, List<Disciple>>): String {
+        if (value.isNotEmpty()) {
+            Log.w(TAG, "aiSectDisciples has ${value.size} sects / ${value.values.sumOf { it.size }} disciples — should use incremental encoding, TypeConverter returns empty to avoid OOM")
+        }
+        return ""
+    }
 
     @TypeConverter
     @JvmStatic
     fun toDiscipleListMap(value: String): Map<String, List<Disciple>> =
-        decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value) { emptyMap() }
+        if (value.isEmpty()) emptyMap()
+        else decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value) { emptyMap() }
 
     @TypeConverter
     @JvmStatic
@@ -1043,7 +1049,7 @@ object ProtobufConverters {
                 }
             }
             return bytes
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Protobuf BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
             return ByteArray(0)
         }
