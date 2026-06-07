@@ -9,8 +9,8 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
-            version = "3.2.23",
-            date = "2026-06-07",
+            version = "3.2.24",
+            date = "2026-06-08",
             changes = listOf(
                 "【修复】世界地图宗门不显示——tryCenterOn 追踪上次居中位置，焦点变化 >100px 允许重定位",
                 "【修复】功法熟练度显示入门——月度结算 calculateProficiencyGains 遗漏 masteryLevel 重算",
