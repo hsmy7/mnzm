@@ -7,7 +7,6 @@
 - **优化**：游戏时间系统重构 — 新建 `GameTimeClock` 作为全项目唯一时间推进入口（三层时钟模型：墙上时间 → 游戏时间 × 速度 → 固定步长旬推进），替代原 `GameEngineCore` 中的墙上时间累加器。1x 速度严格 2 秒/旬、6 秒/月，2x 速度 1 秒/旬、3 秒/月，速度切换时自动保存已累积时间不丢进度
 - **优化**：下旬动态延长 — 月度结算未完成时时间暂停等待，结算完成后立即推进至下月上旬，不再强制完成可能丢数据的结算
 - **优化**：统一时间计算 — `CultivationService`、`SettlementCoordinator`、`SettlementCache`、`LazyEvaluationDispatcher`、`AISectDiscipleManager` 等模块统一从 `GameTimeClock` 读取时间，消除分散在 5 个文件中的 `gameSpeed` 计算逻辑，修改速度行为只需改一处
-- **优化**：旬进度条 — 顶部栏新增实时进度条，显示当前旬倒计时（如 "1.3s / 2.0s"）及下旬结算状态
 
 ## [3.2.24] - 2026-06-08
 
