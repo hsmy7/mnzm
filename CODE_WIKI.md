@@ -1,31 +1,18 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-06 (v3.2.17 BLOB 直存架构)
+> 最后更新：2026-06-08 (v4.0.00 架构重构)
 
 ## 目录
 
 1. [架构总览](#架构总览)
 2. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
-   - [GameService / GameSystem 职责标注](#gameservice--gamesystem-职责标注v3203)
-3. [状态管理 — GameStateStore](#状态管理--gamestatestore)
-   - [三层 StateFlow 拆分](#v3201-架构三层-stateflow-拆分)
-   - [DomainStateProvider — 领域状态提供者](#domainstateprovider--领域状态提供者v3203)
-   - [状态一致性 — Mutex 序列化](#状态一致性统一-mutex-序列化v3200-修复)
-   - [字段合并策略](#字段合并策略)
-   - [Do's and Don'ts](#dos-and-donts)
-4. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-   - [热管理与看门狗](#热管理与看门狗v3203)
-5. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
-6. [增量保存与数据库](#增量保存与数据库)
-   - [Save Slot 写入顺序](#save-slot-写入顺序v3203-修复)
-   - [重型数据分块存储](#重型数据分块存储-v3202)
-7. [Canvas 渲染管线](#canvas-渲染管线)
-   - [增量绘制与装饰清除](#增量绘制与装饰清除v3203)
-8. [性能基础设施](#性能基础设施)
-   - [ThermalMonitor](#thermalmonitorv3203)
-   - [BuildingSpatialIndex](#buildingspatialindexv3203)
+3. [GameEngine 拆分](#gameengine-拆分v4000)
+4. [CultivationService 拆分](#cultivationservice-拆分v4000)
+5. [状态管理 — GameStateStore](#状态管理--gamestatestore)
+6. [数据库 — 从零开始](#数据库--从零开始v4000)
+7. [UI 组件拆分](#ui-组件拆分v4000)
+8. [代码质量基础设施](#代码质量基础设施v4000)
 9. [构建与 Profile](#构建与-profile)
-   - [测试架构](#测试架构v3200-新增)
 10. [后续优化项](#后续优化项)
 
 ---
@@ -56,17 +43,22 @@
 
 ### 架构
 
-GameEngine（103 方法，纯协调器）→ 7 个领域 Facade 接口 → 各域 Service/System：
+GameEngine（精简协调器）→ 9 个按域拆分的扩展文件 + 7 个领域 Facade 接口：
 
 ```
-GameEngine (协调器, 103方法)
-  ├── DiscipleFacade   → DiscipleService, DiscipleEquipmentManager, ...
-  ├── BattleFacade     → CombatService, BattleSystem, AISectAttackManager, ...
-  ├── BuildingFacade   → BuildingService, HerbGardenSystem, ...
-  ├── InventoryFacade  → OptimizedWarehouseManager, ...
-  ├── ProductionFacade → ProductionCoordinator, ProductionSubsystem, ...
-  ├── DiplomacyFacade  → DiplomacyService, AISectDiscipleManager, ...
-  └── SaveFacade       → SaveService, SaveLoadCoordinator, SavePipeline
+GameEngine.kt (精简协调器)
+  ├── 9 个扩展文件（按域拆分，v4.0.00）：
+  │     GameEngineBattleOps.kt / BuildingOps.kt / Coordination.kt
+  │     DiplomacyOps.kt / DiscipleOps.kt / Extensions.kt
+  │     InventoryOps.kt / ProductionOps.kt / SaveOps.kt
+  └── 7 个领域 Facade（v3.1.99）：
+        ├── DiscipleFacade   → DiscipleService, DiscipleEquipmentManager, ...
+        ├── BattleFacade     → CombatService, BattleSystem, AISectAttackManager, ...
+        ├── BuildingFacade   → BuildingService, HerbGardenSystem, ...
+        ├── InventoryFacade  → OptimizedWarehouseManager, ...
+        ├── ProductionFacade → ProductionCoordinator, ProductionSubsystem, ...
+        ├── DiplomacyFacade  → DiplomacyService, AISectDiscipleManager, ...
+        └── SaveFacade       → SaveService, SaveLoadCoordinator, SavePipeline
 ```
 
 ### 目录结构
@@ -108,6 +100,135 @@ annotation class AutoTickSystem(val name: String)
 - Service 不得在 tick 内被直接调用
 - System 之间不得直接调用（通过 EventBus 通知）
 - `@AutoTickSystem` 使用 `@Retention(SOURCE)` 避免与 `core.engine.system.GameSystem` 接口同名冲突
+
+### CultivationService 拆分 (v4.0.00)
+
+3804 行的 CultivationService 按职责拆分为 1 个 Facade + 10 个子模块：
+
+```
+core/engine/service/
+├── CultivationService.kt          (~300行) Facade 协调器
+├── CultivationCore.kt             (~400行) 修炼速率/相位推进
+├── CultivationEventProcessor.kt   (~350行) 修炼事件/天劫/奇遇
+├── CultivationSettlement.kt       (~350行) 月/年度修炼结算
+├── CultivationSharedState.kt      (~200行) 共享状态
+├── DiscipleBreakthroughHandler.kt (~500行) 突破全流程
+├── DiscipleLifecycleProcessor.kt  (~250行) 弟子寿命/年龄/死亡
+├── CaveExplorationProcessor.kt    (~300行) 洞府探索
+├── MerchantAndRecruitService.kt   (~300行) 云游商人/弟子招募
+├── PhaseTickAccumulator.kt        (~150行) 相位推进累加器
+└── ProductionSubsystem.kt         (~250行) 生产子系统
+```
+
+### GameEngine 拆分 (v4.0.00)
+
+3000 行的 GameEngine 拆分为 1 个精简协调器 + 9 个域扩展文件：
+
+```
+core/engine/
+├── GameEngine.kt                  (~400行) 精简协调器
+├── GameEngineBattleOps.kt         (~300行) 战斗域操作
+├── GameEngineBuildingOps.kt       (~250行) 建筑域操作
+├── GameEngineCoordination.kt      (~200行) 跨域协调
+├── GameEngineDiplomacyOps.kt      (~200行) 外交域操作
+├── GameEngineDiscipleOps.kt       (~350行) 弟子域操作
+├── GameEngineExtensions.kt        (~200行) 扩展/convenience方法
+├── GameEngineInventoryOps.kt      (~250行) 物品域操作
+├── GameEngineProductionOps.kt     (~200行) 生产域操作
+└── GameEngineSaveOps.kt           (~200行) 存档域操作
+```
+
+### 数据库 — 从零开始 (v4.0.00)
+
+**DB 版本重置为 1**，全部历史 Migration（9个，从 MIGRATION_1_26 到 MIGRATION_33_34）已移除。
+
+```
+首次启动（4.0）：
+  create() 入口 → 检测旧 db 文件 → 删除 db/wal/shm
+  → Room 发现无文件 → onCreate() → 全新空库（version=1）
+  → schema/1.json 为唯一 schema 文件
+```
+
+旧存储清空覆盖：
+| 存储类型 | 清空方式 |
+|---------|---------|
+| Room DB (v34) | `context.getDatabasePath().delete()` + wal/shm |
+| .sav 文件 | SavMigrator 遍历删除 + 跳过所有迁移 |
+| MMKV | `MMKV.defaultMMKV().clearAll()` |
+| SharedPreferences | sav_migration / crash_handler / app_session 逐个 clear |
+
+### UI 组件拆分 (v4.0.00)
+
+```
+DiscipleDetailScreen（2647行 → 542行）：
+  ui/game/components/detail/
+  ├── DetailHeaderSection.kt       (~250行)
+  ├── DetailCultivationSection.kt  (~300行)
+  ├── DetailEquipmentSection.kt    (~350行)
+  ├── DetailManualSection.kt       (~300行)
+  ├── DetailPillSection.kt         (~250行)
+  ├── DetailCombatSection.kt       (~250行)
+  └── DetailActionButtons.kt       (~200行)
+
+ItemDetailDialog（1548行 → 603行）：
+  ui/game/components/
+  ├── ItemDetailDialog.kt          (~600行) @Composable 函数
+  ├── ItemDetailEffects.kt         (~600行) 装备/功法/丹药效果
+  └── ItemDetailOtherEffects.kt    (~400行) 材料/灵草/商人等效果
+
+SaveDataConverter（2002行 → 拆分为 7 个 Converter）：
+  data/serialization/unified/
+  ├── SaveDataConverter.kt         (~300行) 协调器
+  ├── DiscipleConverter.kt
+  ├── EquipmentConverter.kt
+  ├── ItemConverter.kt
+  ├── ManualConverter.kt
+  ├── SlotConverter.kt
+  ├── TeamAndBattleConverter.kt
+  └── WorldAndSectConverter.kt
+
+WarehouseTab（1568行 → 拆分为 4 个 Section + 3 个 Dialog）：
+  ui/game/tabs/
+  ├── WarehouseTab.kt              (~300行)
+  ├── EquipmentSection.kt
+  ├── ManualSection.kt
+  ├── MaterialSection.kt
+  ├── PillSection.kt
+  ├── WarehouseBulkSellDialog.kt
+  ├── WarehouseDetailDialog.kt
+  └── WarehouseDiscipleSelectDialog.kt
+
+ProtobufConverters（1145行 → 544行）：
+  data/local/
+  ├── ProtobufConverters.kt        (~550行) 保留原名
+  ├── CollectionConverters.kt      类型转换器
+  ├── EnumConverters.kt            枚举转换器
+  └── JsonConverters.kt            JSON 转换器
+
+ChangelogData（1999行 → 44行）：
+  ChangelogData.kt 仅保留加载逻辑，条目数据外置到 assets/changelog_entries.json
+```
+
+### 代码质量基础设施 (v4.0.00)
+
+**反模式清零**：
+| 指标 | 改造前 | 改造后 |
+|------|--------|--------|
+| `!!` 强制解包 | 110 处 | 0 |
+| `runBlocking` | 17 处 | 0 |
+| TODO 遗留 | 14 处 | 0 |
+| `@Suppress` 抑制 | 60+ 处 | 15 处（5 文件） |
+
+**静态分析工具链**：
+```
+android/
+├── config/detekt/detekt.yml       Detekt 配置
+├── app/detekt-baseline.xml        基线（屏蔽历史问题）
+├── app/lint-baseline.xml          Lint 基线
+└── build.gradle                   lint.checkReleaseBuilds = true
+```
+
+**构建检查**：`./gradlew lintRelease && ./gradlew detekt`
 
 ### ViewModel Facade 直接注入 (v3.2.01)
 
@@ -905,12 +1026,19 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| P3 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
-| P4 | 巡逻塔 fire-and-forget → suspend | API 风格一致性 | 待实施 |
+| P2 | MainGameScreen 继续拆分（尚余 1311 行） | 可维护性 | 待实施 |
+| P2 | SaveLoadViewModel 继续拆分（尚余 1437 行，协调器复杂度高） | 可维护性 | 待实施 |
+| P3 | 核心引擎层测试覆盖率从 ~5% 提升至 60% | 回归拦截 | 待实施 |
+| P3 | ViewModel 层测试（当前为零） | UI 正确性 | 待实施 |
+| P4 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 
-> 已删除/已完成项：
-> - ~~Disciple 字段注解驱动合并~~ → ✅ 已完成（扩展属性提取到 DiscipleDelegates.kt，v3.2.21）
-> - ~~细粒度锁/分片 Mutex~~ → 无瓶颈证据，过早优化
-> - ~~Cloud Profiles~~ → Google Play 自动提供，无需干预
-> - ~~`updateXxxDirect` 方法移除~~ → 死代码，已直接删除（v3.2.21）
+> 已删除/已完成项（v4.0.00）：
+> - ✅ **巨型文件拆分**：CultivationService(3804→拆10文件)、GameEngine(3000→拆9文件)、DiscipleDetailScreen(2647→542)、SaveDataConverter(2002→拆7文件)、ItemDetailDialog(1548→拆3文件)、WarehouseTab(1568→拆8文件)、ChangelogData(1999→44)、ProtobufConverters(1145→544)
+> - ✅ **反模式清零**：!! 110→0、runBlocking 17→0、TODO 14→0、@Suppress 60+→15
+> - ✅ **静态分析工具链**：Detekt + Lint 集成 + Baseline 生成
+> - ✅ **DB 重置**：版本号 → 1，9 个历史 Migration 全部移除，旧 db 文件直接删除
+> - ✅ **BUGLY 密钥防泄漏**：硬编码默认值从 build.gradle 移除
+> - ✅ **R8 日志剥离**：release 构建自动去除 Log.d/v/i
+> - ~~Disciple 字段注解驱动合并~~ → ✅ 已完成（v3.2.21）
+> - ~~`updateXxxDirect` 方法移除~~ → ✅ 已完成（v3.2.21）
