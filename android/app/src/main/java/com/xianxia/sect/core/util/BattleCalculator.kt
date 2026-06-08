@@ -150,14 +150,14 @@ object BattleCalculator {
             return DamageResult(
                 damage = 0,
                 isCrit = false,
-                isPhysical = if (isSkillAttack) skill!!.damageType == DamageType.PHYSICAL else attacker.physicalAttack >= attacker.magicAttack,
+                isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack >= attacker.magicAttack,
                 isDodged = true,
                 skillName = skill?.name,
                 hits = skill?.hits ?: 1
             )
         }
 
-        val isPhysical = if (isSkillAttack) skill!!.damageType == DamageType.PHYSICAL else attacker.physicalAttack >= attacker.magicAttack
+        val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack >= attacker.magicAttack
         val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
         val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
 

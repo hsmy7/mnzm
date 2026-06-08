@@ -357,10 +357,10 @@ class DataArchiver @Inject constructor(
         val compressed = dataCompressor.compress(serialized, CompressionAlgorithm.LZ4)
 
         val calendar = Calendar.getInstance()
-        val yearMonth = DATE_FORMAT.get()!!.format(calendar.time)
+        val yearMonth = checkNotNull(DATE_FORMAT.get()).format(calendar.time)
         val monthDir = File(archiveBaseDir, "${dataType.filePrefix}_$yearMonth").apply { mkdirs() }
 
-        val fileName = "${dataType.filePrefix}_${TIMESTAMP_FORMAT.get()!!.format(calendar.time)}_$batchId.arc"
+        val fileName = "${dataType.filePrefix}_${checkNotNull(TIMESTAMP_FORMAT.get()).format(calendar.time)}_$batchId.arc"
         val file = File(monthDir, fileName)
 
         file.writeBytes(compressed.data)
@@ -383,7 +383,7 @@ class DataArchiver @Inject constructor(
             val timestamps = archivedItems.map { (it as BattleLog).timestamp }
 
             val calendar = Calendar.getInstance()
-            val yearMonth = DATE_FORMAT.get()!!.format(calendar.time)
+            val yearMonth = checkNotNull(DATE_FORMAT.get()).format(calendar.time)
 
             val newIndexEntry = ArchiveIndexEntry(
                 fileName = file.relativeTo(archiveBaseDir).path,
@@ -436,7 +436,7 @@ class DataArchiver @Inject constructor(
                     try {
                         val header = readArchiveHeader(file)
                         val cal = Calendar.getInstance().apply { timeInMillis = header.createdAt }
-                        val yearMonth = DATE_FORMAT.get()!!.format(cal.time)
+                        val yearMonth = checkNotNull(DATE_FORMAT.get()).format(cal.time)
 
                         newEntries.add(ArchiveIndexEntry(
                             fileName = file.relativeTo(archiveBaseDir).path,
@@ -556,7 +556,7 @@ class DataArchiver @Inject constructor(
     }
 
     private fun generateBatchId(dataType: ArchivedDataType): String {
-        val timestamp = TIMESTAMP_FORMAT.get()!!.format(java.util.Date())
+        val timestamp = checkNotNull(TIMESTAMP_FORMAT.get()).format(java.util.Date())
         val random = (Math.random() * 10000).toInt().toString().padStart(4, '0')
         return "${dataType.filePrefix}_" + timestamp + "_" + random
     }

@@ -412,7 +412,7 @@ internal fun WorldMapSectDetailDialog(
     }
 
     if (showGarrisonSelection != null) {
-        val slotIndex = showGarrisonSelection!!
+        val slotIndex = showGarrisonSelection ?: return
         val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
         val garrisonedIds = latestSect.garrisonSlots.map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
         val idleDisciples = viewModel.discipleAggregates.value.filter {

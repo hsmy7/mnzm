@@ -1,0 +1,13 @@
+style:
+  MaxLineLength:
+    maxLineLength: 160
+  WildcardImport:
+    active: true
+  MagicNumber:
+    active: false  # 游戏数学常量
+complexity:
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 30
+  LongParameterList:
+    functionThreshold: 10

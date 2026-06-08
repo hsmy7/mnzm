@@ -102,17 +102,17 @@ object ItemDatabase {
         val nurtureAddNames = mapOf(1 to "蕴器丹", 2 to "灵蕴丹", 3 to "宝蕴丹", 4 to "玄蕴丹", 5 to "地蕴丹", 6 to "天蕴丹")
 
         for (tier in 1..6) {
-            val rarity = TIER_RARITY[tier]!!
-            val baseCult = REFERENCE_CULT_BASE[tier]!!
-            val speedPct = SPEED_PERCENT_MEDIUM[tier]!!
+            val rarity = TIER_RARITY.getValue(tier)
+            val baseCult = REFERENCE_CULT_BASE.getValue(tier)
+            val speedPct = SPEED_PERCENT_MEDIUM.getValue(tier)
 
             for (grade in PillGrade.entries) {
                 val g = grade.displayName
-                val tierName = TIER_NAMES[tier]!!
+                val tierName = TIER_NAMES.getValue(tier)
 
                 pills.add(PillTemplate(
                     id = "cultivationSpeed_${tier}_${grade.name.lowercase()}",
-                    name = speedNames[tier]!!,
+                    name = speedNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -127,7 +127,7 @@ object ItemDatabase {
 
                 pills.add(PillTemplate(
                     id = "skillExpSpeed_${tier}_${grade.name.lowercase()}",
-                    name = skillSpeedNames[tier]!!,
+                    name = skillSpeedNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -142,7 +142,7 @@ object ItemDatabase {
 
                 pills.add(PillTemplate(
                     id = "nurtureSpeed_${tier}_${grade.name.lowercase()}",
-                    name = nurtureSpeedNames[tier]!!,
+                    name = nurtureSpeedNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -158,7 +158,7 @@ object ItemDatabase {
                 val cultAddVal = applyGrade((baseCult * 0.375).roundToInt(), grade)
                 pills.add(PillTemplate(
                     id = "cultivationAdd_${tier}_${grade.name.lowercase()}",
-                    name = cultAddNames[tier]!!,
+                    name = cultAddNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -174,7 +174,7 @@ object ItemDatabase {
                 val skillAddVal = applyGrade((baseCult * 0.1).roundToInt(), grade)
                 pills.add(PillTemplate(
                     id = "skillExpAdd_${tier}_${grade.name.lowercase()}",
-                    name = skillAddNames[tier]!!,
+                    name = skillAddNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -190,7 +190,7 @@ object ItemDatabase {
                 val nurtureAddVal = applyGrade(listOf(50, 100, 200, 400, 800, 1600)[tier - 1], grade)
                 pills.add(PillTemplate(
                     id = "nurtureAdd_${tier}_${grade.name.lowercase()}",
-                    name = nurtureAddNames[tier]!!,
+                    name = nurtureAddNames.getValue(tier),
                     category = PillCategory.CULTIVATION,
                     grade = grade,
                     rarity = rarity,
@@ -214,7 +214,7 @@ object ItemDatabase {
         )
 
         for ((tier, targets) in breakthroughData) {
-            val rarity = TIER_RARITY[tier]!!
+            val rarity = TIER_RARITY.getValue(tier)
             for ((targetRealm, name, isAscension) in targets) {
                 for (grade in PillGrade.entries) {
                     val chance = when (grade) {
@@ -269,18 +269,18 @@ object ItemDatabase {
         )
 
         for ((pillType, attrName, names) in singleAttrConfigs) {
-            val refMap = refMaps[pillType]!!
+            val refMap = refMaps.getValue(pillType)
             for (tier in 1..6) {
-                val rarity = TIER_RARITY[tier]!!
-                val baseVal = refMap[tier]!!
+                val rarity = TIER_RARITY.getValue(tier)
+                val baseVal = refMap.getValue(tier)
                 val mediumVal = (baseVal * 0.375).roundToInt()
                 for (grade in PillGrade.entries) {
                     val val_ = applyGrade(mediumVal, grade)
-                    val tierName = TIER_NAMES[tier]!!
+                    val tierName = TIER_NAMES.getValue(tier)
                     val g = grade.displayName
                     pills.add(PillTemplate(
                         id = "${pillType}_${tier}_${grade.name.lowercase()}",
-                        name = names[tier]!!,
+                        name = names.getValue(tier),
                         category = PillCategory.BATTLE,
                         grade = grade,
                         rarity = rarity,
@@ -328,20 +328,20 @@ object ItemDatabase {
         )
 
         for (config in dualAttrConfigs) {
-            val ref1 = refMaps[config.attr1]!!
-            val ref2 = refMaps[config.attr2]!!
+            val ref1 = refMaps.getValue(config.attr1)
+            val ref2 = refMaps.getValue(config.attr2)
             for (tier in 1..6) {
-                val rarity = TIER_RARITY[tier]!!
-                val med1 = (ref1[tier]!! * 0.375 * 0.6).roundToInt()
-                val med2 = (ref2[tier]!! * 0.375 * 0.6).roundToInt()
+                val rarity = TIER_RARITY.getValue(tier)
+                val med1 = (ref1.getValue(tier) * 0.375 * 0.6).roundToInt()
+                val med2 = (ref2.getValue(tier) * 0.375 * 0.6).roundToInt()
                 for (grade in PillGrade.entries) {
                     val v1 = applyGrade(med1, grade)
                     val v2 = applyGrade(med2, grade)
-                    val tierName = TIER_NAMES[tier]!!
+                    val tierName = TIER_NAMES.getValue(tier)
                     val g = grade.displayName
                     pills.add(PillTemplate(
                         id = "${config.pillType}_${tier}_${grade.name.lowercase()}",
-                        name = config.names[tier]!!,
+                        name = config.names.getValue(tier),
                         category = PillCategory.BATTLE,
                         grade = grade,
                         rarity = rarity,
@@ -367,14 +367,14 @@ object ItemDatabase {
         val critEffectNames = mapOf(1 to "烈击丹", 2 to "猛击丹", 3 to "暴烈丹", 4 to "玄烈丹", 5 to "毁灭丹", 6 to "天裂丹")
 
         for (tier in 1..6) {
-            val rarity = TIER_RARITY[tier]!!
+            val rarity = TIER_RARITY.getValue(tier)
             for (grade in PillGrade.entries) {
-                val cr = applyGrade(CRIT_RATE_MEDIUM[tier]!!, grade)
-                val tierName = TIER_NAMES[tier]!!
+                val cr = applyGrade(CRIT_RATE_MEDIUM.getValue(tier), grade)
+                val tierName = TIER_NAMES.getValue(tier)
                 val g = grade.displayName
                 pills.add(PillTemplate(
                     id = "critRate_${tier}_${grade.name.lowercase()}",
-                    name = critRateNames[tier]!!,
+                    name = critRateNames.getValue(tier),
                     category = PillCategory.BATTLE,
                     grade = grade,
                     rarity = rarity,
@@ -387,10 +387,10 @@ object ItemDatabase {
                     minRealm = tierMinRealm(tier)
                 ))
 
-                val ce = applyGrade(CRIT_EFFECT_MEDIUM[tier]!!, grade)
+                val ce = applyGrade(CRIT_EFFECT_MEDIUM.getValue(tier), grade)
                 pills.add(PillTemplate(
                     id = "critEffect_${tier}_${grade.name.lowercase()}",
-                    name = critEffectNames[tier]!!,
+                    name = critEffectNames.getValue(tier),
                     category = PillCategory.BATTLE,
                     grade = grade,
                     rarity = rarity,
@@ -413,14 +413,14 @@ object ItemDatabase {
 
         val extendLifeNames = mapOf(1 to "延寿丹", 2 to "续命丹", 3 to "长生丹", 4 to "不老丹", 5 to "万寿丹", 6 to "永生丹")
         for (tier in 1..6) {
-            val rarity = TIER_RARITY[tier]!!
+            val rarity = TIER_RARITY.getValue(tier)
             for (grade in PillGrade.entries) {
-                val lifeVal = applyGrade(EXTEND_LIFE_MEDIUM[tier]!!, grade)
-                val tierName = TIER_NAMES[tier]!!
+                val lifeVal = applyGrade(EXTEND_LIFE_MEDIUM.getValue(tier), grade)
+                val tierName = TIER_NAMES.getValue(tier)
                 val g = grade.displayName
                 pills.add(PillTemplate(
                     id = "extendLife_${tier}_${grade.name.lowercase()}",
-                    name = extendLifeNames[tier]!!,
+                    name = extendLifeNames.getValue(tier),
                     category = PillCategory.FUNCTIONAL,
                     grade = grade,
                     rarity = rarity,
@@ -456,14 +456,14 @@ object ItemDatabase {
 
         for (config in baseAttrConfigs) {
             for (tier in 1..6) {
-                val rarity = TIER_RARITY[tier]!!
+                val rarity = TIER_RARITY.getValue(tier)
                 for (grade in PillGrade.entries) {
-                    val val_ = applyGrade(BASE_ATTR_MEDIUM[tier]!!, grade)
-                    val tierName = TIER_NAMES[tier]!!
+                    val val_ = applyGrade(BASE_ATTR_MEDIUM.getValue(tier), grade)
+                    val tierName = TIER_NAMES.getValue(tier)
                     val g = grade.displayName
                     pills.add(PillTemplate(
                         id = "${config.pillType}_${tier}_${grade.name.lowercase()}",
-                        name = config.names[tier]!!,
+                        name = config.names.getValue(tier),
                         category = PillCategory.FUNCTIONAL,
                         grade = grade,
                         rarity = rarity,
@@ -513,12 +513,12 @@ object ItemDatabase {
 
         for (config in dualBaseConfigs) {
             for (tier in 1..6) {
-                val rarity = TIER_RARITY[tier]!!
+                val rarity = TIER_RARITY.getValue(tier)
                 for (grade in PillGrade.entries) {
-                    val med = BASE_ATTR_MEDIUM[tier]!!
+                    val med = BASE_ATTR_MEDIUM.getValue(tier)
                     val v1 = applyGrade((med * 0.6).roundToInt(), grade)
                     val v2 = applyGrade((med * 0.6).roundToInt(), grade)
-                    val tierName = TIER_NAMES[tier]!!
+                    val tierName = TIER_NAMES.getValue(tier)
                     val g = grade.displayName
 
                     fun attrVal(attr: String): Int {
@@ -527,7 +527,7 @@ object ItemDatabase {
 
                     pills.add(PillTemplate(
                         id = "${config.pillType}_${tier}_${grade.name.lowercase()}",
-                        name = config.names[tier]!!,
+                        name = config.names.getValue(tier),
                         category = PillCategory.FUNCTIONAL,
                         grade = grade,
                         rarity = rarity,

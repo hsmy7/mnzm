@@ -61,7 +61,7 @@ object PillRecipeDatabase {
     )
 
     private fun herbMat(tier: Int, vararg indices: Int): Map<String, Int> {
-        val herbs = TIER_HERB_IDS[tier]!!
+        val herbs = TIER_HERB_IDS.getValue(tier)
         val result = mutableMapOf<String, Int>()
         for (idx in indices) {
             val herbId = herbs[idx.coerceIn(0, herbs.size - 1)]
@@ -78,8 +78,8 @@ object PillRecipeDatabase {
         )
 
         for (tier in 1..6) {
-            val duration = TIER_DURATION[tier]!!
-            val successRate = TIER_SUCCESS_RATE[tier]!!
+            val duration = TIER_DURATION.getValue(tier)
+            val successRate = TIER_SUCCESS_RATE.getValue(tier)
             val rarity = tier
 
             for ((idx, pillType) in pillTypes.withIndex()) {
@@ -122,10 +122,10 @@ object PillRecipeDatabase {
         )
 
         for ((tier, targets) in breakthroughData) {
-            val duration = TIER_DURATION[tier]!!
-            val successRate = TIER_SUCCESS_RATE[tier]!!
+            val duration = TIER_DURATION.getValue(tier)
+            val successRate = TIER_SUCCESS_RATE.getValue(tier)
             val rarity = tier
-            val herbs = TIER_HERB_IDS[tier]!!
+            val herbs = TIER_HERB_IDS.getValue(tier)
             for ((idx, targetData) in targets.withIndex()) {
                 val (targetRealm, _) = targetData
                 val materials = explicitBreakthroughMaterials[targetRealm]
@@ -164,10 +164,10 @@ object PillRecipeDatabase {
         val critTypes = listOf("critRate", "critEffect")
 
         for (tier in 1..6) {
-            val duration = TIER_DURATION[tier]!!
-            val successRate = TIER_SUCCESS_RATE[tier]!!
+            val duration = TIER_DURATION.getValue(tier)
+            val successRate = TIER_SUCCESS_RATE.getValue(tier)
             val rarity = tier
-            val herbs = TIER_HERB_IDS[tier]!!
+            val herbs = TIER_HERB_IDS.getValue(tier)
 
             for ((idx, pillType) in singleTypes.withIndex()) {
                 val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 4) % herbs.size] to 2)
@@ -255,10 +255,10 @@ object PillRecipeDatabase {
         val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
 
         for (tier in 1..6) {
-            val duration = TIER_DURATION[tier]!!
-            val successRate = TIER_SUCCESS_RATE[tier]!!
+            val duration = TIER_DURATION.getValue(tier)
+            val successRate = TIER_SUCCESS_RATE.getValue(tier)
             val rarity = tier
-            val herbs = TIER_HERB_IDS[tier]!!
+            val herbs = TIER_HERB_IDS.getValue(tier)
 
             for ((idx, pillType) in singleTypes.withIndex()) {
                 val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 6) % herbs.size] to 2)

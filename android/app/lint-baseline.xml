@@ -1,0 +1,586 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.8.0">
+
+    <issue
+        id="DefaultLocale"
+        severity="Warning"
+        message="Implicitly using the default locale is a common source of bugs: Use `String.format(Locale, ...)` instead"
+        category="Correctness"
+        priority="6"
+        summary="Implied default locale in case conversion">
+        <location
+            file="src/main/java/com/xianxia/sect/core/engine/domain/settlement/SettlementMetrics.kt"
+            line="33"
+            column="42"/>
+    </issue>
+
+    <issue
+        id="InlinedApi"
+        severity="Warning"
+        message="Field requires API level 29 (current min is 24)"
+        category="Correctness"
+        priority="6"
+        summary="Using inlined constants on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
+            line="70"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="InlinedApi"
+        severity="Warning"
+        message="Field requires API level 29 (current min is 24)"
+        category="Correctness"
+        priority="6"
+        summary="Using inlined constants on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
+            line="74"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="InlinedApi"
+        severity="Warning"
+        message="Field requires API level 29 (current min is 24)"
+        category="Correctness"
+        priority="6"
+        summary="Using inlined constants on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
+            line="78"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        severity="Error"
+        message="Call requires API level 35 (current min is 24): java.util.List#removeFirst"
+        category="Correctness"
+        priority="6"
+        summary="Calling new methods on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/core/engine/domain/battle/AISectGarrisonManager.kt"
+            line="60"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        severity="Error"
+        message="Call requires API level 35 (current min is 24): java.util.List#removeFirst"
+        category="Correctness"
+        priority="6"
+        summary="Calling new methods on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/core/engine/domain/battle/AISectGarrisonManager.kt"
+            line="107"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        severity="Error"
+        message="Call requires API level 26, or core library desugaring (current min is 24): java.util.Base64#getDecoder"
+        category="Correctness"
+        priority="6"
+        summary="Calling new methods on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/data/local/ProtobufConverters.kt"
+            line="532"
+            column="39"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        severity="Error"
+        message="Call requires API level 26, or core library desugaring (current min is 24): java.util.Base64.Decoder#decode"
+        category="Correctness"
+        priority="6"
+        summary="Calling new methods on older versions">
+        <location
+            file="src/main/java/com/xianxia/sect/data/local/ProtobufConverters.kt"
+            line="532"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of org.jetbrains.kotlin.plugin.serialization than 2.0.21 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="5"
+            column="60"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of androidx.compose.material3:material3 than 1.3.1 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="171"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of com.google.dagger:hilt-android than 2.56 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="189"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of com.google.dagger:hilt-compiler than 2.56 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="190"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-serialization-json than 1.7.3 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="198"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        severity="Warning"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-serialization-protobuf than 1.7.3 is available"
+        category="Correctness"
+        priority="4"
+        summary="Obsolete Gradle Dependency">
+        <location
+            file="build.gradle"
+            line="199"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        severity="Warning"
+        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
+        category="Correctness"
+        priority="3"
+        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
+            line="71"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        severity="Warning"
+        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
+        category="Correctness"
+        priority="3"
+        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
+            line="72"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        severity="Warning"
+        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
+        category="Correctness"
+        priority="3"
+        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/components/StandardPromptDialog.kt"
+            line="51"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="ConfigurationScreenWidthHeight"
+        severity="Warning"
+        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
+        category="Correctness"
+        priority="3"
+        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/components/StandardPromptDialog.kt"
+            line="52"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        severity="Warning"
+        message="Modifier parameter should be the first optional parameter"
+        category="Correctness"
+        priority="3"
+        summary="Guidelines for Modifier parameters in a Composable function">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
+            line="921"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StateFlowValueCalledInComposition"
+        severity="Error"
+        message="StateFlow.value should not be called within composition"
+        category="Correctness"
+        priority="3"
+        summary="StateFlow.value should not be called within composition">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/WorldMapSectDetailDialog.kt"
+            line="397"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="StateFlowValueCalledInComposition"
+        severity="Error"
+        message="StateFlow.value should not be called within composition"
+        category="Correctness"
+        priority="3"
+        summary="StateFlow.value should not be called within composition">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/WorldMapSectDetailDialog.kt"
+            line="418"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UnrememberedMutableState"
+        severity="Error"
+        message="Creating a state object during composition without using `remember`"
+        category="Correctness"
+        priority="3"
+        summary="Creating a state object during composition without using `remember`">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
+            line="166"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="UnrememberedMutableState"
+        severity="Error"
+        message="Creating a state object during composition without using `remember`"
+        category="Correctness"
+        priority="3"
+        summary="Creating a state object during composition without using `remember`">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
+            line="172"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="UnrememberedMutableState"
+        severity="Error"
+        message="Creating a state object during composition without using `remember`"
+        category="Correctness"
+        priority="3"
+        summary="Creating a state object during composition without using `remember`">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
+            line="176"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        severity="Warning"
+        message="Use of this function is discouraged"
+        category="Correctness"
+        priority="2"
+        summary="Using discouraged APIs">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/PortraitPool.kt"
+            line="16"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="TrustAllX509TrustManager"
+        severity="Warning"
+        message="checkClientTrusted is empty"
+        category="Security"
+        priority="6"
+        summary="Insecure TLS/SSL trust manager">
+        <location
+            file="../../../.gradle/caches/8.14.5/transforms/2dab7018d87d499bb49d221c90fa69cd/transformed/jetified-dirichlet_ad_4.2.5.0/jars/classes.jar"/>
+    </issue>
+
+    <issue
+        id="QueryAllPackagesPermission"
+        severity="Error"
+        message="A queries declaration should generally be used instead of QUERY_ALL_PACKAGES"
+        category="Compliance"
+        priority="8"
+        summary="Using the QUERY_ALL_PACKAGES permission">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="20"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        severity="Warning"
+        message="Unnecessary; SDK_INT is always >= 24"
+        category="Performance"
+        priority="6"
+        summary="Obsolete SDK_INT Version Check">
+        <location
+            file="src/main/java/com/xianxia/sect/core/perf/FrameMetricsMonitor.kt"
+            line="46"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        severity="Warning"
+        message="Unnecessary; SDK_INT is always >= 24"
+        category="Performance"
+        priority="6"
+        summary="Obsolete SDK_INT Version Check">
+        <location
+            file="src/main/java/com/xianxia/sect/core/perf/FrameMetricsMonitor.kt"
+            line="101"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        severity="Warning"
+        message="Unnecessary; SDK_INT is always >= 24"
+        category="Performance"
+        priority="6"
+        summary="Obsolete SDK_INT Version Check">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="412"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableFloatStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/components/detail/DetailCultivationSection.kt"
+            line="377"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableFloatStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/components/detail/DetailCultivationSection.kt"
+            line="378"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableFloatStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/components/ItemDetailDialog.kt"
+            line="206"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableFloatStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/components/ItemDetailDialog.kt"
+            line="391"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableIntStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/MissionHallDialog.kt"
+            line="535"
+            column="42"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableIntStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/PatrolTowerDialog.kt"
+            line="57"
+            column="42"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        severity="Information"
+        message="Prefer mutableIntStateOf instead of mutableStateOf"
+        category="Performance"
+        priority="3"
+        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
+            line="61"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        severity="Warning"
+        message="The resource R.drawable.bg_navbar appears to be unused"
+        category="Performance"
+        priority="3"
+        summary="Unused resources">
+        <location
+            file="src/main/res/drawable-nodpi/bg_navbar.jpg"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        severity="Warning"
+        message="The resource R.drawable.bg_screen appears to be unused"
+        category="Performance"
+        priority="3"
+        summary="Unused resources">
+        <location
+            file="src/main/res/drawable-nodpi/bg_screen.webp"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        severity="Warning"
+        message="Found bitmap drawable in densityless folder"
+        category="Usability:Icons"
+        priority="5"
+        summary="Image defined in density-independent drawable folder">
+        <location
+            file="src/main/res/drawable/building_multi_residence.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        severity="Warning"
+        message="Found bitmap drawable in densityless folder"
+        category="Usability:Icons"
+        priority="5"
+        summary="Image defined in density-independent drawable folder">
+        <location
+            file="src/main/res/drawable/building_single_residence.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        severity="Warning"
+        message="Found bitmap drawable in densityless folder"
+        category="Usability:Icons"
+        priority="5"
+        summary="Image defined in density-independent drawable folder">
+        <location
+            file="src/main/res/drawable/building_single_residence_upgraded.png"/>
+    </issue>
+
+    <issue
+        id="IconDuplicates"
+        severity="Warning"
+        message="The following unrelated icon files have identical contents"
+        category="Usability:Icons"
+        priority="3"
+        summary="Duplicated icons under different names">
+        <location
+            file="src/main/res/drawable-nodpi/bg_navbar.jpg"/>
+        <location
+            file="src/main/res/drawable-nodpi/bg_horizontal.jpg"/>
+    </issue>
+
+    <issue
+        id="IconDuplicates"
+        severity="Warning"
+        message="The following unrelated icon files have identical contents"
+        category="Usability:Icons"
+        priority="3"
+        summary="Duplicated icons under different names">
+        <location
+            file="src/main/res/drawable-nodpi/ui_tooltip.webp"/>
+        <location
+            file="src/main/res/drawable-nodpi/dialog_box.webp"/>
+    </issue>
+
+    <issue
+        id="IconExtension"
+        severity="Warning"
+        message="Misleading file extension; named .webp but the file format is png"
+        category="Usability:Icons"
+        priority="3"
+        summary="Icon format does not match the file extension">
+        <location
+            file="src/main/res/drawable-nodpi/bg_dialog_mail.webp"/>
+    </issue>
+
+    <issue
+        id="IconExtension"
+        severity="Warning"
+        message="Misleading file extension; named .webp but the file format is png"
+        category="Usability:Icons"
+        priority="3"
+        summary="Icon format does not match the file extension">
+        <location
+            file="src/main/res/drawable-nodpi/ui_mail_button.webp"/>
+    </issue>
+
+</issues>

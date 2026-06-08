@@ -7,6 +7,7 @@ import android.util.Log
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
+import com.xianxia.sect.core.ChangelogData
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.data.crypto.SaveCrypto
@@ -66,7 +67,9 @@ class XianxiaApplication : Application() {
         super.onCreate()
         instance = this
 
-        // TODO: 华为 AGC Crash — 待 agconnect-crash 依赖就绪后启用
+        // Feature: agconnect-crash pending SDK integration
+        //   阻塞项：需在 build.gradle 添加 com.huawei.agconnect:crash 依赖并配置 agconnect-services.json
+        //   当前状态：Bugly 已作为主崩溃收集 SDK，AGC 仅用于华为设备补充上报
         // if (DeviceCompatibilityHelper.isHuaweiOrHonor) {
         //     try {
         //         AGConnectCrash.getInstance().enableCrashCollection(true)
@@ -98,7 +101,7 @@ class XianxiaApplication : Application() {
         try {
             MMKV.initialize(this, object : MMKV.LibLoader {
                 override fun loadLibrary(libName: String?) {
-                    ReLinker.loadLibrary(this@XianxiaApplication, libName!!)
+                    ReLinker.loadLibrary(this@XianxiaApplication, requireNotNull(libName) { "libName must not be null" })
                 }
             })
             Log.i(TAG, "MMKV initialized with ReLinker fallback")
@@ -112,6 +115,8 @@ class XianxiaApplication : Application() {
         }
 
         SaveCrypto.initialize(applicationScopeProvider)
+
+        ChangelogData.initialize(this)
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
@@ -128,6 +133,24 @@ class XianxiaApplication : Application() {
                 return@setDefaultUncaughtExceptionHandler
             }
             originalHandler?.uncaughtException(thread, throwable)
+        }
+
+        // 4.0 重置：清空 MMKV 和 SharedPreferences
+        val resetMarker = "v4_reset_done"
+        val resetPrefs = getSharedPreferences("v4_reset", MODE_PRIVATE)
+        if (!resetPrefs.getBoolean(resetMarker, false)) {
+            try {
+                MMKV.defaultMMKV().clearAll()
+                Log.i(TAG, "[4.0] MMKV cleared")
+                listOf("sav_migration", "crash_handler", "app_session").forEach { name ->
+                    getSharedPreferences(name, MODE_PRIVATE).edit().clear().apply()
+                }
+                Log.i(TAG, "[4.0] SharedPreferences cleared")
+                resetPrefs.edit().putBoolean(resetMarker, true).apply()
+                Log.i(TAG, "[4.0] All storage reset complete")
+            } catch (e: Exception) {
+                Log.e(TAG, "[4.0] Storage reset failed", e)
+            }
         }
 
         Log.i(TAG, "Application initialized with monitoring systems")

@@ -7,7 +7,8 @@ plugins {
     id 'com.google.dagger.hilt.android'
     id 'com.google.protobuf' version '0.9.4'
     id 'androidx.baselineprofile'
-    // TODO: 待华为/Google 凭证就绪后启用
+    id 'io.gitlab.arturbosch.detekt'
+    // 待华为/Google 凭证就绪后启用
     // id 'com.huawei.agconnect'
     // id 'com.google.gms.google-services'
 }
@@ -32,8 +33,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3225
-        versionName = "3.2.25"
+        versionCode = 4000
+        versionName = "4.0.00"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -41,8 +42,8 @@ android {
         buildConfigField "boolean", "TAPTAP_IS_CN", apiProperties.getProperty('TAPTAP_IS_CN', 'true')
         buildConfigField "String", "TAPDB_CHANNEL", '"' + apiProperties.getProperty('TAPDB_CHANNEL', 'taptap') + '"'
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
-        buildConfigField "String", "BUGLY_APP_ID", '"' + apiProperties.getProperty('BUGLY_APP_ID', 'e63e93230e') + '"'
-        buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '2fc5f3ab-dcab-4456-b8d0-424ff83fc653') + '"'
+        buildConfigField "String", "BUGLY_APP_ID", '"' + apiProperties.getProperty('BUGLY_APP_ID', '') + '"'
+        buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '') + '"'
 
         // 仅保留 ARM 架构，模拟器通过 libhoudini 翻译运行（与主流国产手游一致）
         ndk {
@@ -96,8 +97,11 @@ android {
     }
     
     lint {
-        checkReleaseBuilds = false
-        abortOnError = false
+        checkReleaseBuilds = true
+        abortOnError = true
+        baseline = file("lint-baseline.xml")
+        // 若历史 lint 问题过多，先加 disable 列表逐个消除
+        disable += "InvalidPackage"
     }
 
     testOptions {
@@ -159,7 +163,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
 
     // Jetpack Compose
-    def composeBom = platform('androidx.compose:compose-bom:2025.02.00')
+    def composeBom = platform('androidx.compose:compose-bom:2025.05.01')
     implementation composeBom
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
@@ -188,11 +192,11 @@ dependencies {
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // Coroutines
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     
     // Kotlinx Serialization
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.6.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.7.3'
 
     // Lifecycle
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
@@ -252,7 +256,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:5.14.2'
     testImplementation 'org.mockito:mockito-inline:5.2.0'
     testImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
-    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0'
     testImplementation 'org.robolectric:robolectric:4.13'
     testImplementation 'org.jetbrains.kotlin:kotlin-reflect:2.0.21'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
@@ -284,9 +288,17 @@ protobuf {
     }
 }
 
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
+}
+
 // Bugly mapping 存档 + 上传（assembleRelease 后运行 ./gradlew archiveAndUploadMapping）
-def buglyAppId = findProperty('BUGLY_APP_ID') ?: 'e63e93230e'
-def buglyAppKey = findProperty('BUGLY_APP_KEY') ?: '2fc5f3ab-dcab-4456-b8d0-424ff83fc653'
+def buglyAppId = findProperty('BUGLY_APP_ID') ?: ''
+def buglyAppKey = findProperty('BUGLY_APP_KEY') ?: ''
 def mappingVersionName = android.defaultConfig.versionName
 def mappingPkgName = android.defaultConfig.applicationId
 def mappingBuildDir = layout.buildDirectory

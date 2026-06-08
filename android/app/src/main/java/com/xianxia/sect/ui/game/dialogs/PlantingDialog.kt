@@ -118,7 +118,7 @@ fun PlantingDialog(
             plant == null || plant.seedId.isEmpty()
         }
         val plantedBySeedId = planted.groupBy { field ->
-            plantsByBuilding[field.instanceId]!!.seedId
+            plantsByBuilding.getValue(field.instanceId).seedId
         }
 
         buildList {
@@ -505,7 +505,7 @@ fun PlantingDialog(
                                     // 批量收集instanceId，一次性种植
                                     val ids = unplantedFields.take(toPlant).map { it.instanceId }
                                     if (ids.isNotEmpty() && selectedSeed != null) {
-                                        viewModel.planting.plantOnSpiritFields(ids, selectedSeed!!.id, activeSectId)
+                                        viewModel.planting.plantOnSpiritFields(ids, selectedSeed.id, activeSectId)
                                     }
                                     selectedSeedId = null
                                     plantQuantity = 1

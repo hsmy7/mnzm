@@ -137,7 +137,7 @@ internal fun AttackDiscipleDialog(
 
     // Disciple selection sub-dialog
     if (showDiscipleSelection && selectedSlotIndex != null) {
-        val currentSlotIndex = selectedSlotIndex!!
+        val currentSlotIndex = selectedSlotIndex ?: return
         val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()
         AttackDiscipleSelectionDialog(
             disciples = disciples,

@@ -2,25 +2,12 @@ package com.xianxia.sect.ui.game.tabs
 
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,61 +15,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.xianxia.sect.R
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.IntOffset
-import androidx.activity.compose.BackHandler
-import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.BattleRewardItem
-import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
-import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.getAttributeValue
-import com.xianxia.sect.ui.game.getSpiritRootCount
-import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
 internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
@@ -132,7 +88,6 @@ internal fun WarehouseTab(
     val storageBags by viewModel.storageBags.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
-    // 灵石虚拟物品（每张卡片最多100万）
     val spiritStoneCards = remember(gameData) {
         val total = gameData.spiritStones
         val cards = mutableListOf<Pair<String, SpiritStoneInfo>>()
@@ -150,23 +105,23 @@ internal fun WarehouseTab(
     val equipment = remember(equipmentStacks) {
         equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
     }
-    
+
     val manuals = remember(manualStacks) {
         manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
     }
-    
+
     val sortedPills = remember(pills) {
         pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
     }
-    
+
     val sortedMaterials = remember(materials) {
         materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
     }
-    
+
     val sortedHerbs = remember(herbs) {
         herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
     }
-    
+
     val sortedSeeds = remember(seeds) {
         seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
     }
@@ -181,7 +136,7 @@ internal fun WarehouseTab(
         val rarity: Int,
         val item: Any
     )
-    
+
     val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, spiritStoneCards) {
         val items = mutableListOf<WarehouseItemData>()
         equipment.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
@@ -191,13 +146,12 @@ internal fun WarehouseTab(
         sortedHerbs.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         sortedSeeds.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         sortedBags.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
-        // 灵石卡片插入到列表头部
         spiritStoneCards.forEach { (id, info) ->
             items.add(0, WarehouseItemData(id, "灵石", 1, info))
         }
         items.sortedWith(compareByDescending<WarehouseItemData> { it.rarity }.thenBy { it.name })
     }
-    
+
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
@@ -218,7 +172,7 @@ internal fun WarehouseTab(
         }
     }
     var currentPage by remember { mutableIntStateOf(0) }
-    
+
     val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials, spiritStoneCards, sortedBags) {
         when (selectedFilter) {
             WarehouseFilter.ALL -> allSortedItems
@@ -238,7 +192,7 @@ internal fun WarehouseTab(
             }
         }
     }
-    
+
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -264,9 +218,9 @@ internal fun WarehouseTab(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         if (currentFilterItems.isEmpty()) {
             EmptyWarehouseMessage()
         } else {
@@ -479,7 +433,7 @@ internal fun WarehouseTab(
             }
 
             if (showBagRewards != null) {
-                val rewards = showBagRewards!!
+                val rewards = showBagRewards ?: emptyList()
                 StandardPromptDialog(
                     onDismissRequest = { showBagRewards = null },
                     title = "储物袋开启",
@@ -501,923 +455,13 @@ internal fun WarehouseTab(
             }
         }
     }
-    
+
     if (showBulkSellDialog) {
         BulkSellDialog(
             viewModel = viewModel,
             onDismiss = onBulkSellDismiss
         )
     }
-    }
-}
-
-@Composable
-internal fun DiscipleSelectForRewardDialog(
-    itemName: String,
-    itemId: String,
-    itemType: String,
-    itemRarity: Int,
-    viewModel: GameViewModel,
-    onDismiss: () -> Unit
-) {
-    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val pills by viewModel.pills.collectAsStateWithLifecycle()
-    val materials by viewModel.materials.collectAsStateWithLifecycle()
-    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
-    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
-    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
-    
-    val aliveDisciples = remember {
-        disciples.filter { it.isAlive && it.status != DiscipleStatus.REFLECTING }
-    }
-    
-    val currentQuantity by remember(itemType, itemId) {
-        derivedStateOf {
-            when (itemType) {
-                "pill" -> pills.find { it.id == itemId }?.quantity ?: 0
-                "material" -> materials.find { it.id == itemId }?.quantity ?: 0
-                "herb" -> herbs.find { it.id == itemId }?.quantity ?: 0
-                "seed" -> seeds.find { it.id == itemId }?.quantity ?: 0
-                "equipment" -> equipmentStacks.find { it.id == itemId }?.quantity ?: 0
-                "manual" -> manualStacks.find { it.id == itemId }?.quantity ?: 0
-                else -> 0
-            }
-        }
-    }
-    
-    var isRewarding by remember { mutableStateOf(false) }
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    val realmCounts = remember(aliveDisciples) {
-        aliveDisciples.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(aliveDisciples) {
-        aliveDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val filteredAndSortedDisciples = remember(aliveDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        aliveDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-            .distinctBy { it.id }
-    }
-    
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "赏赐弟子",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "物品: $itemName (剩余: $currentQuantity)",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    CloseButton(onClick = onDismiss)
-                }
-                
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTER_OPTIONS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-                
-                if (currentQuantity <= 0) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "物品已全部赏赐完毕",
-                            fontSize = 14.sp,
-                            color = GameColors.TextSecondary
-                        )
-                    }
-                } else if (filteredAndSortedDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无可赏赐的弟子",
-                            fontSize = 14.sp,
-                            color = GameColors.TextSecondary
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredAndSortedDisciples, key = { it.id }) { disciple ->
-                            DiscipleCard(
-                                disciple = disciple,
-                                onClick = {
-                                    if (!isRewarding && currentQuantity > 0) {
-                                        scope.launch {
-                                            isRewarding = true
-                                            try {
-                                                viewModel.rewardItemsToDisciple(
-                                                    disciple.id,
-                                                    listOf(RewardSelectedItem(
-                                                        id = itemId,
-                                                        type = itemType,
-                                                        name = itemName,
-                                                        rarity = itemRarity,
-                                                        quantity = 1
-                                                    ))
-                                                )
-                                            } finally {
-                                                isRewarding = false
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-}
-
-@Composable
-internal fun SellConfirmDialog(
-    itemName: String,
-    maxQuantity: Int,
-    basePrice: Int,
-    onConfirm: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var sellQuantity by remember { mutableIntStateOf(1) }
-    var isEditingQuantity by remember { mutableStateOf(false) }
-    var quantityInput by remember { mutableStateOf("1") }
-    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
-
-    LaunchedEffect(maxQuantity) {
-        if (sellQuantity > maxQuantity) {
-            sellQuantity = maxQuantity.coerceAtLeast(1)
-            quantityInput = sellQuantity.toString()
-        }
-    }
-
-    val totalPrice = GameConfig.Rarity.calculateSellPrice(basePrice, sellQuantity)
-
-    LaunchedEffect(isEditingQuantity) {
-        if (isEditingQuantity) {
-            focusRequester.requestFocus()
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(
-                text = "售卖物品",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = itemName,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "售卖数量",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "最大: $maxQuantity",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (sellQuantity > 1) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
-                            .clickable(enabled = sellQuantity > 1) {
-                                sellQuantity = (sellQuantity - 1).coerceAtLeast(1)
-                                quantityInput = sellQuantity.toString()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "−",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sellQuantity > 1) Color.Black else Color(0xFFBDBDBD)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    if (isEditingQuantity) {
-                        OutlinedTextField(
-                            value = quantityInput,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() }
-                                if (filtered.isEmpty()) {
-                                    quantityInput = ""
-                                    sellQuantity = 1
-                                } else {
-                                    val parsed = filtered.toIntOrNull() ?: 0
-                                    if (parsed > maxQuantity) {
-                                        quantityInput = maxQuantity.toString()
-                                        sellQuantity = maxQuantity
-                                    } else if (parsed == 0) {
-                                        quantityInput = ""
-                                        sellQuantity = 1
-                                    } else {
-                                        quantityInput = filtered
-                                        sellQuantity = parsed
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .width(80.dp)
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { focusState ->
-                                    if (!focusState.isFocused && isEditingQuantity) {
-                                        isEditingQuantity = false
-                                        quantityInput = sellQuantity.toString()
-                                    }
-                                },
-                            singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            ),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                                imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                            ),
-                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                                onDone = {
-                                    isEditingQuantity = false
-                                    quantityInput = sellQuantity.toString()
-                                }
-                            ),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GameColors.Primary,
-                                unfocusedBorderColor = Color(0xFFCCCCCC)
-                            )
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .width(80.dp)
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(6.dp))
-                                .background(Color.White)
-                                .clickable {
-                                    isEditingQuantity = true
-                                    quantityInput = sellQuantity.toString()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "$sellQuantity",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (sellQuantity < maxQuantity) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
-                            .clickable(enabled = sellQuantity < maxQuantity) {
-                                sellQuantity = (sellQuantity + 1).coerceAtMost(maxQuantity)
-                                quantityInput = sellQuantity.toString()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "+",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sellQuantity < maxQuantity) Color.Black else Color(0xFFBDBDBD)
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "单价",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "${GameConfig.Rarity.calculateSellPrice(basePrice, 1)} 灵石",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "总计",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "$totalPrice 灵石",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF6B35)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss
-                )
-                GameButton(
-                    text = "确认售卖",
-                    onClick = { onConfirm(sellQuantity) }
-                )
-            }
-        }
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun BulkSellDialog(
-    viewModel: GameViewModel,
-    onDismiss: () -> Unit
-) {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
-    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
-    val pills by viewModel.pills.collectAsStateWithLifecycle()
-    val materials by viewModel.materials.collectAsStateWithLifecycle()
-    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
-    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
-    
-    var selectedRarities by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedTypes by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    
-    // 使用游戏中的品阶名称：凡品、灵品、宝品、玄品、地品、天品
-    val rarityOptions = listOf(
-        1 to "凡品",
-        2 to "灵品",
-        3 to "宝品",
-        4 to "玄品",
-        5 to "地品",
-        6 to "天品"
-    )
-    
-    // 使用仓库的分类：全部、装备、丹药、功法、草药、种子、材料
-    val typeOptions = listOf(
-        "ALL" to "全部",
-        "EQUIPMENT" to "装备",
-        "PILL" to "丹药",
-        "MANUAL" to "功法",
-        "HERB" to "草药",
-        "SEED" to "种子",
-        "MATERIAL" to "材料"
-    )
-    
-    // 计算可出售的物品
-    val finalTypes = remember(selectedTypes) {
-        if (selectedTypes.contains("ALL")) {
-            setOf("EQUIPMENT", "PILL", "MANUAL", "HERB", "SEED", "MATERIAL")
-        } else {
-            selectedTypes
-        }
-    }
-    
-    val sellableEquipment = remember(equipmentStacks, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("EQUIPMENT")) {
-            equipmentStacks.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val sellableManuals = remember(manualStacks, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("MANUAL")) {
-            manualStacks.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val sellablePills = remember(pills, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("PILL")) {
-            pills.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val sellableMaterials = remember(materials, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("MATERIAL")) {
-            materials.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val sellableHerbs = remember(herbs, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("HERB")) {
-            herbs.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val sellableSeeds = remember(seeds, selectedRarities, finalTypes) {
-        if (selectedRarities.isNotEmpty() && finalTypes.contains("SEED")) {
-            seeds.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
-        } else emptyList()
-    }
-    
-    val totalItems = sellableEquipment.size + sellableManuals.size + sellablePills.size +
-            sellableMaterials.size + sellableHerbs.size + sellableSeeds.size
-
-    val totalValue = sellableEquipment.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
-            sellableManuals.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
-            sellablePills.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
-            sellableMaterials.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
-            sellableHerbs.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
-            sellableSeeds.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) }
-    
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "一键出售",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-            }
-
-            item {
-                // 品阶选择 - 4列显示，支持多选
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "选择品阶（可多选）：",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    // 分4列显示
-                    rarityOptions.chunked(4).forEach { rowOptions ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowOptions.forEach { (rarity, name) ->
-                                val isSelected = selectedRarities.contains(rarity)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                        .clickable {
-                                            selectedRarities = if (isSelected) {
-                                                selectedRarities - rarity
-                                            } else {
-                                                selectedRarities + rarity
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) Color.White else Color.Black
-                                    )
-                                }
-                            }
-                            // 补齐4列
-                            repeat(4 - rowOptions.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                // 类型选择 - 4列显示
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "选择物品类型（可多选）：",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    // 分4列显示
-                    typeOptions.chunked(4).forEach { rowOptions ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowOptions.forEach { (type, name) ->
-                                val isSelected = selectedTypes.contains(type)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                        .clickable { 
-                                            selectedTypes = if (isSelected) {
-                                                selectedTypes - type
-                                            } else {
-                                                selectedTypes + type
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) Color.White else Color.Black
-                                    )
-                                }
-                            }
-                            // 补齐4列
-                            repeat(4 - rowOptions.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                // 可出售物品列表
-                if (totalItems > 0) {
-                    Text(
-                        text = "可出售物品（共${totalItems}件）：",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // 装备
-                        if (sellableEquipment.isNotEmpty()) {
-                            Text(
-                                text = "装备 (${sellableEquipment.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellableEquipment.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity),
-                                            showQuantity = false,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-
-                        // 功法
-                        if (sellableManuals.isNotEmpty()) {
-                            Text(
-                                text = "功法 (${sellableManuals.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellableManuals.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, isManual = true),
-                                            showQuantity = false,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-
-                        // 丹药
-                        if (sellablePills.isNotEmpty()) {
-                            Text(
-                                text = "丹药 (${sellablePills.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellablePills.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity, grade = item.grade.displayName, isPill = true),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-
-                        // 材料
-                        if (sellableMaterials.isNotEmpty()) {
-                            Text(
-                                text = "材料 (${sellableMaterials.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellableMaterials.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity, isMaterial = true),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-
-                        // 草药
-                        if (sellableHerbs.isNotEmpty()) {
-                            Text(
-                                text = "草药 (${sellableHerbs.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellableHerbs.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-
-                        // 种子
-                        if (sellableSeeds.isNotEmpty()) {
-                            Text(
-                                text = "种子 (${sellableSeeds.size}件)",
-                                fontSize = 11.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            sellableSeeds.chunked(4).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { item ->
-                                        UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(4 - rowItems.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if (selectedRarities.isNotEmpty() && selectedTypes.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "没有符合条件的物品",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }
-
-            item {
-                // 按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GameColors.Border)
-                            .clickable { onDismiss() }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "取消",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (totalItems > 0) Color(0xFFE74C3C) else Color(0xFFCCCCCC)
-                            )
-                            .then(
-                                if (totalItems > 0) {
-                                    Modifier.clickable {
-                                        showConfirmDialog = true
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "确认出售",
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-            }
-        }
-
-    if (showConfirmDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = "确认出售",
-            confirmLabel = "确认出售",
-            onConfirm = {
-                viewModel.bulkSellItems(selectedRarities, finalTypes)
-                showConfirmDialog = false
-                onDismiss()
-            },
-            dismissLabel = "取消",
-            onDismiss = { showConfirmDialog = false }
-        ) {
-            Text(
-                text = "确定要出售以下物品吗？",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "物品数量: ${totalItems} 件",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Text(
-                text = "获得灵石: $totalValue（原价80%）",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "此操作不可撤销！",
-                fontSize = 11.sp,
-                color = Color.Black
-            )
-        }
     }
 }
 
@@ -1483,9 +527,9 @@ internal fun WarehousePagination(
                 fontWeight = FontWeight.Bold
             )
         }
-        
+
         Spacer(modifier = Modifier.width(8.dp))
-        
+
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -1501,18 +545,18 @@ internal fun WarehousePagination(
                 fontWeight = FontWeight.Bold
             )
         }
-        
+
         Spacer(modifier = Modifier.width(12.dp))
-        
+
         Text(
             text = "第 $currentPage/$totalPages 页",
             fontSize = 12.sp,
             color = Color.Black,
             fontWeight = FontWeight.Medium
         )
-        
+
         Spacer(modifier = Modifier.width(12.dp))
-        
+
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -1528,9 +572,9 @@ internal fun WarehousePagination(
                 fontWeight = FontWeight.Bold
             )
         }
-        
+
         Spacer(modifier = Modifier.width(8.dp))
-        
+
         Box(
             modifier = Modifier
                 .size(28.dp)

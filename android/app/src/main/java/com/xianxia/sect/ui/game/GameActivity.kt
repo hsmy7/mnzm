@@ -38,6 +38,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.core.GameConfig
 import kotlin.random.Random
 import javax.inject.Inject
@@ -536,11 +537,19 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             if (gameData.sectName.isNotEmpty()) {
                 Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")
                 val saveData = saveLoadViewModel.createSaveDataSync()
-                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                    kotlinx.coroutines.withTimeoutOrNull(2_000L) {
-                        storageFacade.emergencySaveSuspend(saveData)
-                    } ?: false
+                var emergencyResult = false
+                val latch = java.util.concurrent.CountDownLatch(1)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        emergencyResult = withTimeoutOrNull(2_000L) {
+                            storageFacade.emergencySaveSuspend(saveData)
+                        } ?: false
+                    } finally {
+                        latch.countDown()
+                    }
                 }
+                latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+                emergencyResult
             } else {
                 Log.w(TAG, "No valid game data to save in emergency")
                 false

@@ -94,7 +94,7 @@ fun BloodRefiningPoolDialog(
 
             // 血炼中：进度条 + 剩余月份（弟子槽位上方，宽度=52dp）
             if (isRefining) {
-                val progress = uiState.currentProgress!!
+                val progress = uiState.currentProgress ?: return@Column
                 val remaining = uiState.remainingMonths
                 val total = progress.durationMonths
                 val fraction = if (total > 0) (total - remaining).toFloat() / total else 0f

@@ -21,7 +21,7 @@ class SavMigrator @Inject constructor(
         private const val TAG = "SavMigrator"
         private const val PREFS_NAME = "sav_migration"
         private const val KEY_MIGRATION_DONE = "migration_done_version"
-        private const val CURRENT_VERSION = 1
+        private const val CURRENT_VERSION = 2
         private const val SAVE_DIR = "saves"
         private const val FILE_EXTENSION = ".sav"
     }
@@ -37,9 +37,17 @@ class SavMigrator @Inject constructor(
     private fun getSaveFile(slot: Int): File = File(saveDir, "slot_$slot$FILE_EXTENSION")
 
     suspend fun migrateIfNeeded() {
-        if (prefs.getInt(KEY_MIGRATION_DONE, 0) >= CURRENT_VERSION) {
-            return
+        // 4.0 重置：删除所有旧 .sav 文件，标记迁移完成，不再执行旧迁移逻辑
+        for (slot in (1..StorageConstants.DEFAULT_MAX_SLOTS) +
+            listOf(StorageConstants.AUTO_SAVE_SLOT, StorageConstants.EMERGENCY_SLOT)) {
+            getSaveFile(slot).delete()
         }
+        saveDir.listFiles()?.filter { it.extension == "sav" }?.forEach {
+            if (it.exists()) it.delete()
+        }
+        // 直接标记完成，阻止后续逻辑访问 DB（避免在 Room destructive migration 完成前触发 DB 打开）
+        prefs.edit().putInt(KEY_MIGRATION_DONE, CURRENT_VERSION).apply()
+        return
 
         Log.i(TAG, "Starting .sav → Room migration (version $CURRENT_VERSION)")
 

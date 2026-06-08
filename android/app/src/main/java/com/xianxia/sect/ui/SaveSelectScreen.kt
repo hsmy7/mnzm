@@ -40,7 +40,7 @@ private val slotStyles = mapOf(
 
 private fun SaveSlot.resolveStyle(): SlotStyle {
     val key = "${if (isAutoSave) "auto" else "manual"}_${if (isEmpty) "empty" else "filled"}"
-    return slotStyles[key]!!
+    return slotStyles.getValue(key)
 }
 
 @Composable

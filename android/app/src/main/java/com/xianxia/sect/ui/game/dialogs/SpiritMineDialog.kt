@@ -207,9 +207,12 @@ fun SpiritMineDialog(
                 onDismiss = { showDiscipleSelection = false; swappingSlotIndex = null },
                 onConfirm = { selected ->
                     if (selected.isNotEmpty()) {
-                        spiritMineViewModel.swapSpiritMineDisciple(
-                            swappingSlotIndex!!, selected.first().id, mineIndex
-                        )
+                        val swapIndex = swappingSlotIndex
+                        if (swapIndex != null) {
+                            spiritMineViewModel.swapSpiritMineDisciple(
+                                swapIndex, selected.first().id, mineIndex
+                            )
+                        }
                     }
                     showDiscipleSelection = false
                     swappingSlotIndex = null

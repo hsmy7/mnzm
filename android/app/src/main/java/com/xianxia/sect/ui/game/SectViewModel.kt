@@ -1,7 +1,7 @@
-package com.xianxia.sect.ui.game
+﻿package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
@@ -104,13 +104,11 @@ class SectViewModel @Inject constructor(
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
         launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
     
-    // TODO: 迁移到 DiscipleAggregate
     fun getOuterElder(): DiscipleAggregate? {
         val outerElderId = gameEngine.gameData.value?.elderSlots?.outerElder
         return getElderDisciple(outerElderId)
     }
 
-    // TODO: 迁移到 DiscipleAggregate
     fun getPreachingElder(): DiscipleAggregate? {
         val preachingElderId = gameEngine.gameData.value?.elderSlots?.preachingElder
         return getElderDisciple(preachingElderId)
@@ -133,7 +131,6 @@ class SectViewModel @Inject constructor(
         return gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
     }
 
-    // TODO: 迁移到 DiscipleAggregate
     fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
         val reserveSlots = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()

@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+﻿package com.xianxia.sect.ui.game
 
 import android.content.Context
 import android.util.Log
@@ -7,8 +7,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
@@ -1323,7 +1322,15 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        runBlocking { gameEngineCore.stopGameLoopAndWait(2000) }
+        val stopLatch = java.util.concurrent.CountDownLatch(1)
+        applicationScopeProvider.ioScope.launch {
+            try {
+                gameEngineCore.stopGameLoopAndWait(2000)
+            } finally {
+                stopLatch.countDown()
+            }
+        }
+        stopLatch.await(3, java.util.concurrent.TimeUnit.SECONDS)
         gameEngineCore.forceResetStuckStates()
         _pendingSlot.value = null
         _pendingAction.value = null
@@ -1348,11 +1355,19 @@ class SaveLoadViewModel @Inject constructor(
                     alliances = snapshotToSave.alliances,
                     productionSlots = snapshotToSave.productionSlots
                 )
-                val result = runBlocking(Dispatchers.IO) {
-                    withTimeoutOrNull(2_000L) {
-                        storageFacade.save(autoSaveSlot, saveData)
-                    } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
+                var exitSaveResult: SaveResult<Unit> = SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
+                val saveLatch = java.util.concurrent.CountDownLatch(1)
+                applicationScopeProvider.ioScope.launch {
+                    try {
+                        exitSaveResult = withTimeoutOrNull(2_000L) {
+                            storageFacade.save(autoSaveSlot, saveData)
+                        } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
+                    } finally {
+                        saveLatch.countDown()
+                    }
                 }
+                saveLatch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+                val result = exitSaveResult
                 if (result.isSuccess) {
                     Log.i(TAG, "Exit save completed in SaveLoadViewModel, slot: $autoSaveSlot")
                 } else {

@@ -389,8 +389,8 @@ object WorldMapGenerator {
 
         val parent = mutableMapOf<String, String>()
         fun find(x: String): String {
-            if (parent[x] != x) parent[x] = find(parent[x]!!)
-            return parent[x]!!
+            if (parent[x] != x) parent[x] = find(parent.getValue(x))
+            return parent.getValue(x)
         }
         fun union(x: String, y: String) {
             val rootX = find(x)
@@ -404,8 +404,8 @@ object WorldMapGenerator {
         for (edge in allEdges) {
             if (find(edge.from) != find(edge.to)) {
                 union(edge.from, edge.to)
-                connections[edge.from]!!.add(edge.to)
-                connections[edge.to]!!.add(edge.from)
+                connections.getValue(edge.from).add(edge.to)
+                connections.getValue(edge.to).add(edge.from)
                 componentCount--
             }
             if (componentCount == 1) break
@@ -424,17 +424,17 @@ object WorldMapGenerator {
             kNearest[sect.id] = neighbors
         }
 
-        val sortedSects = sects.sortedBy { connections[it.id]!!.size }
+        val sortedSects = sects.sortedBy { connections.getValue(it.id).size }
 
         for (sect in sortedSects) {
-            val currentCount = connections[sect.id]!!.size
+            val currentCount = connections.getValue(sect.id).size
             if (currentCount >= TARGET_CONNECTIONS_PER_SECT) continue
 
             val needed = TARGET_CONNECTIONS_PER_SECT - currentCount
-            val candidates = kNearest[sect.id]!!
+            val candidates = kNearest.getValue(sect.id)
                 .filter { neighbor ->
-                    neighbor.first !in connections[sect.id]!! &&
-                    connections[neighbor.first]!!.size < MAX_CONNECTIONS_PER_SECT
+                    neighbor.first !in connections.getValue(sect.id) &&
+                    connections.getValue(neighbor.first).size < MAX_CONNECTIONS_PER_SECT
                 }
                 .sortedBy { neighbor ->
                     val crossingCount = countEdgeCrossings(
@@ -445,13 +445,13 @@ object WorldMapGenerator {
                 .take(needed)
 
             for ((neighborId, _) in candidates) {
-                connections[sect.id]!!.add(neighborId)
-                connections[neighborId]!!.add(sect.id)
+                connections.getValue(sect.id).add(neighborId)
+                connections.getValue(neighborId).add(sect.id)
             }
         }
 
         for (sect in sects) {
-            val currentCount = connections[sect.id]!!.size
+            val currentCount = connections.getValue(sect.id).size
             if (currentCount >= MIN_CONNECTIONS_PER_SECT) continue
 
             val needed = MIN_CONNECTIONS_PER_SECT - currentCount
@@ -459,8 +459,8 @@ object WorldMapGenerator {
                 .filter { edge ->
                     val neighborId = if (edge.from == sect.id) edge.to else edge.from
                     (edge.from == sect.id || edge.to == sect.id) &&
-                    neighborId !in connections[sect.id]!! &&
-                    connections[neighborId]!!.size < MAX_CONNECTIONS_PER_SECT &&
+                    neighborId !in connections.getValue(sect.id) &&
+                    connections.getValue(neighborId).size < MAX_CONNECTIONS_PER_SECT &&
                     edge.dist <= CONNECTION_DISTANCE_LIMIT
                 }
                 .sortedBy { it.dist }
@@ -468,17 +468,17 @@ object WorldMapGenerator {
 
             for (edge in candidates) {
                 val neighborId = if (edge.from == sect.id) edge.to else edge.from
-                if (connections[sect.id]!!.size < MAX_CONNECTIONS_PER_SECT &&
-                    connections[neighborId]!!.size < MAX_CONNECTIONS_PER_SECT) {
-                    connections[sect.id]!!.add(neighborId)
-                    connections[neighborId]!!.add(sect.id)
+                if (connections.getValue(sect.id).size < MAX_CONNECTIONS_PER_SECT &&
+                    connections.getValue(neighborId).size < MAX_CONNECTIONS_PER_SECT) {
+                    connections.getValue(sect.id).add(neighborId)
+                    connections.getValue(neighborId).add(sect.id)
                 }
             }
         }
 
         for (i in result.indices) {
             val sectId = result[i].id
-            result[i] = result[i].copy(connectedSectIds = connections[sectId]!!.toList())
+            result[i] = result[i].copy(connectedSectIds = connections.getValue(sectId).toList())
         }
 
         return result

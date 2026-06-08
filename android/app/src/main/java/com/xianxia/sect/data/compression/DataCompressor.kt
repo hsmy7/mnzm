@@ -285,7 +285,8 @@ class DataCompressor @Inject constructor(
             if (!isAvailable || compressMethod == null) return null
 
             return try {
-                compressMethod!!.invoke(null, data, DEFAULT_COMPRESSION_LEVEL) as ByteArray
+                val method = compressMethod ?: return null
+                method.invoke(null, data, DEFAULT_COMPRESSION_LEVEL) as ByteArray
             } catch (e: Exception) {
                 Log.e(TAG, "ZSTD compress invocation failed", e)
                 null
@@ -301,7 +302,8 @@ class DataCompressor @Inject constructor(
             if (!isAvailable || decompressMethod == null) return null
 
             return try {
-                decompressMethod!!.invoke(null, compressedData) as ByteArray
+                val method = decompressMethod ?: return null
+                method.invoke(null, compressedData) as ByteArray
             } catch (e: Exception) {
                 Log.e(TAG, "ZSTD decompress invocation failed", e)
                 null

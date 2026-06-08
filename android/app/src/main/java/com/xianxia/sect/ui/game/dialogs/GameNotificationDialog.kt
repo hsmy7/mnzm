@@ -62,8 +62,9 @@ fun DiscipleTheftCaughtDialog(
     val coroutineScope = rememberCoroutineScope()
 
     if (loyaltyResult != null) {
+        val result = loyaltyResult ?: return
         LoyaltyChangeDialog(
-            loyaltyChange = loyaltyResult!!,
+            loyaltyChange = result,
             onDismiss = {
                 loyaltyResult = null
                 onLoyaltyDismissed()

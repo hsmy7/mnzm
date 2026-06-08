@@ -7,11 +7,6 @@ import android.util.Log
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.data.crypto.SecureKeyManager
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -63,7 +58,7 @@ class RequestSigner @Inject constructor(
     @Volatile
     private var keyExpiry: Long = 0
 
-    private val keyLock = Mutex()
+    private val keyLock = Any()
 
     private val secureRandom = SecureRandom()
 
@@ -140,10 +135,8 @@ class RequestSigner @Inject constructor(
         hmacKey?.let { if (System.currentTimeMillis() < keyExpiry) return it }
 
         return try {
-            runBlocking(Dispatchers.IO) {
-                keyLock.withLock {
-                    hmacKey?.takeIf { System.currentTimeMillis() < keyExpiry } ?: fetchKeyFromServer()
-                }
+            synchronized(keyLock) {
+                hmacKey?.takeIf { System.currentTimeMillis() < keyExpiry } ?: fetchKeyFromServerSync()
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch HMAC key from server, falling back to local derivation", e)
@@ -151,7 +144,7 @@ class RequestSigner @Inject constructor(
         }
     }
 
-    private suspend fun fetchKeyFromServer(): SecretKeySpec = withContext(Dispatchers.IO) {
+    private fun fetchKeyFromServerSync(): SecretKeySpec {
         val request = Request.Builder()
             .url("${BuildConfig.API_BASE_URL}auth/signing-key")
             .get()
@@ -164,7 +157,7 @@ class RequestSigner @Inject constructor(
         val keyBytes = android.util.Base64.decode(json.getString("key"), android.util.Base64.NO_WRAP)
         keyExpiry = json.optLong("expires_at", System.currentTimeMillis() + DEFAULT_KEY_EXPIRY_MS)
 
-        SecretKeySpec(keyBytes, HMAC_ALGO).also { hmacKey = it }
+        return SecretKeySpec(keyBytes, HMAC_ALGO).also { hmacKey = it }
     }
 
     private fun deriveLocalSigningKey(): SecretKeySpec {

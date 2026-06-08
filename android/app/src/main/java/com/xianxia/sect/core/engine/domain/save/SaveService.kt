@@ -92,12 +92,12 @@ class SaveService @Inject constructor(
 
     /**
      * 原子化恢复存档：将 reset + restoreFromLoad + restoreCollections 合并为
-     * 一个 loadFromSnapshot 调用，避免 runBlocking 死锁和多次 update 竞态。
+     * 一个 loadFromSnapshot 调用，避免阻塞死锁和多次 update 竞态。
      *
      * 之前的问题：
-     * 1. runBlocking { stateStore.reset() } 如果游戏循环正持有 transactionMutex，
+     * 1. 同步阻塞等待 stateStore.reset() 如果游戏循环正持有 transactionMutex，
      *    会阻塞调用线程等待锁，超过 5 秒触发 ANR → 系统杀进程。
-     * 2. restoreFromLoad 和 restoreCollections 分两次 runBlocking update，
+     * 2. restoreFromLoad 和 restoreCollections 分两次同步阻塞 update，
      *    两次 update 之间可能被其他操作插入，导致状态不一致。
      *
      * 修复方案：使用 suspend 函数 + stateStore.loadFromSnapshot 一次性原子写入所有状态。

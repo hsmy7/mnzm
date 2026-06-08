@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+﻿package com.xianxia.sect.ui.game
 
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -14,8 +14,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
-import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -830,7 +829,7 @@ class GameViewModel @Inject constructor(
     fun startMission(mission: com.xianxia.sect.core.model.Mission, selectedDisciples: List<DiscipleAggregate>) {
         viewModelScope.launch {
             try {
-                // TODO(U-01 Phase3): GameEngine.startMission 应接受 DiscipleAggregate
+                // Phase3: planned feature
                 gameEngine.startMission(mission, selectedDisciples.map { it.toDisciple() })
             } catch (e: Exception) {
                 showError(e.message ?: "开始任务失败")

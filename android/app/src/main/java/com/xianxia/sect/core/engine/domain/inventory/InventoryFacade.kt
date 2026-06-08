@@ -30,4 +30,29 @@ interface InventoryFacade {
     fun createMaterialFromMerchantItem(item: MerchantItem): Material
     fun createHerbFromMerchantItem(item: MerchantItem): Herb
     fun createSeedFromMerchantItem(item: MerchantItem): Seed
+
+    // Sell operations
+    suspend fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean
+    suspend fun sellManual(manualId: String, quantity: Int): Boolean
+    suspend fun sellPill(pillId: String, quantity: Int): Boolean
+    suspend fun sellMaterial(materialId: String, quantity: Int): Boolean
+    suspend fun sellHerb(herbId: String, quantity: Int): Boolean
+    suspend fun sellSeed(seedId: String, quantity: Int): Boolean
+    suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean
+
+    // Bulk sell
+    data class BulkSellOperation(val id: String, val name: String, val quantity: Int, val itemType: String)
+    data class BulkSellResult(val soldCount: Int, val totalEarned: Long, val soldItemNames: List<String>, val failedItemNames: List<String>)
+    suspend fun bulkSellItems(operations: List<BulkSellOperation>): BulkSellResult
+
+    // Lock toggle
+    fun toggleItemLock(itemId: String, itemType: String)
+
+    // Merchant trading
+    suspend fun buyMerchantItem(itemId: String, quantity: Int)
+    suspend fun listItemsToMerchant(items: List<Pair<String, Int>>)
+    suspend fun removePlayerListedItem(itemId: String)
+
+    // Storage bag
+    suspend fun openStorageBag(bagId: String): List<BattleRewardItem>
 }

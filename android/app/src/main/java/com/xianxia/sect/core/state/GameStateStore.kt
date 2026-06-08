@@ -71,28 +71,28 @@ class GameStateStore @Inject constructor(
     private var currentTransactionState: MutableGameState? = null
 
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
-    private val _gameDataFlow = MutableStateFlow(GameData())
-    private val _disciplesFlow = MutableStateFlow<List<Disciple>>(emptyList())
-    private val _equipmentStacksFlow = MutableStateFlow<List<EquipmentStack>>(emptyList())
-    private val _equipmentInstancesFlow = MutableStateFlow<List<EquipmentInstance>>(emptyList())
-    private val _manualStacksFlow = MutableStateFlow<List<ManualStack>>(emptyList())
-    private val _manualInstancesFlow = MutableStateFlow<List<ManualInstance>>(emptyList())
-    private val _pillsFlow = MutableStateFlow<List<Pill>>(emptyList())
-    private val _materialsFlow = MutableStateFlow<List<Material>>(emptyList())
-    private val _herbsFlow = MutableStateFlow<List<Herb>>(emptyList())
-    private val _seedsFlow = MutableStateFlow<List<Seed>>(emptyList())
-    private val _storageBagsFlow = MutableStateFlow<List<StorageBag>>(emptyList())
-    private val _battleLogsFlow = MutableStateFlow<List<BattleLog>>(emptyList())
-    private val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
-    private val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
-    private val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
+    internal val _gameDataFlow = MutableStateFlow(GameData())
+    internal val _disciplesFlow = MutableStateFlow<List<Disciple>>(emptyList())
+    internal val _equipmentStacksFlow = MutableStateFlow<List<EquipmentStack>>(emptyList())
+    internal val _equipmentInstancesFlow = MutableStateFlow<List<EquipmentInstance>>(emptyList())
+    internal val _manualStacksFlow = MutableStateFlow<List<ManualStack>>(emptyList())
+    internal val _manualInstancesFlow = MutableStateFlow<List<ManualInstance>>(emptyList())
+    internal val _pillsFlow = MutableStateFlow<List<Pill>>(emptyList())
+    internal val _materialsFlow = MutableStateFlow<List<Material>>(emptyList())
+    internal val _herbsFlow = MutableStateFlow<List<Herb>>(emptyList())
+    internal val _seedsFlow = MutableStateFlow<List<Seed>>(emptyList())
+    internal val _storageBagsFlow = MutableStateFlow<List<StorageBag>>(emptyList())
+    internal val _battleLogsFlow = MutableStateFlow<List<BattleLog>>(emptyList())
+    internal val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
+    internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
+    internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
 
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
 
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
-    private val _updateVersion = MutableStateFlow(0L)
+    internal val _updateVersion = MutableStateFlow(0L)
 
     val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -142,8 +142,6 @@ class GameStateStore @Inject constructor(
     val storageBags: StateFlow<List<StorageBag>> = _storageBagsFlow.asStateFlow()
     val battleLogs: StateFlow<List<BattleLog>> = _battleLogsFlow.asStateFlow()
     val teams: StateFlow<List<ExplorationTeam>> = _teamsFlow.asStateFlow()
-    val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
-    val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
 
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -719,12 +717,6 @@ class GameStateStore @Inject constructor(
         shadowTransactionThread = null
     }
 
-    fun getCurrentSeeds(): List<Seed> = _seedsFlow.value
-
-    fun getCurrentHerbs(): List<Herb> = _herbsFlow.value
-
-    fun getCurrentMaterials(): List<Material> = _materialsFlow.value
-
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
         disciples = emptyList(),
@@ -759,42 +751,6 @@ class GameStateStore @Inject constructor(
         _isSaving.value = saving
         _updateVersion.value++
     }
-
-    fun setPendingBattleResult(result: BattleResultUIData) {
-        _pendingBattleResultFlow.value = result
-        _updateVersion.value++
-    }
-
-    fun clearPendingBattleResult() {
-        _pendingBattleResultFlow.value = null
-        _updateVersion.value++
-    }
-
-    fun setPendingNotification(notification: GameNotification) {
-        _pendingNotificationFlow.value = notification
-        _updateVersion.value++
-    }
-
-    fun clearPendingNotification() {
-        _pendingNotificationFlow.value = null
-        _updateVersion.value++
-    }
-
-    // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
-    val gameDataSnapshot: GameData get() = _gameDataFlow.value
-    val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _disciplesFlow.value.map { it.toAggregate() }
-    val disciplesSnapshot: List<Disciple> get() = _disciplesFlow.value
-    val equipmentStacksSnapshot: List<EquipmentStack> get() = _equipmentStacksFlow.value
-    val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _equipmentInstancesFlow.value
-    val manualStacksSnapshot: List<ManualStack> get() = _manualStacksFlow.value
-    val manualInstancesSnapshot: List<ManualInstance> get() = _manualInstancesFlow.value
-    val pillsSnapshot: List<Pill> get() = _pillsFlow.value
-    val materialsSnapshot: List<Material> get() = _materialsFlow.value
-    val herbsSnapshot: List<Herb> get() = _herbsFlow.value
-    val seedsSnapshot: List<Seed> get() = _seedsFlow.value
-    val storageBagsSnapshot: List<StorageBag> get() = _storageBagsFlow.value
-    val teamsSnapshot: List<ExplorationTeam> get() = _teamsFlow.value
-    val battleLogsSnapshot: List<BattleLog> get() = _battleLogsFlow.value
 
     private var shadowTransactionThread: Thread? = null
 
@@ -1019,9 +975,9 @@ class GameStateStore @Inject constructor(
             monthlySalary = oldState.monthlySalary,
             monthlySalaryEnabled = oldState.monthlySalaryEnabled,
             placedBuildings = oldState.placedBuildings,
-            elderSlots = c["elderSlots"]!!(origin, shadow, oldState) as ElderSlots,
-            librarySlots = c["librarySlots"]!!(origin, shadow, oldState) as List<LibrarySlot>,
-            spiritMineSlots = c["spiritMineSlots"]!!(origin, shadow, oldState) as List<SpiritMineSlot>,
+            elderSlots = c.getValue("elderSlots")(origin, shadow, oldState) as ElderSlots,
+            librarySlots = c.getValue("librarySlots")(origin, shadow, oldState) as List<LibrarySlot>,
+            spiritMineSlots = c.getValue("spiritMineSlots")(origin, shadow, oldState) as List<SpiritMineSlot>,
             residenceSlots = oldState.residenceSlots,
             patrolSlots = oldState.patrolSlots,
             patrolConfig = oldState.patrolConfig,
@@ -1064,18 +1020,17 @@ class GameStateStore @Inject constructor(
             ) { (it as Alliance).id },
 
             // === CUSTOM ===
-            worldLevels = c["worldLevels"]!!(origin, shadow, oldState) as List<WorldLevel>,
-            worldMapSects = c["worldMapSects"]!!(origin, shadow, oldState) as List<WorldSect>,
-            sectDetails = c["sectDetails"]!!(origin, shadow, oldState) as Map<String, SectDetail>,
-            sectRelations = c["sectRelations"]!!(origin, shadow, oldState) as List<SectRelation>,
-            manualProficiencies = c["manualProficiencies"]!!(origin, shadow, oldState) as Map<String, List<ManualProficiencyData>>,
-            aiSectDisciples = c["aiSectDisciples"]!!(origin, shadow, oldState) as Map<String, List<Disciple>>,
-            spiritFieldPlants = c["spiritFieldPlants"]!!(origin, shadow, oldState) as List<SpiritFieldPlant>,
-            bloodRefinements = c["bloodRefinements"]!!(origin, shadow, oldState) as Map<String, List<String>>,
-            activeBloodRefinements = c["activeBloodRefinements"]!!(origin, shadow, oldState) as Map<String, BloodRefinementProgress>,
+            worldLevels = c.getValue("worldLevels")(origin, shadow, oldState) as List<WorldLevel>,
+            worldMapSects = c.getValue("worldMapSects")(origin, shadow, oldState) as List<WorldSect>,
+            sectDetails = c.getValue("sectDetails")(origin, shadow, oldState) as Map<String, SectDetail>,
+            sectRelations = c.getValue("sectRelations")(origin, shadow, oldState) as List<SectRelation>,
+            manualProficiencies = c.getValue("manualProficiencies")(origin, shadow, oldState) as Map<String, List<ManualProficiencyData>>,
+            aiSectDisciples = c.getValue("aiSectDisciples")(origin, shadow, oldState) as Map<String, List<Disciple>>,
+            spiritFieldPlants = c.getValue("spiritFieldPlants")(origin, shadow, oldState) as List<SpiritFieldPlant>,
+            bloodRefinements = c.getValue("bloodRefinements")(origin, shadow, oldState) as Map<String, List<String>>,
+            activeBloodRefinements = c.getValue("activeBloodRefinements")(origin, shadow, oldState) as Map<String, BloodRefinementProgress>,
         )
     }
-}
 
     // ==================== 子字段级合并函数 ====================
 
@@ -1248,8 +1203,9 @@ class GameStateStore @Inject constructor(
             statusData = mainDisciple.statusData,
         )
     }
+}
 
-    fun fixStorageBagReferences(
+fun fixStorageBagReferences(
     equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>,
     manualStacks: List<ManualStack>,

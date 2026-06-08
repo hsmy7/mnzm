@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -153,7 +152,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 生命周期方法 ====================
 
-    fun initialize(): SaveResult<Unit> {
+    suspend fun initialize(): SaveResult<Unit> {
         if (isInitialized.get()) {
             Log.d(TAG, "StorageFacade already initialized")
             return SaveResult.success(Unit)
@@ -169,7 +168,7 @@ class StorageFacade @Inject constructor(
             // this throws immediately, giving a clear error instead of silent failure.
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f, "Verifying database integrity")
             try {
-                val metadata = runBlocking(Dispatchers.IO) { engine.getSlotMetadata(StorageConstants.AUTO_SAVE_SLOT) }
+                val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(StorageConstants.AUTO_SAVE_SLOT) }
                 Log.d(TAG, "Database integrity check passed (auto-save slot: ${metadata?.sectName ?: "empty"})")
             } catch (e: Exception) {
                 Log.e(TAG, "Database integrity check FAILED -- database may have schema mismatch", e)
@@ -184,7 +183,7 @@ class StorageFacade @Inject constructor(
 
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.7f, "Checking for legacy save files")
             try {
-                runBlocking(Dispatchers.IO) { savMigrator.migrateIfNeeded() }
+                withContext(Dispatchers.IO) { savMigrator.migrateIfNeeded() }
             } catch (e: Exception) {
                 Log.w(TAG, "Legacy .sav migration failed (non-fatal)", e)
             }
@@ -302,9 +301,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
     @WorkerThread
-    fun saveSync(slot: Int, data: SaveData): Boolean {
+    suspend fun saveSync(slot: Int, data: SaveData): Boolean {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val result = save(slot, data)
                 result.isSuccess
             }
@@ -316,9 +315,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
     @WorkerThread
-    fun saveSyncWithResult(slot: Int, data: SaveData): SaveResult<Unit> {
+    suspend fun saveSyncWithResult(slot: Int, data: SaveData): SaveResult<Unit> {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 save(slot, data)
             }
         } catch (e: Exception) {
@@ -329,9 +328,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend load() instead", ReplaceWith("load(slot)"))
     @WorkerThread
-    fun loadSync(slot: Int): SaveData? {
+    suspend fun loadSync(slot: Int): SaveData? {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val result = load(slot)
                 result.getOrNull()
             }
@@ -366,9 +365,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend getSaveSlotsSuspend() instead", ReplaceWith("getSaveSlotsSuspend()"))
     @WorkerThread
-    fun getSaveSlots(): List<SaveSlot> {
+    suspend fun getSaveSlots(): List<SaveSlot> {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 engine.getSaveSlots()
             }
         } catch (e: Exception) {
@@ -408,9 +407,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend loadEmergencySaveSuspend() instead", ReplaceWith("loadEmergencySaveSuspend()"))
     @WorkerThread
-    fun loadEmergencySave(): SaveData? {
+    suspend fun loadEmergencySave(): SaveData? {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 engine.loadEmergencySave()
             }
         } catch (e: Exception) {
@@ -430,9 +429,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend clearEmergencySaveSuspend() instead", ReplaceWith("clearEmergencySaveSuspend()"))
     @WorkerThread
-    fun clearEmergencySave() {
+    suspend fun clearEmergencySave() {
         try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 engine.clearEmergencySave()
             }
         } catch (e: Exception) {
@@ -450,9 +449,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend emergencySaveSuspend() instead", ReplaceWith("emergencySaveSuspend(data)"))
     @WorkerThread
-    fun emergencySave(data: SaveData): Boolean {
+    suspend fun emergencySave(data: SaveData): Boolean {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val result = engine.emergencySave(data)
                 result.isSuccess
             }
@@ -475,9 +474,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend hasSaveSuspend() instead", ReplaceWith("hasSaveSuspend(slot)"))
     @WorkerThread
-    fun hasSave(slot: Int): Boolean {
+    suspend fun hasSave(slot: Int): Boolean {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 engine.hasData(slot)
             }
         } catch (e: Exception) {
@@ -497,9 +496,9 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend isSaveCorruptedSuspend() instead", ReplaceWith("isSaveCorruptedSuspend(slot)"))
     @WorkerThread
-    fun isSaveCorrupted(slot: Int): Boolean {
+    suspend fun isSaveCorrupted(slot: Int): Boolean {
         return try {
-            runBlocking(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val result = engine.validateIntegrity(slot)
                 result.isFailure
             }
@@ -608,14 +607,14 @@ class StorageFacade @Inject constructor(
 
     @Deprecated("Use the suspend getStorageUsageSuspend() instead", ReplaceWith("getStorageUsageSuspend()"))
     @WorkerThread
-    fun getStorageUsage(): StorageUsage {
+    suspend fun getStorageUsage(): StorageUsage {
         return try {
             val slotBytes = mutableMapOf<Int, Long>()
             var totalBytes = 0L
 
             for (slot in 0..lockManager.getMaxSlots()) {
                 val size = try {
-                    runBlocking(Dispatchers.IO) {
+                    withContext(Dispatchers.IO) {
                         if (engine.hasData(slot)) {
                             val data = engine.load(slot).getOrNull()
                             if (data != null) {
@@ -676,7 +675,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 内部辅助方法 ====================
 
-    private fun ensureInitialized() {
+    private suspend fun ensureInitialized() {
         if (!isInitialized.get()) {
             Log.w(TAG, "StorageFacade not initialized, attempting auto-initialization")
             initialize()

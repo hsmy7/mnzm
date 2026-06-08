@@ -119,7 +119,7 @@ internal fun ScoutDialog(
     }
 
     if (showDiscipleSelection && selectedSlotIndex != null) {
-        val currentSlotIndex = selectedSlotIndex!!
+        val currentSlotIndex = selectedSlotIndex ?: return
         val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()
         ScoutDiscipleSelectionDialog(
             disciples = disciples,

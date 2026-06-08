@@ -42,9 +42,9 @@ object ManualProficiencySystem {
         companion object {
             fun fromProficiency(proficiency: Double): MasteryLevel {
                 return when {
-                    proficiency >= PROFICIENCY_THRESHOLDS[PERFECTION]!! -> PERFECTION
-                    proficiency >= PROFICIENCY_THRESHOLDS[GREAT_SUCCESS]!! -> GREAT_SUCCESS
-                    proficiency >= PROFICIENCY_THRESHOLDS[SMALL_SUCCESS]!! -> SMALL_SUCCESS
+                    proficiency >= PROFICIENCY_THRESHOLDS.getValue(PERFECTION) -> PERFECTION
+                    proficiency >= PROFICIENCY_THRESHOLDS.getValue(GREAT_SUCCESS) -> GREAT_SUCCESS
+                    proficiency >= PROFICIENCY_THRESHOLDS.getValue(SMALL_SUCCESS) -> SMALL_SUCCESS
                     else -> NOVICE
                 }
             }
@@ -69,9 +69,9 @@ object ManualProficiencySystem {
             get() {
                 val thresholds = PROFICIENCY_THRESHOLDS
                 return when (mastery) {
-                    MasteryLevel.NOVICE -> (proficiency / thresholds[MasteryLevel.SMALL_SUCCESS]!!).coerceIn(0.0, 1.0)
-                    MasteryLevel.SMALL_SUCCESS -> ((proficiency - thresholds[MasteryLevel.SMALL_SUCCESS]!!) / (thresholds[MasteryLevel.GREAT_SUCCESS]!! - thresholds[MasteryLevel.SMALL_SUCCESS]!!)).coerceIn(0.0, 1.0)
-                    MasteryLevel.GREAT_SUCCESS -> ((proficiency - thresholds[MasteryLevel.GREAT_SUCCESS]!!) / (thresholds[MasteryLevel.PERFECTION]!! - thresholds[MasteryLevel.GREAT_SUCCESS]!!)).coerceIn(0.0, 1.0)
+                    MasteryLevel.NOVICE -> (proficiency / thresholds.getValue(MasteryLevel.SMALL_SUCCESS)).coerceIn(0.0, 1.0)
+                    MasteryLevel.SMALL_SUCCESS -> ((proficiency - thresholds.getValue(MasteryLevel.SMALL_SUCCESS)) / (thresholds.getValue(MasteryLevel.GREAT_SUCCESS) - thresholds.getValue(MasteryLevel.SMALL_SUCCESS))).coerceIn(0.0, 1.0)
+                    MasteryLevel.GREAT_SUCCESS -> ((proficiency - thresholds.getValue(MasteryLevel.GREAT_SUCCESS)) / (thresholds.getValue(MasteryLevel.PERFECTION) - thresholds.getValue(MasteryLevel.GREAT_SUCCESS))).coerceIn(0.0, 1.0)
                     MasteryLevel.PERFECTION -> 1.0
                 }
             }

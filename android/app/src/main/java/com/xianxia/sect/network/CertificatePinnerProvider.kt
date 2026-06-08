@@ -57,7 +57,9 @@ class CertificatePinnerProvider @Inject constructor() {
         /**
          * api.xianxia.com - 主证书 SPKI 哈希
          *
-         * TODO: 替换为生产环境真实的主 CA 或叶证书 SPKI hash
+         * Pin: replace with production SHA256 hash after CDN deployment
+         *   阻塞项：需服务器部署后使用 openssl 提取（见类注释命令）
+         *   风险：Release 构建中占位值会触发 IllegalStateException 导致启动失败
          */
         private const val API_PRIMARY_PIN = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
@@ -68,7 +70,8 @@ class CertificatePinnerProvider @Inject constructor() {
          * 将新证书的 SPKI hash 添加到此位置，
          * 两套 hash 并存期间均可通过校验。
          *
-         * TODO: 替换为备用证书的真实 SPKI hash
+         * Pin: replace with production SHA256 hash after CDN deployment
+         *   阻塞项：需服务器配置备用证书后提取；若无轮换计划可暂留占位
          */
         private const val API_BACKUP_PIN = "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
 
@@ -78,14 +81,16 @@ class CertificatePinnerProvider @Inject constructor() {
          * CDN 通常使用不同的证书（如 Cloudflare/Akamai 托管证书），
          * 需要单独配置其 SPKI hash。
          *
-         * TODO: 替换为 CDN 证书的真实 SPKI hash
+         * Pin: replace with production SHA256 hash after CDN deployment
+         *   阻塞项：需 CDN 服务商确定后提取；若不使用独立 CDN 域名可移除此项
          */
         private const val CDN_PRIMARY_PIN = "sha256/CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC="
 
         /**
          * cdn.xianxia.com - 备用证书 SPKI 哈希
          *
-         * TODO: 替换为 CDN 备用证书的真实 SPKI hash
+         * Pin: replace with production SHA256 hash after CDN deployment
+         *   阻塞项：需 CDN 服务商确定后提取；若无轮换计划可暂留占位
          */
         private const val CDN_BACKUP_PIN = "sha256/DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD="
     }

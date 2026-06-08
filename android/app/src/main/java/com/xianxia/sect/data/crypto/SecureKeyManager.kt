@@ -40,7 +40,7 @@ interface KeyRecoveryCallback {
     /**
      * 当密钥需要恢复时调用
      * 注意：此方法设计为非 suspend 函数，因为调用方 getOrCreateDerivedKey() 本身不是协程上下文。
-     * 如需在实现中执行异步操作（如弹 UI 对话框），由实现方自行处理（例如通过 runBlocking 或事件机制）。
+     * 如需在实现中执行异步操作（如弹 UI 对话框），由实现方自行处理（例如通过事件机制）。
      *
      * @param reason 密钥不可用的原因描述
      * @return 用户的恢复决策
@@ -619,7 +619,7 @@ object SecureKeyManager {
                 .setRandomizedEncryptionRequired(true)
 
             try {
-                // TODO: 迁移计划 - 废弃API替换方案
+                // Migration: Android Keystore deprecated API replacement pending
                 // 当前使用的 setUserAuthenticationValidityDurationSeconds() 已在 Android R (API 30) 废弃
                 //
                 // 替代方案（按优先级）：
