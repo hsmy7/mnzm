@@ -213,11 +213,10 @@ fun ManualSelectionDialog(
                                 isManual = true
                             ),
                             isSelected = selectedManualId == stack.id,
-                            showViewButton = true,
                             onClick = {
                                 onSelect(stack.id)
                             },
-                            onViewDetail = { showDetailStack = stack }
+                            onLongPress = { showDetailStack = stack }
                         )
                     }
                 }

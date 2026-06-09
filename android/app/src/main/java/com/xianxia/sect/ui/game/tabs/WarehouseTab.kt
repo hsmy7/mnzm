@@ -291,9 +291,20 @@ internal fun WarehouseTab(
                                             isBag = warehouseItem.item is StorageBag
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
-                                        showViewButton = true,
-                                        onClick = { selectedItemId = if (selectedItemId == warehouseItem.id) null else warehouseItem.id },
-                                        onViewDetail = { selectedItemId = warehouseItem.id; showDetailDialog = true }
+                                        onLongPress = {
+                                            selectedItemId = warehouseItem.id
+                                            showDetailDialog = true
+                                        },
+                                        overlayButtonText = if (warehouseItem.item is StorageBag) "开启" else null,
+                                        onOverlayButtonClick = if (warehouseItem.item is StorageBag) {
+                                            {
+                                                coroutineScope.launch {
+                                                    val rewards = viewModel.openStorageBag(warehouseItem.id)
+                                                    showBagRewards = rewards
+                                                }
+                                            }
+                                        } else null,
+                                        onClick = { selectedItemId = if (selectedItemId == warehouseItem.id) null else warehouseItem.id }
                                     )
                                 }
                                 repeat(columns - rowItems.size) {
@@ -386,32 +397,20 @@ internal fun WarehouseTab(
                     selectedItemId = null
                 },
                 extraActions = {
-                    if (item is StorageBag) {
+                    if (!isLocked) {
                         GameButton(
-                            text = "开启",
-                            onClick = {
-                                coroutineScope.launch {
-                                    val rewards = viewModel.openStorageBag(item.id)
-                                    showBagRewards = rewards
-                                }
-                            }
-                        )
-                    } else {
-                        if (!isLocked) {
-                            GameButton(
-                                text = "售卖",
-                                onClick = { showSellDialog = true }
-                            )
-                        }
-                        GameButton(
-                            text = if (isLocked) "已锁定" else "锁定",
-                            onClick = { viewModel.toggleItemLock(itemId, itemType) }
-                        )
-                        GameButton(
-                            text = "赏赐",
-                            onClick = { showDiscipleSelectDialog = true }
+                            text = "售卖",
+                            onClick = { showSellDialog = true }
                         )
                     }
+                    GameButton(
+                        text = if (isLocked) "已锁定" else "锁定",
+                        onClick = { viewModel.toggleItemLock(itemId, itemType) }
+                    )
+                    GameButton(
+                        text = "赏赐",
+                        onClick = { showDiscipleSelectDialog = true }
+                    )
                 }
             )
 

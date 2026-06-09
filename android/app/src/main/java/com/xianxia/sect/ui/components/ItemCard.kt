@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,12 +50,13 @@ fun UnifiedItemCard(
     data: ItemCardData,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
-    showViewButton: Boolean = false,
     showQuantity: Boolean = true,
     showPrice: Boolean = false,
     craftable: Boolean = true,
     onClick: () -> Unit = {},
-    onViewDetail: (() -> Unit)? = null
+    onLongPress: (() -> Unit)? = null,
+    overlayButtonText: String? = null,
+    onOverlayButtonClick: (() -> Unit)? = null
 ) {
     val rarityColor = getRarityColor(data.rarity)
     val spriteRes = when {
@@ -79,7 +81,12 @@ fun UnifiedItemCard(
                     color = if (isSelected) Color(0xFFFFD700) else GameColors.Border,
                     shape = RoundedCornerShape(6.dp)
                 )
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongPress,
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                )
         ) {
             Box(
                 modifier = Modifier
@@ -171,7 +178,7 @@ fun UnifiedItemCard(
             }
         }
 
-        if (showViewButton && isSelected && onViewDetail != null) {
+        if (isSelected && overlayButtonText != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -181,13 +188,13 @@ fun UnifiedItemCard(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { onViewDetail() }
+                        onClick = { onOverlayButtonClick?.invoke() }
                     )
                     .padding(horizontal = 5.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "查看",
+                    text = overlayButtonText,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White

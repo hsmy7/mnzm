@@ -383,7 +383,6 @@ private fun EquipmentSelectionDialog(
                                 rarity = recipe.rarity
                             ),
                             isSelected = isSelected,
-                            showViewButton = true,
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
@@ -395,7 +394,7 @@ private fun EquipmentSelectionDialog(
                                     clickedRecipe = recipe
                                 }
                             },
-                            onViewDetail = { showDetail = true }
+                            onLongPress = { clickedRecipe = recipe; showDetail = true }
                         )
                     }
                 }

@@ -118,25 +118,27 @@ internal fun getMerchantItemEffects(item: MerchantItem): List<String> = buildLis
             }
         }
         "manual" -> {
-            val manualTemplate = ManualDatabase.getByName(item.name)
-            if (manualTemplate != null) {
-                add("功法类型: ${manualTemplate.type.displayName}")
-                val stats = manualTemplate.stats
-                if (stats.isNotEmpty()) {
-                    add("属性加成:")
-                    stats.forEach { (key, value) ->
-                        val statName = getStatDisplayName(key)
-                        if (key.contains("Percent")) {
-                            add("  $statName +$value%")
-                        } else {
-                            add("  $statName +$value")
+            if (ManualDatabase.isInitialized) {
+                val manualTemplate = ManualDatabase.getByName(item.name)
+                if (manualTemplate != null) {
+                    add("功法类型: ${manualTemplate.type.displayName}")
+                    val stats = manualTemplate.stats
+                    if (stats.isNotEmpty()) {
+                        add("属性加成:")
+                        stats.forEach { (key, value) ->
+                            val statName = getStatDisplayName(key)
+                            if (key.contains("Percent")) {
+                                add("  $statName +$value%")
+                            } else {
+                                add("  $statName +$value")
+                            }
                         }
                     }
-                }
-                manualTemplate.skillName?.let { sName ->
-                    add("")
-                    add("技能: $sName")
-                    addManualSkillInfo(manualTemplate)
+                    manualTemplate.skillName?.let { sName ->
+                        add("")
+                        add("技能: $sName")
+                        addManualSkillInfo(manualTemplate)
+                    }
                 }
             }
         }
@@ -326,25 +328,27 @@ internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buil
             }
         }
         "manual" -> {
-            val manualTemplate = ManualDatabase.getByName(item.name)
-            if (manualTemplate != null) {
-                add("功法类型: ${manualTemplate.type.displayName}")
-                val stats = manualTemplate.stats
-                if (stats.isNotEmpty()) {
-                    add("属性加成:")
-                    stats.forEach { (key, value) ->
-                        val statName = getStatDisplayName(key)
-                        if (key.contains("Percent")) {
-                            add("  $statName +$value%")
-                        } else {
-                            add("  $statName +$value")
+            if (ManualDatabase.isInitialized) {
+                val manualTemplate = ManualDatabase.getByName(item.name)
+                if (manualTemplate != null) {
+                    add("功法类型: ${manualTemplate.type.displayName}")
+                    val stats = manualTemplate.stats
+                    if (stats.isNotEmpty()) {
+                        add("属性加成:")
+                        stats.forEach { (key, value) ->
+                            val statName = getStatDisplayName(key)
+                            if (key.contains("Percent")) {
+                                add("  $statName +$value%")
+                            } else {
+                                add("  $statName +$value")
+                            }
                         }
                     }
-                }
-                manualTemplate.skillName?.let { sName ->
-                    add("")
-                    add("技能: $sName")
-                    addManualSkillInfo(manualTemplate)
+                    manualTemplate.skillName?.let { sName ->
+                        add("")
+                        add("技能: $sName")
+                        addManualSkillInfo(manualTemplate)
+                    }
                 }
             }
         }

@@ -190,11 +190,10 @@ fun EquipmentSelectionDialog(
                                     isLocked = item.isLocked
                                 ),
                                 isSelected = selectedEquipmentId == item.id,
-                                showViewButton = true,
                                 onClick = {
                                     onSelect(item.id)
                                 },
-                                onViewDetail = {
+                                onLongPress = {
                                     if (item.isStack) {
                                         equipmentStacks.find { it.id == item.id }?.let { showDetailItem = it }
                                     } else {

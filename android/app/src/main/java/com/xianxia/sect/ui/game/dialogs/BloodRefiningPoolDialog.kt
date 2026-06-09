@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
 fun BloodRefiningPoolDialog(
@@ -286,6 +287,9 @@ private fun MaterialSelectorDialog(
         title = "选择妖兽精血",
         mode = DialogMode.Half
     ) {
+        var showDetail by remember { mutableStateOf(false) }
+        var detailMaterial by remember { mutableStateOf<BeastMaterialDatabase.BeastMaterial?>(null) }
+
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -312,11 +316,31 @@ private fun MaterialSelectorDialog(
                             ),
                             isSelected = false,
                             showQuantity = true,
-                            onClick = { onSelect(beastMat, qty) }
+                            onClick = { onSelect(beastMat, qty) },
+                            onLongPress = {
+                                detailMaterial = beastMat
+                                showDetail = true
+                            }
                         )
                     }
                 }
             }
+        }
+
+        if (showDetail && detailMaterial != null) {
+            val mat = detailMaterial!!
+            ItemDetailDialog(
+                item = Material(
+                    id = mat.id,
+                    name = mat.name,
+                    description = mat.description,
+                    rarity = mat.rarity
+                ),
+                onDismiss = {
+                    showDetail = false
+                    detailMaterial = null
+                }
+            )
         }
     }
 }

@@ -159,8 +159,9 @@ private fun SignInDayCard(
         "storageBag" -> com.xianxia.sect.ui.components.storageBagSpriteRes(reward.rarity)
         "pill" -> com.xianxia.sect.ui.components.pillSpriteRes(reward.rarity)
         "beastMaterial" -> com.xianxia.sect.ui.components.materialSpriteRes(reward.itemName)
-        else -> null
+        else -> null  // randomMaterial / randomSeed / randomPill 使用 ? 文本代替精灵图
     }
+    val isRandomReward = reward.type in setOf("randomMaterial", "randomSeed", "randomPill")
 
     val nameLabelHeight = 14.dp
 
@@ -206,8 +207,20 @@ private fun SignInDayCard(
                         color = GameColors.Error
                     )
                 } else {
-                    // 显示精灵图
-                    if (spriteRes != null) {
+                    // 显示精灵图（随机物品显示 ?）
+                    if (isRandomReward) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "?",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    } else if (spriteRes != null) {
                         val cachedBitmap = LocalItemSpriteCache.current[spriteRes]
                         if (cachedBitmap != null) {
                             Image(

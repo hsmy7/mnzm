@@ -179,6 +179,10 @@ class CultivationService @Inject constructor(
         merchantAndRecruitService.refreshTravelingMerchant(year, month)
     }
 
+    internal suspend fun refreshMerchantAcquisition(year: Int, month: Int) {
+        merchantAndRecruitService.refreshMerchantAcquisition(year, month)
+    }
+
     internal suspend fun refreshRecruitList(year: Int) {
         merchantAndRecruitService.refreshRecruitList(year)
     }

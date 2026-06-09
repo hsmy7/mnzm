@@ -24,10 +24,10 @@ class DailySignInService @Inject constructor(
 
         val WEEKLY_REWARDS = listOf(
             DailySignInReward(weekday = 1, itemName = "灵石", quantity = 10000, type = "spiritStones", rarity = 1),
-            DailySignInReward(weekday = 2, itemName = "凡虎血", quantity = 20, type = "beastMaterial", rarity = 1),
+            DailySignInReward(weekday = 2, itemName = "凡品材料", quantity = 20, type = "randomMaterial", rarity = 1),
             DailySignInReward(weekday = 3, itemName = "凡品储物袋", quantity = 1, type = "storageBag", rarity = 1),
-            DailySignInReward(weekday = 4, itemName = "灵石", quantity = 10000, type = "spiritStones", rarity = 1),
-            DailySignInReward(weekday = 5, itemName = "引灵丹", quantity = 5, type = "pill", rarity = 1),
+            DailySignInReward(weekday = 4, itemName = "凡品种子", quantity = 20, type = "randomSeed", rarity = 1),
+            DailySignInReward(weekday = 5, itemName = "凡品丹药", quantity = 2, type = "randomPill", rarity = 1),
             DailySignInReward(weekday = 6, itemName = "悟法丹", quantity = 5, type = "pill", rarity = 1),
             DailySignInReward(weekday = 7, itemName = "灵品储物袋", quantity = 1, type = "storageBag", rarity = 2)
         )
@@ -234,6 +234,81 @@ class DailySignInService @Inject constructor(
                         }
                     } else {
                         pills = pills + pill
+                    }
+                }
+                "randomMaterial" -> {
+                    val qty = reward.quantity.coerceAtLeast(1)
+                    repeat(qty) {
+                        val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
+                            id = java.util.UUID.randomUUID().toString(), quantity = 1
+                        )
+                        val existing = materials.find {
+                            it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
+                        }
+                        if (existing != null) {
+                            val maxStack = inventoryConfig.getMaxStackSize("material")
+                            if (existing.quantity < maxStack) {
+                                val newQty = existing.quantity + 1
+                                materials = materials.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+                        } else {
+                            materials = materials + mat
+                        }
+                    }
+                }
+                "randomSeed" -> {
+                    val qty = reward.quantity.coerceAtLeast(1)
+                    repeat(qty) {
+                        val template = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(
+                            minRarity = 1, maxRarity = 1
+                        )
+                        val seed = com.xianxia.sect.core.model.Seed(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = template.name,
+                            rarity = template.rarity,
+                            description = template.description,
+                            growTime = template.growTime,
+                            yield = template.yield,
+                            quantity = 1
+                        )
+                        val existing = seeds.find {
+                            it.name == seed.name && it.rarity == seed.rarity
+                        }
+                        if (existing != null) {
+                            val maxStack = inventoryConfig.getMaxStackSize("seed")
+                            if (existing.quantity < maxStack) {
+                                val newQty = existing.quantity + 1
+                                seeds = seeds.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+                        } else {
+                            seeds = seeds + seed
+                        }
+                    }
+                }
+                "randomPill" -> {
+                    val qty = reward.quantity.coerceAtLeast(1)
+                    repeat(qty) {
+                        val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
+                            id = java.util.UUID.randomUUID().toString(), quantity = 1
+                        )
+                        val existing = pills.find {
+                            it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category
+                        }
+                        if (existing != null) {
+                            val maxStack = inventoryConfig.getMaxStackSize("pill")
+                            if (existing.quantity < maxStack) {
+                                val newQty = existing.quantity + 1
+                                pills = pills.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+                        } else {
+                            pills = pills + pill
+                        }
                     }
                 }
                 "storageBag" -> {

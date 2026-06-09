@@ -188,7 +188,6 @@ fun SectTradeDialog(
                                     isMaterial = item.type == "material"
                                 ),
                                 isSelected = selectedItem?.id == item.id,
-                                showViewButton = true,
                                 onClick = {
                                     if (!canBuyThisItem) {
                                         lockedItemName = item.name
@@ -204,7 +203,7 @@ fun SectTradeDialog(
                                         }
                                     }
                                 },
-                                onViewDetail = {
+                                onLongPress = {
                                     selectedItem = item
                                     showDetailDialog = true
                                 }

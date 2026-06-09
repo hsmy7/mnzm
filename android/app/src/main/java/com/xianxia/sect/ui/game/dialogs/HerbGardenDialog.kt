@@ -4,9 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -23,15 +20,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -176,99 +170,3 @@ private fun HerbGardenDirectDiscipleSlotItem(
     )
 }
 
-@Composable
-private fun SeedPlantingDialog(
-    seeds: List<Seed>,
-    onDismiss: () -> Unit,
-    onSelect: ((Seed) -> Unit)? = null,
-    onConfirmOverride: ((Seed) -> Unit)? = null
-) {
-    var selectedSeed by remember { mutableStateOf<Seed?>(null) }
-    var clickedSeed by remember { mutableStateOf<Seed?>(null) }
-    var showDetail by remember { mutableStateOf(false) }
-
-    if (showDetail) {
-        clickedSeed?.let { seed ->
-            ItemDetailDialog(
-                item = seed,
-                onDismiss = { showDetail = false }
-            )
-        }
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择种子",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp)
-            ) {
-                Spacer(modifier = Modifier.height(12.dp))
-                if (seeds.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无种子",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(60.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 340.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        gridItems(seeds) { seed ->
-                            UnifiedItemCard(
-                                data = ItemCardData(
-                                    name = seed.name,
-                                    rarity = seed.rarity,
-                                    quantity = seed.quantity
-                                ),
-                                isSelected = selectedSeed?.id == seed.id,
-                                showViewButton = true,
-                                onClick = {
-                                    if (selectedSeed?.id == seed.id) {
-                                        selectedSeed = null
-                                        clickedSeed = null
-                                    } else {
-                                        selectedSeed = seed
-                                        clickedSeed = seed
-                                    }
-                                },
-                                onViewDetail = { showDetail = true }
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                GameButton(
-                    text = "确认种植",
-                    onClick = {
-                        selectedSeed?.let { seed ->
-                            if (onConfirmOverride != null) {
-                                onConfirmOverride(seed)
-                            } else {
-                                onSelect?.invoke(seed)
-                            }
-                            onDismiss()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = selectedSeed != null
-                )
-            }
-        }
-    }
-}

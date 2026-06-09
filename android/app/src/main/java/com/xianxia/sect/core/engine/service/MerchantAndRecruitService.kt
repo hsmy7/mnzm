@@ -40,6 +40,8 @@ class MerchantAndRecruitService @Inject constructor(
         private const val TAG = "MerchantAndRecruit"
         private const val TRAVELING_MERCHANT_ITEM_COUNT = 40
         private const val MERCHANT_PITY_THRESHOLD = 10
+        private const val ACQUISITION_ITEM_COUNT_MIN = 1
+        private const val ACQUISITION_ITEM_COUNT_MAX = 6
 
         private val RARITY_PROBABILITIES = mapOf(
             6 to 0.003,
@@ -278,6 +280,33 @@ class MerchantAndRecruitService @Inject constructor(
     }
 
     // ── 招募 ──────────────────────────────────────────────────────────
+
+    suspend fun refreshMerchantAcquisition(year: Int, month: Int) {
+        val pools = buildMerchantItemPools()
+        if (pools.poolByRarity.values.all { it.isEmpty() }) return
+
+        val acquisitionCount = Random.nextInt(ACQUISITION_ITEM_COUNT_MIN, ACQUISITION_ITEM_COUNT_MAX + 1)
+        val newItems = mutableListOf<MerchantItem>()
+
+        repeat(acquisitionCount) {
+            val selectedRarity = selectRarity()
+            val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
+                ?: selectFirstAvailableItem(pools.poolByRarity)
+
+            if (selectedItem != null) {
+                newItems.add(createMerchantItem(selectedItem, pools, year, month))
+            }
+        }
+
+        val mergedItems = mergeMerchantItems(newItems)
+
+        currentGameData = currentGameData.copy(
+            merchantAcquisitionItems = mergedItems,
+            merchantAcquisitionLastRefreshYear = year
+        )
+    }
+
+    // ── 招募（原有） ──────────────────────────────────────────────────
 
     suspend fun refreshRecruitList(year: Int) {
         val recruitCount = Random.nextInt(0, 7)

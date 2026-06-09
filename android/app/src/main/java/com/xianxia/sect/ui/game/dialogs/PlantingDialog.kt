@@ -37,6 +37,7 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlin.math.ceil
 
@@ -82,6 +83,8 @@ fun PlantingDialog(
     var removeQuantity by remember { mutableIntStateOf(1) }
     var isEditingRemoveQty by remember { mutableStateOf(false) }
     var removeQtyInput by remember { mutableStateOf("1") }
+    var showSeedDetail by remember { mutableStateOf(false) }
+    var detailSeed by remember { mutableStateOf<Seed?>(null) }
 
     // ── 派生数据 ───────────────────────────────────────────
     // 可用种子：排序 稀有度降 → 名称升
@@ -250,6 +253,10 @@ fun PlantingDialog(
                                             if (selectedSeedId == seed.id) null else seed.id
                                         plantQuantity = 1
                                         qtyInput = "1"
+                                    },
+                                    onLongPress = {
+                                        detailSeed = seed
+                                        showSeedDetail = true
                                     }
                                 )
                             }
@@ -369,7 +376,11 @@ fun PlantingDialog(
                                                     quantity = plantedSeed.quantity
                                                 ),
                                                 isSelected = false,
-                                                onClick = { selectedSeedId = plantedSeed.id }
+                                                onClick = { selectedSeedId = plantedSeed.id },
+                                                onLongPress = {
+                                                    detailSeed = plantedSeed
+                                                    showSeedDetail = true
+                                                }
                                             )
                                         } else {
                                             Box(
@@ -517,6 +528,16 @@ fun PlantingDialog(
                 }
             }
         }
+    }
+
+    if (showSeedDetail && detailSeed != null) {
+        ItemDetailDialog(
+            item = detailSeed!!,
+            onDismiss = {
+                showSeedDetail = false
+                detailSeed = null
+            }
+        )
     }
 
     // ═════════════════ 铲除确认弹窗 ════════════════

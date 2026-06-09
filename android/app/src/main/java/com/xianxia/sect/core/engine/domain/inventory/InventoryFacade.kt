@@ -50,6 +50,7 @@ interface InventoryFacade {
 
     // Merchant trading
     suspend fun buyMerchantItem(itemId: String, quantity: Int)
+    suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int)
     suspend fun listItemsToMerchant(items: List<Pair<String, Int>>)
     suspend fun removePlayerListedItem(itemId: String)
 

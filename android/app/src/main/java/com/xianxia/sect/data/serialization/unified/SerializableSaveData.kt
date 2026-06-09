@@ -72,7 +72,9 @@ data class SerializableGameData(
     @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList(),
     @ProtoNumber(54) val sectDetails: Map<String, SerializableSectDetail> = emptyMap(),
     // @ProtoNumber(55) val smartBattleEnabled — removed
-    @ProtoNumber(87) val spiritMineExpansions: Int = 0
+    @ProtoNumber(87) val spiritMineExpansions: Int = 0,
+    @ProtoNumber(88) val merchantAcquisitionItems: List<SerializableMerchantItem> = emptyList(),
+    @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0
 )
 
 @Serializable

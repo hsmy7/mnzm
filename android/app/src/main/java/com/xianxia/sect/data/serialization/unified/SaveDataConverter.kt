@@ -114,7 +114,9 @@ class SaveDataConverter @Inject constructor() {
                     disciples = disciples.map { discipleConverter.convertDisciple(it) }
                 )
             } ?: emptyList(),
-            spiritMineExpansions = gameData.spiritMineExpansions
+            spiritMineExpansions = gameData.spiritMineExpansions,
+            merchantAcquisitionItems = gameData.merchantAcquisitionItems?.map { manualConverter.convertMerchantItem(it) } ?: emptyList(),
+            merchantAcquisitionLastRefreshYear = gameData.merchantAcquisitionLastRefreshYear ?: 0
         )
     }
 
@@ -171,7 +173,9 @@ class SaveDataConverter @Inject constructor() {
             aiSectDisciples = data.aiSectDisciples.associate { entry ->
                 entry.sectId to entry.disciples.map { discipleConverter.convertBackDisciple(it) }
             },
-            spiritMineExpansions = data.spiritMineExpansions
+            spiritMineExpansions = data.spiritMineExpansions,
+            merchantAcquisitionItems = data.merchantAcquisitionItems.map { manualConverter.convertBackMerchantItem(it) },
+            merchantAcquisitionLastRefreshYear = data.merchantAcquisitionLastRefreshYear
         )
     }
 }

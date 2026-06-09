@@ -370,6 +370,7 @@ class CultivationEventProcessor @Inject constructor(
         cultivationSettlement.processSalaryYearly(year)
         merchantAndRecruitService.refreshRecruitList(year)
         merchantAndRecruitService.refreshTravelingMerchant(year, 1)
+        merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
         diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
         diplomacyEventProcessor.checkAllianceExpiry(year)
         diplomacyEventProcessor.checkAllianceFavorDrop()

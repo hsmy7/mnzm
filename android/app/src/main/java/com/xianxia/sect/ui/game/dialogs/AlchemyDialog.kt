@@ -400,7 +400,6 @@ private fun PillSelectionDialog(
                                 isPill = true
                             ),
                             isSelected = isSelected,
-                            showViewButton = true,
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
@@ -412,7 +411,7 @@ private fun PillSelectionDialog(
                                     clickedRecipe = recipe
                                 }
                             },
-                            onViewDetail = { showDetail = true }
+                            onLongPress = { clickedRecipe = recipe; showDetail = true }
                         )
                         Text(
                             text = "${recipe.duration}月",

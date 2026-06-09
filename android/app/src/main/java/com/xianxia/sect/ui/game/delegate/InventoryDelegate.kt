@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game.delegate
+package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -19,6 +19,10 @@ class InventoryDelegate(
         scope.launch {
             gameEngine.toggleItemLock(itemId, itemType)
         }
+    }
+
+    fun sellToMerchant(itemId: String, quantity: Int) {
+        scope.launch { gameEngine.sellToMerchant(itemId, quantity) }
     }
 
     fun sellItem(itemId: String, itemType: String, quantity: Int) {

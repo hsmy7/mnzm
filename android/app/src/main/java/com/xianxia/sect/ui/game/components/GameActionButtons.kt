@@ -39,24 +39,16 @@ fun GameActionButtons(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // 第一行：外交、商人、建造、仓库、活动（从右往左排列）
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FloatingActionButton(
-                text = "邮件",
-                drawableRes = R.drawable.ui_mail_button,
-                badge = mailUnreadCount
-            ) { viewModel.navigateToDialog(DialogRoute.Mail) }
-            FloatingActionButton(
-                text = "日志",
-                drawableRes = R.drawable.ui_log_button
-            ) { viewModel.navigateToDialog(DialogRoute.BattleLog) }
+                text = "外交",
+                drawableRes = R.drawable.ui_diplomacy_button
+            ) { viewModel.navigateToDialog(DialogRoute.Diplomacy) }
             FloatingActionButton(
                 text = "商人",
                 drawableRes = R.drawable.ui_merchant_button
             ) { viewModel.navigateToDialog(DialogRoute.Merchant) }
-            FloatingActionButton(
-                text = "招募",
-                drawableRes = R.drawable.ui_recruit_button
-            ) { viewModel.navigateToDialog(DialogRoute.Recruit) }
             FloatingActionButton(
                 text = "建造",
                 drawableRes = R.drawable.ui_build_button
@@ -66,9 +58,9 @@ fun GameActionButtons(
                 drawableRes = R.drawable.ui_warehouse_button
             ) { viewModel.navigateToDialog(DialogRoute.Warehouse) }
             FloatingActionButton(
-                text = "设置",
-                drawableRes = R.drawable.ui_settings_button
-            ) { viewModel.navigateToDialog(DialogRoute.Settings) }
+                text = "活动",
+                drawableRes = R.drawable.ui_activity_button
+            ) { viewModel.navigateToDialog(DialogRoute.Activity) }
         }
         FloatingActionButton(
             text = "弟子",
@@ -79,17 +71,41 @@ fun GameActionButtons(
             drawableRes = R.drawable.ui_map_button
         ) { viewModel.navigateToDialog(DialogRoute.WorldMap) }
         FloatingActionButton(
-            text = "外交",
-            drawableRes = R.drawable.ui_diplomacy_button
-        ) { viewModel.navigateToDialog(DialogRoute.Diplomacy) }
-        FloatingActionButton(
             text = "种植",
             drawableRes = R.drawable.ui_planting_button
         ) { viewModel.navigateToDialog(DialogRoute.Planting) }
+    }
+}
+
+@Composable
+fun LeftSideButtons(
+    viewModel: GameViewModel,
+    modifier: Modifier = Modifier
+) {
+    val mailUnreadCount by viewModel.mailUnreadCount.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = modifier
+            .padding(start = 32.dp, top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         FloatingActionButton(
-            text = "活动",
-            drawableRes = R.drawable.ui_activity_button
-        ) { viewModel.navigateToDialog(DialogRoute.Activity) }
+            text = "设置",
+            drawableRes = R.drawable.ui_settings_button
+        ) { viewModel.navigateToDialog(DialogRoute.Settings) }
+        FloatingActionButton(
+            text = "招募",
+            drawableRes = R.drawable.ui_recruit_button
+        ) { viewModel.navigateToDialog(DialogRoute.Recruit) }
+        FloatingActionButton(
+            text = "邮件",
+            drawableRes = R.drawable.ui_mail_button,
+            badge = mailUnreadCount
+        ) { viewModel.navigateToDialog(DialogRoute.Mail) }
+        FloatingActionButton(
+            text = "日志",
+            drawableRes = R.drawable.ui_log_button
+        ) { viewModel.navigateToDialog(DialogRoute.BattleLog) }
     }
 }
 

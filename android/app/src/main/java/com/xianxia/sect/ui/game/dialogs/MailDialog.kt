@@ -33,12 +33,14 @@ import com.xianxia.sect.R
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.serialization.json.Json
 
@@ -277,6 +279,9 @@ private fun MailDetailPanel(
         } else emptyList()
     }
 
+    var showDetail by remember { mutableStateOf(false) }
+    var detailAttachment by remember { mutableStateOf<MailAttachment?>(null) }
+
     // 标题 + 内容 + 按钮共享一个底色面板
     Column(
         modifier = Modifier
@@ -334,7 +339,11 @@ private fun MailDetailPanel(
                                     isMaterial = attachment.type in listOf("material", "herb", "seed", "beastMaterial"),
                                     isBag = attachment.type == "storageBag"
                                 ),
-                                showQuantity = true
+                                showQuantity = true,
+                                onLongPress = {
+                                    detailAttachment = attachment
+                                    showDetail = true
+                                }
                             )
                         }
                     }
@@ -354,6 +363,24 @@ private fun MailDetailPanel(
                 GameButton(text = "领取", onClick = onClaim)
             }
         }
+    }
+
+    if (showDetail && detailAttachment != null) {
+        val attachment = detailAttachment!!
+        ItemDetailDialog(
+            item = MerchantItem(
+                id = attachment.itemId ?: "",
+                name = attachment.name,
+                type = attachment.type,
+                rarity = attachment.rarity,
+                quantity = attachment.quantity,
+                price = 0L
+            ),
+            onDismiss = {
+                showDetail = false
+                detailAttachment = null
+            }
+        )
     }
 }
 

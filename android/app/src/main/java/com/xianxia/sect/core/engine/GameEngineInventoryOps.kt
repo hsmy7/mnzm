@@ -27,6 +27,9 @@ suspend fun GameEngine.sellHerb(herbId: String, quantity: Int) = inventoryFacade
 suspend fun GameEngine.sellSeed(seedId: String, quantity: Int) = inventoryFacade.sellSeed(seedId, quantity)
 suspend fun GameEngine.consumeMaterialByName(name: String, rarity: Int, quantity: Int) = inventoryFacade.consumeMaterialByName(name, rarity, quantity)
 fun GameEngine.toggleItemLock(itemId: String, itemType: String) = inventoryFacade.toggleItemLock(itemId, itemType)
+suspend fun GameEngine.sellToMerchant(acquisitionItemId: String, quantity: Int) = 
+    inventoryFacade.sellToMerchant(acquisitionItemId, quantity)
+
 suspend fun GameEngine.buyMerchantItem(itemId: String, quantity: Int) = inventoryFacade.buyMerchantItem(itemId, quantity)
 suspend fun GameEngine.listItemsToMerchant(items: List<Pair<String, Int>>) = inventoryFacade.listItemsToMerchant(items)
 suspend fun GameEngine.removePlayerListedItem(itemId: String) = inventoryFacade.removePlayerListedItem(itemId)

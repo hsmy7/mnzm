@@ -134,6 +134,14 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerListedItems: List<MerchantItem> = emptyList(),
 
+    // 商人收购物品列表
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var merchantAcquisitionItems: List<MerchantItem> = emptyList(),
+
+    // 收购刷新年份
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var merchantAcquisitionLastRefreshYear: Int = 0,
+
     // 弟子招募（存储完整弟子对象，仅包含可招募但未正式招募的弟子）
     @SettlementStrategy(Strategy.THREE_WAY_ID)
     var recruitList: List<Disciple> = emptyList(),
@@ -365,7 +373,9 @@ data class GameData(
         travelingMerchantItems = travelingMerchantItems,
         merchantLastRefreshYear = merchantLastRefreshYear,
         merchantRefreshCount = merchantRefreshCount,
-        playerListedItems = playerListedItems
+        playerListedItems = playerListedItems,
+        merchantAcquisitionItems = merchantAcquisitionItems,
+        merchantAcquisitionLastRefreshYear = merchantAcquisitionLastRefreshYear
     )
 
     /** 宗门组织架构状态聚合 */
@@ -417,7 +427,9 @@ data class GameData(
         travelingMerchantItems = state.travelingMerchantItems,
         merchantLastRefreshYear = state.merchantLastRefreshYear,
         merchantRefreshCount = state.merchantRefreshCount,
-        playerListedItems = state.playerListedItems
+        playerListedItems = state.playerListedItems,
+        merchantAcquisitionItems = state.merchantAcquisitionItems,
+        merchantAcquisitionLastRefreshYear = state.merchantAcquisitionLastRefreshYear
     )
 
     fun withOrganization(state: SectOrganizationState): GameData = this.copy(

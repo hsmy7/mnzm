@@ -9,6 +9,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.DialogMode
@@ -24,6 +29,8 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
 internal fun BattleResultDialog(
@@ -35,6 +42,8 @@ internal fun BattleResultDialog(
 ) {
     val resultColor = if (resultData.victory) Color(0xFF4CAF50) else Color(0xFFF44336)
     val title = if (resultData.victory) "战斗胜利" else "战斗失败"
+    var showDetail by remember { mutableStateOf(false) }
+    var detailReward by remember { mutableStateOf<BattleRewardItem?>(null) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -126,7 +135,11 @@ internal fun BattleResultDialog(
                                         isManual = reward.type == "manual",
                                         isMaterial = reward.type == "material",
                                         isSpiritStone = reward.type == "spiritStones"
-                                    )
+                                    ),
+                                    onLongPress = {
+                                        detailReward = reward
+                                        showDetail = true
+                                    }
                                 )
                             }
                         }
@@ -165,5 +178,23 @@ internal fun BattleResultDialog(
                 )
             }
         }
+    }
+
+    if (showDetail && detailReward != null) {
+        val reward = detailReward!!
+        ItemDetailDialog(
+            item = MerchantItem(
+                id = reward.itemId,
+                name = reward.name,
+                type = reward.type,
+                rarity = reward.rarity,
+                quantity = reward.quantity,
+                price = 0L
+            ),
+            onDismiss = {
+                showDetail = false
+                detailReward = null
+            }
+        )
     }
 }

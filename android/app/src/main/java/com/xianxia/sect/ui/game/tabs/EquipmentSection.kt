@@ -18,7 +18,8 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 @Composable
 internal fun SellableEquipmentSection(
     items: List<EquipmentStack>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemLongPress: (Any) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     Text(
@@ -36,7 +37,8 @@ internal fun SellableEquipmentSection(
                 UnifiedItemCard(
                     data = ItemCardData(name = item.name, rarity = item.rarity),
                     showQuantity = false,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLongPress = { onItemLongPress(item) }
                 )
             }
             repeat(4 - rowItems.size) {

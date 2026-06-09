@@ -26,6 +26,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -44,6 +45,8 @@ internal fun BulkSellDialog(
     var selectedRarities by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedTypes by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showDetailDialog by remember { mutableStateOf(false) }
+    var detailItem by remember { mutableStateOf<Any?>(null) }
 
     val rarityOptions = listOf(
         1 to "凡品",
@@ -248,12 +251,12 @@ internal fun BulkSellDialog(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        SellableEquipmentSection(sellableEquipment)
-                        SellableManualSection(sellableManuals)
-                        SellablePillSection(sellablePills)
-                        SellableMaterialSection(sellableMaterials)
-                        SellableHerbSection(sellableHerbs)
-                        SellableSeedSection(sellableSeeds)
+                        SellableEquipmentSection(sellableEquipment, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        SellableManualSection(sellableManuals, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        SellablePillSection(sellablePills, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        SellableMaterialSection(sellableMaterials, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        SellableHerbSection(sellableHerbs, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        SellableSeedSection(sellableSeeds, onItemLongPress = { detailItem = it; showDetailDialog = true })
                     }
                 } else if (selectedRarities.isNotEmpty() && selectedTypes.isNotEmpty()) {
                     Box(
@@ -355,5 +358,15 @@ internal fun BulkSellDialog(
                 color = Color.Black
             )
         }
+    }
+
+    if (showDetailDialog && detailItem != null) {
+        ItemDetailDialog(
+            item = detailItem!!,
+            onDismiss = {
+                showDetailDialog = false
+                detailItem = null
+            }
+        )
     }
 }

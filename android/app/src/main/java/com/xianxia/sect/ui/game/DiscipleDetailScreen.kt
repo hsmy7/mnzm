@@ -483,9 +483,8 @@ private fun ManualReplaceDialog(
                                 isManual = true
                             ),
                             isSelected = selectedReplaceManualId == stack.id,
-                            showViewButton = true,
                             onClick = { onSelectReplaceManual(stack.id) },
-                            onViewDetail = { onViewReplaceDetail(stack) }
+                            onLongPress = { onViewReplaceDetail(stack) }
                         )
                     }
                 }

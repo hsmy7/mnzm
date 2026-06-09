@@ -313,7 +313,7 @@ internal fun getManualStackEffects(item: ManualStack): List<String> = buildList 
             val durationText = if (item.skillBuffDuration > 0) " (${item.skillBuffDuration}回合)" else ""
             add("  $buffName +${(item.skillBuffValue * 100).toInt()}%$durationText")
         }
-    } else {
+    } else if (ManualDatabase.isInitialized) {
         val template = ManualDatabase.getByName(item.name)
         if (template != null) {
             template.skillName?.let { sName ->

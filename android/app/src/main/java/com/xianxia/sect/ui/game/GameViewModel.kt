@@ -744,6 +744,8 @@ class GameViewModel @Inject constructor(
 
     fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
 
+    fun sellToMerchant(itemId: String, quantity: Int) = inventory.sellToMerchant(itemId, quantity)
+
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
 
     fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {

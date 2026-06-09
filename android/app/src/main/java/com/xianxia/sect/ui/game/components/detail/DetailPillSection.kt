@@ -116,11 +116,11 @@ fun StorageBagDialog(
                                     isMaterial = item.itemType == "material"
                                 ),
                                 isSelected = selectedItem?.itemId == item.itemId,
-                                showViewButton = true,
                                 onClick = {
                                     selectedItem = if (selectedItem?.itemId == item.itemId) null else item
                                 },
-                                onViewDetail = {
+                                onLongPress = {
+                                    selectedItem = item
                                     showDetailDialog = true
                                 }
                             )
@@ -494,9 +494,8 @@ private fun <T> RewardItemGrid(
                             isMaterial = currentSelectedItem.type == "material"
                         ),
                         isSelected = isSelected,
-                        showViewButton = true,
                         onClick = { onItemSelect(currentSelectedItem) },
-                        onViewDetail = { onViewDetail(item as Any) }
+                        onLongPress = { onViewDetail(item as Any) }
                     )
                 }
             }
@@ -568,9 +567,8 @@ private fun RewardAllItemsGrid(
                             isMaterial = currentSelectedItem.type == "material"
                         ),
                         isSelected = isSelected,
-                        showViewButton = true,
                         onClick = { onItemSelect(currentSelectedItem) },
-                        onViewDetail = { onViewDetail(item as Any) }
+                        onLongPress = { onViewDetail(item as Any) }
                     )
                 }
             }

@@ -17,7 +17,8 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 @Composable
 internal fun SellableMaterialSection(
     items: List<Material>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemLongPress: (Any) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     Text(
@@ -39,7 +40,8 @@ internal fun SellableMaterialSection(
                         quantity = item.quantity,
                         isMaterial = true
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLongPress = { onItemLongPress(item) }
                 )
             }
             repeat(4 - rowItems.size) {
@@ -52,7 +54,8 @@ internal fun SellableMaterialSection(
 @Composable
 internal fun SellableHerbSection(
     items: List<Herb>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemLongPress: (Any) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     Text(
@@ -73,7 +76,8 @@ internal fun SellableHerbSection(
                         rarity = item.rarity,
                         quantity = item.quantity
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLongPress = { onItemLongPress(item) }
                 )
             }
             repeat(4 - rowItems.size) {
@@ -86,7 +90,8 @@ internal fun SellableHerbSection(
 @Composable
 internal fun SellableSeedSection(
     items: List<Seed>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemLongPress: (Any) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     Text(
@@ -107,7 +112,8 @@ internal fun SellableSeedSection(
                         rarity = item.rarity,
                         quantity = item.quantity
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLongPress = { onItemLongPress(item) }
                 )
             }
             repeat(4 - rowItems.size) {

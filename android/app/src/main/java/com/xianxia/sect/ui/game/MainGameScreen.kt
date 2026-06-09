@@ -70,6 +70,7 @@ import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
 import com.xianxia.sect.ui.game.components.GameActionButtons
+import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.building.BuildingRegistry
@@ -655,6 +656,11 @@ fun MainGameScreen(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 32.dp, top = 8.dp)
+            )
+
+            LeftSideButtons(
+                viewModel = viewModel,
+                modifier = Modifier.align(Alignment.CenterStart)
             )
 
             GameActionButtons(

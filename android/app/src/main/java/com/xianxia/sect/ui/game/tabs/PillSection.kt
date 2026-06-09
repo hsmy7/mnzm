@@ -15,7 +15,8 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 @Composable
 internal fun SellablePillSection(
     items: List<Pill>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemLongPress: (Any) -> Unit = {}
 ) {
     if (items.isEmpty()) return
     Text(
@@ -38,7 +39,8 @@ internal fun SellablePillSection(
                         grade = item.grade.displayName,
                         isPill = true
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLongPress = { onItemLongPress(item) }
                 )
             }
             repeat(4 - rowItems.size) {

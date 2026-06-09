@@ -543,6 +543,93 @@ class InventoryFacadeImpl @Inject constructor(
         }
     }
 
+    override suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int) {
+        val acquisitionItem = stateStore.gameData.value.merchantAcquisitionItems.find { it.id == acquisitionItemId } ?: return
+        if (quantity <= 0 || quantity > acquisitionItem.quantity) return
+
+        stateStore.update {
+            val warehouseQty = warehouseCount(acquisitionItem)
+            val actualQuantity = quantity.coerceAtMost(warehouseQty).coerceAtMost(acquisitionItem.quantity)
+            if (actualQuantity <= 0) return@update
+
+            // 从仓库移除物品
+            var remaining = actualQuantity
+            when (acquisitionItem.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    equipmentStacks = removeMatching(equipmentStacks,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                }
+                "manual" -> {
+                    manualStacks = removeMatching(manualStacks,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                }
+                "pill" -> {
+                    pills = removeMatching(pills,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && it.grade.displayName == (acquisitionItem.grade ?: "") && !it.isLocked },
+                        { it.quantity }, { p, q -> p.copy(quantity = q) }, remaining)
+                }
+                "material" -> {
+                    materials = removeMatching(materials,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
+                        { it.quantity }, { m, q -> m.copy(quantity = q) }, remaining)
+                }
+                "herb" -> {
+                    herbs = removeMatching(herbs,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
+                        { it.quantity }, { h, q -> h.copy(quantity = q) }, remaining)
+                }
+                "seed" -> {
+                    seeds = removeMatching(seeds,
+                        { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                }
+            }
+
+            val totalPrice = acquisitionItem.price * actualQuantity
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones + totalPrice,
+                merchantAcquisitionItems = gameData.merchantAcquisitionItems.map { item ->
+                    if (item.id == acquisitionItemId) item.copy(quantity = item.quantity - actualQuantity) else item
+                }
+            )
+        }
+    }
+
+    private fun warehouseCount(item: MerchantItem): Int = when (item.type.lowercase(java.util.Locale.getDefault())) {
+        "equipment" -> equipmentStacks.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "manual" -> manualStacks.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "pill" -> pills.value.filter { it.name == item.name && it.rarity == item.rarity && it.grade.displayName == (item.grade ?: "") }.sumOf { it.quantity }
+        "material" -> materials.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "herb" -> herbs.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "seed" -> seeds.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        else -> 0
+    }
+
+    /**
+     * Deduct up to [amount] from [items] where [match] holds, processing in list order.
+     * Each matched item has its quantity reduced; items reaching zero are removed.
+     * @return updated list with deductions applied.
+     */
+    private inline fun <T> removeMatching(
+        items: List<T>,
+        crossinline match: (T) -> Boolean,
+        crossinline getQty: (T) -> Int,
+        crossinline setQty: (T, Int) -> T,
+        amount: Int
+    ): List<T> {
+        var remaining = amount
+        return items.mapNotNull { item ->
+            if (remaining > 0 && match(item)) {
+                val deduct = remaining.coerceAtMost(getQty(item))
+                val newQty = getQty(item) - deduct
+                remaining -= deduct
+                if (newQty <= 0) null else setQty(item, newQty)
+            } else item
+        }
+    }
+
     override suspend fun listItemsToMerchant(items: List<Pair<String, Int>>) {
         val newItems = mutableListOf<MerchantItem>()
         stateStore.update {

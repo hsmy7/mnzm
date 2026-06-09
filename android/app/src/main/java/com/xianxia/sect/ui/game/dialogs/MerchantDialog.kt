@@ -69,6 +69,28 @@ fun MerchantDialog(
     var showDetailDialog by remember { mutableStateOf(false) }
     var showListingDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(MerchantFilter.ALL) }
+    var merchantMode by remember { mutableStateOf(MerchantMode.BUY) }
+    var showSellConfirmDialog by remember { mutableStateOf(false) }
+    var selectedAcquisitionItem by remember { mutableStateOf<MerchantItem?>(null) }
+
+    val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+
+    val acquisitionItems = gameData?.merchantAcquisitionItems ?: emptyList()
+
+    fun getWarehouseQuantity(item: MerchantItem): Int = when (item.type.lowercase()) {
+        "equipment" -> equipment.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "manual" -> manuals.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "pill" -> pills.filter { it.name == item.name && it.rarity == item.rarity && it.grade.displayName == (item.grade ?: "") }.sumOf { it.quantity }
+        "material" -> materials.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "herb" -> herbs.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "seed" -> seeds.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        else -> 0
+    }
 
     val filteredItems = remember(merchantItems, selectedFilter) {
         val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
@@ -96,121 +118,274 @@ fun MerchantDialog(
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                if (merchantItems.isEmpty()) {
-                    Box(
+            // 购买/收购 标签切换（各占一半，文本 + 下划线）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                MerchantMode.entries.forEach { mode ->
+                    val isActive = merchantMode == mode
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
+                            .clickable {
+                                merchantMode = mode
+                                selectedItem = null
+                                selectedAcquisitionItem = null
+                                buyQuantity = 1
+                            }
                     ) {
                         Text(
-                            text = "商人正在旅途中...\n请稍后再来",
-                            fontSize = 12.sp,
-                            color = GameColors.TextSecondary,
-                            textAlign = TextAlign.Center
+                            text = mode.displayName,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isActive) Color.Black else Color.Gray
                         )
-                    }
-                } else {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                .height(2.dp)
+                                .background(if (isActive) GameColors.GoldDark else Color.Gray)
+                        )
+                    }
+                }
+            }
+
+            when (merchantMode) {
+                MerchantMode.BUY -> {
+                    if (merchantItems.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                                MerchantFilter.entries.forEach { filter ->
-                                    ListingFilterButton(
-                                        text = filter.displayName,
-                                        selected = selectedFilter == filter,
+                            Text(
+                                text = "商人正在旅途中...\n请稍后再来",
+                                fontSize = 12.sp,
+                                color = GameColors.TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                    MerchantFilter.entries.forEach { filter ->
+                                        ListingFilterButton(
+                                            text = filter.displayName,
+                                            selected = selectedFilter == filter,
+                                            onClick = {
+                                                selectedFilter = filter
+                                                selectedItem = null
+                                                buyQuantity = 1
+                                            }
+                                        )
+                                    }
+                                }
+
+                            if (filteredItems.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "该分类暂无物品",
+                                        fontSize = 12.sp,
+                                        color = GameColors.TextSecondary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            } else {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Adaptive(60.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(filteredItems, key = { it.id }) { item ->
+                                    UnifiedItemCard(
+                                        data = ItemCardData(
+                                            id = item.id,
+                                            name = item.name,
+                                            rarity = item.rarity,
+                                            quantity = item.quantity,
+                                            additionalInfo = "${item.price}灵石",
+                                            grade = item.grade,
+                                            isManual = item.type == "manual",
+                                            isPill = item.type == "pill",
+                                            isMaterial = item.type == "material"
+                                        ),
+                                        isSelected = selectedItem?.id == item.id,
                                         onClick = {
-                                            selectedFilter = filter
-                                            selectedItem = null
-                                            buyQuantity = 1
+                                            if (selectedItem?.id == item.id) {
+                                                selectedItem = null
+                                                buyQuantity = 1
+                                            } else {
+                                                selectedItem = item
+                                                buyQuantity = 1
+                                            }
+                                        },
+                                        onLongPress = {
+                                            selectedItem = item
+                                            showDetailDialog = true
                                         }
                                     )
                                 }
                             }
+                        }
+                    }
+                }
 
-                        if (filteredItems.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "该分类暂无物品",
-                                    fontSize = 12.sp,
-                                    color = GameColors.TextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
+                    PurchasePanel(
+                        item = selectedItem,
+                        quantity = buyQuantity,
+                        maxQuantity = selectedItem?.quantity ?: 1,
+                        spiritStones = gameData?.spiritStones ?: 0,
+                        onQuantityChange = { qty ->
+                            selectedItem?.let { buyQuantity = qty.coerceIn(1, it.quantity) }
+                        },
+                        onConfirm = {
+                            selectedItem?.let { item ->
+                                viewModel.buyFromMerchant(item.id, buyQuantity)
+                                selectedItem = null
+                                buyQuantity = 1
                             }
-                        } else {
-                            LazyVerticalGrid(
-                                columns = GridCells.Adaptive(60.dp),
+                        },
+                        onCancel = {
+                            selectedItem = null
+                            buyQuantity = 1
+                        }
+                    )
+                }
+
+                MerchantMode.ACQUISITION -> {
+                    val sortedAcquisitionItems = remember(acquisitionItems) {
+                        acquisitionItems.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
+                    }
+
+                    if (sortedAcquisitionItems.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "商人暂无收购需求\n请明年再来",
+                                fontSize = 12.sp,
+                                color = GameColors.TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            // 四列表头
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                items(filteredItems, key = { it.id }) { item ->
-                                UnifiedItemCard(
-                                    data = ItemCardData(
-                                        id = item.id,
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = item.quantity,
-                                        additionalInfo = "${item.price}灵石",
-                                        grade = item.grade,
-                                        isManual = item.type == "manual",
-                                        isPill = item.type == "pill",
-                                        isMaterial = item.type == "material"
-                                    ),
-                                    isSelected = selectedItem?.id == item.id,
-                                    showViewButton = true,
-                                    onClick = {
-                                        if (selectedItem?.id == item.id) {
-                                            selectedItem = null
-                                            buyQuantity = 1
-                                        } else {
-                                            selectedItem = item
-                                            buyQuantity = 1
+                                Text("物品", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    color = Color.Black, modifier = Modifier.weight(1.3f))
+                                Text("收购数量", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                Text("收购价格", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                Text("出售", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                            }
+                            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+
+                            // 收购物品列表
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(sortedAcquisitionItems, key = { it.id }) { item ->
+                                    val warehouseQty = getWarehouseQuantity(item)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // 物品卡片
+                                        Box(modifier = Modifier.weight(1.3f)) {
+                                            UnifiedItemCard(
+                                                data = ItemCardData(
+                                                    id = item.id,
+                                                    name = item.name,
+                                                    rarity = item.rarity,
+                                                    quantity = item.quantity,
+                                                    additionalInfo = "${item.price}灵石",
+                                                    grade = item.grade,
+                                                    isManual = item.type == "manual",
+                                                    isPill = item.type == "pill",
+                                                    isMaterial = item.type == "material"
+                                                ),
+                                                isSelected = false,
+                                                onClick = {
+                                                    if (item.quantity > 0 && warehouseQty > 0) {
+                                                        selectedAcquisitionItem = item
+                                                        showSellConfirmDialog = true
+                                                    }
+                                                },
+                                                onLongPress = {
+                                                    selectedItem = item
+                                                    showDetailDialog = true
+                                                }
+                                            )
                                         }
-                                    },
-                                    onViewDetail = {
-                                        selectedItem = item
-                                        showDetailDialog = true
+                                        // 收购数量
+                                        Text(
+                                            text = "${item.quantity}",
+                                            fontSize = 11.sp,
+                                            color = Color.Black,
+                                            modifier = Modifier.weight(1f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        // 收购价格
+                                        Text(
+                                            text = "${item.price}",
+                                            fontSize = 11.sp,
+                                            color = GameColors.GoldDark,
+                                            modifier = Modifier.weight(1f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        // 出售按钮
+                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                            when {
+                                                item.quantity == 0 -> Text("不再收购", color = Color.Red, fontSize = 10.sp)
+                                                warehouseQty == 0 -> GameButton(text = "出售", onClick = {}, enabled = false)
+                                                else -> GameButton(text = "出售", onClick = {
+                                                    selectedAcquisitionItem = item
+                                                    showSellConfirmDialog = true
+                                                })
+                                            }
+                                        }
                                     }
-                                )
+                                }
                             }
                         }
                     }
                 }
             }
-
-                PurchasePanel(
-                    item = selectedItem,
-                    quantity = buyQuantity,
-                    maxQuantity = selectedItem?.quantity ?: 1,
-                    spiritStones = gameData?.spiritStones ?: 0,
-                    onQuantityChange = { qty ->
-                        selectedItem?.let { buyQuantity = qty.coerceIn(1, it.quantity) }
-                    },
-                    onConfirm = {
-                        selectedItem?.let { item ->
-                            viewModel.buyFromMerchant(item.id, buyQuantity)
-                            selectedItem = null
-                            buyQuantity = 1
-                        }
-                    },
-                    onCancel = {
-                        selectedItem = null
-                        buyQuantity = 1
-                    }
-                )
-            }
         }
+    }
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
@@ -227,6 +402,25 @@ fun MerchantDialog(
             viewModel = viewModel,
             onDismiss = { showListingDialog = false }
         )
+    }
+
+    if (showSellConfirmDialog) {
+        selectedAcquisitionItem?.let { item ->
+            val warehouseQty = getWarehouseQuantity(item)
+            AcquisitionSellConfirmDialog(
+                item = item,
+                warehouseQuantity = warehouseQty,
+                onConfirm = { quantity ->
+                    viewModel.sellToMerchant(item.id, quantity)
+                    showSellConfirmDialog = false
+                    selectedAcquisitionItem = null
+                },
+                onDismiss = {
+                    showSellConfirmDialog = false
+                    selectedAcquisitionItem = null
+                }
+            )
+        }
     }
 }
 
@@ -350,6 +544,91 @@ private fun PurchasePanel(
                     text = "请选择要购买的商品",
                     fontSize = 12.sp,
                     color = GameColors.TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcquisitionSellConfirmDialog(
+    item: MerchantItem,
+    warehouseQuantity: Int,
+    onConfirm: (quantity: Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val maxSellable = minOf(warehouseQuantity, item.quantity)
+    var sellQuantity by remember { mutableIntStateOf(1) }
+    val totalPrice = item.price * sellQuantity
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "出售确认",
+        mode = DialogMode.Half
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = item.name,
+                fontWeight = FontWeight.Bold,
+                color = getRarityColor(item.rarity),
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = "仓库拥有: $warehouseQuantity 个", color = Color.Black, fontSize = 12.sp)
+            Text(text = "商人收购: 最多 ${item.quantity} 个", color = Color.Black, fontSize = 12.sp)
+            Text(text = "最大可售: $maxSellable 个", color = Color.Black, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("出售数量:", color = Color.Black, fontSize = 12.sp)
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(GameColors.Background)
+                        .clickable { sellQuantity = (sellQuantity - 1).coerceAtLeast(1) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
+                }
+                Text(
+                    text = "$sellQuantity",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GameColors.TextPrimary,
+                    modifier = Modifier.widthIn(min = 24.dp),
+                    textAlign = TextAlign.Center
+                )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(GameColors.Background)
+                        .clickable { sellQuantity = (sellQuantity + 1).coerceAtMost(maxSellable) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "总价: $totalPrice 灵石",
+                color = GameColors.GoldDark,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
+                GameButton(
+                    text = "确认出售",
+                    onClick = { onConfirm(sellQuantity) },
+                    enabled = sellQuantity > 0 && maxSellable > 0
                 )
             }
         }
@@ -575,6 +854,8 @@ private enum class MerchantFilter(val displayName: String, val typeValue: String
     HERB("灵草", "herb"),
     SEED("种子", "seed")
 }
+
+private enum class MerchantMode(val displayName: String) { BUY("购买"), ACQUISITION("收购") }
 
 @Composable
 fun InventorySelectDialog(
@@ -830,7 +1111,6 @@ private fun <T> InventorySelectGrid(
                         isMaterial = item is Material
                     ),
                     isSelected = isSelected,
-                    showViewButton = true,
                     onClick = {
                         if (isSelected) {
                             selectedItems.remove(id)
@@ -838,7 +1118,7 @@ private fun <T> InventorySelectGrid(
                             selectedItems[id] = quantity
                         }
                     },
-                    onViewDetail = {
+                    onLongPress = {
                         selectedItem = item
                         showDetailDialog = true
                     }
@@ -990,7 +1270,6 @@ private fun AllItemsSelectGrid(
                         isMaterial = item is Material
                     ),
                     isSelected = isSelected,
-                    showViewButton = true,
                     onClick = {
                         if (isSelected) {
                             selectedItems.remove(id)
@@ -998,7 +1277,7 @@ private fun AllItemsSelectGrid(
                             selectedItems[id] = quantity
                         }
                     },
-                    onViewDetail = {
+                    onLongPress = {
                         selectedItem = item
                         showDetailDialog = true
                     }
