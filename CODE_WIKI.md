@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-09 (v4.0.01 — GPU 分级渲染 + 活动系统 + 每日签到)
+> 最后更新：2026-06-09 (v4.0.00 — 架构全面重构 + 世界地图 + 活动签到 + GPU 分级 + 背包商店 + 数据库从零演进至 v5)
 
 ## 目录
 
@@ -11,11 +11,16 @@
 5. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 6. [数据库 — 从零开始](#数据库--从零开始v4000)
 7. [UI 组件拆分](#ui-组件拆分v4000)
-8. [GPU 分级渲染系统](#gpu-分级渲染系统v4001)
-9. [活动系统](#活动系统v4001)
-10. [代码质量基础设施](#代码质量基础设施v4000)
-11. [构建与 Profile](#构建与-profile)
-12. [后续优化项](#后续优化项)
+8. [世界地图重构](#世界地图重构v4000)
+9. [GPU 分级渲染系统](#gpu-分级渲染系统v4000)
+10. [活动系统 / 每日签到](#活动系统--每日签到v4000)
+11. [背包系统重构](#背包系统重构v4000)
+12. [商店改版](#商店改版v4000)
+13. [每日签到优化](#每日签到优化v4000)
+14. [数据库演进 (v1→v5)](#数据库演进-v1v5v4000)
+15. [代码质量基础设施](#代码质量基础设施v4000)
+16. [构建与 Profile](#构建与-profile)
+17. [后续优化项](#后续优化项)
 
 ---
 
@@ -927,7 +932,52 @@ class BuildingSpatialIndex {
 
 ---
 
-## GPU 分级渲染系统 (v4.0.01)
+## 世界地图重构 (v4.0.00)
+
+### 概述
+
+世界地图渲染管线从逐帧全量绘制重构为增量更新架构，核心思路：**静态内容预烘焙为 Bitmap + 动态内容逐帧叠加**。
+
+### 重构前后对比
+
+| 维度 | 重构前 | 重构后 |
+|------|--------|--------|
+| 地图渲染 | 每帧遍历全部宗门/路径/关卡逐项绘制 | 地形+宗门基础层预烘焙为 Bitmap，动态层叠加 |
+| 连接线 | 每帧重新计算 Path | Path 缓存，仅在宗门关系变化时重建 |
+| 相机系统 | `MapCameraState`（独立类，120行） | 整合到 `WorldMapViewModel`，消除间接层 |
+| 文件结构 | `MapCanvas.kt`/`MapItem.kt`/`MapItemMapper.kt`/`MapStyle.kt`/`MapCameraState.kt`（5 文件，263 行） | 逻辑内聚到 `WorldMapViewModel`/`MapBackground.kt`/`MapTileCache.kt` |
+
+### 核心文件
+
+| 文件 | 职责 |
+|------|------|
+| `ui/game/map/MapBackground.kt` | 地图背景预烘焙（Canvas→Bitmap），地形+宗门标记+等级图标缓存 |
+| `ui/game/map/MapTileCache.kt` | 地图瓦片缓存，分块加载，视口裁剪 |
+| `ui/game/map/WorldMapConnections.kt` | 宗门连接线 Path 缓存与绘制 |
+| `ui/game/WorldMapViewModel.kt` | 相机状态管理（缩放/平移/居中）、焦点坐标追踪 |
+| `ui/game/WorldMapInteractionViewModel.kt` | 触控手势处理（点击/拖拽/长按） |
+| `ui/game/WorldMapGarrisonViewModel.kt` | 世界地图驻军管理 |
+
+### 性能优化
+
+- **预烘焙 Bitmap**：地形、宗门标记、等级图标合并为单张 `Bitmap`（`remember` 缓存），避免每帧重复绘制
+- **视口裁剪**：仅绘制屏幕可见范围内的连接线和动态标记
+- **连接线缓存**：宗门外交关系变化时才重建 Path 对象
+- **瓦片缓存**：大地图分块存储，平移时仅加载新进入视口的瓦片
+- **固定宗门坐标**：`FixedSectPositions.kt` 77 行硬编码 60+ 宗门坐标，消除运行时随机生成带来的地图抖动
+
+### 数据流
+
+```
+GameData.worldMapSects → WorldMapViewModel.mapItems (derivedStateOf)
+    → MapBackground.bakeMapBitmap() (once, recompose on mapItem changes)
+        → Canvas.drawBitmap(bakedMap, ...)  (per frame, zero allocation)
+    → MapOverlay: 连接线 + 动态标记 (per frame, viewport-culled)
+```
+
+---
+
+## GPU 分级渲染系统 (v4.0.00)
 
 ### 概述
 
@@ -992,7 +1042,7 @@ fun thermalRenderScale(gpuTier: GpuTier, thermalState: ThermalState): Float
 
 ---
 
-## 活动系统 (v4.0.01)
+## 活动系统 (v4.0.00)
 
 ### 概述
 
@@ -1044,6 +1094,177 @@ BuiltinActivityConfig → ActivityViewModel.activities (StateFlow)
 - `CollectionConverters` 新增 `fromSignInState`/`toSignInState` TypeConverter
 
 ---
+
+## 背包系统重构 (v4.0.00)
+
+### 概述
+
+统一物品卡片交互模式，简化仓库操作流程，储物袋开启从底部按钮提升为卡片右上角一键操作。
+
+### 核心变更
+
+**物品卡片交互模式统一**：
+
+```
+操作     → 点击      → 选中/取消选中卡片（金色/灰色边框）
+         → 长按      → 弹出物品详情对话框
+         → 右上角按钮 → 特殊操作（储物袋「开启」等）
+```
+
+**仓库底部按钮重构**：
+
+| 重构前 | 重构后 |
+|--------|--------|
+| 储物袋显示「开启」按钮，其他物品显示「售卖」「锁定」「赏赐」 | 统一三按钮：「售卖」「锁定」「赏赐」，储物袋「开启」移至卡片右上角 |
+| `showViewButton` + `onViewDetail` 分散参数 | `overlayButtonText` + `onOverlayButtonClick` 统一点位 |
+
+**修改文件**：
+| 文件 | 变更 |
+|------|------|
+| `ui/components/ItemCard.kt` | `combinedClickable` 替代 `clickable`，新增 `onLongPress`/`overlayButtonText`/`onOverlayButtonClick` 参数 |
+| `ui/game/tabs/WarehouseTab.kt` | 底部按钮统一，储物袋开启逻辑移至卡片层 |
+| `ui/game/tabs/EquipmentSection.kt` | 适配新 ItemCard 参数 |
+| `ui/game/tabs/ManualSection.kt` | 适配新 ItemCard 参数 |
+| `ui/game/tabs/MaterialSection.kt` | 适配新 ItemCard 参数 |
+| `ui/game/tabs/PillSection.kt` | 适配新 ItemCard 参数 |
+| `ui/game/tabs/WarehouseBulkSellDialog.kt` | 适配新 ItemCard 参数 |
+| `ui/game/components/ItemDetailEffects.kt` | 功法效果获取增加 `ManualDatabase.isInitialized` 防御 |
+| `ui/game/components/ItemDetailOtherEffects.kt` | 物品详情效果文本补全 |
+| `ui/game/delegate/InventoryDelegate.kt` | 适配新 ItemCard 参数 |
+
+**涉及对话框适配**：`AlchemyDialog`、`BattleResultDialog`、`BloodRefiningPoolDialog`、`DailySignInDialog`、`ForgeDialog`、`MailDialog`、`MerchantDialog`、`PlantingDialog`、`SectTradeDialog`、`HerbGardenDialog`
+
+**清理**：移除 `HerbGardenDialog.kt` 中 102 行不再使用的代码
+
+---
+
+## 商店改版 (v4.0.00)
+
+### 概述
+
+云游商人界面从单一「购买」Tab 重构为「购买」+「收购」双标签布局。
+
+### 架构
+
+```
+MerchantDialog
+  ├── TabRow: [购买] [收购]  ← 标签切换，各占 50% 宽度
+  ├── 购买模式 (MerchantMode.BUY)
+  │     ├── 筛选栏 (全部/装备/功法/丹药/材料/草药/种子)
+  │     ├── 物品网格 (LazyVerticalGrid, 60dp 自适应列)
+  │     └── 购买面板 (数量调节 + 灵石余额 + 确认购买)
+  └── 收购模式 (MerchantMode.ACQUIRE)
+        ├── 商人收购列表 (显示仓库持有量)
+        ├── 出售确认弹窗 (数量调节 + 总价实时计算)
+        └── 按钮状态 (可售 / 不再收购 / 无库存灰色)
+```
+
+### 数据模型新增
+
+```kotlin
+// GameData.kt — 收购物品持久化
+@SettlementStrategy(Strategy.PRESERVE_OLD)
+var merchantAcquisitionItems: List<MerchantItem> = emptyList()
+
+@SettlementStrategy(Strategy.USE_SHADOW)
+var merchantAcquisitionLastRefreshYear: Int = 0
+```
+
+### 收购刷新逻辑
+
+`MerchantAndRecruitService.refreshMerchantAcquisition(year, month)`：
+- 每年刷新 1~6 种收购物品（`ACQUISITION_ITEM_COUNT_MIN..MAX = 1..6`）
+- 物品从商人物品池中按品阶概率选取（与售卖物品相同池）
+- 价格随机浮动 ±20%（精确到 0.1%），单价最高 999999 灵石
+- 新游戏初始化 + 年度事件 + 读档后均触发刷新
+
+### 出售流程
+
+```
+用户点击收购物品 → 弹出 SellConfirmDialog
+  → 显示仓库数量 / 商人收购数量 / 剩余可售数
+  → 数量滑块调节 1..min(仓库数量, 收购剩余)
+  → 总价 = 单价 × 数量（实时计算显示）
+  → 确认 → InventoryFacade.sellToMerchant(acquisitionItemId, qty)
+      → 从仓库逐类扣除物品（按名称+品阶匹配，跳过锁定物品）
+      → 灵石 += 总价
+      → 收购物品 quantity -= 已售数量
+      → 归零后物品保留在列表，按钮变红「不再收购」
+```
+
+---
+
+## 每日签到优化 (v4.0.00)
+
+### 概述
+
+签到奖励从全固定物品改为部分随机品种，增加签到惊喜感和实用性。
+
+### 奖励变更
+
+| 星期 | 旧奖励 | 新奖励 | 类型 |
+|------|--------|--------|------|
+| 周一 | 灵石×10000 | 灵石×10000 | 不变 |
+| 周二 | 凡虎血×20 | 随机凡品材料×20 | `randomMaterial` |
+| 周三 | 凡品储物袋×1 | 凡品储物袋×1 | 不变 |
+| 周四 | 灵石×10000 | 随机凡品种子×20 | `randomSeed` |
+| 周五 | 引灵丹×5 | 随机凡品丹药×2 | `randomPill` |
+| 周六 | 悟法丹×5 | 悟法丹×5 | 不变 |
+| 周日 | 灵品储物袋×1 | 灵品储物袋×1 | 不变 |
+
+### 随机物品生成
+
+`DailySignInService.distributeReward()` 新增三种随机类型：
+
+```kotlin
+"randomMaterial" → ItemDatabase.generateRandomMaterial(minRarity=1, maxRarity=1) × qty
+"randomSeed"     → HerbDatabase.generateRandomSeed(minRarity=1, maxRarity=1) × qty
+"randomPill"     → ItemDatabase.generateRandomPill(minRarity=1, maxRarity=1) × qty
+```
+
+每次签到独立随机，自动与现有物品堆叠（同品阶同名合并），超堆叠上限时创建新堆。
+
+### UI 变更
+
+- 随机物品卡片以 `?` 白色大号文字替代固定精灵图
+- `isRandomReward` 标志控制精灵图 vs 问号文本切换
+- 奖励名称和数量不变（如「凡品材料」「凡品丹药」）
+
+---
+
+## 数据库迁移 (v4→v5) (v4.0.00)
+
+### GameData 新增字段
+
+| 字段 | 类型 | 策略 | 说明 |
+|------|------|------|------|
+| `merchantAcquisitionItems` | `List<MerchantItem>` | `PRESERVE_OLD` | 商人收购物品列表 |
+| `merchantAcquisitionLastRefreshYear` | `Int` | `USE_SHADOW` | 收购刷新年份 |
+
+### DB Migration 4→5
+
+```sql
+ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems BLOB NOT NULL DEFAULT X''
+ALTER TABLE game_data ADD COLUMN merchantAcquisitionLastRefreshYear INTEGER NOT NULL DEFAULT 0
+```
+
+**schema/5.json**：Room 自动生成的 v5 schema 文件（5492 行）
+
+### 序列化层同步
+
+| 文件 | 变更 |
+|------|------|
+| `SerializableSaveData.kt` | 新增 `@ProtoNumber(88) merchantAcquisitionItems` / `@ProtoNumber(89) merchantAcquisitionLastRefreshYear` |
+| `SaveDataConverter.kt` | `gameDataToSerializable()` + `gameDataFromSerializable()` 双向转换新增两个字段 |
+| `GameDatabase.kt` | `@Database version = 4 → 5`，`addMigrations` 新增 `MIGRATION_4_5` |
+| `EconomicState.kt` | 新增两个字段（状态投影用） |
+
+### 旧存档兼容
+
+`MIGRATION_4_5` 使用 `ALTER TABLE ADD COLUMN ... DEFAULT`，旧 v4 存档自动获得空收购列表（`X''` = 空 BLOB），无需破坏性重建。
+
+---
+
 
 ## 构建与 Profile
 
@@ -1154,6 +1375,11 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 
 > 已删除/已完成项：
+> - ✅ **v4.0.02 — 背包系统重构**：物品卡片交互统一（点击选中+长按详情+右上角快捷操作），仓库底部三按钮统一布局
+> - ✅ **v4.0.02 — 商店改版**：云游商人「购买」+「收购」双标签布局，收购物品持久化 + 出售数量调节 + 实时总价
+> - ✅ **v4.0.02 — 每日签到奖励多样化**：3 天固定奖励改为随机品种（材料/种子/丹药），增加签到惊喜感
+> - ✅ **v4.0.02 — DB v5 迁移**：新增 merchantAcquisitionItems + merchantAcquisitionLastRefreshYear 列
+> - ✅ **v4.0.01 — 世界地图重构**：预烘焙 Bitmap + 视口裁剪 + 连接线缓存 + 固定宗门坐标，消除地图抖动
 > - ✅ **v4.0.01 — GPU 全覆盖分级渲染**：检测 80+ SoC 型号、40+ 品牌，四级画质自动适配（地图精度/渲染缩放/贴图质量/装饰密度）
 > - ✅ **v4.0.01 — Canvas Overdraw 大幅优化**：网格线 LOW 模式 ~100→4 条，预览框 ~50→1 次 drawRect
 > - ✅ **v4.0.01 — 活动系统 + 每日签到**
