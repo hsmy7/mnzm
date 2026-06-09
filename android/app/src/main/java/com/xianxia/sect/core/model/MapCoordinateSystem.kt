@@ -16,31 +16,4 @@ object MapCoordinateSystem {
     fun worldToCanvas(worldX: Float, worldY: Float, canvasWidth: Float, canvasHeight: Float): Pair<Float, Float> =
         (worldX / WORLD_WIDTH) * canvasWidth to
         (worldY / WORLD_HEIGHT) * canvasHeight
-
-    fun worldToScreen(
-        worldX: Float,
-        worldY: Float,
-        canvasWidth: Float,
-        canvasHeight: Float,
-        offsetX: Float,
-        offsetY: Float
-    ): Pair<Float, Float> {
-        val (cx, cy) = worldToCanvas(worldX, worldY, canvasWidth, canvasHeight)
-        return cx + offsetX to cy + offsetY
-    }
-
-    fun isWorldPositionVisible(
-        worldX: Float,
-        worldY: Float,
-        canvasWidth: Float,
-        canvasHeight: Float,
-        offsetX: Float,
-        offsetY: Float,
-        screenWidth: Int,
-        screenHeight: Int,
-        margin: Float = 200f
-    ): Boolean {
-        val (sx, sy) = worldToScreen(worldX, worldY, canvasWidth, canvasHeight, offsetX, offsetY)
-        return sx >= -margin && sx <= screenWidth + margin && sy >= -margin && sy <= screenHeight + margin
-    }
 }

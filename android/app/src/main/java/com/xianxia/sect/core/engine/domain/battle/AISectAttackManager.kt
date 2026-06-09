@@ -245,28 +245,6 @@ object AISectAttackManager {
             .take(TEAM_SIZE)
     }
 
-    fun getConnectedTargets(sect: WorldSect, gameData: GameData): List<WorldSect> {
-        val targets = mutableSetOf<WorldSect>()
-
-        for (connectedId in sect.connectedSectIds) {
-            val connectedSect = gameData.worldMapSects.find { it.id == connectedId }
-            if (connectedSect != null && !connectedSect.isPlayerSect) {
-                targets.add(connectedSect)
-            }
-        }
-
-        val occupiedBySect = gameData.worldMapSects.filter { it.occupierSectId == sect.id }
-        for (occupied in occupiedBySect) {
-            for (connectedId in occupied.connectedSectIds) {
-                val connectedSect = gameData.worldMapSects.find { it.id == connectedId }
-                if (connectedSect != null && !connectedSect.isPlayerSect && connectedSect.id != sect.id) {
-                    targets.add(connectedSect)
-                }
-            }
-        }
-
-        return targets.toList()
-    }
 
     fun decidePlayerAttack(gameData: GameData): AIAttackResult? {
         if (gameData.isPlayerProtected) return null

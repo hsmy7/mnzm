@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-08 (v4.0.00 架构重构)
+> 最后更新：2026-06-09 (v4.0.01 — GPU 分级渲染 + 活动系统 + 每日签到)
 
 ## 目录
 
@@ -11,9 +11,11 @@
 5. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 6. [数据库 — 从零开始](#数据库--从零开始v4000)
 7. [UI 组件拆分](#ui-组件拆分v4000)
-8. [代码质量基础设施](#代码质量基础设施v4000)
-9. [构建与 Profile](#构建与-profile)
-10. [后续优化项](#后续优化项)
+8. [GPU 分级渲染系统](#gpu-分级渲染系统v4001)
+9. [活动系统](#活动系统v4001)
+10. [代码质量基础设施](#代码质量基础设施v4000)
+11. [构建与 Profile](#构建与-profile)
+12. [后续优化项](#后续优化项)
 
 ---
 
@@ -925,6 +927,124 @@ class BuildingSpatialIndex {
 
 ---
 
+## GPU 分级渲染系统 (v4.0.01)
+
+### 概述
+
+GPU 分级系统在应用启动时自动检测设备 GPU 能力，将设备分为 **LOW / MEDIUM / HIGH / ULTRA** 四级，为各级别预设最优渲染参数。
+
+### 核心文件
+
+| 文件 | 职责 |
+|------|------|
+| `core/perf/GpuTierDetector.kt` | GPU 检测（GameManager API → GL_RENDERER 字符串匹配）、分级分类器 |
+| `core/perf/GpuTierDetector.kt` — `GpuRenderConfig` | 分层渲染参数 Data Class（7 个字段） |
+| `core/perf/GpuTierDetector.kt` — `thermalRenderScale()` | GPU 分级 + 热状态双因子渲染缩放函数 |
+
+### 检测流程
+
+```
+GameManager.getGamePerformanceClass()  ← Android 13+ 优先
+    ↓ 失败/不可用
+EGL Context → glGetString(GL_RENDERER)  ← 离屏 GL 查询
+    ↓ 失败
+默认 MEDIUM  ← 安全兜底
+```
+
+### GPU Tier 分类规则
+
+| Tier | 典型 GPU | 匹配规则 |
+|------|---------|---------|
+| **ULTRA** | Adreno 830/750/740、Immortalis-G925/G720、Xclipse 950/940 | 3DMark WLE ~3800+ |
+| **HIGH** | Adreno 735/730、Mali-G715 Immortalis、Maleoon 920 Pro、Xclipse 920 | 3DMark WLE ~2800-3800 |
+| **MEDIUM** | Adreno 7xx/660/650、Mali-G78/G77/G76、Maleoon 910、Tensor G2-G4 | 3DMark WLE ~1200-2800 |
+| **LOW** | Adreno 6xx/5xx/4xx、Mali-G57/G52/G51/G68、PowerVR、旧 Mali-T | 3DMark WLE <1200 |
+
+### GpuRenderConfig 参数表
+
+| 参数 | LOW | MEDIUM | HIGH | ULTRA |
+|------|-----|--------|------|-------|
+| `mapResolution` | 24 | 32 | 48 | 48 |
+| `bakeBuildings` | false | true | true | true |
+| `useArgb8888` | false | false | true | true |
+| `baseRenderScale` | 0.6 | 0.8 | 1.0 | 1.0 |
+| `showTrees` | false | true | true | true |
+| `gridLineMode` | border | full | full | full |
+| `auraEffectMode` | off | simple | full | full |
+| `particleEffectMode` | off | simple | full | full |
+| `textureLodOffset` | +1 (更模糊) | 0 | 0 | -1 (更清晰) |
+
+### Canvas Overdraw 优化
+
+- **网格线**: LOW 模式仅绘制放置区域边界 4 条线，替代 ~100 条完整网格线（减少 96%）
+- **放置/移动预览**: 单一 `drawRect` 替代逐格嵌套循环 `for(gridX) for(gridY) drawRect()`（从 ~50 次→1 次）
+- **光环效果**: LOW=关闭，MEDIUM=仅圆形轮廓，HIGH/ULTRA=完整逐格覆盖
+- **装饰密度**: LOW=无草无树，MEDIUM=半密度(草3%/树5%)，HIGH/ULTRA=全密度(草6%/树10%)
+- **贴图 LOD**: LOW 解码采样率翻倍（inSampleSize×2），解码内存减少 75%
+
+### 温控联动
+
+```kotlin
+fun thermalRenderScale(gpuTier: GpuTier, thermalState: ThermalState): Float
+```
+
+双因子决策：GPU 等级决定基础缩放，热状态叠加降档。例如 LOW 设备在 NORMAL 状态已降至 0.7×，LIGHT 降至 0.5×。
+
+---
+
+## 活动系统 (v4.0.01)
+
+### 概述
+
+活动系统为游戏提供限时活动和常驻玩法入口，通过全屏左右分栏界面展示活动列表与详情。
+
+### 核心文件
+
+| 文件 | 职责 |
+|------|------|
+| `core/config/BuiltinActivityConfig.kt` | 内置活动注册表（`getAllActivities()`） |
+| `core/model/ActivityDef.kt` | 活动定义模型（id/name/type/status/rewards） |
+| `ui/game/ActivityViewModel.kt` | 活动列表状态管理 |
+| `ui/game/dialogs/ActivityDialog.kt` | 全屏活动界面（左侧列表 + 右侧详情） |
+| `ui/navigation/GameRoute.kt` | 新增 `Activity` 路由 |
+
+### 数据流
+
+```
+BuiltinActivityConfig → ActivityViewModel.activities (StateFlow)
+    → ActivityDialog (collectAsStateWithLifecycle)
+        → 左侧 LazyColumn 活动列表
+        → 右侧 活动详情 / DailySignInPanel
+```
+
+### 每日签到子系统
+
+| 文件 | 职责 |
+|------|------|
+| `core/model/DailySignIn.kt` | `SignInState`（claimedDays/currentMonth/currentYear）、`DailySignInReward` |
+| `core/engine/service/DailySignInService.kt` | 签到逻辑（日历计算、奖励发放、容量检测） |
+| `ui/game/dialogs/DailySignInDialog.kt` | 日历网格 UI（7 列 × 可变行数） |
+
+#### 签到流程
+
+```
+用户点击「签到」→ claimDailySignIn()
+    → 检查今天是否已签（claimedDays.contains(today)）
+    → 计算今天星期几 → 查表获取奖励
+    → distributeReward() 发放物品（灵石/丹药/材料/储物袋）
+        → 检查堆叠上限：超限提示"请清理背包"
+    → 更新 SignInState (claimedDays + today)
+    → UI 刷新卡片状态（已领/未领/错过）
+```
+
+#### 数据库
+
+- `game_data` 表新增 `sign_in_state_json` 列（TEXT, ProtoBuf 序列化 `SignInState`）
+- Migration `MIGRATION_1_2`: `ALTER TABLE game_data ADD COLUMN sign_in_state_json`
+- `CollectionConverters` 新增 `fromSignInState`/`toSignInState` TypeConverter
+
+---
+
 ## 构建与 Profile
 
 ### 测试架构（v3.2.02 新增）
@@ -1013,7 +1133,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 - `GameStateStore` 版本计数器 + `sample(50)` 批处理 StateFlow 发射
 - `ThermalMonitor` ADPF Performance Hint API 集成（API 31+）
-- `MainGameScreen` 热状态自适应渲染分辨率（NORMAL→1.0 / MODERATE→0.75 / SEVERE→0.6 / EMERGENCY→0.5）
+- `MainGameScreen` GPU 分级 + 热状态联动渲染缩放（LOW 设备 NORMAL→0.7, MEDIUM→0.9, HIGH/ULTRA→1.0；逐级降至 EMERGENCY→0.25~0.5）
 - `CultivationService` 微批次 yield（每 50 人 yield）、PhaseTickAccumulator 合并副作用
 - `GameEngineCore` 专用游戏线程（`GAME_DISPATCHER`）、空闲检测保留 tick 改降域
 - 月度结算精简：薪水年度化、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
@@ -1033,7 +1153,11 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P4 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 
-> 已删除/已完成项（v4.0.00）：
+> 已删除/已完成项：
+> - ✅ **v4.0.01 — GPU 全覆盖分级渲染**：检测 80+ SoC 型号、40+ 品牌，四级画质自动适配（地图精度/渲染缩放/贴图质量/装饰密度）
+> - ✅ **v4.0.01 — Canvas Overdraw 大幅优化**：网格线 LOW 模式 ~100→4 条，预览框 ~50→1 次 drawRect
+> - ✅ **v4.0.01 — 活动系统 + 每日签到**
+> - ✅ **v4.0.00 — 架构重构**：
 > - ✅ **巨型文件拆分**：CultivationService(3804→拆10文件)、GameEngine(3000→拆9文件)、DiscipleDetailScreen(2647→542)、SaveDataConverter(2002→拆7文件)、ItemDetailDialog(1548→拆3文件)、WarehouseTab(1568→拆8文件)、ChangelogData(1999→44)、ProtobufConverters(1145→544)
 > - ✅ **反模式清零**：!! 110→0、runBlocking 17→0、TODO 14→0、@Suppress 60+→15
 > - ✅ **静态分析工具链**：Detekt + Lint 集成 + Baseline 生成

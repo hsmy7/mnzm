@@ -27,14 +27,14 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 
 @Composable
 fun GiftDialog(
     sect: WorldSect?,
     gameData: GameData?,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
     val currentYear = gameData?.gameYear ?: 1
@@ -117,7 +117,7 @@ fun GiftDialog(
                 gameData = gameData,
                 hasGiftedThisYear = hasGiftedThisYear,
                 viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
+                interactionViewModel = interactionViewModel,
                 onDismiss = onDismiss
             )
         }
@@ -184,7 +184,7 @@ private fun SpiritStoneGiftTab(
     gameData: GameData?,
     hasGiftedThisYear: Boolean,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
     val tiers = GiftConfig.SpiritStoneGiftConfig.getAllTiers()
@@ -214,7 +214,7 @@ private fun SpiritStoneGiftTab(
                 canAfford = canAfford,
                 onClick = {
                     if (!isDisabled) {
-                        worldMapViewModel.giftSpiritStones(sect?.id ?: "", tier.tier)
+                        interactionViewModel.giftSpiritStones(sect?.id ?: "", tier.tier)
                         onDismiss()
                     }
                 }

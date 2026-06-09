@@ -86,6 +86,10 @@ fun GameActionButtons(
             text = "种植",
             drawableRes = R.drawable.ui_planting_button
         ) { viewModel.navigateToDialog(DialogRoute.Planting) }
+        FloatingActionButton(
+            text = "活动",
+            drawableRes = R.drawable.ui_activity_button
+        ) { viewModel.navigateToDialog(DialogRoute.Activity) }
     }
 }
 

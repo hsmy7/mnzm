@@ -6,10 +6,6 @@ import androidx.compose.ui.unit.sp
 
 object MapStyle {
     object Colors {
-        val background = Color(0xFFA8B878)
-        val path = Color(0xFF8B7355)
-        val pathAlpha = 0.9f
-
         val sectPlayer = Color(0xFFFF8C00)
         val sectNormal = Color(0xFFF5E6C8)
         val sectHighlighted = Color(0xFFFF0000)
@@ -47,8 +43,6 @@ object MapStyle {
         val sectBorderWidth = 2.dp
         val sectHighlightedBorderWidth = 3.dp
         val sectBorderRadius = 6.dp
-
-        val pathStrokeWidth = 4.dp
 
         val controlButtonPaddingH = 12.dp
         val controlButtonPaddingV = 6.dp

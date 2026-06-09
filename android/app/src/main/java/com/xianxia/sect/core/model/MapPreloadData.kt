@@ -12,7 +12,9 @@ data class MapPreloadData(
     val worldHeightCells: Int,
     val tileSize: Int,
     val worldPixelWidth: Int,
-    val worldPixelHeight: Int
+    val worldPixelHeight: Int,
+    val renderWidth: Int,
+    val renderHeight: Int
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -22,6 +24,8 @@ data class MapPreloadData(
             tileSize == other.tileSize &&
             worldPixelWidth == other.worldPixelWidth &&
             worldPixelHeight == other.worldPixelHeight &&
+            renderWidth == other.renderWidth &&
+            renderHeight == other.renderHeight &&
             groundTileBmp == other.groundTileBmp &&
             grassDecBmp == other.grassDecBmp &&
             treeDecBmp == other.treeDecBmp &&
@@ -40,6 +44,8 @@ data class MapPreloadData(
         result = 31 * result + tileSize
         result = 31 * result + worldPixelWidth
         result = 31 * result + worldPixelHeight
+        result = 31 * result + renderWidth
+        result = 31 * result + renderHeight
         return result
     }
 }

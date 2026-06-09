@@ -441,7 +441,7 @@ data class SerializableWorldSect(
     @ProtoNumber(11) val relation: Int,
     @ProtoNumber(12) val disciples: Map<Int, Int> = emptyMap(),
     @ProtoNumber(13) val maxRealm: Int,
-    @ProtoNumber(14) val connectedSectIds: List<String> = emptyList(),
+    // @ProtoNumber(14) removed — connectedSectIds no longer used (2026-06-09)
     @ProtoNumber(15) val isOccupied: Boolean,
     @ProtoNumber(16) val occupierTeamId: String = "",
     @ProtoNumber(17) val occupierTeamName: String,

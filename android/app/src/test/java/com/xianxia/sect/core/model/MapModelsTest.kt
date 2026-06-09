@@ -103,36 +103,6 @@ class MapModelsTest {
         assertEquals(600f, cy, 0.001f)
     }
 
-    // ==================== MapCoordinateSystem worldToScreen ====================
-
-    @Test
-    fun worldToScreen_withOffset() {
-        val (sx, sy) = MapCoordinateSystem.worldToScreen(0f, 0f, 800f, 600f, 100f, 50f)
-        assertEquals(100f, sx, 0.001f)
-        assertEquals(50f, sy, 0.001f)
-    }
-
-    // ==================== MapCoordinateSystem isWorldPositionVisible ====================
-
-    @Test
-    fun isWorldPositionVisible_visiblePosition() {
-        val visible = MapCoordinateSystem.isWorldPositionVisible(
-            MapCoordinateSystem.WORLD_WIDTH / 2,
-            MapCoordinateSystem.WORLD_HEIGHT / 2,
-            800f, 600f, 0f, 0f, 1080, 1920
-        )
-        assertTrue(visible)
-    }
-
-    @Test
-    fun isWorldPositionVisible_farOffScreen() {
-        val visible = MapCoordinateSystem.isWorldPositionVisible(
-            -10000f, -10000f,
-            800f, 600f, 0f, 0f, 1080, 1920
-        )
-        assertFalse(visible)
-    }
-
     // ==================== CultivatorCave ====================
 
     @Test

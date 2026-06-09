@@ -34,7 +34,7 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -55,12 +55,12 @@ fun AllianceDialog(
     sect: WorldSect?,
     gameData: com.xianxia.sect.core.model.GameData?,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
-    val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
-    val remainingYears = sect?.let { worldMapViewModel.getAllianceRemainingYears(it.id) } ?: 0
-    val allianceCost = sect?.level?.let { worldMapViewModel.getAllianceCost(it) } ?: 0L
+    val isAlly = sect?.let { interactionViewModel.isAlly(it.id) } ?: false
+    val remainingYears = sect?.let { interactionViewModel.getAllianceRemainingYears(it.id) } ?: 0
+    val allianceCost = sect?.level?.let { interactionViewModel.getAllianceCost(it) } ?: 0L
     val spiritStones = gameData?.spiritStones ?: 0L
     val canAfford = spiritStones >= allianceCost
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -96,7 +96,7 @@ fun AllianceDialog(
                     GameButton(
                         text = "解除结盟",
                         onClick = {
-                            worldMapViewModel.dissolveAlliance(sect?.id ?: "")
+                            interactionViewModel.dissolveAlliance(sect?.id ?: "")
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -113,7 +113,7 @@ fun AllianceDialog(
                             if (hasOtherAlliance) {
                                 showAlreadyAllianceDialog = true
                             } else {
-                                worldMapViewModel.openEnvoyDiscipleSelectDialog()
+                                interactionViewModel.openEnvoyDiscipleSelectDialog()
                             }
                         },
                         onCloseClick = onDismiss
@@ -302,7 +302,7 @@ fun EnvoyDiscipleSelectDialog(
     sect: WorldSect?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
@@ -313,7 +313,7 @@ fun EnvoyDiscipleSelectDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
-    val requiredRealm = GameConfig.Realm.getName(worldMapViewModel.getEnvoyRealmRequirement(sectLevel))
+    val requiredRealm = GameConfig.Realm.getName(interactionViewModel.getEnvoyRealmRequirement(sectLevel))
 
     val realmCounts = remember(disciples) {
         disciples.groupingBy { it.realm }.eachCount()
@@ -409,7 +409,7 @@ fun EnvoyDiscipleSelectDialog(
                         text = "确认游说",
                         onClick = {
                             selectedDisciple?.let { disciple ->
-                                worldMapViewModel.requestAlliance(sect?.id ?: "", disciple.id)
+                                interactionViewModel.requestAlliance(sect?.id ?: "", disciple.id)
                                 onDismiss()
                             }
                         },

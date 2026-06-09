@@ -37,6 +37,9 @@ class ExplorationService @Inject constructor(
 
     private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
 
+    // 关卡刷新冷却：每3个月刷新一次（绝对月 = year * 12 + month）
+    private var lastWorldLevelRefreshMonth: Int = 0
+
     fun consumePendingPatrolResults(): List<BattleResultUIData> {
         val results = _pendingPatrolResults.toList()
         _pendingPatrolResults.clear()
@@ -48,20 +51,31 @@ class ExplorationService @Inject constructor(
         val year = data.gameYear
         val month = data.gameMonth
 
+        // 清理过期关卡（每月都做）
         val remainingLevels = data.worldLevels.filter { !it.checkExpired(year, month) }
-        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
 
-        val edges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
-        val newLevels = LevelGenerator.generateWorldLevels(
-            existingSects = data.worldMapSects,
-            connectionEdges = edges,
-            currentYear = year,
-            currentMonth = month,
-            existingLevels = remainingLevels
-        )
+        // 每3个月刷新一次新关卡（数量1~6，持续4个月）
+        val absoluteMonth = year * 12 + month
+        val shouldRefresh = lastWorldLevelRefreshMonth == 0 || (absoluteMonth - lastWorldLevelRefreshMonth) >= 3
 
-        if (newLevels.isNotEmpty()) {
-            state.gameData = data.copy(worldLevels = remainingLevels + newLevels)
+        if (shouldRefresh) {
+            lastWorldLevelRefreshMonth = absoluteMonth
+            val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+
+            val edges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
+            val newLevels = LevelGenerator.generateWorldLevels(
+                existingSects = data.worldMapSects,
+                connectionEdges = edges,
+                currentYear = year,
+                currentMonth = month,
+                existingLevels = remainingLevels
+            )
+
+            if (newLevels.isNotEmpty()) {
+                state.gameData = data.copy(worldLevels = remainingLevels + newLevels)
+            } else if (remainingLevels.size != data.worldLevels.size) {
+                state.gameData = data.copy(worldLevels = remainingLevels)
+            }
         } else if (remainingLevels.size != data.worldLevels.size) {
             state.gameData = data.copy(worldLevels = remainingLevels)
         }

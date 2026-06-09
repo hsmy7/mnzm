@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 1
+    version = 4
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -339,20 +339,27 @@ abstract class GameDatabase : RoomDatabase() {
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
         private val threadCounter = AtomicInteger(0)
 
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN sign_in_state_json TEXT NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}'")
+            }
+        }
+
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM world_map_state")
+            }
+        }
+
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 宗门连接图机制移除，坐标改为固定，清空世界地图状态让其重新初始化
+                db.execSQL("DELETE FROM world_map_state")
+            }
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
-
-            // 4.0：删除旧数据库文件，彻底从零开始
-            val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
-            if (dbFile.exists()) {
-                // 删除主数据库及 WAL/SHM 附属文件
-                listOf(dbFile,
-                    File(dbFile.parent, "$UNIFIED_DB_NAME-wal"),
-                    File(dbFile.parent, "$UNIFIED_DB_NAME-shm")
-                ).forEach { file ->
-                    if (file.exists()) { file.delete(); Log.i(TAG, "4.0 reset: deleted $file") }
-                }
-            }
 
             return Room.databaseBuilder(
                 context.applicationContext,
@@ -380,6 +387,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }

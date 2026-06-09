@@ -33,4 +33,5 @@ interface BuildingFacade {
     suspend fun removePlantFromSpiritField(buildingInstanceId: String)
     fun clearAlchemySlot(slotIndex: Int)
     fun clearForgeSlot(slotIndex: Int)
+    suspend fun removeBuilding(instanceId: String, refund: Long)
 }

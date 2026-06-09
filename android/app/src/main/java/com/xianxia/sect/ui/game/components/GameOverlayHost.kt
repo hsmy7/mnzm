@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
+import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
@@ -36,7 +38,8 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TopOverlay
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
+import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.dialogs.*
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
@@ -63,7 +66,8 @@ fun GameOverlayHost(
     spiritMineViewModel: SpiritMineViewModel,
     patrolTowerViewModel: PatrolTowerViewModel,
     bloodRefiningViewModel: BloodRefiningViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    worldMapInteractionViewModel: WorldMapInteractionViewModel,
+    worldMapGarrisonViewModel: WorldMapGarrisonViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
@@ -197,7 +201,7 @@ fun GameOverlayHost(
             DiplomacyDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
+                interactionViewModel = worldMapInteractionViewModel,
                 onDismiss = onDismiss
             )
         }
@@ -228,15 +232,20 @@ fun GameOverlayHost(
         is DialogRoute.WorldMap -> {
             val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-            WorldMapDialog(
-                worldSects = mapRenderData.worldMapSects,
-                mapRenderData = mapRenderData,
-                gameData = gameData,
-                disciples = disciples,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = onDismiss
-            )
+            Surface(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                WorldMapDialog(
+                    worldSects = mapRenderData.worldMapSects,
+                    mapRenderData = mapRenderData,
+                    gameData = gameData,
+                    disciples = disciples,
+                    viewModel = viewModel,
+                    interactionViewModel = worldMapInteractionViewModel,
+                    garrisonViewModel = worldMapGarrisonViewModel,
+                    onDismiss = onDismiss
+                )
+            }
         }
         is DialogRoute.BattleLog -> {
             val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
@@ -248,6 +257,14 @@ fun GameOverlayHost(
         is DialogRoute.Mail -> {
             MailDialog(
                 viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+        }
+        is DialogRoute.Activity -> {
+            val activityViewModel = androidx.hilt.navigation.compose.hiltViewModel<ActivityViewModel>()
+            ActivityDialog(
+                viewModel = activityViewModel,
+                gameViewModel = viewModel,
                 onDismiss = onDismiss
             )
         }

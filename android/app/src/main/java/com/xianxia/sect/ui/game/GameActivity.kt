@@ -40,6 +40,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.perf.GpuTierDetector
+import com.xianxia.sect.core.perf.GpuRenderConfig
 import kotlin.random.Random
 import javax.inject.Inject
 
@@ -54,23 +56,36 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         private const val TILE_GRASS = 1
         private const val TILE_TREE = 2
 
-        private fun generateRawTileData(worldWidthCells: Int, worldHeightCells: Int): Array<IntArray> {
+        /**
+         * @param grassProbability 草地生成概率 (0.0=无草, 0.03=稀疏, 0.06=正常)
+         * @param treeProbability 树木生成概率 (0.0=无树, 0.05=稀疏, 0.10=正常)
+         */
+        private fun generateRawTileData(
+            worldWidthCells: Int,
+            worldHeightCells: Int,
+            grassProbability: Float = 0.06f,
+            treeProbability: Float = 0.10f
+        ): Array<IntArray> {
             val rng = Random(42)
             val data = Array(worldHeightCells) { IntArray(worldWidthCells) { TILE_GROUND } }
 
-            for (tx in 0 until worldWidthCells / 5) {
-                for (ty in 0 until worldHeightCells / 5) {
-                    if (rng.nextFloat() < 0.10f) {
-                        val cx = (tx * 5 + rng.nextInt(3)).coerceIn(0, worldWidthCells - 1)
-                        val cy = (ty * 5 + rng.nextInt(3)).coerceIn(0, worldHeightCells - 1)
-                        data[cy][cx] = TILE_TREE
+            if (treeProbability > 0f) {
+                for (tx in 0 until worldWidthCells / 5) {
+                    for (ty in 0 until worldHeightCells / 5) {
+                        if (rng.nextFloat() < treeProbability) {
+                            val cx = (tx * 5 + rng.nextInt(3)).coerceIn(0, worldWidthCells - 1)
+                            val cy = (ty * 5 + rng.nextInt(3)).coerceIn(0, worldHeightCells - 1)
+                            data[cy][cx] = TILE_TREE
+                        }
                     }
                 }
             }
-            for (gx in 0 until worldWidthCells) {
-                for (gy in 0 until worldHeightCells) {
-                    if (data[gy][gx] == TILE_GROUND && rng.nextFloat() < 0.06f) {
-                        data[gy][gx] = TILE_GRASS
+            if (grassProbability > 0f) {
+                for (gx in 0 until worldWidthCells) {
+                    for (gy in 0 until worldHeightCells) {
+                        if (data[gy][gx] == TILE_GROUND && rng.nextFloat() < grassProbability) {
+                            data[gy][gx] = TILE_GRASS
+                        }
                     }
                 }
             }
@@ -87,7 +102,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     private val spiritMineViewModel: SpiritMineViewModel by viewModels()
     private val patrolTowerViewModel: PatrolTowerViewModel by viewModels()
     private val bloodRefiningViewModel: BloodRefiningViewModel by viewModels()
-    private val worldMapViewModel: WorldMapViewModel by viewModels()
+    private val worldMapInteractionViewModel: WorldMapInteractionViewModel by viewModels()
+    private val worldMapGarrisonViewModel: WorldMapGarrisonViewModel by viewModels()
     private val battleViewModel: BattleViewModel by viewModels()
 
     @Inject
@@ -107,6 +123,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     @Inject
     lateinit var frameMetricsMonitor: FrameMetricsMonitor
+
+    // GPU 分级检测 — 在 Activity 级别缓存，供地图预渲染使用
+    // 来源: docs/device-adaptation-plan.md §5 Step 5 — 优先使用 GameManager API
+    private val gpuRenderConfig: GpuRenderConfig by lazy { GpuRenderConfig.forTier(GpuTierDetector().detect(this)) }
 
     // 持有地图预加载数据引用，供 onTrimMemory 中释放 Bitmap 使用
     @Volatile
@@ -163,41 +183,83 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             val tileSize = GameConfig.SectMap.TILE_SIZE
                             val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
                             val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-                            val worldPixelWidth = GameConfig.SectMap.WORLD_PIXEL_WIDTH
-                            val worldPixelHeight = GameConfig.SectMap.WORLD_PIXEL_HEIGHT
+                            val worldPixelWidth = worldWidthCells * tileSize
+                            val worldPixelHeight = worldHeightCells * tileSize
 
                             val result = withContext(Dispatchers.IO) {
+                                val renderConfig = gpuRenderConfig
+
+                                // 渲染分辨率低于世界分辨率，画的时候拉伸
+                                // 来源: docs/gpu-tier-fairness-plan.md §3 — GPU 分级只影响渲染质量，不改变游戏世界尺寸
+                                val renderScale = renderConfig.mapResolution.toFloat() / GameConfig.SectMap.WORLD_WIDTH_CELLS.toFloat()
+                                val renderWidth = (worldPixelWidth * renderScale).toInt()
+                                val renderHeight = (worldPixelHeight * renderScale).toInt()
+
+                                // 来源: docs/device-adaptation-plan.md §4 — textureLodOffset 控制贴图质量
+                                // +1 = 更模糊(省显存), 0 = 默认, -1 = 更清晰
+                                val lodMultiplier = when (renderConfig.textureLodOffset) {
+                                    -1 -> 1   // ULTRA: 高质量 (inSampleSize 减半)
+                                    0 -> 2    // HIGH/MEDIUM: 当前质量
+                                    1 -> 4    // LOW: 低质量 (inSampleSize 翻倍)
+                                    else -> 2
+                                }
+                                val groundSampleSize = lodMultiplier
+                                val decorationSampleSize = lodMultiplier * 2
+
                                 val groundBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }
                                     val src = android.graphics.BitmapFactory.decodeResource(
                                         resources, R.drawable.sect_ground_map, opts
                                     ) ?: throw Exception("ground decode failed")
-                                    android.graphics.Bitmap.createScaledBitmap(src, worldPixelWidth, worldPixelHeight, false)
+                                    android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)
                                 } catch (e: Exception) { null }
 
                                 val grassBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = decorationSampleSize }
                                     android.graphics.BitmapFactory.decodeResource(
                                         resources, R.drawable.decoration_grass, opts
                                     )
                                 } catch (e: Exception) { null }
 
-                                val treeBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                                    android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.decoration_trees, opts
-                                    )
-                                } catch (e: Exception) { null }
+                                // 来源: docs/huawei-performance-research.md §4.2 — LOW 级别跳过树木装饰
+                                val treeBmp = if (renderConfig.showTrees) {
+                                    try {
+                                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = decorationSampleSize }
+                                        android.graphics.BitmapFactory.decodeResource(
+                                            resources, R.drawable.decoration_trees, opts
+                                        )
+                                    } catch (e: Exception) { null }
+                                } else null
 
-                                val rawTileData = generateRawTileData(worldWidthCells, worldHeightCells)
+                                // 来源: docs/device-adaptation-plan.md §4 — particleEffectMode 控制装饰密度
+                                // "off"=无草无树, "simple"=半密度, "full"=全密度
+                                val grassProbability = when (renderConfig.particleEffectMode) {
+                                    "off" -> 0.0f
+                                    "simple" -> 0.03f
+                                    else -> 0.06f
+                                }
+                                val treeProbability = when (renderConfig.particleEffectMode) {
+                                    "off" -> 0.0f
+                                    "simple" -> 0.05f
+                                    else -> 0.10f
+                                }
+                                val rawTileData = generateRawTileData(worldWidthCells, worldHeightCells, grassProbability, treeProbability)
 
-                                if (groundBmp != null && grassBmp != null && treeBmp != null) {
-                                    // 预渲染完整静态地图（地面纹理 + 全部草/树装饰）
+                                if (groundBmp != null && grassBmp != null) {
+                                    // 预渲染完整静态地图（地面纹理 + 草/树装饰）
+                                    // 来源: docs/huawei-performance-research.md §4.4 — 低端 GPU 使用 RGB_565
+                                    val bmpConfig = if (renderConfig.useArgb8888)
+                                        android.graphics.Bitmap.Config.ARGB_8888
+                                    else
+                                        android.graphics.Bitmap.Config.RGB_565
                                     val fullBmp = android.graphics.Bitmap.createBitmap(
-                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.RGB_565
+                                        renderWidth, renderHeight, bmpConfig
                                     )
                                     val canvas = android.graphics.Canvas(fullBmp)
+                                    // groundBmp 已缩放到渲染分辨率，直接铺满
                                     canvas.drawBitmap(groundBmp, 0f, 0f, null)
+                                    // Canvas 缩放使装饰物世界坐标映射到渲染分辨率
+                                    canvas.scale(renderScale, renderScale)
 
                                     val overlap = 1
                                     for (row in 0 until worldHeightCells) {
@@ -213,29 +275,38 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                                         android.graphics.Rect(dstX, dstY, dstX + dstW, dstY + dstW), null)
                                                 }
                                                 TILE_TREE -> {
-                                                    val cx = col * tileSize + tileSize / 2
-                                                    val cy = row * tileSize + tileSize / 2
-                                                    val decW = tileSize * 2 + overlap * 2
-                                                    canvas.drawBitmap(treeBmp, null,
-                                                        android.graphics.Rect(
-                                                            cx - tileSize - overlap, cy - tileSize - overlap,
-                                                            cx + tileSize + overlap, cy + tileSize + overlap
-                                                        ), null)
+                                                    if (treeBmp != null) {
+                                                        val cx = col * tileSize + tileSize / 2
+                                                        val cy = row * tileSize + tileSize / 2
+                                                        canvas.drawBitmap(treeBmp, null,
+                                                            android.graphics.Rect(
+                                                                cx - tileSize - overlap, cy - tileSize - overlap,
+                                                                cx + tileSize + overlap, cy + tileSize + overlap
+                                                            ), null)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
 
+                                    // 来源: docs/huawei-performance-research.md §4.4 — 预热 GPU 纹理上传管线
+                                    groundBmp.prepareToDraw()
+                                    grassBmp.prepareToDraw()
+                                    treeBmp?.prepareToDraw()
+                                    fullBmp.prepareToDraw()
+
                                     MapPreloadData(
                                         groundTileBmp = groundBmp.asImageBitmap(),
                                         grassDecBmp = grassBmp.asImageBitmap(),
-                                        treeDecBmp = treeBmp.asImageBitmap(),
+                                        treeDecBmp = treeBmp?.asImageBitmap() ?: grassBmp.asImageBitmap(),
                                         rawTileData = rawTileData,
                                         worldWidthCells = worldWidthCells,
                                         worldHeightCells = worldHeightCells,
                                         tileSize = tileSize,
                                         worldPixelWidth = worldPixelWidth,
                                         worldPixelHeight = worldPixelHeight,
+                                        renderWidth = renderWidth,
+                                        renderHeight = renderHeight,
                                         fullMapBmp = fullBmp.asImageBitmap()
                                     )
                                 } else {
@@ -245,7 +316,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                     ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
                                     val fallbackImg = fallbackBmp.asImageBitmap()
                                     val fullFallbackBmp = android.graphics.Bitmap.createBitmap(
-                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.ARGB_8888
+                                        renderWidth, renderHeight, android.graphics.Bitmap.Config.ARGB_8888
                                     ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
                                     MapPreloadData(
                                         groundTileBmp = fallbackImg,
@@ -257,6 +328,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         tileSize = tileSize,
                                         worldPixelWidth = worldPixelWidth,
                                         worldPixelHeight = worldPixelHeight,
+                                        renderWidth = renderWidth,
+                                        renderHeight = renderHeight,
                                         fullMapBmp = fullFallbackBmp.asImageBitmap()
                                     )
                                 }
@@ -300,7 +373,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 spiritMineViewModel = spiritMineViewModel,
                                 patrolTowerViewModel = patrolTowerViewModel,
                                 bloodRefiningViewModel = bloodRefiningViewModel,
-                                worldMapViewModel = worldMapViewModel,
+                                worldMapInteractionViewModel = worldMapInteractionViewModel,
+                                worldMapGarrisonViewModel = worldMapGarrisonViewModel,
                                 battleViewModel = battleViewModel,
                                 onLogout = {
                                     sessionManager.clearSession()

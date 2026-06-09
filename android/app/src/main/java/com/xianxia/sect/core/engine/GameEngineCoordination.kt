@@ -176,8 +176,10 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     stateStore.reset(); cultivationService.resetHighFrequencyData()
     try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { Log.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
     initializeWorldAndServices(sectName, currentSlot)
+    val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+    val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
     stateStore.update {
-        val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = 23, gridY = 23, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
+        val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
         gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
         repeat(3) { discipleService.recruitDisciple() }
     }
@@ -191,8 +193,10 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
     try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { Log.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
     if (sectName.isNotBlank()) {
         initializeWorldAndServices(sectName, currentSlot)
+        val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+        val centerGrid = gridCells / 2 - 1
         stateStore.update {
-            val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = 23, gridY = 23, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
+            val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
             gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
             repeat(3) { discipleService.recruitDisciple() }
         }

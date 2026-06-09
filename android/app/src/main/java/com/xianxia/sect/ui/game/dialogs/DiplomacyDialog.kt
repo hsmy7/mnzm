@@ -26,7 +26,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -34,7 +34,7 @@ import com.xianxia.sect.ui.theme.GameColors
 fun DiplomacyDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -60,13 +60,13 @@ fun DiplomacyDialog(
 
     var showGiftedMessage by remember { mutableStateOf(false) }
 
-    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsStateWithLifecycle()
-    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsStateWithLifecycle()
-    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
-    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
-    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
-    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
-    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsStateWithLifecycle()
+    val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
+    val showAllianceDialog by interactionViewModel.showAllianceDialog.collectAsStateWithLifecycle()
+    val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
+    val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
+    val selectedAllianceSectId by interactionViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
+    val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
+    val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -97,15 +97,15 @@ fun DiplomacyDialog(
                                 relation = sectFavors[sect] ?: 0,
                                 currentYear = currentYear,
                                 gameData = gameData,
-                                isAlly = worldMapViewModel.isAlly(sect.id),
+                                isAlly = interactionViewModel.isAlly(sect.id),
                                 onGift = {
-                                    worldMapViewModel.openGiftDialog(sect.id)
+                                    interactionViewModel.openGiftDialog(sect.id)
                                 },
                                 onFormAlliance = {
-                                    worldMapViewModel.openAllianceDialog(sect.id)
+                                    interactionViewModel.openAllianceDialog(sect.id)
                                 },
                                 onTrade = {
-                                    worldMapViewModel.openSectTradeDialog(sect.id)
+                                    interactionViewModel.openSectTradeDialog(sect.id)
                                 },
                                 onShowGiftedMessage = {
                                     showGiftedMessage = true
@@ -132,8 +132,8 @@ fun DiplomacyDialog(
             gameData = gameData,
             tradeItems = sectTradeItems,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeSectTradeDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeSectTradeDialog() }
         )
     }
 
@@ -143,8 +143,8 @@ fun DiplomacyDialog(
             sect = sect,
             gameData = gameData,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeGiftDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeGiftDialog() }
         )
     }
 
@@ -154,8 +154,8 @@ fun DiplomacyDialog(
             sect = sect,
             gameData = gameData,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeAllianceDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeAllianceDialog() }
         )
     }
 }

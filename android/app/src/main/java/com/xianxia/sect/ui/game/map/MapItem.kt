@@ -37,13 +37,3 @@ sealed interface MapItem {
         val defeated: Boolean
     ) : MapItem
 }
-
-data class MapPathData(
-    val fromId: String,
-    val toId: String,
-    val fromWorldX: Float,
-    val fromWorldY: Float,
-    val toWorldX: Float,
-    val toWorldY: Float,
-    val waypoints: List<Pair<Float, Float>> = emptyList()
-)

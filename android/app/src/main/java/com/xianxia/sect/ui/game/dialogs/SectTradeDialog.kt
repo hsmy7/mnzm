@@ -37,7 +37,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
@@ -48,7 +48,7 @@ fun SectTradeDialog(
     gameData: GameData?,
     tradeItems: List<MerchantItem>,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
@@ -69,7 +69,7 @@ fun SectTradeDialog(
     val relation = if (gameData != null && sect != null) {
         GameUtils.getSectRelation(gameData.worldMapSects, gameData.sectRelations, sect.id)
     } else 0
-    val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
+    val isAlly = sect?.let { interactionViewModel.isAlly(it.id) } ?: false
 
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val maxAllowedRarity = relationLevel.maxAllowedRarity
@@ -317,7 +317,7 @@ fun SectTradeDialog(
                                     GameButton(
                                         text = "确认购买",
                                         onClick = {
-                                            worldMapViewModel.buyFromSectTrade(item.id, buyQuantity)
+                                            interactionViewModel.buyFromSectTrade(item.id, buyQuantity)
                                             buyQuantity = 1
                                         },
                                         enabled = canAfford && buyQuantity > 0

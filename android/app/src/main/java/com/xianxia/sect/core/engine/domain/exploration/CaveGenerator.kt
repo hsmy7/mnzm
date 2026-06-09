@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.*
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -138,7 +137,7 @@ object CaveGenerator {
         
         val minPathDist = GameConfig.WorldMap.CAVE_MIN_PATH_DISTANCE
         for (edge in edges) {
-            if (isPointNearCurvedPath(x, y, edge, minPathDist)) return false
+            if (GeometryUtils.isPointNearCurvedPath(x, y, edge, minPathDist)) return false
         }
         
         val minCaveDist = GameConfig.WorldMap.CAVE_MIN_CAVE_DISTANCE
@@ -152,70 +151,7 @@ object CaveGenerator {
         
         return true
     }
-    
-    private fun isPointNearCurvedPath(px: Int, py: Int, edge: MSTEdge, threshold: Double): Boolean {
-        val (from, to) = if (edge.sect1.id < edge.sect2.id) {
-            edge.sect1 to edge.sect2
-        } else {
-            edge.sect2 to edge.sect1
-        }
-        val waypoints = WorldMapGenerator.generatePathWaypoints(
-            from.x, from.y,
-            to.x, to.y,
-            from.id, to.id
-        )
-        
-        if (waypoints.isEmpty()) {
-            return isPointNearLineSegment(
-                px.toDouble(), py.toDouble(),
-                from.x.toDouble(), from.y.toDouble(),
-                to.x.toDouble(), to.y.toDouble(),
-                threshold
-            )
-        }
-        
-        val points = mutableListOf<Pair<Double, Double>>()
-        points.add(Pair(from.x.toDouble(), from.y.toDouble()))
-        for (wp in waypoints) {
-            points.add(Pair(wp.first.toDouble(), wp.second.toDouble()))
-        }
-        points.add(Pair(to.x.toDouble(), to.y.toDouble()))
-        
-        for (i in 0 until points.size - 1) {
-            if (isPointNearLineSegment(
-                    px.toDouble(), py.toDouble(),
-                    points[i].first, points[i].second,
-                    points[i + 1].first, points[i + 1].second,
-                    threshold
-                )) {
-                return true
-            }
-        }
-        
-        return false
-    }
-    
-    private fun isPointNearLineSegment(
-        px: Double, py: Double,
-        x1: Double, y1: Double,
-        x2: Double, y2: Double,
-        threshold: Double
-    ): Boolean {
-        val lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
-        if (lineLenSq == 0.0) {
-            return sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1)) < threshold
-        }
-        
-        val t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / lineLenSq
-        val tClamped = t.coerceIn(0.0, 1.0)
-        
-        val nearestX = x1 + tClamped * (x2 - x1)
-        val nearestY = y1 + tClamped * (y2 - y1)
-        
-        val dist = sqrt((px - nearestX) * (px - nearestX) + (py - nearestY) * (py - nearestY))
-        return dist < threshold
-    }
-    
+
     fun getRarityRangeForCave(ownerRealm: Int): List<Int> {
         return realmConfigs.find { it.realm == ownerRealm }?.rarityRange ?: listOf(1, 2, 3)
     }

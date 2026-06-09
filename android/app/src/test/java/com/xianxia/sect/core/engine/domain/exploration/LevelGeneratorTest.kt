@@ -71,43 +71,28 @@ class LevelGeneratorTest {
     }
 
     @Test
-    fun buildConnectionEdges_singleSectNoConnections_returnsEmptyList() {
-        val sect = WorldSect(id = "s1", connectedSectIds = emptyList())
+    fun buildConnectionEdges_singleSect_returnsEmptyList() {
+        val sect = WorldSect(id = "s1", x = 0f, y = 0f)
         val edges = LevelGenerator.buildConnectionEdges(listOf(sect))
         assertEquals(0, edges.size)
     }
 
     @Test
-    fun buildConnectionEdges_twoConnectedSects_returnsOneEdge() {
-        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f, connectedSectIds = listOf("s2"))
-        val sect2 = WorldSect(id = "s2", x = 30f, y = 40f, connectedSectIds = listOf("s1"))
+    fun buildConnectionEdges_twoSects_returnsOneEdge() {
+        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f)
+        val sect2 = WorldSect(id = "s2", x = 30f, y = 40f)
         val edges = LevelGenerator.buildConnectionEdges(listOf(sect1, sect2))
         assertEquals(1, edges.size)
         assertEquals(50.0, edges[0].weight, 0.01)
     }
 
     @Test
-    fun buildConnectionEdges_noDuplicateEdges() {
-        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f, connectedSectIds = listOf("s2"))
-        val sect2 = WorldSect(id = "s2", x = 30f, y = 40f, connectedSectIds = listOf("s1"))
-        val edges = LevelGenerator.buildConnectionEdges(listOf(sect1, sect2))
-        // Both sects reference each other, but only one edge should be created
-        assertEquals(1, edges.size)
-    }
-
-    @Test
-    fun buildConnectionEdges_missingConnectedSect_skipsEdge() {
-        val sect1 = WorldSect(id = "s1", connectedSectIds = listOf("s_nonexistent"))
-        val edges = LevelGenerator.buildConnectionEdges(listOf(sect1))
-        assertEquals(0, edges.size)
-    }
-
-    @Test
-    fun buildConnectionEdges_threeSectsTriangle_returnsThreeEdges() {
-        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f, connectedSectIds = listOf("s2", "s3"))
-        val sect2 = WorldSect(id = "s2", x = 100f, y = 0f, connectedSectIds = listOf("s1", "s3"))
-        val sect3 = WorldSect(id = "s3", x = 50f, y = 86f, connectedSectIds = listOf("s1", "s2"))
+    fun buildConnectionEdges_threeSects_returnsThreeEdges() {
+        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f)
+        val sect2 = WorldSect(id = "s2", x = 100f, y = 0f)
+        val sect3 = WorldSect(id = "s3", x = 50f, y = 86f)
         val edges = LevelGenerator.buildConnectionEdges(listOf(sect1, sect2, sect3))
+        // C(3,2) = 3 edges for all pairs
         assertEquals(3, edges.size)
     }
 

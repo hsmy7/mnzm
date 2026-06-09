@@ -18,12 +18,15 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapStyle
-import com.xianxia.sect.ui.game.map.CameraState
+import com.xianxia.sect.ui.game.map.world.WorldCameraState
+
+private fun Float.toIntCoerced(): Int =
+    this.coerceIn(Int.MIN_VALUE.toFloat(), Int.MAX_VALUE.toFloat()).toInt()
 
 @Composable
 fun SectMarker(
     item: MapItem.Sect,
-    cameraState: CameraState,
+    cameraState: WorldCameraState,
     onClick: () -> Unit
 ) {
     val markerColor = if (item.isPlayerSect) MapStyle.Colors.sectPlayer else MapStyle.Colors.sectNormal
@@ -41,8 +44,8 @@ fun SectMarker(
                 val placeable = measurable.measure(constraints)
                 layout(placeable.width, placeable.height) {
                     placeable.place(
-                        (x - placeable.width / 2f).roundToInt(),
-                        (y - placeable.height / 2f).roundToInt()
+                        (x - placeable.width / 2f).toIntCoerced(),
+                        (y - placeable.height / 2f).toIntCoerced()
                     )
                 }
             }

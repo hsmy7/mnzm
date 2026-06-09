@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.map
 
 import com.xianxia.sect.core.model.LevelType
-import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 
@@ -25,45 +24,6 @@ object MapItemMapper {
             isDiscovered = sect.discovered,
             isHighlighted = sect.id in movableTargetIds
         )
-    }
-
-    fun fromPaths(sects: List<WorldSect>): List<MapPathData> {
-        val sectMap = sects.associateBy { it.id }
-        val pathSet = mutableSetOf<Pair<String, String>>()
-        val paths = mutableListOf<MapPathData>()
-
-        sects.forEach { sect ->
-            sect.connectedSectIds.forEach { connectedId ->
-                if (connectedId in sectMap) {
-                    val (id1, id2) = if (sect.id < connectedId) {
-                        sect.id to connectedId
-                    } else {
-                        connectedId to sect.id
-                    }
-                    if (pathSet.add(id1 to id2)) {
-                        val from = sectMap[id1]
-                        val to = sectMap[id2]
-                        if (from != null && to != null) {
-                            val waypoints = WorldMapGenerator.generatePathWaypoints(
-                                from.x, from.y, to.x, to.y, from.id, to.id
-                            )
-                            paths.add(
-                                MapPathData(
-                                    fromId = id1,
-                                    toId = id2,
-                                    fromWorldX = from.x,
-                                    fromWorldY = from.y,
-                                    toWorldX = to.x,
-                                    toWorldY = to.y,
-                                    waypoints = waypoints
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        return paths
     }
 
     fun fromLevels(levels: List<WorldLevel>): List<MapItem.Level> =

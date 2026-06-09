@@ -10,7 +10,8 @@ import com.xianxia.sect.core.model.WorldSect
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
+import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
@@ -23,7 +24,8 @@ internal fun WorldMapDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
+    garrisonViewModel: WorldMapGarrisonViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedSect by remember { mutableStateOf<WorldSect?>(null) }
@@ -32,16 +34,16 @@ internal fun WorldMapDialog(
     var showLevelDetail by remember { mutableStateOf(false) }
 
     // WorldMap sub-dialogs — rendered locally to keep world map as background
-    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
-    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
-    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsStateWithLifecycle()
-    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsStateWithLifecycle()
-    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
-    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsStateWithLifecycle()
-    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
-    val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsStateWithLifecycle()
-    val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsStateWithLifecycle()
-    val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
+    val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
+    val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
+    val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
+    val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
+    val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
+    val showAllianceDialog by interactionViewModel.showAllianceDialog.collectAsStateWithLifecycle()
+    val selectedAllianceSectId by interactionViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
+    val showEnvoyDiscipleSelectDialog by interactionViewModel.showEnvoyDiscipleSelectDialog.collectAsStateWithLifecycle()
+    val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
+    val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
@@ -57,15 +59,10 @@ internal fun WorldMapDialog(
         sectItems + levelItems
     }
 
-    val paths = remember(worldSects) {
-        MapItemMapper.fromPaths(worldSects)
-    }
-
     BackHandler(onBack = onDismiss)
     Box(modifier = Modifier.fillMaxSize()) {
     WorldMapScreen(
         items = mapItems,
-        paths = paths,
         focusWorldX = playerSectX,
         focusWorldY = playerSectY,
         onBack = onDismiss,
@@ -90,7 +87,8 @@ internal fun WorldMapDialog(
                 gameData = gameData,
                 disciples = disciples,
                 viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
+                interactionViewModel = interactionViewModel,
+                garrisonViewModel = garrisonViewModel,
                 onDismiss = {
                     showSectDetail = false
                     selectedSect = null
@@ -125,8 +123,8 @@ internal fun WorldMapDialog(
             gameData = gameData,
             tradeItems = sectTradeItems,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeSectTradeDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeSectTradeDialog() }
         )
     }
 
@@ -136,8 +134,8 @@ internal fun WorldMapDialog(
             sect = sect,
             gameData = gameData,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeGiftDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeGiftDialog() }
         )
     }
 
@@ -147,23 +145,23 @@ internal fun WorldMapDialog(
             sect = sect,
             gameData = gameData,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeAllianceDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeAllianceDialog() }
         )
     }
 
     if (showEnvoyDiscipleSelectDialog) {
         val sect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
         val eligible = remember(disciples, sect?.level) {
-            val req = sect?.level?.let { worldMapViewModel.getEnvoyRealmRequirement(it) } ?: 0
+            val req = sect?.level?.let { interactionViewModel.getEnvoyRealmRequirement(it) } ?: 0
             disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.realm <= req }
         }
         EnvoyDiscipleSelectDialog(
             sect = sect,
             disciples = eligible,
             viewModel = viewModel,
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeEnvoyDiscipleSelectDialog() }
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeEnvoyDiscipleSelectDialog() }
         )
     }
 
@@ -177,9 +175,9 @@ internal fun WorldMapDialog(
             disciples = eligible,
             viewModel = viewModel,
             onScout = { memberIds ->
-                worldMapViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")
+                interactionViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")
             },
-            onDismiss = { worldMapViewModel.closeScoutDialog() }
+            onDismiss = { interactionViewModel.closeScoutDialog() }
         )
     }
 

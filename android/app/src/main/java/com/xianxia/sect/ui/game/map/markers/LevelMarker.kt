@@ -10,7 +10,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.LevelType
-import com.xianxia.sect.ui.game.map.CameraState
+import com.xianxia.sect.ui.game.map.world.WorldCameraState
 import com.xianxia.sect.ui.game.map.MapItem
 
 private val beastImages = listOf(
@@ -33,7 +33,7 @@ private val caveImages = listOf(
 @Composable
 fun LevelMarker(
     item: MapItem.Level,
-    cameraState: CameraState,
+    cameraState: WorldCameraState,
     onClick: () -> Unit
 ) {
     val screenX = cameraState.worldToScreenX(item.worldX)

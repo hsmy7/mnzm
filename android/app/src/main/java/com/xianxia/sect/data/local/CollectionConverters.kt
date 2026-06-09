@@ -418,4 +418,16 @@ object CollectionConverters {
     @JvmStatic
     fun toStringListMap(value: String): Map<String, List<String>> =
         ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value) { emptyMap() }
+
+    // ==================== 每日签到转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSignInState(value: SignInState): String =
+        ProtobufConverters.encodeToBase64(SignInState.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSignInState(value: String): SignInState =
+        ProtobufConverters.decodeFromBase64(SignInState.serializer(), value) { SignInState() }
 }

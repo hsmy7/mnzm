@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -23,6 +23,8 @@ import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.HighFrequencyData
+import com.xianxia.sect.core.engine.service.DailySignInService
+import com.xianxia.sect.core.engine.service.ClaimDailyResult
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
@@ -49,6 +51,7 @@ class GameViewModel @Inject constructor(
     private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val buildingConfigService: BuildingConfigService,
     private val mailService: com.xianxia.sect.core.engine.service.MailService,
+    private val dailySignInService: DailySignInService,
     private val discipleFacade: DiscipleFacade,
     private val productionFacade: ProductionFacade,
     private val inventoryFacade: InventoryFacade,
@@ -263,6 +266,19 @@ class GameViewModel @Inject constructor(
 
     fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
         viewModelScope.launch { buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY) }
+    }
+
+    fun demolishBuilding(instanceId: String) {
+        viewModelScope.launch {
+            val snapshot = gameEngine.gameDataSnapshot
+            val building = snapshot.placedBuildings.find { it.instanceId == instanceId } ?: return@launch
+            val config = buildingConfigService.getBuildingConfigByDisplayName(building.displayName)
+            val cost = config?.cost ?: 1000L
+            val refund = cost / 2
+
+            gameEngine.removeBuilding(instanceId, refund)
+            showSuccess("已拆除${building.displayName}，返还灵石×$refund")
+        }
     }
 
     /** 修正已有存档中的建筑尺寸（存档加载后调用） */
@@ -953,6 +969,56 @@ class GameViewModel @Inject constructor(
             mailService.deleteAllReadAndClaimed(currentSlotId)
         }
     }
+
+    // region DailySignIn
+
+    val signInState: StateFlow<SignInState> = gameEngine.gameData
+        .map { it.signInState }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, SignInState())
+
+    val canClaimToday: StateFlow<Boolean> = signInState
+        .map { state ->
+            val calendar = java.util.Calendar.getInstance()
+            val today = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            today !in state.claimedDays
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, true)
+
+    fun getRewardForWeekday(weekday: Int): DailySignInReward = dailySignInService.getRewardForWeekday(weekday)
+
+    fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState = dailySignInService.getDayState(dayOfMonth, signInState)
+
+    fun getDaysInMonth(): Int = dailySignInService.getDaysInMonth()
+
+    fun getWeekdayForDay(dayOfMonth: Int): Int = dailySignInService.getWeekdayForDay(dayOfMonth)
+
+    private val _signInCapacityWarning = MutableStateFlow<String?>(null)
+    val signInCapacityWarning: StateFlow<String?> = _signInCapacityWarning.asStateFlow()
+
+    fun dismissCapacityWarning() {
+        _signInCapacityWarning.value = null
+    }
+
+    fun claimDailySignIn() {
+        viewModelScope.launch {
+            val result = dailySignInService.claimDailySignIn()
+            when (result) {
+                is ClaimDailyResult.Success -> {
+                    showSuccess("签到成功：获得${result.reward.itemName}x${result.reward.quantity}")
+                }
+                is ClaimDailyResult.AlreadyClaimed -> {
+                    // 已签到，无需提示
+                }
+                is ClaimDailyResult.CapacityInsufficient -> {
+                    _signInCapacityWarning.value = result.message
+                }
+            }
+        }
+    }
+
+    // endregion
 
     // region Residence
 

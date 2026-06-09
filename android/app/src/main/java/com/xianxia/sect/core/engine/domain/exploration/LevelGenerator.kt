@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.*
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -36,7 +35,7 @@ object LevelGenerator {
         currentYear: Int,
         currentMonth: Int,
         existingLevels: List<WorldLevel>,
-        maxNewLevels: Int = 3
+        maxNewLevels: Int = 6
     ): List<WorldLevel> {
         val newLevels = mutableListOf<WorldLevel>()
 
@@ -48,7 +47,7 @@ object LevelGenerator {
             usedPositions.add(Pair(level.x.toInt(), level.y.toInt()))
         }
 
-        val newLevelCount = Random.nextInt(0, maxNewLevels + 1)
+        val newLevelCount = if (maxNewLevels <= 0) 0 else Random.nextInt(1, maxNewLevels + 1)
 
         var attempts = 0
         while (newLevels.size < newLevelCount && attempts < 5000) {
@@ -92,6 +91,11 @@ object LevelGenerator {
             else -> "炼气"
         }
 
+        // 持续4个月
+        val beastNewMonth = currentMonth + 4
+        val beastExpiryYear = currentYear + (beastNewMonth - 1) / 12
+        val beastExpiryMonth = (beastNewMonth - 1) % 12 + 1
+
         return WorldLevel(
             type = LevelType.BEAST,
             beastType = beastTypeIndex,
@@ -102,8 +106,8 @@ object LevelGenerator {
             y = y.toFloat(),
             spawnYear = currentYear,
             spawnMonth = currentMonth,
-            expiryYear = currentYear + 3,
-            expiryMonth = currentMonth,
+            expiryYear = beastExpiryYear,
+            expiryMonth = beastExpiryMonth,
             count = count
         )
     }
@@ -125,6 +129,11 @@ object LevelGenerator {
         val realmName = GameConfig.Realm.getName(caveRealm)
         val caveName = "${caveNamePrefixes.random()}$realmName${caveNameSuffixes.random()}"
 
+        // 持续4个月
+        val caveNewMonth = currentMonth + 4
+        val caveExpiryYear = currentYear + (caveNewMonth - 1) / 12
+        val caveExpiryMonth = (caveNewMonth - 1) % 12 + 1
+
         return WorldLevel(
             type = LevelType.CAVE,
             realm = caveRealm,
@@ -135,8 +144,8 @@ object LevelGenerator {
             y = y.toFloat(),
             spawnYear = currentYear,
             spawnMonth = currentMonth,
-            expiryYear = currentYear + 1,
-            expiryMonth = currentMonth,
+            expiryYear = caveExpiryYear,
+            expiryMonth = caveExpiryMonth,
             count = 2,
             caveImageIndex = caveImageIndex
         )
@@ -162,7 +171,7 @@ object LevelGenerator {
 
         val minPathDist = GameConfig.WorldMap.CAVE_MIN_PATH_DISTANCE
         for (edge in edges) {
-            if (isPointNearCurvedPath(x, y, edge, minPathDist)) return false
+            if (GeometryUtils.isPointNearCurvedPath(x, y, edge, minPathDist)) return false
         }
 
         val minLevelDist = GameConfig.WorldMap.LEVEL_MIN_DISTANCE
@@ -177,89 +186,17 @@ object LevelGenerator {
         return true
     }
 
-    private fun isPointNearCurvedPath(px: Int, py: Int, edge: MSTEdge, threshold: Double): Boolean {
-        val (from, to) = if (edge.sect1.id < edge.sect2.id) {
-            edge.sect1 to edge.sect2
-        } else {
-            edge.sect2 to edge.sect1
-        }
-        val waypoints = WorldMapGenerator.generatePathWaypoints(
-            from.x, from.y, to.x, to.y, from.id, to.id
-        )
-
-        if (waypoints.isEmpty()) {
-            return isPointNearLineSegment(
-                px.toDouble(), py.toDouble(),
-                from.x.toDouble(), from.y.toDouble(),
-                to.x.toDouble(), to.y.toDouble(),
-                threshold
-            )
-        }
-
-        val points = mutableListOf<Pair<Double, Double>>()
-        points.add(Pair(from.x.toDouble(), from.y.toDouble()))
-        for (wp in waypoints) {
-            points.add(Pair(wp.first.toDouble(), wp.second.toDouble()))
-        }
-        points.add(Pair(to.x.toDouble(), to.y.toDouble()))
-
-        for (i in 0 until points.size - 1) {
-            if (isPointNearLineSegment(
-                    px.toDouble(), py.toDouble(),
-                    points[i].first, points[i].second,
-                    points[i + 1].first, points[i + 1].second,
-                    threshold
-                )) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private fun isPointNearLineSegment(
-        px: Double, py: Double,
-        x1: Double, y1: Double,
-        x2: Double, y2: Double,
-        threshold: Double
-    ): Boolean {
-        val lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
-        if (lineLenSq == 0.0) {
-            return sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1)) < threshold
-        }
-        val t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / lineLenSq
-        val tClamped = t.coerceIn(0.0, 1.0)
-        val nearestX = x1 + tClamped * (x2 - x1)
-        val nearestY = y1 + tClamped * (y2 - y1)
-        val dist = sqrt((px - nearestX) * (px - nearestX) + (py - nearestY) * (py - nearestY))
-        return dist < threshold
-    }
-
     fun buildConnectionEdges(sects: List<WorldSect>): List<MSTEdge> {
         val edges = mutableListOf<MSTEdge>()
-        val processedPairs = mutableSetOf<Pair<String, String>>()
-
-        for (sect in sects) {
-            for (connectedId in sect.connectedSectIds) {
-                val pairKey = if (sect.id < connectedId) {
-                    Pair(sect.id, connectedId)
-                } else {
-                    Pair(connectedId, sect.id)
-                }
-
-                if (pairKey !in processedPairs) {
-                    processedPairs.add(pairKey)
-                    val connectedSect = sects.find { it.id == connectedId }
-                    if (connectedSect != null) {
-                        val distance = sqrt(
-                            (sect.x - connectedSect.x) * (sect.x - connectedSect.x) +
-                            (sect.y - connectedSect.y) * (sect.y - connectedSect.y)
-                        ).toDouble()
-                        edges.add(MSTEdge(sect, connectedSect, distance))
-                    }
-                }
+        for (i in sects.indices) {
+            for (j in (i + 1) until sects.size) {
+                val distance = sqrt(
+                    (sects[i].x - sects[j].x) * (sects[i].x - sects[j].x) +
+                    (sects[i].y - sects[j].y) * (sects[i].y - sects[j].y)
+                ).toDouble()
+                edges.add(MSTEdge(sects[i], sects[j], distance))
             }
         }
-
         return edges
     }
 

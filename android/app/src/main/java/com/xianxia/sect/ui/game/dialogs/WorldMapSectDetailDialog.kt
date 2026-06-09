@@ -47,7 +47,8 @@ import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
+import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.getAttributeValue
@@ -61,11 +62,12 @@ internal fun WorldMapSectDetailDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
-    worldMapViewModel: WorldMapViewModel,
+    interactionViewModel: WorldMapInteractionViewModel,
+    garrisonViewModel: WorldMapGarrisonViewModel,
     onDismiss: () -> Unit
 ) {
     val currentYear = gameData?.gameYear ?: 1
-    val isAlly = worldMapViewModel.isAlly(sect.id)
+    val isAlly = interactionViewModel.isAlly(sect.id)
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     var showGiftedMessage by remember { mutableStateOf(false) }
     var showAttackDialog by remember { mutableStateOf(false) }
@@ -262,7 +264,7 @@ internal fun WorldMapSectDetailDialog(
                         GameButton(
                             text = "探查",
                             onClick = {
-                                worldMapViewModel.openScoutDialog(sect.id)
+                                interactionViewModel.openScoutDialog(sect.id)
                             }
                         )
 
@@ -272,7 +274,7 @@ internal fun WorldMapSectDetailDialog(
                                 if (hasGiftedThisYear) {
                                     showGiftedMessage = true
                                 } else {
-                                    worldMapViewModel.openGiftDialog(sect.id)
+                                    interactionViewModel.openGiftDialog(sect.id)
                                     onDismiss()
                                 }
                             }
@@ -281,7 +283,7 @@ internal fun WorldMapSectDetailDialog(
                         GameButton(
                             text = if (isAlly) "盟约" else "结盟",
                             onClick = {
-                                worldMapViewModel.openAllianceDialog(sect.id)
+                                interactionViewModel.openAllianceDialog(sect.id)
                                 onDismiss()
                             },
                             enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
@@ -297,7 +299,7 @@ internal fun WorldMapSectDetailDialog(
                             GameButton(
                                 text = "交易",
                                 onClick = {
-                                    worldMapViewModel.openSectTradeDialog(sect.id)
+                                    interactionViewModel.openSectTradeDialog(sect.id)
                                     onDismiss()
                                 }
                             )
@@ -361,7 +363,7 @@ internal fun WorldMapSectDetailDialog(
                                                 showGarrisonSelection = slotIndex
                                             },
                                             onRemoveClick = {
-                                                worldMapViewModel.removeGarrisonDisciple(sect.id, slotIndex)
+                                                garrisonViewModel.removeGarrisonDisciple(sect.id, slotIndex)
                                             }
                                         )
                                     }
@@ -403,7 +405,7 @@ internal fun WorldMapSectDetailDialog(
             gameData = gameData,
             viewModel = viewModel,
             onAttack = { attackSlots ->
-                worldMapViewModel.attackSect(sect.id, attackSlots)
+                garrisonViewModel.attackSect(sect.id, attackSlots)
                 showAttackDialog = false
                 onDismiss()
             },
@@ -421,7 +423,7 @@ internal fun WorldMapSectDetailDialog(
         GarrisonDiscipleSelectionDialog(
             disciples = idleDisciples,
             onSelect = { disciple ->
-                worldMapViewModel.assignGarrisonDisciple(sect.id, slotIndex, disciple.id)
+                garrisonViewModel.assignGarrisonDisciple(sect.id, slotIndex, disciple.id)
                 showGarrisonSelection = null
             },
             onDismiss = { showGarrisonSelection = null }

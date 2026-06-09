@@ -7,6 +7,7 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.domain.exploration.MSTEdge
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.state.SettlementStrategy
 import com.xianxia.sect.core.state.Strategy
@@ -320,7 +321,12 @@ data class GameData(
     // 血炼系统：进行中的洗炼（buildingInstanceId → BloodRefinementProgress）
     @SettlementStrategy(Strategy.CUSTOM)
     @ColumnInfo(defaultValue = "{}")
-    var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap()
+    var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap(),
+
+    // 每日签到状态
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @ColumnInfo(name = "sign_in_state_json", defaultValue = "{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}")
+    var signInState: SignInState = SignInState()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
@@ -670,8 +676,24 @@ enum class TeamStatus {
 data class WorldMapRenderData(
     val worldMapSects: List<WorldSect> = emptyList(),
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
-    val worldLevels: List<WorldLevel> = emptyList()
+    val worldLevels: List<WorldLevel> = emptyList(),
+    val connectionEdges: List<MSTEdge> = emptyList()
 )
+
+data class WorldMapDialogState(
+    val showScout: Boolean = false,
+    val selectedScoutSectId: String? = null,
+    val showAlliance: Boolean = false,
+    val selectedAllianceSectId: String? = null,
+    val showEnvoyDiscipleSelect: Boolean = false,
+    val showTrade: Boolean = false,
+    val selectedTradeSectId: String? = null,
+    val tradeItems: List<MerchantItem> = emptyList(),
+    val showGift: Boolean = false,
+    val selectedGiftSectId: String? = null
+)
+
+enum class WorldMapDialogType { SCOUT, TRADE, ALLIANCE, GIFT, ENVOY }
 
 // 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）
 @Immutable
@@ -691,8 +713,6 @@ data class WorldSect(
     val relation: Int = 0,
     val disciples: Map<Int, Int> = emptyMap(),
     val maxRealm: Int = 9,
-    val connectedSectIds: List<String> = emptyList(),
-    @Transient val connectedSects: List<WorldSect> = emptyList(),
     val isOccupied: Boolean = false,
     val occupierTeamId: String = "",
     val occupierTeamName: String = "",

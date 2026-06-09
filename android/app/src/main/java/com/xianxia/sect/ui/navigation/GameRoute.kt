@@ -40,6 +40,7 @@ sealed class GameRoute(val route: String) {
     object WorldMap : GameRoute("world_map")
     object BattleLog : GameRoute("battle_log")
     object Mail : GameRoute("mail")
+    object Activity : GameRoute("activity")
     object Disciples : GameRoute("disciples")
     object Warehouse : GameRoute("warehouse")
     object WarehouseBuilding : GameRoute("warehouse_building/{buildingInstanceId}") {
@@ -69,6 +70,7 @@ sealed class DialogRoute {
     object WorldMap : DialogRoute()
     object BattleLog : DialogRoute()
     object Mail : DialogRoute()
+    object Activity : DialogRoute()
 
     data class SpiritMine(val buildingInstanceId: String) : DialogRoute()
     object HerbGarden : DialogRoute()
@@ -101,6 +103,7 @@ fun GameRoute.toDialogRoute(buildingInstanceId: String = ""): DialogRoute = when
     GameRoute.WorldMap -> DialogRoute.WorldMap
     GameRoute.BattleLog -> DialogRoute.BattleLog
     GameRoute.Mail -> DialogRoute.Mail
+    GameRoute.Activity -> DialogRoute.Activity
     GameRoute.SpiritMine -> DialogRoute.SpiritMine(buildingInstanceId)
     GameRoute.HerbGarden -> DialogRoute.HerbGarden
     GameRoute.Alchemy -> DialogRoute.Alchemy(buildingInstanceId)

@@ -314,6 +314,139 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
+    override suspend fun removeBuilding(instanceId: String, refund: Long) {
+        stateStore.update {
+            val building = gameData.placedBuildings.find { it.instanceId == instanceId }
+                ?: return@update
+
+            val name = building.displayName
+
+            // 0. 收集将被移除的槽位上已分配的弟子 ID（用于后续恢复空闲）
+            val discipleIdsToFree = mutableSetOf<String>()
+
+            // 炼丹炉/锻造坊：收集最高 index ProductionSlot 的弟子
+            if (name == "炼丹炉" || name == "锻造坊") {
+                val buildingId = if (name == "炼丹炉") "alchemy" else "forge"
+                gameData.productionSlots
+                    .filter { it.buildingId == buildingId }
+                    .maxByOrNull { it.slotIndex }
+                    ?.assignedDiscipleId
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { discipleIdsToFree.add(it) }
+            }
+
+            // 住所（单人/多人）：收集 ResidenceSlot 上已分配的弟子
+            if (name.contains("住所")) {
+                gameData.residenceSlots
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }
+                    .filter { it.isNotEmpty() }
+                    .forEach { discipleIdsToFree.add(it) }
+            }
+
+            // 仓库：收集 WarehouseGarrisonSlot 上已分配的弟子
+            if (name == "仓库") {
+                gameData.warehouseGarrisons
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }
+                    .filter { it.isNotEmpty() }
+                    .forEach { discipleIdsToFree.add(it) }
+            }
+
+            // 灵矿场：收集最后 3 个 SpiritMineSlot 已分配的弟子
+            if (name == "灵矿场") {
+                gameData.spiritMineSlots.takeLast(3)
+                    .mapNotNull { it.discipleId }
+                    .filter { it.isNotEmpty() }
+                    .forEach { discipleIdsToFree.add(it) }
+            }
+
+            // 巡视楼：收集最后 8 个 PatrolSlot 已分配的弟子
+            if (name == "巡视楼") {
+                gameData.patrolSlots.takeLast(8)
+                    .mapNotNull { it.discipleId }
+                    .filter { it.isNotEmpty() }
+                    .forEach { discipleIdsToFree.add(it) }
+            }
+
+            // 1. 移除建筑本身 + 返还灵石
+            var updated = gameData.copy(
+                placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId },
+                spiritStones = gameData.spiritStones + refund
+            )
+
+            // 2. 清理关联槽位（按建筑类型）
+            // 灵矿场：移除最后 3 个 SpiritMineSlot
+            if (name == "灵矿场" && updated.spiritMineSlots.size >= 3) {
+                updated = updated.copy(
+                    spiritMineSlots = updated.spiritMineSlots.dropLast(3)
+                )
+            }
+
+            // 巡视楼：移除最后 8 个 PatrolSlot + 最后 1 个 PatrolConfig
+            if (name == "巡视楼") {
+                if (updated.patrolSlots.size >= 8) {
+                    updated = updated.copy(
+                        patrolSlots = updated.patrolSlots.dropLast(8),
+                        patrolConfigs = updated.patrolConfigs.dropLast(1)
+                    )
+                }
+            }
+
+            // 灵田：移除关联 SpiritFieldPlant（灵田无弟子槽位，不需处理弟子）
+            if (name == "灵田") {
+                updated = updated.copy(
+                    spiritFieldPlants = updated.spiritFieldPlants.filter {
+                        it.buildingInstanceId != instanceId
+                    }
+                )
+            }
+
+            // 住所：移除关联 ResidenceSlot
+            if (name.contains("住所")) {
+                updated = updated.copy(
+                    residenceSlots = updated.residenceSlots.filter {
+                        it.buildingInstanceId != instanceId
+                    }
+                )
+            }
+
+            // 仓库：移除关联 WarehouseGarrisonSlot
+            if (name == "仓库") {
+                updated = updated.copy(
+                    warehouseGarrisons = updated.warehouseGarrisons.filter {
+                        it.buildingInstanceId != instanceId
+                    }
+                )
+            }
+
+            // 炼丹炉/锻造坊：移除最高 index 的 ProductionSlot
+            // 注意：已消耗的炼丹/锻造材料不返还（材料在 startAlchemy/startForging 时已扣除）
+            if (name == "炼丹炉" || name == "锻造坊") {
+                val buildingId = if (name == "炼丹炉") "alchemy" else "forge"
+                val maxIndex = updated.productionSlots
+                    .filter { it.buildingId == buildingId }
+                    .maxOfOrNull { it.slotIndex } ?: -1
+                if (maxIndex >= 0) {
+                    updated = updated.copy(
+                        productionSlots = updated.productionSlots.filter {
+                            !(it.buildingId == buildingId && it.slotIndex == maxIndex)
+                        }
+                    )
+                }
+            }
+
+            gameData = updated
+
+            // 3. 将所有关联弟子恢复为空闲状态
+            if (discipleIdsToFree.isNotEmpty()) {
+                disciples = disciples.map { d ->
+                    if (d.id in discipleIdsToFree) d.copy(status = DiscipleStatus.IDLE) else d
+                }
+            }
+        }
+    }
+
     private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         stateStore.update {
             disciples = disciples.map {
