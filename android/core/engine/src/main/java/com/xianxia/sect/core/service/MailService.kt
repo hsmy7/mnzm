@@ -32,7 +32,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed class ClaimResult {
-    data class Success(val claimedAttachments: List<MailAttachment>) : ClaimResult()
+    data class Success(
+        val claimedAttachments: List<MailAttachment>,
+        val cards: List<RewardCardItem> = emptyList()
+    ) : ClaimResult()
     data object AlreadyClaimed : ClaimResult()
     data object Expired : ClaimResult()
     data object MailNotFound : ClaimResult()
@@ -42,7 +45,8 @@ sealed class ClaimResult {
 data class MarkAllReadResult(
     val claimedCount: Int = 0,
     val skippedCount: Int = 0,
-    val skipReasons: List<String> = emptyList()
+    val skipReasons: List<String> = emptyList(),
+    val cards: List<RewardCardItem> = emptyList()
 )
 
 @GameService("MailService")
@@ -188,15 +192,17 @@ class MailService @Inject constructor(
                 }
             }
 
-            // 发放附件
-            if (attachments.isNotEmpty()) {
+            // 发放附件（卡片由 UI 在小屏界面确认后入队）
+            val rewardCards = if (attachments.isNotEmpty()) {
                 try {
                     distributeAttachments(attachments)
-                    enqueueRewardCardsFromAttachments(attachments)
+                    buildRewardCardsFromAttachments(attachments)
                 } catch (e: Exception) {
                     DomainLog.e(TAG, "Failed to distribute attachments for mail $mailId", e)
-                    return ClaimResult.Success(emptyList())
+                    emptyList()
                 }
+            } else {
+                emptyList()
             }
 
             mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
@@ -205,7 +211,7 @@ class MailService @Inject constructor(
                 gameData = gameData.copy(claimedMailIds = gameData.claimedMailIds + mail.id)
             }
             refreshActiveMails(slotId)
-            ClaimResult.Success(attachments)
+            ClaimResult.Success(attachments, rewardCards)
         }
     }
 
@@ -217,11 +223,15 @@ class MailService @Inject constructor(
             var claimedCount = 0
             var skippedCount = 0
             val skipReasons = mutableListOf<String>()
+            val allCards = mutableListOf<RewardCardItem>()
 
             mails.filter { !it.isRead || (it.hasAttachment && !it.attachmentClaimed) }.forEach { mail ->
                 if (mail.hasAttachment && !mail.attachmentClaimed) {
                     when (val result = claimAttachmentInternal(mail, slotId, now)) {
-                        is ClaimResult.Success -> claimedCount++
+                        is ClaimResult.Success -> {
+                            claimedCount++
+                            allCards.addAll(result.cards)
+                        }
                         is ClaimResult.CapacityInsufficient -> {
                             skippedCount++
                             skipReasons.add(result.message)
@@ -234,7 +244,7 @@ class MailService @Inject constructor(
             }
 
             refreshActiveMails(slotId)
-            MarkAllReadResult(claimedCount, skippedCount, skipReasons)
+            MarkAllReadResult(claimedCount, skippedCount, skipReasons, allCards)
         }
     }
 
@@ -242,6 +252,7 @@ class MailService @Inject constructor(
         if (mail.expireTime <= now) return ClaimResult.Expired
         if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
 
+        var rewardCards = emptyList<RewardCardItem>()
         val attachments: List<MailAttachment> = try {
             json.decodeFromString(mail.attachments)
         } catch (e: Exception) {
@@ -256,10 +267,10 @@ class MailService @Inject constructor(
 
             try {
                 distributeAttachments(attachments)
-                enqueueRewardCardsFromAttachments(attachments)
+                rewardCards = buildRewardCardsFromAttachments(attachments)
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Failed to distribute attachments for mail ${mail.id}", e)
-                return ClaimResult.Success(emptyList())
+                rewardCards = emptyList()
             }
         }
 
@@ -269,7 +280,7 @@ class MailService @Inject constructor(
             gameData = gameData.copy(claimedMailIds = gameData.claimedMailIds + mail.id)
         }
         refreshActiveMails(slotId)
-        return ClaimResult.Success(attachments)
+        return ClaimResult.Success(attachments, rewardCards)
     }
 
     /**
@@ -509,10 +520,10 @@ class MailService @Inject constructor(
         }
     }
 
-    private fun enqueueRewardCardsFromAttachments(
+    private fun buildRewardCardsFromAttachments(
         attachments: List<MailAttachment>
-    ) {
-        val cards = attachments.mapNotNull { attachment ->
+    ): List<RewardCardItem> {
+        return attachments.mapNotNull { attachment ->
             when {
                 attachment.type == "spiritStones" || attachment.type == "spiritHerbs" ->
                     RewardCardItem(
@@ -531,9 +542,6 @@ class MailService @Inject constructor(
                     )
                 else -> null
             }
-        }
-        if (cards.isNotEmpty()) {
-            stateStore.enqueueRewardCards(cards)
         }
     }
 

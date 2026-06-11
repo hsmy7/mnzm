@@ -135,25 +135,322 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - ViewModels read from `GameStateStore.unifiedState` via `collectAsState()` or direct `.value` reads for snapshots.
 - Mutations go through `GameEngine` methods, never directly to `GameStateStore` from the UI layer.
 
-## Style Guide
+## 编码规范 (Coding Standards)
 
-### Text Colors — Black Only
+> 以下所有规则标注严重度：🔴 严重（必须遵守，违反导致构建/审查失败）、🟡 重要（应遵守，违反需在审查中说明理由）、🟢 建议（推荐遵循，逐步推广）。
 
-All in-game text **must** use `Color.Black` exclusively. No gray, white, colored, or tinted text. This applies to:
+---
 
-- All `Text()` composable `color` parameters
-- `GameColors.TextPrimary`, `TextSecondary`, `TextTertiary`, `TextOnPrimary` all resolve to `Color(0xFF000000)`
-- Any literal `Color(0xFF666666)`, `Color(0xFF999999)`, `Color.White` etc. used as text color → use `Color.Black`
+### 1. Kotlin 语言规范
 
-**Enforcement**: When adding or modifying any `Text()` composable, use `color = Color.Black`. When reviewing code, flag any non-black text color.
+**1.1 🔴 禁止 `!!` 操作符** — 除非有编译时证明（如 `lateinit var` 在初始化后访问）。所有可为空的值通过 `?.`、`?:` 或 `checkNotNull()` 安全访问。
 
-## Database Migration Requirements
+```kotlin
+// ❌ BAD
+val data = gameEngine.gameDataSnapshot!!
+// ✅ GOOD
+val data = gameEngine.gameDataSnapshot ?: return
+```
 
-Before modifying ANY `@Entity` class (especially `GameData`), read `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
+**1.2 🟡 优先 `val`** — 所有属性默认 `val`。`var` 仅在不可变 copy-on-write 不可行时使用，需注释说明理由。
 
-- **NEVER use `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0+ required, not guaranteed on any Android version. To drop columns, use `db.safeDropColumns("table", "col1", "col2")` (defined in `GameDatabase.kt`). It rebuilds the table via PRAGMA, works on all API levels.
-- **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
-- **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
+**1.3 🔴 领域结果用 sealed class** — 所有可能失败的操作返回 sealed class 结果类型，禁止裸 `Boolean` 代表成功/失败。
+
+```kotlin
+// ❌ BAD — 调用方不知道为何失败
+fun togglePolicy(): Boolean
+// ✅ GOOD — 明确的结果语义
+sealed interface ToggleResult {
+    data object Success : ToggleResult
+    data class Error(val message: String) : ToggleResult
+}
+```
+
+**1.4 🔴 协程规范：**
+- 禁止 `runBlocking`（仅测试可用 `runTest`）
+- `CancellationException` 必须重新抛出，**任何 catch Exception 前必须有 `catch (e: CancellationException) { throw e }`**
+- Dispatcher 通过 Hilt `@Dispatcher(IO)` 注入，禁止硬编码 `Dispatchers.IO`
+
+```kotlin
+// ❌ BAD — 吞掉 CancellationException
+try { doWork() } catch (e: Exception) { log(e) }
+// ✅ GOOD — 先重新抛出 CancellationException
+try { doWork() } catch (e: CancellationException) { throw e }
+  catch (e: Exception) { log(e) }
+```
+
+**1.5 🟢 扩展函数放专用文件** — 对某类型的大量扩展函数放入 `{TypeName}Ext.kt`，不堆积在 ViewModel/Service 中。
+
+---
+
+### 2. 模块架构规范
+
+**2.1 🔴 依赖方向不可反转** — `:core:domain` ← `:core:data` / `:core:engine` / `:core:ui` ← `:feature:game` ← `:app`。`:core:domain` 零 Android 依赖（仅 `javax.inject` + `kotlinx.coroutines` + `kotlinx.serialization` + `room-common` 注解）。
+
+**2.2 🔴 模块内容边界：**
+
+| 模块 | 只能包含 | 禁止包含 |
+|------|---------|---------|
+| `:core:domain` | 数据类、接口、sealed class、注解、StateFlow 定义、Registry 静态数据 | Room DAO、Android Context、ViewModel、Compose |
+| `:core:engine` | GameEngine、Service、System、游戏循环 | Compose UI、ViewModel、Activity |
+| `:core:data` | Room DB/DAO/Migration、序列化、加密、Repository 实现 | ViewModel、Compose、游戏逻辑 |
+| `:core:ui` | 共享 Compose 组件、Theme、导航工具 | ViewModel、Room DAO、游戏逻辑 |
+| `:feature:game` | ViewModel、Screen 级 Compose、对话框 | Room DAO、直接写 GameStateStore |
+
+**2.3 🟡 `internal` 默认可见性** — 非模块公开 API 的类/函数一律 `internal`。
+
+**2.4 🔴 禁止循环依赖** — 模块间必须形成 DAG，CI 中通过 Konsist 检查。
+
+**2.5 🟢 新建模块需 ADR** — 新增 Gradle 模块需 `docs/adr/` 记录决策，且至少包含 3 个内聚领域类。
+
+---
+
+### 3. 文件与代码行规范
+
+**3.1 🔴 单文件最大 2000 行**（生成代码如 Room `_Impl`、ProtoBuf 生成代码除外）。
+
+**3.2 🔴 单行最大 80 字符** — import 语句、KDoc `@param`/`@return` 标签、URL 除外。
+
+**3.3 🟡 单函数体最大 60 行** — 超限须拆分为私有辅助函数。
+
+**3.4 🔴 最大构造参数：类 7 个，Composable 函数 6 个** — 超限须分组为配置数据类或拆分类。
+
+```kotlin
+// ❌ BAD — 22 个构造参数
+class GameViewModel @Inject constructor(
+    private val gameEngine: GameEngine,
+    private val gameEngineCore: GameEngineCore,
+    // ... 20 more
+)
+// ✅ GOOD — 分组为 Facade
+class GameViewModel @Inject constructor(
+    private val gameEngine: GameEngine,
+    private val gameEngineCore: GameEngineCore,
+    private val battleFacade: BattleFacade,
+    private val buildingFacade: BuildingFacade,
+    private val inventoryFacade: InventoryFacade,
+    private val discipleFacade: DiscipleFacade,
+    private val productionFacade: ProductionFacade
+)
+```
+
+**3.5 🔴 单一职责** — 类名必须反映唯一职责。避免 "Manager"、"Handler"、"Utils" 等模糊后缀，除非确实承担协调/处理/工具职责。
+
+**3.6 🔴 上帝对象重构阈值** — 超过 10 个构造依赖且超过 2000 行的类必须有重构计划。
+
+---
+
+### 4. ViewModel 规范
+
+**4.1 🔴 必须继承 `BaseViewModel`** — 所有 ViewModel 继承 `com.xianxia.sect.ui.game.BaseViewModel`，确保统一的 `showError()`/`showSuccess()` 事件通道。
+
+**4.2 🔴 构造参数 ≤7 个** — 超限须将相关依赖提取为独立 Facade。
+
+**4.3 🔴 只读 StateFlow 暴露状态** — 禁止公开 `MutableStateFlow`，所有状态通过 `StateFlow`（只读）暴露给 Compose。
+
+```kotlin
+// ❌ BAD
+val productionSlots = MutableStateFlow<List<ProductionSlot>>(emptyList())
+// ✅ GOOD
+private val _productionSlots = MutableStateFlow<List<ProductionSlot>>(emptyList())
+val productionSlots: StateFlow<List<ProductionSlot>> = _productionSlots.asStateFlow()
+```
+
+**4.4 🔴 禁止直接访问 `GameStateStore`** — ViewModel 所有状态变更通过 `GameEngine` 方法，不直接调用 `stateStore.update()` 或 `gameEngine.updateGameData {}`。
+
+**4.5 🟡 UserAction/ActionResult 模式** — ViewModel 公开方法使用 sealed `UserAction` 统一入口，便于错误处理和日志。
+
+**4.6 🟡 ViewModel 与 Screen 一对一** — 一个 ViewModel 只驱动一个 Screen，避免一个 ViewModel 驱动多个无关 Screen。
+
+---
+
+### 5. 引擎服务规范
+
+**5.1 🔴 通过快照访问状态** — Service 不直接订阅 `StateFlow`，通过 GameEngine 传入的参数或构造注入的 snapshot 访问状态。
+
+**5.2 🟡 方法签名：`suspend` 或返回 Result** — 所有执行 I/O 或领域逻辑的服务方法必须为 `suspend` 函数，或返回 `Result<T>`/sealed class 类型。
+
+**5.3 🟡 服务间禁止共享可变状态** — 通过 EventBus 事件或协调器对象通信，不使用共享的 `MutableStateFlow` 或 `ConcurrentHashMap`。
+
+**5.4 🔴 错误必须传播** — Service 内部禁止静默吞掉异常。`log-and-continue` 仅允许在非关键后台操作中使用。
+
+**5.5 🔴 `@GameService` 注解** — 所有游戏领域逻辑类必须标注 `@GameService(name = "...")`。
+
+---
+
+### 6. 状态管理规范
+
+**6.1 🔴 `GameStateStore` 是唯一真相源** — 禁止在 ViewModel/Service 中缓存 `GameData` 或实体列表的本地副本。
+
+**6.2 🔴 UI 层禁止直接写 `GameStateStore`** — 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
+
+**6.3 🟡 多实体变更必须用 Shadow Transaction** — `createShadow()` → 多次修改 → `swapFromShadow()`，保证原子性。
+
+```kotlin
+// ❌ BAD — 多次孤立的 update 调用
+stateStore.update { it.copy(spiritStones = it.spiritStones + 100) }
+stateStore.update { it.copy(gameMonth = it.gameMonth + 1) }
+
+// ✅ GOOD — 一次原子 Shadow Transaction
+val shadow = stateStore.createShadow()
+shadow.gameData.spiritStones += 100
+shadow.gameData.gameMonth += 1
+stateStore.swapFromShadow(shadow)
+```
+
+**6.4 🔴 新 `GameData` 字段必须有 `@SettlementStrategy`** — 已由 `GameDataSettlementCoverageTest` 编译时检查。
+
+**6.5 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
+
+---
+
+### 7. 数据库规范
+
+**7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
+
+**7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。使用 `db.safeDropColumns()` 或保留旧列 + `@Ignore`。
+
+**7.3 🟡 ProtoBuf 仅 `List`，禁止 `Set`/`Map`** — 需要去重语义在业务层 `.toSet()` 转换。忽略会导致序列化静默失败，**存档变空**。
+
+**7.4 🔴 Migration 必须有测试** — 旧版本插入种子数据 → 运行迁移 → 验证数据完整性。
+
+---
+
+### 8. 错误处理规范
+
+**8.1 🔴 `CancellationException` 必须重新抛出** — 任何 `catch (e: Exception)` 前必须有 `catch (e: CancellationException) { throw e }`。
+
+**8.2 🔴 禁止空 catch 块** — 每个 `catch` 至少包含 `Log.w(TAG, "...", e)`。
+
+**8.3 🟡 领域错误用 sealed Result 类型** — 可预期的业务失败（找不到、校验失败）用 sealed class，不抛异常。异常仅用于程序错误和基础设施故障。
+
+```kotlin
+// ❌ BAD — 抛异常用于正常业务流程
+fun getDisciple(id: String): Disciple =
+    list.find { it.id == id } ?: throw NotFoundException(id)
+
+// ✅ GOOD — sealed result，编译器强制处理
+fun getDisciple(id: String): DiscipleResult
+sealed interface DiscipleResult {
+    data class Success(val d: Disciple) : DiscipleResult
+    data class NotFound(val id: String) : DiscipleResult
+}
+```
+
+**8.4 🟡 UI 错误统一走 `BaseViewModel.showError()`** — ViewModel 不直接处理错误展示。
+
+**8.5 🟡 引擎错误记录上下文** — `Log.e(TAG, "操作名 failed: id=$id, ctx=$ctx", e)`，信息足够定位问题。
+
+---
+
+### 9. 测试规范
+
+**9.1 🔴 引擎服务 80%+ 行覆盖率** — `:core:engine` 模块目标 80% 行覆盖（Kover/JaCoCo 检测）。
+
+**9.2 🔴 Migration 必须有集成测试** — 每条 Migration 验证旧数据能完整迁移。
+
+**9.3 🔴 新功能必须有测试** — 新增类/方法需有对应测试，否则 PR 不可合并。
+
+**9.4 🟡 测试命名：`方法名_状态_预期行为`** — Given-When-Then 模式。
+
+```kotlin
+// ✅ GOOD
+@Test
+fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
+```
+
+**9.5 🟢 优先 Fake 而非 Mock** — 手写 Fake 实现优于 Mockito mock，可复用、可读、可调试。
+
+---
+
+### 10. 性能规范
+
+**10.1 🟡 Compose 稳定性注解** — 所有出现在 Compose State 中的数据类标注 `@Immutable`，或加入 `stability_config.conf`。
+
+**10.2 🟡 禁止 Composition 内读 State** — 使用 `derivedStateOf` 计算派生值，避免不必要的 recomposition。
+
+```kotlin
+// ❌ BAD — gameData 每次变化都触发 recomposition
+@Composable fun DiscipleName(id: String) {
+    val name = viewModel.gameData.collectAsState().value.discipleName
+}
+// ✅ GOOD — 仅在 name 实际变化时 recompose
+@Composable fun DiscipleName(id: String) {
+    val name by remember { derivedStateOf { viewModel.getDiscipleName(id) } }
+}
+```
+
+**10.3 🟡 `LazyColumn`/`LazyRow` 必须用稳定 key** — `key = { it.id }`，不可用 index（会导致排序/过滤时的错误 recomposition）。
+
+**10.4 🟡 Canvas 用 `drawBehind{}`** — 静态绘制用 `Modifier.drawBehind {}`，跳过 Composition/Layout 阶段。动画用 `Animatable` + `LaunchedEffect`。
+
+---
+
+### 11. UI 样式规范
+
+**11.1 🔴 Text 颜色仅黑色** — 所有 `Text()` composable 的 `color` 必须是 `Color.Black`。`GameColors.TextPrimary/TextSecondary/TextTertiary/TextOnPrimary` 均解析为 `Color(0xFF000000)`。
+
+**11.2 🔴 按钮尺寸标准化** — 所有按钮使用 `ButtonSizes.StandardWidth` (72dp) × `ButtonSizes.StandardHeight` (38dp)。
+
+---
+
+### 12. 文档规范
+
+**12.1 🟡 公开 API 必须有 KDoc** — `:core:domain` 和 `:core:engine` 中的所有 public 函数/类/属性必须有 KDoc（描述 + `@param` + `@return`）。
+
+**12.2 🟢 架构决策记录到 `docs/adr/`** — 新模块、重要模式变更、大重构写入 ADR（Context / Decision / Consequences）。
+
+**12.3 🟢 同步 `CODE_WIKI.md`** — 新增模块/模式后更新架构文档。
+
+**12.4 🔴 功能变更必须更新 Changelog** — 同步更新 `CHANGELOG.md`（项目根目录）和 `ChangelogData.kt`（游戏内）。
+
+---
+
+### 13. 代码审查与强制执行
+
+**13.1 🔴 Pre-commit 检查** — 每次提交前运行 `./gradlew.bat compileReleaseKotlin lintRelease`，必须 BUILD SUCCESSFUL。
+
+**13.2 🔴 detekt baseline 只缩不增** — `detekt-baseline.xml` 只能减少条目，不能新增。新违规必须修复而非加入 baseline。
+
+**13.3 🔴 PR 审查清单：**
+
+| 严重度 | 检查项 |
+|--------|--------|
+| 🔴 | 无 `!!` 操作符 |
+| 🔴 | `CancellationException` 已重新抛出 |
+| 🔴 | 无空 catch 块 |
+| 🔴 | 新 `GameData` 字段有 `@SettlementStrategy` |
+| 🔴 | Entity 变更有 Migration |
+| 🔴 | UI 层无直接 `GameStateStore` 访问 |
+| 🔴 | 文件不超过 2000 行 |
+| 🔴 | 类构造参数不超过 7 个 |
+| 🔴 | 新功能有测试 |
+| 🟡 | 新 Service 有 `@GameService` 注解 |
+| 🟡 | State 数据类有 `@Immutable` |
+| 🟡 | 公开 API 有 KDoc |
+| 🟡 | Flow 派生用了 `distinctUntilChanged`/`sample`/`stateIn` |
+
+**13.4 🔴 detekt 配置** (`android/config/detekt/detekt.yml`)：
+```yaml
+style:
+  MaxLineLength:
+    maxLineLength: 80       # import/KDoc标签/URL 除外
+  WildcardImport:
+    active: true
+  MagicNumber:
+    active: false           # 游戏数学常量
+complexity:
+  TooManyFunctions:
+    thresholdInFiles: 15    # 从 30 收紧
+  LongParameterList:
+    functionThreshold: 6
+    constructorThreshold: 7
+exceptions:
+  EmptyCatchBlock:
+    active: true            # 已启用
+```
+
+---
 
 ## 设计方案规则
 
@@ -189,31 +486,13 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 5. 报告末尾附完整的参考来源清单（标题 + URL + 发布日期）
 6. 用户确认后再执行
 
-## 代码质量规范
+## Database Migration Requirements
 
-### 简洁优先
-- **用最简单的方式解决问题**，不为单次使用建抽象，不添加未被要求的"灵活性"
-- 新增功能优先复用现有模式（参考周边代码风格），不引入第二套架构
-- 写完自审：能否删掉一半代码仍实现同样功能？能就删
+Before modifying ANY `@Entity` class (especially `GameData`), read `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
 
-### 模块化隔离
-- **修改一个功能不能影响其他功能**。新增模块通过接口/服务层与现有系统交互，不直接耦合
-- 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。不反向引用
-- 异常必须就地捕获或有明确的全局兜底，**不能让一个模块的异常导致整个应用崩溃**
-- 新增 Room Entity 时：独立表 + 独立 DAO，不影响 game_data 主表
-- 修改 GameData 字段时：必须加 `@SettlementStrategy` 注解 + DB Migration，**缺一不可**
-
-### 防御性编程
-- 所有对外部系统的调用（网络请求、DB 操作）必须包裹 try-catch
-- StateFlow 数据流确保有初始值，不在 UI 层做空值合并
-- 新功能上线前自测：正常流程 + 边界条件 + 异常恢复
-
-### 架构文档同步
-- 写代码时**必须同步更新** `CODE_WIKI.md`，保持架构文档与代码一致
-- 新增模块：补充架构分层图、数据流说明、核心类/接口列表
-- 修改现有模块：更新对应章节的用法说明、注意事项
-- 发现技术债务或优化方向：追加到文档末尾的「后续优化项」清单
-- 文档内容包含：**架构设计 + 使用方式 + 关键配置 + 后续优化项**
+- **NEVER use `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0+ required, not guaranteed on any Android version. To drop columns, use `db.safeDropColumns("table", "col1", "col2")` (defined in `GameDatabase.kt`). It rebuilds the table via PRAGMA, works on all API levels.
+- **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
+- **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
 
 ## Changelog Requirements
 

@@ -31,7 +31,7 @@ class StateRevertRegressionTest {
             // 这里依赖 GameStateStore 的行为 — stateIn 需要一个 scope，
             // 但 loadFromSnapshot / update / swapFromShadow 不依赖 scope
         }
-        return GameStateStore(appScopeProvider, repository)
+        return GameStateStoreImpl(appScopeProvider, repository)
     }
 
     @Test

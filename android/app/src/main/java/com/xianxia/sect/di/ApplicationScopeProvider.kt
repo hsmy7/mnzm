@@ -1,6 +1,8 @@
 package com.xianxia.sect.di
 
 import android.util.Log
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DomainLog
 import android.os.Process
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +27,7 @@ import javax.inject.Singleton
  * - 在 [com.xianxia.sect.XianxiaApplication.onTerminate] 中调用 [close]
  */
 @Singleton
-class ApplicationScopeProvider @Inject constructor() : Closeable {
+class ApplicationScopeProvider @Inject constructor() : Closeable, CoroutineScopeProvider {
 
     companion object {
         private const val TAG = "AppScopeProvider"
@@ -49,10 +51,10 @@ class ApplicationScopeProvider @Inject constructor() : Closeable {
     }
 
     /** 应用级默认 Scope (Dispatchers.Default) */
-    val scope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.Default + exceptionHandler)
+    override val scope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.Default + exceptionHandler)
 
     /** IO 密集型 Scope (Dispatchers.IO)，共享同一 SupervisorJob 以便统一取消 */
-    val ioScope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.IO + exceptionHandler)
+    override val ioScope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.IO + exceptionHandler)
 
     /** 活跃子 Job 计数器（用于监控） */
     private val activeChildrenCount = AtomicInteger(0)

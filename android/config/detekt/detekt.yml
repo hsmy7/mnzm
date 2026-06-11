@@ -1,13 +1,17 @@
 style:
   MaxLineLength:
-    maxLineLength: 160
+    maxLineLength: 80        # import/KDoc标签/URL 除外
   WildcardImport:
     active: true
   MagicNumber:
-    active: false  # 游戏数学常量
+    active: false            # 游戏数学常量
 complexity:
   TooManyFunctions:
     active: true
-    thresholdInFiles: 30
+    thresholdInFiles: 15     # 从 30 收紧
   LongParameterList:
-    functionThreshold: 10
+    functionThreshold: 6
+    constructorThreshold: 7
+exceptions:
+  EmptyCatchBlock:
+    active: true             # 禁止空 catch 块

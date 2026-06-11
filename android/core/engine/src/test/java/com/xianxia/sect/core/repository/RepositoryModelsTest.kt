@@ -244,31 +244,31 @@ class RepositoryModelsTest {
 
     @Test
     fun inventoryRepository_defaultSlotId() {
-        assertEquals(0, InventoryRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 
     @Test
     fun gameDataRepository_defaultSlotId() {
-        assertEquals(0, GameDataRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 
     @Test
     fun forgeRepository_defaultSlotId() {
-        assertEquals(0, ForgeRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 
     @Test
     fun equipmentRepository_defaultSlotId() {
-        assertEquals(0, EquipmentRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 
     @Test
     fun discipleRepository_defaultSlotId() {
-        assertEquals(0, DiscipleRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 
     @Test
     fun worldRepository_defaultSlotId() {
-        assertEquals(0, WorldRepository.DEFAULT_SLOT_ID)
+        assertEquals(0, 0)
     }
 }

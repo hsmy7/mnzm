@@ -30,7 +30,7 @@ class DailySignInService @Inject constructor(
             DailySignInReward(weekday = 3, itemName = "凡品储物袋", quantity = 1, type = "storageBag", rarity = 1),
             DailySignInReward(weekday = 4, itemName = "凡品种子", quantity = 20, type = "randomSeed", rarity = 1),
             DailySignInReward(weekday = 5, itemName = "凡品丹药", quantity = 2, type = "randomPill", rarity = 1),
-            DailySignInReward(weekday = 6, itemName = "悟法丹", quantity = 5, type = "pill", rarity = 1),
+            DailySignInReward(weekday = 6, itemName = "随机凡品草药", quantity = 20, type = "randomHerb", rarity = 1),
             DailySignInReward(weekday = 7, itemName = "灵品储物袋", quantity = 1, type = "storageBag", rarity = 2)
         )
 
@@ -135,9 +135,7 @@ class DailySignInService @Inject constructor(
         if (capacityError != null) {
             return ClaimDailyResult.CapacityInsufficient(capacityError)
         }
-        if (dailyCards.isNotEmpty()) {
-            stateStore.enqueueRewardCards(dailyCards)
-        }
+        val allCards = dailyCards.toMutableList()
 
         // 更新签到状态（先更新 claimedDays，再据此判断里程碑）
         stateStore.update {
@@ -173,9 +171,7 @@ class DailySignInService @Inject constructor(
                 }
                 newClaimedMilestones.add(milestone.day)
                 earnedMilestones.add(milestone)
-                if (milestoneCards.isNotEmpty()) {
-                    stateStore.enqueueRewardCards(milestoneCards)
-                }
+                allCards.addAll(milestoneCards)
             }
         }
 
@@ -191,9 +187,9 @@ class DailySignInService @Inject constructor(
         }
 
         return if (earnedMilestones.isNotEmpty()) {
-            ClaimDailyResult.SuccessWithMilestones(reward, earnedMilestones)
+            ClaimDailyResult.SuccessWithMilestones(reward, earnedMilestones, allCards)
         } else {
-            ClaimDailyResult.Success(reward)
+            ClaimDailyResult.Success(reward, allCards)
         }
     }
 
@@ -411,6 +407,43 @@ class DailySignInService @Inject constructor(
                     }
                     generatedCards.addAll(mergeCardsByName(generated))
                 }
+                "randomHerb" -> {
+                    val qty = reward.quantity.coerceAtLeast(1)
+                    val generated = mutableListOf<RewardCardItem>()
+                    repeat(qty) {
+                        val template = com.xianxia.sect.core.registry.HerbDatabase
+                            .generateRandomHerb(minRarity = 1, maxRarity = 1)
+                        val herb = com.xianxia.sect.core.model.Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = template.name,
+                            rarity = template.rarity,
+                            description = template.description,
+                            category = template.category,
+                            quantity = 1
+                        )
+                        val existing = herbs.find {
+                            it.name == herb.name && it.rarity == herb.rarity &&
+                                it.category == herb.category
+                        }
+                        if (existing != null) {
+                            val maxStack = inventoryConfig.getMaxStackSize("herb")
+                            if (existing.quantity < maxStack) {
+                                val newQty = existing.quantity + 1
+                                herbs = herbs.map {
+                                    if (it.id == existing.id)
+                                        it.copy(quantity = newQty) else it
+                                }
+                            }
+                        } else {
+                            herbs = herbs + herb
+                        }
+                        generated.add(RewardCardItem(
+                            itemName = herb.name, itemType = "herb",
+                            rarity = herb.rarity, quantity = 1
+                        ))
+                    }
+                    generatedCards.addAll(mergeCardsByName(generated))
+                }
                 "storageBag" -> {
                     val qty = reward.quantity.coerceAtLeast(1)
                     val rarity = reward.rarity.coerceIn(1, 6)
@@ -449,13 +482,24 @@ class DailySignInService @Inject constructor(
         }
     }
 
+    /** 在小屏界面关闭后，将奖励卡片入队开始动效 */
+    fun enqueueSignInCards(cards: List<RewardCardItem>) {
+        if (cards.isNotEmpty()) {
+            stateStore.enqueueRewardCards(cards)
+        }
+    }
+
 }
 
 sealed class ClaimDailyResult {
-    data class Success(val reward: DailySignInReward) : ClaimDailyResult()
+    data class Success(
+        val reward: DailySignInReward,
+        val cards: List<RewardCardItem> = emptyList()
+    ) : ClaimDailyResult()
     data class SuccessWithMilestones(
         val reward: DailySignInReward,
-        val milestones: List<MilestoneReward>
+        val milestones: List<MilestoneReward>,
+        val cards: List<RewardCardItem> = emptyList()
     ) : ClaimDailyResult()
     data object AlreadyClaimed : ClaimDailyResult()
     data class CapacityInsufficient(val message: String) : ClaimDailyResult()

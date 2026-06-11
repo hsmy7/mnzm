@@ -732,9 +732,10 @@ fun MainGameScreen(
         // 奖励卡片动效 — 最顶层，覆盖所有界面元素
         val rewardCardQueue by viewModel.rewardCardQueue.collectAsStateWithLifecycle()
         if (rewardCardQueue.isNotEmpty()) {
+            val batchSize = rewardCardQueue.size
             com.xianxia.sect.ui.game.components.RewardCardHost(
                 rewardCards = rewardCardQueue,
-                onAnimationComplete = { viewModel.clearRewardCardQueue() }
+                onAnimationComplete = { viewModel.clearRewardCardQueue(batchSize) }
             )
         }
     }

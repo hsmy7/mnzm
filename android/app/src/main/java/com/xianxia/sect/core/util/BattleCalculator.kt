@@ -6,7 +6,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
-import com.xianxia.sect.core.engine.domain.battle.CombatSkill
+import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import kotlin.random.Random
 
@@ -215,8 +215,9 @@ object BattleCalculator {
         }
 
         val controlSkills = attackSkills.filter { skill ->
-            skill.buffType != null && skill.buffDuration > 0 && skill.buffType.isDebuff &&
-                skill.buffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
+            val localBuffType = skill.buffType
+            localBuffType != null && skill.buffDuration > 0 && localBuffType.isDebuff &&
+                localBuffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
         }
         val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
         if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && Random.nextDouble() < 0.6) {
@@ -313,13 +314,16 @@ object BattleCalculator {
         }
 
         if (skill.buffType != null && skill.buffDuration > 0) {
+            val skillBuffType = skill.buffType
+            if (skillBuffType != null) {
             val buff = CombatBuff(
-                type = skill.buffType,
+                type = skillBuffType,
                 value = skill.buffValue,
                 remainingDuration = skill.buffDuration
             )
             for (member in targets) {
                 teamBuffs[member.id] = listOf(buff)
+            }
             }
         }
 

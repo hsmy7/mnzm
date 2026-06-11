@@ -51,6 +51,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 
 private val CachedColorScheme = XianxiaColorScheme()
@@ -83,8 +84,10 @@ fun GameOverlayHost(
 
     val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsStateWithLifecycle()
+    val pendingBattleRewardCards by viewModel.pendingBattleRewardCards.collectAsStateWithLifecycle()
 
     var showBattleResult by remember { mutableStateOf(false) }
+    var showBattleRewardDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(pendingBattleResult) {
         if (pendingBattleResult != null) {
@@ -94,7 +97,12 @@ fun GameOverlayHost(
 
     LaunchedEffect(showBattleResult) {
         if (showBattleResult) viewModel.pushOverlay(TopOverlay.BATTLE_RESULT)
-        else viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
+        else {
+            viewModel.popOverlay(TopOverlay.BATTLE_RESULT)
+            if (pendingBattleRewardCards.isNotEmpty()) {
+                showBattleRewardDialog = true
+            }
+        }
     }
 
     LaunchedEffect(detailBattleLog) {
@@ -476,6 +484,17 @@ fun GameOverlayHost(
         }
         }
     }
+    }
+
+    if (showBattleRewardDialog && pendingBattleRewardCards.isNotEmpty()) {
+        RewardDisplayDialog(
+            title = "战斗奖励",
+            cards = pendingBattleRewardCards,
+            onConfirm = {
+                viewModel.enqueueBattleRewardCards()
+                showBattleRewardDialog = false
+            }
+        )
     }
 
     tipDialogMessage?.let { message ->

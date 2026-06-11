@@ -63,6 +63,7 @@ class GameStateStoreImpl @Inject constructor(
     internal val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
     internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
+    internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
 
     private val _isPaused = MutableStateFlow(true)
@@ -142,6 +143,7 @@ class GameStateStoreImpl @Inject constructor(
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
     override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
+    override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
 
     // === 三层 StateFlow 架构 ===
@@ -742,12 +744,20 @@ class GameStateStoreImpl @Inject constructor(
         _updateVersion.value++
     }
 
+    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
+        _pendingBattleRewardCardsFlow.value = cards
+    }
+
+    override fun clearPendingBattleRewardCards() {
+        _pendingBattleRewardCardsFlow.value = emptyList()
+    }
+
     override fun enqueueRewardCards(items: List<RewardCardItem>) {
         _rewardCardQueueFlow.value = _rewardCardQueueFlow.value + items
     }
 
-    override fun clearRewardCardQueue() {
-        _rewardCardQueueFlow.value = emptyList()
+    override fun clearRewardCardQueue(count: Int) {
+        _rewardCardQueueFlow.value = _rewardCardQueueFlow.value.drop(count)
     }
 
     private var shadowTransactionThread: Thread? = null

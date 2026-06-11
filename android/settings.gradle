@@ -25,3 +25,8 @@ dependencyResolutionManagement {
 rootProject.name = "XianxiaSect"
 include ':app'
 include ':baselineprofile'
+include ':core:domain'
+include ':core:data'
+include ':core:engine'
+include ':core:ui'
+include ':feature:game'

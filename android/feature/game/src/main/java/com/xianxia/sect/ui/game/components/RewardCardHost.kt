@@ -1,7 +1,7 @@
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -23,7 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 奖励卡片覆盖层 — 屏幕正中央，所有卡片向上飘散。
+ * 奖励卡片覆盖层 — 所有卡片从屏幕正中央同一位置依次弹出，向上飘散。
  */
 @Composable
 fun RewardCardHost(
@@ -32,43 +32,26 @@ fun RewardCardHost(
 ) {
     if (rewardCards.isEmpty()) return
 
-    // 记录总时长，确保动画完全结束后才清理
-    val totalMs = 1500L + rewardCards.size * 100L + 300L
+    // 弹出间隔 100ms，匀速上飘 0→-900px 耗时 1600ms
+    val staggerInterval = 100L
+    val totalMs = rewardCards.size * staggerInterval + 2800L
 
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        // offset up by half total height so stack is vertically centered
-        val cardH = 44
-        val stackH = rewardCards.size * cardH
-        Column(
-            modifier = Modifier.offset(y = (-stackH / 2).dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            HorizontalDivider(
-                color = Color.Gray,
-                thickness = 1.dp,
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .widthIn(max = 280.dp)
-            )
-            rewardCards.forEachIndexed { index, item ->
+        // 所有卡片叠加在中心，依次弹出向上飘散
+        rewardCards.forEachIndexed { index, item ->
+            key(item.id) {
                 AnimatedRewardCard(
-                    item = item,
-                    staggerMs = index * 100L,
-                    cardIndex = index,
-                    totalCards = rewardCards.size,
-                    onAllDone = { onAnimationComplete() }
+                item = item,
+                staggerMs = index * staggerInterval,
+                cardIndex = index,
+                totalCards = rewardCards.size,
+                showTopDivider = true,
+                onAllDone = { onAnimationComplete() }
                 )
             }
-            HorizontalDivider(
-                color = Color.Gray,
-                thickness = 1.dp,
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .widthIn(max = 280.dp)
-            )
         }
     }
 
@@ -85,6 +68,7 @@ private fun AnimatedRewardCard(
     staggerMs: Long,
     cardIndex: Int,
     totalCards: Int,
+    showTopDivider: Boolean = false,
     onAllDone: () -> Unit
 ) {
     val animTY = remember { Animatable(0f) }
@@ -92,12 +76,11 @@ private fun AnimatedRewardCard(
 
     LaunchedEffect(Unit) {
         delay(staggerMs)
-        // parallel: fade in + move up
-        launch { animAlpha.animateTo(1f, tween(200, easing = FastOutSlowInEasing)) }
-        launch { animTY.animateTo(-200f, tween(1500, easing = FastOutSlowInEasing)) }
-        // hold ~1s then fade out
-        delay(1000)
-        animAlpha.animateTo(0f, tween(500, easing = FastOutSlowInEasing))
+        // parallel: fade in (200ms) + float up (1600ms)
+        launch { animAlpha.animateTo(1f, tween(200, easing = LinearEasing)) }
+        launch { animTY.animateTo(-900f, tween(1600, easing = LinearEasing)) }
+        delay(1600)
+        animAlpha.animateTo(0f, tween(500, easing = LinearEasing))
         // last card signals completion
         if (cardIndex == totalCards - 1) {
             delay(300)
@@ -105,42 +88,64 @@ private fun AnimatedRewardCard(
         }
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .height(44.dp)
             .graphicsLayer {
                 translationY = animTY.value
                 alpha = animAlpha.value.coerceIn(0f, 1f)
             },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val sprite = getRewardSprite(item.itemType, item.itemName, item.rarity)
-        if (sprite != null && sprite != 0) {
-            Image(
-                painter = painterResource(id = sprite),
-                contentDescription = item.itemName,
-                modifier = Modifier.size(36.dp),
-                contentScale = ContentScale.Fit
+        if (showTopDivider) {
+            HorizontalDivider(
+                color = Color.Gray,
+                thickness = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .widthIn(max = 280.dp)
             )
         }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            val sprite = getRewardSprite(item.itemType, item.itemName, item.rarity)
+            if (sprite != null && sprite != 0) {
+                Image(
+                    painter = painterResource(id = sprite),
+                    contentDescription = item.itemName,
+                    modifier = Modifier.size(36.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
 
-        Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
-        Text(
-            text = item.itemName,
-            color = Color.Black,
-            fontSize = 14.sp
-        )
+            Text(
+                text = item.itemName,
+                color = Color.Black,
+                fontSize = 14.sp
+            )
 
-        Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
-        Text(
-            text = "x${item.quantity}",
-            color = Color.Black,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold
+            Text(
+                text = "x${item.quantity}",
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        HorizontalDivider(
+            color = Color.Gray,
+            thickness = 1.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .widthIn(max = 280.dp)
         )
     }
 }

@@ -728,8 +728,9 @@ class InventoryFacadeImpl @Inject constructor(
 
     // ── Storage bag ──────────────────────────────────────────────────────
 
-    override suspend fun openStorageBag(bagId: String): List<BattleRewardItem> {
-        val bag = stateStore.storageBags.value.find { it.id == bagId } ?: return emptyList()
+    override suspend fun openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> {
+        val bag = stateStore.storageBags.value.find { it.id == bagId }
+            ?: return Pair(emptyList(), emptyList())
         val rarity = bag.rarity
         val count = kotlin.random.Random.nextInt(5, 21)
         val rewards = mutableListOf<BattleRewardItem>()
@@ -834,7 +835,7 @@ class InventoryFacadeImpl @Inject constructor(
                 }
             }
         }
-        // 储物袋开启是手动操作，展示奖励卡片
+        // 储物袋开启是手动操作，展示奖励卡片（卡片由 UI 在对话框关闭后入队）
         val cards = rewards.map { reward ->
             RewardCardItem(
                 itemName = reward.name,
@@ -843,9 +844,6 @@ class InventoryFacadeImpl @Inject constructor(
                 quantity = reward.quantity
             )
         }
-        if (cards.isNotEmpty()) {
-            stateStore.enqueueRewardCards(cards)
-        }
-        return rewards
+        return Pair(rewards.toList(), cards)
     }
 }

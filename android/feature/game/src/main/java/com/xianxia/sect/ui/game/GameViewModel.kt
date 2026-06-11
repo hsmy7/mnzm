@@ -24,6 +24,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.service.DailySignInService
+import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.ClaimDailyResult
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -168,6 +169,14 @@ class GameViewModel @Inject constructor(
     fun openBattleLogDialog() = navigation.openBattleLogDialog()
 
     fun dismissBattleResult() = navigation.dismissBattleResult()
+
+    fun enqueueBattleRewardCards() {
+        val cards = gameEngine.pendingBattleRewardCards.value
+        if (cards.isNotEmpty()) {
+            dailySignInService.enqueueSignInCards(cards)
+            gameEngine.clearPendingBattleRewardCards()
+        }
+    }
 
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         viewModelScope.launch {
@@ -399,6 +408,7 @@ class GameViewModel @Inject constructor(
     val battleLogs: StateFlow<List<BattleLog>> get() = gameEngine.battleLogs
 
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
+    val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = gameEngine.pendingBattleRewardCards
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }
@@ -567,8 +577,8 @@ class GameViewModel @Inject constructor(
         discipleFacade.clearPendingNotification()
     }
 
-    fun clearRewardCardQueue() {
-        gameEngine.clearRewardCardQueue()
+    fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) {
+        gameEngine.clearRewardCardQueue(count)
     }
 
     fun enterSect(sectId: String) {
@@ -694,7 +704,25 @@ class GameViewModel @Inject constructor(
 
     fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
 
-    suspend fun openStorageBag(bagId: String): List<BattleRewardItem> = gameEngine.openStorageBag(bagId)
+    private var pendingBagCards: List<RewardCardItem> = emptyList()
+
+    private val _bagRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
+    val bagRewardCards: StateFlow<List<RewardCardItem>> = _bagRewardCards.asStateFlow()
+
+    suspend fun openStorageBag(bagId: String): List<BattleRewardItem> {
+        val (rewards, cards) = gameEngine.openStorageBag(bagId)
+        pendingBagCards = cards
+        _bagRewardCards.value = cards
+        return rewards
+    }
+
+    fun enqueueBagRewardCards() {
+        if (pendingBagCards.isNotEmpty()) {
+            dailySignInService.enqueueSignInCards(pendingBagCards)
+            pendingBagCards = emptyList()
+            _bagRewardCards.value = emptyList()
+        }
+    }
 
     fun recruitDisciple(disciple: DiscipleAggregate) = this@GameViewModel.disciple.recruitDisciple(disciple)
 
@@ -952,9 +980,15 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    private val _mailRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
+    val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()
+
     fun claimMailAttachment(mailId: String, onResult: (com.xianxia.sect.core.engine.service.ClaimResult) -> Unit = {}) {
         viewModelScope.launch {
             val result = mailService.claimAttachment(mailId, currentSlotId)
+            if (result is ClaimResult.Success && result.cards.isNotEmpty()) {
+                _mailRewardCards.value = result.cards
+            }
             onResult(result)
         }
     }
@@ -962,12 +996,20 @@ class GameViewModel @Inject constructor(
     fun markAllMailsAsRead() {
         viewModelScope.launch {
             val result = mailService.markAllAsRead(currentSlotId)
-            if (result.claimedCount > 0) {
-                showSuccess("领取了${result.claimedCount}封邮件附件")
+            if (result.cards.isNotEmpty()) {
+                _mailRewardCards.value = result.cards
             }
             if (result.skippedCount > 0) {
                 showError(result.skipReasons.first())
             }
+        }
+    }
+
+    fun enqueueMailRewardCards() {
+        val cards = _mailRewardCards.value
+        if (cards.isNotEmpty()) {
+            dailySignInService.enqueueSignInCards(cards)
+            _mailRewardCards.value = emptyList()
         }
     }
 
@@ -1016,8 +1058,25 @@ class GameViewModel @Inject constructor(
     private val _signInCapacityWarning = MutableStateFlow<String?>(null)
     val signInCapacityWarning: StateFlow<String?> = _signInCapacityWarning.asStateFlow()
 
+    private val _signInSuccessMessage = MutableStateFlow<String?>(null)
+    val signInSuccessMessage: StateFlow<String?> = _signInSuccessMessage.asStateFlow()
+
+    private val _signInSuccessCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
+    val signInSuccessCards: StateFlow<List<RewardCardItem>> = _signInSuccessCards.asStateFlow()
+
+    private var pendingSignInCards: List<RewardCardItem> = emptyList()
+
     fun dismissCapacityWarning() {
         _signInCapacityWarning.value = null
+    }
+
+    fun dismissSignInSuccess() {
+        _signInSuccessMessage.value = null
+        _signInSuccessCards.value = emptyList()
+        if (pendingSignInCards.isNotEmpty()) {
+            dailySignInService.enqueueSignInCards(pendingSignInCards)
+            pendingSignInCards = emptyList()
+        }
     }
 
     fun claimDailySignIn() {
@@ -1025,13 +1084,19 @@ class GameViewModel @Inject constructor(
             val result = dailySignInService.claimDailySignIn()
             when (result) {
                 is ClaimDailyResult.Success -> {
-                    showSuccess("签到成功：获得${result.reward.itemName}x${result.reward.quantity}")
+                    pendingSignInCards = result.cards
+                    _signInSuccessCards.value = result.cards
+                    _signInSuccessMessage.value = "获得：${result.reward.itemName}" +
+                        " x${result.reward.quantity}"
                 }
                 is ClaimDailyResult.SuccessWithMilestones -> {
+                    pendingSignInCards = result.cards
+                    _signInSuccessCards.value = result.cards
                     val milestoneText = result.milestones.joinToString("、") {
                         "${it.itemName}x${it.quantity}"
                     }
-                    showSuccess("签到成功：获得${result.reward.itemName}x${result.reward.quantity}，里程碑奖励：$milestoneText")
+                    _signInSuccessMessage.value = "获得：${result.reward.itemName}" +
+                        " x${result.reward.quantity}\n里程碑：$milestoneText"
                 }
                 is ClaimDailyResult.AlreadyClaimed -> {
                     // 已签到，无需提示

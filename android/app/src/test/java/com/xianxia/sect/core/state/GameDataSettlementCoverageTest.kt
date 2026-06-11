@@ -51,18 +51,18 @@ class GameDataSettlementCoverageTest {
 
         if (customFields.isEmpty()) return  // no CUSTOM fields → nothing to check
 
-        // 通过反射读取 GameStateStore 的 customGameDataMergers
-        val mergersField = GameStateStore::class.memberProperties
+        // 通过反射读取 GameStateStoreImpl 的 customGameDataMergers
+        val mergersField = GameStateStoreImpl::class.memberProperties
             .find { it.name == "customGameDataMergers" }
         if (mergersField == null) {
             if (customFields.isNotEmpty())
-                fail("CUSTOM fields exist but customGameDataMergers not found in GameStateStore")
+                fail("CUSTOM fields exist but customGameDataMergers not found in GameStateStoreImpl")
             return
         }
 
         @Suppress("UNCHECKED_CAST")
         val mergerKeys = try {
-            val instance = GameStateStore::class.constructors.firstOrNull { it.parameters.isEmpty() }
+            val instance = GameStateStoreImpl::class.constructors.firstOrNull { it.parameters.isEmpty() }
             if (instance != null) {
                 (mergersField.call(instance.call()) as? Map<String, *>)?.keys ?: emptySet()
             } else {

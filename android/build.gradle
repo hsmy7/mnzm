@@ -1,24 +1,44 @@
-// Top-level build file
-buildscript {
-    repositories {
-        maven { url = 'https://maven.aliyun.com/repository/google' }
-        maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
-        maven { url = 'https://developer.huawei.com/repo/' }
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.8.0'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
-        classpath 'com.google.dagger:hilt-android-gradle-plugin:2.56'
-        classpath 'com.huawei.agconnect:agcp:1.9.1.301'
-        classpath 'com.google.gms:google-services:4.4.2'
-    }
+plugins {
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.baselineprofile) apply false
+    alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.hilt) apply false
+    alias(libs.plugins.protobuf) apply false
 }
 
-plugins {
-    id 'com.google.devtools.ksp' version '2.0.21-1.0.28' apply false
-    id 'org.jetbrains.kotlin.plugin.compose' version '2.0.21' apply false
-    id 'androidx.baselineprofile' version '1.3.3' apply false
-    id 'io.gitlab.arturbosch.detekt' version '1.23.7' apply false
+// 统一所有子模块的 compileSdk/minSdk/targetSdk
+subprojects {
+    afterEvaluate {
+        if (project.hasProperty('android')) {
+            project.android {
+                compileSdk = 35
+                defaultConfig {
+                    minSdk = 24
+                    targetSdk = 35
+                }
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                    encoding = 'UTF-8'
+                }
+            }
+            project.tasks.withType(JavaCompile).configureEach {
+                options.encoding = 'UTF-8'
+                options.compilerArgs += ['-Xlint:-deprecation']
+            }
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = '17'
+                    freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+                }
+            }
+        }
+    }
 }

@@ -133,7 +133,7 @@ object StorageModule {
             saveLimitsConfig = saveLimitsConfig,
             changeLogPersistence = changeLogPersistence,
             dataArchiver = dataArchiver,
-            applicationScopeProvider = applicationScopeProvider,
+            scopeProvider = applicationScopeProvider,
             circuitBreaker = circuitBreaker,
             pruningScheduler = pruningScheduler,
             archiveScheduler = archiveScheduler,

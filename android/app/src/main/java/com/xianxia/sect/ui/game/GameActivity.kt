@@ -56,6 +56,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         private const val TILE_GRASS = 1
         private const val TILE_TREE = 2
 
+        /** 单张 Bitmap 内存分配硬上限 (50 MB)，防止异常大图导致 OOM */
+        private const val MAX_BITMAP_ALLOCATION_BYTES = 50 * 1024 * 1024
+
         /**
          * @param grassProbability 草地生成概率 (0.0=无草, 0.03=稀疏, 0.06=正常)
          * @param treeProbability 树木生成概率 (0.0=无树, 0.05=稀疏, 0.10=正常)
@@ -207,11 +210,18 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 val decorationSampleSize = lodMultiplier * 2
 
                                 val groundBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }
-                                    val src = android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.sect_ground_map, opts
-                                    ) ?: throw Exception("ground decode failed")
-                                    android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)
+                                    // 安全检查：异常大图拒绝分配，防止 OOM
+                                    val estBytes = renderWidth.toLong() * renderHeight * 4
+                                    if (estBytes > MAX_BITMAP_ALLOCATION_BYTES) {
+                                        Log.e(TAG, "groundBmp too large: ${renderWidth}x$renderHeight est=${estBytes}bytes > max=$MAX_BITMAP_ALLOCATION_BYTES")
+                                        null
+                                    } else {
+                                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }
+                                        val src = android.graphics.BitmapFactory.decodeResource(
+                                            resources, R.drawable.sect_ground_map, opts
+                                        ) ?: throw Exception("ground decode failed")
+                                        android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)
+                                    }
                                 } catch (e: Exception) { null }
 
                                 val grassBmp = try {
@@ -252,6 +262,13 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         android.graphics.Bitmap.Config.ARGB_8888
                                     else
                                         android.graphics.Bitmap.Config.RGB_565
+                                    // 安全检查：异常大图拒绝分配，防止 OOM
+                                    val bytesPerPixel = if (bmpConfig == android.graphics.Bitmap.Config.ARGB_8888) 4 else 2
+                                    val estFullBytes = renderWidth.toLong() * renderHeight * bytesPerPixel
+                                    if (estFullBytes > MAX_BITMAP_ALLOCATION_BYTES) {
+                                        Log.e(TAG, "fullBmp too large: ${renderWidth}x$renderHeight est=$estFullBytes bytes > max=$MAX_BITMAP_ALLOCATION_BYTES")
+                                        throw Exception("fullBmp allocation refused: $estFullBytes bytes exceeds limit")
+                                    }
                                     val fullBmp = android.graphics.Bitmap.createBitmap(
                                         renderWidth, renderHeight, bmpConfig
                                     )

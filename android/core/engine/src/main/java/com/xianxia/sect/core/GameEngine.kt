@@ -106,9 +106,11 @@ class GameEngine @Inject constructor(
     fun getCurrentMaterials(): List<Material> = stateStore.getCurrentMaterials()
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
+    val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = stateStore.pendingBattleRewardCards
+    fun clearPendingBattleRewardCards() { stateStore.clearPendingBattleRewardCards() }
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = stateStore.rewardCardQueue
-    fun clearRewardCardQueue() { stateStore.clearRewardCardQueue() }
+    fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates

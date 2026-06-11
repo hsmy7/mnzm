@@ -100,27 +100,26 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
             }
         }
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(warRewards)))
-        enqueueBattleRewardCards(warRewards)
+        stateStore.setPendingBattleRewardCards(buildBattleRewardCards(warRewards))
     } else {
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = false, teamMembers = teamMembers, rewards = emptyList()))
     }
 }
 
-private fun GameEngine.enqueueBattleRewardCards(rewards: WarRewards) {
-    val cards = mutableListOf<RewardCardItem>()
-    if (rewards.spiritStones > 0) {
-        cards.add(RewardCardItem(itemName = "灵石", itemType = "spiritStones", rarity = 1, quantity = rewards.spiritStones.toInt()))
-    }
-    rewards.equipmentStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "equipment", rarity = it.rarity, quantity = it.quantity)) }
-    rewards.manualStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "manual", rarity = it.rarity, quantity = it.quantity)) }
-    rewards.pills.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "pill", rarity = it.rarity, quantity = it.quantity)) }
-    rewards.materials.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "material", rarity = it.rarity, quantity = it.quantity)) }
-    rewards.herbs.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "herb", rarity = it.rarity, quantity = it.quantity)) }
-    rewards.seeds.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "seed", rarity = it.rarity, quantity = it.quantity)) }
-    if (cards.isNotEmpty()) {
-        stateStore.enqueueRewardCards(cards)
-    }
-}
+	
+	private fun GameEngine.buildBattleRewardCards(rewards: WarRewards): List<RewardCardItem> {
+	    val cards = mutableListOf<RewardCardItem>()
+	    if (rewards.spiritStones > 0) {
+	        cards.add(RewardCardItem(itemName = "灵石", itemType = "spiritStones", rarity = 1, quantity = rewards.spiritStones.toInt()))
+	    }
+	    rewards.equipmentStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "equipment", rarity = it.rarity, quantity = it.quantity)) }
+	    rewards.manualStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "manual", rarity = it.rarity, quantity = it.quantity)) }
+	    rewards.pills.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "pill", rarity = it.rarity, quantity = it.quantity)) }
+	    rewards.materials.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "material", rarity = it.rarity, quantity = it.quantity)) }
+	    rewards.herbs.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "herb", rarity = it.rarity, quantity = it.quantity)) }
+	    rewards.seeds.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "seed", rarity = it.rarity, quantity = it.quantity)) }
+	    return cards
+	}
 
 private fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewardItem> {
     val items = mutableListOf<BattleRewardItem>()

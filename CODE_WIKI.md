@@ -1,26 +1,27 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-09 (v4.0.00 — 架构全面重构 + 世界地图 + 活动签到 + GPU 分级 + 背包商店 + 数据库从零演进至 v5)
+> 最后更新：2026-06-11 (v4.0.01 — 模块化依赖根治 + 架构文档同步)
 
 ## 目录
 
 1. [架构总览](#架构总览)
-2. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
-3. [GameEngine 拆分](#gameengine-拆分v4000)
-4. [CultivationService 拆分](#cultivationservice-拆分v4000)
-5. [状态管理 — GameStateStore](#状态管理--gamestatestore)
-6. [数据库 — 从零开始](#数据库--从零开始v4000)
-7. [UI 组件拆分](#ui-组件拆分v4000)
-8. [世界地图重构](#世界地图重构v4000)
-9. [GPU 分级渲染系统](#gpu-分级渲染系统v4000)
-10. [活动系统 / 每日签到](#活动系统--每日签到v4000)
-11. [背包系统重构](#背包系统重构v4000)
-12. [商店改版](#商店改版v4000)
-13. [每日签到优化](#每日签到优化v4000)
-14. [数据库演进 (v1→v5)](#数据库演进-v1v5v4000)
-15. [代码质量基础设施](#代码质量基础设施v4000)
-16. [构建与 Profile](#构建与-profile)
-17. [后续优化项](#后续优化项)
+2. [Gradle 模块化架构](#gradle-模块化架构v4001)
+3. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
+4. [GameEngine 拆分](#gameengine-拆分v4000)
+5. [CultivationService 拆分](#cultivationservice-拆分v4000)
+6. [状态管理 — GameStateStore](#状态管理--gamestatestore)
+7. [数据库 — 从零开始](#数据库--从零开始v4000)
+8. [UI 组件拆分](#ui-组件拆分v4000)
+9. [世界地图重构](#世界地图重构v4000)
+10. [GPU 分级渲染系统](#gpu-分级渲染系统v4000)
+11. [活动系统 / 每日签到](#活动系统--每日签到v4000)
+12. [背包系统重构](#背包系统重构v4000)
+13. [商店改版](#商店改版v4000)
+14. [每日签到优化](#每日签到优化v4000)
+15. [数据库演进 (v1→v5)](#数据库演进-v1v5v4000)
+16. [代码质量基础设施](#代码质量基础设施v4000)
+17. [构建与 Profile](#构建与-profile)
+18. [后续优化项](#后续优化项)
 
 ---
 
@@ -43,6 +44,117 @@
 **数据流**：`UI → ViewModel → GameEngine → Service → GameStateStore.update() → StateFlow → Compose`
 
 **核心类**：参见 CLAUDE.md「Key Classes」章节。
+
+---
+
+## Gradle 模块化架构 (v4.0.01)
+
+### 模块结构
+
+项目从单模块（`:app`）重构为 **6 个 Gradle 模块**，按 Clean Architecture 分层：
+
+```
+android/
+├── :app                              ← 入口壳（Application + MainActivity + Hilt DI 全局织入）
+│
+├── :core:domain                      ← 纯 Kotlin/JVM 模块（零 Android Framework 依赖）
+│   ├── core/model/                   ← 数据类 (GameData, Disciple, Items, ...)
+│   ├── core/state/                   ← GameStateStore 接口 + GameStateSnapshotProvider
+│   ├── core/registry/                ← 静态数据 (EquipmentRegistry, ItemRegistry, ...)
+│   ├── core/config/                  ← JSON 配置模型
+│   ├── core/event/                   ← 游戏事件定义 (EventBusPort)
+│   ├── core/repository/              ← Repository 接口（13 个域接口）
+│   └── core/perf/                    ← GPU 分级检测
+│
+├── :core:engine                      ← Kotlin 模块 + 协程（依赖 domain，不依赖 data）
+│   ├── core/engine/                  ← GameEngineCore + GameEngine + 9 域扩展文件
+│   ├── core/engine/service/          ← 所有 Service (Cultivation, Mail, ...)
+│   ├── core/engine/system/           ← ECS-like 系统 (TimeSystem, InventorySystem, ...)
+│   ├── core/engine/domain/           ← 按领域分包 (battle/build/disciple/...)
+│   ├── core/concurrent/              ← ShardedSlotLock 并发工具
+│   ├── core/config/                  ← BuildingConfigService
+│   └── core/util/                    ← 工具类 (CoroutineScopeProvider, DomainLog, ...)
+│
+├── :core:data                        ← Android 库模块（依赖 Room, MMKV, ProtoBuf）
+│   ├── data/local/                   ← Room DB, DAOs, Migrations, TypeConverters
+│   ├── data/facade/                  ← StorageFacade
+│   ├── data/engine/                  ← StorageEngine, RecoveryManager, SavMigrator
+│   ├── data/serialization/           ← 序列化层 (ProtoBuf/JSON)
+│   ├── data/compression/             ← LZ4/Zstd 压缩
+│   ├── data/crypto/                  ← 加密
+│   ├── data/wal/                     ← WAL 日志
+│   ├── data/memory/                  ← DynamicMemoryManager
+│   ├── data/incremental/             ← ChangeTracker, ChangeLogPersistence
+│   └── core/repository/              ← 6 个 Repository 实现 (从 engine 移入)
+│
+├── :core:ui                          ← Android 库模块（依赖 Compose, domain）
+│   ├── ui/theme/                     ← 主题、颜色、字体
+│   ├── ui/components/                ← 共享 Compose 组件 (GameButton, ItemCard, ...)
+│   └── ui/navigation/                ← 导航定义
+│
+└── :feature:game                     ← Android 库模块（游戏 UI 实现）
+    ├── ui/game/                      ← 所有游戏界面 (tabs, dialogs, map, ViewModels)
+    ├── ui/game/tabs/                 ← 主标签页 (Disciples, Buildings, Warehouse, ...)
+    ├── ui/game/dialogs/              ← 功能弹窗 (Alchemy, Forge, HerbGarden, ...)
+    └── ui/game/map/                  ← 世界地图 (MapBackground, MapTileCache, ...)
+```
+
+### 依赖方向
+
+```
+feature:game  ──→  core:ui  ──→  core:domain
+       │              │
+       ├──────────→ core:engine ──→ core:domain
+       │
+       └──────────→ core:data ──→ core:domain
+```
+
+**严格规则：**
+- `core:domain` — 零外部依赖（纯 Kotlin/注解），不依赖任何其他模块
+- `core:engine` — 仅依赖 `core:domain`（不依赖 `core:data`） ✅ v4.0.01 验证通过
+- `core:data` — 仅依赖 `core:domain`（Room Entity 需要 model）
+- `core:ui` — 仅依赖 `core:domain`
+- `feature:game` — 依赖所有 core 模块
+- `:app` — 依赖所有模块（用于 Hilt 全局织入）
+
+### 域接口清单 (v4.0.01)
+
+| 接口 | 模块 | 实现位置 | 用途 |
+|------|------|---------|------|
+| `DiscipleRepository` | domain | `:core:data` | 弟子 CRUD |
+| `WorldRepository` | domain | `:core:data` | 探索队/建筑/配方/战斗日志 |
+| `InventoryRepository` | domain | `:core:data` | 功法/丹药/材料/种子/草药 |
+| `EquipmentRepository` | domain | `:core:data` | 装备栈/实例 |
+| `ForgeRepository` | domain | `:core:data` | 锻造槽位 |
+| `GameDataRepository` | domain | `:core:data` | 游戏主数据 CRUD + 清档 |
+| `MailRepository` | domain | `:app` (MailRepositoryImpl) | 邮件持久化 |
+| `SaveStorage` | domain | `:app` (SaveStorageImpl) | 存档持久化（封装 StorageFacade） |
+| `ProductionSlotDataPort` | domain | `:core:data` | 生产槽位 DAO 抽象 |
+| `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
+| `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
+
+### v4.0.01 修复的架构违规
+
+| 原违规 | 修复前 | 修复后 |
+|--------|--------|--------|
+| `core:domain` 含 `room-runtime` | `implementation libs.room.runtime`（Android Framework） | `implementation libs.room.common`（仅注解） |
+| `core:engine` 依赖 `core:data` | 9 个文件直接导入 DAO/StorageFacade | 0 个文件导入 data 类型，全部通过域接口解耦 |
+| `GameEngine` 注入 `GameDatabase` | 直接依赖 Room Database | 注入 `GameHeavyDataPort` + `HeavyDataDecoder` |
+
+### Hilt DI 桥接层
+
+所有域接口→实现绑定集中在 `app/.../di/BridgeBindingsModule.kt`：
+
+```kotlin
+@Module @InstallIn(SingletonComponent::class)
+object BridgeBindingsModule {
+    @Provides @Singleton
+    fun provideDiscipleRepository(impl: DiscipleRepositoryImpl): DiscipleRepository = impl
+    // ... 共 9 组绑定（6 Repository + 3 DataPort）
+}
+```
+
+另有 `CoreModule` 提供 `MailRepository` / `SaveStorage` 绑定。
 
 ---
 
@@ -975,6 +1087,36 @@ GameData.worldMapSects → WorldMapViewModel.mapItems (derivedStateOf)
     → MapOverlay: 连接线 + 动态标记 (per frame, viewport-culled)
 ```
 
+### 建筑拆除 (v4.0.00)
+
+山门地图移动建筑模式下新增「拆除」功能，允许玩家拆除已放置建筑并回收部分资源：
+
+```
+移动模式 (movingBuilding != null)
+  ├── 放置确认按钮（绿色✓）
+  └── 拆除按钮（红色背景，"拆除"文字）
+        └── click → 确认对话框
+              ├── 标题："确认拆除"
+              ├── 内容："确定要拆除「XX」吗？将返还 50% 建造灵石。"
+              ├── 确认 → viewModel.demolishBuilding(instanceId)
+              │     → GameEngine.removeBuilding(instanceId, refund)
+              │       → BuildingFacade.removeBuilding(instanceId, refund)
+              │         → BuildingFacadeImpl: 从 placedBuildings 移除
+              │         → 清空该建筑关联槽位
+              │         → 弟子下岗 (status → IDLE)
+              │         → 灵石返还 (建造费用 × 50%)
+              └── 取消 → 关闭对话框
+```
+
+**涉及文件**：
+| 文件 | 职责 |
+|------|------|
+| `core/engine/domain/building/BuildingFacade.kt` | `removeBuilding(instanceId, refund)` 接口 |
+| `core/engine/domain/building/BuildingFacadeImpl.kt` | 实现：建筑移除 + 槽位清理 + 弟子下岗 + 退款 |
+| `core/engine/GameEngineBuildingOps.kt` | `GameEngine.removeBuilding()` 委托 |
+| `feature/game/.../MainGameScreen.kt` | UI：拆除按钮 + 确认对话框（`PlacementConfirmButtons` composable） |
+| `feature/game/.../GameViewModel.kt` | `demolishBuilding(instanceId)` → 计算退款金额 → 调用 Engine |
+
 ---
 
 ## GPU 分级渲染系统 (v4.0.00)
@@ -1375,6 +1517,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
 
 > 已删除/已完成项：
+> - ✅ **v4.0.01 — 模块化依赖根治**：6 模块架构，13 个域接口，engine→data 依赖完全移除，domain 提纯为零 Android Framework 模块
 > - ✅ **v4.0.02 — 背包系统重构**：物品卡片交互统一（点击选中+长按详情+右上角快捷操作），仓库底部三按钮统一布局
 > - ✅ **v4.0.02 — 商店改版**：云游商人「购买」+「收购」双标签布局，收购物品持久化 + 出售数量调节 + 实时总价
 > - ✅ **v4.0.02 — 每日签到奖励多样化**：3 天固定奖励改为随机品种（材料/种子/丹药），增加签到惊喜感

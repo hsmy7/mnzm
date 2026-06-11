@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
@@ -36,7 +37,7 @@ class InventorySystemTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStore(scopeProvider, mock(GameStateRepository::class.java))
+        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
         inventoryConfig = InventoryConfig()
         system = InventorySystem(stateStore, scopeProvider, inventoryConfig)
         system.initialize()

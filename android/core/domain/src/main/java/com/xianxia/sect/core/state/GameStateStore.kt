@@ -94,9 +94,14 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun setPendingBattleResult(result: BattleResultUIData)
     fun clearPendingBattleResult()
 
+    // === 战斗奖励卡片（延迟入队，先展示小屏界面） ===
+    val pendingBattleRewardCards: StateFlow<List<RewardCardItem>>
+    fun setPendingBattleRewardCards(cards: List<RewardCardItem>)
+    fun clearPendingBattleRewardCards()
+
     // === 奖励卡片 ===
     fun enqueueRewardCards(items: List<RewardCardItem>)
-    fun clearRewardCardQueue()
+    fun clearRewardCardQueue(count: Int = Int.MAX_VALUE)
 
     // === 交互状态 ===
     var focusedDiscipleId: String?

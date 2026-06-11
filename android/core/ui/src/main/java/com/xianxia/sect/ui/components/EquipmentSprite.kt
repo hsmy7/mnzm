@@ -87,6 +87,8 @@ fun getRewardSprite(itemType: String, itemName: String, rarity: Int): Int? {
         "herb" -> pillSpriteRes(rarity)
         "spiritStones" -> spiritStoneSpriteRes()
         "storageBag" -> storageBagSpriteRes(rarity)
+        "beastMaterial" -> materialSpriteRes(itemName)
+            ?: SpriteResRegistry.materialSprites.values.firstOrNull()
         else -> null
     }
 }
