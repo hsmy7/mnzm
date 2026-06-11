@@ -1,5 +1,106 @@
 # 模拟宗门 - 更新日志
 
+## [4.1.00] - 2026-06-11
+
+### 重大更新：功法技能系统全面重构
+
+新增 18 大技能类别、282 本全新功法，覆盖护盾、拉条、伤害分摊、伤害链接等现代回合制 RPG 标准机制。
+
+#### 新增 18 类技能
+
+| 类别 | 说明 | 子类型 |
+|------|------|--------|
+| 嘲讽 | 强制敌方攻击自己 | 单敌 |
+| 眩晕 | 跳过敌方一回合 | 单敌 |
+| 血量回复 | 百分比/固定值 | 自身/单体/全体 |
+| 灵力回复 | 百分比/固定值 | 自身/单体/全体 |
+| 物理攻击 | 单体/群体物理伤害 | 单敌/全体 |
+| 法术攻击 | 单体/群体法术伤害 | 单敌/全体 |
+| 物防提升 | 提升物理防御 | 自身/单体/全体 |
+| 法防提升 | 提升法术防御 | 自身/单体/全体 |
+| 伤害加成 | 百分比增伤 | 自身/单体/全体 |
+| 暴击提升 | 固定值暴击率 | 自身/单体/全体 |
+| 伤害减免 | 百分比减伤 | 自身/单体/全体 |
+| 减攻 | 降低敌方攻击力 | 单敌/全体 |
+| 减防 | 降低敌方防御力 | 单敌/全体 |
+| 护盾 | 吸收伤害护盾 | 自身/单体/全体 |
+| 拉条 | 队友行动提前 | 单体 |
+| 伤害分摊 | 分担队友伤害 | 自身/指定队友 |
+| 提速 | 提升速度 | 自身/单体/全体 |
+| 伤害链接 | 传递伤害给绑定敌人 | 单敌 |
+
+#### 平衡设计
+
+- **MP 消耗**：该品阶最低境界弟子连续使用最贵技能 4 次空蓝
+- **CD ≥ 持续+1**：杜绝无限 buff/debuff 循环
+- **自身=单体**，群体每人=自身×0.4：3人以上总收益超过单体
+- **治疗固定值**：低境界固定值占优，高境界百分比占优
+- **技能强度与属性反比**：S档(控制)×0.5 ~ C档(攻击)×1.25
+
+#### 新增 BuffType
+
+`DAMAGE_BOOST`, `DAMAGE_REDUCTION`, `SHIELD`, `DAMAGE_SHARE`, `DAMAGE_LINK`, `TURN_ADVANCE`
+
+#### 数据
+
+- 功法总数：258 → **540**（+282 新功法）
+- 每品阶 47 本新功法，完整覆盖全部 18 类
+
+### 重大更新：Gradle 多模块架构 + 依赖方向根治
+
+项目从单模块 `:app`（全部代码在一个 Gradle 模块）重构为 **6 个 Gradle 模块**的 Clean Architecture 分层架构。
+
+#### 模块拆分（714 个文件重新分配）
+
+```
+模块           源文件   职责
+────           ────     ──
+:app            67      入口壳（Hilt 全局织入 + MainActivity + 导航启动）
+:core:domain   119      纯 Kotlin 模型/状态/配置/事件（零 Android Framework）
+:core:engine   138      游戏循环 + 业务逻辑（仅依赖 domain，不依赖 data）
+:core:data      83      Room 数据库 + 序列化 + 压缩 + 加密 + 存储引擎
+:core:ui        23      Compose 主题 + 共享组件 + 导航定义
+:feature:game  350      所有游戏 UI（标签页/弹窗/地图/ViewModel）
+```
+
+#### 依赖方向（依赖反转原则）
+
+```
+feature:game → core:ui → core:domain
+      │           │
+      ├────→ core:engine → core:domain  （engine 不再依赖 data ✅）
+      │
+      └────→ core:data → core:domain
+```
+
+#### 架构违规根治
+
+- **domain 依赖提纯**：`room-runtime`（Android Framework）→ `room-common`（仅注解），`coroutines-android`→`coroutines-core`，`core-ktx`→`annotation`
+- **engine→data 依赖完全移除**：9 个文件全部解耦 — 7 个 Repository 移至 `:core:data`，MailService 注入 `MailRepository`，SavePipeline 注入 `SaveStorage`，ProductionSlotRepository 注入 `ProductionSlotDataPort`，GameEngine 注入 `GameHeavyDataPort` + `HeavyDataDecoder`
+- **域接口 13 个**：`DiscipleRepository`、`WorldRepository`、`InventoryRepository`、`EquipmentRepository`、`ForgeRepository`、`GameDataRepository`、`MailRepository`、`SaveStorage`（+`SaveSnapshot`）、`ProductionSlotDataPort`、`GameHeavyDataPort`、`HeavyDataDecoder`
+
+#### DI 桥接层
+
+- `BridgeBindingsModule`（app 层）：9 组接口→实现绑定
+- `MailRepositoryImpl` / `SaveStorageImpl`（app 层）：MailDao / StorageFacade 适配器
+- `ProductionSlotDataPortImpl` / `GameHeavyDataPortImpl` / `HeavyDataDecoderImpl`（data 层）：DAO / ProtobufConverters 封装
+
+#### 构建优化
+
+- **Version Catalog**（`libs.versions.toml`）：统一 55 个外部依赖版本管理
+- **增量编译加速**：UI 修改不再重编译 data/engine，预计 2-3× 加速
+- **编译隔离**：domain 模块零 Android 框架，JVM 测试秒级运行
+
+### 界面四层统一
+
+- **界面层级规范化**：将游戏界面明确划分为全屏（100%×100%）、半屏（83%×78%）、小屏（50%×55%）、提示框（50%×55%）四层，各有明确用途和背景区分
+- **新增小屏界面 `SmallScreenDialog`**：统一详情查看体验，物品详情、天赋详情、功法/装备详情均使用小屏界面 + `bg_horizontal` 横向背景
+- **提示框背景保持**：二次确认提示框使用 `dialog_box` 背景，与小屏形成视觉区分（小屏=信息浏览、提示框=需要决策）
+- **迁移三处详情弹窗**：`ItemDetailDialog`、`LearnedManualDetailDialog`、`TalentDetailDialog` 从 AlertDialog/StandardPromptDialog 统一迁移至 SmallScreenDialog
+- **修复大图OOM崩溃**：`bg_horizontal` 从 5K 超高清 JPG（5464×3068, 每张约 64MB 内存）替换为原始设计稿导出的 1080p WebP 无损（1920×1078, 每张约 8MB），内存占用降低 87%；战斗场景背景 `heavenly_trial_battle_scene` 从 JPG 有损替换为原始 PNG 导出的 WebP 无损
+- **添加 Bitmap 分配安全检查**：`createBitmap`/`createScaledBitmap` 单张超过 50MB 自动拦截
+- **删除冗余资源**：`sect_map_bg.png`（代码未引用，已被 `sect_ground_map.webp` 替代），减少 APK 体积 1.8MB
+
 ## [4.0.00] - 2026-06-09
 
 ### 重大更新：代码架构全面重构
@@ -13,6 +114,7 @@
 ### 新增功能
 
 - **世界地图重构**：渲染管线从逐帧全量绘制重构为预烘焙 + 视口裁剪 + 瓦片缓存架构。地形+宗门标记预烘焙为单张 Bitmap，连接线 Path 仅在宗门关系变化时重建，屏幕外内容不绘制。5 个旧地图文件（MapCanvas/MapItem/MapItemMapper/MapStyle/MapCameraState）替换为 8 个新文件（MapBackground/MapTileCache/WorldMapConnections/MapCoordTransformer/SectCameraState/WorldCameraState/SectMapCanvas/SectMapState），宗门外交/驻军/手势交互独立 ViewModel
+- **建筑拆除功能**：移动建筑模式下新增「拆除」按钮（红色背景），点击弹出确认对话框，拆除后返还 50% 建造灵石。建筑拆除触发建筑槽位清理与弟子下岗
 - **活动系统**：主界面种植按钮下方新增「活动」入口（精灵图按钮），全屏活动界面支持活动列表与详情左右分栏展示，`BuiltinActivityConfig` 注册内置活动，ActivityViewModel 管理活动状态
 - **每日签到**：活动系统内置每日签到功能，日历视图（7列×可变行数），每周七天不同奖励——灵石/随机凡品材料/储物袋/随机凡品种子/随机凡品丹药/悟法丹/灵品储物袋。已签/未签/今日三种卡片状态，月份自动重置，「?」图标标识随机物品
 - **商人收购功能**：云游商人界面重构为「购买」+「收购」双标签布局，各占一半宽度。商人每年收购 1~6 种物品，价格 ±20% 随机浮动（精确到 0.1%），收购确认弹窗支持数量调节和总价实时计算，收购数据持久化到存档
