@@ -1,15 +1,13 @@
 package com.xianxia.sect.core.state
 
-import android.util.Log
-import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,42 +22,21 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class MutableGameState(
-    var gameData: GameData,
-    var disciples: List<Disciple>,
-    var equipmentStacks: List<EquipmentStack>,
-    var equipmentInstances: List<EquipmentInstance>,
-    var manualStacks: List<ManualStack>,
-    var manualInstances: List<ManualInstance>,
-    var pills: List<Pill>,
-    var materials: List<Material>,
-    var herbs: List<Herb>,
-    var seeds: List<Seed>,
-    var storageBags: List<StorageBag>,
-    var teams: List<ExplorationTeam>,
-    var battleLogs: List<BattleLog>,
-    var isPaused: Boolean,
-    var isLoading: Boolean,
-    var isSaving: Boolean,
-    var pendingNotification: GameNotification? = null,
-    var isSettlementShadow: Boolean = false
-)
-
 @OptIn(FlowPreview::class)
 @Singleton
-class GameStateStore @Inject constructor(
+class GameStateStoreImpl @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val repository: GameStateRepository
-) {
+) : GameStateStore {
 
     @Volatile
-    var focusedDiscipleId: String? = null
+    override var focusedDiscipleId: String? = null
 
     @Volatile
-    var activeTab: String = "OVERVIEW"
+    override var activeTab: String = "OVERVIEW"
 
     @Volatile
-    var activeDialog: String? = null
+    override var activeDialog: String? = null
 
     companion object {
         private const val TAG = "GameStateStore"
@@ -86,6 +63,7 @@ class GameStateStore @Inject constructor(
     internal val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
     internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
+    internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
 
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
@@ -94,11 +72,11 @@ class GameStateStore @Inject constructor(
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
     internal val _updateVersion = MutableStateFlow(0L)
 
-    val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     // LEGACY: 按版本触发的批处理模式，50ms 内多次更新合并为一次
     // 新代码应使用 highFreqState / entityState / configState 或独立 StateFlow
-    val unifiedState: StateFlow<UnifiedGameState> = _updateVersion
+    override val unifiedState: StateFlow<UnifiedGameState> = _updateVersion
         .sample(50)
         .map { buildUnifiedState() }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
@@ -129,62 +107,57 @@ class GameStateStore @Inject constructor(
     }
 
     // 公开 StateFlow——直接来自独立 MutableStateFlow，零 .map{} 开销
-    val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
-    val disciples: StateFlow<List<Disciple>> = _disciplesFlow.asStateFlow()
-    val equipmentStacks: StateFlow<List<EquipmentStack>> = _equipmentStacksFlow.asStateFlow()
-    val equipmentInstances: StateFlow<List<EquipmentInstance>> = _equipmentInstancesFlow.asStateFlow()
-    val manualStacks: StateFlow<List<ManualStack>> = _manualStacksFlow.asStateFlow()
-    val manualInstances: StateFlow<List<ManualInstance>> = _manualInstancesFlow.asStateFlow()
-    val pills: StateFlow<List<Pill>> = _pillsFlow.asStateFlow()
-    val materials: StateFlow<List<Material>> = _materialsFlow.asStateFlow()
-    val herbs: StateFlow<List<Herb>> = _herbsFlow.asStateFlow()
-    val seeds: StateFlow<List<Seed>> = _seedsFlow.asStateFlow()
-    val storageBags: StateFlow<List<StorageBag>> = _storageBagsFlow.asStateFlow()
-    val battleLogs: StateFlow<List<BattleLog>> = _battleLogsFlow.asStateFlow()
-    val teams: StateFlow<List<ExplorationTeam>> = _teamsFlow.asStateFlow()
+    override val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
+    override val disciples: StateFlow<List<Disciple>> = _disciplesFlow.asStateFlow()
+    override val equipmentStacks: StateFlow<List<EquipmentStack>> = _equipmentStacksFlow.asStateFlow()
+    override val equipmentInstances: StateFlow<List<EquipmentInstance>> = _equipmentInstancesFlow.asStateFlow()
+    override val manualStacks: StateFlow<List<ManualStack>> = _manualStacksFlow.asStateFlow()
+    override val manualInstances: StateFlow<List<ManualInstance>> = _manualInstancesFlow.asStateFlow()
+    override val pills: StateFlow<List<Pill>> = _pillsFlow.asStateFlow()
+    override val materials: StateFlow<List<Material>> = _materialsFlow.asStateFlow()
+    override val herbs: StateFlow<List<Herb>> = _herbsFlow.asStateFlow()
+    override val seeds: StateFlow<List<Seed>> = _seedsFlow.asStateFlow()
+    override val storageBags: StateFlow<List<StorageBag>> = _storageBagsFlow.asStateFlow()
+    override val battleLogs: StateFlow<List<BattleLog>> = _battleLogsFlow.asStateFlow()
+    override val teams: StateFlow<List<ExplorationTeam>> = _teamsFlow.asStateFlow()
 
-    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+    // === GameStateSnapshotProvider 接口实现 ===
+    override val gameDataSnapshot: GameData get() = _gameDataFlow.value
+    override val disciplesSnapshot: List<Disciple> get() = _disciplesFlow.value
+    override val equipmentStacksSnapshot: List<EquipmentStack> get() = _equipmentStacksFlow.value
+    override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _equipmentInstancesFlow.value
+    override val manualStacksSnapshot: List<ManualStack> get() = _manualStacksFlow.value
+    override val manualInstancesSnapshot: List<ManualInstance> get() = _manualInstancesFlow.value
+    override val pillsSnapshot: List<Pill> get() = _pillsFlow.value
+    override val materialsSnapshot: List<Material> get() = _materialsFlow.value
+    override val herbsSnapshot: List<Herb> get() = _herbsFlow.value
+    override val seedsSnapshot: List<Seed> get() = _seedsFlow.value
+    override val storageBagsSnapshot: List<StorageBag> get() = _storageBagsFlow.value
+    override val teamsSnapshot: List<ExplorationTeam> get() = _teamsFlow.value
+    override val battleLogsSnapshot: List<BattleLog> get() = _battleLogsFlow.value
+
+    override val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+    override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
+    override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
+    override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
 
     // === 三层 StateFlow 架构 ===
     // HighFreq: 高频变化字段，sample 降频
-    @Immutable
-    data class HighFreqState(
-        val spiritStones: Long = 0L,
-        val gameYear: Int = 1,
-        val gameMonth: Int = 1,
-        val gamePhase: Int = 1,
-        val isPaused: Boolean = true
-    )
-
-    val highFreqState: StateFlow<HighFreqState> = combine(
+    override val highFreqState: StateFlow<GameStateStore.HighFreqState> = combine(
         _gameDataFlow.map { it.spiritStones }.distinctUntilChanged(),
         _gameDataFlow.map { it.gameYear }.distinctUntilChanged(),
         _gameDataFlow.map { it.gameMonth }.distinctUntilChanged(),
         _gameDataFlow.map { it.gamePhase }.distinctUntilChanged(),
         _isPaused
     ) { spiritStones, year, month, phase, paused ->
-        HighFreqState(spiritStones, year, month, phase, paused)
-    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), HighFreqState())
+        GameStateStore.HighFreqState(spiritStones, year, month, phase, paused)
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.HighFreqState())
 
     // EntityFlow: 实体数据，distinctUntilChanged
-    data class EntityState(
-        val disciples: List<Disciple> = emptyList(),
-        val equipmentStacks: List<EquipmentStack> = emptyList(),
-        val equipmentInstances: List<EquipmentInstance> = emptyList(),
-        val manualStacks: List<ManualStack> = emptyList(),
-        val manualInstances: List<ManualInstance> = emptyList(),
-        val pills: List<Pill> = emptyList(),
-        val materials: List<Material> = emptyList(),
-        val herbs: List<Herb> = emptyList(),
-        val seeds: List<Seed> = emptyList(),
-        val storageBags: List<StorageBag> = emptyList(),
-        val teams: List<ExplorationTeam> = emptyList(),
-        val battleLogs: List<BattleLog> = emptyList()
-    )
-
-    val entityState: StateFlow<EntityState> = combine(
+    override val entityState: StateFlow<GameStateStore.EntityState> = combine(
         _disciplesFlow,
         _equipmentStacksFlow,
         _equipmentInstancesFlow,
@@ -198,7 +171,7 @@ class GameStateStore @Inject constructor(
         _teamsFlow,
         _battleLogsFlow
     ) { args ->
-        EntityState(
+        GameStateStore.EntityState(
             disciples = args[0] as List<Disciple>,
             equipmentStacks = args[1] as List<EquipmentStack>,
             equipmentInstances = args[2] as List<EquipmentInstance>,
@@ -212,23 +185,12 @@ class GameStateStore @Inject constructor(
             teams = args[10] as List<ExplorationTeam>,
             battleLogs = args[11] as List<BattleLog>
         )
-    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), EntityState())
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.EntityState())
 
     // ConfigFlow: 配置数据，从 gameData 派生，distinctUntilChanged
-    data class ConfigState(
-        val sectPolicies: SectPolicies = SectPolicies(),
-        val monthlySalary: Map<Int, Int> = emptyMap(),
-        val monthlySalaryEnabled: Map<Int, Boolean> = emptyMap(),
-        val elderSlots: ElderSlots? = null,
-        val placedBuildings: List<GridBuildingData> = emptyList(),
-        val autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
-        val gameSpeed: Int = 1,
-        val autoSaveIntervalMonths: Int = 3
-    )
-
-    val configState: StateFlow<ConfigState> = _gameDataFlow
+    override val configState: StateFlow<GameStateStore.ConfigState> = _gameDataFlow
         .map { gd ->
-            ConfigState(
+            GameStateStore.ConfigState(
                 sectPolicies = gd.sectPolicies,
                 monthlySalary = gd.monthlySalary,
                 monthlySalaryEnabled = gd.monthlySalaryEnabled,
@@ -240,11 +202,11 @@ class GameStateStore @Inject constructor(
             )
         }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), ConfigState())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
     private val aggregateCache = ConcurrentHashMap<String, DiscipleAggregate>()
 
-    val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _disciplesFlow
+    override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _disciplesFlow
         .map { disciples ->
             val currentIds = disciples.map { it.id }.toSet()
             aggregateCache.keys.retainAll(currentIds)
@@ -255,6 +217,8 @@ class GameStateStore @Inject constructor(
             }
         }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _disciplesFlow.value.map { it.toAggregate() }
 
     private data class CachedPower(
         val fingerprint: Int,
@@ -275,7 +239,7 @@ class GameStateStore @Inject constructor(
     private val manualInstancesFlow = _manualInstancesFlow
         .distinctUntilChanged { old, new -> old === new }
 
-    val sectCombatPower: StateFlow<Long> = combine(
+    override val sectCombatPower: StateFlow<Long> = combine(
         disciplesFlow,
         equipmentInstancesFlow,
         manualInstancesFlow
@@ -310,7 +274,7 @@ class GameStateStore @Inject constructor(
         .map { it.aiSectDisciples }
         .distinctUntilChanged { old, new -> old === new }
 
-    val aiSectCombatPowers: StateFlow<Map<String, Long>> = aiSectDisciplesFlow
+    override val aiSectCombatPowers: StateFlow<Map<String, Long>> = aiSectDisciplesFlow
         .map { aiDisciplesMap ->
             val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
             aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
@@ -343,9 +307,9 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    internal fun isInTransaction(): Boolean = currentTransactionState != null
+    override fun isInTransaction(): Boolean = currentTransactionState != null
 
-    internal fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
+    override fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
 
     private var shadowOrigin: UnifiedGameState? = null
 
@@ -533,7 +497,7 @@ class GameStateStore @Inject constructor(
         },
     )
 
-    fun createShadow(): MutableGameState {
+    override fun createShadow(): MutableGameState {
         val gd = _gameDataFlow.value
         val disc = _disciplesFlow.value
         val es = _equipmentStacksFlow.value
@@ -589,7 +553,7 @@ class GameStateStore @Inject constructor(
         )
     }
 
-    fun createSettlementShadow(): MutableGameState {
+    override fun createSettlementShadow(): MutableGameState {
         val gd = _gameDataFlow.value
         val disc = _disciplesFlow.value
         val ei = _equipmentInstancesFlow.value
@@ -644,7 +608,7 @@ class GameStateStore @Inject constructor(
         )
     }
 
-    suspend fun swapFromShadow(shadow: MutableGameState) {
+    override suspend fun swapFromShadow(shadow: MutableGameState) {
         val origin = shadowOrigin
         val isSettlement = shadow.isSettlementShadow
         update {
@@ -707,12 +671,12 @@ class GameStateStore @Inject constructor(
         shadowOrigin = null
     }
 
-    fun beginShadowTransaction(shadow: MutableGameState) {
+    override fun beginShadowTransaction(shadow: MutableGameState) {
         currentTransactionState = shadow
         shadowTransactionThread = Thread.currentThread()
     }
 
-    fun endShadowTransaction() {
+    override fun endShadowTransaction() {
         currentTransactionState = null
         shadowTransactionThread = null
     }
@@ -737,24 +701,58 @@ class GameStateStore @Inject constructor(
         pendingNotification = null
     )
 
-    fun setPausedDirect(paused: Boolean) {
+    override fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
         _updateVersion.value++
     }
 
-    fun setLoadingDirect(loading: Boolean) {
+    override fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
         _updateVersion.value++
     }
 
-    fun setSavingDirect(saving: Boolean) {
+    override fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
         _updateVersion.value++
     }
 
+    // === 快照读取（绕过 stateIn 调度延迟） ===
+    override fun getCurrentSeeds(): List<Seed> = _seedsFlow.value
+    override fun getCurrentHerbs(): List<Herb> = _herbsFlow.value
+    override fun getCurrentMaterials(): List<Material> = _materialsFlow.value
+
+    // === 通知 API ===
+    override fun setPendingNotification(notification: GameNotification) {
+        _pendingNotificationFlow.value = notification
+        _updateVersion.value++
+    }
+
+    override fun clearPendingNotification() {
+        _pendingNotificationFlow.value = null
+        _updateVersion.value++
+    }
+
+    override fun setPendingBattleResult(result: BattleResultUIData) {
+        _pendingBattleResultFlow.value = result
+        _updateVersion.value++
+    }
+
+    override fun clearPendingBattleResult() {
+        _pendingBattleResultFlow.value = null
+        _updateVersion.value++
+    }
+
+    override fun enqueueRewardCards(items: List<RewardCardItem>) {
+        _rewardCardQueueFlow.value = _rewardCardQueueFlow.value + items
+    }
+
+    override fun clearRewardCardQueue() {
+        _rewardCardQueueFlow.value = emptyList()
+    }
+
     private var shadowTransactionThread: Thread? = null
 
-    suspend fun update(block: suspend MutableGameState.() -> Unit) {
+    override suspend fun update(block: suspend MutableGameState.() -> Unit) {
         if (shadowTransactionThread == Thread.currentThread()) {
             check(currentTransactionState == null) {
                 "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
@@ -863,23 +861,23 @@ class GameStateStore @Inject constructor(
         }
     }
 
-    suspend fun loadFromSnapshot(
+    override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack> = emptyList(),
-        equipmentInstances: List<EquipmentInstance> = emptyList(),
-        manualStacks: List<ManualStack> = emptyList(),
-        manualInstances: List<ManualInstance> = emptyList(),
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: List<EquipmentInstance>,
+        manualStacks: List<ManualStack>,
+        manualInstances: List<ManualInstance>,
         pills: List<Pill>,
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        storageBags: List<StorageBag> = emptyList(),
+        storageBags: List<StorageBag>,
         teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>,
-        isPaused: Boolean = true,
-        isLoading: Boolean = false,
-        isSaving: Boolean = false
+        isPaused: Boolean,
+        isLoading: Boolean,
+        isSaving: Boolean
     ) {
         transactionMutex.withLock {
             disciplePowerCache.clear()
@@ -907,7 +905,7 @@ class GameStateStore @Inject constructor(
         }
     }
 
-    suspend fun reset() {
+    override suspend fun reset() {
         transactionMutex.withLock {
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
@@ -1211,32 +1209,6 @@ fun fixStorageBagReferences(
     manualStacks: List<ManualStack>,
     manualInstances: List<ManualInstance>,
     disciples: List<Disciple>
-): List<Disciple> {
-    val stackIds = equipmentStacks.map { it.id }.toSet()
-    val instanceIds = equipmentInstances.map { it.id }.toSet()
-    val manualStackIds = manualStacks.map { it.id }.toSet()
-    val manualInstanceIds = manualInstances.map { it.id }.toSet()
-
-    return disciples.map { disciple ->
-        val fixedItems = disciple.equipment.storageBagItems.map { item ->
-            when {
-                item.itemType == "equipment" -> {
-                    when {
-                        instanceIds.contains(item.itemId) -> item.copy(itemType = "equipment_instance")
-                        stackIds.contains(item.itemId) -> item.copy(itemType = "equipment_stack")
-                        else -> item
-                    }
-                }
-                item.itemType == "manual" -> {
-                    when {
-                        manualInstanceIds.contains(item.itemId) -> item.copy(itemType = "manual_instance")
-                        manualStackIds.contains(item.itemId) -> item.copy(itemType = "manual_stack")
-                        else -> item
-                    }
-                }
-                else -> item
-            }
-        }
-        disciple.copyWith(storageBagItems = fixedItems)
-    }
-}
+): List<Disciple> = com.xianxia.sect.core.util.fixStorageBagReferences(
+    equipmentStacks, equipmentInstances, manualStacks, manualInstances, disciples
+)
