@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -143,9 +144,19 @@ fun ActivityDialog(
                                         .fillMaxWidth()
                                 ) {
                                     items(activities, key = { it.id }) { activity ->
+                                        val signInBadge by gameViewModel.canClaimToday
+                                            .collectAsStateWithLifecycle()
+                                        val trialBadge by (trialViewModel?.hasClaimableRewards
+                                            ?.collectAsStateWithLifecycle()
+                                            ?: remember { mutableStateOf(false) })
                                         ActivityCard(
                                             activity = activity,
                                             isSelected = activity.id == selectedActivityId,
+                                            hasBadge = when (activity.id) {
+                                                "heavenly_trial" -> trialBadge
+                                                "daily_sign_in" -> signInBadge
+                                                else -> false
+                                            },
                                             onClick = { viewModel.selectActivity(activity.id) }
                                         )
                                     }
@@ -168,7 +179,12 @@ fun ActivityDialog(
                             if (selectedActivity != null) {
                                 when (selectedActivity.id) {
                                     "heavenly_trial" -> {
-                                        HeavenlyTrialPanel(trialViewModel!!)
+                                        HeavenlyTrialPanel(
+                                            viewModel = trialViewModel!!,
+                                            onOpenClearRewards = {
+                                                trialViewModel.openClearRewards()
+                                            }
+                                        )
                                     }
                                     "daily_sign_in" -> DailySignInPanel(viewModel = gameViewModel)
                                     else -> ActivityDetailPanel(activity = selectedActivity)
@@ -188,6 +204,22 @@ fun ActivityDialog(
                         }
                     }
                 }
+
+                // 通关奖励弹窗（覆在活动内容之上）
+                if (trialViewModel != null && trialViewModel.showClearRewardDialog) {
+                    val ts by trialViewModel.trialState.collectAsStateWithLifecycle()
+                    val cl by trialViewModel.claimableLevels.collectAsStateWithLifecycle()
+                    HeavenlyTrialClearRewardDialog(
+                        trialState = ts,
+                        claimableLevels = cl,
+                        onClaim = { levelIndex ->
+                            trialViewModel.claimClearReward(levelIndex) { cards ->
+                                gameViewModel.enqueueRewardCards(cards)
+                            }
+                        },
+                        onDismiss = { trialViewModel.dismissClearRewards() }
+                    )
+                }
             }
         }
     }
@@ -197,6 +229,7 @@ fun ActivityDialog(
 private fun ActivityCard(
     activity: ActivityDef,
     isSelected: Boolean,
+    hasBadge: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
@@ -230,6 +263,16 @@ private fun ActivityCard(
                 color = Color.Black,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+        // 红点
+        if (hasBadge) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-2).dp, y = 2.dp)
+                    .size(7.dp)
+                    .background(Color.Red, CircleShape)
             )
         }
     }

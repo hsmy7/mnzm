@@ -20,13 +20,19 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
+import androidx.compose.foundation.shape.CircleShape
 
 @Composable
-fun HeavenlyTrialPanel(viewModel: HeavenlyTrialViewModel) {
+fun HeavenlyTrialPanel(
+    viewModel: HeavenlyTrialViewModel,
+    onOpenClearRewards: () -> Unit = {}
+) {
     val trialState by viewModel.trialState.collectAsStateWithLifecycle()
+    val hasClaimable by viewModel.hasClaimableRewards.collectAsStateWithLifecycle()
 
     // 8 座岛屿图资源
     val islandDrawables = listOf(
@@ -110,6 +116,24 @@ fun HeavenlyTrialPanel(viewModel: HeavenlyTrialViewModel) {
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
+                )
+            }
+        }
+
+        // 右下角"通关奖励"按钮
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp)
+        ) {
+            GameButton("通关奖励", onClick = onOpenClearRewards)
+            if (hasClaimable) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-4).dp)
+                        .size(7.dp)
+                        .background(Color.Red, CircleShape)
                 )
             }
         }

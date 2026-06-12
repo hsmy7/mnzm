@@ -8,9 +8,11 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.battle.HeavenlyTrialService
+import com.xianxia.sect.core.engine.domain.battle.ClaimClearRewardResult
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.RewardCardItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -48,6 +50,17 @@ class HeavenlyTrialViewModel @Inject constructor(
     var showResult by mutableStateOf(false)
     var resultWon by mutableStateOf(false)
     var resultDuration by mutableStateOf(0L)
+
+    // 通关奖励弹窗状态
+    var showClearRewardDialog by mutableStateOf(false)
+
+    val claimableLevels: StateFlow<List<Int>> = trialState
+        .map { state -> (0 until 8).filter { state.canClaimReward(it) } }
+        .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val hasClaimableRewards: StateFlow<Boolean> = claimableLevels
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, sharingStarted, false)
 
     sealed class Screen {
         object Panel : Screen()
@@ -119,4 +132,38 @@ class HeavenlyTrialViewModel @Inject constructor(
     fun dismissDiscipleSelect() {
         _currentScreen.value = Screen.BattlePrep(selectedLevelIndex)
     }
+
+    // region Clear Rewards
+
+    fun openClearRewards() {
+        showClearRewardDialog = true
+    }
+
+    fun dismissClearRewards() {
+        showClearRewardDialog = false
+    }
+
+    fun claimClearReward(
+        levelIndex: Int,
+        onCardsReady: (List<RewardCardItem>) -> Unit
+    ) {
+        viewModelScope.launch {
+            when (val result = trialService.claimClearReward(levelIndex)) {
+                is ClaimClearRewardResult.Success -> {
+                    onCardsReady(result.cards)
+                }
+                is ClaimClearRewardResult.CapacityInsufficient -> {
+                    showError(result.message ?: "领取失败")
+                }
+                is ClaimClearRewardResult.AlreadyClaimed -> {
+                    // 按钮状态已阻止此路径
+                }
+                is ClaimClearRewardResult.LevelNotCleared -> {
+                    // 按钮状态已阻止此路径
+                }
+            }
+        }
+    }
+
+    // endregion
 }

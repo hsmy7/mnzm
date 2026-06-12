@@ -170,20 +170,26 @@ fun MainGameScreen(
     var movingValid by remember {
         mutableStateOf<GridSnapHelper.PlacementValidity>(GridSnapHelper.PlacementValidity.Valid)
     }
-    val movingBuildingSize by derivedStateOf {
-        movingBuilding?.let { GridSnapHelper.BuildingSize(it.width, it.height) }
-            ?: GridSnapHelper.BuildingSize(2, 3)
+    val movingBuildingSize by remember {
+        derivedStateOf {
+            movingBuilding?.let { GridSnapHelper.BuildingSize(it.width, it.height) }
+                ?: GridSnapHelper.BuildingSize(2, 3)
+        }
     }
 
     // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
-    val activeSectBuildings by derivedStateOf {
-        val sid = gameData.activeSectId
-        placedBuildings.filter { it.sectId == sid }
+    val activeSectBuildings by remember {
+        derivedStateOf {
+            val sid = gameData.activeSectId
+            placedBuildings.filter { it.sectId == sid }
+        }
     }
-    val effectivePlacedBuildings by derivedStateOf {
-        val mb = movingBuilding
-        if (mb != null) activeSectBuildings.filter { it.instanceId != mb.instanceId }
-        else activeSectBuildings
+    val effectivePlacedBuildings by remember {
+        derivedStateOf {
+            val mb = movingBuilding
+            if (mb != null) activeSectBuildings.filter { it.instanceId != mb.instanceId }
+            else activeSectBuildings
+        }
     }
 
     val tileSize = mapPreloadData.tileSize

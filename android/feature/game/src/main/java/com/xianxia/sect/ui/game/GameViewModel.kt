@@ -1035,6 +1035,23 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, true)
 
+    /** 天道试炼任意关卡有可领取的通关奖励 */
+    val heavenlyTrialClaimable: StateFlow<Boolean> = gameEngine.gameData
+        .map { data ->
+            val s = data.heavenlyTrialState
+            (0 until 8).any { s.canClaimReward(it) }
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, false)
+
+    /** 任一活动有可领取项（签到或试炼），驱动主界面"活动"按钮红点 */
+    val anyActivityClaimable: StateFlow<Boolean> =
+        kotlinx.coroutines.flow.combine(
+            canClaimToday, heavenlyTrialClaimable
+        ) { signIn, trial -> signIn || trial }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, sharingStarted, false)
+
     val claimedDaysCount: StateFlow<Int> = signInState
         .map { it.claimedDays.size }
         .distinctUntilChanged()
@@ -1058,25 +1075,8 @@ class GameViewModel @Inject constructor(
     private val _signInCapacityWarning = MutableStateFlow<String?>(null)
     val signInCapacityWarning: StateFlow<String?> = _signInCapacityWarning.asStateFlow()
 
-    private val _signInSuccessMessage = MutableStateFlow<String?>(null)
-    val signInSuccessMessage: StateFlow<String?> = _signInSuccessMessage.asStateFlow()
-
-    private val _signInSuccessCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
-    val signInSuccessCards: StateFlow<List<RewardCardItem>> = _signInSuccessCards.asStateFlow()
-
-    private var pendingSignInCards: List<RewardCardItem> = emptyList()
-
     fun dismissCapacityWarning() {
         _signInCapacityWarning.value = null
-    }
-
-    fun dismissSignInSuccess() {
-        _signInSuccessMessage.value = null
-        _signInSuccessCards.value = emptyList()
-        if (pendingSignInCards.isNotEmpty()) {
-            dailySignInService.enqueueSignInCards(pendingSignInCards)
-            pendingSignInCards = emptyList()
-        }
     }
 
     fun claimDailySignIn() {
@@ -1084,19 +1084,10 @@ class GameViewModel @Inject constructor(
             val result = dailySignInService.claimDailySignIn()
             when (result) {
                 is ClaimDailyResult.Success -> {
-                    pendingSignInCards = result.cards
-                    _signInSuccessCards.value = result.cards
-                    _signInSuccessMessage.value = "获得：${result.reward.itemName}" +
-                        " x${result.reward.quantity}"
+                    dailySignInService.enqueueSignInCards(result.cards)
                 }
                 is ClaimDailyResult.SuccessWithMilestones -> {
-                    pendingSignInCards = result.cards
-                    _signInSuccessCards.value = result.cards
-                    val milestoneText = result.milestones.joinToString("、") {
-                        "${it.itemName}x${it.quantity}"
-                    }
-                    _signInSuccessMessage.value = "获得：${result.reward.itemName}" +
-                        " x${result.reward.quantity}\n里程碑：$milestoneText"
+                    dailySignInService.enqueueSignInCards(result.cards)
                 }
                 is ClaimDailyResult.AlreadyClaimed -> {
                     // 已签到，无需提示
@@ -1106,6 +1097,11 @@ class GameViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** 将奖励卡片推入队列，触发屏幕中央动效（试炼通关等外部调用） */
+    fun enqueueRewardCards(cards: List<RewardCardItem>) {
+        dailySignInService.enqueueSignInCards(cards)
     }
 
     // endregion

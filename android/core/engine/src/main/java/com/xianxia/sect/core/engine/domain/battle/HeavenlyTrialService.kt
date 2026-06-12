@@ -7,11 +7,20 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
@@ -29,7 +38,8 @@ data class EnemyAction(
 
 @Singleton
 class HeavenlyTrialService @Inject constructor(
-    private val stateStore: GameStateStore
+    private val stateStore: GameStateStore,
+    private val inventoryConfig: InventoryConfig
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
@@ -390,6 +400,184 @@ class HeavenlyTrialService @Inject constructor(
         }
     }
 
+    // region Clear Reward
+
+    suspend fun claimClearReward(levelIndex: Int): ClaimClearRewardResult {
+        val snapshot = stateStore.gameDataSnapshot
+            ?: return ClaimClearRewardResult.LevelNotCleared
+        val current = snapshot.heavenlyTrialState
+        if (!current.isLevelFullyCleared(levelIndex)) {
+            return ClaimClearRewardResult.LevelNotCleared
+        }
+        if (levelIndex in current.claimedRewardLevels) {
+            return ClaimClearRewardResult.AlreadyClaimed
+        }
+        val reward = HEAVENLY_TRIAL_CLEAR_REWARDS.find { it.levelIndex == levelIndex }
+            ?: return ClaimClearRewardResult.LevelNotCleared
+
+        var capacityError: String? = null
+        val generatedCards = mutableListOf<RewardCardItem>()
+
+        stateStore.update {
+            for (item in reward.items) {
+                when (item.itemType) {
+                    "spiritStones" -> {
+                        gameData = gameData.copy(
+                            spiritStones = gameData.spiritStones + item.quantity
+                        )
+                        generatedCards.add(RewardCardItem(
+                            itemName = "灵石", itemType = "spiritStones",
+                            rarity = 1, quantity = item.quantity
+                        ))
+                    }
+                    "storageBag" -> {
+                        val qty = item.quantity.coerceAtLeast(1)
+                        val rarity = item.rarity.coerceIn(1, 6)
+                        val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+                        val existing = storageBags.find { it.rarity == rarity }
+                        if (existing != null) {
+                            val maxStack = inventoryConfig.getMaxStackSize("storageBag")
+                            if (existing.quantity >= maxStack) {
+                                capacityError = "储物袋已达堆叠上限，请清理背包后重试"
+                            } else {
+                                val newQty = (existing.quantity + qty).coerceAtMost(maxStack)
+                                storageBags = storageBags.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+                        } else {
+                            storageBags = storageBags + StorageBag(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = bagName,
+                                rarity = rarity,
+                                description = "${bagName}，可开启获得随机物品",
+                                quantity = qty
+                            )
+                        }
+                        generatedCards.add(RewardCardItem(
+                            itemName = bagName, itemType = "storageBag",
+                            rarity = rarity, quantity = qty
+                        ))
+                    }
+                    "randomPill" -> {
+                        val qty = item.quantity.coerceAtLeast(1)
+                        val generated = mutableListOf<RewardCardItem>()
+                        val minRarity = item.rarity
+                        val maxRarity = item.rarity
+                        repeat(qty) {
+                            val pill = ItemDatabase.generateRandomPill(
+                                minRarity = minRarity, maxRarity = maxRarity
+                            ).copy(
+                                id = java.util.UUID.randomUUID().toString(), quantity = 1
+                            )
+                            val existing = pills.find {
+                                it.name == pill.name && it.rarity == pill.rarity &&
+                                    it.category == pill.category
+                            }
+                            if (existing != null) {
+                                val maxStack = inventoryConfig.getMaxStackSize("pill")
+                                if (existing.quantity < maxStack) {
+                                    val newQty = existing.quantity + 1
+                                    pills = pills.map {
+                                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                    }
+                                }
+                            } else {
+                                pills = pills + pill
+                            }
+                            generated.add(RewardCardItem(
+                                itemName = pill.name, itemType = "pill",
+                                rarity = pill.rarity, quantity = 1
+                            ))
+                        }
+                        generatedCards.addAll(mergeCardsByName(generated))
+                    }
+                    "randomEquipment" -> {
+                        val qty = item.quantity.coerceAtLeast(1)
+                        val targetRarity = item.rarity
+                        val eligible = equipmentStacks
+                            .filter { it.rarity == targetRarity }
+                        if (eligible.isEmpty()) {
+                            capacityError = "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}装备"
+                        } else {
+                            val generated = mutableListOf<RewardCardItem>()
+                            repeat(qty) {
+                                val stack = eligible.random()
+                                val instance = EquipmentInstance(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = stack.name,
+                                    rarity = stack.rarity,
+                                    description = stack.description,
+                                    slot = stack.slot,
+                                    physicalAttack = stack.physicalAttack,
+                                    magicAttack = stack.magicAttack,
+                                    physicalDefense = stack.physicalDefense,
+                                    magicDefense = stack.magicDefense,
+                                    speed = stack.speed,
+                                    hp = stack.hp,
+                                    mp = stack.mp,
+                                    critChance = stack.critChance,
+                                    minRealm = stack.minRealm
+                                )
+                                equipmentInstances = equipmentInstances + instance
+                                generated.add(RewardCardItem(
+                                    itemName = instance.name, itemType = "equipment",
+                                    rarity = instance.rarity, quantity = 1
+                                ))
+                            }
+                            generatedCards.addAll(mergeCardsByName(generated))
+                        }
+                    }
+                    "randomManual" -> {
+                        val qty = item.quantity.coerceAtLeast(1)
+                        val targetRarity = item.rarity
+                        val eligible = manualStacks
+                            .filter { it.rarity == targetRarity }
+                        if (eligible.isEmpty()) {
+                            capacityError = "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}功法"
+                        } else {
+                            val generated = mutableListOf<RewardCardItem>()
+                            repeat(qty) {
+                                val stack = eligible.random()
+                                val instance = stack.toInstance(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    isLearned = false
+                                )
+                                manualInstances = manualInstances + instance
+                                generated.add(RewardCardItem(
+                                    itemName = instance.name, itemType = "manual",
+                                    rarity = instance.rarity, quantity = 1
+                                ))
+                            }
+                            generatedCards.addAll(mergeCardsByName(generated))
+                        }
+                    }
+                }
+            }
+
+            gameData = gameData.copy(
+                heavenlyTrialState = gameData.heavenlyTrialState.copy(
+                    claimedRewardLevels = gameData.heavenlyTrialState.claimedRewardLevels + levelIndex
+                )
+            )
+        }
+
+        return if (capacityError != null) {
+            ClaimClearRewardResult.CapacityInsufficient(capacityError)
+        } else {
+            ClaimClearRewardResult.Success(generatedCards)
+        }
+    }
+
+    private fun mergeCardsByName(cards: List<RewardCardItem>): List<RewardCardItem> {
+        return cards.groupBy { Triple(it.itemName, it.itemType, it.rarity) }
+            .map { (_, list) ->
+                list.first().copy(quantity = list.sumOf { it.quantity })
+            }
+    }
+
+    // endregion
+
     private fun selectManuals(
         eligible: List<ManualDatabase.ManualTemplate>,
         levelIndex: Int,
@@ -502,4 +690,14 @@ class HeavenlyTrialService @Inject constructor(
             manualName = name
         )
     }
+}
+
+/**
+ * 天道试炼通关奖励领取结果。
+ */
+sealed class ClaimClearRewardResult {
+    data class Success(val cards: List<RewardCardItem>) : ClaimClearRewardResult()
+    data object AlreadyClaimed : ClaimClearRewardResult()
+    data object LevelNotCleared : ClaimClearRewardResult()
+    data class CapacityInsufficient(val message: String?) : ClaimClearRewardResult()
 }
