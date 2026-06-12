@@ -520,23 +520,16 @@ object ProtobufConverters {
             }
         }
 
-        // 第一步：直接 protobuf 解码（新 BLOB 格式）
+        // 直接 protobuf 解码
         try {
             return protoBuf.decodeFromByteArray(serializer, data)
-        } catch (e1: Exception) {
-            // 第二步：尝试 Base64 回退（旧数据经 CAST 迁移到 BLOB 列的 Base64 字符串）
-            try {
-                val base64String = data.decodeToString()
-                val rawBytes = android.util.Base64.decode(base64String, android.util.Base64.DEFAULT)
-                return protoBuf.decodeFromByteArray(serializer, rawBytes)
-            } catch (e2: Exception) {
-                Log.e(TAG,
-                    "BLOB decode FAILED for ${serializer.descriptor.serialName}, " +
-                    "data.size=${data.size}, firstByte=${data.getOrNull(0)}, " +
-                    "protoErr=${e1.message?.take(80)}, base64Err=${e2.message?.take(80)}"
-                )
-                return default()
-            }
+        } catch (e: Exception) {
+            Log.e(TAG,
+                "BLOB decode FAILED for ${serializer.descriptor.serialName}, " +
+                "data.size=${data.size}, firstByte=${data.getOrNull(0)}, " +
+                "err=${e.message?.take(80)}"
+            )
+            return default()
         }
     }
 }

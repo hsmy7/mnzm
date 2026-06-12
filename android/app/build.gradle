@@ -85,11 +85,11 @@ android {
             buildConfigField "boolean", "DEBUG_MODE", "false"
         }
         debug {
-            minifyEnabled = false
+            debuggable false
             if (canSignRelease) {
                 signingConfig = signingConfigs.release
             }
-            buildConfigField "boolean", "DEBUG_MODE", "true"
+            buildConfigField "boolean", "DEBUG_MODE", "false"
         }
     }
 
@@ -123,6 +123,21 @@ android {
         jniLibs {
             useLegacyPackaging = true
             excludes += ["**/x86/**", "**/x86_64/**"]
+        }
+    }
+}
+
+// Workaround: Kotlin/Hilt duplicates library classes (StackableItem from
+// :core:domain) into app classpath. Strip before dexing (debug) or R8 (release).
+tasks.matching { it.name == 'dexBuilderDebug' || it.name == 'minifyReleaseWithR8' }.configureEach {
+    doFirst {
+        file("$buildDir/tmp/kotlin-classes").eachFileRecurse { f ->
+            if (f.name.startsWith('StackableItem') && f.name.endsWith('.class'))
+                f.delete()
+        }
+        file("$buildDir/intermediates/classes").eachFileRecurse { f ->
+            if (f.name.startsWith('StackableItem') && f.name.endsWith('.class'))
+                f.delete()
         }
     }
 }

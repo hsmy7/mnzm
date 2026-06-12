@@ -28,11 +28,8 @@ object JsonConverters {
 
     @TypeConverter
     @JvmStatic
-    fun toManualType(value: String): ManualType = when (value) {
-        "MOVEMENT" -> ManualType.SUPPORT
-        "PRODUCTION" -> ManualType.SUPPORT
-        else -> ManualType.entries.find { it.name == value } ?: ManualType.MIND
-    }
+    fun toManualType(value: String): ManualType =
+        ManualType.entries.find { it.name == value } ?: ManualType.MIND
 
     @TypeConverter
     @JvmStatic
@@ -40,13 +37,8 @@ object JsonConverters {
 
     @TypeConverter
     @JvmStatic
-    fun toPillCategory(value: String): PillCategory = when (value) {
-        "BATTLE" -> PillCategory.BATTLE
-        "BATTLE_PHYSICAL", "BATTLE_MAGIC", "BATTLE_STATUS" -> PillCategory.BATTLE
-        "BREAKTHROUGH" -> PillCategory.CULTIVATION
-        "HEALING" -> PillCategory.FUNCTIONAL
-        else -> PillCategory.entries.find { it.name == value } ?: PillCategory.CULTIVATION
-    }
+    fun toPillCategory(value: String): PillCategory =
+        PillCategory.entries.find { it.name == value } ?: PillCategory.CULTIVATION
 
     @TypeConverter
     @JvmStatic

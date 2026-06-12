@@ -48,9 +48,6 @@ data class ProductionSlot(
     val outputItemSlot: String = "",
     @ColumnInfo(defaultValue = "0")
     val expectedYield: Int = 0,
-    @Deprecated("Use expectedYield instead. This field is kept for database compatibility only.")
-    @ColumnInfo(defaultValue = "0")
-    val harvestAmount: Int = 0,
     @ColumnInfo(defaultValue = "0")
     val autoRestartEnabled: Boolean = false,
     @ColumnInfo(defaultValue = "0")

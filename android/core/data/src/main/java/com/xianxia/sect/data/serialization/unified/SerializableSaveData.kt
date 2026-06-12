@@ -36,7 +36,6 @@ data class SerializableGameData(
     @ProtoNumber(12) val worldMapSects: List<SerializableWorldSect> = emptyList(),
     @ProtoNumber(13) val exploredSects: Map<String, SerializableExploredSectInfo> = emptyMap(),
     @ProtoNumber(14) val scoutInfo: Map<String, SerializableSectScoutInfo> = emptyMap(),
-    @ProtoNumber(15) @Deprecated("Migrated to productionSlots") val herbGardenPlantSlots: List<SerializablePlantSlotData> = emptyList(),
     @ProtoNumber(16) val manualProficiencies: Map<String, List<SerializableManualProficiencyData>> = emptyMap(),
     @ProtoNumber(17) val travelingMerchantItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(18) val merchantLastRefreshYear: Int = 0,
@@ -55,8 +54,6 @@ data class SerializableGameData(
     @ProtoNumber(34) val spiritMineSlots: List<SerializableSpiritMineSlot> = emptyList(),
     @ProtoNumber(35) val librarySlots: List<SerializableLibrarySlot> = emptyList(),
     @ProtoNumber(36) val residenceSlots: List<SerializableResidenceSlot> = emptyList(),
-    @ProtoNumber(41) @Deprecated("Migrated to productionSlots") val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
-    @ProtoNumber(37) @Deprecated("Migrated to productionSlots") val alchemySlots: List<SerializableAlchemySlot> = emptyList(),
     @ProtoNumber(52) val productionSlots: List<SerializableProductionSlot> = emptyList(),
     @ProtoNumber(38) val alliances: List<SerializableAlliance> = emptyList(),
     @ProtoNumber(39) val sectRelations: List<SerializableSectRelation> = emptyList(),
@@ -253,8 +250,6 @@ data class SerializablePill(
     @ProtoNumber(2) val name: String,
     @ProtoNumber(3) val type: String,
     @ProtoNumber(4) val rarity: Int,
-    @Deprecated("Use effects at ProtoNumber(14). Kept for backward compat with v4 saves.")
-    @ProtoNumber(5) val effectsMap: Map<String, Double> = emptyMap(),
     @ProtoNumber(6) val description: String = "",
     @ProtoNumber(7) val quantity: Int = 1,
     @ProtoNumber(8) val obtainedYear: Int = 1,
@@ -564,11 +559,7 @@ data class SerializablePlantSlotData(
     @ProtoNumber(5) val startYear: Int,
     @ProtoNumber(6) val startMonth: Int,
     @ProtoNumber(7) val growTime: Int,
-    @ProtoNumber(8) val expectedYield: Int,
-    @Deprecated("Use expectedYield instead. Kept for proto serialization compatibility.")
-    @ProtoNumber(9) val harvestAmount: Int,
-    @Deprecated("Use seedId to derive herbId. Kept for proto serialization compatibility.")
-    @ProtoNumber(10) val harvestHerbId: String = ""
+    @ProtoNumber(8) val expectedYield: Int
 )
 
 @Serializable
@@ -590,10 +581,6 @@ data class SerializableCultivatorCave(
     @ProtoNumber(5) val y: Float,
     @ProtoNumber(6) val ownerSectId: String = "",
     @ProtoNumber(7) val ownerSectName: String,
-    @Deprecated("No longer in business model, kept for proto compatibility")
-    @ProtoNumber(8) val disciples: List<SerializableAICaveDisciple> = emptyList(),
-    @Deprecated("No longer in business model, kept for proto compatibility")
-    @ProtoNumber(9) val resources: Map<String, Int> = emptyMap(),
     @ProtoNumber(10) val discovered: Boolean,
     @ProtoNumber(11) val spawnYear: Int = 1,
     @ProtoNumber(12) val spawnMonth: Int = 1,
@@ -967,89 +954,3 @@ data class MetadataFile(
     @ProtoNumber(2) val slots: Map<Int, SerializableSaveSlot>
 )
 
-@Deprecated(
-    message = "HashedSaveData provides only partial-field hashing which gives a false sense of security. " +
-              "Use UnifiedSerializationEngine's byte-level SHA-256 checksum (computeChecksum) instead, " +
-              "which covers the entire serialized payload.",
-    level = DeprecationLevel.WARNING
-)
-@Serializable
-data class HashedSaveData(
-    @ProtoNumber(1) val data: SerializableSaveData,
-    @ProtoNumber(2) val integrityHash: String = "",
-    @ProtoNumber(3) val hashAlgorithm: String = "SHA-256",
-    @ProtoNumber(4) val timestamp: Long = System.currentTimeMillis()
-) {
-    companion object {
-        const val DEFAULT_ALGORITHM = "SHA-256"
-
-        @Deprecated(
-            message = "Use UnifiedSerializationEngine's byte-level checksum instead.",
-            level = DeprecationLevel.WARNING
-        )
-        fun create(data: SerializableSaveData): HashedSaveData {
-            val hash = computeHash(data)
-            return HashedSaveData(
-                data = data,
-                integrityHash = hash,
-                hashAlgorithm = DEFAULT_ALGORITHM,
-                timestamp = System.currentTimeMillis()
-            )
-        }
-
-        @Deprecated(
-            message = "Partial-field hashing is incomplete. Use byte-level SHA-256 on the full serialized payload.",
-            level = DeprecationLevel.WARNING
-        )
-        private fun computeHash(data: SerializableSaveData): String {
-            val digest = java.security.MessageDigest.getInstance(DEFAULT_ALGORITHM)
-
-            digest.update(data.version.toByteArray(Charsets.UTF_8))
-            digest.update(data.timestamp.toString().toByteArray(Charsets.UTF_8))
-
-            data.gameData?.let { gd ->
-                digest.update("gameData:".toByteArray(Charsets.UTF_8))
-                digest.update(gd.sectName.toByteArray(Charsets.UTF_8))
-                digest.update(gd.currentSlot.toString().toByteArray(Charsets.UTF_8))
-                digest.update(gd.spiritStones.toString().toByteArray(Charsets.UTF_8))
-            }
-
-            digest.update("|disciples:".toByteArray(Charsets.UTF_8))
-            digest.update(data.disciples.size.toString().toByteArray(Charsets.UTF_8))
-            data.disciples.forEach { d ->
-                digest.update(d.id.toByteArray(Charsets.UTF_8))
-                digest.update(d.name.toByteArray(Charsets.UTF_8))
-            }
-
-            digest.update("|equipment:".toByteArray(Charsets.UTF_8))
-            digest.update(data.equipment.size.toString().toByteArray(Charsets.UTF_8))
-
-            digest.update("|manuals:".toByteArray(Charsets.UTF_8))
-            digest.update(data.manuals.size.toString().toByteArray(Charsets.UTF_8))
-
-            val hashBytes = digest.digest()
-            return hashBytes.joinToString("") { "%02x".format(it) }
-        }
-
-        @Deprecated(
-            message = "Use UnifiedSerializationEngine's byte-level checksum validation instead.",
-            level = DeprecationLevel.WARNING
-        )
-        fun verifyIntegrity(hashedData: HashedSaveData): Boolean {
-            if (hashedData.integrityHash.isEmpty()) {
-                return false
-            }
-
-            val computedHash = computeHash(hashedData.data)
-            return computedHash == hashedData.integrityHash
-        }
-    }
-
-    @Deprecated(
-        message = "Use UnifiedSerializationEngine's byte-level checksum validation instead.",
-        level = DeprecationLevel.WARNING
-    )
-    fun isValid(): Boolean {
-        return verifyIntegrity(this)
-    }
-}

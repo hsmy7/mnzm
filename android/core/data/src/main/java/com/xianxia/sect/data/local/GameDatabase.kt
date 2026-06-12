@@ -76,7 +76,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 7
+    version = 1
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -339,55 +339,6 @@ abstract class GameDatabase : RoomDatabase() {
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
         private val threadCounter = AtomicInteger(0)
 
-        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN sign_in_state_json TEXT NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}'")
-            }
-        }
-
-        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DELETE FROM world_map_state")
-            }
-        }
-
-        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // 宗门连接图机制移除，坐标改为固定，清空世界地图状态让其重新初始化
-                db.execSQL("DELETE FROM world_map_state")
-            }
-        }
-
-        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems BLOB NOT NULL DEFAULT X''")
-                db.execSQL("ALTER TABLE game_data ADD COLUMN merchantAcquisitionLastRefreshYear INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data ADD COLUMN heavenly_trial_state TEXT NOT NULL DEFAULT '{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}'")
-            }
-        }
-
-        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // ManualStack: add new skill fields
-                db.execSQL("ALTER TABLE ManualStack ADD COLUMN skillHealFixed INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE ManualStack ADD COLUMN skillShieldPercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE ManualStack ADD COLUMN skillTurnAdvancePercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE ManualStack ADD COLUMN skillDamageSharePercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE ManualStack ADD COLUMN skillDamageLinkPercent REAL NOT NULL DEFAULT 0.0")
-                // ManualInstance: add new skill fields
-                db.execSQL("ALTER TABLE manual_instances ADD COLUMN skillHealFixed INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE manual_instances ADD COLUMN skillShieldPercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE manual_instances ADD COLUMN skillTurnAdvancePercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE manual_instances ADD COLUMN skillDamageSharePercent REAL NOT NULL DEFAULT 0.0")
-                db.execSQL("ALTER TABLE manual_instances ADD COLUMN skillDamageLinkPercent REAL NOT NULL DEFAULT 0.0")
-            }
-        }
-
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -417,7 +368,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }

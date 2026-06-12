@@ -371,7 +371,7 @@ class XianxiaApplication : Application() {
             try {
                 MMKV.defaultMMKV().clearAll()
                 Log.i(TAG, "[4.0] MMKV cleared")
-                listOf("sav_migration", "crash_handler", "app_session").forEach { name ->
+                listOf("crash_handler", "app_session").forEach { name ->
                     getSharedPreferences(name, MODE_PRIVATE).edit().clear().apply()
                 }
                 Log.i(TAG, "[4.0] SharedPreferences cleared")

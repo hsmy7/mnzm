@@ -197,7 +197,6 @@
     <ID>CyclomaticComplexMethod:RedeemCodeService.kt$RedeemCodeService$private suspend fun localRedeem( code: String, usedCodes: List&lt;String&gt;, currentYear: Int, currentMonth: Int ): RedeemResult</ID>
     <ID>CyclomaticComplexMethod:ResidenceDialog.kt$@Composable fun ResidenceDialog( buildingInstanceId: String, viewModel: GameViewModel, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SaveDataConverter.kt$SaveDataConverter$private fun convertGameData(gameData: com.xianxia.sect.core.model.GameData?): SerializableGameData</ID>
-    <ID>CyclomaticComplexMethod:SaveDataMigrator.kt$V4ToV5Migrator$internal fun migrateEffectsMapToPillEffect(effectsMap: Map&lt;String, Double&gt;): SerializablePillEffect</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$fun loadGame(saveSlot: SaveSlot)</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$fun loadGameFromSlot(slot: Int)</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$fun restartGame()</ID>
@@ -329,8 +328,6 @@
     <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$@Test fun `SaveDataConverter - max int and max long values are preserved`()</ID>
     <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$@Test fun `SaveDataConverter - negative values are preserved`()</ID>
     <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$@Test fun `SaveDataConverter roundtrip - single disciple preserves all nullable fields`()</ID>
-    <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$@Test fun `V3ToV4Migrator converts monthly duration to daily`()</ID>
-    <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$@Test fun `V3ToV4Migrator converts recruitList and aiSectDisciples durations`()</ID>
     <ID>LongMethod:BoundaryAndEdgeCaseTest.kt$BoundaryAndEdgeCaseTest$private fun createSaveDataWithDisciples(count: Int): SaveData</ID>
     <ID>LongMethod:BuildingConfigService.kt$BuildingConfigService$private fun createDefaultConfig(): BuildingsConfig</ID>
     <ID>LongMethod:BuildingConstructionBar.kt$@Composable fun BuildingConstructionBar( buildingList: List&lt;Pair&lt;String, (GridBuildingData?) -&gt; Unit&gt;&gt;, placedBuildings: List&lt;GridBuildingData&gt;, buildingCosts: Map&lt;String, Long&gt;, spiritStones: Long, onSelectBuilding: (String) -&gt; Unit, modifier: Modifier = Modifier, getBuildingCount: (String) -&gt; Int = { name -&gt; placedBuildings.count { it.displayName == name } }, getBuildingMaxCount: (String) -&gt; Int = { 1 } )</ID>
@@ -615,7 +612,6 @@
     <ID>LoopWithTooManyJumpStatements:ProductionSubsystem.kt$ProductionSubsystem$for</ID>
     <ID>LoopWithTooManyJumpStatements:ProductionViewModel.kt$ProductionViewModel$for</ID>
     <ID>LoopWithTooManyJumpStatements:RecoveryManager.kt$RecoveryManager$for</ID>
-    <ID>LoopWithTooManyJumpStatements:SavMigrator.kt$SavMigrator$for</ID>
     <ID>LoopWithTooManyJumpStatements:WorldMapGenerator.kt$WorldMapGenerator$for</ID>
     <ID>MatchingDeclarationName:CultivationSystem.kt$CultivationTickSystem : GameSystem</ID>
     <ID>MatchingDeclarationName:DiplomacyState.kt$DiplomacyDomainState</ID>
@@ -1245,7 +1241,6 @@
     <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun decryptWithVersion( data: ByteArray, password: String, saltLength: Int, keyDerivation: (String, ByteArray) -&gt; ByteArray ): ByteArray?</ID>
     <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun getFromUnifiedCache(cacheKey: String): Pair&lt;ByteArray, KeySource&gt;?</ID>
     <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun tryDecryptWithKeyVersioned( data: ByteArray, key: ByteArray, saltLength: Int ): ByteArray?</ID>
-    <ID>ReturnCount:SaveDataMigrator.kt$SaveDataMigrator$fun migrate(data: SerializableSaveData): MigrationResult</ID>
     <ID>ReturnCount:SaveLoadViewModel.kt$SaveLoadViewModel$fun restartGame()</ID>
     <ID>ReturnCount:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$override fun intercept(chain: Interceptor.Chain): Response</ID>
     <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$fun getAccountBindingFactor(context: Context): String</ID>
@@ -1406,10 +1401,8 @@
     <ID>TooGenericExceptionCaught:RedeemCodeManager.kt$RedeemCodeManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RedeemCodeService.kt$RedeemCodeService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RequestSigner.kt$RequestSigner$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:SavMigrator.kt$SavMigrator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:SaveCrypto.kt$SaveCrypto$e: Exception</ID>
     <ID>TooGenericExceptionCaught:SaveCrypto.kt$SaveCrypto$specEx: Exception</ID>
-    <ID>TooGenericExceptionCaught:SaveDataMigrator.kt$SaveDataMigrator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:SaveLoadCoordinator.kt$SaveLoadCoordinator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:SaveLoadViewModel.kt$SaveLoadViewModel$e2: Exception</ID>
     <ID>TooGenericExceptionCaught:SaveLoadViewModel.kt$SaveLoadViewModel$e: Exception</ID>

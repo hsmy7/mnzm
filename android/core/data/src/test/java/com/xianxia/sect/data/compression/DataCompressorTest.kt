@@ -112,12 +112,6 @@ class DataCompressorTest {
     }
 
     @Test
-    fun `selectAlgorithm LEGACY returns GZIP`() {
-        assertEquals(CompressionAlgorithm.GZIP,
-            compressor.selectAlgorithm(UseCase.LEGACY))
-    }
-
-    @Test
     fun `selectAlgorithm FULL_SAVE returns ZSTD or GZIP fallback`() {
         val algo = compressor.selectAlgorithm(UseCase.FULL_SAVE)
         assertTrue(algo == CompressionAlgorithm.ZSTD || algo == CompressionAlgorithm.GZIP)

@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.annotation.WorkerThread
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
-import com.xianxia.sect.data.engine.SavMigrator
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -126,8 +125,7 @@ class StorageFacade @Inject constructor(
     private val engine: StorageEngine,
     private val lockManager: SlotLockManager,
     private val recoveryManager: RecoveryManager,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val savMigrator: SavMigrator
+    private val scopeProvider: CoroutineScopeProvider
 ) {
     companion object {
         private const val TAG = "StorageFacade"
@@ -179,13 +177,6 @@ class StorageFacade @Inject constructor(
                     "Database schema is invalid or corrupted: ${e.message}",
                     e
                 )
-            }
-
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.7f, "Checking for legacy save files")
-            try {
-                withContext(Dispatchers.IO) { savMigrator.migrateIfNeeded() }
-            } catch (e: Exception) {
-                Log.w(TAG, "Legacy .sav migration failed (non-fatal)", e)
             }
 
             isInitialized.set(true)

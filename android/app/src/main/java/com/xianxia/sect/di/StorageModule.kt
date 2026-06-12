@@ -14,7 +14,6 @@ import com.xianxia.sect.data.engine.ProactiveMemoryGuard
 import com.xianxia.sect.core.util.BackgroundTaskScheduler
 import com.xianxia.sect.data.engine.StorageBackup
 import com.xianxia.sect.data.engine.StorageCircuitBreaker
-import com.xianxia.sect.data.engine.SavMigrator
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.StorageIntegrity
 import com.xianxia.sect.data.engine.StorageMetrics
@@ -74,10 +73,9 @@ object StorageModule {
     @Singleton
     fun provideSerializationModule(
         serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine,
-        saveDataConverter: com.xianxia.sect.data.serialization.unified.SaveDataConverter,
-        saveDataMigrator: com.xianxia.sect.data.serialization.unified.SaveDataMigrator
+        saveDataConverter: com.xianxia.sect.data.serialization.unified.SaveDataConverter
     ): SerializationModule {
-        return SerializationModule(serializationEngine, saveDataConverter, saveDataMigrator)
+        return SerializationModule(serializationEngine, saveDataConverter)
     }
 
     @Provides
@@ -172,14 +170,4 @@ object StorageModule {
         return KeyRotationManager(context, storageFacade)
     }
 
-    @Provides
-    @Singleton
-    fun provideSavMigrator(
-        @ApplicationContext context: Context,
-        serializationModule: SerializationModule,
-        database: GameDatabase,
-        storageEngine: StorageEngine
-    ): SavMigrator {
-        return SavMigrator(context, serializationModule, database, storageEngine)
-    }
 }

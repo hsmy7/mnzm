@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.serialization.unified
 
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.data.serialization.unified.V4ToV5Migrator
 
 internal class ItemConverter {
 
@@ -58,11 +57,7 @@ internal class ItemConverter {
     }
 
     fun convertBackPill(data: SerializablePill): com.xianxia.sect.core.model.Pill {
-        val pillEffect = if (data.effects != SerializablePillEffect() || data.effectsMap.isEmpty()) {
-            data.effects
-        } else {
-            V4ToV5Migrator().migrateEffectsMapToPillEffect(data.effectsMap)
-        }
+        val pillEffect = data.effects
 
         return com.xianxia.sect.core.model.Pill(
             id = data.id,

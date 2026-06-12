@@ -9,8 +9,7 @@ import javax.inject.Singleton
 @Singleton
 class SerializationModule @Inject constructor(
     private val serializationEngine: UnifiedSerializationEngine,
-    private val saveDataConverter: SaveDataConverter,
-    private val saveDataMigrator: SaveDataMigrator
+    private val saveDataConverter: SaveDataConverter
 ) {
 
     companion object {
@@ -64,13 +63,7 @@ class SerializationModule @Inject constructor(
             )
             if (result.isSuccess && result.data != null) {
                 val data = result.data
-                val migrated = if (saveDataMigrator.needsMigration(data.version)) {
-                    when (val r = saveDataMigrator.migrate(data)) {
-                        is MigrationResult.Success -> r.data
-                        is MigrationResult.Failed -> data
-                    }
-                } else data
-                saveDataConverter.fromSerializable(migrated)
+                saveDataConverter.fromSerializable(data)
             } else {
                 Log.w(TAG, "Protobuf deserialization returned invalid result, checksum valid: ${result.checksumValid}")
                 null

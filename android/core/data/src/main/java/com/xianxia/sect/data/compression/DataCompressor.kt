@@ -25,8 +25,6 @@ enum class UseCase {
     FULL_SAVE,
     /** 云存档上传（压缩比优先，减少带宽）-> ZSTD */
     CLOUD_UPLOAD,
-    /** Legacy 兼容格式 -> GZIP */
-    LEGACY
 }
 
 class CompressionException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -217,7 +215,6 @@ class DataCompressor @Inject constructor(
                 // 云上传优先使用 ZSTD 获得最佳压缩率
                 if (isZstdAvailable()) CompressionAlgorithm.ZSTD else CompressionAlgorithm.GZIP
             }
-            UseCase.LEGACY -> CompressionAlgorithm.GZIP
         }
     }
 

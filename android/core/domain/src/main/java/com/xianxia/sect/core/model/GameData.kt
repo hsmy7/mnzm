@@ -583,11 +583,7 @@ data class PlantSlotData(
     val startYear: Int = 0,
     val startMonth: Int = 0,
     val growTime: Int = 0,
-    val expectedYield: Int = 0,
-    @Deprecated("Use expectedYield instead. Kept for serialization compatibility.")
-    val harvestAmount: Int = 0,
-    @Deprecated("Use seedId to derive herbId via HerbDatabase. Kept for serialization compatibility.")
-    val harvestHerbId: String = ""
+    val expectedYield: Int = 0
 ) {
     val isGrowing: Boolean get() = status == "growing"
     val isIdle: Boolean get() = status == "idle"

@@ -36,9 +36,7 @@ internal class SlotConverter {
             startYear = slot.startYear ?: 0,
             startMonth = slot.startMonth ?: 0,
             growTime = slot.growTime ?: 0,
-            expectedYield = slot.expectedYield ?: 0,
-            harvestAmount = slot.expectedYield ?: 0,
-            harvestHerbId = slot.seedId ?: ""
+            expectedYield = slot.expectedYield ?: 0
         )
     }
 
@@ -51,9 +49,7 @@ internal class SlotConverter {
             startYear = data.startYear,
             startMonth = data.startMonth,
             growTime = data.growTime,
-            expectedYield = data.expectedYield,
-            harvestAmount = data.expectedYield,
-            harvestHerbId = data.seedId
+            expectedYield = data.expectedYield
         )
     }
 

@@ -82,11 +82,6 @@ enum class DataType {
     PERFORMANCE_CRITICAL
 }
 
-sealed class MigrationResult {
-    data class Success(val data: SerializableSaveData) : MigrationResult()
-    data class Failed(val error: Throwable, val fallbackData: SerializableSaveData? = null) : MigrationResult()
-}
-
 internal inline fun <reified T : Enum<T>> safeEnumValueOf(
     value: String,
     defaultValue: T,

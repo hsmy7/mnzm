@@ -643,8 +643,6 @@ class StorageEngine @Inject constructor(
         )
         for (prefix in allPrefixes) {
             heavyDao.deleteByKeyPrefix(slot, prefix)
-            // 同时清理 v33 及之前的旧格式单 key（无 "/" 分隔符）
-            heavyDao.deleteByKey(slot, prefix)
         }
 
         // ── 增量编码写入（每项编码完立即写入，立即释放 ByteArray）──
