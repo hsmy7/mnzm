@@ -160,6 +160,7 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
+    var isUiVisible by remember { mutableStateOf(true) }
 
     // 建筑移动状态（长按拖动）
     var movingBuilding by remember { mutableStateOf<GridBuildingData?>(null) }
@@ -649,37 +650,59 @@ fun MainGameScreen(
             )
         }
 
-        // UI overlay — SectInfoCard + two side button columns
+        // UI overlay — SectInfoCard + toggle + two side button columns
         Box(modifier = Modifier.fillMaxSize()) {
-            SectInfoCard(
-                sectName = gameData?.sectName ?: "青云宗",
-                gameYear = gameData?.gameYear ?: 1,
-                gameMonth = gameData?.gameMonth ?: 1,
-                gamePhase = gameData?.gamePhase ?: 0,
-                spiritStones = gameData?.spiritStones ?: 0L,
-                discipleCount = aliveDisciples.value.size,
-                combatPower = sectCombatPower,
+            // 宗门信息卡片 + 隐藏UI按钮（卡片外部右侧，同一行）
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 32.dp, top = 8.dp)
-            )
+                    .padding(start = 32.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isUiVisible) {
+                    SectInfoCard(
+                        sectName = gameData?.sectName ?: "青云宗",
+                        gameYear = gameData?.gameYear ?: 1,
+                        gameMonth = gameData?.gameMonth ?: 1,
+                        gamePhase = gameData?.gamePhase ?: 0,
+                        spiritStones = gameData?.spiritStones ?: 0L,
+                        discipleCount = aliveDisciples.value.size,
+                        combatPower = sectCombatPower
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                HideUiToggleButton(
+                    isUiVisible = isUiVisible,
+                    onToggle = { isUiVisible = !isUiVisible }
+                )
+            }
 
-            LeftSideButtons(
-                viewModel = viewModel,
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
+            // 仅 UI 可见时显示侧边按钮
+            if (isUiVisible) {
+                LeftSideButtons(
+                    viewModel = viewModel,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
 
-            GameActionButtons(
-                viewModel = viewModel,
-                buildingBarExpanded = buildingBarExpanded,
-                onToggleBuildingBar = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null },
-                onCancelPlacement = { isPlacingBuilding = false; movingBuilding = null },
-                modifier = Modifier.align(Alignment.TopEnd)
-            )
+                GameActionButtons(
+                    viewModel = viewModel,
+                    buildingBarExpanded = buildingBarExpanded,
+                    onToggleBuildingBar = {
+                        buildingBarExpanded = !buildingBarExpanded
+                        isPlacingBuilding = false
+                        movingBuilding = null
+                    },
+                    onCancelPlacement = {
+                        isPlacingBuilding = false
+                        movingBuilding = null
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
         }
 
         // 建造栏 — 开关式，展开时显示
-        if (buildingBarExpanded) {
+        if (buildingBarExpanded && isUiVisible) {
             val constructionBarList = remember {
                 buildingList // BuildingRegistry.constructible already excludes 中级单人住所
             }
@@ -757,11 +780,10 @@ private fun SectInfoCard(
     gamePhase: Int,
     spiritStones: Long,
     discipleCount: Int,
-    combatPower: Long,
-    modifier: Modifier = Modifier
+    combatPower: Long
 ) {
     Box(
-        modifier = modifier
+        modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
     ) {
         Image(
@@ -828,6 +850,32 @@ private fun SectInfoCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HideUiToggleButton(
+    isUiVisible: Boolean,
+    onToggle: () -> Unit
+) {
+    val drawableRes = if (isUiVisible)
+        R.drawable.ui_hide_button
+    else
+        R.drawable.ui_show_button
+    val description = if (isUiVisible) "隐藏UI" else "显示UI"
+    Box(
+        modifier = Modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = drawableRes),
+            contentDescription = description,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
     }
 }
 
