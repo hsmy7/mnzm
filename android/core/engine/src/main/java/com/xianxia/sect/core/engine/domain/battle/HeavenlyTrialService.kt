@@ -93,7 +93,7 @@ class HeavenlyTrialService @Inject constructor(
     fun buildDiscipleEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
         // 功法：优先用固定 manualIds → 按角色精选 → 随机
         val selected = if (def.manualIds.isNotEmpty()) {
-            val resolved = def.manualIds.mapNotNull { ManualDatabase.getById(it) }
+            val resolved = def.manualIds.mapNotNull { ManualDatabase.allManuals[it] }
             resolved.ifEmpty {
                 val allManuals = ManualDatabase.allManuals.values.toList()
                 val eligible = allManuals
