@@ -150,11 +150,20 @@ class BattleSystem @Inject constructor() {
                 mpCost = skillConfig.mpCost,
                 cooldown = skillConfig.cooldown,
                 hits = skillConfig.hits,
+                healPercent = skillConfig.healPercent,
+                healFixed = skillConfig.healFixed,
+                healType = skillConfig.healType,
                 buffType = skillConfig.buffType,
                 buffValue = skillConfig.buffValue,
                 buffDuration = skillConfig.buffDuration,
+                buffs = skillConfig.buffs,
                 isAoe = skillConfig.isAoe,
-                targetScope = skillConfig.targetScope
+                targetScope = skillConfig.targetScope,
+                shieldPercent = skillConfig.shieldPercent,
+                turnAdvancePercent = skillConfig.turnAdvancePercent,
+                damageSharePercent = skillConfig.damageSharePercent,
+                damageLinkPercent = skillConfig.damageLinkPercent,
+                skillDescription = skillConfig.skillDescription
             )
         }
 

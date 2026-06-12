@@ -20,7 +20,6 @@ data class TrialEnemyDef(
     val realm: Int,
     val realmLayer: Int = 1,
     val beastType: String = "",
-    val beastSkills: List<String> = emptyList(),
     val manualIds: List<String> = emptyList(),
     val equipmentIds: List<String> = emptyList(),
     val role: String = ""

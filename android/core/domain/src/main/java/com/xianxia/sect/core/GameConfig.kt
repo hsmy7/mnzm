@@ -321,26 +321,157 @@ object GameConfig {
         fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
 
         val TYPES = listOf(
+            // 虎妖 — Metal — 物理爆发DPS
             BeastTypeConfig("虎妖", "狂暴", 1.3, 1.4, 0.7, 1.0, 1.1, "metal",
-                listOf(BeastSkillConfig("猛虎下山", 1.8, 3, 0, SkillType.ATTACK, DamageType.PHYSICAL),
-                       BeastSkillConfig("咆哮", 0.0, 5, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_ATTACK_BOOST, buffValue = 0.2, buffDuration = 3, targetScope = "team"))),
+                listOf(
+                    BeastSkillConfig("猛虎下山", 1.8, 3, 20, SkillType.ATTACK,
+                        DamageType.PHYSICAL),
+                    BeastSkillConfig("虎爪撕裂", 0.9, 2, 15, SkillType.ATTACK,
+                        DamageType.PHYSICAL, hits = 2),
+                    BeastSkillConfig("虎啸", 0.7, 4, 30, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true),
+                    BeastSkillConfig("咆哮", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.PHYSICAL_ATTACK_BOOST,
+                        buffValue = 0.2, buffDuration = 3,
+                        targetScope = "team")
+                )),
+            // 狼妖 — Wood — 速度/多段DPS
             BeastTypeConfig("狼妖", "迅捷", 0.6, 1.2, 0.6, 1.5, 1.0, "wood",
-                listOf(BeastSkillConfig("狼群撕咬", 1.5, 2, 0, SkillType.ATTACK, DamageType.PHYSICAL, hits = 2))),
+                listOf(
+                    BeastSkillConfig("狼群撕咬", 0.6, 3, 20, SkillType.ATTACK,
+                        DamageType.PHYSICAL, hits = 3),
+                    BeastSkillConfig("疾风步", 0.0, 4, 20, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.SPEED_BOOST,
+                        buffValue = 0.3, buffDuration = 3,
+                        targetScope = "self"),
+                    BeastSkillConfig("围猎", 0.5, 4, 30, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true),
+                    BeastSkillConfig("狼王嚎", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.CRIT_RATE_BOOST,
+                        buffValue = 0.1, buffDuration = 3,
+                        targetScope = "team")
+                )),
+            // 蛇妖 — Water — 毒/控制DPS
             BeastTypeConfig("蛇妖", "剧毒", 0.7, 1.5, 0.5, 1.1, 1.2, "water",
-                listOf(BeastSkillConfig("毒牙", 1.2, 2, 0, SkillType.ATTACK, DamageType.PHYSICAL, buffType = BuffType.POISON, buffValue = 0.05, buffDuration = 3))),
+                listOf(
+                    BeastSkillConfig("毒牙", 1.2, 3, 15, SkillType.ATTACK,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.POISON,
+                        buffValue = 0.08, buffDuration = 2),
+                    BeastSkillConfig("毒雾", 0.5, 4, 30, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true,
+                        buffType = BuffType.POISON,
+                        buffValue = 0.04, buffDuration = 2),
+                    BeastSkillConfig("缠绕", 0.4, 4, 20, SkillType.ATTACK,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.SPEED_REDUCE,
+                        buffValue = 0.3, buffDuration = 2),
+                    BeastSkillConfig("蜕皮新生", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        healPercent = 0.25,
+                        targetScope = "self")
+                )),
+            // 熊妖 — Earth — 坦克/嘲讽
             BeastTypeConfig("熊妖", "铁甲", 1.5, 0.5, 1.4, 0.5, 1.1, "earth",
-                listOf(BeastSkillConfig("震地", 1.5, 4, 0, SkillType.ATTACK, DamageType.PHYSICAL, isAoe = true),
-                       BeastSkillConfig("铁壁", 0.0, 5, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_DEFENSE_BOOST, buffValue = 0.4, buffDuration = 3, targetScope = "self"))),
+                listOf(
+                    BeastSkillConfig("震地", 0.6, 4, 30, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true),
+                    BeastSkillConfig("铁壁", 0.0, 4, 15, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.PHYSICAL_DEFENSE_BOOST,
+                        buffValue = 0.4, buffDuration = 3,
+                        targetScope = "self"),
+                    BeastSkillConfig("熊吼", 0.3, 4, 20, SkillType.ATTACK,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.TAUNT,
+                        buffValue = 1.0, buffDuration = 2),
+                    BeastSkillConfig("坚韧熊躯", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.DAMAGE_REDUCTION,
+                        buffValue = 0.2, buffDuration = 3,
+                        targetScope = "team")
+                )),
+            // 鹰妖 — Metal — 高速暴击DPS
             BeastTypeConfig("鹰妖", "神风", 0.5, 1.3, 0.5, 1.6, 1.3, "metal",
-                listOf(BeastSkillConfig("俯冲", 2.0, 3, 0, SkillType.ATTACK, DamageType.PHYSICAL))),
+                listOf(
+                    BeastSkillConfig("俯冲", 2.0, 3, 25, SkillType.ATTACK,
+                        DamageType.PHYSICAL),
+                    BeastSkillConfig("鹰眼", 0.0, 3, 15, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.CRIT_RATE_BOOST,
+                        buffValue = 0.2, buffDuration = 3,
+                        targetScope = "self"),
+                    BeastSkillConfig("旋风斩", 0.8, 4, 30, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true),
+                    BeastSkillConfig("天翔一闪", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        turnAdvancePercent = 1.0,
+                        targetScope = "self")
+                )),
+            // 狐妖 — Fire — 魔法/控制
             BeastTypeConfig("狐妖", "幻魅", 0.7, 1.0, 0.7, 1.4, 1.4, "fire",
-                listOf(BeastSkillConfig("妖术", 1.5, 3, 0, SkillType.ATTACK, DamageType.MAGIC, buffType = BuffType.SILENCE, buffValue = 1.0, buffDuration = 1))),
+                listOf(
+                    BeastSkillConfig("妖术", 1.5, 3, 20, SkillType.ATTACK,
+                        DamageType.MAGIC,
+                        buffType = BuffType.SILENCE,
+                        buffValue = 1.0, buffDuration = 1),
+                    BeastSkillConfig("狐火", 1.2, 3, 15, SkillType.ATTACK,
+                        DamageType.MAGIC,
+                        buffType = BuffType.BURN,
+                        buffValue = 0.05, buffDuration = 2),
+                    BeastSkillConfig("魅惑", 0.5, 4, 20, SkillType.ATTACK,
+                        DamageType.MAGIC,
+                        buffType = BuffType.PHYSICAL_ATTACK_REDUCE,
+                        buffValue = 0.25, buffDuration = 2),
+                    BeastSkillConfig("幻阵", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.MAGIC,
+                        buffType = BuffType.DAMAGE_BOOST,
+                        buffValue = 0.2, buffDuration = 3,
+                        targetScope = "team")
+                )),
+            // 龙妖 — Fire — 精英/领袖
             BeastTypeConfig("龙妖", "远古", 1.2, 1.3, 1.1, 1.0, 1.5, "fire",
-                listOf(BeastSkillConfig("龙息", 1.8, 4, 0, SkillType.ATTACK, DamageType.MAGIC, isAoe = true),
-                       BeastSkillConfig("龙威", 0.0, 6, 0, SkillType.SUPPORT, DamageType.MAGIC, buffType = BuffType.PHYSICAL_ATTACK_BOOST, buffValue = 0.25, buffDuration = 3, targetScope = "team"))),
+                listOf(
+                    BeastSkillConfig("龙息", 0.8, 4, 35, SkillType.ATTACK,
+                        DamageType.MAGIC, isAoe = true),
+                    BeastSkillConfig("龙爪撕裂", 1.6, 3, 20, SkillType.ATTACK,
+                        DamageType.PHYSICAL),
+                    BeastSkillConfig("龙威", 0.0, 6, 30, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffs = listOf(
+                            Triple(BuffType.PHYSICAL_ATTACK_BOOST, 0.25, 3),
+                            Triple(BuffType.MAGIC_ATTACK_BOOST, 0.25, 3)
+                        ),
+                        targetScope = "team"),
+                    BeastSkillConfig("龙鳞护体", 0.0, 4, 20, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.DAMAGE_REDUCTION,
+                        buffValue = 0.2, buffDuration = 3,
+                        targetScope = "self")
+                )),
+            // 龟妖 — Water — 要塞坦克
             BeastTypeConfig("龟妖", "玄甲", 1.6, 0.4, 1.5, 0.4, 1.0, "water",
-                listOf(BeastSkillConfig("缩壳", 0.0, 4, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_DEFENSE_BOOST, buffValue = 0.5, buffDuration = 2, targetScope = "self"),
-                       BeastSkillConfig("水盾", 0.0, 5, 0, SkillType.SUPPORT, DamageType.MAGIC, buffType = BuffType.MAGIC_DEFENSE_BOOST, buffValue = 0.3, buffDuration = 3, targetScope = "team")))
+                listOf(
+                    BeastSkillConfig("缩壳", 0.0, 4, 15, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        buffType = BuffType.PHYSICAL_DEFENSE_BOOST,
+                        buffValue = 0.5, buffDuration = 2,
+                        targetScope = "self"),
+                    BeastSkillConfig("水盾", 0.0, 5, 25, SkillType.SUPPORT,
+                        DamageType.MAGIC,
+                        buffType = BuffType.MAGIC_DEFENSE_BOOST,
+                        buffValue = 0.3, buffDuration = 3,
+                        targetScope = "team"),
+                    BeastSkillConfig("激流", 0.5, 4, 25, SkillType.ATTACK,
+                        DamageType.PHYSICAL, isAoe = true),
+                    BeastSkillConfig("龟甲术", 0.0, 6, 25, SkillType.SUPPORT,
+                        DamageType.PHYSICAL,
+                        shieldPercent = 0.15, buffDuration = 3,
+                        targetScope = "team")
+                ))
         )
 
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
@@ -550,7 +681,16 @@ object GameConfig {
         val buffType: BuffType? = null,
         val buffValue: Double = 0.0,
         val buffDuration: Int = 0,
-        val targetScope: String = "enemy"
+        val targetScope: String = "enemy",
+        val healPercent: Double = 0.0,
+        val healFixed: Int = 0,
+        val healType: HealType = HealType.HP,
+        val shieldPercent: Double = 0.0,
+        val turnAdvancePercent: Double = 0.0,
+        val damageSharePercent: Double = 0.0,
+        val damageLinkPercent: Double = 0.0,
+        val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
+        val skillDescription: String = ""
     )
     
     object AI {
