@@ -5,8 +5,19 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class HeavenlyTrialSaveData(
     val highestClearedLevel: Int = -1,
-    val levelClearCounts: List<Int> = MutableList(8) { 0 }
-)
+    val levelClearCounts: List<Int> = MutableList(8) { 0 },
+    val phase1ClearedLevels: List<Int> = emptyList(),
+    val phase2ClearedLevels: List<Int> = emptyList()
+) {
+    fun isPhase1Cleared(levelIndex: Int): Boolean =
+        levelIndex in phase1ClearedLevels
+
+    fun isPhase2Cleared(levelIndex: Int): Boolean =
+        levelIndex in phase2ClearedLevels
+
+    fun isLevelFullyCleared(levelIndex: Int): Boolean =
+        isPhase1Cleared(levelIndex) && isPhase2Cleared(levelIndex)
+}
 
 data class HeavenlyTrialLevelConfig(
     val levelIndex: Int,

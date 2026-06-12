@@ -362,16 +362,28 @@ class HeavenlyTrialService @Inject constructor(
 
     // endregion
 
-    suspend fun recordLevelClear(levelIndex: Int) {
+    suspend fun recordPhaseClear(levelIndex: Int, phaseIndex: Int) {
         stateStore.update {
             val current = gameData.heavenlyTrialState
-            val newCounts = current.levelClearCounts.toMutableList()
-            if (levelIndex in newCounts.indices) {
-                newCounts[levelIndex] = newCounts[levelIndex] + 1
-            }
+            val newP1 = if (phaseIndex == 0) (current.phase1ClearedLevels + levelIndex).distinct()
+                        else current.phase1ClearedLevels
+            val newP2 = if (phaseIndex == 1) (current.phase2ClearedLevels + levelIndex).distinct()
+                        else current.phase2ClearedLevels
+
+            val fullyCleared = levelIndex in newP1 && levelIndex in newP2
+            val newHighest = if (fullyCleared) maxOf(current.highestClearedLevel, levelIndex)
+                             else current.highestClearedLevel
+            val newCounts = if (fullyCleared) {
+                current.levelClearCounts.toMutableList().also {
+                    if (levelIndex in it.indices) it[levelIndex] = it[levelIndex] + 1
+                }
+            } else current.levelClearCounts
+
             gameData = gameData.copy(
                 heavenlyTrialState = current.copy(
-                    highestClearedLevel = max(current.highestClearedLevel, levelIndex),
+                    phase1ClearedLevels = newP1,
+                    phase2ClearedLevels = newP2,
+                    highestClearedLevel = newHighest,
                     levelClearCounts = newCounts
                 )
             )

@@ -85,10 +85,10 @@ class HeavenlyTrialViewModel @Inject constructor(
 
     fun onCombatFinished(won: Boolean) {
         if (won) {
+            viewModelScope.launch {
+                trialService.recordPhaseClear(selectedLevelIndex, selectedPhaseIndex)
+            }
             if (selectedPhaseIndex == 1) {
-                viewModelScope.launch {
-                    trialService.recordLevelClear(selectedLevelIndex)
-                }
                 _currentScreen.value = Screen.Panel
             } else {
                 startDiscipleSelect(1)

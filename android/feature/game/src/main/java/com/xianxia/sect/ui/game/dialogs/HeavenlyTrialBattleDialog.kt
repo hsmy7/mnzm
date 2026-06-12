@@ -54,6 +54,7 @@ fun HeavenlyTrialBattleDialog(
 
     val screen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val showDiscipleSelect = screen is HeavenlyTrialViewModel.Screen.DiscipleSelect
+    val trialState by viewModel.trialState.collectAsStateWithLifecycle()
 
     androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize(), color = GameColors.PageBackground) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -88,43 +89,61 @@ fun HeavenlyTrialBattleDialog(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(
-                                    2.dp,
-                                    if (selectedPhaseIndex == 0) GameColors.Gold else GameColors.Border,
-                                    RoundedCornerShape(8.dp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        2.dp,
+                                        if (selectedPhaseIndex == 0) GameColors.Gold else GameColors.Border,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedPhaseIndex = 0; selectedEnemyIndex = 0 },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.heavenly_trial_phase1),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
                                 )
-                                .clickable { selectedPhaseIndex = 0; selectedEnemyIndex = 0 },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.heavenly_trial_phase1),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
+                            }
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = if (trialState.isPhase1Cleared(levelIndex)) "已通关" else "未通关",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (trialState.isPhase1Cleared(levelIndex)) Color(0xFF4CAF50) else Color.Red
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(
-                                    2.dp,
-                                    if (selectedPhaseIndex == 1) GameColors.Gold else GameColors.Border,
-                                    RoundedCornerShape(8.dp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        2.dp,
+                                        if (selectedPhaseIndex == 1) GameColors.Gold else GameColors.Border,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedPhaseIndex = 1; selectedEnemyIndex = 0 },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.heavenly_trial_phase2),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
                                 )
-                                .clickable { selectedPhaseIndex = 1; selectedEnemyIndex = 0 },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.heavenly_trial_phase2),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
+                            }
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = if (trialState.isPhase2Cleared(levelIndex)) "已通关" else "未通关",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (trialState.isPhase2Cleared(levelIndex)) Color(0xFF4CAF50) else Color.Red
                             )
                         }
                     }

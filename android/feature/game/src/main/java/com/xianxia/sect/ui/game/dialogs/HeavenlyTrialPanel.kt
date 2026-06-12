@@ -64,8 +64,8 @@ fun HeavenlyTrialPanel(viewModel: HeavenlyTrialViewModel) {
         // 放置 8 座岛屿 + 关卡按钮
         for (i in 0 until HeavenlyTrialConfig.levelCount) {
             val config = HeavenlyTrialConfig.getLevel(i) ?: continue
-            val unlocked = i == 0 || trialState.highestClearedLevel >= i - 1
-            val cleared = trialState.highestClearedLevel >= i
+            val unlocked = i == 0 || trialState.isLevelFullyCleared(i - 1)
+            val cleared = trialState.isLevelFullyCleared(i)
 
             val centerX = containerWidth * islandXFractions[i]
             val centerY = containerHeight * islandYFractions[i]
