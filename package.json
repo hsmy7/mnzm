@@ -2,5 +2,8 @@
   "dependencies": {
     "marked": "^17.0.4",
     "pdf-to-img": "^6.0.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.1"
   }
 }
