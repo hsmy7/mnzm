@@ -1,0 +1,42 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.domain'
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildFeatures {
+        compose = false
+    }
+}
+
+dependencies {
+    // Kotlinx
+    implementation libs.serialization.json
+    implementation libs.serialization.protobuf
+    implementation libs.coroutines.core
+
+    // AndroidX Annotations (@Keep 等)
+    implementation libs.annotation
+
+    // JSR-330 Dependency Injection (@Inject, @Singleton)
+    implementation "javax.inject:javax.inject:1"
+
+    // Compose Annotations (@Immutable 等) — 仅注解，compileOnly
+    compileOnly platform(libs.compose.bom)
+    compileOnly libs.compose.runtime
+    compileOnly libs.compose.ui.graphics
+
+    // Room 注解（@Entity, @ColumnInfo 等）— room-common 仅含注解，无 Android 框架依赖
+    implementation libs.room.common
+
+    testImplementation libs.junit
+    testImplementation libs.coroutines.test
+    testImplementation libs.konsist.test
+}

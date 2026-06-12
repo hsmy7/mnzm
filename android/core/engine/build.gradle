@@ -1,0 +1,81 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.protobuf)
+}
+
+def apiPropertiesFile = rootProject.file("api.properties")
+def apiProperties = new Properties()
+if (apiPropertiesFile.exists()) {
+    apiProperties.load(new FileInputStream(apiPropertiesFile))
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.engine'
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            returnDefaultValues = true
+        }
+    }
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+
+        buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
+        buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
+        buildConfigField "int", "VERSION_CODE", "4000"
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = libs.protobuf.protoc.get().toString()
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java {
+                    option "lite"
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    api project(':core:domain')
+
+    // Kotlinx
+    implementation libs.serialization.json
+    implementation libs.coroutines.android
+
+    // Hilt
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+
+    // Room runtime (needed for RoomDatabase supertype access)
+    implementation libs.room.runtime
+
+    // Protobuf
+    implementation libs.protobuf.javalite
+
+    // JSR-330
+    implementation "javax.inject:javax.inject:1"
+
+    // Compose Annotations (@Immutable 等) — 仅注解
+    compileOnly platform(libs.compose.bom)
+    compileOnly libs.compose.ui
+
+    testImplementation libs.junit
+    testImplementation libs.coroutines.test
+    testImplementation libs.kotlin.reflect
+    testImplementation libs.konsist.test
+}

@@ -1,0 +1,264 @@
+﻿package com.xianxia.sect.ui.game
+
+import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
+import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.usecase.ElderManagementUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class AlchemyViewModel @Inject constructor(
+    private val gameEngine: GameEngine,
+    private val disciplePositionQuery: DisciplePositionQueryUseCase,
+    private val elderManagement: ElderManagementUseCase
+) : BaseViewModel() {
+
+    val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.productionSlots
+        .map { slots ->
+            slots.filter { it.buildingType == BuildingType.ALCHEMY }.map { slot ->
+                AlchemySlot(
+                    id = slot.id,
+                    slotIndex = slot.slotIndex,
+                    recipeId = slot.recipeId,
+                    recipeName = slot.recipeName,
+                    pillName = slot.outputItemName,
+                    pillRarity = slot.outputItemRarity,
+                    startYear = slot.startYear,
+                    startMonth = slot.startMonth,
+                    duration = slot.duration,
+                    status = when (slot.status) {
+                        ProductionSlotStatus.IDLE -> AlchemySlotStatus.IDLE
+                        ProductionSlotStatus.WORKING -> AlchemySlotStatus.WORKING
+                        ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
+                    },
+                    successRate = slot.successRate,
+                    requiredMaterials = slot.requiredMaterials,
+                    autoRestartEnabled = slot.autoRestartEnabled,
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName
+                )
+            }
+        }
+        .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    private val _isStartingAlchemy = MutableStateFlow(false)
+    val isStartingAlchemy: StateFlow<Boolean> = _isStartingAlchemy.asStateFlow()
+
+    fun isAutoEnabled(buildingIndex: Int): Boolean {
+        return gameEngine.productionSlots.value
+            .find { it.buildingType == BuildingType.ALCHEMY && it.slotIndex == buildingIndex }
+            ?.autoRestartEnabled ?: false
+    }
+
+    fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
+        if (_isStartingAlchemy.value) return
+        _isStartingAlchemy.value = true
+
+        viewModelScope.launch {
+            try {
+                val success = gameEngine.startAlchemy(slotIndex, recipe.id)
+                if (!success) {
+                    showError("炼制失败，请检查材料是否充足或是否已分配弟子")
+                }
+            } catch (e: Exception) {
+                showError(e.message ?: "开始炼制失败")
+            } finally {
+                _isStartingAlchemy.value = false
+            }
+        }
+    }
+
+    fun autoAlchemyAllSlots() {
+        viewModelScope.launch {
+            try {
+                val slots = gameEngine.productionSlots.value
+                val alchemySlots = slots.filter {
+                    it.buildingType == BuildingType.ALCHEMY
+                }
+                val idleSlotIndices = alchemySlots
+                    .filter { it.status == ProductionSlotStatus.IDLE }
+                    .map { it.slotIndex }
+
+                if (idleSlotIndices.isEmpty()) {
+                    showError("没有空闲的炼丹槽位")
+                    return@launch
+                }
+
+                var startedCount = 0
+                for (slotIndex in idleSlotIndices) {
+                    if (startBestAlchemyRecipe(slotIndex)) startedCount++
+                }
+
+                if (startedCount > 0) {
+                    showSuccess("自动炼丹完成，已启动${startedCount}个槽位")
+                } else {
+                    showError("没有足够的草药进行炼丹")
+                }
+            } catch (e: Exception) {
+                showError(e.message ?: "自动炼丹失败")
+            }
+        }
+    }
+
+    private suspend fun startBestAlchemyRecipe(slotIndex: Int): Boolean {
+        val currentHerbs = gameEngine.getCurrentHerbs()
+        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+        val recipeToStart = allRecipes.firstOrNull { recipe ->
+            recipe.materials.all { (materialId, requiredQuantity) ->
+                val herbData = HerbDatabase.getHerbById(materialId)
+                val herbName = herbData?.name
+                val herbRarity = herbData?.rarity ?: 1
+                val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
+                herb != null && herb.quantity >= requiredQuantity
+            }
+        } ?: return false
+
+        return gameEngine.startAlchemy(slotIndex, recipeToStart.id)
+    }
+
+    fun toggleAuto(buildingIndex: Int) {
+        val currentValue = isAutoEnabled(buildingIndex)
+        val newValue = !currentValue
+        viewModelScope.launch {
+            gameEngine.toggleAutoRestart(BuildingType.ALCHEMY, buildingIndex)
+
+            if (newValue) {
+                try {
+                    val slot = gameEngine.productionSlots.value.find {
+                        it.buildingType == BuildingType.ALCHEMY && it.slotIndex == buildingIndex
+                    } ?: return@launch
+                    if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
+                        startBestAlchemyRecipe(slot.slotIndex)
+                    }
+                } catch (_: Exception) {
+                    // Best-effort immediate start; monthly tick will retry
+                }
+            }
+        }
+    }
+
+    fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
+        gameEngine.assignDiscipleToProductionSlot(BuildingType.ALCHEMY, buildingIndex, discipleId, discipleName)
+    }
+
+    fun removeWorker(buildingIndex: Int) {
+        gameEngine.removeDiscipleFromProductionSlot(BuildingType.ALCHEMY, buildingIndex)
+    }
+
+    fun cancelAlchemy(slotIndex: Int) {
+        gameEngine.clearAlchemySlot(slotIndex)
+    }
+
+    fun getAvailableWorkers(): List<DiscipleAggregate> {
+        val all = gameEngine.discipleAggregatesSnapshot
+        val data = gameEngine.gameDataSnapshot
+        val assignedIds = gameEngine.productionSlots.value
+            .filter { it.buildingType == BuildingType.ALCHEMY && it.assignedDiscipleId.isNullOrEmpty().not() }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        // Also exclude disciples already in elder/direct disciple/reserve positions
+        val elderSlots = data.elderSlots
+        val elderIds = setOf(
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.herbGardenElder,
+            elderSlots.viceSectMaster
+        ).filter { it.isNotEmpty() }
+        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples
+            + elderSlots.alchemyReserveDisciples + elderSlots.forgeReserveDisciples + elderSlots.herbGardenReserveDisciples)
+            .mapNotNull { it.discipleId }.toSet()
+        return all.filter { it.isAlive && it.id !in assignedIds && it.id !in elderIds && it.id !in directIds }
+            .sortedByDescending { it.pillRefining }
+    }
+
+    fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
+        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
+        return gameEngine.discipleAggregatesSnapshot
+            .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
+            .sortedByDescending { it.pillRefining }
+    }
+
+    fun addAlchemyReserveDisciples(discipleIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.toMutableList() ?: mutableListOf()
+                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
+                val initialSize = currentReserveDisciples.size
+
+                discipleIds.forEach { discipleId ->
+                    if (existingIds.contains(discipleId)) return@forEach
+                    val disciple = gameEngine.disciples.value.find { it.id == discipleId } ?: return@forEach
+                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
+                    if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
+
+                    val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
+                    val newSlot = DirectDiscipleSlot(
+                        index = newIndex,
+                        discipleId = discipleId,
+                        discipleName = disciple.name,
+                        discipleRealm = disciple.realmName,
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                        sectId = gameEngine.gameDataSnapshot.activeSectId
+                    )
+                    currentReserveDisciples.add(newSlot)
+                }
+
+                val addedCount = currentReserveDisciples.size - initialSize
+                if (addedCount > 0) {
+                    gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = currentReserveDisciples)) }
+                } else {
+                    showError("没有可添加的弟子")
+                }
+            } catch (e: Exception) {
+                showError(e.message ?: "添加失败")
+            }
+        }
+    }
+
+    fun removeAlchemyReserveDisciple(discipleId: String) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
+                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
+            } catch (e: Exception) {
+                showError(e.message ?: "移除失败")
+            }
+        }
+    }
+
+    fun getAvailableDisciplesForAlchemyReserve(): List<DiscipleAggregate> {
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
+        val allElderIds = elderSlots.getAllElderIds()
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
+            elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
+            elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
+
+        return gameEngine.discipleAggregatesSnapshot
+            .filter { it.isEligibleForProductionPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .sortedByDescending { it.pillRefining }
+    }
+
+    fun getAlchemyReserveDisciples(): List<DirectDiscipleSlot> {
+        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
+        return gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
+    }
+
+    private fun ElderSlots.getAllElderIds(): List<String> {
+        return elderManagement.run { getAllElderIds() }
+    }
+
+    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
+        return elderManagement.run { getAllDirectDiscipleIds() }
+    }
+}

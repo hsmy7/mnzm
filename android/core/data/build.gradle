@@ -1,0 +1,68 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.data'
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            returnDefaultValues = true
+        }
+    }
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+}
+
+dependencies {
+    api project(':core:domain')
+
+    // Kotlinx
+    implementation libs.serialization.json
+    implementation libs.serialization.protobuf
+    implementation libs.coroutines.android
+
+    // Room
+    implementation libs.room.runtime
+    implementation libs.room.ktx
+    ksp libs.room.compiler
+
+    // Hilt
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+
+    // Network (for serialization helpers)
+    implementation libs.gson
+
+    // Security
+    implementation libs.security.crypto
+
+    // Storage
+    implementation libs.mmkv
+    implementation libs.lz4
+    implementation libs.zstd
+    implementation libs.relinker
+
+    // Protobuf
+    implementation libs.protobuf.javalite
+
+    // JSR-330
+    implementation "javax.inject:javax.inject:1"
+
+    // Compose Annotations (@Immutable 等) — 仅注解
+    compileOnly platform(libs.compose.bom)
+    compileOnly libs.compose.ui
+
+    testImplementation libs.junit
+    testImplementation libs.coroutines.test
+}

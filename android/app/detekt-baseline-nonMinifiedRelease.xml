@@ -1,0 +1,983 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:AppError.kt$AppError.Companion$fun fromException(e: Throwable): AppError</ID>
+    <ID>CyclomaticComplexMethod:AppError.kt$fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
+    <ID>CyclomaticComplexMethod:AppError.kt$fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
+    <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean ): CombatSkill?</ID>
+    <ID>CyclomaticComplexMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun swapFromShadow(shadow: MutableGameState)</ID>
+    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun update(block: suspend MutableGameState.() -&gt; Unit)</ID>
+    <ID>CyclomaticComplexMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var manualIds: MutableList&lt;String&gt; = mutableListOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var manualMasteries: MutableMap&lt;String, Int&gt; = mutableMapOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var statusData: MutableMap&lt;String, String&gt; = mutableMapOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var storageBagItems: MutableList&lt;StorageBagItem&gt; = mutableListOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var talentIds: MutableList&lt;String&gt; = mutableListOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var usedExtendLifePillIds: MutableList&lt;String&gt; = mutableListOf()</ID>
+    <ID>DoubleMutabilityForCollection:DiscipleObjectPool.kt$MutableDisciple$var usedFunctionalPillTypes: MutableList&lt;String&gt; = mutableListOf()</ID>
+    <ID>ExplicitGarbageCollectionCall:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$gc()</ID>
+    <ID>IgnoredReturnValue:GameStateStoreImpl.kt$GameStateStoreImpl$map { disciple -&gt; aggregateCache.getOrPut(disciple.id) { disciple.toAggregate() } .takeIf { it.sourceRef === disciple } ?: disciple.toAggregate().also { aggregateCache[disciple.id] = it } }</ID>
+    <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", info.usedPercent * 100)</ID>
+    <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", snapshot.usedPercent * 100)</ID>
+    <ID>InjectDispatcher:ApplicationScopeProvider.kt$ApplicationScopeProvider$Default</ID>
+    <ID>InjectDispatcher:ApplicationScopeProvider.kt$ApplicationScopeProvider$IO</ID>
+    <ID>InjectDispatcher:GCOptimizer.kt$GCOptimizer$Default</ID>
+    <ID>InjectDispatcher:GameActivity.kt$GameActivity$IO</ID>
+    <ID>InjectDispatcher:MainActivity.kt$MainActivity$IO</ID>
+    <ID>InjectDispatcher:XianxiaApplication.kt$XianxiaApplication$IO</ID>
+    <ID>LargeClass:GameStateStoreImpl.kt$GameStateStoreImpl : GameStateStore</ID>
+    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun copyFrom(disciple: Disciple)</ID>
+    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun reset()</ID>
+    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun toDisciple(): Disciple</ID>
+    <ID>LongMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>LongMethod:GameMonitorManager.kt$GameMonitorManager$private fun registerDefaultMetrics()</ID>
+    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun update(block: suspend MutableGameState.() -&gt; Unit)</ID>
+    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$private fun mergeGameData(origin: GameData?, shadow: GameData, oldState: GameData): GameData</ID>
+    <ID>LongMethod:MainActivity.kt$@Composable fun CrashRecoveryDialog( onRecover: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MainActivity.kt$@Composable fun MainScreen( sessionManager: SessionManager, complianceDialogState: MutableState&lt;MainActivity.ComplianceDialogState?&gt;, onLoginSuccess: () -&gt; Unit, onPrivacyAgreed: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:MainActivity.kt$MainActivity$internal fun showSaveSelectScreen()</ID>
+    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun FullPrivacyPolicyScreen( onBack: () -&gt; Unit )</ID>
+    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun PrivacyConsentScreen( onAgree: () -&gt; Unit, onDisagree: () -&gt; Unit )</ID>
+    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable private fun PrivacySummaryContent( onPrivacyLinkClick: () -&gt; Unit = {}, onTapTapSdkLinkClick: () -&gt; Unit = {}, onMmkvLinkClick: () -&gt; Unit = {}, onDirichletAdSdkLinkClick: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
+    <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProductionByBuildingId( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
+    <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSelectScreen( saveSlots: List&lt;SaveSlot&gt;, onLoadSlot: (Int) -&gt; Unit, onNewGame: (Int, String) -&gt; Unit, onDeleteSlot: (Int) -&gt; Unit, onLogout: () -&gt; Unit )</ID>
+    <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSlotCard( slot: SaveSlot, dateFormat: SimpleDateFormat, onLoad: () -&gt; Unit, onNewGame: () -&gt; Unit, onDelete: () -&gt; Unit )</ID>
+    <ID>LongMethod:XianxiaApplication.kt$XianxiaApplication$override fun onCreate()</ID>
+    <ID>LongParameterList:BattleCalculator.kt$BattleCalculator$( attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5 )</ID>
+    <ID>LongParameterList:CoreModule.kt$CoreModule$( timeSystem: TimeSystem, cultivationTickSystem: CultivationTickSystem, inventorySystem: InventorySystem, explorationTickSystem: ExplorationTickSystem, mailSystem: MailSystem, partnerSystem: PartnerSystem, childBirthSystem: ChildBirthSystem, productionSubsystem: ProductionSubsystem, economySubsystem: EconomySubsystem )</ID>
+    <ID>LongParameterList:ProductionTransactionManager.kt$ProductionTransactionManager$( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
+    <ID>LongParameterList:ProductionTransactionManager.kt$ProductionTransactionManager$( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
+    <ID>LongParameterList:RequestSigner.kt$RequestSigner$( method: String, uri: String, timestamp: Long, nonce: String, requestId: String, bodyHash: String?, deviceFpPrefix: String )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, id: String, quantity: Int, getId: (T) -&gt; String, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T, logWarning: ((String) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, item: T, merge: Boolean = true, matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, item: T, merge: Boolean = true, noinline matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, crossinline getName: (T) -&gt; String, crossinline getRarity: (T) -&gt; Int, crossinline getQuantity: (T) -&gt; Int, crossinline withQuantity: (T, Int) -&gt; T )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, items: List&lt;T&gt;, merge: Boolean = true, noinline matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, crossinline getName: (T) -&gt; String, crossinline getRarity: (T) -&gt; Int, crossinline getQuantity: (T) -&gt; Int, crossinline withQuantity: (T, Int) -&gt; T )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, name: String, rarity: Int, quantity: Int, crossinline getName: (T) -&gt; String, crossinline getRarity: (T) -&gt; Int, crossinline getQuantity: (T) -&gt; Int )</ID>
+    <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, name: String, rarity: Int, quantity: Int, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getId: (T) -&gt; String, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T, logWarning: ((String) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: EquipmentInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
+    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: ManualInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
+    <ID>LongParameterList:StorageModule.kt$StorageModule$( database: GameDatabase, cache: CacheLayer, lockManager: SlotLockManager, wal: WALProvider, saveLimitsConfig: SaveLimitsConfig, changeLogPersistence: ChangeLogPersistence, dataArchiver: DataArchiver, applicationScopeProvider: ApplicationScopeProvider, circuitBreaker: StorageCircuitBreaker, pruningScheduler: DataPruningScheduler, archiveScheduler: DataArchiveScheduler, memoryGuard: ProactiveMemoryGuard, storageIntegrity: StorageIntegrity, storageBackup: StorageBackup, storageMetrics: StorageMetrics, taskScheduler: BackgroundTaskScheduler, stateStore: com.xianxia.sect.core.state.GameStateStore, repository: com.xianxia.sect.data.GameStateRepository )</ID>
+    <ID>LoopWithTooManyJumpStatements:GameStateStoreImpl.kt$GameStateStoreImpl$for</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is IllegalArgumentException -&gt; Domain.Validation.InvalidInput(e.message ?: "参数错误", e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is IllegalStateException -&gt; Domain.GameLoop.StateInconsistency(e.message ?: "状态错误", e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is NoSuchElementException -&gt; Domain.GameState.NotFound(e.message ?: "未找到数据", e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is SecurityException -&gt; Domain.GameState.PermissionDenied(e.message ?: "权限不足", e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is java.io.IOException -&gt; Domain.Network.NoConnection(e.message ?: "网络错误", e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is java.net.SocketTimeoutException -&gt; Domain.Network.Timeout(cause = e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Companion$is java.net.UnknownHostException -&gt; Domain.Network.NoConnection(cause = e)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Domain.Production.InsufficientMaterials(message, missingMaterials)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Domain.Production.InvalidStateTransition(message, fromStatus, toStatus)</ID>
+    <ID>MaxLineLength:AppError.kt$AppError.Domain.Storage.Expired("签名已过期 (签名时间: $signedAt, 当前时间: $currentTime)", null)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.BACKUP_FAILED -&gt; AppError.Domain.Storage.BackupFailed(message.ifEmpty { "备份失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.CHECKSUM_MISMATCH -&gt; AppError.Domain.Storage.ChecksumMismatch(message.ifEmpty { "校验和不匹配" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.DATABASE_ERROR -&gt; AppError.Domain.Storage.DatabaseError(message.ifEmpty { "数据库错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.DECRYPTION_ERROR -&gt; AppError.Domain.Storage.DecryptionError(message.ifEmpty { "解密错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.DELETE_FAILED -&gt; AppError.Domain.Storage.DeleteFailed(message.ifEmpty { "删除失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.ENCRYPTION_ERROR -&gt; AppError.Domain.Storage.EncryptionError(message.ifEmpty { "加密错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.INVALID_SLOT -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "无效的存档槽位" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.IO_ERROR -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "IO错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.KEY_DERIVATION_ERROR -&gt; AppError.Domain.Storage.KeyDerivationError(message.ifEmpty { "密钥派生错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.LOAD_FAILED -&gt; AppError.Domain.Storage.LoadFailed(message.ifEmpty { "加载失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.NOT_FOUND -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "未找到数据" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.OUT_OF_MEMORY -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "内存不足" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.RESTORE_FAILED -&gt; AppError.Domain.Storage.RestoreFailed(message.ifEmpty { "恢复失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.SAVE_FAILED -&gt; AppError.Domain.Storage.SaveFailed(message.ifEmpty { "保存失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.SLOT_CORRUPTED -&gt; AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "存档数据已损坏" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.SLOT_EMPTY -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "存档槽位为空" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.TIMEOUT -&gt; AppError.Domain.Storage.Timeout(message.ifEmpty { "操作超时" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.TRANSACTION_FAILED -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "事务失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.UNKNOWN -&gt; AppError.Domain.Storage.Unknown(message.ifEmpty { "未知存储错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$SaveError.WAL_ERROR -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "WAL错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.BACKUP_FAILED -&gt; AppError.Domain.Storage.BackupFailed(message.ifEmpty { "备份失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.BATCH_OPERATION_FAILED -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "批量操作失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.CHECKSUM_MISMATCH -&gt; AppError.Domain.Storage.ChecksumMismatch(message.ifEmpty { "校验和不匹配" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.CONCURRENT_MODIFICATION -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "并发修改冲突" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.DATABASE_ERROR -&gt; AppError.Domain.Storage.DatabaseError(message.ifEmpty { "数据库错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.DECRYPTION_ERROR -&gt; AppError.Domain.Storage.DecryptionError(message.ifEmpty { "解密错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.DELETE_FAILED -&gt; AppError.Domain.Storage.DeleteFailed(message.ifEmpty { "删除失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.ENCRYPTION_ERROR -&gt; AppError.Domain.Storage.EncryptionError(message.ifEmpty { "加密错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.INVALID_SLOT -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "无效的存档槽位" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.IO_ERROR -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "IO错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.KEY_DERIVATION_ERROR -&gt; AppError.Domain.Storage.KeyDerivationError(message.ifEmpty { "密钥派生错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.LOAD_FAILED -&gt; AppError.Domain.Storage.LoadFailed(message.ifEmpty { "加载失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.NOT_FOUND -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "未找到数据" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.OUT_OF_MEMORY -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "内存不足" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.RESTORE_FAILED -&gt; AppError.Domain.Storage.RestoreFailed(message.ifEmpty { "恢复失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.SAVE_FAILED -&gt; AppError.Domain.Storage.SaveFailed(message.ifEmpty { "保存失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.SLOT_CORRUPTED -&gt; AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "存档数据已损坏" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.SLOT_EMPTY -&gt; AppError.Domain.Storage.SlotNotFound(message.ifEmpty { "存档槽位为空" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.TIMEOUT -&gt; AppError.Domain.Storage.Timeout(message.ifEmpty { "操作超时" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.TRANSACTION_FAILED -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "事务失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.UNKNOWN -&gt; AppError.Domain.Storage.Unknown(message.ifEmpty { "未知存储错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.VALIDATION_ERROR -&gt; AppError.Domain.Storage.SlotCorrupted(message.ifEmpty { "数据校验失败" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$StorageError.WAL_ERROR -&gt; AppError.Domain.Storage.IoError(message.ifEmpty { "WAL错误" }, cause)</ID>
+    <ID>MaxLineLength:AppError.kt$fun</ID>
+    <ID>MaxLineLength:AppError.kt$is com.xianxia.sect.core.model.production.ProductionError.DiscipleNotAvailable</ID>
+    <ID>MaxLineLength:AppError.kt$is com.xianxia.sect.core.model.production.ProductionError.InsufficientMaterials</ID>
+    <ID>MaxLineLength:AppError.kt$is com.xianxia.sect.core.model.production.ProductionError.InvalidStateTransition</ID>
+    <ID>MaxLineLength:AppError.kt$is com.xianxia.sect.core.model.production.ProductionError.ProductionFailed</ID>
+    <ID>MaxLineLength:AppModule.kt$AppModule$fun</ID>
+    <ID>MaxLineLength:AppModule.kt$AppModule$return GameDataCacheManager(context, database, cacheConfig, null, applicationScopeProvider)</ID>
+    <ID>MaxLineLength:AppModule.kt$AppModule$val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager</ID>
+    <ID>MaxLineLength:ApplicationScopeProvider.kt$ApplicationScopeProvider$Log.i(TAG, "ApplicationScopeProvider closing, active children approx: ${activeChildrenCount.get()}")</ID>
+    <ID>MaxLineLength:ApplicationScopeProvider.kt$ApplicationScopeProvider$Log.w(TAG, "High active coroutine count detected: $count (threshold: $ACTIVE_COROUTINE_WARN_THRESHOLD)")</ID>
+    <ID>MaxLineLength:ApplicationScopeProvider.kt$ApplicationScopeProvider$class</ID>
+    <ID>MaxLineLength:ApplicationScopeProvider.kt$ApplicationScopeProvider$override</ID>
+    <ID>MaxLineLength:AssignDiscipleWorkUseCase.kt$AssignDiscipleWorkUseCase$suspend operator</ID>
+    <ID>MaxLineLength:AtomicStateFlowUpdates.kt$)</ID>
+    <ID>MaxLineLength:AtomicStateFlowUpdates.kt$AtomicStateFlowUpdates$*</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$(1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM).coerceAtLeast(0.0)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$.</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$fun</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$healedIds = if (healAmount &gt; 0) targets.map { it.id } else emptyList()</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$if</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack &gt;= attacker.magicAttack</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$localBuffType != null &amp;&amp; skill.buffDuration &gt; 0 &amp;&amp; localBuffType.isDebuff</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$localBuffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, maxDodgeChance)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$return attackSkills.maxByOrNull { it.damageMultiplier / it.mpCost.coerceAtLeast(1) }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$return defenderRealm - attackerRealm &gt;= GameConfig.Battle.RealmGap.INSTANT_KILL_GAP</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$skill.copy(currentCooldown = maxOf(0, skill.currentCooldown - 1))</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$target.skills.isNotEmpty() &amp;&amp; target.effectivePhysicalAttack &gt; attacker.effectivePhysicalDefense</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val attack = if (usePhysical) attacker.physicalAttack else attacker.magicAttack</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val baseDamage = (attack * skillDamageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val burnBuffs = combatant.buffs.filter { it.type == BuffType.BURN &amp;&amp; it.remainingDuration &gt; 0 }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val defense = if (usePhysical) defender.physicalDefense else defender.magicDefense</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val dodgeChance = calculateCombatantDodgeChance(attacker, defender, dodgeModifier, maxDodgeChance)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val dodgeChance = calculateDodgeChance(attacker, defender, dodgeChanceModifier)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack &gt;= attacker.magicAttack</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val poisonBuffs = combatant.buffs.filter { it.type == BuffType.POISON &amp;&amp; it.remainingDuration &gt; 0 }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val supportSkills = availableSkills.filter { it.skillType == SkillType.SUPPORT }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val targets = if (skill.targetScope == "team") allies else listOf(caster)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val totalSpeed = (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val uncontrolledEnemies = enemies.filter { enemy -&gt; !enemy.hasControlEffect }</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val usePhysical = isPhysicalAttack ?: (attacker.physicalAttack &gt;= attacker.magicAttack)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val variancePercent = Random.nextDouble(-GameConfig.Battle.DAMAGE_VARIANCE_PERCENT, GameConfig.Battle.DAMAGE_VARIANCE_PERCENT)</ID>
+    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$var message = "$attackerName ${skillPrefix}对 $targetName 造成 ${result.damage} 点${damageType}伤害"</ID>
+    <ID>MaxLineLength:BridgeBindingsModule.kt$BridgeBindingsModule$fun</ID>
+    <ID>MaxLineLength:BuildingNames.kt$BuildingNames$DISPLAY_NAMES[buildingId] ?: DISPLAY_NAMES[buildingId.lowercase(java.util.Locale.getDefault()).replace("_", "")] ?: "建筑"</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$"Replace placeholder SPKI hashes in CertificatePinnerProvider before release."</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$"[SECURITY] Release build has placeholder certificate pins! "</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$Log.e(TAG, "[安全风险] 主机 [$host] 所有 SPKI 哈希均为占位符，证书固定对该主机无效！请替换为真实值。")</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$Log.i(TAG, "CertificatePinner 构建完成，覆盖 ${NetworkSecurityConfig.pinnedHosts.size} 个主机，共 $totalValidPins 个有效 pin")</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT)</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$if</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider$private</ID>
+    <ID>MaxLineLength:CertificatePinnerProvider.kt$CertificatePinnerProvider.Companion$private const</ID>
+    <ID>MaxLineLength:ComplianceManager.kt$ComplianceManager$TapTapCompliance.registerComplianceCallback(TapTapComplianceListener())</ID>
+    <ID>MaxLineLength:CoreModule.kt$CoreModule$fun</ID>
+    <ID>MaxLineLength:CoreModule.kt$CoreModule.&lt;no name provided&gt;$override</ID>
+    <ID>MaxLineLength:CoreModule.kt$CoreModule.&lt;no name provided&gt;$val requestBody = body.toRequestBody("application/json; charset=utf-8".toMediaType())</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$// 阻塞项：需在 build.gradle 添加 com.huawei.agconnect:crash 依赖并配置 agconnect-services.json</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$Log.i(TAG, "Crash handling completed, crash log saved to: ${crashLogFile?.absolutePath}")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$Log.i(TAG, "Emergency save ${if (success) "succeeded" else "failed"} in ${elapsed}ms")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$Log.w(TAG, "Emergency save timed out after ${timeoutMs}ms, interrupting...")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$file.name.startsWith(CRASH_LOG_PREFIX) &amp;&amp; file.name.endsWith(CRASH_LOG_EXTENSION)</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$printWriter.println("=== Caused by: ${cause.javaClass.name} ===")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$printWriter.println("Android Version: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$printWriter.println("Thread: ${thread.name} (id=${thread.id})")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$printWriter.println("Version Code: ${packageInfo.longVersionCode}")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$printWriter.println("Version Name: ${packageInfo.versionName}")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$private</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.CHINA)</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$private val fileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA)</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$val crashLogFile = File(crashLogDir, "$CRASH_LOG_PREFIX$timestamp$CRASH_LOG_EXTENSION")</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler$val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)</ID>
+    <ID>MaxLineLength:CrashHandler.kt$CrashHandler.Companion$return instance ?: throw IllegalStateException("CrashHandler not initialized")</ID>
+    <ID>MaxLineLength:DeviceCompatibilityHelper.kt$DeviceCompatibilityHelper$ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HUAWEI</ID>
+    <ID>MaxLineLength:DeviceCompatibilityHelper.kt$DeviceCompatibilityHelper$fun</ID>
+    <ID>MaxLineLength:DiscipleIndex.kt$DiscipleIndex$fun</ID>
+    <ID>MaxLineLength:DiscipleIndex.kt$DiscipleIndex$fun contains(id: String): Boolean</ID>
+    <ID>MaxLineLength:DiscipleIndex.kt$DiscipleIndex$private val byStatus = ConcurrentHashMap&lt;DiscipleStatus, MutableSet&lt;String&gt;&gt;()</ID>
+    <ID>MaxLineLength:DiscipleObjectPool.kt$MutableDisciple$pillCultivationSpeedBonus = disciple.pillEffects.pillCultivationSpeedBonus</ID>
+    <ID>MaxLineLength:DiscipleUtils.kt$fun</ID>
+    <ID>MaxLineLength:DiscipleUtils.kt$return</ID>
+    <ID>MaxLineLength:DomainStateProvider.kt$DomainStateProvider$.</ID>
+    <ID>MaxLineLength:EquipItemUseCase.kt$EquipItemUseCase$suspend operator</ID>
+    <ID>MaxLineLength:ExpelDiscipleUseCase.kt$ExpelDiscipleUseCase$suspend operator</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$Log.i(TAG, "GC requested (${type.name}) but System.gc() skipped — ART manages GC autonomously")</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$Log.i(TAG, "GC triggered by memory threshold: ${String.format(Locale.getDefault(), "%.1f", usedPercent * 100)}% (${gcType.name})")</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$Log.i(TAG, "runFinalization() skipped — ART manages finalizers autonomously")</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$averageGCTimeMs = if (gcCount &gt; 0) totalGCTime.toDouble() / gcCount else 0.0</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$if</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$timeSinceLastGC = if (lastGCTime &gt; 0) currentTime - lastGCTime else Long.MAX_VALUE</ID>
+    <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$val memoryInfo = memoryMonitor.getCurrentMemoryInfo() ?: return GCType.NONE</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$"game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$(application as? XianxiaApplication)?.registerMemoryPressureListener(this)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$(application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// ViewModel.onCleared() 中会调用 clearResources() -&gt; stopGameLoop() 来停止游戏循环。</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/device-adaptation-plan.md §4 — particleEffectMode 控制装饰密度</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/device-adaptation-plan.md §4 — textureLodOffset 控制贴图质量</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/gpu-tier-fairness-plan.md §3 — GPU 分级只影响渲染质量，不改变游戏世界尺寸</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/huawei-performance-research.md §4.2 — LOW 级别跳过树木装饰</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/huawei-performance-research.md §4.4 — 低端 GPU 使用 RGB_565</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$// 来源: docs/huawei-performance-research.md §4.4 — 预热 GPU 纹理上传管线</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "Slot info: savedSlot=$savedSlot, intentSlot=$intentSlot, finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "Starting new game with default slot: sectName=$sectName")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "ViewModel game loaded: ${saveLoadViewModel.isGameAlreadyLoaded()}")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.e(TAG, "fullBmp too large: ${renderWidth}x$renderHeight est=$estFullBytes bytes &gt; max=$MAX_BITMAP_ALLOCATION_BYTES")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.e(TAG, "groundBmp too large: ${renderWidth}x$renderHeight est=${estBytes}bytes &gt; max=$MAX_BITMAP_ALLOCATION_BYTES")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$WindowInsetsControllerCompat(window, window.decorView)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics.BitmapFactory</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics.Rect(dstX, dstY, dstX + dstW, dstY + dstW)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$canvas</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$class</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$cx + tileSize + overlap</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$cx - tileSize - overlap</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$fullMapBmp = fullFallbackBmp.asImageBitmap()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$groundTileBmp = groundBmp.asImageBitmap()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$if</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效"</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$lateinit</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$mapPreloadDataRef = result</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$private</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$private val worldMapGarrisonViewModel: WorldMapGarrisonViewModel by viewModels()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$private val worldMapInteractionViewModel: WorldMapInteractionViewModel by viewModels()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$rawTileData = Array(worldHeightCells) { IntArray(worldWidthCells) }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$renderWidth</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$resources</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$throw Exception("fullBmp allocation refused: $estFullBytes bytes exceeds limit")</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$tileSize</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$treeDecBmp = treeBmp?.asImageBitmap() ?: grassBmp.asImageBitmap()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val bytesPerPixel = if (bmpConfig == android.graphics.Bitmap.Config.ARGB_8888) 4 else 2</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val canvas = android.graphics.Canvas(fullBmp)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val cx = col * tileSize + tileSize / 2</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val cy = row * tileSize + tileSize / 2</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val estBytes = renderWidth.toLong() * renderHeight * 4</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val estFullBytes = renderWidth.toLong() * renderHeight * bytesPerPixel</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val fallbackImg = fallbackBmp.asImageBitmap()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val gameData by viewModel.gameData.collectAsStateWithLifecycle()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val intent = Intent(this@GameActivity, MainActivity::class.java)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val limitAdTrackingState = remember { mutableStateOf(sessionManager.limitAdTracking) }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val loadingProgress by saveLoadViewModel.loadingProgress.collectAsStateWithLifecycle()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = decorationSampleSize }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val rawTileData = generateRawTileData(worldWidthCells, worldHeightCells, grassProbability, treeProbability)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val renderHeight = (worldPixelHeight * renderScale).toInt()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val renderScale = renderConfig.mapResolution.toFloat() / GameConfig.SectMap.WORLD_WIDTH_CELLS.toFloat()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val renderWidth = (worldPixelWidth * renderScale).toInt()</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$var errorMessage by remember { mutableStateOf&lt;String?&gt;(null) }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$var mapPreloadData by remember { mutableStateOf&lt;MapPreloadData?&gt;(null) }</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$worldMapGarrisonViewModel = worldMapGarrisonViewModel</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity$worldMapInteractionViewModel = worldMapInteractionViewModel</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity.Companion$if</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity.Companion$val cx = (tx * 5 + rng.nextInt(3)).coerceIn(0, worldWidthCells - 1)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity.Companion$val cy = (ty * 5 + rng.nextInt(3)).coerceIn(0, worldHeightCells - 1)</ID>
+    <ID>MaxLineLength:GameActivity.kt$GameActivity.Companion$val data = Array(worldHeightCells) { IntArray(worldWidthCells) { TILE_GROUND } }</ID>
+    <ID>MaxLineLength:GameLogger.kt$ErrorContext.Companion$fun</ID>
+    <ID>MaxLineLength:GameLogger.kt$GameLogger$fun</ID>
+    <ID>MaxLineLength:GameLogger.kt$GameLogger$private</ID>
+    <ID>MaxLineLength:GameLogger.kt$GameLogger$return if (parts.isEmpty()) message else "$message - ${parts.joinToString(", ")}"</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMemoryPressureListener$private</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$"PerformanceMonitor is deprecated. Use getUnifiedPerformanceMonitor() instead."</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$@Deprecated("Use getUnifiedPerformanceMonitor() instead", ReplaceWith("getUnifiedPerformanceMonitor()"))</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$Log.d(TAG, "Registered ${unifiedPerformanceMonitor.getAllMetricDefinitions().size} default metrics")</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$Log.i(TAG, "Starting all monitoring systems via BackgroundTaskScheduler")</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$fun</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$fun getUnifiedPerformanceMonitor(): UnifiedPerformanceMonitor</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$taskScheduler.register("GCOptimizer", 60) { gcOptimizer.checkAndPerformGC() }</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$taskScheduler.register("MemoryMonitor", 30) { memoryMonitor.captureMemorySnapshot() }</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$taskScheduler.register("PerfMetrics", 1) { unifiedPerformanceMonitor.updateGamePerformanceMetrics() }</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$taskScheduler.register("PerfReport", 60) { unifiedPerformanceMonitor.generateReport() }</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$taskScheduler.register("PerfSnapshot", 1) { unifiedPerformanceMonitor.capturePerformanceSnapshot() }</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$val isPerformanceOk = unifiedPerformanceMonitor.isPerformanceAcceptable()</ID>
+    <ID>MaxLineLength:GameMonitorManager.kt$GameMonitorManager$val perfLevel = unifiedPerformanceMonitor.getRecommendedOptimizationLevel()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$"GameStateStore.update() must not be called inside an existing transaction (nested lock). "</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$"Use currentTransactionMutableState() to modify state within a tick transaction."</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$*</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$.</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$// travelingMerchantItems 由年度结算刷新，不保留旧值（Phase_AgingAndDeath 已更新 shadow）</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$?:</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$activeBloodRefinements = c.getValue("activeBloodRefinements")(origin, shadow, oldState) as Map&lt;String, BloodRefinementProgress&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$aiSectDisciples = c.getValue("aiSectDisciples")(origin, shadow, oldState) as Map&lt;String, List&lt;Disciple&gt;&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$autoEquipFromWarehouseFocused = oldState.autoEquipFromWarehouseFocused</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$autoEquipFromWarehouseRootCounts = oldState.autoEquipFromWarehouseRootCounts</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$autoLearnFromWarehouseFocused = oldState.autoLearnFromWarehouseFocused</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$autoLearnFromWarehouseRootCounts = oldState.autoLearnFromWarehouseRootCounts</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$bloodRefinements = c.getValue("bloodRefinements")(origin, shadow, oldState) as Map&lt;String, List&lt;String&gt;&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$breakthroughAutoPillRootCounts = oldState.breakthroughAutoPillRootCounts</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$combat = mergeCombat(mainDisciple.combat, shadowDisciple.combat, originDisciple.combat)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$cultivation = mainDisciple.cultivation + (shadowDisciple.cultivation - originDisciple.cultivation)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$cultivationSpeedBonus</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$cultivationSpeedDuration</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$currentHp = if (baseStatsChanged) shadow.currentHp else main.currentHp</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$currentMp = if (baseStatsChanged) shadow.currentMp else main.currentMp</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$daoCompanionBannedRootCounts = oldState.daoCompanionBannedRootCounts</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$elderSlots = c.getValue("elderSlots")(origin, shadow, oldState) as ElderSlots</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$equipment = mergeEquipment(mainDisciple.equipment, shadowDisciple.equipment, originDisciple.equipment)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$equipmentInstances = reusableMutableState.equipmentInstances !== curEI</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$equipmentStacks = reusableMutableState.equipmentStacks !== curES</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (mergedDisciples !== oldDisciples) this.disciples = mergedDisciples</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.alchemyElder.isNotEmpty() &amp;&amp; s.alchemyElder.isEmpty()) r = r.copy(alchemyElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.forgeElder.isNotEmpty() &amp;&amp; s.forgeElder.isEmpty()) r = r.copy(forgeElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.herbGardenElder.isNotEmpty() &amp;&amp; s.herbGardenElder.isEmpty()) r = r.copy(herbGardenElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.innerElder.isNotEmpty() &amp;&amp; s.innerElder.isEmpty()) r = r.copy(innerElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.lawEnforcementElder.isNotEmpty() &amp;&amp; s.lawEnforcementElder.isEmpty()) r = r.copy(lawEnforcementElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.outerElder.isNotEmpty() &amp;&amp; s.outerElder.isEmpty()) r = r.copy(outerElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.preachingElder.isNotEmpty() &amp;&amp; s.preachingElder.isEmpty()) r = r.copy(preachingElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.qingyunPreachingElder.isNotEmpty() &amp;&amp; s.qingyunPreachingElder.isEmpty()) r = r.copy(qingyunPreachingElder = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (o.viceSectMaster.isNotEmpty() &amp;&amp; s.viceSectMaster.isEmpty()) r = r.copy(viceSectMaster = "")</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (ol != null &amp;&amp; ol.defeated &amp;&amp; !sl.defeated) sl.copy(defeated = true) else sl</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (os.discipleId.isNotEmpty() &amp;&amp; ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.disciples !== curDisc) _disciplesFlow.value = reusableMutableState.disciples</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.equipmentInstances !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.equipmentStacks !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.herbs !== curH) _herbsFlow.value = reusableMutableState.herbs</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.manualInstances !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.manualStacks !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.materials !== curMat) _materialsFlow.value = reusableMutableState.materials</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.pills !== curP) _pillsFlow.value = reusableMutableState.pills</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.seeds !== curS) _seedsFlow.value = reusableMutableState.seeds</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.storageBags !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.equipmentInstances !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.equipmentStacks !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.manualInstances !== oldManualInstances) this.manualInstances = shadow.manualInstances</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.manualStacks !== oldManualStacks) this.manualStacks = shadow.manualStacks</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (shadow.materials !== oldMaterials) this.materials = shadow.materials</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _battleLogsFlow = MutableStateFlow&lt;List&lt;BattleLog&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _equipmentInstancesFlow = MutableStateFlow&lt;List&lt;EquipmentInstance&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _equipmentStacksFlow = MutableStateFlow&lt;List&lt;EquipmentStack&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _manualInstancesFlow = MutableStateFlow&lt;List&lt;ManualInstance&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _manualStacksFlow = MutableStateFlow&lt;List&lt;ManualStack&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingBattleResultFlow = MutableStateFlow&lt;BattleResultUIData?&gt;(null)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingBattleRewardCardsFlow = MutableStateFlow&lt;List&lt;RewardCardItem&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingNotificationFlow = MutableStateFlow&lt;GameNotification?&gt;(null)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _rewardCardQueueFlow = MutableStateFlow&lt;List&lt;RewardCardItem&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _storageBagsFlow = MutableStateFlow&lt;List&lt;StorageBag&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _teamsFlow = MutableStateFlow&lt;List&lt;ExplorationTeam&gt;&gt;(emptyList())</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$isAlive = if (died || revived) shadowDisciple.isAlive else mainDisciple.isAlive</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$librarySlots = c.getValue("librarySlots")(origin, shadow, oldState) as List&lt;LibrarySlot&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$lifespan = mainDisciple.lifespan + (shadowDisciple.lifespan - originDisciple.lifespan)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$main: CombatAttributes</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$mainDisciple.cultivationSpeedBonus</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$mainDisciple.cultivationSpeedDuration</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$manualIds = mergeManualIds(mainDisciple.manualIds, shadowDisciple.manualIds, originDisciple.manualIds)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$manualInstances = reusableMutableState.manualInstances !== curMI</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$manualProficiencies = c.getValue("manualProficiencies")(origin, shadow, oldState) as Map&lt;String, List&lt;ManualProficiencyData&gt;&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$masteryLevel = maxOf(mp.masteryLevel, sp.masteryLevel)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$mergeDiscipleAfterSettlement(mainDisciple, shadowDisciple, originDisciple)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$origin.activeMissions</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override fun currentTransactionMutableState(): MutableGameState?</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val battleLogs: StateFlow&lt;List&lt;BattleLog&gt;&gt; = _battleLogsFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val battleLogsSnapshot: List&lt;BattleLog&gt; get() = _battleLogsFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val discipleAggregatesSnapshot: List&lt;DiscipleAggregate&gt; get() = _disciplesFlow.value.map { it.toAggregate() }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val disciples: StateFlow&lt;List&lt;Disciple&gt;&gt; = _disciplesFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val equipmentInstances: StateFlow&lt;List&lt;EquipmentInstance&gt;&gt; = _equipmentInstancesFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val equipmentInstancesSnapshot: List&lt;EquipmentInstance&gt; get() = _equipmentInstancesFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val equipmentStacks: StateFlow&lt;List&lt;EquipmentStack&gt;&gt; = _equipmentStacksFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val equipmentStacksSnapshot: List&lt;EquipmentStack&gt; get() = _equipmentStacksFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val manualInstances: StateFlow&lt;List&lt;ManualInstance&gt;&gt; = _manualInstancesFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val manualInstancesSnapshot: List&lt;ManualInstance&gt; get() = _manualInstancesFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val manualStacks: StateFlow&lt;List&lt;ManualStack&gt;&gt; = _manualStacksFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val manualStacksSnapshot: List&lt;ManualStack&gt; get() = _manualStacksFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val materials: StateFlow&lt;List&lt;Material&gt;&gt; = _materialsFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val pendingBattleResult: StateFlow&lt;BattleResultUIData?&gt; = _pendingBattleResultFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val pendingBattleRewardCards: StateFlow&lt;List&lt;RewardCardItem&gt;&gt; = _pendingBattleRewardCardsFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val pendingNotification: StateFlow&lt;GameNotification?&gt; = _pendingNotificationFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val rewardCardQueue: StateFlow&lt;List&lt;RewardCardItem&gt;&gt; = _rewardCardQueueFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val storageBags: StateFlow&lt;List&lt;StorageBag&gt;&gt; = _storageBagsFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val storageBagsSnapshot: List&lt;StorageBag&gt; get() = _storageBagsFlow.value</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val teams: StateFlow&lt;List&lt;ExplorationTeam&gt;&gt; = _teamsFlow.asStateFlow()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$override val warehouseFullEvent: MutableSharedFlow&lt;Unit&gt; = MutableSharedFlow&lt;Unit&gt;(extraBufferCapacity = 1)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$pillEffectDuration = (main.pillEffectDuration + durationDelta).coerceAtLeast(0)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$pillEffects = mergePillEffects(mainDisciple.pillEffects, shadowDisciple.pillEffects, originDisciple.pillEffects)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$private</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$proficiency = mp.proficiency + (sp.proficiency - op.proficiency)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$result[discipleId] = (result[discipleId] ?: emptyList()) + materials</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$return (main.toSet() + (shadowSet - originSet) - (originSet - shadowSet)).toList()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$scoutInfo = if (scoutChanged) oldDetail.scoutInfo else shadowDetail.scoutInfo</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$sectDetails = c.getValue("sectDetails")(origin, shadow, oldState) as Map&lt;String, SectDetail&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$sectRelations = c.getValue("sectRelations")(origin, shadow, oldState) as List&lt;SectRelation&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$skills = mergeSkills(mainDisciple.skills, shadowDisciple.skills, originDisciple.skills)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$sp.copy(proficiency = maxOf(mp.proficiency, sp.proficiency))</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$spiritFieldPlants = c.getValue("spiritFieldPlants")(origin, shadow, oldState) as List&lt;SpiritFieldPlant&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$spiritMineSlots = c.getValue("spiritMineSlots")(origin, shadow, oldState) as List&lt;SpiritMineSlot&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$spiritStones = oldState.spiritStones + (shadow.spiritStones - origin.spiritStones)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$tradeItems = if (tradeChanged) oldDetail.tradeItems else shadowDetail.tradeItems</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val addedBySettlement = shadow.storageBagItems.filter { it.itemId !in originBagIds }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val baseStatsChanged = shadow.baseHp != origin.baseHp || shadow.baseMp != origin.baseMp</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val completedBySettlement = origin.activeBloodRefinements.keys - shadow.activeBloodRefinements.keys</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val durationDelta = shadow.pillEffectDuration - origin.pillEffectDuration</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val finalPaused = if (_isPaused.value != curPaused) _isPaused.value else reusableMutableState.isPaused</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val finalSaving = if (_isSaving.value != curSaving) _isSaving.value else reusableMutableState.isSaving</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val fp = SectCombatPowerCalculator.computeAIFingerprint(aggregate)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val fp = SectCombatPowerCalculator.computePlayerFingerprint(aggregate)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val mr = oldState.sectRelations.find { it.sectId1 == sr.sectId1 &amp;&amp; it.sectId2 == sr.sectId2 }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val notificationBeforeBlock = reusableMutableState.pendingNotification</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val oldMap = oldState.spiritFieldPlants.associateBy { it.buildingInstanceId }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val originMap = origin.sectRelations.associateBy { "${it.sectId1}_${it.sectId2}" }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val originMap = origin.spiritFieldPlants.associateBy { it.buildingInstanceId }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val power = SectCombatPowerCalculator.calculateAIDisciplePower(aggregate)</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val scoutChanged = oldDetail.scoutInfo !== originDetail.scoutInfo</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val shadowMap = shadow.spiritFieldPlants.associateBy { it.buildingInstanceId }</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val tradeChanged = oldDetail.tradeItems !== originDetail.tradeItems</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$worldLevels = c.getValue("worldLevels")(origin, shadow, oldState) as List&lt;WorldLevel&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$worldMapSects = c.getValue("worldMapSects")(origin, shadow, oldState) as List&lt;WorldSect&gt;</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$}</ID>
+    <ID>MaxLineLength:GameStateStoreImpl.kt$equipmentStacks</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$fun</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$isAlly -&gt; (0.9 * (1.0 - maxOf(0, relation - 70) * 0.01)).coerceAtLeast(0.85)</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$val avgRealm = calculateTeamAverageRealm(disciples, realmExtractor, layerExtractor)</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$val isAlly = alliances.any { it.sectIds.contains("player") &amp;&amp; it.sectIds.contains(sectId) }</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$value &gt;= 10_000 -&gt; String.format(Locale.getDefault(), "%.1f万", value / 10_000.0)</ID>
+    <ID>MaxLineLength:GameUtils.kt$GameUtils$value &gt;= 1_000_000_000 -&gt; String.format(Locale.getDefault(), "%.1f亿", value / 1_000_000_000.0)</ID>
+    <ID>MaxLineLength:GameUtils.kt$SectRelationLevel$enum</ID>
+    <ID>MaxLineLength:GetSectTradeItemsUseCase.kt$GetSectTradeItemsUseCase$operator</ID>
+    <ID>MaxLineLength:GiftSpiritStonesUseCase.kt$GiftSpiritStonesUseCase$operator</ID>
+    <ID>MaxLineLength:MailRepositoryImpl.kt$MailRepositoryImpl$override</ID>
+    <ID>MaxLineLength:MailRepositoryImpl.kt$MailRepositoryImpl$override suspend</ID>
+    <ID>MaxLineLength:MainActivity.kt$&lt;no name provided&gt;$Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$&lt;no name provided&gt;$Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$&lt;no name provided&gt;$Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$&lt;no name provided&gt;$userId = data.openid ?: "taptap_${System.currentTimeMillis()}"</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$.</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $initResult")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Log.i(TAG, "StorageFacade initialized successfully (attempt ${retryCount + 1})")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$Toast.makeText(this@MainActivity, "恢复数据失败，将进入正常游戏", Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$WindowInsetsControllerCompat(window, window.decorView)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$android.widget.Toast.makeText(this@MainActivity, "删除存档失败", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$com.xianxia.sect.core.util.VivoGCJITOptimizer.extendGcDelayForMs(10_000L)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$if</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$public var complianceDialogState = mutableStateOf&lt;ComplianceDialogState?&gt;(null)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$val intent = Intent(this@MainActivity, GameActivity::class.java)</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$val saveSlot = saveSlots.find { it.slot == slot }</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$val slot = if (emergencyData.gameData.currentSlot &gt; 0) emergencyData.gameData.currentSlot else 1</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity.ComplianceDialogState$Restrict : ComplianceDialogState</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainComplianceCallback$activity.complianceDialogState.value</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainComplianceCallback$activity.complianceDialogState.value = MainActivity.ComplianceDialogState.AgeLimit</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainComplianceCallback$activity.runOnUiThread { Toast.makeText(activity, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show(); activity.showMainScreen() }</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainComplianceCallback$private</ID>
+    <ID>MaxLineLength:MainActivity.kt$ProgressRunnable$activity.loadHandler.postDelayed({ activity.onLoadingComplete() }, 150)</ID>
+    <ID>MaxLineLength:MainActivity.kt$ProgressRunnable$if (current &lt; 0.9f) activity.loadingProgress.floatValue = current + 0.05f</ID>
+    <ID>MaxLineLength:MainActivity.kt$ProgressRunnable.Companion$companion</ID>
+    <ID>MaxLineLength:MainActivity.kt$ProgressRunnable.Companion$fun attach(activity: ProgressRunnable, ctx: MainActivity)</ID>
+    <ID>MaxLineLength:MainActivity.kt$TapTapAuthManager</ID>
+    <ID>MaxLineLength:MainActivity.kt$Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:MainActivity.kt$containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC)</ID>
+    <ID>MaxLineLength:MainActivity.kt$var privacyChecked by remember { mutableStateOf(sessionManager.privacyCheckboxConfirmed) }</ID>
+    <ID>MaxLineLength:ManageAllianceUseCase.kt$ManageAllianceUseCase$fun</ID>
+    <ID>MaxLineLength:ManageAllianceUseCase.kt$ManageAllianceUseCase$val (success, message) = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)</ID>
+    <ID>MaxLineLength:ManufacturerAdapter.kt$ManufacturerAdapter$Log.i("ManufacturerAdapter", "Applying adaptations for: $current (${Build.MANUFACTURER} ${Build.MODEL})")</ID>
+    <ID>MaxLineLength:ManufacturerAdapter.kt$ManufacturerAdapter$listOf(m, b).any { it.contains("oppo") || it.contains("realme") || it.contains("oneplus") } -&gt; Manufacturer.OPPO</ID>
+    <ID>MaxLineLength:ManufacturerAdapter.kt$ManufacturerAdapter$listOf(m, b).any { it.contains("vivo") || it.contains("iqoo") } -&gt; Manufacturer.VIVO</ID>
+    <ID>MaxLineLength:ManufacturerAdapter.kt$ManufacturerAdapter$listOf(m, b).any { it.contains("xiaomi") || it.contains("redmi") } -&gt; Manufacturer.XIAOMI</ID>
+    <ID>MaxLineLength:MemoryFormatUtil.kt$MemoryFormatUtil$bytes &lt; 1024 * 1024 * 1024 -&gt; String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))</ID>
+    <ID>MaxLineLength:MemoryFormatUtil.kt$MemoryFormatUtil$bytes &lt; 1024 * 1024 -&gt; String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)</ID>
+    <ID>MaxLineLength:MemoryFormatUtil.kt$MemoryFormatUtil$else -&gt; String.format(Locale.ROOT, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$Log.d(TAG, "Memory usage: ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$Log.e(TAG, "CRITICAL MEMORY: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$Log.i(TAG, "MemoryMonitor initialized. Memory class: ${activityManager?.memoryClass}MB, Large memory class: ${activityManager?.largeMemoryClass}MB")</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$Log.w(TAG, "MEMORY WARNING: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$fun</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$this.activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager</ID>
+    <ID>MaxLineLength:MemoryMonitor.kt$MemoryMonitor$val availableMemory = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())</ID>
+    <ID>MaxLineLength:NetworkSecurityConfig.kt$NetworkSecurityConfig$if</ID>
+    <ID>MaxLineLength:NetworkSecurityConfig.kt$NetworkSecurityConfig$val</ID>
+    <ID>MaxLineLength:NetworkSecurityConfig.kt$NetworkSecurityConfig$val readTimeoutSeconds: Long get() = TimeUnit.MILLISECONDS.toSeconds(READ_TIMEOUT_MS)</ID>
+    <ID>MaxLineLength:NetworkSecurityConfig.kt$NetworkSecurityConfig$val writeTimeoutSeconds: Long get() = TimeUnit.MILLISECONDS.toSeconds(WRITE_TIMEOUT_MS)</ID>
+    <ID>MaxLineLength:ObjectPool.kt$ObjectPool$" ${stat.objectType}: size=${stat.poolSize}, borrowed=${stat.borrowedCount}, "</ID>
+    <ID>MaxLineLength:ObjectPool.kt$ObjectPool$"hits=${stat.hitCount}, misses=${stat.missCount}, hitRate=${String.format(Locale.ROOT, "%.2f", stat.hitRate)}"</ID>
+    <ID>MaxLineLength:ObjectPool.kt$ObjectPool.Pool$val hitRate = if (totalRequests &gt; 0) hitVal.toDouble() / totalRequests else 0.0</ID>
+    <ID>MaxLineLength:ObjectPool.kt$SimplePoolFactory$// ==================== 具名 PoolFactory 实现（避免匿名内部类触发 KSP getSimpleName NPE）====================</ID>
+    <ID>MaxLineLength:ObjectPool.kt$StringBuilderPoolFactory$override fun validate(instance: StringBuilder): Boolean</ID>
+    <ID>MaxLineLength:ObjectPool.kt$TypedListPool$private val factory = SimplePoolFactory({ mutableListOf&lt;T&gt;() }, { it.clear() })</ID>
+    <ID>MaxLineLength:ObjectPool.kt$TypedMapPool$private val factory = SimplePoolFactory({ mutableMapOf&lt;K, V&gt;() }, { it.clear() })</ID>
+    <ID>MaxLineLength:PlaceBuildingUseCase.kt$PlaceBuildingUseCase$suspend operator</ID>
+    <ID>MaxLineLength:PortraitPool.kt$PortraitPool$fun</ID>
+    <ID>MaxLineLength:PortraitPool.kt$PortraitPool$return context.resources.getIdentifier(portraitRes, "drawable", context.packageName)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$.</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$FullPolicySubSection</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9))</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$dirichletAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$fontSize = 12.sp</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$fontSize = 13.sp</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.clickable { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.clickable { openUrlInBrowser(context, MMKV_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.clickable { openUrlInBrowser(context, PRIVACY_POLICY_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.clickable { openUrlInBrowser(context, TAPTAP_SDK_PRIVACY_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$modifier = Modifier.padding(10.dp)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$onDirichletAdSdkLinkClick = { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$onMmkvLinkClick = { openUrlInBrowser(context, MMKV_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$onTapTapSdkLinkClick = { openUrlInBrowser(context, TAPTAP_SDK_PRIVACY_URL) }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$private const val DIRICHLET_AD_SDK_PRIVACY_URL = "https://ssp.dirichlet.cn/docs/agreement/"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$pushStringAnnotation(tag = "URL", annotation = DIRICHLET_AD_SDK_PRIVACY_URL)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$pushStringAnnotation(tag = "URL", annotation = TAPTAP_SDK_PRIVACY_URL)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$tapTapAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n• 崩溃恢复和数据保护：异常退出后的游戏数据恢复\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 查询和更正：您可以在游戏内查看您的登录信息\n• 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n• 限制广告追踪：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID（开放匿名设备标识符）。您可以在应用设置 → 隐私设置中管理此选项\n• 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 游戏存档和账户信息仅保存在您的设备本地\n• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n• 存档数据使用 AES-256-GCM 加密保护\n• 网络通信强制使用 TLS 1.2/1.3 加密传输\n• 启用证书固定防止中间人攻击\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 游戏存档数据：保留至您主动删除存档或卸载应用\n• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n• 加密密钥：保留至卸载应用"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联\n• 个人资料：昵称、头像 — 游戏内显示\n• 联系方式：电话号码、邮箱（TapTap 账户注册信息）— TapTap 账户身份验证和账户安全\n• 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）— 安全通信和请求签名"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "• 账户信息使用AES-256加密存储于设备本地\n• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "【广告标识符收集特别提示】\n\nTapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，用于广告效果分析和广告投放归因。\n\n本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID。Dirichlet Ad SDK 收集 OAID 用于广告投放和效果归因，受其隐私政策约束。您可以在应用设置 → 隐私设置中管理此选项。若您关闭\"限制广告追踪\"，TapTap SDK 将可能收集您的 OAID 用于广告效果分析。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）可能会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析；Dirichlet Ad SDK 使用 OAID 进行广告投放和效果归因\n• 收集方式：由各 SDK 在初始化时自动获取\n• 默认保护：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID\n• 您的权利：您可以在应用设置 → 隐私设置中管理\"限制广告追踪\"选项。若您关闭此选项，TapTap SDK 将可能收集您的 OAID\n• 功能影响：限制广告追踪不影响游戏的正常使用和 TapTap 登录功能"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "为保障通信安全，防止请求伪造和重放攻击，每个网络请求会携带以下安全头：应用版本号、平台标识、Android SDK级别、设备指纹前8位、HMAC-SHA256签名、时间戳、随机数、请求唯一标识和请求体哈希。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "以上信息存储在设备本地，使用 AES-256 加密的 EncryptedSharedPreferences 保存。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "关于 Android ID 与第三方 SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID，用于广告投放和效果归因。上述 SDK 对 Android ID 的收集和处理受各自隐私政策约束，详见下方第二节。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "关于电话号码和邮箱：电话号码和邮箱由 TapTap 平台在您注册 TapTap 账户时收集，用于账户身份验证和安全保障。当您使用 TapTap 登录本游戏时，TapTap SDK 会读取上述信息以完成登录验证。我们不会自行收集、存储或传输您的电话号码和邮箱。如需管理您的电话号码和邮箱，请在 TapTap 平台操作。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "在 Android 9 及以下版本，我们请求外部存储读写权限，用于保存游戏存档数据到本地。在 Android 10 及以上版本，我们使用分区存储，无需请求额外权限。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "在您点击同意本隐私政策之前，本应用不会收集您的任何个人信息，不会申请任何可收集个人信息的权限，也不会初始化任何第三方SDK。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n• 邮箱：jingshugzs@163.com\n• 通过 TapTap 平台的应用页面反馈\n\n我们将在15个工作日内回复您的请求。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "实名认证数据由 TapTap 平台处理，我们不直接收集、存储或传输您的身份证号码等敏感身份信息。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "当您使用兑换码时，我们记录兑换码、使用时间、设备标识和玩家标识，用于防止兑换码重复使用和暴力枚举。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "当游戏异常退出时，我们自动收集设备品牌、型号、产品名、设备代号、Android版本、应用版本号和异常堆栈跟踪。崩溃日志仅保存在设备本地，最多保留5份，不会自动上传。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n• Dirichlet Ad SDK：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司交互\n• 法律要求：在法律法规要求或政府主管部门依法要求的情况下"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "我们严格遵守《关于防止未成年人沉迷网络游戏的通知》等相关规定，通过 TapTap 合规 SDK 对未成年人实施游戏时段和时长限制。未成年人仅可在周五、周六、周日及法定节假日的 20:00-21:00 进行游戏。我们不会主动收集未成年人的身份信息。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "我们可能会不时更新本隐私政策。更新后的政策将在应用内重新展示，您需要再次同意后方可继续使用。如果您不同意更新后的隐私政策，可以选择停止使用本应用。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "我们检查网络连接状态，用于判断网络是否可用。我们不收集 Wi-Fi SSID、BSSID 或 IP 地址。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n• Android ID（Settings.Secure.ANDROID_ID）— 本地加密密钥派生\n• 设备硬件信息（品牌、型号）— 本地加密密钥派生和设备指纹\n• 应用签名证书 SHA-256 哈希 — 设备指纹增强\n\n上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n• 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n• 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n• 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK（TapTap SDK）并开始收集个人信息。\n• 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n• 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n• 手动填写认证：需输入姓名、身份证号码和电话号码。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "欢迎使用模拟宗门！【静书工作室】（以下简称“我们”）系移动应用程序“模拟宗门”（以下简称“本游戏”）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "由上海艾得蒽数字科技有限公司提供。仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。\n\n• TapADN SDK：激励视频广告 — 可能收集设备信息（设备型号、操作系统版本、Android ID、OAID、IMEI/Device ID、MAC地址）、网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n• tap-core：SDK核心功能 — 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）。若您关闭\"限制广告追踪\"，还会收集 OAID（开放匿名设备标识符）用于广告效果分析\n• tap-login：账户登录 — 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID\n• tap-common：公共组件 — 收集设备基础信息\n• tap-compliance：防沉迷和实名认证 — 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "重要提示 - 关于电话号码收集：\n\n• 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n• 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n• 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n• 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n• 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$text = "重要提示：在您点击同意本隐私政策之前，本应用不会收集您的任何个人信息，不会申请任何可收集个人信息的权限，也不会初始化任何第三方SDK。只有在您明确同意本隐私政策后，本应用才会按照本隐私政策所述范围收集和使用您的个人信息。"</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$val linkStyle = SpanStyle(fontSize = 13.sp, color = GameColors.SpiritBlue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$val sectionTitleStyle = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("1. 账户信息") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("2. 实名认证信息") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("3. 设备标识符") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("4. 网络状态信息") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("5. 存储权限") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("6. 崩溃日志") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("Dirichlet Ad SDK / TapADN SDK（v4.2.5.0）") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("MMKV（腾讯）") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("TapTap SDK（v4.10.0）") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("Android 9及以下版本请求外部存储读写权限，用于保存游戏存档。Android 10+使用分区存储，无需额外权限。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、OAID、CPU信息、内存信息）、网络信息、TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。可能收集：设备信息（型号、系统版本、Android ID、OAID、IMEI/Device ID、MAC地址）、网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（展示、点击、转化）。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储、查看或传输。建议优先使用快速认证（无需重新输入）。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("检查网络连接状态，确保数据同步正常。不收集Wi-Fi SSID、BSSID或IP地址。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("游戏异常退出时自动收集设备品牌、型号、产品名、设备代号、应用版本和异常堆栈，仅保存在设备本地，最多保留5份，不会自动上传。") }</ID>
+    <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }</ID>
+    <ID>MaxLineLength:ProcessBattleCasualtiesUseCase.kt$ProcessBattleCasualtiesUseCase$battleFacade.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Assigning disciple: ${buildingType.name}[$slotIndex] disciple=$discipleId")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Completing production by buildingId: $buildingId[$slotIndex]")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Production completed: $buildingId[$slotIndex] success=${outcome is ProductionOutcome.Success}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Production completed: ${buildingType.name}[$slotIndex] success=${outcome is ProductionOutcome.Success}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Production started successfully: $buildingId[$slotIndex]")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Production started successfully: ${buildingType.name}[$slotIndex]")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Starting production by buildingId: $buildingId[$slotIndex] recipe=$recipeId")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.d(TAG, "Starting production: ${buildingType.name}[$slotIndex] recipe=$recipeId")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.e(TAG, "Failed to create slot for $buildingId[$slotIndex]: ${addResult.exceptionOrNull()?.message}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.w(TAG, "completeProduction state transition failed: ${e.message}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.w(TAG, "completeProductionByBuildingId state transition failed: ${e.message}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.w(TAG, "startProduction state transition failed: ${e.message}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$Log.w(TAG, "startProductionByBuildingId state transition failed: ${e.message}")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.InsufficientMaterials("材料不足", missingMaterials)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.InvalidSlot("槽位不存在: ALCHEMY[$slotIndex]", slotIndex)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.InvalidStateTransition("生产尚未完成，剩余时间: ${remaining}月")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.SlotBusy("Slot is already working", slotIndex)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$error = AppError.Domain.Production.Unknown(exception?.message ?: "Unknown error")</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$repository</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$rollbackData = ProductionRollbackData(previousSlotState = previousState)</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$suspend</ID>
+    <ID>MaxLineLength:ProductionTransactionManager.kt$ProductionTransactionManager$val</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$.</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$Log.d(TAG, "Cleaned up $removedCount expired replay cache entries, remaining: ${replayDetectionCache.size}")</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$Log.v(TAG, "Request recorded for replay detection: $requestId, cache size: ${replayDetectionCache.size}")</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$Log.w(TAG, "Failed to fetch HMAC key from server, falling back to local derivation", e)</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$fun</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$hmacKey?.takeIf { System.currentTimeMillis() &lt; keyExpiry } ?: fetchKeyFromServerSync()</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$if</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$keyExpiry = json.optLong("expires_at", System.currentTimeMillis() + DEFAULT_KEY_EXPIRY_MS)</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$private</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$val body = response.body?.string() ?: throw IOException("Empty response from signing-key endpoint")</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$val deviceFpPrefix = cachedDeviceFingerprint.take(DEVICE_FP_PREFIX_LENGTH)</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$val keyBytes = android.util.Base64.decode(json.getString("key"), android.util.Base64.NO_WRAP)</ID>
+    <ID>MaxLineLength:RequestSigner.kt$RequestSigner$val salt = "xianxia-sig-v3-salt-2025".toByteArray(StandardCharsets.UTF_8)</ID>
+    <ID>MaxLineLength:RewardVideoAdManager.kt$RewardVideoAdManager$ad</ID>
+    <ID>MaxLineLength:RewardVideoAdManager.kt$RewardVideoAdManager$tapAdNative</ID>
+    <ID>MaxLineLength:RewardVideoAdManager.kt$RewardVideoAdManager.&lt;no name provided&gt;$Log.d(TAG, "激励验证: verify=$rewardVerify, amount=$rewardAmount, name=$rewardName, code=$code, msg=$msg")</ID>
+    <ID>MaxLineLength:RewardVideoAdManager.kt$RewardVideoAdManager.&lt;no name provided&gt;$callback?.onRewardVerify(rewardVerify, rewardAmount, rewardName, code, msg)</ID>
+    <ID>MaxLineLength:RewardVideoAdManager.kt$RewardVideoAdManager.RewardVideoCallback$fun</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$"auto_empty" to SlotStyle(Color(0xFFCCCCCC), Color(0xFFF5F5F5), Color(0xFFCCCCCC))</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$"auto_filled" to SlotStyle(Color(0xFF4CAF50), Color(0xFFF0FFF0), Color(0xFF4CAF50))</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$"manual_empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, Color(0xFFCCCCCC))</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$"manual_filled" to SlotStyle(Color(0xFF4A90E2), Color(0xFFF0F7FF), Color(0xFF4A90E2))</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$.</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$Row</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$if</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = "" }}</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$text = "弟子: ${slot.discipleCount} 灵石: ${slot.spiritStones}"</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$text = if (slot.isAutoSave) "自" else slot.slot.toString()</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$text = if (slot.isAutoSave) "自动存档 - 暂无数据" else "空槽位 - 点击创建新游戏"</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$text = slot.displayName.ifEmpty { slot.sectName.ifEmpty { "存档 ${slot.slot}" } }</ID>
+    <ID>MaxLineLength:SaveSelectScreen.kt$val key = "${if (isAutoSave) "auto" else "manual"}_${if (isEmpty) "empty" else "filled"}"</ID>
+    <ID>MaxLineLength:SaveStorageImpl.kt$SaveStorageImpl$*</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient$"${packageInfo.versionName}(${PackageInfoCompat.getLongVersionCode(packageInfo)})"</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient$Log.i(TAG, " 覆盖主机: ${NetworkSecurityConfig.pinnedHosts.joinToString(", ")}")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient$level = okhttp3.logging.HttpLoggingInterceptor.Level.BODY</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$.</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "║ Exception: ${originalException.javaClass.simpleName}".padEnd(55) + "║")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "║ Host: ${chain.request().url.host}".padEnd(55) + "║")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "║ Message: ${originalException.message}".padEnd(55) + "║")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "╔══════════════════════════════════════════════════════╗")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "╚══════════════════════════════════════════════════════╝")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "╠══════════════════════════════════════════════════════╣")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.e(TAG, "降级模式也执行失败: ${fallbackException.message}", fallbackException)</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.w(TAG, "║ Exception: ${originalException.javaClass.simpleName}".padEnd(55) + "║")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.w(TAG, "║ Message: ${originalException.message}".padEnd(55) + "║")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.w(TAG, "╔══════════════════════════════════════════════════════╗")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.w(TAG, "╚══════════════════════════════════════════════════════╝")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$Log.w(TAG, "╠══════════════════════════════════════════════════════╣")</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$if</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$"响应 IV 长度异常: 期望 ${NetworkSecurityConfig.RESPONSE_IV_LENGTH} 字节, 实际 ${iv.size}"</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$if</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$private</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$val isEncrypted = response.header(HEADER_RESPONSE_ENCRYPTED)?.toBoolean() == true</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$val iv = android.util.Base64.decode(ivBase64, android.util.Base64.NO_WRAP)</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$val newResponseBody = decrypted.toResponseBody(response.body?.contentType())</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$val salt = "xianxia-decrypt-v2-salt-2024".toByteArray(StandardCharsets.UTF_8)</ID>
+    <ID>MaxLineLength:SecureHttpClient.kt$SecureHttpClient.SigningInterceptor$val</ID>
+    <ID>MaxLineLength:ShardedSlotLock.kt$ShardedSlotLock$lastBackoff = (lastBackoff * 1.5).coerceAtMost(100.milliseconds)</ID>
+    <ID>MaxLineLength:StartProductionUseCase.kt$StartProductionUseCase$BuildingType.ALCHEMY -&gt; buildingFacade.startAlchemy(slotIndex, recipeId)</ID>
+    <ID>MaxLineLength:StartProductionUseCase.kt$StartProductionUseCase$BuildingType.FORGE -&gt; buildingFacade.startForging(slotIndex, recipeId)</ID>
+    <ID>MaxLineLength:StartProductionUseCase.kt$StartProductionUseCase$suspend operator</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$getName(it) == getName(item) &amp;&amp; getRarity(it) == getRarity(item)</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$if (index == existingIndex) withQuantity(listItem, newQty) else listItem</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$logWarning?.invoke("Cannot remove $quantity items '$name', only ${getQuantity(item)} available")</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$logWarning?.invoke("Cannot remove $quantity items, only ${getQuantity(item)} available")</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$val item = flow.value.find { getName(it) == name &amp;&amp; getRarity(it) == rarity } ?: return false</ID>
+    <ID>MaxLineLength:StateFlowListUtils.kt$StackableItemUtils$val newQty = (getQuantity(existing) + getQuantity(item)).coerceAtMost(maxStack)</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$fun</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$mutableItems.add(item.copy(quantity = item.quantity.coerceAtMost(maxStack)))</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$quantity = (existing.quantity + item.quantity).coerceAtMost(maxStack)</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$return currentTotalMonths - forgetTotalMonths &lt; COOLING_PERIOD_MONTHS</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$return currentTotalPhases - forgetTotalPhases &lt; COOLING_PERIOD_PHASES</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$val currentTotalPhases = currentYear * 36 + (currentMonth - 1) * 3 + currentPhase</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$val forgetTotalPhases = forgetYear * 36 + (forgetMonth - 1) * 3 + forgetPhase</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$fun</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$if (it.id == existingStack.id) it.copy(quantity = existingStack.quantity + 1) else it</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$if (s.id == existingStack.id) s.copy(quantity = existingStack.quantity + 1) else s</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$it.name == instance.name &amp;&amp; it.rarity == instance.rarity &amp;&amp; it.slot == instance.slot</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$it.name == instance.name &amp;&amp; it.rarity == instance.rarity &amp;&amp; it.type == instance.type</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = disciple)</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$val mergeResult = mergeEquipmentStackToWarehouse(excludeStackId, maxStackSize, instance)</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$val mergeResult = mergeManualStackToWarehouse(excludeStackId, maxStackSize, instance)</ID>
+    <ID>MaxLineLength:StorageModule.kt$StorageModule$return SavMigrator(context, serializationModule, database, storageEngine)</ID>
+    <ID>MaxLineLength:StorageModule.kt$StorageModule$return SerializationModule(serializationEngine, saveDataConverter, saveDataMigrator)</ID>
+    <ID>MaxLineLength:StorageModule.kt$StorageModule$saveDataConverter: com.xianxia.sect.data.serialization.unified.SaveDataConverter</ID>
+    <ID>MaxLineLength:StorageModule.kt$StorageModule$saveDataMigrator: com.xianxia.sect.data.serialization.unified.SaveDataMigrator</ID>
+    <ID>MaxLineLength:StorageModule.kt$StorageModule$serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine</ID>
+    <ID>MaxLineLength:TapDBManager.kt$TapDBManager$Log.d(TAG, "onCharge: orderId=$orderId, product=$productId, amount=$amount")</ID>
+    <ID>MaxLineLength:TapDBManager.kt$TapDBManager$fun</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$fun</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$fun fromException(e: Throwable): UiError</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameLoop.EngineNotRunning -&gt; Triple("游戏引擎未启动", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameLoop.StateInconsistency -&gt; Triple("游戏状态异常", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameLoop.TickTimeout -&gt; Triple("游戏运行缓慢", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameLoop.Unknown -&gt; Triple("游戏运行错误", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameState.InvalidState -&gt; Triple(error.message, UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameState.NotFound -&gt; Triple(error.message, UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.GameState.PermissionDenied -&gt; Triple("权限不足", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Network.NoConnection -&gt; Triple("网络连接失败，请检查网络设置", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Network.Timeout -&gt; Triple("网络请求超时，请稍后重试", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Network.Unknown -&gt; Triple("网络错误", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.DatabaseError -&gt; Triple("数据库错误", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.DiscipleNotAvailable -&gt; Triple("弟子不可用", UiErrorSeverity.INFO, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.InsufficientMaterials -&gt; Triple("材料不足", UiErrorSeverity.INFO, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.InvalidSlot -&gt; Triple("无效的槽位", UiErrorSeverity.INFO, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.InvalidStateTransition -&gt; Triple("操作状态不正确", UiErrorSeverity.INFO, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.ProductionFailed -&gt; Triple("生产失败", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.RecipeNotFound -&gt; Triple("配方不存在", UiErrorSeverity.INFO, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.SlotBusy -&gt; Triple("槽位正在工作中", UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Production.Unknown -&gt; Triple("生产操作失败", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.BackupFailed -&gt; Triple("备份失败", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.ChecksumMismatch -&gt; Triple("数据校验失败，存档可能已损坏", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.DatabaseError -&gt; Triple("数据库错误", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.DecryptionError -&gt; Triple("数据解密错误", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.DeleteFailed -&gt; Triple("删除失败", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.EncryptionError -&gt; Triple("数据加密错误", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.Expired -&gt; Triple("数据已过期", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.IntegrityError -&gt; Triple("数据完整性错误", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.IoError -&gt; Triple("存储读写错误", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.KeyDerivationError -&gt; Triple("密钥错误", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.LoadFailed -&gt; Triple("加载失败，请重试", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.RestoreFailed -&gt; Triple("恢复失败", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.SaveFailed -&gt; Triple("保存失败，请重试", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.SlotCorrupted -&gt; Triple("存档数据损坏，请尝试恢复备份", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.SlotNotFound -&gt; Triple("存档不存在", UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.Tampered -&gt; Triple("数据已被篡改", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.Timeout -&gt; Triple("操作超时，请重试", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.TransactionFailed -&gt; Triple("操作失败，请重试", UiErrorSeverity.WARNING, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.Unknown -&gt; Triple("存储错误", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Storage.VerificationFailed -&gt; Triple("数据验证失败", UiErrorSeverity.ERROR, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Validation.ConfigError -&gt; Triple(error.message, UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Validation.EmptyValue -&gt; Triple(error.message, UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Validation.InvalidInput -&gt; Triple(error.message, UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Validation.OutOfRange -&gt; Triple(error.message, UiErrorSeverity.INFO, true)</ID>
+    <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Unknown -&gt; Triple("操作失败：${error.message}", UiErrorSeverity.ERROR, false)</ID>
+    <ID>MaxLineLength:UnifiedGameStateManager.kt$UnifiedGameStateManager$private val observers = CopyOnWriteArrayList&lt;WeakReference&lt;UnifiedStateObserver&gt;&gt;()</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$?:</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.d(TAG, "Not a vivo/iQOO device (${Build.MANUFACTURER} ${Build.MODEL}), skipping GC/JIT optimization")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.d(TAG, "disableGcForDuration not available, skipping (no fallback)")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.e(TAG, "Error resuming JIT: ${e.message}, JIT may still be paused!", e)</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.i(TAG, "Growth limit set to ${MemoryFormatUtil.formatMemory(targetLimit)} (max=${MemoryFormatUtil.formatMemory(maxMem)})")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.i(TAG, "JIT paused during critical path [$tag] (was enabled=$originalJitState)")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.i(TAG, "JIT resumed after critical path [$tag] (restored enabled=$originalJitState)")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.w(TAG, "JIT already paused, ignoring pause request from $tag")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.w(TAG, "extendGcDelayForMs: invalid delay $delayMs, valid range (0, 60000]")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.w(TAG, "getJitCompilationEnabled not available via reflection: ${e.message}")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$Log.w(TAG, "setJitCompilationEnabled not available: ${e.message}")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$val</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$val clampMethod = runtime::class.java.getDeclaredMethod("clampGrowthLimit")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$val clearMethod = runtime::class.java.getDeclaredMethod("clearGrowthLimit")</ID>
+    <ID>MaxLineLength:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$val manufacturer = Build.MANUFACTURER.lowercase(java.util.Locale.getDefault())</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$&amp;&amp;</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$// 阻塞项：需在 build.gradle 添加 com.huawei.agconnect:crash 依赖并配置 agconnect-services.json</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$Log.i("AppStartup", "Crash recovery: recovered slots=${report.recoveredSlots}")</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$Log.i(TAG, "Application terminated, all resources cleaned up successfully")</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$getSharedPreferences(name, MODE_PRIVATE).edit().clear().apply()</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$lateinit</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$listOf("sav_migration", "crash_handler", "app_session")</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$private val memoryPressureListeners = CopyOnWriteArrayList&lt;MemoryPressureListener&gt;()</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication$recoveryManager.scheduleDeferredWarmup(applicationScopeProvider.scope)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$ReLinker.loadLibrary(this@XianxiaApplication, requireNotNull(libName) { "libName must not be null" })</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$if (throwable != null) Log.e(tag, msg, throwable) else Log.e(tag, msg)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$if (throwable != null) Log.w(tag, msg, throwable) else Log.w(tag, msg)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun calculateCultivationSpeed(disciple: com.xianxia.sect.core.model.Disciple, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getBaseStats(aggregate: DiscipleAggregate)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getBaseStats(disciple: com.xianxia.sect.core.model.Disciple)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehensionBonus: Double, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getBreakthroughChance(disciple: com.xianxia.sect.core.model.Disciple, innerElderComprehension: Int, outerElderComprehensionBonus: Double, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getFinalStats(aggregate: DiscipleAggregate, equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getFinalStats(disciple: com.xianxia.sect.core.model.Disciple, equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map&lt;String, EquipmentInstance&gt;)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getStatsWithEquipment(disciple: com.xianxia.sect.core.model.Disciple, equipments: Map&lt;String, EquipmentInstance&gt;)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getTalentEffects(aggregate: DiscipleAggregate)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getTalentEffects(disciple: com.xianxia.sect.core.model.Disciple)</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun isLoggedIn(): Boolean</ID>
+    <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$val account = com.xianxia.sect.taptap.TapTapAuthManager.getCurrentAccount()</ID>
+    <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun cleanupOldCrashLogs(crashLogDir: File)</ID>
+    <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun writeCrashLogToFile(thread: Thread, throwable: Throwable): File?</ID>
+    <ID>NestedBlockDepth:GameActivity.kt$GameActivity.Companion$private fun generateRawTileData( worldWidthCells: Int, worldHeightCells: Int, grassProbability: Float = 0.06f, treeProbability: Float = 0.10f ): Array&lt;IntArray&gt;</ID>
+    <ID>NestedBlockDepth:ObjectPool.kt$ObjectPool.Pool$fun release(instance: T)</ID>
+    <ID>NoNameShadowing:MainActivity.kt$&lt;no name provided&gt;$activity</ID>
+    <ID>ObjectLiteralToLambda:XianxiaApplication.kt$XianxiaApplication$object : MMKV.LibLoader { override fun loadLibrary(libName: String?) { ReLinker.loadLibrary(this@XianxiaApplication, requireNotNull(libName) { "libName must not be null" }) } }</ID>
+    <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean ): CombatSkill?</ID>
+    <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectTarget(attacker: Combatant, targets: List&lt;Combatant&gt;): Combatant</ID>
+    <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun optimizeForLowMemory(): GCOptimizationResult?</ID>
+    <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun suggestGC(): Boolean</ID>
+    <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeCompleteProduction( buildingType: BuildingType, slotIndex: Int, currentYear: Int, currentMonth: Int ): ProductionTransactionResult</ID>
+    <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeCompleteProductionByBuildingId( buildingId: String, slotIndex: Int, currentYear: Int, currentMonth: Int ): ProductionTransactionResult</ID>
+    <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
+    <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProductionByBuildingId( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
+    <ID>ReturnCount:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$override fun intercept(chain: Interceptor.Chain): Response</ID>
+    <ID>ReturnCount:ShardedSlotLock.kt$ShardedSlotLock$private suspend fun &lt;T&gt; acquireLocksWithTryLock( lockIndices: List&lt;Int&gt;, block: suspend () -&gt; T ): T</ID>
+    <ID>ReturnCount:StateFlowListUtils.kt$StackableItemUtils$fun &lt;T&gt; removeStackableByName( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, name: String, rarity: Int, quantity: Int, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getId: (T) -&gt; String, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T, logWarning: ((String) -&gt; Unit)? = null ): Boolean</ID>
+    <ID>ReturnCount:StorageBagUtils.kt$StorageBagUtils$fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentPhase: Int): Boolean</ID>
+    <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$fun extendGcDelayForMs(delayMs: Long): Boolean</ID>
+    <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$fun pauseJitDuringCriticalPath(tag: String = TAG): Boolean</ID>
+    <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$fun resumeJitAfterCriticalPath(tag: String = TAG): Boolean</ID>
+    <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$private fun tryPauseJit(tag: String): Boolean</ID>
+    <ID>SpreadOperator:CertificatePinnerProvider.kt$CertificatePinnerProvider$(host, *pins.toTypedArray())</ID>
+    <ID>SpreadOperator:SecureHttpClient.kt$SecureHttpClient$(*NetworkSecurityConfig.allowedCipherSuites)</ID>
+    <ID>SpreadOperator:SecureHttpClient.kt$SecureHttpClient$(*NetworkSecurityConfig.enabledTlsVersions)</ID>
+    <ID>SwallowedException:CrashHandler.kt$CrashHandler$e: Exception</ID>
+    <ID>SwallowedException:GameActivity.kt$GameActivity$e: Exception</ID>
+    <ID>SwallowedException:PrivacyConsentScreen.kt$e: Exception</ID>
+    <ID>SwallowedException:SecureHttpClient.kt$SecureHttpClient$e: Exception</ID>
+    <ID>SwallowedException:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CertificatePinnerProvider.kt$CertificatePinnerProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ComplianceManager.kt$ComplianceManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CrashHandler.kt$CrashHandler$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GCOptimizer.kt$GCOptimizer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameActivity.kt$GameActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ListenerManager.kt$ListenerManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MainActivity.kt$MainActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MemoryMonitor.kt$MemoryMonitor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ObjectPool.kt$ObjectPool.Pool$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PrivacyConsentScreen.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RequestSigner.kt$RequestSigner$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureHttpClient.kt$SecureHttpClient$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureHttpClient.kt$SecureHttpClient.CertificatePinningFallbackInterceptor$fallbackException: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureHttpClient.kt$SecureHttpClient.SigningInterceptor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ShardedSlotLock.kt$ShardedSlotLock$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TapDBManager.kt$TapDBManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UnifiedGameStateManager.kt$UnifiedGameStateManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:XianxiaApplication.kt$XianxiaApplication$e2: Exception</ID>
+    <ID>TooGenericExceptionCaught:XianxiaApplication.kt$XianxiaApplication$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:GameActivity.kt$GameActivity$throw Exception("fullBmp allocation refused: $estFullBytes bytes exceeds limit")</ID>
+    <ID>TooGenericExceptionThrown:GameActivity.kt$GameActivity$throw Exception("ground decode failed")</ID>
+    <ID>TooManyFunctions:AppModule.kt$AppModule</ID>
+    <ID>TooManyFunctions:BattleCalculator.kt$BattleCalculator</ID>
+    <ID>TooManyFunctions:CoreModule.kt$CoreModule</ID>
+    <ID>TooManyFunctions:CrashHandler.kt$CrashHandler : UncaughtExceptionHandler</ID>
+    <ID>TooManyFunctions:DiscipleIndex.kt$DiscipleIndex</ID>
+    <ID>TooManyFunctions:GCOptimizer.kt$GCOptimizer</ID>
+    <ID>TooManyFunctions:GameActivity.kt$GameActivity : ComponentActivityMemoryPressureListener</ID>
+    <ID>TooManyFunctions:GameLogger.kt$GameLogger</ID>
+    <ID>TooManyFunctions:GameMonitorManager.kt$GameMonitorManager</ID>
+    <ID>TooManyFunctions:GameStateStoreImpl.kt$GameStateStoreImpl : GameStateStore</ID>
+    <ID>TooManyFunctions:MailRepositoryImpl.kt$MailRepositoryImpl : MailRepository</ID>
+    <ID>TooManyFunctions:MainActivity.kt$MainActivity : ComponentActivity</ID>
+    <ID>TooManyFunctions:MemoryMonitor.kt$MemoryMonitor</ID>
+    <ID>TooManyFunctions:RequestSigner.kt$RequestSigner</ID>
+    <ID>TooManyFunctions:RewardVideoAdManager.kt$RewardVideoAdManager$RewardVideoCallback</ID>
+    <ID>TooManyFunctions:StateFlowListUtils.kt$StateFlowListUtils</ID>
+    <ID>TooManyFunctions:StorageModule.kt$StorageModule</ID>
+    <ID>TooManyFunctions:VivoGCJITOptimizer.kt$VivoGCJITOptimizer</ID>
+    <ID>UnnecessarySafeCall:GameActivity.kt$GameActivity$viewModel.gameData.value?.currentSlot</ID>
+    <ID>UnreachableCode:BattleCalculator.kt$BattleCalculator$DamageType.PHYSICAL ?: true</ID>
+    <ID>UnreachableCode:GameActivity.kt$GameActivity$viewModel.gameData.value?.currentSlot ?: -1</ID>
+    <ID>UnreachableCode:GameStateStoreImpl.kt$GameStateStoreImpl$if (os.discipleId.isNotEmpty() &amp;&amp; ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot</ID>
+    <ID>UnreachableCode:GameStateStoreImpl.kt$GameStateStoreImpl$val os = oSlots[slot.index] ?: return@map slot</ID>
+    <ID>UnreachableCode:GameStateStoreImpl.kt$GameStateStoreImpl$val ss = sSlots[slot.index] ?: return@map slot</ID>
+    <ID>UnusedParameter:CrashHandler.kt$CrashHandler$crashLogFile: File?</ID>
+    <ID>UnusedParameter:GameStateStoreImpl.kt$GameStateStoreImpl$origin: SkillStats</ID>
+    <ID>UnusedParameter:MainActivity.kt$ProgressRunnable.Companion$activity: ProgressRunnable</ID>
+    <ID>UnusedParameter:MainActivity.kt$onLoginSuccess: () -&gt; Unit</ID>
+    <ID>UnusedParameter:MainActivity.kt$onPrivacyAgreed: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:ManufacturerAdapter.kt$ManufacturerAdapter$context: Context</ID>
+    <ID>UnusedParameter:MemoryMonitor.kt$MemoryMonitor$intervalMs: Long = DEFAULT_MONITOR_INTERVAL_MS</ID>
+    <ID>UnusedParameter:PrivacyConsentScreen.kt$onPrivacyLinkClick: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$bagStackIds: Set&lt;String&gt;</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gameMonth: Int</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gamePhase: Int</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gameYear: Int</ID>
+    <ID>UnusedPrivateMember:MemoryMonitor.kt$MemoryMonitor$private fun processMemorySnapshot(snapshot: MemorySnapshot)</ID>
+    <ID>UnusedPrivateProperty:GCOptimizer.kt$GCOptimizer$private var isManualGCPending = false</ID>
+    <ID>UnusedPrivateProperty:GCOptimizer.kt$GCOptimizer$private var optimizerJob: Job? = null</ID>
+    <ID>UnusedPrivateProperty:GCOptimizer.kt$GCOptimizer.Companion$private const val GC_CHECK_INTERVAL_MS = 60_000L</ID>
+    <ID>UnusedPrivateProperty:GameMonitorManager.kt$GameMonitorManager$private val applicationScopeProvider: ApplicationScopeProvider</ID>
+    <ID>UnusedPrivateProperty:GameStateStoreImpl.kt$GameStateStoreImpl.Companion$private const val TAG = "GameStateStore"</ID>
+    <ID>UnusedPrivateProperty:MemoryMonitor.kt$MemoryMonitor$private var monitorJob: Job? = null</ID>
+    <ID>UnusedPrivateProperty:ObjectPool.kt$ObjectPool.Companion$private const val MAX_BORROW_RETRIES = 3</ID>
+    <ID>UnusedPrivateProperty:RequestSigner.kt$RequestSigner$i</ID>
+    <ID>UseCheckOrError:CertificatePinnerProvider.kt$CertificatePinnerProvider$throw IllegalStateException( "[SECURITY] Release build has placeholder certificate pins! " + "Replace placeholder SPKI hashes in CertificatePinnerProvider before release." )</ID>
+    <ID>UseCheckOrError:CrashHandler.kt$CrashHandler.Companion$throw IllegalStateException("CrashHandler not initialized")</ID>
+    <ID>UseCheckOrError:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$throw IllegalStateException("VMRuntime.getRuntime() returned null")</ID>
+    <ID>UseOrEmpty:CoreModule.kt$CoreModule.&lt;no name provided&gt;$response.body?.string() ?: ""</ID>
+    <ID>UseOrEmpty:ProductionTransactionManager.kt$ProductionTransactionManager$slot.outputItemId ?: ""</ID>
+    <ID>UseOrEmpty:RequestSigner.kt$RequestSigner$bodyHash ?: ""</ID>
+    <ID>UseRequire:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$throw IllegalArgumentException( "响应 IV 长度异常: 期望 ${NetworkSecurityConfig.RESPONSE_IV_LENGTH} 字节, 实际 ${iv.size}" )</ID>
+    <ID>VarCouldBeVal:GCOptimizer.kt$GCOptimizer$private var gcCount = 0L</ID>
+    <ID>VarCouldBeVal:GCOptimizer.kt$GCOptimizer$private var isManualGCPending = false</ID>
+    <ID>VarCouldBeVal:GCOptimizer.kt$GCOptimizer$private var lastGCTime = 0L</ID>
+    <ID>VarCouldBeVal:GCOptimizer.kt$GCOptimizer$private var optimizerJob: Job? = null</ID>
+    <ID>VarCouldBeVal:GCOptimizer.kt$GCOptimizer$private var totalGCTime = 0L</ID>
+    <ID>VarCouldBeVal:MemoryMonitor.kt$MemoryMonitor$private var monitorJob: Job? = null</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$// 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射 internal val _gameDataFlow = MutableStateFlow(GameData())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$// 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发 internal val _updateVersion = MutableStateFlow(0L)</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _battleLogsFlow = MutableStateFlow&lt;List&lt;BattleLog&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _disciplesFlow = MutableStateFlow&lt;List&lt;Disciple&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _equipmentInstancesFlow = MutableStateFlow&lt;List&lt;EquipmentInstance&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _equipmentStacksFlow = MutableStateFlow&lt;List&lt;EquipmentStack&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _herbsFlow = MutableStateFlow&lt;List&lt;Herb&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _manualInstancesFlow = MutableStateFlow&lt;List&lt;ManualInstance&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _manualStacksFlow = MutableStateFlow&lt;List&lt;ManualStack&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _materialsFlow = MutableStateFlow&lt;List&lt;Material&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingBattleResultFlow = MutableStateFlow&lt;BattleResultUIData?&gt;(null)</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingBattleRewardCardsFlow = MutableStateFlow&lt;List&lt;RewardCardItem&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pendingNotificationFlow = MutableStateFlow&lt;GameNotification?&gt;(null)</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _pillsFlow = MutableStateFlow&lt;List&lt;Pill&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _rewardCardQueueFlow = MutableStateFlow&lt;List&lt;RewardCardItem&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _seedsFlow = MutableStateFlow&lt;List&lt;Seed&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _storageBagsFlow = MutableStateFlow&lt;List&lt;StorageBag&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _teamsFlow = MutableStateFlow&lt;List&lt;ExplorationTeam&gt;&gt;(emptyList())</ID>
+    <ID>WildcardImport:AppModule.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:AppModule.kt$import com.xianxia.sect.data.local.*</ID>
+    <ID>WildcardImport:BridgeBindingsModule.kt$import com.xianxia.sect.core.repository.*</ID>
+    <ID>WildcardImport:BridgeBindingsModule.kt$import com.xianxia.sect.data.local.*</ID>
+    <ID>WildcardImport:CoreModule.kt$import com.xianxia.sect.core.engine.service.*</ID>
+    <ID>WildcardImport:CoreModule.kt$import com.xianxia.sect.core.engine.system.*</ID>
+    <ID>WildcardImport:DomainStateProvider.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DomainStateProvider.kt$import com.xianxia.sect.core.model.domain.*</ID>
+    <ID>WildcardImport:GameActivity.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GameActivity.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:GameActivity.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GameStateStoreImpl.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PrivacyConsentScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PrivacyConsentScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PrivacyConsentScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SaveSelectScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SaveSelectScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SaveSelectScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:UnifiedGameStateManager.kt$import com.xianxia.sect.core.model.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

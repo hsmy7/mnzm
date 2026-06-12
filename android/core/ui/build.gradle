@@ -1,0 +1,42 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.ui'
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeCompiler {
+        enableStrongSkippingMode = true
+        stabilityConfigurationFile = rootProject.file("stability_config.conf")
+    }
+}
+
+dependencies {
+    api project(':core:domain')
+
+    // AndroidX Core (WindowCompat, etc.)
+    implementation libs.core.ktx
+    implementation libs.appcompat
+
+    // Activity Compose (BackHandler, etc.)
+    implementation libs.activity.compose
+
+    // Jetpack Compose
+    implementation platform(libs.compose.bom)
+    implementation libs.compose.ui
+    implementation libs.compose.ui.graphics
+    implementation libs.compose.ui.tooling.preview
+    implementation libs.compose.material3
+    implementation libs.compose.material.icons.core
+    debugImplementation libs.compose.ui.tooling
+}
