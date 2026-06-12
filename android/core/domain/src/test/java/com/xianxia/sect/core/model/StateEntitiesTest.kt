@@ -47,25 +47,25 @@ class StateEntitiesTest {
     }
 
     @Test
-    fun sectPolicyState_monthlySalaryDefaults() {
+    fun sectPolicyState_yearlySalaryDefaults() {
         val state = SectPolicyState()
-        val salary = state.monthlySalary
-        assertEquals(20, salary[9])
-        assertEquals(60, salary[8])
-        assertEquals(100, salary[7])
-        assertEquals(160, salary[6])
-        assertEquals(220, salary[5])
-        assertEquals(360, salary[4])
-        assertEquals(440, salary[3])
-        assertEquals(560, salary[2])
-        assertEquals(720, salary[1])
-        assertEquals(1000, salary[0])
+        val salary = state.yearlySalary
+        assertEquals(240, salary[9])
+        assertEquals(720, salary[8])
+        assertEquals(1200, salary[7])
+        assertEquals(1920, salary[6])
+        assertEquals(2640, salary[5])
+        assertEquals(4320, salary[4])
+        assertEquals(5280, salary[3])
+        assertEquals(6720, salary[2])
+        assertEquals(8640, salary[1])
+        assertEquals(12000, salary[0])
     }
 
     @Test
-    fun sectPolicyState_monthlySalaryEnabledDefaults() {
+    fun sectPolicyState_yearlySalaryEnabledDefaults() {
         val state = SectPolicyState()
-        val enabled = state.monthlySalaryEnabled
+        val enabled = state.yearlySalaryEnabled
         for (realm in 0..9) {
             assertTrue("Realm $realm should be enabled", enabled[realm] == true)
         }

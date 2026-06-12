@@ -745,18 +745,18 @@ class GameViewModel @Inject constructor(
     fun removePlantFromSpiritField(buildingInstanceId: String) =
         planting.removePlantFromSpiritField(buildingInstanceId)
 
-    fun setMonthlySalary(realm: Int, amount: Int) {
+    fun setYearlySalary(realm: Int, amount: Int) {
         viewModelScope.launch {
             val data = gameEngine.gameData.value
-            val newSalary = data.monthlySalary.toMutableMap()
+            val newSalary = data.yearlySalary.toMutableMap()
             newSalary[realm] = amount
-            gameEngine.updateMonthlySalary(newSalary)
+            gameEngine.updateYearlySalary(newSalary)
         }
     }
 
-    fun setMonthlySalaryEnabled(realm: Int, enabled: Boolean) {
+    fun setYearlySalaryEnabled(realm: Int, enabled: Boolean) {
         viewModelScope.launch {
-            discipleFacade.updateMonthlySalaryEnabled(realm, enabled)
+            discipleFacade.updateYearlySalaryEnabled(realm, enabled)
         }
     }
 

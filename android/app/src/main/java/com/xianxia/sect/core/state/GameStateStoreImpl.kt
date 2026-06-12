@@ -194,8 +194,8 @@ class GameStateStoreImpl @Inject constructor(
         .map { gd ->
             GameStateStore.ConfigState(
                 sectPolicies = gd.sectPolicies,
-                monthlySalary = gd.monthlySalary,
-                monthlySalaryEnabled = gd.monthlySalaryEnabled,
+                yearlySalary = gd.yearlySalary,
+                yearlySalaryEnabled = gd.yearlySalaryEnabled,
                 elderSlots = gd.elderSlots,
                 placedBuildings = gd.placedBuildings,
                 autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
@@ -980,8 +980,8 @@ class GameStateStoreImpl @Inject constructor(
             gamePhase = oldState.gamePhase,
             gameSpeed = oldState.gameSpeed,
             autoSaveIntervalMonths = oldState.autoSaveIntervalMonths,
-            monthlySalary = oldState.monthlySalary,
-            monthlySalaryEnabled = oldState.monthlySalaryEnabled,
+            yearlySalary = oldState.yearlySalary,
+            yearlySalaryEnabled = oldState.yearlySalaryEnabled,
             placedBuildings = oldState.placedBuildings,
             elderSlots = c.getValue("elderSlots")(origin, shadow, oldState) as ElderSlots,
             librarySlots = c.getValue("librarySlots")(origin, shadow, oldState) as List<LibrarySlot>,

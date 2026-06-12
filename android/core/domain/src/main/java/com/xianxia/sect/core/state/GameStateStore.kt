@@ -60,8 +60,8 @@ interface GameStateStore : GameStateSnapshotProvider {
 
     data class ConfigState(
         val sectPolicies: SectPolicies = SectPolicies(),
-        val monthlySalary: Map<Int, Int> = emptyMap(),
-        val monthlySalaryEnabled: Map<Int, Boolean> = emptyMap(),
+        val yearlySalary: Map<Int, Int> = emptyMap(),
+        val yearlySalaryEnabled: Map<Int, Boolean> = emptyMap(),
         val elderSlots: ElderSlots? = null,
         val placedBuildings: List<GridBuildingData> = emptyList(),
         val autoRecruitSpiritRootFilter: Set<Int> = emptySet(),

@@ -84,26 +84,26 @@ class GameDataTest {
     }
 
     @Test
-    fun gameData_defaultConstruction_monthlySalary() {
+    fun gameData_defaultConstruction_yearlySalary() {
         val data = GameData()
-        assertEquals(10, data.monthlySalary.size)
-        assertEquals(20, data.monthlySalary[9])
-        assertEquals(60, data.monthlySalary[8])
-        assertEquals(100, data.monthlySalary[7])
-        assertEquals(160, data.monthlySalary[6])
-        assertEquals(220, data.monthlySalary[5])
-        assertEquals(360, data.monthlySalary[4])
-        assertEquals(440, data.monthlySalary[3])
-        assertEquals(560, data.monthlySalary[2])
-        assertEquals(720, data.monthlySalary[1])
-        assertEquals(1000, data.monthlySalary[0])
+        assertEquals(10, data.yearlySalary.size)
+        assertEquals(240, data.yearlySalary[9])
+        assertEquals(720, data.yearlySalary[8])
+        assertEquals(1200, data.yearlySalary[7])
+        assertEquals(1920, data.yearlySalary[6])
+        assertEquals(2640, data.yearlySalary[5])
+        assertEquals(4320, data.yearlySalary[4])
+        assertEquals(5280, data.yearlySalary[3])
+        assertEquals(6720, data.yearlySalary[2])
+        assertEquals(8640, data.yearlySalary[1])
+        assertEquals(12000, data.yearlySalary[0])
     }
 
     @Test
-    fun gameData_defaultConstruction_monthlySalaryEnabled() {
+    fun gameData_defaultConstruction_yearlySalaryEnabled() {
         val data = GameData()
-        assertEquals(10, data.monthlySalaryEnabled.size)
-        data.monthlySalaryEnabled.values.forEach {
+        assertEquals(10, data.yearlySalaryEnabled.size)
+        data.yearlySalaryEnabled.values.forEach {
             assertTrue(it)
         }
     }
