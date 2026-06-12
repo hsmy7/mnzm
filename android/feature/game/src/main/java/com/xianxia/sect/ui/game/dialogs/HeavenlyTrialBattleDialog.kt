@@ -44,8 +44,8 @@ fun HeavenlyTrialBattleDialog(
 ) {
     val config = remember(levelIndex) { HeavenlyTrialConfig.getLevel(levelIndex) }
 
-    val phase1Enemies = remember(levelIndex) { viewModel.trialService.getEnemiesForPhase(levelIndex, 0) }
-    val phase2Enemies = remember(levelIndex) { viewModel.trialService.getEnemiesForPhase(levelIndex, 1) }
+    val phase1Enemies = viewModel.trialService.getEnemiesForPhase(levelIndex, 0)
+    val phase2Enemies = viewModel.trialService.getEnemiesForPhase(levelIndex, 1)
 
     var selectedPhaseIndex by remember { mutableStateOf(0) }
     var selectedEnemyIndex by remember { mutableStateOf(0) }

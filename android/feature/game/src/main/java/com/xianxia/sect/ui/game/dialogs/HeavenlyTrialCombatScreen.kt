@@ -395,12 +395,16 @@ private fun CombatUnitCell(
     ) {
         if (combatant != null && !combatant.isDead) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // 气血文字
-                Text(
-                    "${combatant.hp}/${combatant.maxHp}",
-                    fontSize = 9.sp,
-                    color = Color.White
-                )
+                // 气血文字 / 晕眩状态
+                if (combatant.hasControlEffect) {
+                    Text("晕眩", fontSize = 9.sp, color = Color.Red)
+                } else {
+                    Text(
+                        "${combatant.hp}/${combatant.maxHp}",
+                        fontSize = 9.sp,
+                        color = Color.White
+                    )
+                }
                 Spacer(Modifier.height(2.dp))
 
                 // 血条（宽度与图标一致）

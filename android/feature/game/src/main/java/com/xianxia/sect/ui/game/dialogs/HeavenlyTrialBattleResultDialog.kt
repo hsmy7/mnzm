@@ -29,7 +29,8 @@ fun HeavenlyTrialBattleResultDialog(
         title = if (won) "战斗胜利" else "战斗失败",
         mode = DialogMode.Half,
         titleColor = if (won) GameColors.Gold else GameColors.Error,
-        showCloseButton = false
+        showCloseButton = false,
+        scrollableContent = false
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -41,16 +42,16 @@ fun HeavenlyTrialBattleResultDialog(
                 fontSize = 14.sp,
                 color = Color.Black
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(5.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
                     .height(1.dp)
                     .background(Color.Gray)
             )
-            Spacer(Modifier.height(16.dp))
-            GameButton("确认", onClick = onDismiss)
             Spacer(Modifier.weight(1f))
+            GameButton("确认", onClick = onDismiss)
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
