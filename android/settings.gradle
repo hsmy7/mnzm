@@ -22,6 +22,21 @@ dependencyResolutionManagement {
     }
 }
 
+// ============================================================
+// Remote Build Cache (团队场景启用)
+// 信任梯度: 开发者只读 → Pre-merge CI 只读 → Post-merge CI 推送
+// ============================================================
+// buildCache {
+//     local {
+//         isEnabled = true
+//         removeUnusedEntriesAfterDays = 7
+//     }
+//     remote(HttpBuildCache) {
+//         url = uri("https://your-cache-server/cache/")
+//         isPush = System.getenv("CI") == "true"
+//     }
+// }
+
 rootProject.name = "XianxiaSect"
 include ':app'
 include ':baselineprofile'

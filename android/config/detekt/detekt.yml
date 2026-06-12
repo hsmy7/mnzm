@@ -5,6 +5,10 @@ style:
     active: true
   MagicNumber:
     active: false            # 游戏数学常量
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - 'Composable'         # Compose 函数使用 PascalCase
 complexity:
   TooManyFunctions:
     active: true
@@ -12,6 +16,6 @@ complexity:
   LongParameterList:
     functionThreshold: 6
     constructorThreshold: 7
-exceptions:
+empty-blocks:
   EmptyCatchBlock:
     active: true             # 禁止空 catch 块

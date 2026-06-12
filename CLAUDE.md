@@ -445,9 +445,9 @@ complexity:
   LongParameterList:
     functionThreshold: 6
     constructorThreshold: 7
-exceptions:
+empty-blocks:
   EmptyCatchBlock:
-    active: true            # 已启用
+    active: true            # 已启用 (detekt 1.23+ 规则集为 empty-blocks)
 ```
 
 ---
