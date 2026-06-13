@@ -17,6 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.ui.components.getRewardSprite
 import kotlinx.coroutines.delay
@@ -41,16 +42,19 @@ fun RewardCardHost(
         contentAlignment = Alignment.Center
     ) {
         // 所有卡片叠加在中心，依次弹出向上飘散
+        // zIndex 控制绘制顺序：先出现的卡片在上层，避免后出现的卡片遮盖已飞出的卡片
         rewardCards.forEachIndexed { index, item ->
             key(item.id) {
-                AnimatedRewardCard(
-                item = item,
-                staggerMs = index * staggerInterval,
-                cardIndex = index,
-                totalCards = rewardCards.size,
-                showTopDivider = true,
-                onAllDone = { onAnimationComplete() }
-                )
+                Box(modifier = Modifier.zIndex((-index).toFloat())) {
+                    AnimatedRewardCard(
+                    item = item,
+                    staggerMs = index * staggerInterval,
+                    cardIndex = index,
+                    totalCards = rewardCards.size,
+                    showTopDivider = true,
+                    onAllDone = { onAnimationComplete() }
+                    )
+                }
             }
         }
     }
