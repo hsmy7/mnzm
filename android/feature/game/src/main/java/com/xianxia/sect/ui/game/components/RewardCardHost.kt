@@ -34,7 +34,7 @@ fun RewardCardHost(
     if (rewardCards.isEmpty()) return
 
     // 弹出间隔 100ms，匀速上飘 0→-900px 耗时 1600ms
-    val staggerInterval = 100L
+    val staggerInterval = 200L
     val totalMs = rewardCards.size * staggerInterval + 2800L
 
     Box(
@@ -113,7 +113,7 @@ private fun AnimatedRewardCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp),
+                .wrapContentHeight(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {

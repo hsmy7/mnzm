@@ -37,7 +37,7 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.components.RewardDisplayDialog
+
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
@@ -209,13 +209,10 @@ fun MailDialog(
         )
     }
 
-    if (mailRewardCards.isNotEmpty()) {
-        RewardDisplayDialog(
-            title = "邮件奖励",
-            cards = mailRewardCards,
-            confirmLabel = "确定",
-            onConfirm = { viewModel.enqueueMailRewardCards() }
-        )
+    LaunchedEffect(mailRewardCards) {
+        if (mailRewardCards.isNotEmpty()) {
+            viewModel.enqueueMailRewardCards()
+        }
     }
 }
 

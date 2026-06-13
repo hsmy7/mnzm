@@ -396,20 +396,24 @@ internal fun WarehouseTab(
                     selectedItemId = null
                 },
                 extraActions = {
-                    if (!isLocked) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (!isLocked) {
+                            GameButton(
+                                text = "售卖",
+                                onClick = { showSellDialog = true }
+                            )
+                        }
                         GameButton(
-                            text = "售卖",
-                            onClick = { showSellDialog = true }
+                            text = if (isLocked) "已锁定" else "锁定",
+                            onClick = { viewModel.toggleItemLock(itemId, itemType) }
+                        )
+                        GameButton(
+                            text = "赏赐",
+                            onClick = { showDiscipleSelectDialog = true }
                         )
                     }
-                    GameButton(
-                        text = if (isLocked) "已锁定" else "锁定",
-                        onClick = { viewModel.toggleItemLock(itemId, itemType) }
-                    )
-                    GameButton(
-                        text = "赏赐",
-                        onClick = { showDiscipleSelectDialog = true }
-                    )
                 }
             )
 
