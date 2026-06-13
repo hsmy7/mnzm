@@ -88,16 +88,17 @@ fun RelationsDialog(
     allDisciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit
 ) {
+    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
     val partner = remember(disciple.partnerId, allDisciples) {
-        disciple.partnerId?.let { id -> allDisciples.find { it.id == id } }
+        disciple.partnerId?.let { id -> discipleMap[id] }
     }
 
     val parent1 = remember(disciple.parentId1, allDisciples) {
-        disciple.parentId1?.let { id -> allDisciples.find { it.id == id } }
+        disciple.parentId1?.let { id -> discipleMap[id] }
     }
 
     val parent2 = remember(disciple.parentId2, allDisciples) {
-        disciple.parentId2?.let { id -> allDisciples.find { it.id == id } }
+        disciple.parentId2?.let { id -> discipleMap[id] }
     }
 
     val children = remember(disciple.id, allDisciples) {

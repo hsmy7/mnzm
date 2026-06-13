@@ -27,22 +27,22 @@ object DiscipleEquipmentManager {
         SlotConfig(
             slotType = EquipmentSlot.WEAPON,
             currentEquipIdGetter = { it.equipment.weaponId },
-            equipSetter = { d, id -> d.copyWith(weaponId = id) }
+            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(weaponId = id)) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.ARMOR,
             currentEquipIdGetter = { it.equipment.armorId },
-            equipSetter = { d, id -> d.copyWith(armorId = id) }
+            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(armorId = id)) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.BOOTS,
             currentEquipIdGetter = { it.equipment.bootsId },
-            equipSetter = { d, id -> d.copyWith(bootsId = id) }
+            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(bootsId = id)) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.ACCESSORY,
             currentEquipIdGetter = { it.equipment.accessoryId },
-            equipSetter = { d, id -> d.copyWith(accessoryId = id) }
+            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(accessoryId = id)) }
         )
     )
 
@@ -164,8 +164,10 @@ object DiscipleEquipmentManager {
 
         updatedDisciple = config.equipSetter(updatedDisciple, instanceId)
 
-        updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, bestStack.id)
+        updatedDisciple = updatedDisciple.copy(
+            equipment = updatedDisciple.equipment.copy(
+                storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, bestStack.id)
+            )
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"

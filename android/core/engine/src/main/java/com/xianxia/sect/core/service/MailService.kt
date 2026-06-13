@@ -529,11 +529,11 @@ class MailService @Inject constructor(
                 }
                 "disciple" -> {
                     val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
-                    val usedNames = state.disciples.map { it.name }.toMutableSet()
+                    val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
                     repeat(attachment.quantity.coerceAtLeast(1)) {
                         val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
                         disciple.usage.recruitedMonth = currentMonthValue
-                        state.disciples = state.disciples + disciple
+                        state.discipleTables.insert(disciple)
                         usedNames.add(disciple.name)
                     }
                 }

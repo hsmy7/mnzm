@@ -44,14 +44,15 @@ class InventoryFacadeImpl @Inject constructor(
 
     override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
         stateStore.update {
-            val disciple = disciples.find { it.id == discipleId } ?: return@update
-            var updatedDisciple = disciple
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
+            val disciple = discipleTables.assemble(id)
 
             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                 disciple.equipment.storageBagItems, item.itemId, 1
             )
-            updatedDisciple = updatedDisciple.copy(
-                equipment = updatedDisciple.equipment.copy(storageBagItems = updatedItems)
+            val updatedDisciple = disciple.copy(
+                equipment = disciple.equipment.copy(storageBagItems = updatedItems)
             )
 
             when (item.itemType.lowercase(java.util.Locale.getDefault())) {
@@ -72,28 +73,22 @@ class InventoryFacadeImpl @Inject constructor(
                             description = template.description,
                             minRealm = com.xianxia.sect.core.GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
-                        equipmentStacks = equipmentStacks.toMutableList().apply {
-                            val existing = find { it.name == stack.name && it.rarity == stack.rarity }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(stack.copy(quantity = 1))
-                            }
+                        val existingEqStack = equipmentStacks.all().find { it.name == stack.name && it.rarity == stack.rarity }
+                        if (existingEqStack != null) {
+                            equipmentStacks.update(existingEqStack.id) { it.copy(quantity = it.quantity + 1) }
+                        } else {
+                            equipmentStacks.add(stack.copy(quantity = 1))
                         }
                     }
                 }
                 "manual" -> {
                     val template = com.xianxia.sect.core.registry.ManualDatabase.getByName(item.name)
                     if (template != null) {
-                        manualStacks = manualStacks.toMutableList().apply {
-                            val existing = find { it.name == template.name && it.rarity == template.rarity }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(com.xianxia.sect.core.registry.ManualDatabase.createFromTemplate(template).copy(quantity = 1))
-                            }
+                        val existingManualStack = manualStacks.all().find { it.name == template.name && it.rarity == template.rarity }
+                        if (existingManualStack != null) {
+                            manualStacks.update(existingManualStack.id) { it.copy(quantity = it.quantity + 1) }
+                        } else {
+                            manualStacks.add(com.xianxia.sect.core.registry.ManualDatabase.createFromTemplate(template).copy(quantity = 1))
                         }
                     }
                 }
@@ -102,72 +97,60 @@ class InventoryFacadeImpl @Inject constructor(
                         ?: com.xianxia.sect.core.registry.ItemDatabase.getPillByName(item.name)
                     if (template != null) {
                         val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)
-                        pills = pills.toMutableList().apply {
-                            val existing = find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
-                            if (existing != null) {
-                                val idx = indexOf(existing)
-                                set(idx, existing.copy(quantity = existing.quantity + 1))
-                            } else {
-                                add(pill)
-                            }
+                        val existingPill = pills.all().find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
+                        if (existingPill != null) {
+                            pills.update(existingPill.id) { it.copy(quantity = it.quantity + 1) }
+                        } else {
+                            pills.add(pill)
                         }
                     }
                 }
                 "herb" -> {
                     val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(item.name)
-                    herbs = herbs.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Herb(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = herbTemplate?.description ?: "",
-                                category = herbTemplate?.category ?: "",
-                                quantity = 1
-                            ))
-                        }
+                    val existingHerb = herbs.all().find { it.name == item.name && it.rarity == item.rarity }
+                    if (existingHerb != null) {
+                        herbs.update(existingHerb.id) { it.copy(quantity = it.quantity + 1) }
+                    } else {
+                        herbs.add(Herb(
+                            name = item.name,
+                            rarity = item.rarity,
+                            description = herbTemplate?.description ?: "",
+                            category = herbTemplate?.category ?: "",
+                            quantity = 1
+                        ))
                     }
                 }
                 "seed" -> {
-                    seeds = seeds.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Seed(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = "",
-                                growTime = 0,
-                                quantity = 1
-                            ))
-                        }
+                    val existingSeed = seeds.all().find { it.name == item.name && it.rarity == item.rarity }
+                    if (existingSeed != null) {
+                        seeds.update(existingSeed.id) { it.copy(quantity = it.quantity + 1) }
+                    } else {
+                        seeds.add(Seed(
+                            name = item.name,
+                            rarity = item.rarity,
+                            description = "",
+                            growTime = 0,
+                            quantity = 1
+                        ))
                     }
                 }
                 "material" -> {
                     val matTemplate = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
-                    materials = materials.toMutableList().apply {
-                        val existing = find { it.name == item.name && it.rarity == item.rarity }
-                        if (existing != null) {
-                            val idx = indexOf(existing)
-                            set(idx, existing.copy(quantity = existing.quantity + 1))
-                        } else {
-                            add(Material(
-                                name = item.name,
-                                rarity = item.rarity,
-                                description = matTemplate?.description ?: "",
-                                quantity = 1
-                            ))
-                        }
+                    val existingMat = materials.all().find { it.name == item.name && it.rarity == item.rarity }
+                    if (existingMat != null) {
+                        materials.update(existingMat.id) { it.copy(quantity = it.quantity + 1) }
+                    } else {
+                        materials.add(Material(
+                            name = item.name,
+                            rarity = item.rarity,
+                            description = matTemplate?.description ?: "",
+                            quantity = 1
+                        ))
                     }
                 }
             }
 
-            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
+            discipleTables.update(updatedDisciple)
         }
     }
 
@@ -197,13 +180,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val stack = equipmentStacks.find { it.id == equipmentId }
+            val stack = equipmentStacks.get(equipmentId)
             if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
-                equipmentStacks = equipmentStacks.mapNotNull { s ->
-                    if (s.id == equipmentId) {
-                        val newQty = s.quantity - quantity
-                        if (newQty == 0) null else s.copy(quantity = newQty)
-                    } else s
+                val newQty = stack.quantity - quantity
+                if (newQty <= 0) {
+                    equipmentStacks.remove(equipmentId)
+                } else {
+                    equipmentStacks.update(equipmentId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
                 success = true
@@ -215,13 +198,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellManual(manualId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val stack = manualStacks.find { it.id == manualId }
+            val stack = manualStacks.get(manualId)
             if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
-                manualStacks = manualStacks.mapNotNull { s ->
-                    if (s.id == manualId) {
-                        val newQty = s.quantity - quantity
-                        if (newQty == 0) null else s.copy(quantity = newQty)
-                    } else s
+                val newQty = stack.quantity - quantity
+                if (newQty <= 0) {
+                    manualStacks.remove(manualId)
+                } else {
+                    manualStacks.update(manualId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
                 success = true
@@ -233,13 +216,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellPill(pillId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val pill = pills.find { it.id == pillId }
+            val pill = pills.get(pillId)
             if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
-                pills = pills.mapNotNull { p ->
-                    if (p.id == pillId) {
-                        val newQty = p.quantity - quantity
-                        if (newQty == 0) null else p.copy(quantity = newQty)
-                    } else p
+                val newQty = pill.quantity - quantity
+                if (newQty <= 0) {
+                    pills.remove(pillId)
+                } else {
+                    pills.update(pillId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(pill.basePrice, quantity))
                 success = true
@@ -251,13 +234,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellMaterial(materialId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val material = materials.find { it.id == materialId }
+            val material = materials.get(materialId)
             if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                materials = materials.mapNotNull { m ->
-                    if (m.id == materialId) {
-                        val newQty = m.quantity - quantity
-                        if (newQty == 0) null else m.copy(quantity = newQty)
-                    } else m
+                val newQty = material.quantity - quantity
+                if (newQty <= 0) {
+                    materials.remove(materialId)
+                } else {
+                    materials.update(materialId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(material.basePrice, quantity))
                 success = true
@@ -269,13 +252,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellHerb(herbId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val herb = herbs.find { it.id == herbId }
+            val herb = herbs.get(herbId)
             if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                herbs = herbs.mapNotNull { h ->
-                    if (h.id == herbId) {
-                        val newQty = h.quantity - quantity
-                        if (newQty == 0) null else h.copy(quantity = newQty)
-                    } else h
+                val newQty = herb.quantity - quantity
+                if (newQty <= 0) {
+                    herbs.remove(herbId)
+                } else {
+                    herbs.update(herbId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(herb.basePrice, quantity))
                 success = true
@@ -287,13 +270,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun sellSeed(seedId: String, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val seed = seeds.find { it.id == seedId }
+            val seed = seeds.get(seedId)
             if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                seeds = seeds.mapNotNull { s ->
-                    if (s.id == seedId) {
-                        val newQty = s.quantity - quantity
-                        if (newQty == 0) null else s.copy(quantity = newQty)
-                    } else s
+                val newQty = seed.quantity - quantity
+                if (newQty <= 0) {
+                    seeds.remove(seedId)
+                } else {
+                    seeds.update(seedId) { it.copy(quantity = newQty) }
                 }
                 gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(seed.basePrice, quantity))
                 success = true
@@ -305,13 +288,13 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean {
         var success = false
         stateStore.update {
-            val material = materials.find { it.name == name && it.rarity == rarity }
+            val material = materials.all().find { it.name == name && it.rarity == rarity }
             if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                materials = materials.mapNotNull { m ->
-                    if (m.id == material.id) {
-                        val newQty = m.quantity - quantity
-                        if (newQty == 0) null else m.copy(quantity = newQty)
-                    } else m
+                val newQty = material.quantity - quantity
+                if (newQty <= 0) {
+                    materials.remove(material.id)
+                } else {
+                    materials.update(material.id) { it.copy(quantity = newQty) }
                 }
                 success = true
             }
@@ -332,78 +315,78 @@ class InventoryFacadeImpl @Inject constructor(
                 var sold = false
                 when (op.itemType) {
                     "equipment" -> {
-                        val stack = equipmentStacks.find { it.id == op.id }
+                        val stack = equipmentStacks.get(op.id)
                         if (stack != null && !stack.isLocked && op.quantity in 1..stack.quantity) {
-                            equipmentStacks = equipmentStacks.mapNotNull { s ->
-                                if (s.id == op.id) {
-                                    val newQty = s.quantity - op.quantity
-                                    if (newQty == 0) null else s.copy(quantity = newQty)
-                                } else s
+                            val newQty = stack.quantity - op.quantity
+                            if (newQty <= 0) {
+                                equipmentStacks.remove(op.id)
+                            } else {
+                                equipmentStacks.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(stack.basePrice, op.quantity)
                             soldCount++; sold = true
                         }
                     }
                     "manual" -> {
-                        val stack = manualStacks.find { it.id == op.id }
+                        val stack = manualStacks.get(op.id)
                         if (stack != null && !stack.isLocked && op.quantity in 1..stack.quantity) {
-                            manualStacks = manualStacks.mapNotNull { s ->
-                                if (s.id == op.id) {
-                                    val newQty = s.quantity - op.quantity
-                                    if (newQty == 0) null else s.copy(quantity = newQty)
-                                } else s
+                            val newQty = stack.quantity - op.quantity
+                            if (newQty <= 0) {
+                                manualStacks.remove(op.id)
+                            } else {
+                                manualStacks.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(stack.basePrice, op.quantity)
                             soldCount++; sold = true
                         }
                     }
                     "pill" -> {
-                        val pill = pills.find { it.id == op.id }
+                        val pill = pills.get(op.id)
                         if (pill != null && !pill.isLocked && op.quantity in 1..pill.quantity) {
-                            pills = pills.mapNotNull { p ->
-                                if (p.id == op.id) {
-                                    val newQty = p.quantity - op.quantity
-                                    if (newQty == 0) null else p.copy(quantity = newQty)
-                                } else p
+                            val newQty = pill.quantity - op.quantity
+                            if (newQty <= 0) {
+                                pills.remove(op.id)
+                            } else {
+                                pills.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(pill.basePrice, op.quantity)
                             soldCount++; sold = true
                         }
                     }
                     "material" -> {
-                        val material = materials.find { it.id == op.id }
+                        val material = materials.get(op.id)
                         if (material != null && !material.isLocked && op.quantity in 1..material.quantity) {
-                            materials = materials.mapNotNull { m ->
-                                if (m.id == op.id) {
-                                    val newQty = m.quantity - op.quantity
-                                    if (newQty == 0) null else m.copy(quantity = newQty)
-                                } else m
+                            val newQty = material.quantity - op.quantity
+                            if (newQty <= 0) {
+                                materials.remove(op.id)
+                            } else {
+                                materials.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(material.basePrice, op.quantity)
                             soldCount++; sold = true
                         }
                     }
                     "herb" -> {
-                        val herb = herbs.find { it.id == op.id }
+                        val herb = herbs.get(op.id)
                         if (herb != null && !herb.isLocked && op.quantity in 1..herb.quantity) {
-                            herbs = herbs.mapNotNull { h ->
-                                if (h.id == op.id) {
-                                    val newQty = h.quantity - op.quantity
-                                    if (newQty == 0) null else h.copy(quantity = newQty)
-                                } else h
+                            val newQty = herb.quantity - op.quantity
+                            if (newQty <= 0) {
+                                herbs.remove(op.id)
+                            } else {
+                                herbs.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(herb.basePrice, op.quantity)
                             soldCount++; sold = true
                         }
                     }
                     "seed" -> {
-                        val seed = seeds.find { it.id == op.id }
+                        val seed = seeds.get(op.id)
                         if (seed != null && !seed.isLocked && op.quantity in 1..seed.quantity) {
-                            seeds = seeds.mapNotNull { s ->
-                                if (s.id == op.id) {
-                                    val newQty = s.quantity - op.quantity
-                                    if (newQty == 0) null else s.copy(quantity = newQty)
-                                } else s
+                            val newQty = seed.quantity - op.quantity
+                            if (newQty <= 0) {
+                                seeds.remove(op.id)
+                            } else {
+                                seeds.update(op.id) { it.copy(quantity = newQty) }
                             }
                             totalEarned += GameConfig.Rarity.calculateSellPrice(seed.basePrice, op.quantity)
                             soldCount++; sold = true
@@ -425,12 +408,12 @@ class InventoryFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 when (itemType) {
-                    "equipment" -> equipmentStacks = equipmentStacks.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
-                    "manual" -> manualStacks = manualStacks.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
-                    "pill" -> pills = pills.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
-                    "material" -> materials = materials.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
-                    "herb" -> herbs = herbs.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
-                    "seed" -> seeds = seeds.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
+                    "equipment" -> equipmentStacks.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "manual" -> manualStacks.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "pill" -> pills.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "material" -> materials.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "herb" -> herbs.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "seed" -> seeds.update(itemId) { it.copy(isLocked = !it.isLocked) }
                 }
             }
         }
@@ -483,60 +466,60 @@ class InventoryFacadeImpl @Inject constructor(
             when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
                     val stack = MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
-                    val existing = equipmentStacks.find { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot }
+                    val existing = equipmentStacks.all().find { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot }
                     if (existing != null) {
-                        equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = it.quantity + stack.quantity) else it }
+                        equipmentStacks.update(existing.id) { it.copy(quantity = it.quantity + stack.quantity) }
                     } else {
-                        equipmentStacks = equipmentStacks + stack
+                        equipmentStacks.add(stack)
                     }
                 }
                 "manual" -> {
                     val stack = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                    val existing = manualStacks.find { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type }
+                    val existing = manualStacks.all().find { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type }
                     if (existing != null) {
-                        manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = it.quantity + stack.quantity) else it }
+                        manualStacks.update(existing.id) { it.copy(quantity = it.quantity + stack.quantity) }
                     } else {
-                        manualStacks = manualStacks + stack
+                        manualStacks.add(stack)
                     }
                 }
                 "pill" -> {
                     val p = MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
-                    val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
+                    val existing = pills.all().find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
                     if (existing != null) {
                         val newQty = (existing.quantity + p.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                        pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        pills.update(existing.id) { it.copy(quantity = newQty) }
                     } else {
-                        pills = pills + p
+                        pills.add(p)
                     }
                 }
                 "material" -> {
                     val m = MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
-                    val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
+                    val existing = materials.all().find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
                     if (existing != null) {
                         val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                        materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        materials.update(existing.id) { it.copy(quantity = newQty) }
                     } else {
-                        materials = materials + m
+                        materials.add(m)
                     }
                 }
                 "herb" -> {
                     val h = MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
-                    val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && h.category == h.category }
+                    val existing = herbs.all().find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
                     if (existing != null) {
                         val newQty = (existing.quantity + h.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                        herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        herbs.update(existing.id) { it.copy(quantity = newQty) }
                     } else {
-                        herbs = herbs + h
+                        herbs.add(h)
                     }
                 }
                 "seed" -> {
                     val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
+                    val existing = seeds.all().find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                     if (existing != null) {
                         val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                        seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        seeds.update(existing.id) { it.copy(quantity = newQty) }
                     } else {
-                        seeds = seeds + s
+                        seeds.add(s)
                     }
                 }
             }
@@ -566,34 +549,34 @@ class InventoryFacadeImpl @Inject constructor(
             var remaining = actualQuantity
             when (acquisitionItem.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
-                    equipmentStacks = removeMatching(equipmentStacks,
+                    equipmentStacks.replaceAll(removeMatching(equipmentStacks.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
-                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining))
                 }
                 "manual" -> {
-                    manualStacks = removeMatching(manualStacks,
+                    manualStacks.replaceAll(removeMatching(manualStacks.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
-                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining))
                 }
                 "pill" -> {
-                    pills = removeMatching(pills,
+                    pills.replaceAll(removeMatching(pills.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && it.grade.displayName == (acquisitionItem.grade ?: "") && !it.isLocked },
-                        { it.quantity }, { p, q -> p.copy(quantity = q) }, remaining)
+                        { it.quantity }, { p, q -> p.copy(quantity = q) }, remaining))
                 }
                 "material" -> {
-                    materials = removeMatching(materials,
+                    materials.replaceAll(removeMatching(materials.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
-                        { it.quantity }, { m, q -> m.copy(quantity = q) }, remaining)
+                        { it.quantity }, { m, q -> m.copy(quantity = q) }, remaining))
                 }
                 "herb" -> {
-                    herbs = removeMatching(herbs,
+                    herbs.replaceAll(removeMatching(herbs.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
-                        { it.quantity }, { h, q -> h.copy(quantity = q) }, remaining)
+                        { it.quantity }, { h, q -> h.copy(quantity = q) }, remaining))
                 }
                 "seed" -> {
-                    seeds = removeMatching(seeds,
+                    seeds.replaceAll(removeMatching(seeds.all(),
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
-                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining)
+                        { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining))
                 }
             }
 
@@ -644,50 +627,68 @@ class InventoryFacadeImpl @Inject constructor(
         val newItems = mutableListOf<MerchantItem>()
         stateStore.update {
             items.forEach { (itemId, quantity) ->
-                val eqStack = equipmentStacks.find { it.id == itemId }
+                val eqStack = equipmentStacks.get(itemId)
                 if (eqStack != null && !eqStack.isLocked && quantity in 1..eqStack.quantity) {
-                    equipmentStacks = equipmentStacks.mapNotNull { s ->
-                        if (s.id == itemId) { val n = s.quantity - quantity; if (n == 0) null else s.copy(quantity = n) } else s
+                    val n = eqStack.quantity - quantity
+                    if (n <= 0) {
+                        equipmentStacks.remove(itemId)
+                    } else {
+                        equipmentStacks.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = eqStack.name, type = "equipment", itemId = itemId, rarity = eqStack.rarity, price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1), quantity = quantity))
                     return@forEach
                 }
-                val manualStack = manualStacks.find { it.id == itemId }
+                val manualStack = manualStacks.get(itemId)
                 if (manualStack != null && !manualStack.isLocked && quantity in 1..manualStack.quantity) {
-                    manualStacks = manualStacks.mapNotNull { s ->
-                        if (s.id == itemId) { val n = s.quantity - quantity; if (n == 0) null else s.copy(quantity = n) } else s
+                    val n = manualStack.quantity - quantity
+                    if (n <= 0) {
+                        manualStacks.remove(itemId)
+                    } else {
+                        manualStacks.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = manualStack.name, type = "manual", itemId = itemId, rarity = manualStack.rarity, price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1), quantity = quantity))
                     return@forEach
                 }
-                val pill = pills.find { it.id == itemId }
+                val pill = pills.get(itemId)
                 if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
-                    pills = pills.mapNotNull { p ->
-                        if (p.id == itemId) { val n = p.quantity - quantity; if (n == 0) null else p.copy(quantity = n) } else p
+                    val n = pill.quantity - quantity
+                    if (n <= 0) {
+                        pills.remove(itemId)
+                    } else {
+                        pills.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = pill.name, type = "pill", itemId = itemId, rarity = pill.rarity, price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1), quantity = quantity, grade = pill.grade.displayName))
                     return@forEach
                 }
-                val material = materials.find { it.id == itemId }
+                val material = materials.get(itemId)
                 if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                    materials = materials.mapNotNull { m ->
-                        if (m.id == itemId) { val n = m.quantity - quantity; if (n == 0) null else m.copy(quantity = n) } else m
+                    val n = material.quantity - quantity
+                    if (n <= 0) {
+                        materials.remove(itemId)
+                    } else {
+                        materials.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = material.name, type = "material", itemId = itemId, rarity = material.rarity, price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1), quantity = quantity))
                     return@forEach
                 }
-                val herb = herbs.find { it.id == itemId }
+                val herb = herbs.get(itemId)
                 if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                    herbs = herbs.mapNotNull { h ->
-                        if (h.id == itemId) { val n = h.quantity - quantity; if (n == 0) null else h.copy(quantity = n) } else h
+                    val n = herb.quantity - quantity
+                    if (n <= 0) {
+                        herbs.remove(itemId)
+                    } else {
+                        herbs.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = herb.name, type = "herb", itemId = itemId, rarity = herb.rarity, price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1), quantity = quantity))
                     return@forEach
                 }
-                val seed = seeds.find { it.id == itemId }
+                val seed = seeds.get(itemId)
                 if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                    seeds = seeds.mapNotNull { s ->
-                        if (s.id == itemId) { val n = s.quantity - quantity; if (n == 0) null else s.copy(quantity = n) } else s
+                    val n = seed.quantity - quantity
+                    if (n <= 0) {
+                        seeds.remove(itemId)
+                    } else {
+                        seeds.update(itemId) { it.copy(quantity = n) }
                     }
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = seed.name, type = "seed", itemId = itemId, rarity = seed.rarity, price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1), quantity = quantity))
                     return@forEach
@@ -711,16 +712,16 @@ class InventoryFacadeImpl @Inject constructor(
                 inventorySystem.addManualStack(it.copy(quantity = (it.quantity + item.quantity)))
             }
             "pill" -> stateStore.pills.value.find { it.id == item.itemId }?.let {
-                stateStore.update { pills = pills.map { p -> if (p.id == item.itemId) p.copy(quantity = (p.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) else p } }
+                stateStore.update { pills.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) } }
             }
             "material" -> stateStore.materials.value.find { it.id == item.itemId }?.let {
-                stateStore.update { materials = materials.map { m -> if (m.id == item.itemId) m.copy(quantity = (m.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) else m } }
+                stateStore.update { materials.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) } }
             }
             "herb" -> stateStore.herbs.value.find { it.id == item.itemId }?.let {
-                stateStore.update { herbs = herbs.map { h -> if (h.id == item.itemId) h.copy(quantity = (h.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) else h } }
+                stateStore.update { herbs.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) } }
             }
             "seed" -> stateStore.seeds.value.find { it.id == item.itemId }?.let {
-                stateStore.update { seeds = seeds.map { s -> if (s.id == item.itemId) s.copy(quantity = (s.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) else s } }
+                stateStore.update { seeds.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) } }
             }
         }
         stateStore.update { gameData = gameData.copy(playerListedItems = gameData.playerListedItems.filter { it.id != itemId }) }
@@ -737,9 +738,9 @@ class InventoryFacadeImpl @Inject constructor(
 
         stateStore.update {
             if (bag.quantity <= 1) {
-                storageBags = storageBags.filter { it.id != bagId }
+                storageBags.remove(bagId)
             } else {
-                storageBags = storageBags.map { if (it.id == bagId) it.copy(quantity = it.quantity - 1) else it }
+                storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
             }
         }
 
@@ -748,7 +749,7 @@ class InventoryFacadeImpl @Inject constructor(
             when (type) {
                 0 -> {
                     val stack = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity, rarity)
-                    stateStore.update { equipmentStacks = equipmentStacks + stack }
+                    stateStore.update { equipmentStacks.add(stack) }
                     rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
                 }
                 1 -> {
@@ -756,7 +757,7 @@ class InventoryFacadeImpl @Inject constructor(
                         val templates = com.xianxia.sect.core.registry.ManualDatabase.getByRarity(rarity)
                         if (templates.isNotEmpty()) {
                             val stack = com.xianxia.sect.core.registry.ManualDatabase.createFromTemplate(templates.random())
-                            stateStore.update { manualStacks = manualStacks + stack }
+                            stateStore.update { manualStacks.add(stack) }
                             rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "manual"))
                         }
                     }
@@ -764,11 +765,11 @@ class InventoryFacadeImpl @Inject constructor(
                 2 -> {
                     val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity, rarity)
                     stateStore.update {
-                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category && it.grade == pill.grade }
+                        val existing = pills.all().find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category && it.grade == pill.grade }
                         if (existing != null) {
-                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                            pills.update(existing.id) { it.copy(quantity = it.quantity + 1) }
                         } else {
-                            pills = pills + pill
+                            pills.add(pill)
                         }
                     }
                     rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
@@ -779,14 +780,14 @@ class InventoryFacadeImpl @Inject constructor(
                         val h = templates.random()
                         var herbId = ""; var herbName = ""; var herbRarity = 0
                         stateStore.update {
-                            val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
+                            val existing = herbs.all().find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
                             if (existing != null) {
                                 herbId = existing.id; herbName = existing.name; herbRarity = existing.rarity
-                                herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                                herbs.update(existing.id) { it.copy(quantity = it.quantity + 1) }
                             } else {
                                 val newHerb = com.xianxia.sect.core.model.Herb(id = java.util.UUID.randomUUID().toString(), name = h.name, rarity = h.rarity, description = h.description, category = h.category, quantity = 1)
                                 herbId = newHerb.id; herbName = newHerb.name; herbRarity = newHerb.rarity
-                                herbs = herbs + newHerb
+                                herbs.add(newHerb)
                             }
                         }
                         rewards.add(BattleRewardItem(itemId = herbId, name = herbName, quantity = 1, rarity = herbRarity, type = "herb"))
@@ -798,14 +799,14 @@ class InventoryFacadeImpl @Inject constructor(
                         val s = templates.random()
                         var seedId = ""; var seedName = ""; var seedRarity = 0
                         stateStore.update {
-                            val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
+                            val existing = seeds.all().find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                             if (existing != null) {
                                 seedId = existing.id; seedName = existing.name; seedRarity = existing.rarity
-                                seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                                seeds.update(existing.id) { it.copy(quantity = it.quantity + 1) }
                             } else {
                                 val newSeed = com.xianxia.sect.core.model.Seed(id = java.util.UUID.randomUUID().toString(), name = s.name, rarity = s.rarity, description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)
                                 seedId = newSeed.id; seedName = newSeed.name; seedRarity = newSeed.rarity
-                                seeds = seeds + newSeed
+                                seeds.add(newSeed)
                             }
                         }
                         rewards.add(BattleRewardItem(itemId = seedId, name = seedName, quantity = 1, rarity = seedRarity, type = "seed"))
@@ -814,11 +815,11 @@ class InventoryFacadeImpl @Inject constructor(
                 5 -> {
                     val mat = com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(rarity, rarity)
                     stateStore.update {
-                        val existing = materials.find { it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category }
+                        val existing = materials.all().find { it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category }
                         if (existing != null) {
-                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = it.quantity + 1) else it }
+                            materials.update(existing.id) { it.copy(quantity = it.quantity + 1) }
                         } else {
-                            materials = materials + mat
+                            materials.add(mat)
                         }
                     }
                     rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity, type = "material"))

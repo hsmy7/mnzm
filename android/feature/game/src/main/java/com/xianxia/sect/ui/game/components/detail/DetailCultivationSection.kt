@@ -125,6 +125,7 @@ fun BasicInfoSection(
     placedBuildings: List<GridBuildingData> = emptyList(),
     viewModel: GameViewModel? = null
 ) {
+    val discipleMap = allDisciples.associateBy { it.id }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "基本信息",
@@ -180,10 +181,10 @@ fun BasicInfoSection(
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
             val breakthroughChance = disciple.getBreakthroughChance()
             val innerElderComp = elderSlots?.innerElder?.let { eid ->
-                allDisciples.find { it.id == eid }?.comprehension ?: 0
+                discipleMap[eid]?.comprehension ?: 0
             } ?: 0
             val outerElderComp = elderSlots?.outerElder?.let { eid ->
-                allDisciples.find { it.id == eid }?.comprehension ?: 0
+                discipleMap[eid]?.comprehension ?: 0
             } ?: 0
             val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
                 disciple,

@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
@@ -56,7 +56,7 @@ class DiscipleViewModel @Inject constructor(
     fun getSelectedDisciple(): DiscipleAggregate? {
         return try {
             _selectedDiscipleId.value?.let { id ->
-                disciples.value.find { it.id == id }
+                gameEngine.getDiscipleAggregate(id)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting selected disciple", e)
@@ -80,7 +80,7 @@ class DiscipleViewModel @Inject constructor(
         }
 
         return try {
-            disciples.value.find { it.id == id }
+            gameEngine.getDiscipleAggregate(id)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting disciple by id: $id", e)
             null

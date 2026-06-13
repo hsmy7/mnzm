@@ -32,7 +32,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
-    val allDisciples = stateStore.disciplesSnapshot
+    val allDisciples = stateStore.discipleTables.assembleAll()
     val attackers = attackSlots.mapNotNull { (_, agg) -> allDisciples.find { it.id == agg.id && it.isAlive } }
     if (attackers.isEmpty()) return
     val playerSect = data.worldMapSects.find { it.isPlayerSect }
@@ -68,7 +68,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     stateStore.update { battleLogs = updatedLogs }
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
         val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
-        stateStore.update { disciples = disciples.map { d -> if (d.id in sectSurvivorIds && d.isAlive) d.copyWith(soulPower = d.soulPower + 1) else d } }
+        stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables.isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }
         val warRewards: WarRewards
         if (battleResult.canOccupy) {
             val survivors = attackers.filter { it.id !in deadPlayerIds }
@@ -137,7 +137,7 @@ private fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewar
 
 suspend fun GameEngine.assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
     val data = stateStore.gameDataSnapshot
-    val disciple = stateStore.disciplesSnapshot.find { it.id == discipleId && it.isAlive } ?: return
+    val disciple = stateStore.discipleTables.assemble(discipleId.toInt()).takeIf { it.isAlive } ?: return
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
     if (targetSect.garrisonSlots.any { it.discipleId == discipleId }) return
     stateStore.update {
@@ -165,7 +165,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     if (level.defeated) return
     val validIds = discipleIds.filterNotNull()
     if (validIds.isEmpty()) return
-    val allDisciples = stateStore.disciplesSnapshot
+    val allDisciples = stateStore.discipleTables.assembleAll()
     val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return
     val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
@@ -176,13 +176,23 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val result = battleSystem.executeBattle(battle)
     val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
     val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
-    val updatedDisciples = stateStore.disciplesSnapshot.map { d ->
-        val (hp, mp) = hpMap[d.id] ?: return@map d
-        if (d.id !in survivorIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d.copy(combat = d.combat.copy(currentHp = hp.coerceIn(0, d.maxHp), currentMp = mp.coerceIn(0, d.maxMp)))
+    stateStore.update {
+        for (id in discipleTables.ids) {
+            val idStr = id.toString()
+            val (hp, mp) = hpMap[idStr] ?: continue
+            if (idStr !in survivorIds) {
+                discipleTables.isAlive[id] = 0
+                discipleTables.statuses[id] = DiscipleStatus.DEAD
+            } else {
+                val maxHp = discipleTables.baseHps[id]
+                val maxMp = discipleTables.baseMps[id]
+                discipleTables.currentHps[id] = hp.coerceIn(0, maxHp)
+                discipleTables.currentMps[id] = mp.coerceIn(0, maxMp)
+            }
+        }
     }
-    stateStore.update { disciples = updatedDisciples }
     val combatDiscipleIds = combatDisciples.map { it.id }.toSet()
-    val deadIds = updatedDisciples.filter { it.id in combatDiscipleIds && !it.isAlive }.map { it.id }.toSet()
+    val deadIds = stateStore.discipleTables.ids.filter { it.toString() in combatDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
     if (deadIds.isNotEmpty()) { try { combatService.processBattleCasualties(deadIds, emptyMap(), emptyMap(), isOutsideSect = true) } catch (e: Exception) { DomainLog.e("GameEngine", "processBattleCasualties failed for deadIds=$deadIds, continuing", e) } }
     val teamMembers = result.battle.team.map { m -> BattleLogMember(id = m.id, name = m.name, realm = m.realm, realmName = m.realmName, hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp, isAlive = !m.isDead, portraitRes = m.portraitRes) }
     val enemies = result.battle.beasts.map { b -> BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }
@@ -191,16 +201,36 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val existingLogs = stateStore.battleLogsSnapshot
     val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     if (result.victory) {
-        stateStore.update { disciples = disciples.map { d ->
-            if (d.id in survivorIds && d.isAlive) {
-                var modified = d.copyWith(soulPower = d.soulPower + 1)
-                if (modified.talentIds.any { id -> TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
-                    val r = kotlin.random.Random.nextInt(17); val s = modified.skills; val c = modified.combat
-                    when (r) { 0 -> s.intelligence++; 1 -> s.comprehension++; 2 -> s.charm++; 3 -> s.loyalty++; 4 -> s.artifactRefining++; 5 -> s.pillRefining++; 6 -> s.spiritPlanting++; 7 -> s.mining++; 8 -> s.teaching++; 9 -> s.morality++; 10 -> c.baseHp++; 11 -> c.baseMp++; 12 -> c.basePhysicalAttack++; 13 -> c.baseMagicAttack++; 14 -> c.basePhysicalDefense++; 15 -> c.baseMagicDefense++; 16 -> c.baseSpeed++ }
+        stateStore.update {
+            for (id in discipleTables.ids) {
+                val idStr = id.toString()
+                if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
+                    discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1
+                    if (discipleTables.talentIds[id].any { tid -> TalentDatabase.getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
+                        val r = kotlin.random.Random.nextInt(17)
+                        when (r) {
+                            0 -> discipleTables.intelligences[id] = discipleTables.intelligences[id] + 1
+                            1 -> discipleTables.comprehensions[id] = discipleTables.comprehensions[id] + 1
+                            2 -> discipleTables.charms[id] = discipleTables.charms[id] + 1
+                            3 -> discipleTables.loyalties[id] = discipleTables.loyalties[id] + 1
+                            4 -> discipleTables.artifactRefinings[id] = discipleTables.artifactRefinings[id] + 1
+                            5 -> discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id] + 1
+                            6 -> discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + 1
+                            7 -> discipleTables.minings[id] = discipleTables.minings[id] + 1
+                            8 -> discipleTables.teachings[id] = discipleTables.teachings[id] + 1
+                            9 -> discipleTables.moralities[id] = discipleTables.moralities[id] + 1
+                            10 -> discipleTables.baseHps[id] = discipleTables.baseHps[id] + 1
+                            11 -> discipleTables.baseMps[id] = discipleTables.baseMps[id] + 1
+                            12 -> discipleTables.basePhysicalAttacks[id] = discipleTables.basePhysicalAttacks[id] + 1
+                            13 -> discipleTables.baseMagicAttacks[id] = discipleTables.baseMagicAttacks[id] + 1
+                            14 -> discipleTables.basePhysicalDefenses[id] = discipleTables.basePhysicalDefenses[id] + 1
+                            15 -> discipleTables.baseMagicDefenses[id] = discipleTables.baseMagicDefenses[id] + 1
+                            16 -> discipleTables.baseSpeeds[id] = discipleTables.baseSpeeds[id] + 1
+                        }
+                    }
                 }
-                modified
-            } else d
-        } }
+            }
+        }
         val allRewards = mutableListOf<BattleRewardItem>()
         stateStore.update {
             if (level.isBeast) { allRewards.addAll(handleBeastLevelVictory(level)); val engineSsRewards = result.rewards["spiritStones"] ?: 0; if (engineSsRewards > 0) { addSpiritStones(engineSsRewards.toLong()); allRewards.add(BattleRewardItem(name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones")) } } else allRewards.addAll(handleCaveLevelVictory(level))
@@ -219,7 +249,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
-    val allDisciples = stateStore.disciplesSnapshot
+    val allDisciples = stateStore.discipleTables.assembleAll()
     val combatDisciples = memberIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return
     val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList()).filter { it.isAlive && it.realm in 7..9 }.shuffled().take(kotlin.random.Random.nextInt(5, 11))
@@ -248,15 +278,32 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     val result = battleSystem.executeBattle(battle)
     val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
     val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
-    val updatedDisciples = stateStore.disciplesSnapshot.map { d ->
-        val (hp, mp) = hpMap[d.id] ?: return@map d
-        if (d.id !in survivorIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d.copy(combat = d.combat.copy(currentHp = hp.coerceIn(0, d.maxHp), currentMp = mp.coerceIn(0, d.maxMp)))
+    stateStore.update {
+        for (id in discipleTables.ids) {
+            val idStr = id.toString()
+            val (hp, mp) = hpMap[idStr] ?: continue
+            if (idStr !in survivorIds) {
+                discipleTables.isAlive[id] = 0
+                discipleTables.statuses[id] = DiscipleStatus.DEAD
+            } else {
+                val maxHp = discipleTables.baseHps[id]
+                val maxMp = discipleTables.baseMps[id]
+                discipleTables.currentHps[id] = hp.coerceIn(0, maxHp)
+                discipleTables.currentMps[id] = mp.coerceIn(0, maxMp)
+            }
+        }
     }
     val scoutIds = memberIds.toSet()
-    val finalDisciples = updatedDisciples.map { d -> if (d.id in scoutIds && d.isAlive && d.status != DiscipleStatus.IDLE) d.copy(status = DiscipleStatus.IDLE) else d }
-    stateStore.update { disciples = finalDisciples }
+    stateStore.update {
+        for (id in discipleTables.ids) {
+            val idStr = id.toString()
+            if (idStr in scoutIds && discipleTables.isAlive[id] == 1 && discipleTables.statuses[id] != DiscipleStatus.IDLE) {
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+            }
+        }
+    }
     val scoutDiscipleIds = combatDisciples.map { it.id }.toSet()
-    val scoutDeadIds = finalDisciples.filter { it.id in scoutDiscipleIds && !it.isAlive }.map { it.id }.toSet()
+    val scoutDeadIds = stateStore.discipleTables.ids.filter { it.toString() in scoutDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
     if (scoutDeadIds.isNotEmpty()) combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)
     val teamMembers = result.battle.team.map { m -> BattleLogMember(id = m.id, name = m.name, realm = m.realm, realmName = m.realmName, hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp, isAlive = !m.isDead, portraitRes = m.portraitRes) }
     val enemies = aiCombatants.map { b -> BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }

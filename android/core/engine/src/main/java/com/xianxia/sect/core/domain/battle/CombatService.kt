@@ -9,9 +9,6 @@ import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,32 +19,8 @@ class CombatService @Inject constructor(
     private val battleSystem: BattleSystem,
     private val productionSlotRepository: ProductionSlotRepository,
 private val eventBus: EventBusPort,
-    private val scopeProvider: CoroutineScopeProvider,
     private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
 ) {
-    private val scope get() = scopeProvider.scope
-
-    private val state = StateAccessorFactory(stateStore, scope, null)
-
-    private var currentGameData: GameData
-        get() = state.gameData().current
-        set(value) { state.gameData().current = value }
-
-    private var currentDisciples: List<Disciple>
-        get() = state.disciples().current
-        set(value) { state.disciples().current = value }
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = state.equipmentInstances().current
-        set(value) { state.equipmentInstances().current = value }
-
-    private var currentManualInstances: List<ManualInstance>
-        get() = state.manualInstances().current
-        set(value) { state.manualInstances().current = value }
-
-    private var currentBattleLogs: List<BattleLog>
-        get() = state.battleLogs().current
-        set(value) { state.battleLogs().current = value }
 
     companion object {
         private const val TAG = "CombatService"
@@ -70,11 +43,12 @@ private val eventBus: EventBusPort,
         aiTeam: AICaveTeam
     ): BattleSystemResult {
         // 战斗前兜底：先结算参战弟子气血灵力恢复
-        cultivationService.recoverHpMpForBattleParticipants(playerDisciples.map { it.id })
-        val data = currentGameData
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) cultivationService.recoverHpMpForBattleParticipants(ts, playerDisciples.map { it.id })
+        val data = stateStore.gameData.value
 
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -98,11 +72,12 @@ private val eventBus: EventBusPort,
         cave: CultivatorCave
     ): BattleSystemResult {
         // 战斗前兜底：先结算参战弟子气血灵力恢复
-        cultivationService.recoverHpMpForBattleParticipants(playerDisciples.map { it.id })
-        val data = currentGameData
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) cultivationService.recoverHpMpForBattleParticipants(ts, playerDisciples.map { it.id })
+        val data = stateStore.gameData.value
 
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -130,28 +105,37 @@ private val eventBus: EventBusPort,
         isOutsideSect: Boolean = true
     ) {
         // 亲人逝世影响：为所有存活亲属设置悲痛期
-        val deadDisciples = currentDisciples.filter { it.id in deadMemberIds }
+        val deadDisciples = stateStore.discipleTables.ids.filter { it.toString() in deadMemberIds }.map { stateStore.discipleTables.assemble(it) }
         if (deadDisciples.isNotEmpty()) {
-            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
-                currentDisciples, deadDisciples, currentGameData.gameYear
+            val currentDiscipleList = stateStore.discipleTables.assembleAll()
+            val updatedDiscipleList = DiscipleStatCalculator.applyGriefToRelatives(
+                currentDiscipleList, deadDisciples, stateStore.gameData.value.gameYear
             )
+            // 将更新后的悲痛期写回组件表
+            for (d in updatedDiscipleList) {
+                val id = d.id.toInt()
+                if (stateStore.discipleTables.ids.contains(id)) {
+                    stateStore.discipleTables.griefEndYears[id] = d.social.griefEndYear
+                }
+            }
         }
 
-        deadMemberIds.forEach { memberId ->
-            val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
-            if (discipleIndex < 0) return@forEach
+        // Collect IDs for batch state store update
+        val proficiencyRemoveIds = mutableSetOf<String>()
+        val equipIdsToUnequip = mutableSetOf<String>()
+        val manualIdsToUnlearn = mutableSetOf<String>()
 
-            val disciple = currentDisciples[discipleIndex]
-            val updatedDisciple = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+        deadMemberIds.forEach { memberId ->
+            val id = memberId.toIntOrNull()
+            if (id == null || !stateStore.discipleTables.ids.contains(id)) return@forEach
+
+            val disciple = stateStore.discipleTables.assemble(id)
+            stateStore.discipleTables.isAlive[id] = 0
+            stateStore.discipleTables.statuses[id] = DiscipleStatus.DEAD
 
             if (isOutsideSect) {
                 eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
-                val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-                updatedProficiencies.remove(disciple.id)
-                if (updatedProficiencies != currentGameData.manualProficiencies) {
-                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
-                }
+                proficiencyRemoveIds.add(disciple.id)
             } else {
                 val returnEquipIds = mutableListOf<String>()
                 disciple.equipment.weaponId?.let { returnEquipIds.add(it) }
@@ -160,34 +144,39 @@ private val eventBus: EventBusPort,
                 disciple.equipment.accessoryId?.let { returnEquipIds.add(it) }
                 disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
-                returnEquipIds.forEach { eid ->
-                    val eq = currentEquipmentInstances.find { it.id == eid } ?: return@forEach
-                    currentEquipmentInstances = currentEquipmentInstances.map { e ->
-                        if (e.id == eid) e.copy(isEquipped = false, ownerId = null) else e
-                    }
-                }
+                equipIdsToUnequip.addAll(returnEquipIds)
+                manualIdsToUnlearn.addAll(disciple.manualIds)
+                disciple.equipment.storageBagItems.filter {
+                    it.itemType == "manual_stack" || it.itemType == "manual_instance"
+                }.forEach { manualIdsToUnlearn.add(it.itemId) }
+                proficiencyRemoveIds.add(disciple.id)
+            }
+        }
 
-                disciple.manualIds.forEach { manualId ->
-                    currentManualInstances = currentManualInstances.map {
-                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+        // Batch state update for equipment, manuals, proficiencies
+        if (proficiencyRemoveIds.isNotEmpty() || equipIdsToUnequip.isNotEmpty() || manualIdsToUnlearn.isNotEmpty()) {
+            stateStore.update {
+                if (proficiencyRemoveIds.isNotEmpty()) {
+                    val mutable = gameData.manualProficiencies.toMutableMap()
+                    proficiencyRemoveIds.forEach { mutable.remove(it) }
+                    gameData = gameData.copy(manualProficiencies = mutable)
+                }
+                if (equipIdsToUnequip.isNotEmpty()) {
+                    equipmentInstances = equipmentInstances.map { e ->
+                        if (e.id in equipIdsToUnequip) e.copy(isEquipped = false, ownerId = null) else e
                     }
                 }
-                disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
-                    currentManualInstances = currentManualInstances.map {
-                        if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
+                if (manualIdsToUnlearn.isNotEmpty()) {
+                    manualInstances = manualInstances.map { m ->
+                        if (m.id in manualIdsToUnlearn) m.copy(isLearned = false, ownerId = null) else m
                     }
-                }
-                val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-                updatedProficiencies.remove(disciple.id)
-                if (updatedProficiencies != currentGameData.manualProficiencies) {
-                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
                 }
             }
         }
 
         // 清理阵亡弟子的所有槽位
         if (deadMemberIds.isNotEmpty()) {
-            val data = currentGameData
+            val data = stateStore.gameData.value
 
             val updatedElderSlots = data.elderSlots.let { slots ->
                 var updated = slots
@@ -255,11 +244,13 @@ private val eventBus: EventBusPort,
                 if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
             }
 
-            currentGameData = data.copy(
-                elderSlots = updatedElderSlots,
-                spiritMineSlots = updatedSpiritMineSlots,
-                librarySlots = updatedLibrarySlots
-            )
+            stateStore.update {
+                gameData = data.copy(
+                    elderSlots = updatedElderSlots,
+                    spiritMineSlots = updatedSpiritMineSlots,
+                    librarySlots = updatedLibrarySlots
+                )
+            }
 
             val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
             for (slot in forgeSlots) {
@@ -273,17 +264,16 @@ private val eventBus: EventBusPort,
 
         // Update HP/MP for survivors
         survivorHpMap.forEach { (memberId, hp) ->
-            val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
-            if (discipleIndex >= 0 && !deadMemberIds.contains(memberId)) {
-                val disciple = currentDisciples[discipleIndex]
-                val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
-                val updatedStatus = if (disciple.status in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else disciple.status
-                val updatedDisciple = disciple.copyWith(
-                    status = updatedStatus,
-                    currentHp = hp,
-                    currentMp = mp
-                )
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+            val id = memberId.toIntOrNull()
+            if (id != null && stateStore.discipleTables.ids.contains(id) && !deadMemberIds.contains(memberId)) {
+                val maxHp = stateStore.discipleTables.baseHps[id]
+                val maxMp = stateStore.discipleTables.baseMps[id]
+                val mp = survivorMpMap[memberId] ?: stateStore.discipleTables.currentMps[id]
+                val currentStatus = stateStore.discipleTables.statuses[id]
+                val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
+                stateStore.discipleTables.currentHps[id] = hp.coerceIn(0, maxHp)
+                stateStore.discipleTables.currentMps[id] = mp.coerceIn(0, maxMp)
+                stateStore.discipleTables.statuses[id] = updatedStatus
             }
         }
     }
@@ -294,21 +284,21 @@ private val eventBus: EventBusPort,
      * Get total battles fought
      */
     fun getTotalBattlesCount(): Int {
-        return currentBattleLogs.size
+        return stateStore.battleLogs.value.size
     }
 
     /**
      * Get recent battle results (last N)
      */
     fun getRecentBattles(count: Int = 10): List<BattleLog> {
-        return currentBattleLogs.take(count)
+        return stateStore.battleLogs.value.take(count)
     }
 
     /**
      * Get win rate for last N battles
      */
     fun getWinRate(lastNBattles: Int = 50): Double {
-        val recentBattles = currentBattleLogs.take(lastNBattles)
+        val recentBattles = stateStore.battleLogs.value.take(lastNBattles)
         if (recentBattles.isEmpty()) return 0.0
 
         val wins = recentBattles.count { it.result == BattleResult.WIN }

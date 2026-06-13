@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
@@ -31,11 +31,9 @@ class ProductionViewModel @Inject constructor(
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    private val disciples = gameEngine.disciples
-
     fun getElderDisciple(elderId: String?): DiscipleAggregate? {
         if (elderId == null) return null
-        return gameEngine.discipleAggregatesSnapshot.find { it.id == elderId }
+        return gameEngine.getDiscipleAggregate(elderId)
     }
 
     fun assignElder(slotType: ElderSlotType, discipleId: String) =
@@ -226,7 +224,7 @@ class ProductionViewModel @Inject constructor(
     fun addReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = disciples.value.find { it.id == discipleId }
+                val disciple = gameEngine.getDiscipleAggregate(discipleId)
                 if (disciple == null) {
                     showError("弟子不存在")
                     return@launch
@@ -278,7 +276,7 @@ class ProductionViewModel @Inject constructor(
                 for (discipleId in discipleIds) {
                     if (discipleId in existingIds) continue
 
-                    val disciple = disciples.value.find { it.id == discipleId }
+                    val disciple = gameEngine.getDiscipleAggregate(discipleId)
                     if (disciple == null) continue
 
                     if (disciplePositionQuery.hasDisciplePosition(discipleId)) continue

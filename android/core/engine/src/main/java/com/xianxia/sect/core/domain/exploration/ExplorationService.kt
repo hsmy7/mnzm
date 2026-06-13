@@ -7,7 +7,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
+
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
@@ -18,8 +18,8 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
-import com.xianxia.sect.core.util.DomainLog
+
+
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -86,7 +86,7 @@ class ExplorationService @Inject constructor(
 
     private fun processPatrolAttacks(state: MutableGameState) {
         var gd = state.gameData
-        var disciples = state.disciples
+        var disciples = state.discipleTables.assembleAll()
         val allSlots = gd.patrolSlots
         val configs = gd.patrolConfigs
         if (allSlots.isEmpty()) return
@@ -229,7 +229,7 @@ class ExplorationService @Inject constructor(
                 // 幸存弟子神魂+1，有天赋的随机属性+1
                 disciples = disciples.map { d ->
                     if (d.id in survivorIds && d.isAlive) {
-                        var modified = d.copyWith(soulPower = d.soulPower + 1)
+                        var modified = d.copy(soulPower = d.soulPower + 1)
                         if (modified.talentIds.any { id ->
                             TalentDatabase.getById(id)?.effects?.containsKey("winBattleRandomAttrPlus") == true
                         }) {
@@ -307,22 +307,9 @@ class ExplorationService @Inject constructor(
         }
 
         state.gameData = gd
-        state.disciples = disciples
+        state.discipleTables.clear()
+        disciples.forEach { state.discipleTables.insert(it) }
     }
-    private val state = StateAccessorFactory(stateStore, scope, null)
-
-    private var currentGameData: GameData
-        get() = state.gameData().current
-        set(value) { state.gameData().current = value }
-
-    private var currentDisciples: List<Disciple>
-        get() = state.disciples().current
-        set(value) { state.disciples().current = value }
-
-    private var currentTeams: List<ExplorationTeam>
-        get() = state.teams().current
-        set(value) { state.teams().current = value }
-
     companion object {
         private const val TAG = "ExplorationService"
     }
@@ -335,13 +322,12 @@ class ExplorationService @Inject constructor(
     fun getTeams(): StateFlow<List<ExplorationTeam>> = stateStore.teams
 
     fun recallDiscipleFromTeam(teamId: String, discipleId: String): Boolean {
+        val currentTeams = stateStore.teams.value
         val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
         if (teamIndex < 0) return false
 
         val team = currentTeams[teamIndex]
         if (!team.memberIds.contains(discipleId)) return false
-
-        val discipleName = currentDisciples.find { it.id == discipleId }?.name ?: "弟子"
 
         val remainingMemberIds = team.memberIds.filter { it != discipleId }
         val remainingMemberNames = team.memberNames.toMutableList()
@@ -351,13 +337,13 @@ class ExplorationService @Inject constructor(
         }
 
         if (remainingMemberIds.isEmpty()) {
-            currentTeams = currentTeams.filter { it.id != teamId }
+            scope.launch { stateStore.update { this.teams = this.teams.filter { it.id != teamId } } }
         } else {
             val updatedTeam = team.copy(
                 memberIds = remainingMemberIds,
                 memberNames = remainingMemberNames
             )
-            currentTeams = currentTeams.toMutableList().also { it[teamIndex] = updatedTeam }
+            scope.launch { stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } } }
         }
 
         updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
@@ -368,6 +354,7 @@ class ExplorationService @Inject constructor(
      * Complete exploration (success or failure)
      */
     fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) {
+        val currentTeams = stateStore.teams.value
         val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
         if (teamIndex < 0) return
 
@@ -375,7 +362,7 @@ class ExplorationService @Inject constructor(
 
         // Mark as completed
         val updatedTeam = team.copy(status = ExplorationStatus.COMPLETED)
-        currentTeams = currentTeams.toMutableList().also { it[teamIndex] = updatedTeam }
+        scope.launch { stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } } }
 
         // Reset survivor statuses, mark dead disciples
         team.memberIds.forEach { memberId ->
@@ -391,22 +378,34 @@ class ExplorationService @Inject constructor(
      * Mark disciple as dead
      */
     private fun markDiscipleDead(discipleId: String) {
-        val disciple = currentDisciples.find { it.id == discipleId }
-        currentDisciples = currentDisciples.map {
-            if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.DEAD) else it
-        }
+        val disciple = stateStore.disciples.value.find { it.id == discipleId }
+        val gameYear = stateStore.gameData.value.gameYear
+        scope.launch { stateStore.update {
+            val currentList = discipleTables.assembleAll()
+            val markedDead = currentList.map {
+                if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.DEAD) else it
+            }
+            val finalList = if (disciple != null) {
+                DiscipleStatCalculator.applyGriefToRelatives(markedDead, listOf(disciple), gameYear)
+            } else {
+                markedDead
+            }
+            discipleTables.clear()
+            finalList.forEach { discipleTables.insert(it) }
+        } }
         disciple?.let { d ->
             eventBus.emitSync(DeathEvent(d.id, d.name, "探索阵亡"))
-            // 亲人逝世影响：为存活亲属设置悲痛期
-            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
-                currentDisciples, listOf(d), currentGameData.gameYear
-            )
         }
     }
 
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        currentDisciples = currentDisciples.map {
-            if (it.id == discipleId) it.copy(status = status) else it
-        }
+        scope.launch { stateStore.update {
+            val currentList = discipleTables.assembleAll()
+            val updated = currentList.map {
+                if (it.id == discipleId) it.copy(status = status) else it
+            }
+            discipleTables.clear()
+            updated.forEach { discipleTables.insert(it) }
+        } }
     }
 }

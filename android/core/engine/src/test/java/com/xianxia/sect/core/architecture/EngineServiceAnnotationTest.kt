@@ -39,6 +39,7 @@ class EngineServiceAnnotationTest {
                 !name.endsWith("Entry") && !name.endsWith("Accumulator") &&
                 !name.endsWith("Summary") && !name.endsWith("Snapshot") &&
                 name != "Success" && name != "CapacityInsufficient" &&
+                name != "DistributeFailed" &&
                 name != "SuccessWithMilestones" &&
                 name != "HighFrequencyData"
             }

@@ -57,6 +57,7 @@ fun HerbGardenDialog(
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val activeSectId = gameData?.activeSectId ?: ""
     val herbGardenDisciples = elderSlots.herbGardenDisciples.filter { it.sectId == activeSectId }
+    val discipleMap = disciples.associateBy { it.id }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -75,7 +76,7 @@ fun HerbGardenDialog(
                     disciples = disciples,
                     onDirectDiscipleClick = { index ->
                         val slot = herbGardenDisciples.getOrNull(index)
-                        val d = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null
+                        val d = if (slot?.isActive == true) discipleMap[slot.discipleId] else null
                         d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
@@ -109,6 +110,7 @@ private fun HerbGardenDirectDiscipleSection(
     onDirectDiscipleRemove: (Int) -> Unit,
     onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -132,7 +134,7 @@ private fun HerbGardenDirectDiscipleSection(
         ) {
             (0 until 1).forEach { index ->
                 val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                val agg = if (slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val agg = if (slot.isActive) discipleMap[slot.discipleId] else null
                 val borderColor = if (slot.isActive) {
                     try { Color(android.graphics.Color.parseColor(agg?.spiritRoot?.countColor)) }
                     catch (e: Exception) { Color(0xFF4CAF50) }

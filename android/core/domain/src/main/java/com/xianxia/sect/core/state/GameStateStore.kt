@@ -16,6 +16,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     // === StateFlow 观察 ===
     val gameData: StateFlow<GameData>
     val disciples: StateFlow<List<Disciple>>
+    val discipleTables: DiscipleTables  // Engine/Service 层直接操作组件表
     val equipmentStacks: StateFlow<List<EquipmentStack>>
     val equipmentInstances: StateFlow<List<EquipmentInstance>>
     val manualStacks: StateFlow<List<ManualStack>>

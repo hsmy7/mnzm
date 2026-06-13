@@ -36,7 +36,8 @@ fun WarehouseDialog(
     val garrisonSlot = gameData?.warehouseGarrisons?.find {
         it.buildingInstanceId == buildingInstanceId
     }
-    val garrisonDisciple = disciples.find { it.id == garrisonSlot?.discipleId }
+    val discipleMap = disciples.associateBy { it.id }
+    val garrisonDisciple = discipleMap[garrisonSlot?.discipleId]
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,

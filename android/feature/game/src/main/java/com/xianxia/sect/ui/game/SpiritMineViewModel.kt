@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
@@ -32,7 +32,7 @@ class SpiritMineViewModel @Inject constructor(
     fun assignSpiritMineDeacon(slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = gameEngine.disciples.value.find { it.id == discipleId }
+                val disciple = gameEngine.getDiscipleAggregate(discipleId)
                 if (disciple == null) {
                     showError("弟子不存在")
                     return@launch
@@ -166,7 +166,7 @@ class SpiritMineViewModel @Inject constructor(
                 val allSlots = currentGameData.spiritMineSlots.toMutableList()
                 if (slotIndex < allSlots.size) {
                     val oldDiscipleId = allSlots[slotIndex].discipleId
-                    val newName = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId }?.name ?: ""
+                    val newName = gameEngine.getDiscipleAggregate(newDiscipleId)?.name ?: ""
                     allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)
                     // 先保存槽位(suspend，确保写入)，再更新弟子状态
                     gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }

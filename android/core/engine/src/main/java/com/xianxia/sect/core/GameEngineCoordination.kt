@@ -226,17 +226,19 @@ internal fun GameEngine.updateGameDataSync(update: (GameData) -> GameData) {
 
 suspend fun GameEngine.updateDisciple(discipleId: String, update: (Disciple) -> Disciple) {
     stateStore.update {
-        val list = disciples.toMutableList()
-        val index = list.indexOfFirst { it.id == discipleId }
-        if (index >= 0) { list[index] = update(list[index]); disciples = list }
+        val id = discipleId.toInt()
+        if (id !in discipleTables.ids) return@update
+        val current = discipleTables.assemble(id)
+        val updated = update(current)
+        discipleTables.remove(id)
+        discipleTables.insert(updated)
     }
 }
 
 suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: String) {
     stateStore.update {
-        val list = disciples.toMutableList()
-        val index = list.indexOfFirst { it.id == discipleId }
-        if (index >= 0) { list[index] = list[index].copy(discipleType = newType); disciples = list }
+        val id = discipleId.toInt()
+        if (id in discipleTables.ids) discipleTables.discipleTypes[id] = newType
         discipleFacade.syncAllDiscipleStatuses()
     }
 }
@@ -256,15 +258,18 @@ fun GameEngine.usePill(discipleId: String, pillId: String) {
     gameEngineCore.launchInScope {
         var errorMsg: String? = null; var successMsg: String? = null
         stateStore.update {
-            val pill = pills.find { it.id == pillId } ?: return@update
+            val pill = pills.get(pillId) ?: return@update
             if (pill.quantity <= 0) return@update
-            val disciple = disciples.find { it.id == discipleId } ?: return@update
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val disciple = discipleTables.assemble(id)
             if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, pill.minRealm)) { errorMsg = "弟子${disciple.name}境界不足，无法使用${pill.name}（需要${GameConfig.Realm.getName(pill.minRealm)}及以上）"; return@update }
             if (pill.effects.cannotStack && disciple.pillEffects.activePillCategory == pill.category.name) { errorMsg = "弟子${disciple.name}已有同类型丹药生效中，无法使用${pill.name}"; return@update }
             if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
                 if (disciple.usage.usedFunctionalPillTypes.contains(pill.pillType)) { errorMsg = "弟子${disciple.name}已使用过${pill.name}，同类功能丹药每人只能使用一次"; return@update }
             }
-            pills = pills.map { if (it.id == pillId && it.quantity > 0) it.copy(quantity = it.quantity - 1) else it }.filter { it.quantity > 0 }
+            val newQty = pill.quantity - 1
+            if (newQty <= 0) pills.remove(pillId) else pills.update(pillId) { it.copy(quantity = newQty) }
             var updatedDisciple = disciple
             val effect = pill.effects
             if (effect.cultivationAdd > 0) updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
@@ -303,7 +308,8 @@ fun GameEngine.usePill(discipleId: String, pillId: String) {
             }
             if (effect.healMaxHpPercent > 0) updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
             if (effect.clearAll) updatedDisciple = updatedDisciple.copy(pillEffects = PillEffects())
-            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
+            discipleTables.remove(id)
+            discipleTables.insert(updatedDisciple)
             successMsg = "弟子${disciple.name}使用了${pill.name}"
         }
     }
@@ -326,11 +332,16 @@ suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String) 
 suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
     cultivationService.markAutoLearnDirty(discipleId)
     stateStore.update {
-        val instance = manualInstances.find { it.id == instanceId } ?: return@update
-        val currentDisciple = disciples.find { it.id == discipleId } ?: return@update
+        val instance = manualInstances.get(instanceId) ?: return@update
+        val id = discipleId.toInt()
+        if (id !in discipleTables.ids) return@update
+        val currentDisciple = discipleTables.assemble(id)
         val bagStackIds = currentDisciple.manualBagStackIds()
         val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
-        disciples = disciples.map { if (it.id == discipleId) result.updatedDisciple.copy(manualIds = it.manualIds.filter { mid -> mid != instanceId }) else it }
+        val updatedManualIds = currentDisciple.manualIds.filter { mid -> mid != instanceId }
+        val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+        discipleTables.remove(id)
+        discipleTables.insert(updatedDisciple)
         val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
         updatedProficiencies[discipleId]?.let { profList ->
             val filtered = profList.filter { it.manualId != instanceId }
@@ -342,53 +353,60 @@ suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
 
 suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
     stateStore.update {
-        val oldInstance = manualInstances.find { it.id == oldInstanceId } ?: return@update
-        val newStack = manualStacks.find { it.id == newStackId } ?: return@update
-        val disciple = disciples.find { it.id == discipleId } ?: return@update
+        val oldInstance = manualInstances.get(oldInstanceId) ?: return@update
+        val newStack = manualStacks.get(newStackId) ?: return@update
+        val id = discipleId.toInt()
+        if (id !in discipleTables.ids) return@update
+        val disciple = discipleTables.assemble(id)
         if (newStack.quantity < 1) return@update
         if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, newStack.minRealm)) return@update
-        val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
+        val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }
         if (blocked) return@update
-        val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.find { m -> m.id == mid }?.name == newStack.name }
+        val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.name == newStack.name }
         if (hasSameName) return@update
         val bagStackIds = disciple.manualBagStackIds()
         val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
-        val currentNewStack = manualStacks.find { it.id == newStackId } ?: return@update
+        val currentNewStack = manualStacks.get(newStackId) ?: return@update
         val newQty = currentNewStack.quantity - 1
-        if (newQty <= 0) manualStacks = manualStacks.filter { it.id != newStackId } else manualStacks = manualStacks.map { if (it.id == newStackId) it.copy(quantity = newQty) else it }
+        if (newQty <= 0) manualStacks.remove(newStackId) else manualStacks.update(newStackId) { it.copy(quantity = newQty) }
         val newInstance = newStack.toInstance(id = java.util.UUID.randomUUID().toString(), ownerId = discipleId, isLearned = true)
-        manualInstances = manualInstances + newInstance
+        manualInstances.add(newInstance)
         val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
         updatedProficiencies[discipleId]?.let { profList ->
             val filtered = profList.filter { it.manualId != oldInstanceId }
             if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
         }
-        disciples = disciples.map { if (it.id == discipleId) result.updatedDisciple.copy(manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id) else it }
+        val updatedManualIds = (disciple.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
+        val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+        discipleTables.remove(id)
+        discipleTables.insert(updatedDisciple)
         gameData = gameData.copy(manualProficiencies = updatedProficiencies)
     }
 }
 
 suspend fun GameEngine.learnManual(discipleId: String, stackId: String) {
     stateStore.update {
-        val stack = manualStacks.find { it.id == stackId } ?: return@update
-        val disciple = disciples.find { it.id == discipleId } ?: return@update
+        val stack = manualStacks.get(stackId) ?: return@update
+        val id = discipleId.toInt()
+        if (id !in discipleTables.ids) return@update
+        val disciple = discipleTables.assemble(id)
         if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)) return@update
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
         if (disciple.manualIds.size >= maxSlots) return@update
-        if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances.find { it.id == mid }?.type == ManualType.MIND }) return@update
-        if (disciple.manualIds.any { mid -> manualInstances.find { it.id == mid }?.name == stack.name }) return@update
+        if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }) return@update
+        if (disciple.manualIds.any { mid -> manualInstances.get(mid)?.name == stack.name }) return@update
         val newQty = stack.quantity - 1
-        if (newQty <= 0) manualStacks = manualStacks.filter { it.id != stackId } else manualStacks = manualStacks.map { if (it.id == stackId) it.copy(quantity = newQty) else it }
+        if (newQty <= 0) manualStacks.remove(stackId) else manualStacks.update(stackId) { it.copy(quantity = newQty) }
         val instanceId = java.util.UUID.randomUUID().toString()
         val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
-        manualInstances = manualInstances + instance
-        disciples = disciples.map {
-            if (it.id == discipleId && !it.manualIds.contains(instanceId)) {
-                val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
-                val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
-                val rawHp = it.combat.currentHp; val rawMp = it.combat.currentMp
-                it.copy(manualIds = it.manualIds + instanceId, combat = it.combat.copy(currentHp = if (rawHp >= 0 && hpDelta > 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp >= 0 && mpDelta > 0) rawMp + mpDelta else rawMp))
-            } else it
+        manualInstances.add(instance)
+        if (!disciple.manualIds.contains(instanceId)) {
+            val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
+            val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
+            val rawHp = disciple.combat.currentHp; val rawMp = disciple.combat.currentMp
+            val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + instanceId, combat = disciple.combat.copy(currentHp = if (rawHp >= 0 && hpDelta > 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp >= 0 && mpDelta > 0) rawMp + mpDelta else rawMp))
+            discipleTables.remove(id)
+            discipleTables.insert(updatedDisciple)
         }
     }
 }
@@ -399,8 +417,8 @@ fun GameEngine.recruitAllFromList(): Boolean {
     val data = stateStore.gameData.value
     if (data.recruitList.isEmpty()) return false
     val currentMonthValue = data.gameYear * 12 + data.gameMonth
-    val recruitedDisciples = data.recruitList.map { it.copyWith(recruitedMonth = currentMonthValue) }
-    gameEngineCore.launchInScope { stateStore.update { disciples = disciples + recruitedDisciples; gameData = gameData.copy(recruitList = emptyList()) } }
+    val recruitedDisciples = data.recruitList.map { it.copy(usage = it.usage.copy(recruitedMonth = currentMonthValue)) }
+    gameEngineCore.launchInScope { stateStore.update { recruitedDisciples.forEach { discipleTables.insert(it) }; gameData = gameData.copy(recruitList = emptyList()) } }
     return true
 }
 
@@ -433,7 +451,7 @@ fun GameEngine.validateAndFixSpiritMineData() {
         val keptIds = finalSlots.mapNotNull { it.discipleId }.toSet()
         val orphanedIds = data.spiritMineSlots.filter { it.discipleId.isNotEmpty() && it.discipleId !in keptIds }.mapNotNull { it.discipleId }
         orphanedIds.forEach { discipleId ->
-            gameEngineCore.launchInScope { stateStore.update { disciples = disciples.map { d -> if (d.id == discipleId && d.status == DiscipleStatus.MINING) d.copy(status = DiscipleStatus.IDLE) else d } } }
+            gameEngineCore.launchInScope { stateStore.update { val id = discipleId.toInt(); if (id in discipleTables.ids && discipleTables.statuses[id] == DiscipleStatus.MINING) discipleTables.statuses[id] = DiscipleStatus.IDLE } }
         }
         updateGameDataSync { it.copy(spiritMineSlots = finalSlots) }
     }
@@ -577,7 +595,7 @@ private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List<Disci
 fun GameEngine.getMemoryUsageInfo(): String {
     val sb = StringBuilder()
     sb.appendLine("=== 内存使用情况 ===")
-    sb.appendLine("弟子数量: ${stateStore.disciples.value.size}"); sb.appendLine("装备栈数量: ${stateStore.equipmentStacks.value.size}")
+    sb.appendLine("弟子数量: ${stateStore.discipleTables.count}"); sb.appendLine("装备栈数量: ${stateStore.equipmentStacks.value.size}")
     sb.appendLine("装备实例数量: ${stateStore.equipmentInstances.value.size}"); sb.appendLine("功法栈数量: ${stateStore.manualStacks.value.size}")
     sb.appendLine("功法实例数量: ${stateStore.manualInstances.value.size}"); sb.appendLine("丹药数量: ${stateStore.pills.value.size}")
     sb.appendLine("材料数量: ${stateStore.materials.value.size}"); sb.appendLine("灵草数量: ${stateStore.herbs.value.size}")

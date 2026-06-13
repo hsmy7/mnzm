@@ -52,7 +52,8 @@ fun TianshuHallDialog(
 ) {
     val elderSlots = gameData?.elderSlots
     val viceSectMasterId = elderSlots?.viceSectMaster
-    val viceSectMaster = disciples.find { it.id == viceSectMasterId }
+    val discipleMap = disciples.associateBy { it.id }
+    val viceSectMaster = discipleMap[viceSectMasterId]
 
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
@@ -62,11 +63,11 @@ fun TianshuHallDialog(
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
 
     val alchemyElderId = elderSlots?.alchemyElder
-    val alchemyElder = disciples.find { it.id == alchemyElderId }
+    val alchemyElder = discipleMap[alchemyElderId]
     val forgeElderId = elderSlots?.forgeElder
-    val forgeElder = disciples.find { it.id == forgeElderId }
+    val forgeElder = discipleMap[forgeElderId]
     val herbGardenElderId = elderSlots?.herbGardenElder
-    val herbGardenElder = disciples.find { it.id == herbGardenElderId }
+    val herbGardenElder = discipleMap[herbGardenElderId]
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,

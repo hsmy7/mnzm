@@ -10,9 +10,9 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.util.equipmentBagStackIds
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
@@ -33,19 +33,9 @@ private val scopeProvider: CoroutineScopeProvider,
 ) {
     private val scope get() = scopeProvider.scope
 
-    private val state = StateAccessorFactory(stateStore, scope, null)
-
-    private var currentGameData: GameData
-        get() = state.gameData().current
-        set(value) { state.gameData().current = value }
-
-    private var currentDisciples: List<Disciple>
-        get() = state.disciples().current
-        set(value) { state.disciples().current = value }
-
-    private var currentTeams: List<ExplorationTeam>
-        get() = state.teams().current
-        set(value) { state.teams().current = value }
+    private var currentDiscipleTables: DiscipleTables
+        get() = stateStore.discipleTables
+        set(value) { /* DiscipleTables is mutable, changes are in-place */ }
 
     companion object {
         private const val TAG = "DiscipleService"
@@ -64,17 +54,17 @@ private val scopeProvider: CoroutineScopeProvider,
      * Add new disciple
      */
     fun addDisciple(disciple: Disciple) {
-        currentDisciples = currentDisciples + disciple
+        stateStore.discipleTables.insert(disciple)
     }
 
     /**
      * Remove disciple by ID
      */
     fun removeDisciple(discipleId: String): Boolean {
-        val current = currentDisciples
-        val filtered = current.filter { it.id != discipleId }
-        if (filtered.size < current.size) {
-            currentDisciples = filtered
+        val id = discipleId.toIntOrNull() ?: return false
+        val tables = stateStore.discipleTables
+        if (tables.ids.contains(id)) {
+            tables.remove(id)
             return true
         }
         return false
@@ -84,15 +74,20 @@ private val scopeProvider: CoroutineScopeProvider,
      * Get disciple by ID
      */
     fun getDiscipleById(discipleId: String): Disciple? {
-        return currentDisciples.find { it.id == discipleId }
+        val id = discipleId.toIntOrNull() ?: return null
+        val tables = stateStore.discipleTables
+        return if (tables.ids.contains(id)) tables.assemble(id) else null
     }
 
     /**
      * Update disciple
      */
     fun updateDisciple(disciple: Disciple) {
-        currentDisciples = currentDisciples.map {
-            if (it.id == disciple.id) disciple else it
+        val id = disciple.id.toIntOrNull() ?: return
+        val tables = stateStore.discipleTables
+        if (tables.ids.contains(id)) {
+            tables.remove(id)
+            tables.insert(disciple)
         }
     }
 
@@ -102,12 +97,16 @@ private val scopeProvider: CoroutineScopeProvider,
      * Get disciple status based on current assignments
      */
     fun getDiscipleStatus(discipleId: String): DiscipleStatus {
-        val data = currentGameData
-        val disciple = currentDisciples.find { it.id == discipleId } ?: return DiscipleStatus.IDLE
+        val data = stateStore.gameData.value
+        val id = discipleId.toIntOrNull() ?: return DiscipleStatus.IDLE
+        val tables = stateStore.discipleTables
+        if (!tables.ids.contains(id)) return DiscipleStatus.IDLE
 
-        if (!disciple.isAlive) return DiscipleStatus.DEAD
-        if (disciple.status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
-        if (disciple.status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
+        val isAlive = tables.isAlive[id] == 1
+        if (!isAlive) return DiscipleStatus.DEAD
+        val status = tables.statuses[id]
+        if (status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
+        if (status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
@@ -160,7 +159,8 @@ private val scopeProvider: CoroutineScopeProvider,
             return DiscipleStatus.STUDYING
         }
 
-        if (data.spiritMineSlots.any { it.discipleId == discipleId } && disciple.discipleType == "outer") {
+        val discipleType = tables.discipleTypes[id]
+        if (data.spiritMineSlots.any { it.discipleId == discipleId } && discipleType == "outer") {
             return DiscipleStatus.MINING
         }
 
@@ -171,8 +171,8 @@ private val scopeProvider: CoroutineScopeProvider,
      * Sync all disciples' status based on their assignments
      */
     fun syncAllDiscipleStatuses() {
-        var data = currentGameData
-        val disciples = currentDisciples
+        var data = stateStore.gameData.value
+        val tables = stateStore.discipleTables
         val elderSlots = data.elderSlots
 
         val lawEnforcerIds = mutableSetOf<String>()
@@ -205,23 +205,22 @@ private val scopeProvider: CoroutineScopeProvider,
 
         val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
 
-        val allDisciplesMap = disciples.associateBy { it.id }
         val miningIds = data.spiritMineSlots
             .mapNotNull { it.discipleId }
-            .filter { id -> allDisciplesMap[id]?.discipleType == "outer" }
+            .filter { id -> tables.ids.contains(id.toInt()) && tables.discipleTypes[id.toInt()] == "outer" }
             .toMutableSet()
 
         val hasInvalidMiningSlots = data.spiritMineSlots.any { slot ->
-            slot.discipleId.isNotEmpty() && allDisciplesMap[slot.discipleId]?.discipleType != "outer"
+            slot.discipleId.isNotEmpty() && (!tables.ids.contains(slot.discipleId.toInt()) || tables.discipleTypes[slot.discipleId.toInt()] != "outer")
         }
         if (hasInvalidMiningSlots) {
             val fixedSlots = data.spiritMineSlots.map { slot ->
-                if (slot.discipleId.isNotEmpty() && allDisciplesMap[slot.discipleId]?.discipleType != "outer") {
+                if (slot.discipleId.isNotEmpty() && (!tables.ids.contains(slot.discipleId.toInt()) || tables.discipleTypes[slot.discipleId.toInt()] != "outer")) {
                     slot.copy(discipleId = "", discipleName = "")
                 } else slot
             }
             data = data.copy(spiritMineSlots = fixedSlots)
-            currentGameData = data
+            scope.launch { stateStore.update { gameData = data } }
         }
 
         val garrisonIds = mutableSetOf<String>()
@@ -234,7 +233,7 @@ private val scopeProvider: CoroutineScopeProvider,
             .filter { it.discipleId.isNotEmpty() }
             .forEach { inTeamIds.add(it.discipleId) }
 
-        currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
+        stateStore.teams.value.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
         data.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
@@ -244,28 +243,29 @@ private val scopeProvider: CoroutineScopeProvider,
             .map { it.discipleId }
             .toSet()
 
-        currentDisciples = disciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
-            if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
-            if (disciple.status == DiscipleStatus.ON_MISSION) return@map disciple
+        for (id in tables.ids) {
+            val isAlive = tables.isAlive[id] == 1
+            val status = tables.statuses[id]
+            if (!isAlive) continue
+            if (status == DiscipleStatus.REFLECTING) continue
+            if (status == DiscipleStatus.ON_MISSION) continue
 
+            val discipleId = id.toString()
             val newStatus = when {
-                garrisonIds.contains(disciple.id) -> DiscipleStatus.GARRISONING
-                inTeamIds.contains(disciple.id) -> DiscipleStatus.IN_TEAM
-                lawEnforcerIds.contains(disciple.id) -> DiscipleStatus.LAW_ENFORCING
-                preachingIds.contains(disciple.id) -> DiscipleStatus.PREACHING
-                deaconingIds.contains(disciple.id) -> DiscipleStatus.DEACONING
-                managingIds.contains(disciple.id) -> DiscipleStatus.MANAGING
-                studyingIds.contains(disciple.id) -> DiscipleStatus.STUDYING
-                miningIds.contains(disciple.id) -> DiscipleStatus.MINING
-                patrollingIds.contains(disciple.id) -> DiscipleStatus.PATROLLING
+                garrisonIds.contains(discipleId) -> DiscipleStatus.GARRISONING
+                inTeamIds.contains(discipleId) -> DiscipleStatus.IN_TEAM
+                lawEnforcerIds.contains(discipleId) -> DiscipleStatus.LAW_ENFORCING
+                preachingIds.contains(discipleId) -> DiscipleStatus.PREACHING
+                deaconingIds.contains(discipleId) -> DiscipleStatus.DEACONING
+                managingIds.contains(discipleId) -> DiscipleStatus.MANAGING
+                studyingIds.contains(discipleId) -> DiscipleStatus.STUDYING
+                miningIds.contains(discipleId) -> DiscipleStatus.MINING
+                patrollingIds.contains(discipleId) -> DiscipleStatus.PATROLLING
                 else -> DiscipleStatus.IDLE
             }
 
-            if (disciple.status != newStatus) {
-                disciple.copy(status = newStatus)
-            } else {
-                disciple
+            if (status != newStatus) {
+                tables.statuses[id] = newStatus
             }
         }
     }
@@ -275,12 +275,15 @@ private val scopeProvider: CoroutineScopeProvider,
      * Used when resetting game state or disbanding all teams
      */
     suspend fun resetAllDisciplesStatus() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
+        val tables = stateStore.discipleTables
 
-        val reflectingIds = currentDisciples
-            .filter { it.status == DiscipleStatus.REFLECTING }
-            .map { it.id }
-            .toSet()
+        val reflectingIds = mutableSetOf<String>()
+        for (id in tables.ids) {
+            if (tables.statuses[id] == DiscipleStatus.REFLECTING) {
+                reflectingIds.add(id.toString())
+            }
+        }
 
         val clearedSpiritMineSlots = data.spiritMineSlots.map {
             if (it.discipleId.isNotEmpty() && it.discipleId !in reflectingIds)
@@ -320,16 +323,8 @@ private val scopeProvider: CoroutineScopeProvider,
             mission.discipleIds.all { it in reflectingIds }
         }
 
-        currentGameData = data.copy(
-            spiritMineSlots = clearedSpiritMineSlots,
-            librarySlots = clearedLibrarySlots,
-            elderSlots = clearedElderSlots,
-            worldMapSects = clearedGarrisonSects,
-            caveExplorationTeams = clearedCaveTeams,
-            activeMissions = clearedActiveMissions
-        )
-
-        currentTeams = currentTeams.map { team ->
+        val teamsSnapshot = stateStore.teams.value
+        val updatedTeams = teamsSnapshot.map { team ->
             if (team.memberIds.any { it !in reflectingIds }) {
                 team.copy(
                     memberIds = emptyList(),
@@ -337,6 +332,18 @@ private val scopeProvider: CoroutineScopeProvider,
                     status = ExplorationStatus.COMPLETED
                 )
             } else team
+        }
+
+        stateStore.update {
+            gameData = data.copy(
+                spiritMineSlots = clearedSpiritMineSlots,
+                librarySlots = clearedLibrarySlots,
+                elderSlots = clearedElderSlots,
+                worldMapSects = clearedGarrisonSects,
+                caveExplorationTeams = clearedCaveTeams,
+                activeMissions = clearedActiveMissions
+            )
+            teams = updatedTeams
         }
 
         val allSlots = productionSlotRepository.getSlots()
@@ -348,13 +355,14 @@ private val scopeProvider: CoroutineScopeProvider,
             }
         }
 
-        currentDisciples = currentDisciples.map { disciple ->
-            when {
-                !disciple.isAlive -> disciple
-                disciple.status == DiscipleStatus.REFLECTING -> disciple
-                disciple.status == DiscipleStatus.IDLE -> disciple
-                else -> disciple.copy(status = DiscipleStatus.IDLE, statusData = emptyMap())
-            }
+        for (id in tables.ids) {
+            val isAlive = tables.isAlive[id] == 1
+            val status = tables.statuses[id]
+            if (!isAlive) continue
+            if (status == DiscipleStatus.REFLECTING) continue
+            if (status == DiscipleStatus.IDLE) continue
+            tables.statuses[id] = DiscipleStatus.IDLE
+            tables.statusData[id] = emptyMap()
         }
 
         autoFillLawEnforcementSlots()
@@ -408,7 +416,7 @@ private val scopeProvider: CoroutineScopeProvider,
         val id = UUID.randomUUID().toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
-        val existingNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toSet()
+        val existingNames = (stateStore.discipleTables.assembleAll() + stateStore.gameData.value.recruitList).map { it.name }.toSet()
         val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, existingNames)
 
 
@@ -487,7 +495,7 @@ private val scopeProvider: CoroutineScopeProvider,
         }
 
         // Set recruitment time
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
         disciple.usage.recruitedMonth = currentMonthValue
 
@@ -502,13 +510,14 @@ private val scopeProvider: CoroutineScopeProvider,
     suspend fun expelDisciple(discipleId: String): Boolean {
         var result = false
         stateStore.update {
-            val disciple = disciples.find { it.id == discipleId }
-            if (disciple == null) {
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) {
                 result = false
                 return@update
             }
 
-            if (!disciple.isAlive) {
+            val isAlive = discipleTables.isAlive[id] == 1
+            if (!isAlive) {
                 result = false
                 return@update
             }
@@ -516,73 +525,68 @@ private val scopeProvider: CoroutineScopeProvider,
             clearDiscipleFromAllSlots(discipleId)
 
             val returnEquipIds = mutableListOf<String>()
-            disciple.equipment.weaponId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.equipment.armorId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.equipment.bootsId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
+            discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            discipleTables.storageBagItems[id].filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
-            val bagStackIds = disciples.filter { it.id != discipleId }
-                .flatMap { it.equipment.storageBagItems }
+            val bagStackIds = discipleTables.ids
+                .filter { it != id }
+                .flatMap { discipleTables.storageBagItems[it] }
                 .filter { it.itemType == "equipment_stack" }
                 .map { it.itemId }
                 .toSet()
 
             returnEquipIds.forEach { eid ->
-                val eq = equipmentInstances.find { it.id == eid } ?: return@forEach
+                val eq = equipmentInstances.get(eid) ?: return@forEach
                 val stack = eq.toStack()
-                val existingStack = equipmentStacks.find {
+                val existingStack = equipmentStacks.firstOrNull {
                     it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id !in bagStackIds
                 }
                 if (existingStack != null) {
                     val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
                     val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                    equipmentStacks = equipmentStacks.map { s ->
-                        if (s.id == existingStack.id) s.copy(quantity = newQty) else s
-                    }
+                    equipmentStacks.update(existingStack.id) { it.copy(quantity = newQty) }
                 } else {
                     equipmentStacks = equipmentStacks + stack
                 }
-                equipmentInstances = equipmentInstances.filter { it.id != eid }
+                equipmentInstances.remove(eid)
             }
 
-            disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
-                val m = manualInstances.find { it.id == bagItem.itemId }
+            discipleTables.storageBagItems[id].filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+                val m = manualInstances.get(bagItem.itemId)
                 if (m != null) {
                     val stack = m.toStack()
-                    val existingStack = manualStacks.find {
+                    val existingStack = manualStacks.firstOrNull {
                         it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
                     if (existingStack != null) {
                         val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                         val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                        manualStacks = manualStacks.map { s ->
-                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
-                        }
+                        manualStacks.update(existingStack.id) { it.copy(quantity = newQty) }
                     } else {
                         manualStacks = manualStacks + stack
                     }
-                    manualInstances = manualInstances.filter { it.id != bagItem.itemId }
+                    manualInstances.remove(bagItem.itemId)
                 }
             }
 
-            disciple.manualIds.forEach { manualId ->
-                val m = manualInstances.find { it.id == manualId }
+            discipleTables.manualIds[id].forEach { manualId ->
+                val m = manualInstances.get(manualId)
                 if (m != null) {
                     val stack = m.toStack()
-                    val existingStack = manualStacks.find {
+                    val existingStack = manualStacks.firstOrNull {
                         it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
                     if (existingStack != null) {
                         val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                         val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                        manualStacks = manualStacks.map { s ->
-                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
-                        }
+                        manualStacks.update(existingStack.id) { it.copy(quantity = newQty) }
                     } else {
                         manualStacks = manualStacks + stack
                     }
-                    manualInstances = manualInstances.filter { it.id != manualId }
+                    manualInstances.remove(manualId)
                 }
             }
 
@@ -592,7 +596,7 @@ private val scopeProvider: CoroutineScopeProvider,
                 gameData = gameData.copy(manualProficiencies = updatedProficiencies)
             }
 
-            disciples = disciples.filter { it.id != discipleId }
+            discipleTables.remove(id)
 
             result = true
         }
@@ -609,25 +613,26 @@ private val scopeProvider: CoroutineScopeProvider,
     suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
         var result = false
         stateStore.update {
-            val idx = disciples.indexOfFirst { it.id == discipleId }
-            if (idx < 0) { result = false; return@update }
-            val disciple = disciples[idx]
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) { result = false; return@update }
 
-            val equipmentStack = equipmentStacks.find { it.id == equipmentId }
-            val equipmentInstance = equipmentInstances.find { it.id == equipmentId }
+            val equipmentStack = equipmentStacks.get(equipmentId)
+            val equipmentInstance = equipmentInstances.get(equipmentId)
 
             if (equipmentStack == null && equipmentInstance == null) { result = false; return@update }
+
+            val discipleRealm = discipleTables.realms[id]
 
             if (equipmentInstance != null) {
                 if (equipmentInstance.isEquipped) {
                     if (equipmentInstance.ownerId == discipleId) { result = false; return@update }
                     result = false; return@update
                 }
-                if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentInstance.minRealm)) {
+                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentInstance.minRealm)) {
                     result = false; return@update
                 }
             } else if (equipmentStack != null) {
-                if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentStack.minRealm)) {
+                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentStack.minRealm)) {
                     result = false; return@update
                 }
             }
@@ -636,10 +641,10 @@ private val scopeProvider: CoroutineScopeProvider,
             val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
 
             val oldEquipId = when (slot) {
-                EquipmentSlot.WEAPON -> disciple.equipment.weaponId
-                EquipmentSlot.ARMOR -> disciple.equipment.armorId
-                EquipmentSlot.BOOTS -> disciple.equipment.bootsId
-                EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
+                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
+                EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
+                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
+                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
                 else -> ""
             }
             if (oldEquipId.isNotEmpty()) {
@@ -650,41 +655,34 @@ private val scopeProvider: CoroutineScopeProvider,
                 }
             }
 
-            val currentDisciple = disciples[idx]
-            val stack = equipmentStacks.find { it.id == equipmentId }
-            val instance = equipmentInstances.find { it.id == equipmentId }
+            val stack = equipmentStacks.get(equipmentId)
+            val instance = equipmentInstances.get(equipmentId)
 
             if (stack != null) {
                 val equippedId = UUID.randomUUID().toString()
                 val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
                 if (stack.quantity > 1) {
-                    equipmentStacks = equipmentStacks.map {
-                        if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
-                    }
+                    equipmentStacks.update(equipmentId) { it.copy(quantity = it.quantity - 1) }
                 } else {
-                    equipmentStacks = equipmentStacks.filter { it.id != equipmentId }
+                    equipmentStacks.remove(equipmentId)
                 }
                 equipmentInstances = equipmentInstances + equippedItem
-                val updatedDisciple = when (slot) {
-                    EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
-                    EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
-                    EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
-                    EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
-                    else -> currentDisciple
+                when (slot) {
+                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equippedId
+                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equippedId
+                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equippedId
+                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equippedId
+                    else -> {}
                 }
-                disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
             } else if (instance != null) {
-                val updatedDisciple = when (slot) {
-                    EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
-                    EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
-                    EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
-                    EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
-                    else -> currentDisciple
+                when (slot) {
+                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equipmentId
+                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equipmentId
+                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equipmentId
+                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equipmentId
+                    else -> {}
                 }
-                disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
-                equipmentInstances = equipmentInstances.map {
-                    if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
-                }
+                equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
             }
 
             result = true
@@ -701,12 +699,12 @@ private val scopeProvider: CoroutineScopeProvider,
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
         var result = false
         stateStore.update {
-            val disciple = disciples.find { it.id == discipleId }
-            if (disciple == null) { result = false; return@update }
-            val isEquipped = disciple.equipment.weaponId == equipmentId ||
-                disciple.equipment.armorId == equipmentId ||
-                disciple.equipment.bootsId == equipmentId ||
-                disciple.equipment.accessoryId == equipmentId
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) { result = false; return@update }
+            val isEquipped = discipleTables.weaponIds[id] == equipmentId ||
+                discipleTables.armorIds[id] == equipmentId ||
+                discipleTables.bootsIds[id] == equipmentId ||
+                discipleTables.accessoryIds[id] == equipmentId
             if (!isEquipped) { result = false; return@update }
 
             result = unequipEquipmentLogic(discipleId, equipmentId)
@@ -715,22 +713,27 @@ private val scopeProvider: CoroutineScopeProvider,
     }
 
     private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
-        val discipleIndex = disciples.indexOfFirst { it.id == discipleId }
-        if (discipleIndex < 0) return false
+        val id = discipleId.toIntOrNull() ?: return false
+        if (!discipleTables.ids.contains(id)) return false
 
-        val disciple = disciples[discipleIndex]
-        val updatedDisciple = when {
-            disciple.equipment.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
-            disciple.equipment.armorId == equipmentId -> disciple.copyWith(armorId = "")
-            disciple.equipment.bootsId == equipmentId -> disciple.copyWith(bootsId = "")
-            disciple.equipment.accessoryId == equipmentId -> disciple.copyWith(accessoryId = "")
-            else -> disciple
+        val weaponId = discipleTables.weaponIds[id]
+        val armorId = discipleTables.armorIds[id]
+        val bootsId = discipleTables.bootsIds[id]
+        val accessoryId = discipleTables.accessoryIds[id]
+
+        val changed = when {
+            weaponId == equipmentId -> { discipleTables.weaponIds[id] = ""; true }
+            armorId == equipmentId -> { discipleTables.armorIds[id] = ""; true }
+            bootsId == equipmentId -> { discipleTables.bootsIds[id] = ""; true }
+            accessoryId == equipmentId -> { discipleTables.accessoryIds[id] = ""; true }
+            else -> false
         }
 
-        if (updatedDisciple != disciple) {
-            val eq = equipmentInstances.find { it.id == equipmentId }
+        if (changed) {
+            val eq = equipmentInstances.get(equipmentId)
 
             if (eq != null) {
+                val updatedDisciple = discipleTables.assemble(id)
                 val bagStackIds = updatedDisciple.equipmentBagStackIds()
                 val result = addEquipmentInstanceToDiscipleBag(
                     disciple = updatedDisciple,
@@ -741,10 +744,12 @@ private val scopeProvider: CoroutineScopeProvider,
                     gamePhase = gameData.gamePhase,
                     maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
                 )
-                disciples = disciples.toMutableList().also { it[discipleIndex] = result.updatedDisciple }
+                // Write back the updated fields from result.updatedDisciple
+                discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
+                discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
+                discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
             } else {
                 DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
-                disciples = disciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
             }
 
             return true
@@ -758,7 +763,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Clear disciple from all slots and assignments
      */
     suspend fun clearDiscipleFromAllSlots(discipleId: String) {
-        currentGameData = DiscipleSlotCleanup.clearAllSlots(currentGameData, discipleId)
+        stateStore.update { gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId) }
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         for (slot in forgeSlots) {
@@ -787,10 +792,11 @@ private val scopeProvider: CoroutineScopeProvider,
      * @return 成功补位的数量
      */
     suspend fun autoFillLawEnforcementSlots(): Int {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
         val activeSlots = elderSlots.lawEnforcementDisciples
         val reserveSlots = elderSlots.lawEnforcementReserveDisciples
+        val tables = stateStore.discipleTables
 
         // 收集空缺槽位（仅处理前 8 个槽位）
         val emptySlotIndices = (0 until 8).filter { index ->
@@ -802,9 +808,9 @@ private val scopeProvider: CoroutineScopeProvider,
         val candidates = reserveSlots
             .mapNotNull { slot ->
                 val discipleId = slot.discipleId.ifEmpty { return@mapNotNull null }
-                val disciple = currentDisciples.find { it.id == discipleId }
-                if (disciple != null && disciple.isAlive) {
-                    Triple(discipleId, slot.discipleName, disciple)
+                val id = discipleId.toIntOrNull() ?: return@mapNotNull null
+                if (tables.ids.contains(id) && tables.isAlive[id] == 1) {
+                    Triple(discipleId, slot.discipleName, tables.assemble(id))
                 } else null
             }
             // 排序：智力降序 → 境界升序（realm 越小境界越高）
@@ -849,12 +855,12 @@ private val scopeProvider: CoroutineScopeProvider,
         }
 
         if (fillCount > 0) {
-            currentGameData = currentGameData.copy(
-                elderSlots = currentGameData.elderSlots.copy(
+            stateStore.update { gameData = gameData.copy(
+                elderSlots = gameData.elderSlots.copy(
                     lawEnforcementDisciples = updatedActiveSlots.toList(),
                     lawEnforcementReserveDisciples = updatedReserveSlots.toList()
                 )
-            )
+            ) }
 
             syncAllDiscipleStatuses()
         }
@@ -866,7 +872,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Check if disciple is in exploration team
      */
     private fun _isInExploration(discipleId: String): Boolean {
-        return currentTeams.any { team ->
+        return stateStore.teams.value.any { team ->
             team.memberIds.contains(discipleId) &&
             (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)
         }
@@ -876,7 +882,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Check if disciple is in cave exploration team
      */
     private fun _isInCaveExploration(discipleId: String): Boolean {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         return data.caveExplorationTeams.any { team ->
             team.memberIds.contains(discipleId) &&
             (team.status == CaveExplorationStatus.TRAVELING || team.status == CaveExplorationStatus.EXPLORING)
@@ -887,7 +893,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Check if disciple is assigned to spirit mine
      */
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val inMinerSlots = data.spiritMineSlots.any { it.discipleId == discipleId }
         val inDeaconSlots = data.elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }
         return inMinerSlots || inDeaconSlots
@@ -897,14 +903,21 @@ private val scopeProvider: CoroutineScopeProvider,
      * Get alive disciples count
      */
     fun getAliveDisciplesCount(): Int {
-        return currentDisciples.count { it.isAlive }
+        val tables = stateStore.discipleTables
+        var count = 0
+        for (id in tables.ids) {
+            if (tables.isAlive[id] == 1) count++
+        }
+        return count
     }
 
     /**
      * Get disciples by status
      */
     fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> {
-        return currentDisciples.filter { it.status == status && it.isAlive }
+        val tables = stateStore.discipleTables
+        return tables.ids.filter { tables.isAlive[it] == 1 && tables.statuses[it] == status }
+            .map { tables.assemble(it) }
     }
 
     /**
@@ -939,16 +952,16 @@ private val scopeProvider: CoroutineScopeProvider,
      * @return 所有弟子的 DiscipleAggregate 列表
      */
     fun getAllDiscipleAggregates(): List<DiscipleAggregate> {
-        return currentDisciples.map { it.toAggregate() }
+        return stateStore.discipleTables.assembleAll().map { it.toAggregate() }
     }
 
     /**
      * Update yearly salary enabled/disabled for a realm
      */
     fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val newEnabled = data.yearlySalaryEnabled.toMutableMap()
         newEnabled[realm] = enabled
-        currentGameData = data.copy(yearlySalaryEnabled = newEnabled)
+        scope.launch { stateStore.update { gameData = data.copy(yearlySalaryEnabled = newEnabled) } }
     }
 }

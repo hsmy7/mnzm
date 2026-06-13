@@ -210,6 +210,7 @@ internal fun ElderSlotWithDisciples(
     onDirectDiscipleRemove: (Int) -> Unit,
     onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -252,7 +253,7 @@ internal fun ElderSlotWithDisciples(
             (0..1).forEach { index ->
                 val slot = directDisciples.find { it.index == index }
                 DirectDiscipleSlotItem(
-                    disciple = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null,
+                    disciple = if (slot?.isActive == true) discipleMap[slot.discipleId] else null,
                     isActive = slot?.isActive == true,
                     onClick = { onDirectDiscipleClick(index) },
                     onRemove = { onDirectDiscipleRemove(index) },

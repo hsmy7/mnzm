@@ -14,15 +14,11 @@ import com.xianxia.sect.core.engine.system.ChildBirthSystem
 import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @Singleton
@@ -60,6 +56,8 @@ class SettlementCoordinator @Inject constructor(
                 onSettlementComplete()
             }
             completed
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             DomainLog.e(TAG, "Settlement executeStep failed — resetting coordinator to recover", e)
             resetOnError()
@@ -198,7 +196,7 @@ class SettlementCoordinator @Inject constructor(
 
         val metrics = metricsBuilder.build(
             monthYear = shadow.gameData.gameYear to shadow.gameData.gameMonth,
-            totalDiscipleCount = shadow.disciples.count { it.isAlive },
+            totalDiscipleCount = shadow.discipleTables.ids.count { shadow.discipleTables.isAlive[it] == 1 },
             shadowSwapMs = swapMs,
             frameCount = scheduler.getFrameCount()
         )
@@ -221,11 +219,14 @@ class SettlementCoordinator @Inject constructor(
             metricsBuilder.focusedDiscipleMs = timer.stop()
             return
         }
-        val disciple = shadow.disciples.find { it.id == focusedId && it.isAlive } ?: run {
+        val tables = shadow.discipleTables
+        val focusedIdInt = focusedId.toInt()
+        if (!tables.ids.contains(focusedIdInt) || tables.isAlive[focusedIdInt] != 1) {
             metricsBuilder.focusedDiscipleMs = timer.stop()
             return
         }
 
+        val disciple = tables.assemble(focusedIdInt)
         val data = shadow.gameData
         val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
@@ -238,35 +239,30 @@ class SettlementCoordinator @Inject constructor(
         val alreadyGained = focusedGains[disciple.id] ?: 0.0
         val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
-        var updatedDisciple = disciple.copy(
-            cultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
-        )
+        val newCultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
+        tables.cultivations[focusedIdInt] = newCultivation
 
-        if (updatedDisciple.cultivation >= updatedDisciple.maxCultivation &&
-            isDiscipleFullHpMp(updatedDisciple)
-        ) {
-            updatedDisciple = processBreakthroughForDisciple(updatedDisciple, shadow, cache)
+        // 突破检查
+        if (newCultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
+            val updatedDisciple = processBreakthroughForDisciple(disciple, shadow, cache)
+            writeDiscipleToTables(updatedDisciple, tables)
         }
 
-        val profUpdates = calculateProficiencyGains(updatedDisciple, data, cache, monthSeconds, focusedProfGains[disciple.id] ?: emptyMap())
-        val nurtureUpdates = calculateNurtureGains(updatedDisciple, shadow, cache, monthSeconds, focusedNurtureGains[disciple.id] ?: emptyMap())
+        // 重新组装以获取最新状态（突破可能已改变）
+        val discipleAfterBreakthrough = tables.assemble(focusedIdInt)
+        val profUpdates = calculateProficiencyGains(discipleAfterBreakthrough, data, cache, monthSeconds, focusedProfGains[disciple.id] ?: emptyMap())
+        val nurtureUpdates = calculateNurtureGains(discipleAfterBreakthrough, shadow, cache, monthSeconds, focusedNurtureGains[disciple.id] ?: emptyMap())
 
         // 忠诚度（居住加成）
-        val loyaltyDelta = calculateLoyaltyDelta(updatedDisciple, cache)
+        val loyaltyDelta = calculateLoyaltyDelta(discipleAfterBreakthrough, cache)
         if (loyaltyDelta != 0) {
-            updatedDisciple = updatedDisciple.copyWith(
-                loyalty = (updatedDisciple.skills.loyalty + loyaltyDelta).coerceAtLeast(0)
-            )
+            tables.loyalties[focusedIdInt] = (tables.loyalties[focusedIdInt] + loyaltyDelta).coerceAtLeast(0)
         }
 
         // 结算后计算下一次完成时间
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
-        val cultivationRate = cache.cultivationRateCache[updatedDisciple.id] ?: 0.0
-        updatedDisciple = updatedDisciple.withNextCultivationCompletion(currentAbsoluteMonth, cultivationRate)
-
-        shadow.disciples = shadow.disciples.map { d ->
-            if (d.id == focusedId) updatedDisciple else d
-        }
+        val cultivationRate = cache.cultivationRateCache[disciple.id] ?: 0.0
+        writeCultivationCompletionToTables(discipleAfterBreakthrough, tables, currentAbsoluteMonth, cultivationRate)
 
         applyNurtureUpdates(shadow, nurtureUpdates)
         applyProficiencyUpdates(shadow, profUpdates)
@@ -275,73 +271,63 @@ class SettlementCoordinator @Inject constructor(
         metricsBuilder.focusedDiscipleMs = timer.stop()
     }
 
-    private suspend fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
+    private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
         val data = shadow.gameData
         val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
+        val tables = shadow.discipleTables
 
-        val cleanDisciplesWithIndex = shadow.disciples.mapIndexedNotNull { index, disciple ->
-            if (!disciple.isAlive || disciple.id == focusedId) return@mapIndexedNotNull null
-            if (disciple.id !in cache.cleanDiscipleIds) return@mapIndexedNotNull null
-            if (disciple.id in cache.farFromCompletionIds) return@mapIndexedNotNull null
-            index to disciple
+        val cleanIds = tables.ids.filter { id ->
+            tables.isAlive[id] == 1 &&
+            id.toString() != focusedId &&
+            id.toString() in cache.cleanDiscipleIds &&
+            id.toString() !in cache.farFromCompletionIds
         }
 
-        if (cleanDisciplesWithIndex.isEmpty()) {
+        if (cleanIds.isEmpty()) {
             metricsBuilder.cleanBatchMs = timer.stop()
             return
         }
 
-        val chunks = cleanDisciplesWithIndex.chunked(100)
-        val results = coroutineScope {
-            chunks.map { chunk ->
-                async(Dispatchers.Default) {
-                    chunk.map { (index, disciple) ->
-                        var d = disciple
-                        val rate = cache.cultivationRateCache[d.id] ?: 0.0
-                        val cultivationDelta = rate * monthSeconds
-                        d = d.copy(
-                            cultivation = (d.cultivation + cultivationDelta).coerceIn(0.0, d.maxCultivation)
-                        )
+        for (id in cleanIds) {
+            val disciple = tables.assemble(id)
+            val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
+            val cultivationDelta = rate * monthSeconds
+            val newCultivation = (disciple.cultivation + cultivationDelta).coerceIn(0.0, disciple.maxCultivation)
+            tables.cultivations[id] = newCultivation
 
-                        val loyaltyDelta = calculateLoyaltyDelta(d, cache)
-                        if (loyaltyDelta != 0) {
-                            d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
-                        }
-                        d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
-
-                        Pair(index, d)
-                    }
-                }
-            }.awaitAll()
-        }
-
-        val updatedDisciples = shadow.disciples.toMutableList()
-        for (chunkResults in results) {
-            for ((index, disciple) in chunkResults) {
-                updatedDisciples[index] = disciple
+            val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
+            if (loyaltyDelta != 0) {
+                tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta).coerceAtLeast(0)
             }
+
+            val remaining = disciple.maxCultivation - newCultivation
+            val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, rate)
+            tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
+            tables.cultivationCompletionPhases[id] = 1
         }
 
-        shadow.disciples = updatedDisciples.toList()
         metricsBuilder.cleanBatchMs = timer.stop()
     }
 
-    private suspend fun processDirtyDiscipleBatch(shadow: MutableGameState, cache: SettlementCache, offset: Int): Int {
+    private fun processDirtyDiscipleBatch(shadow: MutableGameState, cache: SettlementCache, offset: Int): Int {
         timer.start()
         val data = shadow.gameData
         val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
+        val tables = shadow.discipleTables
 
-        val dirtyDisciples = shadow.disciples.filter {
-            it.isAlive && it.id != focusedId && it.id in cache.dirtyDiscipleIds
-                && it.id !in cache.farFromCompletionIds
+        val dirtyIds = tables.ids.filter { id ->
+            tables.isAlive[id] == 1 &&
+            id.toString() != focusedId &&
+            id.toString() in cache.dirtyDiscipleIds &&
+            id.toString() !in cache.farFromCompletionIds
         }
 
-        val batch = dirtyDisciples.drop(offset).take(MAX_DIRTY_BATCH_SIZE)
+        val batch = dirtyIds.drop(offset).take(MAX_DIRTY_BATCH_SIZE)
         if (batch.isEmpty()) {
             metricsBuilder.dirtyBatchMs += timer.stop()
             return 0
@@ -351,73 +337,56 @@ class SettlementCoordinator @Inject constructor(
         val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
         val focusedNurtureGains = cultivationService.getHighFrequencyData().value.nurtureUpdates
 
-        // 分片并行处理：纯计算部分（修炼、薪水、忠诚度、熟练度、养成）
-        val chunks = batch.chunked(50)
-        val parallelResults = coroutineScope {
-            chunks.map { chunk ->
-                async(Dispatchers.Default) {
-                    chunk.map { disciple ->
-                        var d = disciple
-                        val rate = cache.cultivationRateCache[d.id] ?: 0.0
-                        val monthlyGain = rate * monthSeconds
-                        val alreadyGained = focusedGains[d.id] ?: 0.0
-                        val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-
-                        d = d.copy(cultivation = (d.cultivation + netGain).coerceIn(0.0, d.maxCultivation))
-
-                        val needsBreakthrough = DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[d.id] ?: emptySet()) &&
-                            d.cultivation >= d.maxCultivation && isDiscipleFullHpMp(d)
-
-                        var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
-                        if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[d.id] ?: emptySet())) {
-                            val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
-                            profUpdates = calculateProficiencyGains(d, data, cache, monthSeconds, profAlreadyGained)
-                        }
-
-                        var nurtureUpdates = emptyMap<String, EquipmentInstance>()
-                        if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[d.id] ?: emptySet())) {
-                            val nurtureAlreadyGained = focusedNurtureGains[d.id] ?: emptyMap()
-                            nurtureUpdates = calculateNurtureGains(d, shadow, cache, monthSeconds, nurtureAlreadyGained)
-                        }
-
-                        val loyaltyDelta = calculateLoyaltyDelta(d, cache)
-                        if (loyaltyDelta != 0) {
-                            d = d.copyWith(loyalty = (d.skills.loyalty + loyaltyDelta).coerceAtLeast(0))
-                        }
-
-                        d = d.withNextCultivationCompletion(currentAbsoluteMonth, rate)
-
-                        DirtyDiscipleParallelResult(d, needsBreakthrough, profUpdates, nurtureUpdates)
-                    }
-                }
-            }.awaitAll()
-        }
-
-        // 串行合并结果
-        val updatedDisciples = shadow.disciples.toMutableList()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
 
-        for (chunkResults in parallelResults) {
-            for (result in chunkResults) {
-                var d = result.disciple
+        for (id in batch) {
+            val disciple = tables.assemble(id)
+            val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
+            val monthlyGain = rate * monthSeconds
+            val alreadyGained = focusedGains[disciple.id] ?: 0.0
+            val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
-                // 串行处理突破（需要消费 shadow.pills）
-                if (result.needsBreakthrough) {
-                    d = processBreakthroughForDisciple(d, shadow, cache)
-                }
+            val newCultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
+            tables.cultivations[id] = newCultivation
 
-                val idx = updatedDisciples.indexOfFirst { it.id == d.id }
-                if (idx >= 0) updatedDisciples[idx] = d
+            val needsBreakthrough = DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[disciple.id] ?: emptySet()) &&
+                newCultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)
 
-                equipmentInstanceUpdates.putAll(result.nurtureUpdates)
-                for ((discipleId, profList) in result.profUpdates) {
-                    updatedManualProficiencies[discipleId] = profList
-                }
+            var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
+            if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
+                val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
+                profUpdates = calculateProficiencyGains(disciple, data, cache, monthSeconds, profAlreadyGained)
+            }
+
+            var nurtureUpdates = emptyMap<String, EquipmentInstance>()
+            if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
+                val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
+                nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, monthSeconds, nurtureAlreadyGained)
+            }
+
+            val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
+            if (loyaltyDelta != 0) {
+                tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta).coerceAtLeast(0)
+            }
+
+            // 修炼完成时间
+            val remaining = disciple.maxCultivation - newCultivation
+            val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, rate)
+            tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
+            tables.cultivationCompletionPhases[id] = 1
+
+            // 突破处理（需要消费 shadow.pills，串行）
+            if (needsBreakthrough) {
+                val afterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
+                writeDiscipleToTables(afterBreakthrough, tables)
+            }
+
+            equipmentInstanceUpdates.putAll(nurtureUpdates)
+            for ((discipleId, profList) in profUpdates) {
+                updatedManualProficiencies[discipleId] = profList
             }
         }
-
-        shadow.disciples = updatedDisciples.toList()
 
         if (equipmentInstanceUpdates.isNotEmpty()) {
             shadow.equipmentInstances = shadow.equipmentInstances.map { eq ->
@@ -433,13 +402,6 @@ class SettlementCoordinator @Inject constructor(
         metricsBuilder.dirtyBatchMs += timer.stop()
         return batch.size
     }
-
-    private data class DirtyDiscipleParallelResult(
-        val disciple: Disciple,
-        val needsBreakthrough: Boolean,
-        val profUpdates: Map<String, List<ManualProficiencyData>>,
-        val nurtureUpdates: Map<String, EquipmentInstance>
-    )
 
     private suspend fun processProduction(shadow: MutableGameState) {
         timer.start()
@@ -475,10 +437,12 @@ class SettlementCoordinator @Inject constructor(
         val currentMonth = shadow.gameData.gameMonth
         val completedRefinements = mutableListOf<String>()
         val cancelledRefinements = mutableListOf<String>()
+        val tables = shadow.discipleTables
 
         for ((buildingId, progress) in shadow.gameData.activeBloodRefinements) {
-            val d = shadow.disciples.find { it.id == progress.discipleId }
-            if (d == null || !d.isAlive) {
+            val dId = progress.discipleId.toInt()
+            val d = if (tables.ids.contains(dId) && tables.isAlive[dId] == 1) tables.assemble(dId) else null
+            if (d == null) {
                 // 弟子死亡或脱离 → 取消洗炼，不扣除次数
                 cancelledRefinements.add(buildingId)
                 continue
@@ -489,12 +453,28 @@ class SettlementCoordinator @Inject constructor(
             )) {
                 val bonus = (DiscipleStatCalculator.getBaseStatValue(d.combat, progress.selectedStat) * progress.bonusPercent).toInt().coerceAtLeast(1)
                 val newCombat = DiscipleStatCalculator.applyStatBonus(d.combat, progress.selectedStat, bonus)
-                val newDisciple = d.copy(
-                    combat = newCombat,
-                    status = DiscipleStatus.IDLE,
-                    statusData = emptyMap()
-                )
-                shadow.disciples = shadow.disciples.map { if (it.id == d.id) newDisciple else it }
+                // 直接更新组件表
+                tables.baseHps[dId] = newCombat.baseHp
+                tables.baseMps[dId] = newCombat.baseMp
+                tables.basePhysicalAttacks[dId] = newCombat.basePhysicalAttack
+                tables.baseMagicAttacks[dId] = newCombat.baseMagicAttack
+                tables.basePhysicalDefenses[dId] = newCombat.basePhysicalDefense
+                tables.baseMagicDefenses[dId] = newCombat.baseMagicDefense
+                tables.baseSpeeds[dId] = newCombat.baseSpeed
+                tables.hpVariances[dId] = newCombat.hpVariance
+                tables.mpVariances[dId] = newCombat.mpVariance
+                tables.physicalAttackVariances[dId] = newCombat.physicalAttackVariance
+                tables.magicAttackVariances[dId] = newCombat.magicAttackVariance
+                tables.physicalDefenseVariances[dId] = newCombat.physicalDefenseVariance
+                tables.magicDefenseVariances[dId] = newCombat.magicDefenseVariance
+                tables.speedVariances[dId] = newCombat.speedVariance
+                tables.totalCultivations[dId] = newCombat.totalCultivation
+                tables.breakthroughCounts[dId] = newCombat.breakthroughCount
+                tables.breakthroughFailCounts[dId] = newCombat.breakthroughFailCount
+                tables.currentHps[dId] = newCombat.currentHp
+                tables.currentMps[dId] = newCombat.currentMp
+                tables.statuses[dId] = DiscipleStatus.IDLE
+                tables.statusData[dId] = emptyMap()
 
                 val currentRefinements = shadow.gameData.bloodRefinements.toMutableMap()
                 currentRefinements[d.id] = (currentRefinements[d.id] ?: emptyList()) + progress.materialId
@@ -552,7 +532,7 @@ class SettlementCoordinator @Inject constructor(
                     .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
                     .maxByOrNull { it.effects.breakthroughChance }
                 if (warehousePill != null) {
-                    shadow.pills = shadow.pills - warehousePill
+                    shadow.pills = shadow.pills - listOf(warehousePill)
                     pillBonus = warehousePill.effects.breakthroughChance
                 }
             }
@@ -562,7 +542,7 @@ class SettlementCoordinator @Inject constructor(
                     .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
                     .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
                 if (bestPill != null) {
-                    d = d.copyWith(storageBagItems = d.equipment.storageBagItems - bestPill)
+                    d = d.copy(equipment = d.equipment.copy(storageBagItems = d.equipment.storageBagItems - bestPill))
                     pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
                 }
             }
@@ -586,7 +566,7 @@ class SettlementCoordinator @Inject constructor(
                     (getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
                 } else 0
 
-                d = d.copyWith(
+                d = d.copy(
                     cultivation = 0.0,
                     realm = newRealm,
                     realmLayer = newRealmLayer,
@@ -595,10 +575,12 @@ class SettlementCoordinator @Inject constructor(
             } else {
                 val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
                 val curMp = if (d.combat.currentMp < 0) d.maxMp else d.combat.currentMp
-                d = d.copyWith(
+                d = d.copy(
                     cultivation = 0.0,
-                    currentHp = (curHp * 0.1).toInt().coerceAtLeast(1),
-                    currentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
+                    combat = d.combat.copy(
+                        currentHp = (curHp * 0.1).toInt().coerceAtLeast(1),
+                        currentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
+                    )
                 )
                 shouldContinue = false
             }
@@ -780,18 +762,34 @@ class SettlementCoordinator @Inject constructor(
     }
 
     /**
-     * 结算完成后计算弟子下一次完成时间。
+     * 将 Disciple 对象的变更字段写回组件表。
+     * 仅在 processBreakthroughForDisciple 返回后调用。
      */
-    private fun Disciple.withNextCultivationCompletion(
-        currentMonth: Int,
+    private fun writeDiscipleToTables(disciple: Disciple, tables: DiscipleTables) {
+        val id = disciple.id.toInt()
+        tables.cultivations[id] = disciple.cultivation
+        tables.realms[id] = disciple.realm
+        tables.realmLayers[id] = disciple.realmLayer
+        tables.lifespans[id] = disciple.lifespan
+        tables.currentHps[id] = disciple.combat.currentHp
+        tables.currentMps[id] = disciple.combat.currentMp
+        tables.storageBagItems[id] = disciple.equipment.storageBagItems
+    }
+
+    /**
+     * 计算并写入弟子下一次修炼完成时间到组件表。
+     */
+    private fun writeCultivationCompletionToTables(
+        disciple: Disciple,
+        tables: DiscipleTables,
+        currentAbsoluteMonth: Int,
         cultivationRate: Double
-    ): Disciple {
-        val remaining = maxCultivation - cultivation
+    ) {
+        val id = disciple.id.toInt()
+        val remaining = disciple.maxCultivation - disciple.cultivation
         val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, cultivationRate)
-        return copy(
-            cultivationCompletionMonth = currentMonth + monthsToNext,
-            cultivationCompletionPhase = 1  // 修炼始终上旬
-        )
+        tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
+        tables.cultivationCompletionPhases[id] = 1
     }
 
     companion object {

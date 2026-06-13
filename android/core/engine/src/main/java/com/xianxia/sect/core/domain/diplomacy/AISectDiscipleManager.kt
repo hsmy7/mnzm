@@ -310,7 +310,7 @@ object AISectDiscipleManager {
                 disciple.lifespan
             }
 
-            disciple.copyWith(
+            disciple.copy(
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,

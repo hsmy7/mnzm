@@ -22,16 +22,6 @@ class DiplomacyEventProcessor @Inject constructor(
         private const val TAG = "DiplomacyEventProc"
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
     // ── 外交月度事件 ──────────────────────────────────────────────────
 
     fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
@@ -46,7 +36,7 @@ class DiplomacyEventProcessor @Inject constructor(
     }
 
     fun processDiplomacyMonthlyEvents(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
         val playerSectId = playerSect.id
         val updatedRelations = data.sectRelations.toMutableList()
@@ -89,12 +79,12 @@ class DiplomacyEventProcessor @Inject constructor(
         }
 
         if (relationsChanged) {
-            currentGameData = data.copy(sectRelations = updatedRelations.toList())
+            scope.launch { stateStore.update { gameData = data.copy(sectRelations = updatedRelations.toList()) } }
         }
     }
 
     fun processFavorDecay(currentYear: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
 
         val updatedRelations = data.sectRelations.map { relation ->
@@ -112,12 +102,12 @@ class DiplomacyEventProcessor @Inject constructor(
 
         val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a != b }
         if (hasChanges) {
-            currentGameData = data.copy(sectRelations = updatedRelations)
+            scope.launch { stateStore.update { gameData = data.copy(sectRelations = updatedRelations) } }
         }
     }
 
     fun checkAllianceExpiry(year: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val expiredAlliances = data.alliances.filter { year - it.startYear >= GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS }
 
         if (expiredAlliances.isEmpty()) return
@@ -129,14 +119,14 @@ class DiplomacyEventProcessor @Inject constructor(
             } else sect
         }
 
-        currentGameData = data.copy(
+        scope.launch { stateStore.update { gameData = data.copy(
             alliances = updatedAlliances,
             worldMapSects = updatedSects
-        )
+        ) } }
     }
 
     fun checkAllianceFavorDrop() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val dissolvedAlliances = mutableListOf<Alliance>()
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
@@ -164,10 +154,10 @@ class DiplomacyEventProcessor @Inject constructor(
                     sect.copy(allianceId = "", allianceStartYear = 0)
                 } else sect
             }
-            currentGameData = data.copy(
+            scope.launch { stateStore.update { gameData = data.copy(
                 alliances = updatedAlliances,
                 worldMapSects = updatedSects
-            )
+            ) } }
         }
     }
 

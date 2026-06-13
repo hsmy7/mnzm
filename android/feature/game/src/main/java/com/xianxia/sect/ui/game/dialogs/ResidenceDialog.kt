@@ -56,6 +56,7 @@ fun ResidenceDialog(
         "多人住所" -> "修炼速度+10%"
         else -> ""
     }
+    val discipleMap = disciples.associateBy { it.id }
 
     var showDiscipleSelector by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf(0) }
@@ -150,7 +151,7 @@ fun ResidenceDialog(
             ) {
                 slots.forEach { slot ->
                     val disciple = slot.discipleId.let { id ->
-                        if (id.isNotEmpty()) disciples.find { it.id == id } else null
+                        if (id.isNotEmpty()) discipleMap[id] else null
                     }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally

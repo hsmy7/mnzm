@@ -55,65 +55,6 @@ class CultivationEventProcessor @Inject constructor(
         private const val TAG = "CultivationEventProc"
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-
-    private var pendingNotification: GameNotification?
-        get() = stateStore.currentTransactionMutableState()?.pendingNotification
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.pendingNotification = value; return }
-            if (value != null) stateStore.setPendingNotification(value)
-            else stateStore.clearPendingNotification()
-        }
-
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-
-    private var currentManualStacks: List<ManualStack>
-        get() = stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualStacks = value; return }
-            scope.launch { stateStore.update { manualStacks = value } }
-        }
-
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
-
     private val phaseMultiplier: Int get() = 10
 
     // ── 时间推进 ──────────────────────────────────────────────────────
@@ -135,7 +76,7 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun advanceMonth(state: MutableGameState? = null) {
-        val data = state?.gameData ?: currentGameData
+        val data = state?.gameData ?: stateStore.gameData.value
         var newMonth = data.gameMonth + 1
         var newYear = data.gameYear
 
@@ -151,7 +92,7 @@ class CultivationEventProcessor @Inject constructor(
             gameYear = newYear,
             gamePhase = 0
         )
-        if (state != null) state.gameData = updatedData else currentGameData = updatedData
+        if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
 
         if (isYearChanged) {
             processYearlyEvents(newYear)
@@ -161,7 +102,7 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun advanceYear(state: MutableGameState? = null) {
-        val data = state?.gameData ?: currentGameData
+        val data = state?.gameData ?: stateStore.gameData.value
         val newYear = data.gameYear + 1
 
         val updatedData = data.copy(
@@ -169,7 +110,7 @@ class CultivationEventProcessor @Inject constructor(
             gameMonth = 1,
             gamePhase = 0
         )
-        if (state != null) state.gameData = updatedData else currentGameData = updatedData
+        if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
 
         processYearlyEvents(newYear)
 
@@ -194,17 +135,17 @@ class CultivationEventProcessor @Inject constructor(
 
     private suspend fun processPhaseTick(year: Int, month: Int, phase: Int) {
         val phaseSecondsValue = gameClock.msPerPhase / 1000.0
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
-        val proficienciesMap = currentGameData.manualProficiencies
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+        val proficienciesMap = stateStore.gameData.value.manualProficiencies
         val multiplier = phaseMultiplier.toDouble()
         val decay = phaseMultiplier
-        val equipmentStacksList = currentEquipmentStacks
-        val manualStacksList = currentManualStacks
+        val equipmentStacksList = stateStore.equipmentStacks.value
+        val manualStacksList = stateStore.manualStacks.value
         val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
         val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
 
-        val aliveDisciples = currentDisciples.filter { it.isAlive }
+        val aliveDisciples = stateStore.disciples.value.filter { it.isAlive }
 
         val acc = PhaseTickAccumulator()
 
@@ -245,9 +186,13 @@ class CultivationEventProcessor @Inject constructor(
         sharedState.highFrequencyData.value = currentHfd.copy(cultivationUpdates = accumGains)
 
         val aliveMap = processedAlive.associateBy { it.id }
-        currentDisciples = currentDisciples.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
+        val updatedDisciplesList = stateStore.disciples.value.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
+        stateStore.update {
+            discipleTables.clear()
+            updatedDisciplesList.forEach { discipleTables.insert(it) }
+        }
 
-        cultivationCore.applyAccumulator(acc, maxEquipStack, maxManualStack)
+        cultivationCore.applyAccumulator(acc, stateStore.currentTransactionMutableState() ?: return, maxEquipStack, maxManualStack)
 
         processAutoFromWarehouse(year, month, phase)
     }
@@ -255,16 +200,17 @@ class CultivationEventProcessor @Inject constructor(
     // ── 自动从仓库装备/学习 ──────────────────────────────────────────
 
     private fun processAutoFromWarehouse(year: Int, month: Int, phase: Int) {
-        val equipFocused = currentGameData.autoEquipFromWarehouseFocused
-        val equipRootCounts = currentGameData.autoEquipFromWarehouseRootCounts
-        val learnFocused = currentGameData.autoLearnFromWarehouseFocused
-        val learnRootCounts = currentGameData.autoLearnFromWarehouseRootCounts
+        val gameData = stateStore.gameData.value
+        val equipFocused = gameData.autoEquipFromWarehouseFocused
+        val equipRootCounts = gameData.autoEquipFromWarehouseRootCounts
+        val learnFocused = gameData.autoLearnFromWarehouseFocused
+        val learnRootCounts = gameData.autoLearnFromWarehouseRootCounts
         val hasAutoEquip = equipFocused || equipRootCounts.isNotEmpty()
         val hasAutoLearn = learnFocused || learnRootCounts.isNotEmpty()
 
         if (!hasAutoEquip && !hasAutoLearn) return
 
-        val updatedDisciples = currentDisciples.toMutableList()
+        val updatedDisciples = stateStore.disciples.value.toMutableList()
         val bagEqIds = mutableSetOf<String>()
         val bagMnIds = mutableSetOf<String>()
         for (disciple in updatedDisciples) {
@@ -276,10 +222,12 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        var eqStacks = currentEquipmentStacks.filter { it.id !in bagEqIds }
-        var mnStacks = currentManualStacks.filter { it.id !in bagMnIds }
-        val eqInstancesById = currentEquipmentInstances.associateBy { it.id }
-        val mnInstancesById = currentManualInstances.associateBy { it.id }
+        var eqStacks = stateStore.equipmentStacks.value.filter { it.id !in bagEqIds }
+        var mnStacks = stateStore.manualStacks.value.filter { it.id !in bagMnIds }
+        val eqInstancesById = stateStore.equipmentInstances.value.associateBy { it.id }
+        val mnInstancesById = stateStore.manualInstances.value.associateBy { it.id }
+        val newEqInstances = mutableListOf<EquipmentInstance>()
+        val newMnInstances = mutableListOf<ManualInstance>()
 
         val sortedIndices = updatedDisciples.indices
             .filter { updatedDisciples[it].isAlive }
@@ -303,7 +251,7 @@ class CultivationEventProcessor @Inject constructor(
                 )
                 if (result.newInstances.isNotEmpty()) {
                     d = result.disciple
-                    currentEquipmentInstances = currentEquipmentInstances + result.newInstances
+                    newEqInstances.addAll(result.newInstances)
                     result.stackUpdates.forEach { update ->
                         if (update.isDeletion) {
                             eqStacks = eqStacks.filter { it.id != update.stackId }
@@ -328,7 +276,7 @@ class CultivationEventProcessor @Inject constructor(
                 )
                 if (result.newInstance != null) {
                     d = result.disciple
-                    currentManualInstances = currentManualInstances + result.newInstance
+                    newMnInstances.add(result.newInstance)
                     result.stackUpdate?.let { update ->
                         if (update.isDeletion) {
                             mnStacks = mnStacks.filter { it.id != update.stackId }
@@ -346,9 +294,16 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        currentDisciples = updatedDisciples.toList()
-        currentEquipmentStacks = currentEquipmentStacks.filter { it.id in bagEqIds } + eqStacks
-        currentManualStacks = currentManualStacks.filter { it.id in bagMnIds } + mnStacks
+        scope.launch {
+            stateStore.update {
+                discipleTables.clear()
+                updatedDisciples.forEach { discipleTables.insert(it) }
+                equipmentStacks.setItems(equipmentStacks.items.filter { it.id in bagEqIds } + eqStacks)
+                manualStacks.setItems(manualStacks.items.filter { it.id in bagMnIds } + mnStacks)
+                newEqInstances.forEach { equipmentInstances.add(it) }
+                newMnInstances.forEach { manualInstances.add(it) }
+            }
+        }
     }
 
     // ── 月度/年度事件 ──────────────────────────────────────────────────
@@ -377,16 +332,17 @@ class CultivationEventProcessor @Inject constructor(
         diplomacyEventProcessor.processAIAlliances(year)
         discipleLifecycleProcessor.processReflectionRelease(year)
         diplomacyEventProcessor.processFavorDecay(year)
-        currentGameData = AISectGarrisonManager.rotateGarrisonSlots(currentGameData)
+        val rotated = AISectGarrisonManager.rotateGarrisonSlots(stateStore.gameData.value)
+        stateStore.update { gameData = rotated }
         discipleLifecycleProcessor.processGriefExpiry(year)
     }
 
     // ── 执法/盗窃 ──────────────────────────────────────────────────────
 
     fun calculateCaptureRate(): Double {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
-        val allDisciples = currentDisciples.associateBy { it.id }
+        val allDisciples = stateStore.disciples.value.associateBy { it.id }
 
         var captureRate = GameConfig.LawEnforcementConfig.BASE_CAPTURE_RATE
 
@@ -416,11 +372,11 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun processLawEnforcementMonthly() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
 
-        val atRiskDisciples = currentDisciples.filter {
+        val atRiskDisciples = stateStore.disciples.value.filter {
             it.isAlive &&
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
@@ -434,20 +390,28 @@ class CultivationEventProcessor @Inject constructor(
                 if (Random.nextDouble() < captureRate) {
                     val currentYear = data.gameYear
                     val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
-                    currentDisciples = currentDisciples.map {
-                        if (it.id == disciple.id) it.copy(
-                            status = DiscipleStatus.REFLECTING,
-                            statusData = it.statusData + mapOf(
-                                "reflectionStartYear" to currentYear.toString(),
-                                "reflectionEndYear" to endYear.toString()
-                            )
-                        ) else it
+                    stateStore.update {
+                        val mapped = discipleTables.assembleAll().map {
+                            if (it.id == disciple.id) it.copy(
+                                status = DiscipleStatus.REFLECTING,
+                                statusData = it.statusData + mapOf(
+                                    "reflectionStartYear" to currentYear.toString(),
+                                    "reflectionEndYear" to endYear.toString()
+                                )
+                            ) else it
+                        }
+                        discipleTables.clear()
+                        mapped.forEach { discipleTables.insert(it) }
                     }
                 } else {
                     val discipleSnapshot = disciple.copy()
                     discipleLifecycleProcessor.clearDiscipleFromAllSlots(disciple.id)
-                    currentDisciples = currentDisciples.filter { it.id != disciple.id }
-                    pendingNotification = GameNotification.DiscipleDesertion(discipleSnapshot)
+                    stateStore.update {
+                        val filtered = discipleTables.assembleAll().filter { it.id != disciple.id }
+                        discipleTables.clear()
+                        filtered.forEach { discipleTables.insert(it) }
+                    }
+                    stateStore.setPendingNotification(GameNotification.DiscipleDesertion(discipleSnapshot))
                 }
             }
         }
@@ -456,12 +420,13 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun processTheftMonthly() {
-        if (currentGameData.spiritStones <= 0) return
+        val currentData = stateStore.gameData.value
+        if (currentData.spiritStones <= 0) return
 
         val captureRate = calculateCaptureRate()
-        val currentMonthValue = currentGameData.gameYear * 12 + currentGameData.gameMonth
+        val currentMonthValue = currentData.gameYear * 12 + currentData.gameMonth
 
-        val atRiskDisciples = currentDisciples.filter {
+        val atRiskDisciples = stateStore.disciples.value.filter {
             it.isAlive &&
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
@@ -470,10 +435,10 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         val thiefIds = mutableSetOf<String>()
-        val warehouses = currentGameData.placedBuildings.filter {
+        val warehouses = currentData.placedBuildings.filter {
             it.displayName == "仓库"
         }
-        val garrisons = currentGameData.warehouseGarrisons
+        val garrisons = currentData.warehouseGarrisons
 
         for (disciple in atRiskDisciples) {
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
@@ -486,7 +451,7 @@ class CultivationEventProcessor @Inject constructor(
                     if (garrison == null) {
                         false
                     } else {
-                        val guardDisciple = currentDisciples.find { it.id == garrison.discipleId }
+                        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId }
                         if (guardDisciple == null) {
                             false
                         } else {
@@ -505,16 +470,18 @@ class CultivationEventProcessor @Inject constructor(
                 }
 
                 if (caught) {
-                    pendingNotification = GameNotification.DiscipleTheftCaught(disciple)
+                    stateStore.setPendingNotification(GameNotification.DiscipleTheftCaught(disciple))
                 } else {
-                    val currentData = currentGameData
+                    val currentData = stateStore.gameData.value
                     if (currentData.spiritStones <= 0) break
                     val stolenAmount = (currentData.spiritStones * Random.nextDouble(GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO, GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO)).toLong().coerceAtLeast(1)
-                    currentGameData = currentData.copy(spiritStones = (currentData.spiritStones - stolenAmount).coerceAtLeast(0))
-                    currentDisciples = currentDisciples.map {
-                        if (it.id == disciple.id) it.copy(
-                            equipment = it.equipment.copy(storageBagSpiritStones = it.equipment.storageBagSpiritStones + stolenAmount)
-                        ) else it
+                    stateStore.update {
+                        gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
+                        discipleTables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
+                            discipleTables.update(
+                                d.copy(equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount))
+                            )
+                        }
                     }
 
                     val loyalty = stats.loyalty
@@ -523,7 +490,7 @@ class CultivationEventProcessor @Inject constructor(
                         thiefIds.add(disciple.id)
                     }
 
-                    pendingNotification = GameNotification.WarehouseTheft(stolenAmount)
+                    stateStore.setPendingNotification(GameNotification.WarehouseTheft(stolenAmount))
                 }
             }
         }
@@ -532,7 +499,11 @@ class CultivationEventProcessor @Inject constructor(
             discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId)
         }
         if (thiefIds.isNotEmpty()) {
-            currentDisciples = currentDisciples.filter { it.id !in thiefIds }
+            stateStore.update {
+                val filtered = discipleTables.assembleAll().filter { it.id !in thiefIds }
+                discipleTables.clear()
+                filtered.forEach { discipleTables.insert(it) }
+            }
         }
     }
 
@@ -540,47 +511,59 @@ class CultivationEventProcessor @Inject constructor(
 
     fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
+        val disciples = stateStore.disciples.value.toMutableList()
+        var changed = false
         team@ for (member in battleMembers) {
-            val discipleIndex = currentDisciples.indexOfFirst { it.id == member.id }
+            val discipleIndex = disciples.indexOfFirst { it.id == member.id }
             if (discipleIndex < 0) continue@team
-            val disciple = currentDisciples[discipleIndex]
+            val disciple = disciples[discipleIndex]
             if (!survivorIds.contains(member.id)) {
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD) }
+                disciples[discipleIndex] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                changed = true
             } else {
                 val hp = member.hp.coerceAtMost(member.maxHp)
                 val mp = member.mp.coerceAtMost(member.maxMp)
-                currentDisciples = currentDisciples.toMutableList().also {
-                    it[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                disciples[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                changed = true
+            }
+        }
+        if (changed) {
+            scope.launch {
+                stateStore.update {
+                    discipleTables.clear()
+                    disciples.forEach { discipleTables.insert(it) }
                 }
             }
         }
     }
 
     suspend fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
+        val currentDisciplesList = stateStore.disciples.value.toMutableList()
         team.memberIds.forEach { memberId ->
-            val disciple = currentDisciples.find { it.id == memberId }
-            if (disciple != null) {
+            val index = currentDisciplesList.indexOfFirst { it.id == memberId }
+            if (index >= 0) {
+                val disciple = currentDisciplesList[index]
                 val shouldKeepAlive = disciple.isAlive && survivorIds.contains(memberId)
-                currentDisciples = currentDisciples.map { d ->
-                    if (d.id == memberId) {
-                        if (shouldKeepAlive) {
-                            val hp = survivorHpMap[memberId] ?: d.combat.currentHp
-                            val mp = survivorMpMap[memberId] ?: d.combat.currentMp
-                            d.copy(status = DiscipleStatus.IDLE, combat = d.combat.copy(currentHp = hp, currentMp = mp))
-                        } else {
-                            discipleLifecycleProcessor.handleDiscipleDeath(d, isOutsideSect = true)
-                            d.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                        }
-                    } else d
+                if (shouldKeepAlive) {
+                    val hp = survivorHpMap[memberId] ?: disciple.combat.currentHp
+                    val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
+                    currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                } else {
+                    discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
+                    currentDisciplesList[index] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
                 }
             }
+        }
+        stateStore.update {
+            discipleTables.clear()
+            currentDisciplesList.forEach { discipleTables.insert(it) }
         }
     }
 
     // ── 侦察/外交 ──────────────────────────────────────────────────────
 
     fun processScoutInfoExpiryLazy(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val hasExpired = data.scoutInfo.any { (_, info) ->
             year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
         }
@@ -589,7 +572,7 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     fun processScoutInfoExpiry(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         var hasExpired = false
 
         val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
@@ -622,17 +605,21 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
 
-            currentGameData = data.copy(
-                scoutInfo = updatedScoutInfo,
-                worldMapSects = updatedWorldMapSects,
-                sectDetails = updatedDetails
-            )
+            scope.launch {
+                stateStore.update {
+                    gameData = gameData.copy(
+                        scoutInfo = updatedScoutInfo,
+                        worldMapSects = updatedWorldMapSects,
+                        sectDetails = updatedDetails
+                    )
+                }
+            }
         }
     }
 
     suspend fun processTheftIfNeeded() {
-        if (currentGameData.spiritStones <= 0) return
-        val hasLowMoralityDisciple = currentDisciples.any {
+        if (stateStore.gameData.value.spiritStones <= 0) return
+        val hasLowMoralityDisciple = stateStore.disciples.value.any {
             it.isAlive && it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
             DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
@@ -644,7 +631,7 @@ class CultivationEventProcessor @Inject constructor(
     // ── 任务 ──────────────────────────────────────────────────────────
 
     fun processCompletedMissionsLazy(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val completedIds = mutableListOf<String>()
         val remainingActive = mutableListOf<ActiveMission>()
@@ -661,23 +648,22 @@ class CultivationEventProcessor @Inject constructor(
                 completedIds.add(activeMission.id)
 
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
-                    currentDisciples.find { it.id == did && it.isAlive }
+                    stateStore.disciples.value.find { it.id == did && it.isAlive }
                 }
                 val allDead = aliveDisciples.isEmpty()
 
                 if (!allDead) {
-                    val equipMap = currentEquipmentInstances.associateBy { it.id }
-                    val manualMap = currentManualInstances.associateBy { it.id }
-                    val proficiencies = currentGameData.manualProficiencies.mapValues { (_, list) ->
+                    val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
+                    val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+                    val proficiencies = stateStore.gameData.value.manualProficiencies.mapValues { (_, list) ->
                         list.associateBy { it.manualId }
                     }
                     val result = MissionSystem.processMissionCompletion(
                         activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                     )
                     if (result.spiritStones > 0) {
-                        currentGameData = currentGameData.copy(
-                            spiritStones = currentGameData.spiritStones + result.spiritStones.toLong()
-                        )
+                        val sp = result.spiritStones.toLong()
+                        scope.launch { stateStore.update { gameData = gameData.copy(spiritStones = gameData.spiritStones + sp) } }
                     }
                     result.materials.forEach { material ->
                         inventorySystem.addMaterial(material)
@@ -689,21 +675,24 @@ class CultivationEventProcessor @Inject constructor(
                     if (result.combatTriggered && result.victory && result.battleResult != null) {
                         val missionSurvivorIds = result.battleResult.log.teamMembers
                             .filter { it.isAlive }.map { it.id }.toSet()
-                        currentDisciples = currentDisciples.map { d ->
-                            if (d.id in missionSurvivorIds && d.isAlive) {
-                                d.copyWith(soulPower = d.soulPower + 1)
-                            } else d
-                        }
+                        scope.launch { stateStore.update {
+                            val mapped = discipleTables.assembleAll().map { d ->
+                                if (d.id in missionSurvivorIds && d.isAlive) d.copy(soulPower = d.soulPower + 1) else d
+                            }
+                            discipleTables.clear()
+                            mapped.forEach { discipleTables.insert(it) }
+                        } }
                     }
                 }
 
                 for (did in activeMission.discipleIds) {
-                    val disciple = currentDisciples.find { it.id == did }
-                    if (disciple != null && disciple.isAlive) {
-                        currentDisciples = currentDisciples.map {
-                            if (it.id == did) it.copy(status = DiscipleStatus.IDLE) else it
+                    scope.launch { stateStore.update {
+                        val mapped = discipleTables.assembleAll().map {
+                            if (it.id == did && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
                         }
-                    }
+                        discipleTables.clear()
+                        mapped.forEach { discipleTables.insert(it) }
+                    } }
                 }
             } else {
                 remainingActive.add(activeMission)
@@ -711,7 +700,7 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         if (completedIds.isNotEmpty()) {
-            currentGameData = currentGameData.copy(activeMissions = remainingActive)
+            scope.launch { stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) } }
         }
     }
 
@@ -721,30 +710,31 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     fun processMissionRefresh() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
             data.gameYear,
             data.gameMonth
         )
-        currentGameData = currentGameData.copy(availableMissions = result.cleanedMissions)
+        scope.launch { stateStore.update { gameData = gameData.copy(availableMissions = result.cleanedMissions) } }
     }
 
     // ── 游戏结束 ──────────────────────────────────────────────────────
 
     fun checkGameOverCondition() {
-        if (currentGameData.isGameOver) return
+        val currentData = stateStore.gameData.value
+        if (currentData.isGameOver) return
 
-        val playerSect = currentGameData.worldMapSects.find { it.isPlayerSect } ?: return
+        val playerSect = currentData.worldMapSects.find { it.isPlayerSect } ?: return
         val playerSectId = playerSect.id
 
-        val playerControlsAnySect = currentGameData.worldMapSects.any { sect ->
+        val playerControlsAnySect = currentData.worldMapSects.any { sect ->
             (sect.isPlayerSect && sect.occupierSectId.isEmpty()) ||
             (sect.occupierSectId == playerSectId && !sect.isPlayerSect)
         }
 
         if (!playerControlsAnySect) {
-            currentGameData = currentGameData.copy(isGameOver = true)
+            scope.launch { stateStore.update { this.gameData = this.gameData.copy(isGameOver = true) } }
         }
     }
 

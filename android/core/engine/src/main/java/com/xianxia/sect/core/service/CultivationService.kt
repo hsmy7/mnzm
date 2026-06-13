@@ -59,8 +59,8 @@ class CultivationService @Inject constructor(
 
     // ── 委托方法：CultivationCore ──────────────────────────────────────
 
-    fun recoverHpMpForBattleParticipants(discipleIds: List<String>) {
-        cultivationCore.recoverHpMpForBattleParticipants(discipleIds)
+    fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
+        cultivationCore.recoverHpMpForBattleParticipants(state, discipleIds)
     }
 
     fun recoverHpMpForAllDisciples(state: MutableGameState) {

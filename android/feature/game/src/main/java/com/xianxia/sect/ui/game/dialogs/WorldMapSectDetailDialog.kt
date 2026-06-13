@@ -74,6 +74,7 @@ internal fun WorldMapSectDetailDialog(
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val discipleMap = disciples.associateBy { it.id }
     val relation = if (playerSect != null) {
         gameData?.sectRelations?.find {
             (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
@@ -350,7 +351,7 @@ internal fun WorldMapSectDetailDialog(
                                     val slotIndex = row * 5 + col
                                     if (slotIndex < garrisonSlots.size) {
                                         val gSlot = garrisonSlots[slotIndex]
-                                        val gDisciple = if (gSlot.isActive) disciples.find { it.id == gSlot.discipleId } else null
+                                        val gDisciple = if (gSlot.isActive) discipleMap[gSlot.discipleId] else null
                                         GarrisonSlotBox(
                                             disciple = gDisciple,
                                             spiritRootColor = gSlot.discipleSpiritRootColor,

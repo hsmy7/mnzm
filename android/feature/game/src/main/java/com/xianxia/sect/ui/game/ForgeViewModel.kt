@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
@@ -202,7 +202,7 @@ class ForgeViewModel @Inject constructor(
 
                 discipleIds.forEach { discipleId ->
                     if (existingIds.contains(discipleId)) return@forEach
-                    val disciple = gameEngine.disciples.value.find { it.id == discipleId } ?: return@forEach
+                    val disciple = gameEngine.getDiscipleAggregate(discipleId) ?: return@forEach
                     if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
                     if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
 

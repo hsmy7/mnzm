@@ -37,60 +37,6 @@ class ProductionSubsystem @Inject constructor(
         private const val TAG = "ProductionSubsystem"
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-
-    private var currentHerbs: List<Herb>
-        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.getCurrentHerbs()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.herbs = value; return }
-            scope.launch { stateStore.update { herbs = value } }
-        }
-
-    private var currentSeeds: List<Seed>
-        get() = stateStore.currentTransactionMutableState()?.seeds ?: stateStore.getCurrentSeeds()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.seeds = value; return }
-            scope.launch { stateStore.update { seeds = value } }
-        }
-
-    private var currentMaterials: List<Material>
-        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.getCurrentMaterials()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.materials = value; return }
-            scope.launch { stateStore.update { materials = value } }
-        }
-
-    private suspend fun updateHerbsSync(value: List<Herb>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.herbs = value; return }
-        stateStore.update { herbs = value }
-    }
-
-    private suspend fun updateMaterialsSync(value: List<Material>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.materials = value; return }
-        stateStore.update { materials = value }
-    }
-
     // ── 建筑生产 ──────────────────────────────────────────────────────
 
     suspend fun processBuildingProduction(year: Int, month: Int) {
@@ -108,8 +54,13 @@ class ProductionSubsystem @Inject constructor(
                 }
 
                 slot.assignedDiscipleId?.let { discipleId ->
-                    currentDisciples = currentDisciples.map {
-                        if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                    stateStore.update {
+                        val currentList = discipleTables.assembleAll()
+                        val updated = currentList.map {
+                            if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                        }
+                        discipleTables.clear()
+                        updated.forEach { discipleTables.insert(it) }
                     }
                 }
 
@@ -155,8 +106,13 @@ class ProductionSubsystem @Inject constructor(
                 }
 
                 slot.assignedDiscipleId?.let { discipleId ->
-                    currentDisciples = currentDisciples.map {
-                        if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                    stateStore.update {
+                        val currentList = discipleTables.assembleAll()
+                        val updated = currentList.map {
+                            if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                        }
+                        discipleTables.clear()
+                        updated.forEach { discipleTables.insert(it) }
                     }
                 }
 
@@ -177,7 +133,7 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processHerbGardenGrowth(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         herbGardenSlots.forEach { slot ->
@@ -216,7 +172,7 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processAutoPlant() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         val idleSlots = herbGardenSlots.filter {
@@ -225,7 +181,7 @@ class ProductionSubsystem @Inject constructor(
         if (idleSlots.isEmpty()) return
 
         for (slot in idleSlots) {
-            val seeds = currentSeeds.filter { it.quantity > 0 }.sortedByDescending { it.rarity }
+            val seeds = stateStore.getCurrentSeeds().filter { it.quantity > 0 }.sortedByDescending { it.rarity }
             val seedToPlant = seeds.firstOrNull() ?: break
 
             val herbDbSeedId = HerbDatabase.getSeedByName(seedToPlant.name)?.id
@@ -255,10 +211,10 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processSpiritFieldHarvest() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val currentYear = data.gameYear
         val currentMonth = data.gameMonth
-        val allDisciples = currentDisciples
+        val allDisciples = stateStore.disciples.value
 
         val plants = data.spiritFieldPlants
         if (plants.isEmpty()) return
@@ -281,30 +237,33 @@ class ProductionSubsystem @Inject constructor(
                     val herbName = dbHerb.name
                     val herbRarity = dbHerb.rarity
                     val herbCat = dbHerb.category
-                    val herbs = currentHerbs
-                    val existingIdx = herbs.indexOfFirst { h ->
-                        h.name == herbName && h.rarity == herbRarity && h.category == herbCat
-                    }
-                    if (existingIdx >= 0) {
-                        val updated = herbs.toMutableList()
-                        updated[existingIdx] = updated[existingIdx].let {
-                            Herb(id = it.id, name = it.name, rarity = it.rarity, description = it.description,
-                                category = it.category, quantity = it.quantity + finalYield)
+                    stateStore.update {
+                        val currentHerbsList = herbs.all()
+                        val existingIdx = currentHerbsList.indexOfFirst { h ->
+                            h.name == herbName && h.rarity == herbRarity && h.category == herbCat
                         }
-                        currentHerbs = updated
-                    } else {
-                        currentHerbs = herbs + Herb(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = herbName, rarity = herbRarity, description = dbHerb.description,
-                            category = herbCat, quantity = finalYield
-                        )
+                        if (existingIdx >= 0) {
+                            val updated = currentHerbsList.toMutableList()
+                            updated[existingIdx] = updated[existingIdx].let {
+                                Herb(id = it.id, name = it.name, rarity = it.rarity, description = it.description,
+                                    category = it.category, quantity = it.quantity + finalYield)
+                            }
+                            herbs = EntityStore(updated)
+                        } else {
+                            val newHerb = Herb(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = herbName, rarity = herbRarity, description = dbHerb.description,
+                                category = herbCat, quantity = finalYield
+                            )
+                            herbs = EntityStore(currentHerbsList + newHerb)
+                        }
                     }
                 }
 
                 val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
                     val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
-                    val existingSeed = currentSeeds.find { s ->
+                    val existingSeed = stateStore.getCurrentSeeds().find { s ->
                         s.name == plant.seedName && s.rarity == (matchingSeed?.rarity ?: 1) && s.growTime == plant.growTime && s.quantity > 0
                     }
                     val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
@@ -330,7 +289,7 @@ class ProductionSubsystem @Inject constructor(
         }
 
         if (hasChanges) {
-            currentGameData = currentGameData.copy(spiritFieldPlants = updatedPlants)
+            stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
         }
     }
 
@@ -355,7 +314,7 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processAutoAlchemy() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
         val idleSlotIndices = alchemySlots
@@ -369,7 +328,7 @@ class ProductionSubsystem @Inject constructor(
         val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
 
         for (slotIndex in idleSlotIndices) {
-            val herbs = currentHerbs
+            val currentHerbs = stateStore.getCurrentHerbs()
             val slot = alchemySlots.find { it.slotIndex == slotIndex } ?: break
 
             val recipeToStart = slot.recipeId
@@ -379,7 +338,7 @@ class ProductionSubsystem @Inject constructor(
                             val herbData = HerbDatabase.getHerbById(materialId)
                             val herbName = herbData?.name
                             val herbRarity = herbData?.rarity ?: 1
-                            val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+                            val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
                             herb != null && herb.quantity >= requiredQuantity
                         }
                     }
@@ -389,7 +348,7 @@ class ProductionSubsystem @Inject constructor(
                         val herbData = HerbDatabase.getHerbById(materialId)
                         val herbName = herbData?.name
                         val herbRarity = herbData?.rarity ?: 1
-                        val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+                        val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
                         herb != null && herb.quantity >= requiredQuantity
                     }
                 } ?: break
@@ -399,14 +358,16 @@ class ProductionSubsystem @Inject constructor(
                 recipeId = recipeToStart.id,
                 currentYear = data.gameYear,
                 currentMonth = data.gameMonth,
-                herbs = herbs,
+                herbs = currentHerbs,
                 buildingId = "alchemy",
                 alchemyPolicyBonus = alchemyPolicyBonus
             )
 
             if (result.success) {
                 if (result.materialUpdate != null) {
-                    updateHerbsSync(result.materialUpdate.herbs)
+                    stateStore.update {
+                        this.herbs.replaceAll(result.materialUpdate.herbs)
+                    }
                 }
             } else {
                 break
@@ -415,7 +376,7 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processAutoForge() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         val idleSlotIndices = forgeSlots
@@ -429,8 +390,8 @@ class ProductionSubsystem @Inject constructor(
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
 
         for (slotIndex in idleSlotIndices) {
-            val materials = currentMaterials
-            val materialIndex = materials.groupBy { it.name to it.rarity }
+            val currentMaterials = stateStore.getCurrentMaterials()
+            val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
                 .mapValues { (_, list) -> list.sumOf { it.quantity } }
             val slot = forgeSlots.find { it.slotIndex == slotIndex } ?: break
 
@@ -461,14 +422,16 @@ class ProductionSubsystem @Inject constructor(
                 recipeId = recipeToStart.id,
                 currentYear = data.gameYear,
                 currentMonth = data.gameMonth,
-                materials = materials,
+                materials = currentMaterials,
                 buildingId = "forge",
                 forgePolicyBonus = forgePolicyBonus
             )
 
             if (result.success) {
                 if (result.materialUpdate != null) {
-                    updateMaterialsSync(result.materialUpdate.materials)
+                    stateStore.update {
+                        this.materials.replaceAll(result.materialUpdate.materials)
+                    }
                 }
             } else {
                 break
@@ -477,9 +440,9 @@ class ProductionSubsystem @Inject constructor(
     }
 
     suspend fun processAutoAssign() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val policies = data.sectPolicies
-        val idleDisciples = mutableListOf<Disciple>().also { it.addAll(currentDisciples.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
+        val idleDisciples = mutableListOf<Disciple>().also { it.addAll(stateStore.disciples.value.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
 
         fun takeCandidate(focused: Boolean, rootCounts: List<Int>, threshold: Int, attr: (Disciple) -> Int): Disciple? {
             val enabled = focused || rootCounts.isNotEmpty()
@@ -499,9 +462,11 @@ class ProductionSubsystem @Inject constructor(
             if (candidate != null) {
                 val emptyIndex = data.spiritMineSlots.indexOfFirst { it.discipleId.isEmpty() }
                 if (emptyIndex >= 0) {
-                    currentGameData = data.copy(spiritMineSlots = data.spiritMineSlots.mapIndexed { i, slot ->
-                        if (i == emptyIndex) slot.copy(discipleId = candidate.id, discipleName = candidate.name) else slot
-                    })
+                    stateStore.update {
+                        gameData = gameData.copy(spiritMineSlots = gameData.spiritMineSlots.mapIndexed { i, slot ->
+                            if (i == emptyIndex) slot.copy(discipleId = candidate.id, discipleName = candidate.name) else slot
+                        })
+                    }
                     markDiscipleAssigned(candidate.id, DiscipleStatus.MINING)
                 }
             }
@@ -551,8 +516,15 @@ class ProductionSubsystem @Inject constructor(
     }
 
     private fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
-        currentDisciples = currentDisciples.map { d ->
-            if (d.id == discipleId) d.copy(status = status) else d
+        scope.launch {
+            stateStore.update {
+                val currentList = discipleTables.assembleAll()
+                val updated = currentList.map { d ->
+                    if (d.id == discipleId) d.copy(status = status) else d
+                }
+                discipleTables.clear()
+                updated.forEach { discipleTables.insert(it) }
+            }
         }
     }
 

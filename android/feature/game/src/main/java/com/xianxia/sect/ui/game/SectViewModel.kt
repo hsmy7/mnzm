@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
@@ -38,13 +38,13 @@ class SectViewModel @Inject constructor(
 
     fun getElderDisciple(elderId: String?): DiscipleAggregate? {
         if (elderId == null) return null
-        return disciples.value.find { it.id == elderId }
+        return gameEngine.getDiscipleAggregate(elderId)
     }
     
     fun setViceSectMaster(discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = disciples.value.find { it.id == discipleId }
+                val disciple = gameEngine.getDiscipleAggregate(discipleId)
                 if (disciple == null) {
                     showError(("弟子不存在"))
                     return@launch
@@ -142,7 +142,7 @@ class SectViewModel @Inject constructor(
     fun addReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = disciples.value.find { it.id == discipleId }
+                val disciple = gameEngine.getDiscipleAggregate(discipleId)
                 if (disciple == null) {
                     showError(("弟子不存在"))
                     return@launch

@@ -48,10 +48,12 @@ class SettlementCache(state: MutableGameState) {
     val dirtyFlags: Map<String, Set<DiscipleDirtyFlag>>
 
     val discipleMap: Map<String, Disciple> =
-        state.disciples.filter { it.isAlive }.associateBy { it.id }
+        state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
+            .associate { it.toString() to state.discipleTables.assemble(it) }
 
     val aliveDisciples: List<Disciple> =
-        state.disciples.filter { it.isAlive }
+        state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
+            .map { state.discipleTables.assemble(it) }
 
     val cleanDiscipleIds: Set<String>
     val dirtyDiscipleIds: Set<String>
@@ -83,7 +85,8 @@ class SettlementCache(state: MutableGameState) {
         rateCache: Map<String, Double>
     ): Set<String> {
         val monthSeconds = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0
-        return state.disciples.filter { it.isAlive }.mapNotNull { d ->
+        return state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }.mapNotNull { id ->
+            val d = state.discipleTables.assemble(id)
             val rate = rateCache[d.id] ?: return@mapNotNull null
             val remaining = d.maxCultivation - d.cultivation
             if (remaining <= 0) return@mapNotNull null  // 已满，必须结算
@@ -93,7 +96,8 @@ class SettlementCache(state: MutableGameState) {
     }
 
     private fun buildDirtyFlags(state: MutableGameState): Map<String, Set<DiscipleDirtyFlag>> {
-        return state.disciples.filter { it.isAlive }.associate { d ->
+        return state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }.associate { id ->
+            val d = state.discipleTables.assemble(id)
             val flags = mutableSetOf<DiscipleDirtyFlag>()
             if (d.cultivation >= d.maxCultivation * 0.8) flags += DiscipleDirtyFlag.BREAKTHROUGH
             if (d.equipment.hasEquippedItems) flags += DiscipleDirtyFlag.EQUIPMENT
@@ -104,7 +108,8 @@ class SettlementCache(state: MutableGameState) {
 
     private fun buildCultivationRateCache(state: MutableGameState): Map<String, Double> {
         val data = state.gameData
-        val allDisciples = state.disciples.filter { it.isAlive }.associateBy { it.id }
+        val allDisciples = state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
+            .associate { it.toString() to state.discipleTables.assemble(it) }
         val manualInstanceMapLocal = manualInstanceMap
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
@@ -193,7 +198,8 @@ class SettlementCache(state: MutableGameState) {
 
     private fun buildPreachingBonusCache(state: MutableGameState): Map<String, Pair<Double, Double>> {
         val data = state.gameData
-        val allDisciples = state.disciples.filter { it.isAlive }.associateBy { it.id }
+        val allDisciples = state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
+            .associate { it.toString() to state.discipleTables.assemble(it) }
         return allDisciples.values.associate { disciple ->
             val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(
                 disciple, data, allDisciples, "outer"

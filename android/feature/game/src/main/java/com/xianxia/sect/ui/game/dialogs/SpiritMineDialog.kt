@@ -88,8 +88,10 @@ fun SpiritMineDialog(
         deaconSlots.find { it.index == index } ?: DirectDiscipleSlot(index = index)
     }
 
+    val discipleMap = disciples.associateBy { it.id }
+
     val deaconBonus = deaconDisciples.mapNotNull { slot ->
-        slot.discipleId?.let { id -> disciples.find { it.id == id } }
+        slot.discipleId?.let { id -> discipleMap[id] }
     }.sumOf { disciple ->
         val baseline = 80
         val diff = (disciple.morality - baseline).coerceAtLeast(0)
@@ -102,7 +104,7 @@ fun SpiritMineDialog(
         if (slot.discipleId.isEmpty()) {
             0L
         } else {
-            val disciple = disciples.find { it.id == slot.discipleId }
+            val disciple = discipleMap[slot.discipleId]
             if (disciple != null) {
                 val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
                 if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
@@ -255,6 +257,7 @@ private fun SpiritMineDeaconSection(
     onDeaconRemove: (Int) -> Unit,
     onDeaconSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -277,7 +280,7 @@ private fun SpiritMineDeaconSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
         ) {
             deaconSlots.forEach { deaconSlot ->
-                val disciple = deaconSlot.discipleId?.let { id -> disciples.find { it.id == id } }
+                val disciple = deaconSlot.discipleId?.let { id -> discipleMap[id] }
                 SpiritMineDeaconSlotItem(
                     index = deaconSlot.index,
                     deaconSlot = deaconSlot,

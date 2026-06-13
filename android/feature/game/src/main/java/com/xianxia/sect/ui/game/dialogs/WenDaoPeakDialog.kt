@@ -40,6 +40,7 @@ fun WenDaoPeakDialog(
     val outerElder = productionViewModel.getOuterElder()
     val preachingElder = productionViewModel.getPreachingElder()
     val preachingMasters = productionViewModel.getPreachingMasters()
+    val discipleMap = disciples.associateBy { it.id }
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "问道塔",
@@ -86,7 +87,7 @@ fun WenDaoPeakDialog(
             disciples = disciples,
             onMasterClick = { index ->
                 val master = preachingMasters.find { it.index == index }
-                val d = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                val d = if (master?.isActive == true) discipleMap[master.discipleId] else null
                 d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) },

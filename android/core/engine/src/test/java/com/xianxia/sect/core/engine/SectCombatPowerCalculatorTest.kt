@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSet
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -80,8 +81,8 @@ class SectCombatPowerCalculatorTest {
 
     @Test
     fun `computePlayerFingerprint - different weapon produces different fingerprint`() {
-        val d1 = Disciple(name = "A").copyWith(weaponId = "sword1")
-        val d2 = Disciple(name = "B").copyWith(weaponId = "sword2")
+        val d1 = Disciple(name = "A").copy(equipment = EquipmentSet(weaponId = "sword1"))
+        val d2 = Disciple(name = "B").copy(equipment = EquipmentSet(weaponId = "sword2"))
         val fp1 = SectCombatPowerCalculator.computePlayerFingerprint(d1.toAggregate())
         val fp2 = SectCombatPowerCalculator.computePlayerFingerprint(d2.toAggregate())
         assert(fp1 != fp2)

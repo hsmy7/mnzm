@@ -8,6 +8,7 @@ import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -102,14 +103,14 @@ class InventorySystem @Inject constructor(
 
     override suspend fun clear() {
         stateStore.update {
-            equipmentStacks = emptyList()
-            equipmentInstances = emptyList()
-            manualStacks = emptyList()
-            manualInstances = emptyList()
-            pills = emptyList()
-            materials = emptyList()
-            herbs = emptyList()
-            seeds = emptyList()
+            equipmentStacks = EntityStore(emptyList())
+            equipmentInstances = EntityStore(emptyList())
+            manualStacks = EntityStore(emptyList())
+            manualInstances = EntityStore(emptyList())
+            pills = EntityStore(emptyList())
+            materials = EntityStore(emptyList())
+            herbs = EntityStore(emptyList())
+            seeds = EntityStore(emptyList())
         }
     }
 
@@ -129,24 +130,24 @@ class InventorySystem @Inject constructor(
     ) {
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.equipmentStacks = equipmentStacksList
-            ts.equipmentInstances = equipmentInstancesList
-            ts.manualStacks = manualStacksList
-            ts.manualInstances = manualInstancesList
-            ts.pills = pillsList
-            ts.materials = materialsList
-            ts.herbs = herbsList
-            ts.seeds = seedsList
+            ts.equipmentStacks.replaceAll(equipmentStacksList)
+            ts.equipmentInstances.replaceAll(equipmentInstancesList)
+            ts.manualStacks.replaceAll(manualStacksList)
+            ts.manualInstances.replaceAll(manualInstancesList)
+            ts.pills.replaceAll(pillsList)
+            ts.materials.replaceAll(materialsList)
+            ts.herbs.replaceAll(herbsList)
+            ts.seeds.replaceAll(seedsList)
         } else {
             scope.launch { stateStore.update {
-                equipmentStacks = equipmentStacksList
-                equipmentInstances = equipmentInstancesList
-                manualStacks = manualStacksList
-                manualInstances = manualInstancesList
-                pills = pillsList
-                materials = materialsList
-                herbs = herbsList
-                seeds = seedsList
+                equipmentStacks.replaceAll(equipmentStacksList)
+                equipmentInstances.replaceAll(equipmentInstancesList)
+                manualStacks.replaceAll(manualStacksList)
+                manualInstances.replaceAll(manualInstancesList)
+                pills.replaceAll(pillsList)
+                materials.replaceAll(materialsList)
+                herbs.replaceAll(herbsList)
+                seeds.replaceAll(seedsList)
             } }
         }
     }
@@ -165,28 +166,28 @@ class InventorySystem @Inject constructor(
 
     // 事务外读取独立 StateFlow（同步更新），避免 unifiedState stateIn(Dispatchers.Default) 异步延迟
     private fun currentEquipmentStacks(): List<EquipmentStack> =
-        stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
+        stateStore.currentTransactionMutableState()?.equipmentStacks?.items ?: stateStore.equipmentStacks.value
 
     private fun currentEquipmentInstances(): List<EquipmentInstance> =
-        stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
+        stateStore.currentTransactionMutableState()?.equipmentInstances?.items ?: stateStore.equipmentInstances.value
 
     private fun currentManualStacks(): List<ManualStack> =
-        stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
+        stateStore.currentTransactionMutableState()?.manualStacks?.items ?: stateStore.manualStacks.value
 
     private fun currentManualInstances(): List<ManualInstance> =
-        stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
+        stateStore.currentTransactionMutableState()?.manualInstances?.items ?: stateStore.manualInstances.value
 
     private fun currentPills(): List<Pill> =
-        stateStore.currentTransactionMutableState()?.pills ?: stateStore.pills.value
+        stateStore.currentTransactionMutableState()?.pills?.items ?: stateStore.pills.value
 
     private fun currentMaterials(): List<Material> =
-        stateStore.currentTransactionMutableState()?.materials ?: stateStore.materials.value
+        stateStore.currentTransactionMutableState()?.materials?.items ?: stateStore.materials.value
 
     private fun currentHerbs(): List<Herb> =
-        stateStore.currentTransactionMutableState()?.herbs ?: stateStore.herbs.value
+        stateStore.currentTransactionMutableState()?.herbs?.items ?: stateStore.herbs.value
 
     private fun currentSeeds(): List<Seed> =
-        stateStore.currentTransactionMutableState()?.seeds ?: stateStore.seeds.value
+        stateStore.currentTransactionMutableState()?.seeds?.items ?: stateStore.seeds.value
 
     private fun getTotalSlotCount(): Int {
         return currentEquipmentStacks().size +
@@ -1632,24 +1633,24 @@ class InventorySystem @Inject constructor(
     fun sortWarehouse() {
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.equipmentStacks = ts.equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
-            ts.equipmentInstances = ts.equipmentInstances.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name })
-            ts.manualStacks = ts.manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
-            ts.manualInstances = ts.manualInstances.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name })
-            ts.pills = ts.pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
-            ts.materials = ts.materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
-            ts.herbs = ts.herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
-            ts.seeds = ts.seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+            ts.equipmentStacks.replaceAll(ts.equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name }))
+            ts.equipmentInstances.replaceAll(ts.equipmentInstances.items.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))
+            ts.manualStacks.replaceAll(ts.manualStacks.items.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name }))
+            ts.manualInstances.replaceAll(ts.manualInstances.items.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name }))
+            ts.pills.replaceAll(ts.pills.items.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name }))
+            ts.materials.replaceAll(ts.materials.all().sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name }))
+            ts.herbs.replaceAll(ts.herbs.all().sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name }))
+            ts.seeds.replaceAll(ts.seeds.all().sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name }))
         } else {
             scope.launch { stateStore.update {
-                equipmentStacks = equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
-                equipmentInstances = equipmentInstances.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name })
-                manualStacks = manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
-                manualInstances = manualInstances.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name })
-                pills = pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
-                materials = materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
-                herbs = herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
-                seeds = seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+                equipmentStacks.replaceAll(equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name }))
+                equipmentInstances.replaceAll(equipmentInstances.items.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))
+                manualStacks.replaceAll(manualStacks.items.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name }))
+                manualInstances.replaceAll(manualInstances.items.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name }))
+                pills.replaceAll(pills.items.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name }))
+                materials.replaceAll(materials.all().sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name }))
+                herbs.replaceAll(herbs.all().sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name }))
+                seeds.replaceAll(seeds.all().sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name }))
             } }
         }
     }

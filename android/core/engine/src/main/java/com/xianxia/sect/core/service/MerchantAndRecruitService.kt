@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -53,24 +52,6 @@ class MerchantAndRecruitService @Inject constructor(
         )
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-
     // ── 商人 ──────────────────────────────────────────────────────────
 
     suspend fun refreshTravelingMerchant(year: Int, month: Int) {
@@ -78,7 +59,7 @@ class MerchantAndRecruitService @Inject constructor(
 
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
 
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val newRefreshCount = data.merchantRefreshCount + 1
         val isPityRefresh = newRefreshCount % MERCHANT_PITY_THRESHOLD == 0
 
@@ -101,11 +82,11 @@ class MerchantAndRecruitService @Inject constructor(
 
         val mergedItems = mergeMerchantItems(newItems)
 
-        currentGameData = data.copy(
+        stateStore.update { gameData = data.copy(
             travelingMerchantItems = mergedItems,
             merchantLastRefreshYear = year,
             merchantRefreshCount = newRefreshCount
-        )
+        ) }
     }
 
     fun buildMerchantItemPools(): MerchantItemPools {
@@ -300,10 +281,10 @@ class MerchantAndRecruitService @Inject constructor(
 
         val mergedItems = mergeMerchantItems(newItems)
 
-        currentGameData = currentGameData.copy(
+        stateStore.update { gameData = gameData.copy(
             merchantAcquisitionItems = mergedItems,
             merchantAcquisitionLastRefreshYear = year
-        )
+        ) }
     }
 
     // ── 招募（原有） ──────────────────────────────────────────────────
@@ -311,7 +292,7 @@ class MerchantAndRecruitService @Inject constructor(
     suspend fun refreshRecruitList(year: Int) {
         val recruitCount = Random.nextInt(0, 7)
         val newRecruitDisciples = mutableListOf<Disciple>()
-        val usedNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toMutableSet()
+        val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
             val gender = if (Random.nextBoolean()) "male" else "female"
             val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, usedNames)
@@ -388,7 +369,7 @@ class MerchantAndRecruitService @Inject constructor(
             usedNames.add(disciple.name)
         }
 
-        val filter = currentGameData.autoRecruitSpiritRootFilter
+        val filter = stateStore.gameData.value.autoRecruitSpiritRootFilter
         val (autoRecruits, manualRecruits) = newRecruitDisciples.partition { disciple ->
             val rootCount = disciple.spiritRootType.split(",").size
             rootCount in filter
@@ -396,14 +377,14 @@ class MerchantAndRecruitService @Inject constructor(
         if (autoRecruits.isNotEmpty()) {
             val currentMonthIndex = year * 12 + 1
             autoRecruits.forEach { it.recruitedMonth = currentMonthIndex }
-            currentDisciples = currentDisciples + autoRecruits
+            stateStore.update { autoRecruits.forEach { discipleTables.insert(it) } }
             newRecruitDisciples.clear()
             newRecruitDisciples.addAll(manualRecruits)
             DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, ${manualRecruits.size} left for manual review")
         }
 
-        val previousRecruitCount = currentGameData.recruitList.size
-        currentGameData = currentGameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year)
+        val previousRecruitCount = stateStore.gameData.value.recruitList.size
+        stateStore.update { gameData = gameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year) }
         DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits (previous recruitList had $previousRecruitCount)")
     }
 }

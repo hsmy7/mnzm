@@ -5,6 +5,8 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -70,17 +72,21 @@ class DiscipleStatCalculatorTest {
                 pillEffectDuration = pillEffectDuration
             ),
             statusData = statusData
-        ).copyWith(
-            intelligence = intelligence,
-            charm = charm,
-            loyalty = loyalty,
-            comprehension = comprehension,
-            teaching = teaching,
-            morality = morality,
-            weaponId = weaponId,
-            armorId = armorId,
-            bootsId = bootsId,
-            accessoryId = accessoryId,
+        ).copy(
+            skills = SkillStats(
+                intelligence = intelligence,
+                charm = charm,
+                loyalty = loyalty,
+                comprehension = comprehension,
+                teaching = teaching,
+                morality = morality
+            ),
+            equipment = EquipmentSet(
+                weaponId = weaponId,
+                armorId = armorId,
+                bootsId = bootsId,
+                accessoryId = accessoryId
+            ),
             discipleType = discipleType
         )
     }
@@ -230,7 +236,7 @@ class DiscipleStatCalculatorTest {
     fun `getBreakthroughChance - 神魂加成增加突破率`() {
         val disciple = createDisciple(realm = 3, realmLayer = 1)
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        val boostedDisciple = disciple.copyWith(soulPower = 50)
+        val boostedDisciple = disciple.copy(soulPower = 50)
         val boostedChance = DiscipleStatCalculator.getBreakthroughChance(boostedDisciple)
         assertEquals(baseChance + 0.02, boostedChance, 0.001)
     }
@@ -423,9 +429,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `calculateQingyunPeakBonus - 内门弟子有长老加成`() {
         val disciple = createDisciple(discipleType = "inner", realm = 9)
-        val elder = createDisciple(discipleType = "inner", realm = 9).copyWith(
-            teaching = 90
-        )
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 90)) }
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
             disciple,
             qingyunPreachingElder = elder
@@ -436,9 +440,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `calculateQingyunPeakBonus - 长老教学低于80无加成`() {
         val disciple = createDisciple(discipleType = "inner", realm = 9)
-        val elder = createDisciple(discipleType = "inner", realm = 9).copyWith(
-            teaching = 70
-        )
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 70)) }
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
             disciple,
             qingyunPreachingElder = elder
@@ -449,10 +451,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `calculateQingyunPeakBonus - 死亡长老无加成`() {
         val disciple = createDisciple(discipleType = "inner", realm = 9)
-        val elder = createDisciple(discipleType = "inner", realm = 9).copyWith(
-            isAlive = false,
-            teaching = 90
-        )
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(isAlive = false, skills = it.skills.copy(teaching = 90)) }
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
             disciple,
             qingyunPreachingElder = elder
@@ -463,9 +462,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `calculateQingyunPeakBonus - 弟子境界高于长老无加成`() {
         val disciple = createDisciple(discipleType = "inner", realm = 5)
-        val elder = createDisciple(discipleType = "inner", realm = 9).copyWith(
-            teaching = 90
-        )
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 90)) }
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
             disciple,
             qingyunPreachingElder = elder
@@ -476,9 +473,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `calculateQingyunPeakBonus - 执事传道加成`() {
         val disciple = createDisciple(discipleType = "inner", realm = 9)
-        val master = createDisciple(discipleType = "inner", realm = 9).copyWith(
-            teaching = 85
-        )
+        val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 85)) }
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
             disciple,
             qingyunPreachingMasters = listOf(master)

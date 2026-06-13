@@ -57,6 +57,7 @@ fun LawEnforcementHallDialog(
     val lawElder = productionViewModel.getLawEnforcementElder()
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
+    val discipleMap = disciples.associateBy { it.id }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -103,7 +104,7 @@ fun LawEnforcementHallDialog(
                     disciples = disciples,
                     onDiscipleClick = { index ->
                         val slot = lawDisciples.find { it.index == index }
-                        val d = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                        val d = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
                         d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
                     },
                     onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
@@ -225,6 +226,7 @@ private fun LawDisciplesSection(
     onDiscipleRemove: (Int) -> Unit,
     onDiscipleSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -252,7 +254,7 @@ private fun LawDisciplesSection(
         ) {
             (0..3).forEach { index ->
                 val slot = lawDisciples.find { it.index == index }
-                val disciple = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val disciple = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
                 val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
                 LawDiscipleSlotItem(
                     disciple = disciple,
@@ -272,7 +274,7 @@ private fun LawDisciplesSection(
         ) {
             (4..7).forEach { index ->
                 val slot = lawDisciples.find { it.index == index }
-                val disciple = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val disciple = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
                 val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
                 LawDiscipleSlotItem(
                     disciple = disciple,

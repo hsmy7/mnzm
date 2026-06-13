@@ -39,4 +39,5 @@ dependencies {
     testImplementation libs.junit
     testImplementation libs.coroutines.test
     testImplementation libs.konsist.test
+    testImplementation libs.robolectric
 }

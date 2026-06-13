@@ -38,6 +38,6 @@ fun fixStorageBagReferences(
                 else -> item
             }
         }
-        disciple.copyWith(storageBagItems = fixedItems)
+        disciple.copy(equipment = disciple.equipment.copy(storageBagItems = fixedItems))
     }
 }

@@ -1117,7 +1117,7 @@ class GameViewModel @Inject constructor(
 
     fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
-            val discipleName = gameEngine.discipleAggregatesSnapshot.find { it.id == discipleId }?.name ?: ""
+            val discipleName = gameEngine.getDiscipleAggregate(discipleId)?.name ?: ""
             gameEngine.updateGameData { data ->
                 // Remove disciple from any other residence slot first
                 val cleared = data.residenceSlots.map { slot ->

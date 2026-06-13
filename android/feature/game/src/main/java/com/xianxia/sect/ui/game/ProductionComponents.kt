@@ -267,6 +267,7 @@ fun ProductionDirectDiscipleSection(
     onDirectDiscipleRemove: (Int) -> Unit,
     onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -279,7 +280,7 @@ fun ProductionDirectDiscipleSection(
         ) {
             (0 until slotCount).forEach { index ->
                 val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                val disciple = if (slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val disciple = if (slot.isActive) discipleMap[slot.discipleId] else null
                 val borderColor = if (slot.isActive) {
                     try { Color(android.graphics.Color.parseColor(disciple?.spiritRoot?.countColor)) }
                     catch (e: Exception) { theme.defaultBorderColor }

@@ -33,7 +33,6 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -54,102 +53,6 @@ class CultivationSettlement @Inject constructor(
 ) {
     private val scope get() = scopeProvider.scope
 
-    // State accessors
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-    private var pendingNotification: GameNotification?
-        get() = stateStore.currentTransactionMutableState()?.pendingNotification
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.pendingNotification = value; return }
-            if (value != null) stateStore.setPendingNotification(value)
-            else stateStore.clearPendingNotification()
-        }
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
-    private var currentHerbs: List<Herb>
-        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.getCurrentHerbs()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.herbs = value; return }
-            scope.launch { stateStore.update { herbs = value } }
-        }
-    private var currentMaterials: List<Material>
-        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.getCurrentMaterials()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.materials = value; return }
-            scope.launch { stateStore.update { materials = value } }
-        }
-    private var currentSeeds: List<Seed>
-        get() = stateStore.currentTransactionMutableState()?.seeds ?: stateStore.getCurrentSeeds()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.seeds = value; return }
-            scope.launch { stateStore.update { seeds = value } }
-        }
-    private var currentBattleLogs: List<BattleLog>
-        get() = stateStore.currentTransactionMutableState()?.battleLogs ?: stateStore.battleLogs.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.battleLogs = value; return }
-            scope.launch { stateStore.update { battleLogs = value } }
-        }
-    private var currentTeams: List<ExplorationTeam>
-        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.teams.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.teams = value; return }
-            scope.launch { stateStore.update { teams = value } }
-        }
-
-    private suspend fun updateHerbsSync(value: List<Herb>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.herbs = value; return }
-        stateStore.update { herbs = value }
-    }
-    private suspend fun updateMaterialsSync(value: List<Material>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.materials = value; return }
-        stateStore.update { materials = value }
-    }
-    private suspend fun updateSeedsSync(value: List<Seed>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.seeds = value; return }
-        stateStore.update { seeds = value }
-    }
-
     // Salary tracking
     private val lastSalaryYear = mutableMapOf<String, Int>()
 
@@ -158,14 +61,15 @@ class CultivationSettlement @Inject constructor(
     internal var diplomacyEventsMonth = 0
 
     fun processSalaryYearly(year: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val salaryConfig = data.yearlySalary
         val enabledConfig = data.yearlySalaryEnabled
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         var totalCost = 0L
         var anyChanged = false
 
-        val updatedDisciples = currentDisciples.map { disciple ->
+        val disciplesSnapshot = stateStore.disciples.value
+        val updatedDisciples = disciplesSnapshot.map { disciple ->
             if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
             val lastYear = lastSalaryYear[disciple.id] ?: (year - 1)
             if (lastYear >= year) return@map disciple
@@ -177,32 +81,43 @@ class CultivationSettlement @Inject constructor(
             if (data.spiritStones >= totalCost + yearlySalary) {
                 totalCost += yearlySalary
                 anyChanged = true
-                disciple.copyWith(
-                    storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + yearlySalary,
-                    salaryPaidCount = disciple.skills.salaryPaidCount + elapsedYears,
-                    loyalty = (disciple.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                disciple.copy(
+                    equipment = disciple.equipment.copy(
+                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + yearlySalary
+                    ),
+                    skills = disciple.skills.copy(
+                        salaryPaidCount = disciple.skills.salaryPaidCount + elapsedYears,
+                        loyalty = (disciple.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                    )
                 )
             } else {
                 anyChanged = true
-                disciple.copyWith(
-                    salaryMissedCount = disciple.skills.salaryMissedCount + elapsedYears,
-                    loyalty = (disciple.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                disciple.copy(
+                    skills = disciple.skills.copy(
+                        salaryMissedCount = disciple.skills.salaryMissedCount + elapsedYears,
+                        loyalty = (disciple.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                    )
                 )
             }
         }
 
         if (anyChanged) {
-            currentDisciples = updatedDisciples
-            currentGameData = data.copy(spiritStones = data.spiritStones - totalCost)
-            currentDisciples.filter { it.isAlive && enabledConfig[it.realm] == true }.forEach {
+            val finalData = data.copy(spiritStones = data.spiritStones - totalCost)
+            scope.launch { stateStore.update {
+                gameData = finalData
+                discipleTables.clear()
+                updatedDisciples.forEach { discipleTables.insert(it) }
+            } }
+            updatedDisciples.filter { it.isAlive && enabledConfig[it.realm] == true }.forEach {
                 lastSalaryYear[it.id] = year
             }
         }
     }
 
     fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
-        val disciple = currentDisciples.find { it.id == discipleId && it.isAlive } ?: return
-        val data = currentGameData
+        val disciplesSnapshot = stateStore.disciples.value
+        val disciple = disciplesSnapshot.find { it.id == discipleId && it.isAlive } ?: return
+        val data = stateStore.gameData.value
         val enabledConfig = data.yearlySalaryEnabled
         if (enabledConfig[disciple.realm] != true) return
 
@@ -221,37 +136,57 @@ class CultivationSettlement @Inject constructor(
         if (accumulated <= 0) return
 
         if (data.spiritStones >= accumulated) {
-            currentDisciples = currentDisciples.map {
-                if (it.id == discipleId) it.copyWith(
-                    storageBagSpiritStones = it.equipment.storageBagSpiritStones + accumulated,
-                    salaryPaidCount = it.skills.salaryPaidCount + elapsedYears,
-                    loyalty = (it.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+            val updatedDisciples = disciplesSnapshot.map {
+                if (it.id == discipleId) it.copy(
+                    equipment = it.equipment.copy(
+                        storageBagSpiritStones = it.equipment.storageBagSpiritStones + accumulated
+                    ),
+                    skills = it.skills.copy(
+                        salaryPaidCount = it.skills.salaryPaidCount + elapsedYears,
+                        loyalty = (it.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                    )
                 ) else it
             }
-            currentGameData = data.copy(spiritStones = data.spiritStones - accumulated)
+            val finalData = data.copy(spiritStones = data.spiritStones - accumulated)
+            scope.launch { stateStore.update {
+                gameData = finalData
+                discipleTables.clear()
+                updatedDisciples.forEach { discipleTables.insert(it) }
+            } }
         } else {
-            currentDisciples = currentDisciples.map {
-                if (it.id == discipleId) it.copyWith(
-                    salaryMissedCount = it.skills.salaryMissedCount + elapsedYears,
-                    loyalty = (it.skills.loyalty - elapsedYears).coerceAtLeast(0)
+            val updatedDisciples = disciplesSnapshot.map {
+                if (it.id == discipleId) it.copy(
+                    skills = it.skills.copy(
+                        salaryMissedCount = it.skills.salaryMissedCount + elapsedYears,
+                        loyalty = (it.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                    )
                 ) else it
             }
+            scope.launch { stateStore.update {
+                discipleTables.clear()
+                updatedDisciples.forEach { discipleTables.insert(it) }
+            } }
         }
         lastSalaryYear[discipleId] = currentYear
     }
 
     fun processResidenceLoyalty() {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val residentIds = currentGameData.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
-        currentDisciples = currentDisciples.map { d ->
+        val data = stateStore.gameData.value
+        val residentIds = data.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
+        val updatedDisciples = stateStore.disciples.value.map { d ->
             if (d.id in residentIds && d.skills.loyalty < maxLoyalty) {
-                d.copyWith(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty))
+                d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty)))
             } else d
         }
+        scope.launch { stateStore.update {
+            discipleTables.clear()
+            updatedDisciples.forEach { discipleTables.insert(it) }
+        } }
     }
 
     fun processPolicyCosts() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val policies = data.sectPolicies
         var currentStones = data.spiritStones
         var updatedPolicies = policies
@@ -276,16 +211,21 @@ class CultivationSettlement @Inject constructor(
         checkAndDeduct(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST.toLong(), "修行津贴", policies.cultivationSubsidy) { it.copy(cultivationSubsidy = false) }
         checkAndDeduct(GameConfig.PolicyConfig.MANUAL_RESEARCH_COST.toLong(), "功法研习", policies.manualResearch) { it.copy(manualResearch = false) }
 
-        if (deductedPolicies.isNotEmpty()) {
-            currentGameData = currentGameData.copy(spiritStones = currentStones)
-        }
-        if (disabledPolicies.isNotEmpty()) {
-            currentGameData = currentGameData.copy(sectPolicies = updatedPolicies)
+        if (deductedPolicies.isNotEmpty() || disabledPolicies.isNotEmpty()) {
+            var updatedGameData = data
+            if (deductedPolicies.isNotEmpty()) {
+                updatedGameData = updatedGameData.copy(spiritStones = currentStones)
+            }
+            if (disabledPolicies.isNotEmpty()) {
+                updatedGameData = updatedGameData.copy(sectPolicies = updatedPolicies)
+            }
+            scope.launch { stateStore.update { gameData = updatedGameData } }
         }
     }
 
     fun processSpiritMineProduction() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
+        val disciplesSnapshot = stateStore.disciples.value
         val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
         val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
 
@@ -293,7 +233,7 @@ class CultivationSettlement @Inject constructor(
         data.spiritMineSlots.forEach { slot ->
             val discipleId = slot.discipleId
             if (discipleId.isNotEmpty()) {
-                val disciple = currentDisciples.find { it.id == discipleId }
+                val disciple = disciplesSnapshot.find { it.id == discipleId }
                 if (disciple != null) {
                     val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
                     if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
@@ -309,7 +249,7 @@ class CultivationSettlement @Inject constructor(
 
         val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
             slot.discipleId?.let { discipleId ->
-                currentDisciples.find { it.id == discipleId }
+                disciplesSnapshot.find { it.id == discipleId }
             }
         }.sumOf { disciple ->
             val baseline = 80
@@ -320,17 +260,23 @@ class CultivationSettlement @Inject constructor(
         val totalSpiritStones = (baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier).toInt()
 
         val minerIds = data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
-        currentDisciples = currentDisciples.map { d ->
+        val updatedDisciples = disciplesSnapshot.map { d ->
             if (d.id in minerIds) {
-                d.copyWith(loyalty = (d.skills.loyalty - 1).coerceAtLeast(0))
+                d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty - 1).coerceAtLeast(0)))
             } else d
         }
 
-        if (totalSpiritStones > 0) {
-            currentGameData = data.copy(
-                spiritStones = data.spiritStones + totalSpiritStones
-            )
-        }
+        val finalGameData = if (totalSpiritStones > 0) {
+            data.copy(spiritStones = data.spiritStones + totalSpiritStones)
+        } else null
+
+        scope.launch { stateStore.update {
+            discipleTables.clear()
+            updatedDisciples.forEach { discipleTables.insert(it) }
+            if (finalGameData != null) {
+                gameData = finalGameData
+            }
+        } }
     }
 
     companion object {

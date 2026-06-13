@@ -2,23 +2,18 @@ package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
-import com.xianxia.sect.core.model.production.ProductionError
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainLog
 import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,36 +28,6 @@ private val inventorySystem: InventorySystem,
     private val scopeProvider: CoroutineScopeProvider
 ) {
     private val scope get() = scopeProvider.ioScope
-
-    private val state = StateAccessorFactory(stateStore, scope)
-
-    private var currentGameData: GameData
-        get() = state.gameData().current
-        set(value) { state.gameData().current = value }
-
-    private var currentDisciples: List<Disciple>
-        get() = state.disciples().current
-        set(value) { state.disciples().current = value }
-
-    private var currentHerbs: List<Herb>
-        get() = state.herbs().current
-        private set(value) { state.herbs().current = value }
-
-    private var currentMaterials: List<Material>
-        get() = state.materials().current
-        private set(value) { state.materials().current = value }
-
-    private suspend fun updateHerbsSync(value: List<Herb>) = state.herbs().setCurrentSync(value)
-
-    private suspend fun updateMaterialsSync(value: List<Material>) = state.materials().setCurrentSync(value)
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = state.equipmentInstances().current
-        set(value) { state.equipmentInstances().current = value }
-
-    private var currentPills: List<Pill>
-        get() = state.pills().current
-        set(value) { state.pills().current = value }
 
     companion object {
         private const val TAG = "BuildingService"
@@ -89,7 +54,7 @@ private val inventorySystem: InventorySystem,
             return
         }
 
-        val disciple = currentDisciples.find { it.id == discipleId } ?: return
+        val disciple = stateStore.disciples.value.find { it.id == discipleId } ?: return
         if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
             return
         }
@@ -159,7 +124,7 @@ private val inventorySystem: InventorySystem,
             return false
         }
 
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val alchemySlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
         if (alchemySlot != null && alchemySlot.isWorking) {
@@ -174,7 +139,7 @@ private val inventorySystem: InventorySystem,
             recipeId = recipeId,
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
-            herbs = currentHerbs,
+            herbs = stateStore.getCurrentHerbs(),
             buildingId = "alchemy",
             alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
         )
@@ -184,7 +149,7 @@ private val inventorySystem: InventorySystem,
                 return false
             }
             result.materialUpdate != null -> {
-                updateHerbsSync(result.materialUpdate.herbs)
+                stateStore.update { herbs.replaceAll(result.materialUpdate.herbs) }
 
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemy")
@@ -240,7 +205,7 @@ private val inventorySystem: InventorySystem,
     }
 
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val forgeSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
         if (forgeSlot != null && forgeSlot.isWorking) {
@@ -255,7 +220,7 @@ private val inventorySystem: InventorySystem,
             recipeId = recipeId,
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
-            materials = currentMaterials,
+            materials = stateStore.getCurrentMaterials(),
             buildingId = "forge",
             forgePolicyBonus = if (data.sectPolicies.forgeIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
         )
@@ -265,7 +230,7 @@ private val inventorySystem: InventorySystem,
                 return false
             }
             result.materialUpdate != null -> {
-                updateMaterialsSync(result.materialUpdate.materials)
+                stateStore.update { materials.replaceAll(result.materialUpdate.materials) }
 
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
@@ -387,7 +352,7 @@ private val inventorySystem: InventorySystem,
      * Called internally during month advancement.
      */
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val results = mutableListOf<AlchemyResult>()
         val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
         alchemySlots.forEach { slot ->
@@ -427,16 +392,21 @@ private val inventorySystem: InventorySystem,
     }
 
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        currentDisciples = currentDisciples.map {
-            if (it.id == discipleId) it.copy(status = status) else it
-        }
+        scope.launch { stateStore.update {
+            val currentList = discipleTables.assembleAll()
+            val updated = currentList.map {
+                if (it.id == discipleId) it.copy(status = status) else it
+            }
+            discipleTables.clear()
+            updated.forEach { discipleTables.insert(it) }
+        } }
     }
 
     private fun getBuildingName(buildingId: String): String = BuildingNames.getDisplayName(buildingId)
 
     private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
         var totalSpeedBonus = 0.0
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         totalSpeedBonus += getElderPositionBonusLocal(buildingId)
 
@@ -458,7 +428,7 @@ private val inventorySystem: InventorySystem,
     }
 
     private fun getElderPositionBonusLocal(buildingId: String): Double {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
 
         val elderDiscipleId = when (buildingId) {
@@ -468,7 +438,7 @@ private val inventorySystem: InventorySystem,
             else -> null
         } ?: return 0.0
 
-        val elderDisciple = currentDisciples.find { it.id == elderDiscipleId } ?: return 0.0
+        val elderDisciple = stateStore.disciples.value.find { it.id == elderDiscipleId } ?: return 0.0
 
         return when (buildingId) {
             "forge" -> {
@@ -536,7 +506,7 @@ private val inventorySystem: InventorySystem,
                 val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
                     ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
                 if (herb != null) {
-                    val data = currentGameData
+                    val data = stateStore.gameData.value
                     val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
                     val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
                     val herbItem = Herb(

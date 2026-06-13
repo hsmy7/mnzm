@@ -388,17 +388,19 @@ object AISectAttackManager {
             )
         }
 
-        val battleDisciple = disciple.copyWith(
+        val battleDisciple = disciple.copy(
             manualIds = manualIds,
             manualMasteries = manualMasteries,
-            weaponId = weaponId,
-            armorId = armorId,
-            bootsId = bootsId,
-            accessoryId = accessoryId,
-            weaponNurture = battleItems.weaponNurture,
-            armorNurture = battleItems.armorNurture,
-            bootsNurture = battleItems.bootsNurture,
-            accessoryNurture = battleItems.accessoryNurture
+            equipment = disciple.equipment.copy(
+                weaponId = weaponId,
+                armorId = armorId,
+                bootsId = bootsId,
+                accessoryId = accessoryId,
+                weaponNurture = battleItems.weaponNurture,
+                armorNurture = battleItems.armorNurture,
+                bootsNurture = battleItems.bootsNurture,
+                accessoryNurture = battleItems.accessoryNurture
+            )
         )
 
         val stats = battleDisciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)

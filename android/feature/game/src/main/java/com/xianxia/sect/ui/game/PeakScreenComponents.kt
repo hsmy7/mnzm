@@ -169,6 +169,7 @@ fun PeakPreachingMasterSection(
     onMasterRemove: (Int) -> Unit,
     onMasterSwap: (Int) -> Unit = {}
 ) {
+    val discipleMap = disciples.associateBy { it.id }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -190,7 +191,7 @@ fun PeakPreachingMasterSection(
         ) {
             (0..3).forEach { index ->
                 val master = preachingMasters.find { it.index == index }
-                val agg = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                val agg = if (master?.isActive == true) discipleMap[master.discipleId] else null
                 val spiritRootColor = master?.discipleSpiritRootColor ?: ""
                 PeakPreachingMasterSlotItem(
                     disciple = agg,

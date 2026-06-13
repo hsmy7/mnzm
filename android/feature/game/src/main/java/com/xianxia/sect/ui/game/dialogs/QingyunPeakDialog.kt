@@ -40,6 +40,7 @@ fun QingyunPeakDialog(
     val innerElder = productionViewModel.getInnerElder()
     val preachingElder = productionViewModel.getQingyunPreachingElder()
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
+    val discipleMap = disciples.associateBy { it.id }
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "青云塔",
@@ -86,7 +87,7 @@ fun QingyunPeakDialog(
             disciples = disciples,
             onMasterClick = { index ->
                 val master = preachingMasters.find { it.index == index }
-                val d = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                val d = if (master?.isActive == true) discipleMap[master.discipleId] else null
                 d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
             },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) },

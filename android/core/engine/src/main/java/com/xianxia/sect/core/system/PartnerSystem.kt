@@ -33,12 +33,12 @@ class PartnerSystem @Inject constructor(
         if (event !is BreakthroughEvent || !event.success) return
         scope.launch {
             stateStore.update {
-                val partnerId = disciples.find { it.id == event.discipleId }?.social?.partnerId
+                val partnerId = discipleTables.ids.map { discipleTables.assemble(it) }.find { it.id == event.discipleId }?.social?.partnerId
                     ?: return@update
-                disciples = disciples.map { disciple ->
-                    if (disciple.id == partnerId && disciple.isAlive) {
-                        disciple.copyWith(loyalty = (disciple.skills.loyalty + 3).coerceAtMost(100))
-                    } else disciple
+                for (id in discipleTables.ids) {
+                    if (id.toString() == partnerId && discipleTables.isAlive[id] == 1) {
+                        discipleTables.loyalties[id] = (discipleTables.loyalties[id] + 3).coerceAtMost(100)
+                    }
                 }
             }
         }
@@ -59,7 +59,7 @@ class PartnerSystem @Inject constructor(
     }
 
     private fun processPartnerMatching(state: MutableGameState) {
-        val allDisciples = state.disciples
+        val allDisciples = state.discipleTables.assembleAll()
         val bannedRootCounts = state.gameData.daoCompanionBannedRootCounts
         val consentRequired = state.gameData.daoCompanionConsentRequired
 
@@ -89,8 +89,8 @@ class PartnerSystem @Inject constructor(
                     }
                     currentList = currentList.map { disciple ->
                         when (disciple.id) {
-                            male.id -> disciple.copyWith(partnerId = female.id)
-                            female.id -> disciple.copyWith(partnerId = male.id)
+                            male.id -> disciple.copy(social = disciple.social.copy(partnerId = female.id))
+                            female.id -> disciple.copy(social = disciple.social.copy(partnerId = male.id))
                             else -> disciple
                         }
                     }
@@ -100,7 +100,8 @@ class PartnerSystem @Inject constructor(
         }
 
         if (pairedFemaleIds.isNotEmpty()) {
-            state.disciples = currentList
+            state.discipleTables.clear()
+            currentList.forEach { state.discipleTables.insert(it) }
         }
     }
 

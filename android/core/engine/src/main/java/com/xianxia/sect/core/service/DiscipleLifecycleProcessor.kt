@@ -27,52 +27,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
         private const val TAG = "DiscipleLifecycle"
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
-
     // ── 弟子老化/死亡 ──────────────────────────────────────────────────
 
     fun processGriefExpiry(currentYear: Int) {
-        currentDisciples = currentDisciples.map { disciple ->
+        val currentList = stateStore.disciples.value
+        val updated = currentList.map { disciple ->
             val griefEnd = disciple.social.griefEndYear
             if (griefEnd != null && currentYear >= griefEnd) {
                 disciple.copy(social = disciple.social.copy(griefEndYear = null))
@@ -80,17 +39,22 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 disciple
             }
         }
+        scope.launch { stateStore.update {
+            discipleTables.clear()
+            updated.forEach { discipleTables.insert(it) }
+        } }
     }
 
     suspend fun processDiscipleAging(currentYear: Int) {
-        val data = currentGameData
-        val updatedDisciples = currentDisciples.mapNotNull { disciple ->
+        val data = stateStore.gameData.value
+        val currentList = stateStore.disciples.value
+        val updatedDisciples = currentList.mapNotNull { disciple ->
             if (!disciple.isAlive) return@mapNotNull disciple
 
             var agedDisciple = disciple.copy(age = disciple.age + 1)
 
             if (agedDisciple.age == 5 && agedDisciple.realmLayer == 0) {
-                agedDisciple = agedDisciple.copyWith(realmLayer = 1, status = DiscipleStatus.IDLE)
+                agedDisciple = agedDisciple.copy(realmLayer = 1, status = DiscipleStatus.IDLE)
             }
 
             val talentEffects = TalentDatabase.calculateTalentEffects(agedDisciple.talentIds)
@@ -106,15 +70,26 @@ class DiscipleLifecycleProcessor @Inject constructor(
             }
         }
 
-        currentDisciples = updatedDisciples
+        stateStore.update {
+            discipleTables.clear()
+            updatedDisciples.forEach { discipleTables.insert(it) }
+        }
     }
 
     suspend fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         clearDiscipleFromAllSlots(disciple.id)
 
-        currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
-            currentDisciples, listOf(disciple), currentGameData.gameYear
+        val currentDiscipleList = stateStore.disciples.value
+        val currentYear = stateStore.gameData.value.gameYear
+
+        val griefUpdated = DiscipleStatCalculator.applyGriefToRelatives(
+            currentDiscipleList, listOf(disciple), currentYear
         )
+
+        stateStore.update {
+            discipleTables.clear()
+            griefUpdated.forEach { discipleTables.insert(it) }
+        }
 
         if (isOutsideSect) {
             disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
@@ -122,17 +97,20 @@ class DiscipleLifecycleProcessor @Inject constructor(
             disciple.equipment.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
             disciple.equipment.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
 
-            disciple.manualIds.forEach { manualId ->
-                currentManualInstances = currentManualInstances.map {
-                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+            val manualIdSet = disciple.manualIds.toSet()
+            stateStore.update {
+                manualInstances = manualInstances.map {
+                    if (it.id in manualIdSet) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
 
-            val data = currentGameData
+            val data = stateStore.gameData.value
             val updatedProficiencies = data.manualProficiencies.toMutableMap()
             updatedProficiencies.remove(disciple.id)
             if (updatedProficiencies != data.manualProficiencies) {
-                currentGameData = data.copy(manualProficiencies = updatedProficiencies)
+                stateStore.update {
+                    gameData = gameData.copy(manualProficiencies = updatedProficiencies)
+                }
             }
         } else {
             disciple.equipment.weaponId?.let { returnEquipmentToWarehouse(it) }
@@ -144,23 +122,24 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 returnEquipmentToWarehouse(bagItem.itemId)
             }
 
-            disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
-                currentManualInstances = currentManualInstances.map {
-                    if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
+            val storageBagManualIds = disciple.equipment.storageBagItems
+                .filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }
+                .map { it.itemId }
+                .toSet()
+            val allManualIds = storageBagManualIds + disciple.manualIds.toSet()
+            stateStore.update {
+                manualInstances = manualInstances.map {
+                    if (it.id in allManualIds) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
 
-            disciple.manualIds.forEach { manualId ->
-                currentManualInstances = currentManualInstances.map {
-                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
-                }
-            }
-
-            val data = currentGameData
+            val data = stateStore.gameData.value
             val updatedProficiencies = data.manualProficiencies.toMutableMap()
             updatedProficiencies.remove(disciple.id)
             if (updatedProficiencies != data.manualProficiencies) {
-                currentGameData = data.copy(manualProficiencies = updatedProficiencies)
+                stateStore.update {
+                    gameData = gameData.copy(manualProficiencies = updatedProficiencies)
+                }
             }
         }
     }
@@ -170,10 +149,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     fun processReflectionRelease(year: Int) {
-        val reflectingDisciples = currentDisciples.filter { it.status == DiscipleStatus.REFLECTING && it.isAlive }
+        val currentList = stateStore.disciples.value
+        val reflectingDisciples = currentList.filter { it.status == DiscipleStatus.REFLECTING && it.isAlive }
         if (reflectingDisciples.isEmpty()) return
 
-        val updatedDisciples = currentDisciples.map { disciple ->
+        val updatedDisciples = currentList.map { disciple ->
             if (disciple.status != DiscipleStatus.REFLECTING || !disciple.isAlive) return@map disciple
 
             val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: return@map disciple
@@ -189,13 +169,20 @@ class DiscipleLifecycleProcessor @Inject constructor(
             )
         }
 
-        currentDisciples = updatedDisciples
+        scope.launch { stateStore.update {
+            discipleTables.clear()
+            updatedDisciples.forEach { discipleTables.insert(it) }
+        } }
     }
 
     // ── 辅助方法 ──────────────────────────────────────────────────────
 
     suspend fun clearDiscipleFromAllSlots(discipleId: String) {
-        currentGameData = DiscipleSlotCleanup.clearAllSlots(currentGameData, discipleId)
+        val data = stateStore.gameData.value
+        val cleaned = DiscipleSlotCleanup.clearAllSlots(data, discipleId)
+        stateStore.update {
+            gameData = cleaned
+        }
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         for (slot in forgeSlots) {
@@ -208,30 +195,37 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     fun returnEquipmentToWarehouse(equipmentId: String) {
-        val eq = currentEquipmentInstances.find { it.id == equipmentId } ?: return
+        val currentInstances = stateStore.equipmentInstances.value
+        val eq = currentInstances.find { it.id == equipmentId } ?: return
         val stack = eq.toStack()
-        val existingStack = currentEquipmentStacks.find {
+        val currentStacks = stateStore.equipmentStacks.value
+        val existingStack = currentStacks.find {
             it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
         }
-        if (existingStack != null) {
-            val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-            currentEquipmentStacks = currentEquipmentStacks.map { s ->
-                if (s.id == existingStack.id) s.copy(quantity = newQty) else s
+        scope.launch { stateStore.update {
+            if (existingStack != null) {
+                val maxQty = inventoryConfig.getMaxStackSize("equipment_stack")
+                val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxQty)
+                equipmentStacks = equipmentStacks.map { s ->
+                    if (s.id == existingStack.id) s.copy(quantity = newQty) else s
+                }
+            } else {
+                equipmentStacks = equipmentStacks + stack
             }
-        } else {
-            currentEquipmentStacks = currentEquipmentStacks + stack
-        }
-        currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
+            equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+        } }
     }
 
     fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
-        val equipment = currentEquipmentInstances.find { it.id == equipmentId } ?: return
+        val equipment = stateStore.equipmentInstances.value.find { it.id == equipmentId } ?: return
         if (!equipment.isEquipped) return
 
-        currentEquipmentInstances = currentEquipmentInstances.map { eq ->
-            if (eq.id == equipmentId) {
-                eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
-            } else eq
-        }
+        scope.launch { stateStore.update {
+            equipmentInstances = equipmentInstances.map { eq ->
+                if (eq.id == equipmentId) {
+                    eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
+                } else eq
+            }
+        } }
     }
 }

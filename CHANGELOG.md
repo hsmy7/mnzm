@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.01] - 2026-06-13
+
+### 架构根治：组件化实体存储 + 消除不可变对象拷贝
+
+- **Disciple 组件表化**：97 字段不可变 data class + 222 行 `copyWith` 方法彻底删除，改为 `DiscipleTables` 组件表存储（~90 张窄表，每张独立 SparseArray 索引），单字段修改从"复制全部 97 字段"变为"写一个数组元素"，内存分配减少 ~97 倍
+- **EntityStore 统一存储**：EquipmentStack/EquipmentInstance/ManualStack/ManualInstance/Pill/Material/Herb/Seed/StorageBag 全部从 `List<T>` 迁移到 `EntityStore<T>`（HashMap O(1) ID 查找），消除引擎层全部 51 处 `.find { it.id == }` 遍历
+- **双重状态访问器清零**：CultivationCore（6 个）+ CaveExplorationProcessor（5 个）+ 其余 12 个 Service 文件共 19 个 `private var currentXxx` 自定义 getter/setter 全部删除，改为显式 `stateStore` 直访
+- **Shadow 深拷贝修复**：`DiscipleTables.deepCopy()` 从列表/映射类型浅拷贝改为深拷贝（`.toList()`/`.toMap()`），防止 Shadow 事务内突变影响原表
+- **CancellationException 重抛**：`SettlementCoordinator.executeStep()` 新增协程取消异常重抛，符合编码规范 8.1
+- **本地变量遮蔽修复**：ExplorationService/CultivationEventProcessor/ProductionSubsystem 共 3 处 `val xxx = stateStore.xxx.value` 局部变量改名消除 `MutableGameState` 字段遮蔽，修复 "'val' cannot be reassigned" 编译错误
+- **基础设施新增**：`HasId` 接口 + `ComponentTable<T>` / `IntComponentTable` / `DoubleComponentTable` 基础组件表类型
+
 ## [4.0.00] - 2026-06-13
 
 ### 修复：新游戏首次领取邮件物品丢失（根治）

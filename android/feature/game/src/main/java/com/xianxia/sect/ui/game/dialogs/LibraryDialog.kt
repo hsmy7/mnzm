@@ -53,6 +53,7 @@ fun LibraryDialog(
     val slots = (0 until 3).map { index ->
         librarySlots.find { it.index == index } ?: LibrarySlot(index = index)
     }
+    val discipleMap = disciples.associateBy { it.id }
 
     CommonDialog(
         title = "藏经阁",
@@ -74,7 +75,7 @@ fun LibraryDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
                     rowSlots.forEach { slot ->
-                        val disciple = slot.discipleId?.let { id -> disciples.find { it.id == id } }
+                        val disciple = slot.discipleId?.let { id -> discipleMap[id] }
                         LibrarySlotItem(
                             slot = slot,
                             disciple = disciple,

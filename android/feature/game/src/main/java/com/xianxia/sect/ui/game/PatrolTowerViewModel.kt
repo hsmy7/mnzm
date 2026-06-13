@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
@@ -43,7 +43,7 @@ class PatrolTowerViewModel @Inject constructor(
                 val slots = data.patrolSlots.toMutableList()
                 val globalIndex = towerIndex * slotsPerTower + slotOffset
                 while (slots.size <= globalIndex) slots.add(PatrolSlot(index = slots.size))
-                val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == discipleId } ?: return@launch
+                val disciple = gameEngine.getDiscipleAggregate(discipleId) ?: return@launch
                 slots[globalIndex] = PatrolSlot(
                     index = globalIndex,
                     discipleId = discipleId,
@@ -86,7 +86,7 @@ class PatrolTowerViewModel @Inject constructor(
                 val globalIndex = towerIndex * slotsPerTower + slotOffset
                 if (globalIndex >= slots.size) return@launch
                 val oldId = slots[globalIndex].discipleId
-                val disciple = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId } ?: return@launch
+                val disciple = gameEngine.getDiscipleAggregate(newDiscipleId) ?: return@launch
                 slots[globalIndex] = PatrolSlot(
                     index = globalIndex,
                     discipleId = newDiscipleId,

@@ -81,8 +81,9 @@ fun AlchemyDialog(
     val mySlot = alchemySlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
     val assignedDiscipleId = mySlot?.assignedDiscipleId
+    val discipleMap = disciples.associateBy { it.id }
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
-        else disciples.find { it.id == assignedDiscipleId }
+        else discipleMap[assignedDiscipleId]
 
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
@@ -244,7 +245,7 @@ fun AlchemyDialog(
             elderSlots = gameData?.elderSlots ?: ElderSlots(),
             onDismiss = { showWorkerSelection = false },
             onSelect = { discipleId ->
-                val d = disciples.find { it.id == discipleId }
+                val d = discipleMap[discipleId]
                 alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
                 showWorkerSelection = false
             }

@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game.delegate
+package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -55,7 +55,7 @@ class DiscipleDelegate(
     fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
         scope.launch {
             gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copyWith(autoEquipFromWarehouse = enabled)
+                disciple.copy(equipment = disciple.equipment.copy(autoEquipFromWarehouse = enabled))
             }
         }
     }
@@ -63,7 +63,7 @@ class DiscipleDelegate(
     fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) {
         scope.launch {
             gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copyWith(autoLearnFromWarehouse = enabled)
+                disciple.copy(autoLearnFromWarehouse = enabled)
             }
         }
     }
@@ -243,7 +243,7 @@ class DiscipleDelegate(
     }
 
     fun getDiscipleById(id: String): DiscipleAggregate? {
-        return gameEngine.discipleAggregates.value.find { it.id == id }
+        return gameEngine.getDiscipleAggregate(id)
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {

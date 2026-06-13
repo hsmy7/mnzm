@@ -121,6 +121,19 @@ User Action (Compose UI)
 - **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
 - **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
 
+### Component Table Architecture (v4.0.01)
+
+Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. Each column is a `SparseArray` keyed by disciple ID (Int). Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>` which wraps `List<T>` with a `HashMap<String, T>` index.
+
+**Key rules:**
+- **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(log n), no allocation
+- **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(log n)
+- **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class — ONLY for UI/Serialization, NEVER in hot path
+- **Non-Disciple lookup**: `entityStore.get(id)` — O(1)
+- **Non-Disciple traversal**: `entityStore.items` or `entityStore.forEach {}` — still List-backed
+- **Shadow copies**: `DiscipleTables.deepCopy()` copies each table directly (value types: int/double are value-copied; List/Map types are deep-copied via .toList()/.toMap())
+- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, etc.
+
 ### Mail & Reward System
 
 Mail reward claims use Saga compensation pattern for atomicity:

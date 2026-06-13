@@ -68,92 +68,98 @@ class StateAccessorFactory(
 
     fun disciples(): StateAccessor<List<Disciple>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.disciples },
-        stateSetter = { s, v -> s.disciples = v },
+        stateGetter = { it?.discipleTables?.assembleAll() },
+        stateSetter = { s, v ->
+            s.discipleTables.clear()
+            v.forEach { s.discipleTables.insert(it) }
+        },
         fallbackGetter = { stateStore.disciples.value }
     )
 
     fun disciplesFromUnified(): StateAccessor<List<Disciple>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.disciples },
-        stateSetter = { s, v -> s.disciples = v },
+        stateGetter = { it?.discipleTables?.assembleAll() },
+        stateSetter = { s, v ->
+            s.discipleTables.clear()
+            v.forEach { s.discipleTables.insert(it) }
+        },
         fallbackGetter = { stateStore.unifiedState.value.disciples }
     )
 
     fun equipmentStacks(): StateAccessor<List<EquipmentStack>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.equipmentStacks },
-        stateSetter = { s, v -> s.equipmentStacks = v },
+        stateGetter = { it?.equipmentStacks?.items },
+        stateSetter = { s, v -> s.equipmentStacks = EntityStore(v) },
         fallbackGetter = { stateStore.equipmentStacks.value }
     )
 
     fun equipmentInstances(): StateAccessor<List<EquipmentInstance>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.equipmentInstances },
-        stateSetter = { s, v -> s.equipmentInstances = v },
+        stateGetter = { it?.equipmentInstances?.items },
+        stateSetter = { s, v -> s.equipmentInstances = EntityStore(v) },
         fallbackGetter = { stateStore.equipmentInstances.value }
     )
 
     fun manualStacks(): StateAccessor<List<ManualStack>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.manualStacks },
-        stateSetter = { s, v -> s.manualStacks = v },
+        stateGetter = { it?.manualStacks?.items },
+        stateSetter = { s, v -> s.manualStacks = EntityStore(v) },
         fallbackGetter = { stateStore.manualStacks.value }
     )
 
     fun manualInstances(): StateAccessor<List<ManualInstance>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.manualInstances },
-        stateSetter = { s, v -> s.manualInstances = v },
+        stateGetter = { it?.manualInstances?.items },
+        stateSetter = { s, v -> s.manualInstances = EntityStore(v) },
         fallbackGetter = { stateStore.manualInstances.value }
     )
 
     fun pills(): StateAccessor<List<Pill>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.pills },
-        stateSetter = { s, v -> s.pills = v },
+        stateGetter = { it?.pills?.items },
+        stateSetter = { s, v -> s.pills = EntityStore(v) },
         fallbackGetter = { stateStore.pills.value }
     )
 
     fun materials(): StateAccessor<List<Material>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.materials },
-        stateSetter = { s, v -> s.materials = v },
+        stateGetter = { it?.materials?.items },
+        stateSetter = { s, v -> s.materials = EntityStore(v) },
         fallbackGetter = { stateStore.getCurrentMaterials() }
     )
 
     fun materialsFromFlow(): StateAccessor<List<Material>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.materials },
-        stateSetter = { s, v -> s.materials = v },
+        stateGetter = { it?.materials?.items },
+        stateSetter = { s, v -> s.materials = EntityStore(v) },
         fallbackGetter = { stateStore.materials.value }
     )
 
     fun herbs(): StateAccessor<List<Herb>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.herbs },
-        stateSetter = { s, v -> s.herbs = v },
+        stateGetter = { it?.herbs?.items },
+        stateSetter = { s, v -> s.herbs = EntityStore(v) },
         fallbackGetter = { stateStore.getCurrentHerbs() }
     )
 
     fun herbsFromFlow(): StateAccessor<List<Herb>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.herbs },
-        stateSetter = { s, v -> s.herbs = v },
+        stateGetter = { it?.herbs?.items },
+        stateSetter = { s, v -> s.herbs = EntityStore(v) },
         fallbackGetter = { stateStore.herbs.value }
     )
 
     fun seeds(): StateAccessor<List<Seed>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.seeds },
-        stateSetter = { s, v -> s.seeds = v },
+        stateGetter = { it?.seeds?.items },
+        stateSetter = { s, v -> s.seeds = EntityStore(v) },
         fallbackGetter = { stateStore.getCurrentSeeds() }
     )
 
     fun seedsFromFlow(): StateAccessor<List<Seed>> = StateAccessor(
         stateStore, scope, dispatcher,
-        stateGetter = { it?.seeds },
-        stateSetter = { s, v -> s.seeds = v },
+        stateGetter = { it?.seeds?.items },
+        stateSetter = { s, v -> s.seeds = EntityStore(v) },
         fallbackGetter = { stateStore.seeds.value }
     )
 

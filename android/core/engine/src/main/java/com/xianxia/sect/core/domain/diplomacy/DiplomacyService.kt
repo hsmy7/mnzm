@@ -11,11 +11,10 @@ import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
@@ -46,7 +45,7 @@ class DiplomacyService @Inject constructor(
     override fun onEvent(event: DomainEvent) {
         if (event !is BattleCompletedEvent || !event.result.victory) return
         scope.launch {
-            val data = currentGameData
+            val data = stateStore.gameData.value
             val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return@launch
             val targetSect = data.worldMapSects.find {
                 it.isUnderAttack && it.attackerSectId == playerSect.id
@@ -57,24 +56,17 @@ class DiplomacyService @Inject constructor(
                     (it.sectId1 == targetSect.id && it.sectId2 == playerSect.id)
                 }?.favor ?: 0
                 val newFavor = (currentFavor - 5).coerceAtLeast(0)
-                currentGameData = data.copy(
+                stateStore.update { gameData = data.copy(
                     sectRelations = updateSectRelationFavor(
                         data.sectRelations, playerSect.id, targetSect.id, newFavor, data.gameYear
                     )
-                )
+                ) }
             }
         }
     }
 
-    private val state = StateAccessorFactory(stateStore, scope, null)
-
-    private var currentGameData: GameData
-        get() = state.gameData().current
-        set(value) { state.gameData().current = value }
-
-    private var currentDisciples: List<Disciple>
-        get() = state.disciples().current
-        set(value) { state.disciples().current = value }
+    private val discipleTables: DiscipleTables
+        get() = stateStore.discipleTables
 
     companion object {
         private const val TAG = "DiplomacyService"
@@ -104,7 +96,7 @@ class DiplomacyService @Inject constructor(
      * @return 送礼结果
      */
     fun giftSpiritStones(sectId: String, tier: Int): GiftResult {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val currentYear = data.gameYear
 
         // 查找目标宗门
@@ -211,11 +203,11 @@ class DiplomacyService @Inject constructor(
             data.sectRelations
         }
 
-        currentGameData = data.copy(
+        scope.launch { stateStore.update { gameData = data.copy(
             spiritStones = data.spiritStones - tierConfig.spiritStones,
             sectDetails = updatedDetails,
             sectRelations = updatedRelations
-        )
+        ) } }
 
         val responseText = SectResponseTexts.getAcceptResponse(sect.level, "spirit_stones", tierConfig.name, favorIncrease)
 
@@ -243,11 +235,12 @@ class DiplomacyService @Inject constructor(
             return Pair(false, message)
         }
 
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId }
             ?: return Pair(false, "未找到目标宗门")
-        val envoy = currentDisciples.find { it.id == envoyDiscipleId }
-            ?: return Pair(false, "未找到使者弟子")
+        val envoyId = envoyDiscipleId.toIntOrNull()
+        if (envoyId == null || !discipleTables.ids.contains(envoyId)) return Pair(false, "未找到使者弟子")
+        val envoy = discipleTables.assemble(envoyId)
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val favor = if (playerSect != null) {
@@ -277,15 +270,15 @@ class DiplomacyService @Inject constructor(
                 }
             }
 
-            currentGameData = data.copy(
+            scope.launch { stateStore.update { gameData = data.copy(
                 spiritStones = data.spiritStones - cost,
                 alliances = data.alliances + alliance,
                 worldMapSects = updatedSects
-            )
+            ) } }
 
             return Pair(true, "结盟成功！")
         } else {
-            currentGameData = data.copy(spiritStones = data.spiritStones - cost / 2)
+            scope.launch { stateStore.update { gameData = data.copy(spiritStones = data.spiritStones - cost / 2) } }
             return Pair(false, "游说失败，关系不足以达成结盟")
         }
     }
@@ -297,7 +290,7 @@ class DiplomacyService @Inject constructor(
      * @return 解除结果（是否成功，消息）
      */
     fun dissolveAlliance(sectId: String): Pair<Boolean, String> {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId }
 
         if (sect == null) {
@@ -324,11 +317,11 @@ class DiplomacyService @Inject constructor(
 
         val updatedAlliances = data.alliances.filter { it.id != alliance.id }
 
-        currentGameData = data.copy(
+        scope.launch { stateStore.update { gameData = data.copy(
             worldMapSects = updatedSects,
             alliances = updatedAlliances,
             spiritStones = newSpiritStones
-        )
+        ) } }
 
         return Pair(true, "已解除结盟，消耗灵石${spiritStonePenalty}")
     }
@@ -354,9 +347,10 @@ class DiplomacyService @Inject constructor(
      * @return 三元组（是否满足条件，消息，费用）
      */
     fun checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId }
-        val envoy = currentDisciples.find { it.id == envoyDiscipleId }
+        val envoyId = envoyDiscipleId.toIntOrNull()
+        val envoy = if (envoyId != null && discipleTables.ids.contains(envoyId)) discipleTables.assemble(envoyId) else null
 
         if (sect == null) {
             return Triple(false, "未找到目标宗门", 0)

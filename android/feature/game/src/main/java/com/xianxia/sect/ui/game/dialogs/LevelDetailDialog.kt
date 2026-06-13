@@ -63,6 +63,7 @@ fun LevelDetailDialog(
     var showDiscipleSelection by remember { mutableStateOf(false) }
 
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
+    val discipleMap = disciples.associateBy { it.id }
 
     val imageRes = remember(level) {
         when (level.levelType) {
@@ -184,7 +185,7 @@ fun LevelDetailDialog(
                             val slotIndex = row * 4 + col
                             val discipleId = slots[slotIndex]
                             val disciple =
-                                if (discipleId != null) disciples.find { it.id == discipleId }
+                                if (discipleId != null) discipleMap[discipleId]
                                 else null
 
                             LevelSlotBox(

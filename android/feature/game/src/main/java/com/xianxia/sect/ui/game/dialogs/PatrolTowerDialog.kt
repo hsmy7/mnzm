@@ -64,6 +64,7 @@ fun PatrolTowerDialog(
     }
 
     val assignedIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+    val discipleMap = disciples.associateBy { it.id }
     val availableDisciples = remember(allSlots, disciples, towerIndex) {
         disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
             .sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
@@ -129,7 +130,7 @@ fun PatrolTowerDialog(
                     for (col in 0 until colsPerRow) {
                         val index = row * colsPerRow + col
                         val slot = slots.getOrNull(index) ?: PatrolSlot(index = index)
-                        val assignedDisciple = disciples.find { it.id == slot.discipleId }
+                        val assignedDisciple = discipleMap[slot.discipleId]
                         DiscipleSlot(
                             disciple = assignedDisciple,
                             showActions = true,

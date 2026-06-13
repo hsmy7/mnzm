@@ -36,7 +36,7 @@ class ChildBirthSystem @Inject constructor(
     }
 
     private fun processYearlyConception(state: MutableGameState) {
-        val allDisciples = state.disciples
+        val allDisciples = state.discipleTables.assembleAll()
         val discipleMap = allDisciples.associateBy { it.id }
         val currentYear = state.gameData.gameYear
 
@@ -50,7 +50,7 @@ class ChildBirthSystem @Inject constructor(
 
         if (eligibleMothers.isEmpty()) return
 
-        var currentList = state.disciples
+        var currentList = allDisciples
         var updated = false
 
         for (mother in eligibleMothers) {
@@ -62,7 +62,7 @@ class ChildBirthSystem @Inject constructor(
                 val birthMonth = GameRandom.nextInt(1, 13)
                 currentList = currentList.map { disciple ->
                     if (disciple.id == mother.id) {
-                        disciple.copyWith(childBirthMonth = birthMonth)
+                        disciple.copy(social = disciple.social.copy(childBirthMonth = birthMonth))
                     } else disciple
                 }
                 updated = true
@@ -70,12 +70,13 @@ class ChildBirthSystem @Inject constructor(
         }
 
         if (updated) {
-            state.disciples = currentList
+            state.discipleTables.clear()
+            currentList.forEach { state.discipleTables.insert(it) }
         }
     }
 
     private fun processMonthlyBirth(state: MutableGameState) {
-        val allDisciples = state.disciples
+        val allDisciples = state.discipleTables.assembleAll()
         val discipleMap = allDisciples.associateBy { it.id }
         val currentYear = state.gameData.gameYear
         val currentMonth = state.gameData.gameMonth
@@ -86,7 +87,7 @@ class ChildBirthSystem @Inject constructor(
 
         if (mothersDueThisMonth.isEmpty()) return
 
-        var currentList = state.disciples
+        var currentList = allDisciples
 
         for (mother in mothersDueThisMonth) {
             val fatherId = mother.social.partnerId ?: continue
@@ -94,7 +95,7 @@ class ChildBirthSystem @Inject constructor(
             if (father == null || !father.isAlive) {
                 currentList = currentList.map { disciple ->
                     if (disciple.id == mother.id) {
-                        disciple.copyWith(childBirthMonth = null)
+                        disciple.copy(social = disciple.social.copy(childBirthMonth = null))
                     } else disciple
                 }
                 continue
@@ -107,16 +108,19 @@ class ChildBirthSystem @Inject constructor(
 
             currentList = currentList.map { disciple ->
                 when (disciple.id) {
-                    mother.id -> disciple.copyWith(
-                        lastChildYear = currentYear,
-                        childBirthMonth = null
+                    mother.id -> disciple.copy(
+                        social = disciple.social.copy(
+                            lastChildYear = currentYear,
+                            childBirthMonth = null
+                        )
                     )
                     else -> disciple
                 }
             }
         }
 
-        state.disciples = currentList
+        state.discipleTables.clear()
+        currentList.forEach { state.discipleTables.insert(it) }
     }
 
     private fun createChild(mother: Disciple, father: Disciple, currentYear: Int, state: MutableGameState): Disciple {
@@ -125,7 +129,7 @@ class ChildBirthSystem @Inject constructor(
 
         val fatherSurname = if (father.surname.isNotEmpty()) father.surname
             else NameService.extractSurname(father.name)
-        val existingNames = (state.disciples + state.gameData.recruitList).map { it.name }.toSet()
+        val existingNames = (state.discipleTables.assembleAll() + state.gameData.recruitList).map { it.name }.toSet()
         val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
 
         val spiritRootType = when (GameRandom.nextInt(100)) {

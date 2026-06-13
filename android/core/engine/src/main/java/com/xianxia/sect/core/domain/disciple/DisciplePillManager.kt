@@ -40,10 +40,12 @@ object DisciplePillManager {
 
             updatedDisciple = applyPillEffect(updatedDisciple, pillItem)
 
-            updatedDisciple = updatedDisciple.copyWith(
-                storageBagItems = StorageBagUtils.decreaseItemQuantity(
-                    updatedDisciple.equipment.storageBagItems,
-                    pillItem.itemId
+            updatedDisciple = updatedDisciple.copy(
+                equipment = updatedDisciple.equipment.copy(
+                    storageBagItems = StorageBagUtils.decreaseItemQuantity(
+                        updatedDisciple.equipment.storageBagItems,
+                        pillItem.itemId
+                    )
                 )
             )
 
@@ -180,7 +182,7 @@ object DisciplePillManager {
             val currentHp = if (rawCurrentHp < 0) maxHp else rawCurrentHp
             val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
             val newHp = (currentHp + healAmount).coerceAtMost(maxHp)
-            updated = updated.copyWith(currentHp = newHp)
+            updated = updated.copy(combat = updated.combat.copy(currentHp = newHp))
         }
 
         if (effect.mpRecoverMaxMpPercent > 0) {
@@ -189,7 +191,7 @@ object DisciplePillManager {
             val currentMp = if (rawCurrentMp < 0) maxMp else rawCurrentMp
             val recoverAmount = (maxMp * effect.mpRecoverMaxMpPercent).toInt().coerceAtLeast(1)
             val newMp = (currentMp + recoverAmount).coerceAtMost(maxMp)
-            updated = updated.copyWith(currentMp = newMp)
+            updated = updated.copy(combat = updated.combat.copy(currentMp = newMp))
         }
 
         if (effect.clearAll) {

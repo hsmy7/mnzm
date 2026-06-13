@@ -147,8 +147,9 @@ class BuildingFacadeImpl @Inject constructor(
             )}
             if (discipleId != null) {
                 stateStore.update {
-                    disciples = disciples.map { d ->
-                        if (d.id == discipleId) d.copy(status = DiscipleStatus.IDLE) else d
+                    val id = discipleId.toIntOrNull() ?: return@update
+                    if (discipleTables.ids.contains(id)) {
+                        discipleTables.statuses[id] = DiscipleStatus.IDLE
                     }
                 }
             }
@@ -440,8 +441,11 @@ class BuildingFacadeImpl @Inject constructor(
 
             // 3. 将所有关联弟子恢复为空闲状态
             if (discipleIdsToFree.isNotEmpty()) {
-                disciples = disciples.map { d ->
-                    if (d.id in discipleIdsToFree) d.copy(status = DiscipleStatus.IDLE) else d
+                for (did in discipleIdsToFree) {
+                    val id = did.toIntOrNull() ?: continue
+                    if (discipleTables.ids.contains(id)) {
+                        discipleTables.statuses[id] = DiscipleStatus.IDLE
+                    }
                 }
             }
         }
@@ -449,8 +453,9 @@ class BuildingFacadeImpl @Inject constructor(
 
     private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         stateStore.update {
-            disciples = disciples.map {
-                if (it.id == discipleId) it.copy(status = status) else it
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (discipleTables.ids.contains(id)) {
+                discipleTables.statuses[id] = status
             }
         }
     }

@@ -37,52 +37,10 @@ class CaveExplorationProcessor @Inject constructor(
         private const val TAG = "CaveExplorationProc"
     }
 
-    // ── 状态访问器 ──────────────────────────────────────────────────────
-
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
-
-    private var currentBattleLogs: List<BattleLog>
-        get() = stateStore.currentTransactionMutableState()?.battleLogs ?: stateStore.battleLogs.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.battleLogs = value; return }
-            scope.launch { stateStore.update { battleLogs = value } }
-        }
-
     // ── 洞府探索 ──────────────────────────────────────────────────────
 
     suspend fun processCaveLifecycle(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val expiredCaveIds = data.cultivatorCaves.filter { cave ->
             cave.isExpired(year, month) || cave.status == CaveStatus.EXPLORED
@@ -118,8 +76,8 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        var updatedSectsForAI = currentGameData.worldMapSects.toMutableList()
-        val updatedSectDetails = currentGameData.sectDetails.toMutableMap()
+        var updatedSectsForAI = stateStore.gameData.value.worldMapSects.toMutableList()
+        val updatedSectDetails = stateStore.gameData.value.sectDetails.toMutableMap()
         val aiTeamsToRemove = mutableListOf<String>()
 
         allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
@@ -181,14 +139,14 @@ class CaveExplorationProcessor @Inject constructor(
             finalExplorationTeams.removeAll { it.id == team.id }
         }
 
-        val currentData = currentGameData
-        currentGameData = currentData.copy(
+        val currentData = stateStore.gameData.value
+        stateStore.update { gameData = currentData.copy(
             cultivatorCaves = finalCaves,
             aiCaveTeams = finalAITeams,
             caveExplorationTeams = finalExplorationTeams,
             worldMapSects = updatedSectsForAI,
             sectDetails = updatedSectDetails
-        )
+        ) }
     }
 
     fun generateAITeamInline(
@@ -217,20 +175,20 @@ class CaveExplorationProcessor @Inject constructor(
         currentAITeams: List<AICaveTeam>
     ): Triple<List<CultivatorCave>, List<AICaveTeam>, Boolean> {
         val teamMembers = team.memberIds.mapNotNull { id ->
-            currentDisciples.find { it.id == id }
+            stateStore.disciples.value.find { it.id == id }
         }.filter { it.isAlive }
 
         if (teamMembers.isEmpty()) {
             return Triple(
-                currentGameData.cultivatorCaves,
+                stateStore.gameData.value.cultivatorCaves,
                 currentAITeams.filter { it.caveId != cave.id },
                 true
             )
         }
 
-        val data = currentGameData
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
+        val data = stateStore.gameData.value
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -260,17 +218,21 @@ class CaveExplorationProcessor @Inject constructor(
         val survivorIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
         val survivorHpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.hp }
         val survivorMpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.mp }
-        currentDisciples = currentDisciples.map { disciple ->
-            if (disciple.id in team.memberIds) {
-                if (disciple.id in survivorIds) {
-                    val hp = survivorHpMap[disciple.id] ?: disciple.combat.currentHp
-                    val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
-                    disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-                } else {
-                    eventProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
-                    disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                }
-            } else disciple
+        stateStore.update {
+            val newList = discipleTables.assembleAll().map { disciple ->
+                if (disciple.id in team.memberIds) {
+                    if (disciple.id in survivorIds) {
+                        val hp = survivorHpMap[disciple.id] ?: disciple.combat.currentHp
+                        val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
+                        disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                    } else {
+                        eventProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
+                        disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                    }
+                } else disciple
+            }
+            discipleTables.clear()
+            newList.forEach { discipleTables.insert(it) }
         }
 
         if (!battleResult.victory) {
@@ -279,18 +241,22 @@ class CaveExplorationProcessor @Inject constructor(
                 updatedAITeams = updatedAITeams.toMutableList()
             }
             return Triple(
-                currentGameData.cultivatorCaves,
+                stateStore.gameData.value.cultivatorCaves,
                 updatedAITeams,
                 true
             )
         }
 
-        currentDisciples = currentDisciples.map { disciple ->
-            if (disciple.id in survivorIds && disciple.isAlive) {
-                disciple.copyWith(soulPower = disciple.soulPower + 1)
-            } else {
-                disciple
+        stateStore.update {
+            val newList = discipleTables.assembleAll().map { disciple ->
+                if (disciple.id in survivorIds && disciple.isAlive) {
+                    disciple.copy(soulPower = disciple.soulPower + 1)
+                } else {
+                    disciple
+                }
             }
+            discipleTables.clear()
+            newList.forEach { discipleTables.insert(it) }
         }
 
         val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
@@ -299,9 +265,11 @@ class CaveExplorationProcessor @Inject constructor(
         rewards.items.forEach { reward ->
             when (reward.type) {
                 "spiritStones" -> {
-                    currentGameData = currentGameData.copy(
-                        spiritStones = currentGameData.spiritStones + reward.quantity.toLong()
-                    )
+                    stateStore.update {
+                        gameData = gameData.copy(
+                            spiritStones = gameData.spiritStones + reward.quantity.toLong()
+                        )
+                    }
                     battleRewardItems.add(BattleRewardItem(
                         itemId = reward.itemId,
                         name = reward.name,
@@ -470,7 +438,7 @@ class CaveExplorationProcessor @Inject constructor(
                 beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
             )
         )
-        currentBattleLogs = listOf(battleLog) + currentBattleLogs.take(49)
+        stateStore.update { battleLogs = listOf(battleLog) + battleLogs.take(49) }
 
         stateStore.setPendingBattleResult(BattleResultUIData(
             battleLogId = battleLog.id,
@@ -489,7 +457,7 @@ class CaveExplorationProcessor @Inject constructor(
             )
         )
 
-        val updatedCaves = currentGameData.cultivatorCaves.map { c ->
+        val updatedCaves = stateStore.gameData.value.cultivatorCaves.map { c ->
             if (c.id == cave.id) c.copy(status = CaveStatus.EXPLORED) else c
         }
         val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
@@ -498,7 +466,7 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     fun findNearbySects(cave: CultivatorCave, range: Float): List<WorldSect> {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         return data.worldMapSects.filter { sect ->
             !sect.isPlayerSect &&
             kotlin.math.sqrt(
@@ -509,11 +477,18 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     fun resetCaveExplorationTeamMembersStatus(team: CaveExplorationTeam) {
-        team.memberIds.forEach { memberId ->
-            val disciple = currentDisciples.find { it.id == memberId }
-            if (disciple != null && disciple.status == DiscipleStatus.IN_TEAM) {
-                currentDisciples = currentDisciples.map {
-                    if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it
+        scope.launch {
+            stateStore.update {
+                val idsToReset = team.memberIds.filter { memberId ->
+                    val d = discipleTables.assembleAll().find { it.id == memberId }
+                    d != null && d.status == DiscipleStatus.IN_TEAM
+                }
+                if (idsToReset.isNotEmpty()) {
+                    val newList = discipleTables.assembleAll().map {
+                        if (it.id in idsToReset) it.copy(status = DiscipleStatus.IDLE) else it
+                    }
+                    discipleTables.clear()
+                    newList.forEach { discipleTables.insert(it) }
                 }
             }
         }
@@ -522,7 +497,7 @@ class CaveExplorationProcessor @Inject constructor(
     // ── AI 宗门 ──────────────────────────────────────────────────────
 
     fun processAISectOperations(year: Int, month: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples
 
         val cleanedSectDetails = data.sectDetails.mapValues { (sectId, detail) ->
@@ -533,16 +508,21 @@ class CaveExplorationProcessor @Inject constructor(
                 detail
             }
         }
-        currentGameData = data.copy(sectDetails = cleanedSectDetails)
 
         val updatedAiDisciples = aiDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
-
             AISectDiscipleManager.processMonthlyCultivation(disciples)
         }
 
-        currentGameData = currentGameData.copy(aiSectDisciples = updatedAiDisciples)
+        scope.launch {
+            stateStore.update {
+                gameData = gameData.copy(
+                    sectDetails = cleanedSectDetails,
+                    aiSectDisciples = updatedAiDisciples
+                )
+            }
+        }
 
         if (month == 1) {
             processSectDisciplesYearlyRecruitment(year)
@@ -550,11 +530,15 @@ class CaveExplorationProcessor @Inject constructor(
 
         processAISectAttackDecisions()
 
-        currentGameData = AISectGarrisonManager.fillEmptyGarrisonSlots(currentGameData)
+        scope.launch {
+            stateStore.update {
+                gameData = AISectGarrisonManager.fillEmptyGarrisonSlots(gameData)
+            }
+        }
     }
 
     fun processSectDisciplesYearlyRecruitment(year: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         var updatedAiDisciples = data.aiSectDisciples.toMutableMap()
         var updatedRecruitList = data.recruitList
 
@@ -576,21 +560,27 @@ class CaveExplorationProcessor @Inject constructor(
                 }
             }
         }
-        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples, recruitList = updatedRecruitList)
+        scope.launch {
+            stateStore.update {
+                gameData = data.copy(aiSectDisciples = updatedAiDisciples, recruitList = updatedRecruitList)
+            }
+        }
     }
 
     fun processSectDisciplesAging(year: Int) {
-        val data = currentGameData
+        val data = stateStore.gameData.value
         val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
             AISectDiscipleManager.processAging(disciples)
         }
-        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples)
+        scope.launch {
+            stateStore.update { gameData = data.copy(aiSectDisciples = updatedAiDisciples) }
+        }
     }
 
     fun processAISectAttackDecisions() {
-        val data = currentGameData
+        val data = stateStore.gameData.value
 
         val aiResults = AISectAttackManager.decideAttacks(data)
         for (result in aiResults) {
@@ -604,112 +594,128 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     fun applyAIAttackResult(result: AISectAttackManager.AIAttackResult) {
-        val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
-        val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
+        scope.launch {
+            stateStore.update {
+                val currentGameData = gameData
+                val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
+                val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
 
-        val defenderDisciples = currentGameData.aiSectDisciples[result.defenderSectId] ?: emptyList()
-        val updatedDefenderDisciples = defenderDisciples.filter { it.id !in result.deadDefenderIds }
+                val defenderDisciples = currentGameData.aiSectDisciples[result.defenderSectId] ?: emptyList()
+                val updatedDefenderDisciples = defenderDisciples.filter { it.id !in result.deadDefenderIds }
 
-        var updatedData = currentGameData.copy(
-            aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
-                this[result.attackerSectId] = updatedAttackerDisciples
-                this[result.defenderSectId] = updatedDefenderDisciples
-            }
-        )
-
-        val updatedRelations = updatedData.sectRelations.map { relation ->
-            val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == result.defenderSectId) ||
-                    (relation.sectId1 == result.defenderSectId && relation.sectId2 == result.attackerSectId)
-            if (isRelevantRelation) {
-                relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
-            } else {
-                relation
-            }
-        }
-        updatedData = updatedData.copy(sectRelations = updatedRelations)
-
-        if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
-            val mergedAttackerDisciples = updatedAttackerDisciples + updatedDefenderDisciples
-            val garrisonSlots = (0 until 10).map { index ->
-                if (index < result.survivingAttackers.size) {
-                    val d = result.survivingAttackers[index]
-                    GarrisonSlot(
-                        index = index,
-                        discipleId = d.id,
-                        discipleName = d.name,
-                        discipleRealm = d.realmName,
-                        discipleSpiritRootColor = d.spiritRoot.countColor,
-                        portraitRes = d.portraitRes
-                    )
-                } else {
-                    GarrisonSlot(index = index)
-                }
-            }
-            updatedData = updatedData.copy(
-                worldMapSects = updatedData.worldMapSects.map { sect ->
-                    if (sect.id == result.defenderSectId) {
-                        sect.copy(
-                            occupierSectId = result.attackerSectId,
-                            garrisonSlots = garrisonSlots
-                        )
-                    } else {
-                        sect
+                var updatedData = gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
+                        this[result.attackerSectId] = updatedAttackerDisciples
+                        this[result.defenderSectId] = updatedDefenderDisciples
                     }
-                },
-                aiSectDisciples = updatedData.aiSectDisciples.toMutableMap().apply {
-                    this[result.attackerSectId] = mergedAttackerDisciples
-                    this[result.defenderSectId] = emptyList()
-                }
-            )
-        }
+                )
 
-        currentGameData = updatedData
+                val updatedRelations = updatedData.sectRelations.map { relation ->
+                    val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == result.defenderSectId) ||
+                            (relation.sectId1 == result.defenderSectId && relation.sectId2 == result.attackerSectId)
+                    if (isRelevantRelation) {
+                        relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    } else {
+                        relation
+                    }
+                }
+                updatedData = updatedData.copy(sectRelations = updatedRelations)
+
+                if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+                    val mergedAttackerDisciples = updatedAttackerDisciples + updatedDefenderDisciples
+                    val garrisonSlots = (0 until 10).map { index ->
+                        if (index < result.survivingAttackers.size) {
+                            val d = result.survivingAttackers[index]
+                            GarrisonSlot(
+                                index = index,
+                                discipleId = d.id,
+                                discipleName = d.name,
+                                discipleRealm = d.realmName,
+                                discipleSpiritRootColor = d.spiritRoot.countColor,
+                                portraitRes = d.portraitRes
+                            )
+                        } else {
+                            GarrisonSlot(index = index)
+                        }
+                    }
+                    updatedData = updatedData.copy(
+                        worldMapSects = updatedData.worldMapSects.map { sect ->
+                            if (sect.id == result.defenderSectId) {
+                                sect.copy(
+                                    occupierSectId = result.attackerSectId,
+                                    garrisonSlots = garrisonSlots
+                                )
+                            } else {
+                                sect
+                            }
+                        },
+                        aiSectDisciples = updatedData.aiSectDisciples.toMutableMap().apply {
+                            this[result.attackerSectId] = mergedAttackerDisciples
+                            this[result.defenderSectId] = emptyList()
+                        }
+                    )
+                }
+
+                gameData = updatedData
+            }
+        }
     }
 
     fun applyPlayerDefenseResult(result: AISectAttackManager.AIAttackResult) {
-        val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
-        val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
+        scope.launch {
+            stateStore.update {
+                val currentDisciples = discipleTables.assembleAll()
+                val currentGameData = gameData
 
-        val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
-        if (deadDefenders.isNotEmpty()) {
-            currentDisciples = DiscipleStatCalculator.applyGriefToRelatives(
-                currentDisciples, deadDefenders, currentGameData.gameYear
-            )
-        }
-
-        currentDisciples = currentDisciples.map { d ->
-            if (d.id in result.deadDefenderIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
-        }
-
-        var updatedData = currentGameData.copy(
-            aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
-                this[result.attackerSectId] = updatedAttackerDisciples
-            }
-        )
-
-        val playerSectId = updatedData.worldMapSects.find { it.isPlayerSect }?.id ?: return
-        val updatedRelations = updatedData.sectRelations.map { relation ->
-            val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == playerSectId) ||
-                    (relation.sectId1 == playerSectId && relation.sectId2 == result.attackerSectId)
-            if (isRelevantRelation) {
-                relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
-            } else {
-                relation
-            }
-        }
-        updatedData = updatedData.copy(sectRelations = updatedRelations)
-
-        if (result.winner == AIBattleWinner.ATTACKER) {
-            val playerDetail = updatedData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
-            val lootResult = SectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
-            val updatedWarehouse = SectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
-            updatedData = updatedData.copy(
-                sectDetails = updatedData.sectDetails.toMutableMap().apply {
-                    this[playerSectId] = playerDetail.copy(warehouse = updatedWarehouse)
+                val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
+                var newDisciples = currentDisciples
+                if (deadDefenders.isNotEmpty()) {
+                    newDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+                        newDisciples, deadDefenders, currentGameData.gameYear
+                    )
                 }
-            )
-        }
 
-        currentGameData = updatedData
+                newDisciples = newDisciples.map { d ->
+                    if (d.id in result.deadDefenderIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
+                }
+
+                discipleTables.clear()
+                newDisciples.forEach { discipleTables.insert(it) }
+
+                val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
+                val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
+
+                var updatedData = gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
+                        this[result.attackerSectId] = updatedAttackerDisciples
+                    }
+                )
+
+                val playerSectId = updatedData.worldMapSects.find { it.isPlayerSect }?.id ?: return@update
+                val updatedRelations = updatedData.sectRelations.map { relation ->
+                    val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == playerSectId) ||
+                            (relation.sectId1 == playerSectId && relation.sectId2 == result.attackerSectId)
+                    if (isRelevantRelation) {
+                        relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    } else {
+                        relation
+                    }
+                }
+                updatedData = updatedData.copy(sectRelations = updatedRelations)
+
+                if (result.winner == AIBattleWinner.ATTACKER) {
+                    val playerDetail = updatedData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
+                    val lootResult = SectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
+                    val updatedWarehouse = SectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
+                    updatedData = updatedData.copy(
+                        sectDetails = updatedData.sectDetails.toMutableMap().apply {
+                            this[playerSectId] = playerDetail.copy(warehouse = updatedWarehouse)
+                        }
+                    )
+                }
+
+                gameData = updatedData
+            }
+        }
     }
 }

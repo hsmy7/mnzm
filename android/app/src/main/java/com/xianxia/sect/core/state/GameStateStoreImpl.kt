@@ -42,6 +42,9 @@ class GameStateStoreImpl @Inject constructor(
         private const val TAG = "GameStateStore"
     }
 
+    private var _discipleTables = DiscipleTables()
+    override val discipleTables: DiscipleTables get() = _discipleTables
+
     private val transactionMutex = Mutex()
 
     @Volatile
@@ -536,16 +539,16 @@ class GameStateStoreImpl @Inject constructor(
         shadowOrigin = snapshot
         return MutableGameState(
             gameData = gd,
-            disciples = disc,
-            equipmentStacks = es,
-            equipmentInstances = ei,
-            manualStacks = ms,
-            manualInstances = mi,
-            pills = p,
-            materials = mat,
-            herbs = h,
-            seeds = s,
-            storageBags = sb,
+            discipleTables = _discipleTables.deepCopy(),
+            equipmentStacks = EntityStore(es),
+            equipmentInstances = EntityStore(ei),
+            manualStacks = EntityStore(ms),
+            manualInstances = EntityStore(mi),
+            pills = EntityStore(p),
+            materials = EntityStore(mat),
+            herbs = EntityStore(h),
+            seeds = EntityStore(s),
+            storageBags = EntityStore(sb),
             teams = t,
             battleLogs = bl,
             isPaused = _isPaused.value,
@@ -590,16 +593,16 @@ class GameStateStoreImpl @Inject constructor(
         shadowOrigin = snapshot
         return MutableGameState(
             gameData = gd,
-            disciples = disc,
-            equipmentStacks = es,
-            equipmentInstances = ei,
-            manualStacks = ms,
-            manualInstances = mi,
-            pills = p,
-            materials = mat,
-            herbs = h,
-            seeds = s,
-            storageBags = emptyList(),
+            discipleTables = _discipleTables.deepCopy(),
+            equipmentStacks = EntityStore(es),
+            equipmentInstances = EntityStore(ei),
+            manualStacks = EntityStore(ms),
+            manualInstances = EntityStore(mi),
+            pills = EntityStore(p),
+            materials = EntityStore(mat),
+            herbs = EntityStore(h),
+            seeds = EntityStore(s),
+            storageBags = EntityStore(),
             teams = emptyList(),
             battleLogs = emptyList(),
             isPaused = _isPaused.value,
@@ -615,16 +618,15 @@ class GameStateStoreImpl @Inject constructor(
         val isSettlement = shadow.isSettlementShadow
         update {
             val oldGameData = this.gameData
-            val oldDisciples = this.disciples
             // 结算修改字段（始终同步）
-            val oldEquipmentInstances = this.equipmentInstances
-            val oldPills = this.pills
-            val oldManualInstances = this.manualInstances
-            val oldHerbs = this.herbs
-            val oldSeeds = this.seeds
-            val oldEquipmentStacks = this.equipmentStacks
-            val oldMaterials = this.materials
-            val oldManualStacks = this.manualStacks
+            val oldEquipmentInstances = this.equipmentInstances.items
+            val oldPills = this.pills.items
+            val oldManualInstances = this.manualInstances.items
+            val oldHerbs = this.herbs.items
+            val oldSeeds = this.seeds.items
+            val oldEquipmentStacks = this.equipmentStacks.items
+            val oldMaterials = this.materials.items
+            val oldManualStacks = this.manualStacks.items
             // 非结算字段（仅在非结算 shadow 时同步）
             val oldTeams = if (!isSettlement) this.teams else null
             val oldBattleLogs = if (!isSettlement) this.battleLogs else null
@@ -633,14 +635,14 @@ class GameStateStoreImpl @Inject constructor(
             this.gameData = mergedGameData
 
             // 结算修改字段始终同步（生产消耗/产出）
-            if (shadow.equipmentInstances !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
-            if (shadow.pills !== oldPills) this.pills = shadow.pills
-            if (shadow.manualInstances !== oldManualInstances) this.manualInstances = shadow.manualInstances
-            if (shadow.herbs !== oldHerbs) this.herbs = shadow.herbs
-            if (shadow.seeds !== oldSeeds) this.seeds = shadow.seeds
-            if (shadow.equipmentStacks !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
-            if (shadow.materials !== oldMaterials) this.materials = shadow.materials
-            if (shadow.manualStacks !== oldManualStacks) this.manualStacks = shadow.manualStacks
+            if (shadow.equipmentInstances.items !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
+            if (shadow.pills.items !== oldPills) this.pills = shadow.pills
+            if (shadow.manualInstances.items !== oldManualInstances) this.manualInstances = shadow.manualInstances
+            if (shadow.herbs.items !== oldHerbs) this.herbs = shadow.herbs
+            if (shadow.seeds.items !== oldSeeds) this.seeds = shadow.seeds
+            if (shadow.equipmentStacks.items !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
+            if (shadow.materials.items !== oldMaterials) this.materials = shadow.materials
+            if (shadow.manualStacks.items !== oldManualStacks) this.manualStacks = shadow.manualStacks
 
             // 非结算字段仅在非结算 shadow 时同步
             if (!isSettlement) {
@@ -648,27 +650,7 @@ class GameStateStoreImpl @Inject constructor(
                 if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
             }
 
-            val originDiscipleMap = origin?.disciples?.associateBy { it.id } ?: emptyMap()
-            val shadowDiscipleMap = shadow.disciples.associateBy { it.id }
-            val mergedDisciples = oldDisciples.mapNotNull { mainDisciple ->
-                val shadowDisciple = shadowDiscipleMap[mainDisciple.id]
-                if (shadowDisciple == null) {
-                    if (originDiscipleMap.containsKey(mainDisciple.id)) {
-                        null
-                    } else {
-                        mainDisciple
-                    }
-                } else {
-                    val originDisciple = originDiscipleMap[mainDisciple.id]
-                    if (originDisciple == null || originDisciple === shadowDisciple) {
-                        mainDisciple
-                    } else {
-                        mergeDiscipleAfterSettlement(mainDisciple, shadowDisciple, originDisciple)
-                    }
-                }
-            }
-
-            if (mergedDisciples !== oldDisciples) this.disciples = mergedDisciples
+            this.discipleTables = shadow.discipleTables
         }
         shadowOrigin = null
     }
@@ -685,16 +667,16 @@ class GameStateStoreImpl @Inject constructor(
 
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
-        disciples = emptyList(),
-        equipmentStacks = emptyList(),
-        equipmentInstances = emptyList(),
-        manualStacks = emptyList(),
-        manualInstances = emptyList(),
-        pills = emptyList(),
-        materials = emptyList(),
-        herbs = emptyList(),
-        seeds = emptyList(),
-        storageBags = emptyList(),
+        discipleTables = DiscipleTables(),
+        equipmentStacks = EntityStore(),
+        equipmentInstances = EntityStore(),
+        manualStacks = EntityStore(),
+        manualInstances = EntityStore(),
+        pills = EntityStore(),
+        materials = EntityStore(),
+        herbs = EntityStore(),
+        seeds = EntityStore(),
+        storageBags = EntityStore(),
         battleLogs = emptyList(),
         teams = emptyList(),
         isPaused = true,
@@ -771,7 +753,6 @@ class GameStateStoreImpl @Inject constructor(
         }
         transactionMutex.withLock {
             val curGame = _gameDataFlow.value
-            val curDisc = _disciplesFlow.value
             val curES = _equipmentStacksFlow.value
             val curEI = _equipmentInstancesFlow.value
             val curMS = _manualStacksFlow.value
@@ -789,16 +770,16 @@ class GameStateStoreImpl @Inject constructor(
             val curNotif = _pendingNotificationFlow.value
             reusableMutableState.apply {
                 gameData = curGame
-                disciples = curDisc
-                equipmentStacks = curES
-                equipmentInstances = curEI
-                manualStacks = curMS
-                manualInstances = curMI
-                pills = curP
-                materials = curMat
-                herbs = curH
-                seeds = curS
-                storageBags = curSB
+                discipleTables = _discipleTables
+                equipmentStacks = EntityStore(curES)
+                equipmentInstances = EntityStore(curEI)
+                manualStacks = EntityStore(curMS)
+                manualInstances = EntityStore(curMI)
+                pills = EntityStore(curP)
+                materials = EntityStore(curMat)
+                herbs = EntityStore(curH)
+                seeds = EntityStore(curS)
+                storageBags = EntityStore(curSB)
                 battleLogs = curBL
                 teams = curT
                 isPaused = curPaused
@@ -818,46 +799,47 @@ class GameStateStoreImpl @Inject constructor(
                 _isLoading.value = finalLoading
                 _isSaving.value = finalSaving
                 if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
-                if (reusableMutableState.disciples !== curDisc) _disciplesFlow.value = reusableMutableState.disciples
-                if (reusableMutableState.equipmentStacks !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks
-                if (reusableMutableState.equipmentInstances !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances
-                if (reusableMutableState.manualStacks !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks
-                if (reusableMutableState.manualInstances !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances
-                if (reusableMutableState.pills !== curP) _pillsFlow.value = reusableMutableState.pills
-                if (reusableMutableState.materials !== curMat) _materialsFlow.value = reusableMutableState.materials
-                if (reusableMutableState.herbs !== curH) _herbsFlow.value = reusableMutableState.herbs
-                if (reusableMutableState.seeds !== curS) _seedsFlow.value = reusableMutableState.seeds
-                if (reusableMutableState.storageBags !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags
+                if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
+                if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
+                if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
+                if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
+                if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
+                if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
+                if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
+                if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
+                if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
                 if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
                 if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
                 if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
+                _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
-                    disciples = reusableMutableState.disciples !== curDisc,
-                    equipmentStacks = reusableMutableState.equipmentStacks !== curES,
-                    equipmentInstances = reusableMutableState.equipmentInstances !== curEI,
-                    manualStacks = reusableMutableState.manualStacks !== curMS,
-                    manualInstances = reusableMutableState.manualInstances !== curMI,
-                    pills = reusableMutableState.pills !== curP,
-                    materials = reusableMutableState.materials !== curMat,
-                    herbs = reusableMutableState.herbs !== curH,
-                    seeds = reusableMutableState.seeds !== curS,
-                    storageBags = reusableMutableState.storageBags !== curSB,
+                    disciples = disciplesChanged,
+                    equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
+                    equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
+                    manualStacks = reusableMutableState.manualStacks.items !== curMS,
+                    manualInstances = reusableMutableState.manualInstances.items !== curMI,
+                    pills = reusableMutableState.pills.items !== curP,
+                    materials = reusableMutableState.materials.items !== curMat,
+                    herbs = reusableMutableState.herbs.items !== curH,
+                    seeds = reusableMutableState.seeds.items !== curS,
+                    storageBags = reusableMutableState.storageBags.items !== curSB,
                     teams = reusableMutableState.teams !== curT,
                     battleLogs = reusableMutableState.battleLogs !== curBL
                 )
                 // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
                 val anyFieldChanged = reusableMutableState.gameData !== curGame
-                    || reusableMutableState.disciples !== curDisc
-                    || reusableMutableState.equipmentStacks !== curES
-                    || reusableMutableState.equipmentInstances !== curEI
-                    || reusableMutableState.manualStacks !== curMS
-                    || reusableMutableState.manualInstances !== curMI
-                    || reusableMutableState.pills !== curP
-                    || reusableMutableState.materials !== curMat
-                    || reusableMutableState.herbs !== curH
-                    || reusableMutableState.seeds !== curS
-                    || reusableMutableState.storageBags !== curSB
+                    || disciplesChanged
+                    || reusableMutableState.equipmentStacks.items !== curES
+                    || reusableMutableState.equipmentInstances.items !== curEI
+                    || reusableMutableState.manualStacks.items !== curMS
+                    || reusableMutableState.manualInstances.items !== curMI
+                    || reusableMutableState.pills.items !== curP
+                    || reusableMutableState.materials.items !== curMat
+                    || reusableMutableState.herbs.items !== curH
+                    || reusableMutableState.seeds.items !== curS
+                    || reusableMutableState.storageBags.items !== curSB
                     || reusableMutableState.teams !== curT
                     || reusableMutableState.battleLogs !== curBL
                     || finalPaused != curPaused
@@ -865,6 +847,7 @@ class GameStateStoreImpl @Inject constructor(
                     || finalSaving != curSaving
                     || blockChangedNotification
                 if (anyFieldChanged) _updateVersion.value++
+                _discipleTables = reusableMutableState.discipleTables
             } finally {
                 currentTransactionState = null
             }
@@ -895,6 +878,8 @@ class GameStateStoreImpl @Inject constructor(
             aggregateCache.clear()
             _gameDataFlow.value = gameData
             _disciplesFlow.value = disciples
+            _discipleTables.clear()
+            disciples.forEach { _discipleTables.insert(it) }
             _equipmentStacksFlow.value = equipmentStacks
             _equipmentInstancesFlow.value = equipmentInstances
             _manualStacksFlow.value = manualStacks
@@ -922,6 +907,7 @@ class GameStateStoreImpl @Inject constructor(
             aggregateCache.clear()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
+            _discipleTables.clear()
             _equipmentStacksFlow.value = emptyList()
             _equipmentInstancesFlow.value = emptyList()
             _manualStacksFlow.value = emptyList()
@@ -1017,15 +1003,15 @@ class GameStateStoreImpl @Inject constructor(
             spiritStones = oldState.spiritStones + (shadow.spiritStones - origin.spiritStones),
 
             // === THREE_WAY_ID ===
-            recruitList = threeWayId(
-                origin.recruitList, shadow.recruitList, oldState.recruitList
-            ) { (it as Disciple).id },
             activeMissions = threeWayId(
                 origin.activeMissions, shadow.activeMissions, oldState.activeMissions
             ) { (it as ActiveMission).id },
             alliances = threeWayId(
                 origin.alliances, shadow.alliances, oldState.alliances
             ) { (it as Alliance).id },
+            recruitList = threeWayId(
+                origin.recruitList, shadow.recruitList, oldState.recruitList
+            ) { (it as Disciple).id },
 
             // === CUSTOM ===
             worldLevels = c.getValue("worldLevels")(origin, shadow, oldState) as List<WorldLevel>,
@@ -1037,178 +1023,6 @@ class GameStateStoreImpl @Inject constructor(
             spiritFieldPlants = c.getValue("spiritFieldPlants")(origin, shadow, oldState) as List<SpiritFieldPlant>,
             bloodRefinements = c.getValue("bloodRefinements")(origin, shadow, oldState) as Map<String, List<String>>,
             activeBloodRefinements = c.getValue("activeBloodRefinements")(origin, shadow, oldState) as Map<String, BloodRefinementProgress>,
-        )
-    }
-
-    // ==================== 子字段级合并函数 ====================
-
-    /**
-     * EquipmentSet 子字段合并。
-     * 结算域（nurture×4）：总是从 shadow。玩家域（weaponId 等）：总是从 main。
-     * 共享域（storageBagItems）：main 做底 + 结算新增 - 结算删除。
-     */
-    private fun mergeEquipment(
-        main: EquipmentSet, shadow: EquipmentSet, origin: EquipmentSet
-    ): EquipmentSet {
-        val originBagIds = origin.storageBagItems.map { it.itemId }.toSet()
-        val shadowBagIds = shadow.storageBagItems.map { it.itemId }.toSet()
-        val addedBySettlement = shadow.storageBagItems.filter { it.itemId !in originBagIds }
-        val removedBySettlement = originBagIds - shadowBagIds
-        val mergedBag = (main.storageBagItems + addedBySettlement)
-            .filter { it.itemId !in removedBySettlement }
-
-        return main.copy(
-            weaponNurture = shadow.weaponNurture,
-            armorNurture = shadow.armorNurture,
-            bootsNurture = shadow.bootsNurture,
-            accessoryNurture = shadow.accessoryNurture,
-            storageBagItems = mergedBag,
-        )
-    }
-
-    /**
-     * CombatAttributes 子字段合并。
-     * baseXxx/variance/统计 从 shadow。currentHp/currentMp 仅在结算发生突破时从 shadow。
-     */
-    private fun mergeCombat(
-        main: CombatAttributes, shadow: CombatAttributes, origin: CombatAttributes
-    ): CombatAttributes {
-        // 突破是唯一会修改 baseHp/baseMp 的操作
-        val baseStatsChanged = shadow.baseHp != origin.baseHp || shadow.baseMp != origin.baseMp
-
-        return main.copy(
-            baseHp = shadow.baseHp,
-            baseMp = shadow.baseMp,
-            basePhysicalAttack = shadow.basePhysicalAttack,
-            baseMagicAttack = shadow.baseMagicAttack,
-            basePhysicalDefense = shadow.basePhysicalDefense,
-            baseMagicDefense = shadow.baseMagicDefense,
-            baseSpeed = shadow.baseSpeed,
-            hpVariance = shadow.hpVariance,
-            mpVariance = shadow.mpVariance,
-            physicalAttackVariance = shadow.physicalAttackVariance,
-            magicAttackVariance = shadow.magicAttackVariance,
-            physicalDefenseVariance = shadow.physicalDefenseVariance,
-            magicDefenseVariance = shadow.magicDefenseVariance,
-            speedVariance = shadow.speedVariance,
-            totalCultivation = shadow.totalCultivation,
-            breakthroughCount = shadow.breakthroughCount,
-            breakthroughFailCount = shadow.breakthroughFailCount,
-            currentHp = if (baseStatsChanged) shadow.currentHp else main.currentHp,
-            currentMp = if (baseStatsChanged) shadow.currentMp else main.currentMp,
-        )
-    }
-
-    /**
-     * manualIds 集合合并：main + 结算新增 - 结算删除。
-     */
-    private fun mergeManualIds(
-        main: List<String>, shadow: List<String>, origin: List<String>
-    ): List<String> {
-        val originSet = origin.toSet()
-        val shadowSet = shadow.toSet()
-        return (main.toSet() + (shadowSet - originSet) - (originSet - shadowSet)).toList()
-    }
-
-    /**
-     * PillEffects 子字段合并。
-     * 13 个 bonus 字段从 main（只有玩家用丹药修改），pillEffectDuration 做 delta 合并。
-     */
-    private fun mergePillEffects(
-        main: PillEffects, shadow: PillEffects, origin: PillEffects
-    ): PillEffects {
-        val durationDelta = shadow.pillEffectDuration - origin.pillEffectDuration
-        return main.copy(
-            pillEffectDuration = (main.pillEffectDuration + durationDelta).coerceAtLeast(0)
-        )
-    }
-
-    /**
-     * Skills 子字段合并。
-     * loyalty/salaryPaidCount/salaryMissedCount 从 shadow（结算修改），其余从 main。
-     */
-    private fun mergeSkills(
-        main: SkillStats, shadow: SkillStats, origin: SkillStats
-    ): SkillStats {
-        return main.copy(
-            loyalty = shadow.loyalty,
-            salaryPaidCount = shadow.salaryPaidCount,
-            salaryMissedCount = shadow.salaryMissedCount,
-        )
-    }
-
-    // ==================== 弟子结算合并 ====================
-
-    /**
-     * 结算后合并弟子状态：将影子结算结果应用到主状态，同时保留玩家的操作。
-     *
-     * ## 字段分类
-     *
-     * **结算修改字段（从 shadow 取值）**：
-     * | 字段 | 说明 |
-     * |------|------|
-     * | cultivation, realm, realmLayer | 修炼进度、境界 |
-     * | lifespan | 寿命消耗 |
-     * | equipment (conditional) | 装备养成变化 |
-     * | combat (conditional) | 战斗属性变化 |
-     * | manualIds (conditional) | 功法变化 |
-     * | skills | 技能属性变化 |
-     * | cultivationSpeedBonus / Duration | 修炼buff |
-     * | pillEffects | 丹药效果变化 |
-     * | isAlive | 死亡/复活 |
-     *
-     * **玩家操作字段（显式保留主状态值）**：
-     * | 字段 | 说明 |
-     * |------|------|
-     * | discipleType | 内门/外门切换 |
-     * | status | 弟子状态（分配任务等） |
-     * | statusData | 状态数据 |
-     *
-     * **默认保留字段（copy() 自动保留，无需显式声明）**：
-     * autoLearnFromWarehouse, soulPower, talentIds, manualMasteries,
-     * gender, portraitRes, name, surname, spiritRootType, social, usage, age, slotId, id
-     *
-     * **⚠️ 新增 Disciple 字段时**：判断该字段属于上述哪一类，
-     * 若是结算修改字段 → 加入 copy() 参数列表；
-     * 若是玩家操作字段 → 加入显式保留列表。
-     */
-    private fun mergeDiscipleAfterSettlement(
-        mainDisciple: Disciple,
-        shadowDisciple: Disciple,
-        originDisciple: Disciple
-    ): Disciple {
-        val died = originDisciple.isAlive && !shadowDisciple.isAlive
-        val revived = !originDisciple.isAlive && shadowDisciple.isAlive
-
-        return mainDisciple.copy(
-            // 标量 delta 合并
-            cultivation = mainDisciple.cultivation + (shadowDisciple.cultivation - originDisciple.cultivation),
-            lifespan = mainDisciple.lifespan + (shadowDisciple.lifespan - originDisciple.lifespan),
-
-            // 无条件 shadow（仅结算修改）
-            realm = shadowDisciple.realm,
-            realmLayer = shadowDisciple.realmLayer,
-
-            // 条件保留（玩家可能用丹药修改）
-            cultivationSpeedBonus = if (mainDisciple.cultivationSpeedBonus != originDisciple.cultivationSpeedBonus)
-                mainDisciple.cultivationSpeedBonus else shadowDisciple.cultivationSpeedBonus,
-            cultivationSpeedDuration = if (mainDisciple.cultivationSpeedDuration != originDisciple.cultivationSpeedDuration)
-                mainDisciple.cultivationSpeedDuration else shadowDisciple.cultivationSpeedDuration,
-
-            // 子字段级合并
-            equipment = mergeEquipment(mainDisciple.equipment, shadowDisciple.equipment, originDisciple.equipment),
-            combat = mergeCombat(mainDisciple.combat, shadowDisciple.combat, originDisciple.combat),
-            manualIds = mergeManualIds(mainDisciple.manualIds, shadowDisciple.manualIds, originDisciple.manualIds),
-            pillEffects = mergePillEffects(mainDisciple.pillEffects, shadowDisciple.pillEffects, originDisciple.pillEffects),
-            skills = mergeSkills(mainDisciple.skills, shadowDisciple.skills, originDisciple.skills),
-
-            // 条件覆盖（已有模式）
-            isAlive = if (died || revived) shadowDisciple.isAlive else mainDisciple.isAlive,
-
-            // 玩家操作字段
-            discipleType = mainDisciple.discipleType,
-            status = mainDisciple.status,
-            statusData = mainDisciple.statusData,
         )
     }
 }

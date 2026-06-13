@@ -17,8 +17,8 @@ import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
-sealed class GameItem {
-    abstract val id: String
+sealed class GameItem : HasId {
+    override abstract val id: String
     abstract val name: String
     abstract val rarity: Int
     abstract val description: String
@@ -900,7 +900,7 @@ data class Seed(
 @Immutable
 data class StorageBag(
     @PrimaryKey
-    val id: String = java.util.UUID.randomUUID().toString(),
+    override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
@@ -910,7 +910,7 @@ data class StorageBag(
     val description: String = "可随机获得5-20件同品阶物品",
     var quantity: Int = 1,
     val isLocked: Boolean = false
-) {
+) : HasId {
     companion object {
         val TIER_NAMES = listOf("凡品储物袋", "灵品储物袋", "宝品储物袋", "玄品储物袋", "地品储物袋", "天品储物袋")
         val SPIRIT_STONE_AMOUNTS = listOf(500L, 2000L, 10000L, 50000L, 200000L, 500000L)

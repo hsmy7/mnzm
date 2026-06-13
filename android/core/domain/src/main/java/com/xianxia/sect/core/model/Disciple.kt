@@ -187,236 +187,9 @@ data class Disciple(
 
     val comprehensionSpeedBonus: Double get() = skills.comprehensionSpeedBonus
 
-    // ==================== 扩展 copy 方法 ====================
-    
-    /**
-     * 完整的 copy 方法，支持所有原始字段的命名参数。
-     * 这是向后兼容的关键：所有原有的 disciple.copy(baseHp = 100, pillHpBonus = 0.1, ...)
-     * 调用方式都可以继续工作。
-     */
-    fun copyWith(
-        id: String = this.id,
-        name: String = this.name,
-        surname: String = this.surname,
-        realm: Int = this.realm,
-        realmLayer: Int = this.realmLayer,
-        cultivation: Double = this.cultivation,
-        spiritRootType: String = this.spiritRootType,
-        age: Int = this.age,
-        lifespan: Int = this.lifespan,
-        isAlive: Boolean = this.isAlive,
-        gender: String = this.gender,
-        portraitRes: String = this.portraitRes,
-        manualIds: List<String> = this.manualIds,
-        talentIds: List<String> = this.talentIds,
-        manualMasteries: Map<String, Int> = this.manualMasteries,
-        status: DiscipleStatus = this.status,
-        statusData: Map<String, String> = this.statusData,
-        cultivationSpeedBonus: Double = this.cultivationSpeedBonus,
-        cultivationSpeedDuration: Int = this.cultivationSpeedDuration,
-        discipleType: String = this.discipleType,
-        autoLearnFromWarehouse: Boolean = this.autoLearnFromWarehouse,
-
-        // CombatAttributes
-        baseHp: Int = this.baseHp,
-        baseMp: Int = this.baseMp,
-        basePhysicalAttack: Int = this.basePhysicalAttack,
-        baseMagicAttack: Int = this.baseMagicAttack,
-        basePhysicalDefense: Int = this.basePhysicalDefense,
-        baseMagicDefense: Int = this.baseMagicDefense,
-        baseSpeed: Int = this.baseSpeed,
-        hpVariance: Int = this.hpVariance,
-        mpVariance: Int = this.mpVariance,
-        physicalAttackVariance: Int = this.physicalAttackVariance,
-        magicAttackVariance: Int = this.magicAttackVariance,
-        physicalDefenseVariance: Int = this.physicalDefenseVariance,
-        magicDefenseVariance: Int = this.magicDefenseVariance,
-        speedVariance: Int = this.speedVariance,
-        totalCultivation: Long = this.totalCultivation,
-        breakthroughCount: Int = this.breakthroughCount,
-        breakthroughFailCount: Int = this.breakthroughFailCount,
-        currentHp: Int = this.currentHp,
-        currentMp: Int = this.currentMp,
-
-        // PillEffects
-        pillPhysicalAttackBonus: Int = this.pillPhysicalAttackBonus,
-        pillMagicAttackBonus: Int = this.pillMagicAttackBonus,
-        pillPhysicalDefenseBonus: Int = this.pillPhysicalDefenseBonus,
-        pillMagicDefenseBonus: Int = this.pillMagicDefenseBonus,
-        pillHpBonus: Int = this.pillHpBonus,
-        pillMpBonus: Int = this.pillMpBonus,
-        pillSpeedBonus: Int = this.pillSpeedBonus,
-        pillEffectDuration: Int = this.pillEffectDuration,
-        pillCritRateBonus: Double = this.pillCritRateBonus,
-        pillCritEffectBonus: Double = this.pillCritEffectBonus,
-        pillCultivationSpeedBonus: Double = this.pillCultivationSpeedBonus,
-        pillSkillExpSpeedBonus: Double = this.pillSkillExpSpeedBonus,
-        pillNurtureSpeedBonus: Double = this.pillNurtureSpeedBonus,
-        activePillCategory: String = this.activePillCategory,
-
-        // EquipmentSet
-        weaponId: String = this.weaponId,
-        armorId: String = this.armorId,
-        bootsId: String = this.bootsId,
-        accessoryId: String = this.accessoryId,
-        weaponNurture: EquipmentNurtureData = this.weaponNurture,
-        armorNurture: EquipmentNurtureData = this.armorNurture,
-        bootsNurture: EquipmentNurtureData = this.bootsNurture,
-        accessoryNurture: EquipmentNurtureData = this.accessoryNurture,
-        storageBagItems: List<StorageBagItem> = this.storageBagItems,
-        storageBagSpiritStones: Long = this.storageBagSpiritStones,
-        spiritStones: Int = this.spiritStones,
-        soulPower: Int = this.soulPower,
-        cultivationCompletionMonth: Int = this.cultivationCompletionMonth,
-        cultivationCompletionPhase: Int = this.cultivationCompletionPhase,
-        manualCompletionMonth: Int = this.manualCompletionMonth,
-        manualCompletionPhase: Int = this.manualCompletionPhase,
-        equipmentNurturingCompletionMonth: Int = this.equipmentNurturingCompletionMonth,
-        equipmentNurturingCompletionPhase: Int = this.equipmentNurturingCompletionPhase,
-        autoEquipFromWarehouse: Boolean = this.equipment.autoEquipFromWarehouse,
-
-        // SocialData
-        partnerId: String? = this.partnerId,
-        partnerSectId: String? = this.partnerSectId,
-        parentId1: String? = this.parentId1,
-        parentId2: String? = this.parentId2,
-        lastChildYear: Int = this.lastChildYear,
-        childBirthMonth: Int? = this.childBirthMonth,
-        griefEndYear: Int? = this.griefEndYear,
-
-        // SkillStats
-        intelligence: Int = this.intelligence,
-        charm: Int = this.charm,
-        loyalty: Int = this.loyalty,
-        comprehension: Int = this.comprehension,
-        artifactRefining: Int = this.artifactRefining,
-        pillRefining: Int = this.pillRefining,
-        spiritPlanting: Int = this.spiritPlanting,
-        mining: Int = this.mining,
-        teaching: Int = this.teaching,
-        morality: Int = this.morality,
-        salaryPaidCount: Int = this.salaryPaidCount,
-        salaryMissedCount: Int = this.salaryMissedCount,
-
-        // UsageTracking
-        usedFunctionalPillTypes: List<String> = this.monthlyUsedPillIds,
-        usedExtendLifePillIds: List<String> = this.usedExtendLifePillIds,
-        recruitedMonth: Int = this.recruitedMonth,
-        hasReviveEffect: Boolean = this.hasReviveEffect,
-        hasClearAllEffect: Boolean = this.hasClearAllEffect
-    ): Disciple {
-        return Disciple(
-            id = id,
-            name = name,
-            surname = surname,
-            realm = realm,
-            realmLayer = realmLayer,
-            cultivation = cultivation,
-            spiritRootType = spiritRootType,
-            age = age,
-            lifespan = lifespan,
-            isAlive = isAlive,
-            gender = gender,
-            portraitRes = portraitRes,
-            manualIds = manualIds,
-            talentIds = talentIds,
-            manualMasteries = manualMasteries,
-            status = status,
-            statusData = statusData,
-            cultivationSpeedBonus = cultivationSpeedBonus,
-            cultivationSpeedDuration = cultivationSpeedDuration,
-            discipleType = discipleType,
-            autoLearnFromWarehouse = autoLearnFromWarehouse,
-            soulPower = soulPower,
-            cultivationCompletionMonth = cultivationCompletionMonth,
-            cultivationCompletionPhase = cultivationCompletionPhase,
-            manualCompletionMonth = manualCompletionMonth,
-            manualCompletionPhase = manualCompletionPhase,
-            equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhase,
-            combat = CombatAttributes(
-                baseHp = baseHp,
-                baseMp = baseMp,
-                basePhysicalAttack = basePhysicalAttack,
-                baseMagicAttack = baseMagicAttack,
-                basePhysicalDefense = basePhysicalDefense,
-                baseMagicDefense = baseMagicDefense,
-                baseSpeed = baseSpeed,
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance,
-                totalCultivation = totalCultivation,
-                breakthroughCount = breakthroughCount,
-                breakthroughFailCount = breakthroughFailCount,
-                currentHp = currentHp,
-                currentMp = currentMp
-            ),
-            pillEffects = PillEffects(
-                pillPhysicalAttackBonus = pillPhysicalAttackBonus,
-                pillMagicAttackBonus = pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = pillMagicDefenseBonus,
-                pillHpBonus = pillHpBonus,
-                pillMpBonus = pillMpBonus,
-                pillSpeedBonus = pillSpeedBonus,
-                pillCritRateBonus = pillCritRateBonus,
-                pillCritEffectBonus = pillCritEffectBonus,
-                pillCultivationSpeedBonus = pillCultivationSpeedBonus,
-                pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
-                pillNurtureSpeedBonus = pillNurtureSpeedBonus,
-                pillEffectDuration = pillEffectDuration,
-                activePillCategory = activePillCategory
-            ),
-            equipment = EquipmentSet(
-                weaponId = weaponId,
-                armorId = armorId,
-                bootsId = bootsId,
-                accessoryId = accessoryId,
-                weaponNurture = weaponNurture,
-                armorNurture = armorNurture,
-                bootsNurture = bootsNurture,
-                accessoryNurture = accessoryNurture,
-                autoEquipFromWarehouse = autoEquipFromWarehouse,
-                storageBagItems = storageBagItems,
-                storageBagSpiritStones = storageBagSpiritStones,
-                spiritStones = spiritStones
-            ),
-            social = SocialData(
-                partnerId = partnerId,
-                partnerSectId = partnerSectId,
-                parentId1 = parentId1,
-                parentId2 = parentId2,
-                lastChildYear = lastChildYear,
-                childBirthMonth = childBirthMonth,
-                griefEndYear = griefEndYear
-            ),
-            skills = SkillStats(
-                intelligence = intelligence,
-                charm = charm,
-                loyalty = loyalty,
-                comprehension = comprehension,
-                artifactRefining = artifactRefining,
-                pillRefining = pillRefining,
-                spiritPlanting = spiritPlanting,
-                mining = mining,
-                teaching = teaching,
-                morality = morality,
-                salaryPaidCount = salaryPaidCount,
-                salaryMissedCount = salaryMissedCount
-            ),
-            usage = UsageTracking(
-                usedFunctionalPillTypes = usedFunctionalPillTypes,
-                usedExtendLifePillIds = usedExtendLifePillIds,
-                recruitedMonth = recruitedMonth,
-                hasReviveEffect = hasReviveEffect,
-                hasClearAllEffect = hasClearAllEffect
-            )
-        )
-    }
+    // ==================== copyWith 已删除 ====================
+    // 组件表架构下不再需要 copyWith，所有字段更新通过 DiscipleTables 直接操作。
+    // 如需构造新 Disciple 对象，请使用 Disciple(...) 构造函数或 DiscipleTables.assemble()。
 
     companion object {
         fun calculateBaseStatsWithVariance(
@@ -459,21 +232,23 @@ data class Disciple(
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
 
-            return disciple.copyWith(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance,
-                baseHp = baseStats.baseHp,
-                baseMp = baseStats.baseMp,
-                basePhysicalAttack = baseStats.basePhysicalAttack,
-                baseMagicAttack = baseStats.baseMagicAttack,
-                basePhysicalDefense = baseStats.basePhysicalDefense,
-                baseMagicDefense = baseStats.baseMagicDefense,
-                baseSpeed = baseStats.baseSpeed
+            return disciple.copy(
+                combat = disciple.combat.copy(
+                    hpVariance = hpVariance,
+                    mpVariance = mpVariance,
+                    physicalAttackVariance = physicalAttackVariance,
+                    magicAttackVariance = magicAttackVariance,
+                    physicalDefenseVariance = physicalDefenseVariance,
+                    magicDefenseVariance = magicDefenseVariance,
+                    speedVariance = speedVariance,
+                    baseHp = baseStats.baseHp,
+                    baseMp = baseStats.baseMp,
+                    basePhysicalAttack = baseStats.basePhysicalAttack,
+                    baseMagicAttack = baseStats.baseMagicAttack,
+                    basePhysicalDefense = baseStats.basePhysicalDefense,
+                    baseMagicDefense = baseStats.baseMagicDefense,
+                    baseSpeed = baseStats.baseSpeed
+                )
             )
         }
     }

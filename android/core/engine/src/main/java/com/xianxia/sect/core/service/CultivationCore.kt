@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
@@ -17,10 +18,6 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.yield
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import com.xianxia.sect.core.util.DomainLog
 
 @Singleton
 class CultivationCore @Inject constructor(
@@ -30,73 +27,33 @@ class CultivationCore @Inject constructor(
     private val gameClock: GameTimeClock,
     private val scopeProvider: CoroutineScopeProvider
 ) {
-    private val scope get() = scopeProvider.scope
-
-    // State accessors - same pattern as CultivationService
-    private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
-    private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-    private var currentManualStacks: List<ManualStack>
-        get() = stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualStacks = value; return }
-            scope.launch { stateStore.update { manualStacks = value } }
-        }
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
 
     val phaseMultiplier: Int get() = 10
 
-    fun calculateDiscipleCultivationPerSecond(disciple: Disciple, data: GameData): Double {
+    fun calculateDiscipleCultivationPerSecond(disciple: Disciple, data: GameData, tables: DiscipleTables): Double {
         val buildingBonus = calculateBuildingCultivationBonus(disciple, data)
-        val allDisciples = currentDisciples.associateBy { it.id }
-        val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, allDisciples, "outer")
-        val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, allDisciples, "inner")
+        val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "outer")
+        val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "inner")
 
         var cultivationSubsidyBonus = 0.0
         if (data.sectPolicies.cultivationSubsidy && disciple.realm > 5) {
             cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
         }
 
-        val manualInstanceMap = currentManualInstances.associateBy { it.id }
+        val manualInstanceMap = stateStore.manualInstances.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
-        val parent1 = disciple.social.parentId1?.let { allDisciples[it] }
-        val parent2 = disciple.social.parentId2?.let { allDisciples[it] }
+        val parent1 = disciple.social.parentId1?.let { pid ->
+            val pidInt = pid.toIntOrNull() ?: return@let null
+            if (tables.names.contains(pidInt)) tables.assemble(pidInt) else null
+        }
+        val parent2 = disciple.social.parentId2?.let { pid ->
+            val pidInt = pid.toIntOrNull() ?: return@let null
+            if (tables.names.contains(pidInt)) tables.assemble(pidInt) else null
+        }
         val parentCultivationBonus = DiscipleStatCalculator.calculateParentCultivationBonus(parent1, parent2)
 
         val griefPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
@@ -121,18 +78,18 @@ class CultivationCore @Inject constructor(
     private fun calculatePreachingBonuses(
         disciple: Disciple,
         data: GameData,
-        allDisciples: Map<String, Disciple>,
+        tables: DiscipleTables,
         targetDiscipleType: String
     ): Pair<Double, Double> {
         val elderSlots = data.elderSlots
         val preachingElder = when (targetDiscipleType) {
-            "outer" -> elderSlots.preachingElder.let { id -> if (id.isNotEmpty()) allDisciples[id] else null }
-            "inner" -> elderSlots.qingyunPreachingElder.let { id -> if (id.isNotEmpty()) allDisciples[id] else null }
+            "outer" -> elderSlots.preachingElder.let { id -> if (id.isNotEmpty()) id.toIntOrNull()?.let { tables.assemble(it) } else null }
+            "inner" -> elderSlots.qingyunPreachingElder.let { id -> if (id.isNotEmpty()) id.toIntOrNull()?.let { tables.assemble(it) } else null }
             else -> null
         }
         val preachingMasters = when (targetDiscipleType) {
-            "outer" -> elderSlots.preachingMasters.mapNotNull { slot -> slot.discipleId?.let { allDisciples[it] } }
-            "inner" -> elderSlots.qingyunPreachingMasters.mapNotNull { slot -> slot.discipleId?.let { allDisciples[it] } }
+            "outer" -> elderSlots.preachingMasters.mapNotNull { slot -> slot.discipleId?.toIntOrNull()?.let { tables.assemble(it) } }
+            "inner" -> elderSlots.qingyunPreachingMasters.mapNotNull { slot -> slot.discipleId?.toIntOrNull()?.let { tables.assemble(it) } }
             else -> emptyList()
         }
         return DiscipleStatCalculator.calculatePreachingBonus(
@@ -160,6 +117,14 @@ class CultivationCore @Inject constructor(
         return hp >= disciple.maxHp && mp >= disciple.maxMp
     }
 
+    fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean {
+        val curHp = tables.currentHps[id]
+        val curMp = tables.currentMps[id]
+        val hp = if (curHp < 0) tables.baseHps[id] else curHp
+        val mp = if (curMp < 0) tables.baseMps[id] else curMp
+        return hp >= tables.baseHps[id] && mp >= tables.baseMps[id]
+    }
+
     fun getLifespanGainForRealm(realm: Int): Int {
         return when (realm) {
             8 -> 50
@@ -176,19 +141,21 @@ class CultivationCore @Inject constructor(
     }
 
     fun recoverHpMpForAllDisciples(state: MutableGameState) {
+        val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = state.gameData.manualProficiencies
         val multiplier = phaseMultiplier.toDouble()
 
-        state.disciples = state.disciples.map { d ->
-            if (!d.isAlive) return@map d
-            val curHp = d.combat.currentHp
-            val curMp = d.combat.currentMp
-            if (curHp < 0 && curMp < 0) return@map d
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val curHp = tables.currentHps[id]
+            val curMp = tables.currentMps[id]
+            if (curHp < 0 && curMp < 0) continue
 
-            val proficiencyMap = allProficiencies[d.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, proficiencyMap)
+            val disciple = tables.assemble(id)
+            val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+            val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, proficiencyMap)
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
 
@@ -197,32 +164,36 @@ class CultivationCore @Inject constructor(
             val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
             val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
 
-            if (newHp != curHp || newMp != curMp) {
-                d.copyWith(currentHp = newHp, currentMp = newMp)
-            } else {
-                d
-            }
+            if (newHp != curHp) tables.currentHps[id] = newHp
+            if (newMp != curMp) tables.currentMps[id] = newMp
         }
     }
 
-    fun recoverHpMpForBattleParticipants(discipleIds: List<String>) {
-        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
-        val manualMap = currentManualInstances.associateBy { it.id }
-        val allProficiencies = currentGameData.manualProficiencies
+    fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
+        val tables = state.discipleTables
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val allProficiencies = state.gameData.manualProficiencies
         val multiplier = phaseMultiplier.toDouble()
+        val idSet = discipleIds.toSet()
 
-        currentDisciples = currentDisciples.map { d ->
-            if (d.id !in discipleIds || !d.isAlive) return@map d
-            var curHp = d.combat.currentHp
-            var curMp = d.combat.currentMp
-            if (curHp >= d.maxHp && curMp >= d.maxMp) return@map d
-            val discipleProficiencies = allProficiencies[d.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
+        for (id in tables.ids) {
+            val strId = id.toString()
+            if (strId !in idSet || tables.isAlive[id] != 1) continue
+
+            val disciple = tables.assemble(id)
+            var curHp = tables.currentHps[id]
+            var curMp = tables.currentMps[id]
+            if (curHp >= disciple.maxHp && curMp >= disciple.maxMp) continue
+
+            val discipleProficiencies = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+            val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, discipleProficiencies)
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
             curHp = if (curHp < 0) curHp else (curHp + (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxHp)
             curMp = if (curMp < 0) curMp else (curMp + (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxMp)
-            if (curHp != d.combat.currentHp || curMp != d.combat.currentMp) d.copyWith(currentHp = curHp, currentMp = curMp) else d
+            if (curHp != tables.currentHps[id]) tables.currentHps[id] = curHp
+            if (curMp != tables.currentMps[id]) tables.currentMps[id] = curMp
         }
     }
 
@@ -279,7 +250,7 @@ class CultivationCore @Inject constructor(
         val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
 
         if (newHp != curHp || newMp != curMp) {
-            d = d.copyWith(currentHp = newHp, currentMp = newMp)
+            d = d.copy(combat = d.combat.copy(currentHp = newHp, currentMp = newMp))
         }
 
         if (d.id != focusedDiscipleId) {
@@ -357,36 +328,36 @@ class CultivationCore @Inject constructor(
         return d
     }
 
-    fun applyAccumulator(acc: PhaseTickAccumulator, maxEquipStack: Int, maxManualStack: Int) {
+    fun applyAccumulator(acc: PhaseTickAccumulator, state: MutableGameState, maxEquipStack: Int, maxManualStack: Int) {
         if (acc.equipInstancesToAdd.isNotEmpty() || acc.equipInstanceIdsToRemove.isNotEmpty()) {
-            currentEquipmentInstances = currentEquipmentInstances
+            state.equipmentInstances = state.equipmentInstances
                 .filter { it.id !in acc.equipInstanceIdsToRemove } + acc.equipInstancesToAdd
         }
         if (acc.equipStackDeletions.isNotEmpty()) {
-            currentEquipmentStacks = currentEquipmentStacks.filter { it.id !in acc.equipStackDeletions }
+            state.equipmentStacks = state.equipmentStacks.filter { it.id !in acc.equipStackDeletions }
         }
         acc.equipStackQuantityDeltas.forEach { (stackId, newQty) ->
-            currentEquipmentStacks = currentEquipmentStacks.map {
+            state.equipmentStacks = state.equipmentStacks.map {
                 if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxEquipStack)) else it
             }
         }
         acc.equipStackAdditions.forEach { stack ->
-            val existing = currentEquipmentStacks.find { it.id == stack.id }
-            currentEquipmentStacks = if (existing != null) {
-                currentEquipmentStacks.map {
+            val existing = state.equipmentStacks.find { it.id == stack.id }
+            state.equipmentStacks = if (existing != null) {
+                state.equipmentStacks.map {
                     if (it.id == stack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxEquipStack)) else it
                 }
             } else {
-                currentEquipmentStacks + stack
+                state.equipmentStacks + stack
             }
         }
 
         if (acc.manualInstancesToAdd.isNotEmpty() || acc.manualInstanceIdsToRemove.isNotEmpty()) {
-            currentManualInstances = currentManualInstances
+            state.manualInstances = state.manualInstances
                 .filter { it.id !in acc.manualInstanceIdsToRemove } + acc.manualInstancesToAdd
         }
         if (acc.profRemovals.isNotEmpty()) {
-            val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
+            val updatedProficiencies = state.gameData.manualProficiencies.toMutableMap()
             acc.profRemovals.forEach { (discipleId, manualIds) ->
                 updatedProficiencies[discipleId]?.let { profList ->
                     val filtered = profList.filter { it.manualId !in manualIds }
@@ -394,32 +365,33 @@ class CultivationCore @Inject constructor(
                     else updatedProficiencies[discipleId] = filtered
                 }
             }
-            currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
+            state.gameData = state.gameData.copy(manualProficiencies = updatedProficiencies)
         }
         if (acc.manualStackDeletions.isNotEmpty()) {
-            currentManualStacks = currentManualStacks.filter { it.id !in acc.manualStackDeletions }
+            state.manualStacks = state.manualStacks.filter { it.id !in acc.manualStackDeletions }
         }
         acc.manualStackQuantityDeltas.forEach { (stackId, newQty) ->
-            currentManualStacks = currentManualStacks.map {
+            state.manualStacks = state.manualStacks.map {
                 if (it.id == stackId) it.copy(quantity = newQty.coerceAtMost(maxManualStack)) else it
             }
         }
         acc.manualStackAdditions.forEach { stack ->
-            val existing = currentManualStacks.find { it.id == stack.id }
-            currentManualStacks = if (existing != null) {
-                currentManualStacks.map {
+            val existing = state.manualStacks.find { it.id == stack.id }
+            state.manualStacks = if (existing != null) {
+                state.manualStacks.map {
                     if (it.id == stack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxManualStack)) else it
                 }
             } else {
-                currentManualStacks + stack
+                state.manualStacks + stack
             }
         }
     }
 
     fun updateMonthlyCultivation(state: MutableGameState, highFrequencyData: HighFrequencyData): HighFrequencyData {
         val data = state.gameData
-        val livingDisciples = state.disciples.filter { it.isAlive }
-        if (livingDisciples.isEmpty()) return highFrequencyData
+        val tables = state.discipleTables
+        val livingIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        if (livingIds.isEmpty()) return highFrequencyData
 
         val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
@@ -430,23 +402,23 @@ class CultivationCore @Inject constructor(
         val focusedGains = highFrequencyData.cultivationUpdates
         val focusedProfGains = highFrequencyData.proficiencyUpdates
         val focusedNurtureGains = highFrequencyData.nurtureUpdates
-        val updatedDisciples = state.disciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
 
-            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
+        for (id in livingIds) {
+            val disciple = tables.assemble(id)
+            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data, tables)
             val monthlyGain = cultivationPerSecond * monthSeconds
             val alreadyGained = focusedGains[disciple.id] ?: 0.0
             val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-            var d = disciple.copy(cultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation))
+            tables.cultivations[id] = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
 
             val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
             val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
             val proficiencyGainPerSecond = ManualProficiencySystem.calculateProficiencyGainPerSecond(disciple.comprehension, libraryBonus)
             val proficiencyGain = proficiencyGainPerSecond * monthSeconds
-            val profAlreadyGained = focusedProfGains[d.id] ?: emptyMap()
-            d.manualIds.forEach { manualId ->
+            val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
+            disciple.manualIds.forEach { manualId ->
                 manualInstanceMap[manualId]?.let { manual ->
-                    val profList = updatedManualProficiencies.getOrDefault(d.id, emptyList()).toMutableList()
+                    val profList = updatedManualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
                     val profIndex = profList.indexOfFirst { it.manualId == manualId }
                     val alreadyGainedProf = profAlreadyGained[manualId] ?: 0.0
                     val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
@@ -470,30 +442,28 @@ class CultivationCore @Inject constructor(
                             masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
                         ))
                     }
-                    updatedManualProficiencies[d.id] = profList
+                    updatedManualProficiencies[disciple.id] = profList
                 }
             }
 
             val monthlyNurtureGain = 5.0 * monthSeconds
-            val nurtureAlreadyGained = focusedNurtureGains[d.id] ?: emptyMap()
+            val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
 
             fun processNurture(eqId: String?) {
-                eqId?.let { id ->
-                    equipmentInstanceMap[id]?.let { eq ->
-                        val already = nurtureAlreadyGained[id] ?: 0.0
+                eqId?.let { eid ->
+                    equipmentInstanceMap[eid]?.let { eq ->
+                        val already = nurtureAlreadyGained[eid] ?: 0.0
                         val netGain = (monthlyNurtureGain - already).coerceAtLeast(0.0)
-                        equipmentInstanceUpdates[id] = EquipmentNurtureSystem.updateNurtureExp(eq, netGain).equipment
+                        equipmentInstanceUpdates[eid] = EquipmentNurtureSystem.updateNurtureExp(eq, netGain).equipment
                     }
                 }
             }
-            processNurture(d.equipment.weaponId)
-            processNurture(d.equipment.armorId)
-            processNurture(d.equipment.bootsId)
-            processNurture(d.equipment.accessoryId)
-            d
+            processNurture(disciple.equipment.weaponId)
+            processNurture(disciple.equipment.armorId)
+            processNurture(disciple.equipment.bootsId)
+            processNurture(disciple.equipment.accessoryId)
         }
 
-        state.disciples = updatedDisciples
         if (equipmentInstanceUpdates.isNotEmpty()) {
             state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
         }
@@ -503,7 +473,7 @@ class CultivationCore @Inject constructor(
 
         return highFrequencyData.copy(
             lastUpdateTime = System.currentTimeMillis(),
-            totalDisciples = livingDisciples.size,
+            totalDisciples = livingIds.size,
             cultivationUpdates = emptyMap(),
             proficiencyUpdates = emptyMap(),
             nurtureUpdates = emptyMap()
@@ -512,24 +482,23 @@ class CultivationCore @Inject constructor(
 
     fun updateFocusedDisciple(discipleId: String, state: MutableGameState, highFrequencyData: HighFrequencyData, breakthroughHandler: DiscipleBreakthroughHandler): HighFrequencyData {
         val data = state.gameData
-        val allDisciples = state.disciples
-        val disciple = allDisciples.find { it.id == discipleId && it.isAlive } ?: return highFrequencyData
+        val tables = state.discipleTables
+        val idInt = discipleId.toIntOrNull() ?: return highFrequencyData
+        if (!tables.names.contains(idInt) || tables.isAlive[idInt] != 1) return highFrequencyData
+
+        val disciple = tables.assemble(idInt)
 
         if (disciple.cultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
             breakthroughHandler.processRealtimeBreakthroughs(listOf(disciple), data)
         }
 
-        val postBreakthroughDisciples = state.disciples
-        val currentDisciple = postBreakthroughDisciples.find { it.id == discipleId } ?: return highFrequencyData
+        val currentDisciple = tables.assemble(idInt)
 
-        val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
+        val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data, tables)
         val perPhaseSeconds = gameClock.msPerPhase / 1000.0
         val gained = cultivationPerSecond * perPhaseSeconds
 
-        state.disciples = postBreakthroughDisciples.map { d ->
-            if (d.id == discipleId) d.copy(cultivation = (d.cultivation + gained).coerceIn(0.0, d.maxCultivation))
-            else d
-        }
+        tables.cultivations.update(idInt) { (it + gained).coerceIn(0.0, currentDisciple.maxCultivation) }
 
         val accumGains = highFrequencyData.cultivationUpdates.toMutableMap()
         accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + gained
@@ -602,7 +571,7 @@ class CultivationCore @Inject constructor(
         return highFrequencyData.copy(
             lastCultivationTime = System.currentTimeMillis(),
             cultivationPerSecond = cultivationPerSecond,
-            totalDisciples = allDisciples.count { it.isAlive },
+            totalDisciples = tables.ids.count { tables.isAlive[it] == 1 },
             cultivationUpdates = accumGains,
             proficiencyUpdates = profUpdatesMap,
             nurtureUpdates = nurtureUpdatesMap

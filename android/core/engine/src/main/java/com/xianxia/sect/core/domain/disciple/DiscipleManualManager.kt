@@ -197,11 +197,15 @@ object DiscipleManualManager {
         val newHp = if (rawCurrentHp >= 0 && hpDelta > 0) rawCurrentHp + hpDelta else rawCurrentHp
         val newMp = if (rawCurrentMp >= 0 && mpDelta > 0) rawCurrentMp + mpDelta else rawCurrentMp
 
-        updatedDisciple = updatedDisciple.copyWith(
+        updatedDisciple = updatedDisciple.copy(
             manualIds = updatedDisciple.manualIds + instanceId,
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id),
-            currentHp = newHp,
-            currentMp = newMp
+            equipment = updatedDisciple.equipment.copy(
+                storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
+            ),
+            combat = updatedDisciple.combat.copy(
+                currentHp = newHp,
+                currentMp = newMp
+            )
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
@@ -262,11 +266,15 @@ object DiscipleManualManager {
         val newHp = if (rawCurrentHp >= 0 && netHpDelta != 0) (rawCurrentHp + netHpDelta).coerceAtLeast(0) else rawCurrentHp
         val newMp = if (rawCurrentMp >= 0 && netMpDelta != 0) (rawCurrentMp + netMpDelta).coerceAtLeast(0) else rawCurrentMp
 
-        updatedDisciple = updatedDisciple.copyWith(
+        updatedDisciple = updatedDisciple.copy(
             manualIds = updatedDisciple.manualIds.map { if (it == existingInstanceId) instanceId else it },
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id),
-            currentHp = newHp,
-            currentMp = newMp
+            equipment = updatedDisciple.equipment.copy(
+                storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
+            ),
+            combat = updatedDisciple.combat.copy(
+                currentHp = newHp,
+                currentMp = newMp
+            )
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
@@ -334,10 +342,12 @@ object DiscipleManualManager {
         val newHp = if (rawCurrentHp >= 0 && hpDelta > 0) rawCurrentHp + hpDelta else rawCurrentHp
         val newMp = if (rawCurrentMp >= 0 && mpDelta > 0) rawCurrentMp + mpDelta else rawCurrentMp
 
-        val updatedDisciple = disciple.copyWith(
+        val updatedDisciple = disciple.copy(
             manualIds = disciple.manualIds + instanceId,
-            currentHp = newHp,
-            currentMp = newMp
+            combat = disciple.combat.copy(
+                currentHp = newHp,
+                currentMp = newMp
+            )
         )
 
         return ManualLearnResult(
