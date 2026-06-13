@@ -262,6 +262,7 @@ class StorageEngine @Inject constructor(
                     database.alchemySlotDao().deleteAll(slot)
                     database.productionSlotDao().deleteBySlot(slot)
                     database.battleLogDao().deleteAll(slot)
+                    database.mailDao().deleteAllForSlot(slot)
                     database.saveSlotMetadataDao().deleteBySlotId(slot)
                 }
 

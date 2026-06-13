@@ -15,6 +15,18 @@ import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
+/**
+ * 邮件领取记录——物品发放后持久化到 GameData，随存档保存。
+ * 替换旧的 claimedMailIds: List<String>，增加 claimedAt 时间戳和 source 来源。
+ */
+@Keep
+@Serializable
+data class MailClaimRecord(
+    val mailId: String,
+    val claimedAt: Long = 0L,
+    val source: String = "builtin"
+)
+
 @Keep
 @Serializable
 @Entity(
@@ -269,7 +281,7 @@ data class GameData(
     var usedRedeemCodes: List<String> = emptyList(),
 
     @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var claimedMailIds: List<String> = emptyList(),
+    var mailRecords: List<MailClaimRecord> = emptyList(),
 
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
     @SettlementStrategy(Strategy.PRESERVE_OLD)

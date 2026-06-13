@@ -2,6 +2,18 @@
 
 ## [4.0.00] - 2026-06-13
 
+### 修复：新游戏首次领取邮件物品丢失（根治）
+
+- **claimedMailIds → MailClaimRecord**：`GameData` 新增 `mailRecords: List<MailClaimRecord>` 替换旧 `claimedMailIds`，新增 `claimedAt` 时间戳 + `source` 来源字段，`resetAndInitSlot` 据此恢复领取状态
+- **Saga 补偿事务**：`distributeAttachments` 内联化为 `distributeAttachmentsInline(state, attachments)`，物品入库 + `mailRecords` 记录合并为单次 `stateStore.update` 原子操作，发放失败时邮件不标记已领
+- **在线邮件稳定 ID**：`fetchOnlineMails` 改用 `"online_${remoteId}"` 作为 MailEntity.id，跨会话稳定，`mailRecords` 可正确恢复在线邮件领取状态
+- **邮件初始化时序修正**：`createNewGame` / `restartGameInternal` 将 `mailService.resetAndInitSlot()` 移至世界初始化之后，确保 `mailRecords`/`slotId` 等状态已就绪
+- **Room 类型转换器**：`CollectionConverters` 新增 `fromMailClaimRecordList`/`toMailClaimRecordList` Protobuf 转换器
+- **存档删除清理**：`StorageEngine.delete()` 补充 `mailDao.deleteAllForSlot()`，消除孤儿邮件残留
+- **奖励卡队列并发安全**：`enqueueMailRewardCards` 新增 `mailCardQueueMutex` 互斥锁
+
+## [4.0.00] - 2026-06-13
+
 ### 删档重置：数据库归1 + 旧兼容全面清理
 
 - **数据库迁移清零归1**：`@Database(version=1)`, `fallbackToDestructiveMigration()`, 移除全部 6 条增量迁移

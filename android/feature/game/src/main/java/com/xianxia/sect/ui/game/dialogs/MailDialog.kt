@@ -175,6 +175,9 @@ fun MailDialog(
                                         if (result is ClaimResult.CapacityInsufficient) {
                                             capacityWarning = result.message
                                         }
+                                        if (result is ClaimResult.DistributeFailed) {
+                                            capacityWarning = result.message
+                                        }
                                     }
                                 }
                             )

@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.core.GameConfig
@@ -982,6 +984,7 @@ class GameViewModel @Inject constructor(
 
     private val _mailRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()
+    private val mailCardQueueMutex = Mutex()
 
     fun claimMailAttachment(mailId: String, onResult: (com.xianxia.sect.core.engine.service.ClaimResult) -> Unit = {}) {
         viewModelScope.launch {
@@ -1006,10 +1009,14 @@ class GameViewModel @Inject constructor(
     }
 
     fun enqueueMailRewardCards() {
-        val cards = _mailRewardCards.value
-        if (cards.isNotEmpty()) {
-            dailySignInService.enqueueSignInCards(cards)
-            _mailRewardCards.value = emptyList()
+        viewModelScope.launch {
+            mailCardQueueMutex.withLock {
+                val cards = _mailRewardCards.value
+                if (cards.isNotEmpty()) {
+                    dailySignInService.enqueueSignInCards(cards)
+                    _mailRewardCards.value = emptyList()
+                }
+            }
         }
     }
 

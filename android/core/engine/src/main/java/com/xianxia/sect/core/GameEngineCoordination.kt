@@ -166,33 +166,37 @@ suspend fun GameEngine.loadData(
 
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     stateStore.reset(); cultivationService.resetHighFrequencyData()
-    try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
+    // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
     initializeWorldAndServices(sectName, currentSlot)
     val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
     val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
     stateStore.update {
         val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-        gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+        gameData = gameData.copy(isGameStarted = true, slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
         repeat(3) { discipleService.recruitDisciple() }
     }
     addInitialManual()
+    // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
+    try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
 }
 
 suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1) = restartGameInternal(sectName, currentSlot)
 
 private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
     stateStore.reset(); cultivationService.resetHighFrequencyData()
-    try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
     if (sectName.isNotBlank()) {
+        // 1. 先初始化世界和游戏状态
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
         val centerGrid = gridCells / 2 - 1
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-            gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+            gameData = gameData.copy(isGameStarted = true, slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
             repeat(3) { discipleService.recruitDisciple() }
         }
         addInitialManual()
+        // 2. 世界初始化完成后才加载邮件
+        try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
     } else {
         stateStore.update { gameData = GameData(isGameStarted = true).copy(currentSlot = currentSlot) }
     }

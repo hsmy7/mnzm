@@ -55,7 +55,7 @@ class GameDataTest {
         assertTrue(data.activeMissions.isEmpty())
         assertTrue(data.availableMissions.isEmpty())
         assertTrue(data.usedRedeemCodes.isEmpty())
-        assertTrue(data.claimedMailIds.isEmpty())
+        assertTrue(data.mailRecords.isEmpty())
     }
 
     @Test

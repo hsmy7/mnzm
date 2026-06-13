@@ -121,6 +121,33 @@ User Action (Compose UI)
 - **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
 - **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
 
+### Mail & Reward System
+
+Mail reward claims use Saga compensation pattern for atomicity:
+
+```
+claimAttachment(mailId, slotId)
+  → getMutex(slotId).withLock { ... }           // per-slot serialization
+  → parse attachments from MailEntity JSON
+  → ensureCapacity(attachments, slotId)         // pre-check warehouse/roster
+  → stateStore.update {                         // ← SINGLE atomic transaction
+        distributeAttachmentsInline(this, attachments)  // items → inventory
+        gameData.mailRecords += MailClaimRecord(         // claim record
+            mailId, claimedAt=now, source=mail.source
+        )
+    }
+  → mailRepo.update(mail marked claimed+read)   // Room DB (non-critical)
+  → refreshActiveMails(slotId)                  // UI list update
+```
+
+**Key design decisions:**
+- **Atomic Saga**: Items + claim record in one `stateStore.update {}`. If `distributeAttachmentsInline` throws, `mailRecords` is NOT written → mail stays unclaimed.
+- **Stable IDs**: Builtin mails use deterministic IDs from `BuiltinMailConfig`. Online mails use `"online_${remoteMailId}"` — stable across sessions, enabling `mailRecords` restoration on reload.
+- **MailRecords in GameData**: `mailRecords: List<MailClaimRecord>` replaces old `claimedMailIds: List<String>`. Each record has `mailId`, `claimedAt` (timestamp), `source` ("builtin"/"online"). Persisted with game saves, restored via `resetAndInitSlot`.
+- **Init ordering**: `mailService.resetAndInitSlot()` called AFTER world initialization in `createNewGame`/`restartGameInternal`, ensuring `slotId` and initial state are ready.
+- **Orphan cleanup**: `StorageEngine.delete()` cleans `mails` table for deleted slots.
+- **Mail content** (title/body/attachments) is NOT persisted in saves — only claim records are. Content is re-fetched from `BuiltinMailConfig` + online API on each load.
+
 ### Navigation Pattern
 
 No `NavHost` is used for the main game. `MainGameScreen` switches content via `MainTab` enum. Feature screens (Alchemy, Forge, HerbGarden, etc.) are dialogs opened via `DialogStateManager.openDialog(DialogType, params)`. The two actual Activity transitions are:

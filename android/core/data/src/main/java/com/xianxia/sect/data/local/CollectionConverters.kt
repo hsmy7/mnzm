@@ -442,4 +442,16 @@ object CollectionConverters {
     @JvmStatic
     fun toHeavenlyTrialSaveData(value: String): HeavenlyTrialSaveData =
         ProtobufConverters.decodeFromBase64(HeavenlyTrialSaveData.serializer(), value) { HeavenlyTrialSaveData() }
+
+    // ==================== 邮件领取记录转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromMailClaimRecordList(value: List<MailClaimRecord>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(MailClaimRecord.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toMailClaimRecordList(value: String): List<MailClaimRecord> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(MailClaimRecord.serializer()), value) { emptyList() }
 }
