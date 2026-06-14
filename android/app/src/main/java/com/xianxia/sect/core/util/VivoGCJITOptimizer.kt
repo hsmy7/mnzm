@@ -231,14 +231,18 @@ object VivoGCJITOptimizer {
                 requestMethod.invoke(runtime)
                 Log.d(TAG, "Requested latency-sensitive GC")
                 LowLatencyGcResult(true, "latency_sensitive")
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.d(TAG, "requestLatencySensitiveGc not available: ${e.message}")
+            }
 
             try {
                 val clearMethod = runtime::class.java.getDeclaredMethod("clearGrowthLimit")
                 clearMethod.invoke(runtime)
                 Log.d(TAG, "Cleared growth limit for low-latency GC window")
                 LowLatencyGcResult(true, "growth_limit_cleared")
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.d(TAG, "clearGrowthLimit not available: ${e.message}")
+            }
 
             Runtime.getRuntime().gc()
             Log.d(TAG, "Fallback: triggered System.gc()")
@@ -258,9 +262,12 @@ object VivoGCJITOptimizer {
             gcMethod.invoke(runtime)
             Log.d(TAG, "Triggered concurrent background GC after JIT resume")
         } catch (_: Exception) {
+            Log.d(TAG, "requestConcurrentGc not available")
             try {
                 Runtime.getRuntime().gc()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.d(TAG, "System.gc() fallback failed: ${e.message}")
+            }
         }
     }
 

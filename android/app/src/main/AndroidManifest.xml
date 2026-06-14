@@ -79,6 +79,24 @@
             android:name="com.android.app.gamemode.battery.enabled"
             android:value="false" />
 
+        <!-- Google Play Games Services 预留（v4.0.00 尚未启用）
+             启用步骤：
+             1. 在 Firebase Console 创建项目并启用 Play Games Services
+             2. 在 Google Play Console 关联游戏并获取 OAuth Client ID
+             3. 在 android/ 下添加 google-services.json
+             4. 在 gradle/libs.versions.toml 和 app/build.gradle 中取消 Firebase 依赖注释
+             5. 取消以下注释并填入实际值
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/game_services_app_id" />
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+        <meta-data
+            android:name="com.google.android.gms.appstate.APP_ID"
+            android:value="@string/game_services_app_id" />
+        -->
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

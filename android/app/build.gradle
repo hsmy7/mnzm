@@ -8,8 +8,9 @@ plugins {
     alias(libs.plugins.protobuf)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.detekt)
-    // 待华为/Google 凭证就绪后启用
+    // 待华为 AGC 凭证就绪后启用
     // id 'com.huawei.agconnect'
+    // TODO: 取消注释并提供 google-services.json → id 'com.google.gms.google-services'
     // id 'com.google.gms.google-services'
 }
 
@@ -217,6 +218,11 @@ dependencies {
     // Bugly
     implementation libs.bugly.crashreport
     implementation libs.bugly.nativecrashreport
+
+    // Firebase — TODO: 取消注释 + 提供 google-services.json + 取消注释 google-services plugin
+    // implementation platform(libs.firebase.bom)
+    // implementation libs.firebase.config
+    // implementation libs.firebase.analytics
 
     // Dirichlet Ad SDK
     implementation(name: "dirichlet_ad_4.2.5.0", ext: "aar")

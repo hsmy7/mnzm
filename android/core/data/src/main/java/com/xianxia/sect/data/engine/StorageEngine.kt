@@ -940,7 +940,9 @@ class StorageEngine @Inject constructor(
             } catch (e: Exception) {
                 Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, will be regenerated on next save", e)
                 // 删除超大行，下次保存时会分块重写
-                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (_: Exception) {}
+                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: Exception) {
+                    Log.w(TAG, "Failed to delete oversized heavy data key '$key'", e)
+                }
             }
         }
         return result

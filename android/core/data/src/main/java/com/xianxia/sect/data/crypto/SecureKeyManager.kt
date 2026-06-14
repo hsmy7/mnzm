@@ -696,7 +696,9 @@ object SecureKeyManager {
                 val runtime = Runtime.getRuntime()
                 entropySources.add(runtime.freeMemory().toString().toByteArray())
                 entropySources.add(runtime.totalMemory().toString().toByteArray())
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "Entropy source collection incomplete (non-critical)", e)
+            }
             
             val combined = entropySources.fold(ByteArray(0)) { acc, bytes -> acc + bytes }
             val hash = MessageDigest.getInstance("SHA-512").digest(combined)
@@ -719,12 +721,16 @@ object SecureKeyManager {
                 android.provider.Settings.Secure.ANDROID_ID
             ) ?: "unknown"
             parts.add(deviceId)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to read ANDROID_ID for fingerprint", e)
+        }
 
         try {
             parts.add(Build.BRAND)
             parts.add(Build.MODEL)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to read Build info for fingerprint", e)
+        }
 
         try {
             val packageInfo = context.packageManager.getPackageInfo(
@@ -750,7 +756,9 @@ object SecureKeyManager {
                     parts.add(certDigest.joinToString("") { "%02x".format(it) })
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to extract signing certificate for fingerprint", e)
+        }
 
         return if (parts.isNotEmpty()) {
             MessageDigest.getInstance("SHA-256")

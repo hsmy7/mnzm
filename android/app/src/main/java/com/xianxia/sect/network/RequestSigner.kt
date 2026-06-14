@@ -240,7 +240,9 @@ class RequestSigner @Inject constructor(
                 android.provider.Settings.Secure.ANDROID_ID
             ) ?: "unknown"
             parts.add(androidId)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to read ANDROID_ID for fingerprint, using fallback", e)
+        }
 
         try {
             @Suppress("NewApi")
@@ -266,7 +268,9 @@ class RequestSigner @Inject constructor(
                     parts.add(bytesToHex(certDigest))
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to compute certificate fingerprint for signing token", e)
+        }
 
         return if (parts.isNotEmpty()) {
             MessageDigest.getInstance(HASH_ALGO)

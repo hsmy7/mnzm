@@ -1,0 +1,222 @@
+{
+  "version": "4.0.00",
+  "game": {
+    "name": "模拟宗门",
+    "version": "4.0.00",
+    "autoSaveIntervalSeconds": 60,
+    "autoSaveDebounceMs": 30000,
+    "maxSaveSlots": 5
+  },
+  "disciple": {
+    "maxDisciples": 1000,
+    "recruitCost": 1000,
+    "minLoyalty": 0,
+    "maxLoyalty": 100,
+    "minAge": 5,
+    "maxAge": 100,
+    "protectionMonths": 12
+  },
+  "elder": {
+    "realmViceSectMaster": 4,
+    "realmLawEnforcement": 5,
+    "realmElder": 6,
+    "realmPreachingMaster": 7
+  },
+  "time": {
+    "tickInterval": 100,
+    "ticksPerSecond": 10,
+    "secondsPerRealMonth": 6,
+    "daysPerMonth": 30,
+    "phasesPerMonth": 3,
+    "monthsPerYear": 12,
+    "maxExploreTime": 12,
+    "highFrequencyUpdateInterval": 1000,
+    "lowFrequencyUpdateInterval": 2000
+  },
+  "cultivation": {
+    "baseSpeed": 8.0,
+    "realmSpeedBonusThreshold": 3,
+    "realmSpeedBonus": 1.5,
+    "dailyHpMpRecoveryRate": 0.05
+  },
+  "production": {
+    "spiritMineBaseOutputPerMiner": 160,
+    "spiritMineMiningThreshold": 70,
+    "spiritMineMiningBonusRate": 0.02
+  },
+  "herbGarden": {
+    "auraRadiusTiles": 6.0
+  },
+  "warehouse": {
+    "baseCapacity": 50,
+    "capacityPerBuilding": 50
+  },
+  "rarity": {
+    "priceMultiplier": 0.9,
+    "sellPriceMultiplier": 0.8
+  },
+  "starting": {
+    "spiritStones": 2000,
+    "reputation": 100,
+    "spiritHerbs": 50
+  },
+  "playerProtection": {
+    "protectionYears": 100
+  },
+  "performance": {
+    "maxTickSamples": 100,
+    "maxBatchSamples": 100,
+    "batchThreshold": 50,
+    "updateIntervalMs": 200,
+    "highFrequencyIntervalMs": 200,
+    "lowFrequencyIntervalMs": 1000
+  },
+  "logs": {
+    "maxBattleLogs": 100,
+    "maxEventLogs": 200,
+    "maxMonthlyEventLogs": 50,
+    "maxExplorationLogs": 100
+  },
+  "battle": {
+    "maxTeamSize": 7,
+    "minBeastCount": 3,
+    "maxBeastCount": 11,
+    "maxTurns": 25,
+    "critMultiplier": 1.5,
+    "maxDodgeChance": 0.5,
+    "maxSkillDodgeChance": 0.3,
+    "dodgePerSpeedDiff": 0.005,
+    "maxBattleDurationMs": 5000,
+    "battleTimeoutWarningMs": 3000,
+    "defenseConstant": 500.0,
+    "damageVariancePercent": 20.0,
+    "minDamage": 1,
+    "elderSlots": 2,
+    "discipleSlots": 8,
+    "minFormationSize": 10,
+    "realmGap": {
+      "damageBonusPerRealm": 0.5,
+      "damagePenaltyPerRealm": 0.5,
+      "instantKillGap": 3
+    }
+  },
+  "policyConfig": {
+    "spiritMineBoostCost": 0,
+    "enhancedSecurityCost": 3000,
+    "alchemyIncentiveCost": 3000,
+    "forgeIncentiveCost": 3000,
+    "herbCultivationCost": 3000,
+    "cultivationSubsidyCost": 4000,
+    "manualResearchCost": 4000,
+    "spiritMineBoostName": "灵矿增产",
+    "enhancedSecurityName": "增强治安",
+    "alchemyIncentiveName": "丹道激励",
+    "forgeIncentiveName": "锻造激励",
+    "herbCultivationName": "灵药培育",
+    "cultivationSubsidyName": "修行津贴",
+    "manualResearchName": "功法研习",
+    "spiritMineBoostBaseEffect": 0.2,
+    "enhancedSecurityBaseEffect": 0.2,
+    "alchemyIncentiveBaseEffect": 0.1,
+    "forgeIncentiveBaseEffect": 0.1,
+    "herbCultivationBaseEffect": 0.2,
+    "cultivationSubsidyBaseEffect": 0.15,
+    "manualResearchBaseEffect": 0.2,
+    "viceSectMasterIntelligenceBase": 50,
+    "viceSectMasterIntelligenceStep": 5,
+    "viceSectMasterIntelligenceBonusPerStep": 0.01,
+    "herbGardenElderSpiritBase": 80,
+    "herbGardenElderSpiritStep": 4,
+    "herbGardenElderMax": 0.2,
+    "herbGardenDiscipleSpiritBase": 50,
+    "herbGardenDiscipleSpiritStep": 5,
+    "herbGardenDiscipleMax": 0.2
+  },
+  "lawEnforcement": {
+    "loyaltyThreshold": 30,
+    "moralityThreshold": 30,
+    "probPerPoint": 0.03,
+    "maxProb": 0.9,
+    "theftMinRatio": 0.01,
+    "theftMaxRatio": 0.05,
+    "baseCaptureRate": 0.0,
+    "intelligenceBase": 50,
+    "elderBonusPerPoint": 0.01,
+    "discipleIntelligenceStep": 5,
+    "discipleBonusPerStep": 0.01,
+    "reflectionYears": 5,
+    "newDiscipleProtectionMonths": 12
+  },
+  "ai": {
+    "minDisciplesForAttack": 10,
+    "powerRatioThreshold": 0.8,
+    "teamSize": 10,
+    "maxBattleTurns": 25,
+    "powerWeights": {
+      "realmBase": 100.0,
+      "equipmentRarity": 20.0,
+      "equipmentLevel": 5.0,
+      "manualRarity": 15.0,
+      "manualLevel": 3.0,
+      "manualMastery": 0.5,
+      "talentRarity": 10.0
+    }
+  },
+  "sectMap": {
+    "tileSize": 64,
+    "worldWidthCells": 48,
+    "worldHeightCells": 48
+  },
+  "worldMap": {
+    "mapWidth": 1698,
+    "mapHeight": 926,
+    "sectRadius": 20,
+    "minDistance": 34,
+    "maxConnectionDistance": 200.0,
+    "borderPadding": 34,
+    "targetSectCount": 80,
+    "maxAttempts": 50000,
+    "initialSectFavor": 50,
+    "connectionDistanceLimit": 280.0,
+    "targetConnectionsPerSect": 3,
+    "maxConnectionsPerSect": 5,
+    "minConnectionsPerSect": 2,
+    "relaxationIterations": 5,
+    "relaxationStrength": 0.4,
+    "kNearestNeighbors": 6,
+    "crossingPenalty": 20.0,
+    "clusterMinCount": 5,
+    "clusterMaxCount": 9,
+    "clusterMinRadius": 70.0,
+    "clusterMaxRadius": 200.0,
+    "isolatedSectMin": 5,
+    "isolatedSectMax": 10,
+    "minSectDistance": 28.0,
+    "pathWaypointMin": 2,
+    "pathWaypointMax": 4,
+    "pathCurveStrength": 0.05,
+    "caveMinSectDistance": 28.0,
+    "caveMinPathDistance": 20.0,
+    "caveMinCaveDistance": 20.0,
+    "levelMinDistance": 20.0
+  },
+  "diplomacy": {
+    "minAllianceFavor": 80,
+    "allianceDurationYears": 5,
+    "maxAllianceSlotsDefault": 3,
+    "diplomaticEventChance": 0.12,
+    "favorDecayNoGiftYears": 1,
+    "favorDecayAmount": 1,
+    "favorDecayThreshold": 80,
+    "minFavor": 0,
+    "maxFavor": 100,
+    "allianceScore": {
+      "threshold": 80,
+      "probabilityDivisor": 200.0,
+      "maxAiAlliances": 2
+    },
+    "breakPenalty": {
+      "spiritStonePenaltyRatio": 0.1
+    }
+  }
+}

@@ -1,5 +1,6 @@
 package com.xianxia.sect.di
 
+import android.content.Context
 import com.xianxia.sect.core.engine.system.*
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.domain.production.ProductionSubsystem
@@ -17,6 +18,7 @@ import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.core.util.MemoryMonitor
 import com.xianxia.sect.core.util.MemoryMonitorProvider
 import com.xianxia.sect.di.ApplicationScopeProvider
+import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.network.SecureHttpClient
 import com.xianxia.sect.taptap.TapDBManager
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -128,6 +131,14 @@ object CoreModule {
                 return response.body?.string() ?: ""
             }
         }
+    }
+
+    @Provides
+    @Singleton
+    fun provideConfigLoader(@ApplicationContext context: Context): ConfigLoader {
+        // 远程配置预留：启用热更新时改为
+        //   ConfigLoader(context, HttpRemoteConfigProvider(httpClientProvider), REMOTE_CONFIG_URL)
+        return ConfigLoader(context)
     }
 
     @Provides

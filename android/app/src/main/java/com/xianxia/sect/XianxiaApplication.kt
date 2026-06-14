@@ -114,17 +114,6 @@ class XianxiaApplication : Application() {
             override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehensionBonus: Double, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double) = DiscipleStatCalculator.getBreakthroughChance(aggregate, innerElderComprehension, outerElderComprehensionBonus, pillBonus, adBonus, griefBreakthroughPenalty)
         }
 
-        // Feature: agconnect-crash pending SDK integration
-        //   阻塞项：需在 build.gradle 添加 com.huawei.agconnect:crash 依赖并配置 agconnect-services.json
-        //   当前状态：Bugly 已作为主崩溃收集 SDK，AGC 仅用于华为设备补充上报
-        // if (DeviceCompatibilityHelper.isHuaweiOrHonor) {
-        //     try {
-        //         AGConnectCrash.getInstance().enableCrashCollection(true)
-        //     } catch (e: Exception) {
-        //         Log.w(TAG, "AGC Crash init failed", e)
-        //     }
-        // }
-
         DeviceCompatibilityHelper.logDeviceInfo()
 
         // 全厂商适配：根据当前设备厂商执行差异化适配策略

@@ -1,215 +1,118 @@
 package com.xianxia.sect.core.config
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.GameConfig.BeastTypeConfig
-import com.xianxia.sect.core.GameConfig.RealmConfig
-import com.xianxia.sect.core.GameConfig.RarityConfig
-import com.xianxia.sect.core.GameConfig.SpiritRootConfig
-import com.xianxia.sect.core.model.*
+import android.content.Context
+import android.util.Log
+import kotlinx.serialization.json.Json
 
 /**
- * 配置加载器 - 外部化配置基础设施
+ * 配置加载器 — 从 JSON 加载游戏数值配置。
  *
- * 提供统一的配置加载接口，当前采用桥接模式委托给 GameConfig 读取。
- * 未来可扩展为从 JSON/assets/网络加载配置，实现配置的外部化和热更新。
+ * 三级配置优先级：
+ *   1. 远程 JSON  (若 [remoteConfigProvider] 非空且 [remoteConfigUrl] 已配置)
+ *   2. assets JSON (assets/config/game_config.json) — 主要配置来源
+ *   3. [GameConfigData] 默认值兜底 (来自 GameConfig const val 基线值)
+ *
+ * 设计说明：
+ * - 故意不使用 Hilt 注解（core/domain 模块无 Hilt 运行时）。
+ *   实例化由 app 层 CoreModule 的 @Provides 方法负责，或在测试中直接构造。
+ * - 复用 BuildingConfigService 已验证的 assets 加载模式 (kotlinx.serialization + ignoreUnknownKeys)。
+ * - JSON 字段缺失时自动用 GameConfigData 默认值兜底，保证向前兼容（新增字段不会导致旧 JSON 解析失败）。
+ *
+ * @param context Android Context，用于访问 assets
+ * @param remoteConfigProvider 可选的远程配置提供者；null 表示不启用远程拉取
+ * @param remoteConfigUrl 远程配置 URL；仅当 remoteConfigProvider 非空时生效
  */
-object ConfigLoader {
-    private const val DEFAULT_CONFIG_VERSION = 1
+class ConfigLoader(
+    private val context: Context,
+    private val remoteConfigProvider: RemoteConfigProvider? = null,
+    private val remoteConfigUrl: String? = null
+) {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true // JSON null → 使用 data class 默认值
+    }
+
+    private var cachedConfig: GameConfigData? = null
 
     /**
-     * 加载游戏配置数据
+     * 同步加载配置：仅从 assets JSON 读取，失败则使用默认值。
      *
-     * 当前实现：从 GameConfig 读取（桥接模式）
-     * 未来可扩展：
-     * - 从 assets/json 文件加载
-     * - 从远程服务器加载
-     * - 支持配置版本管理和热更新
-     *
-     * @return 包含所有配置数据的 GameConfigData 对象
+     * 不涉及远程拉取（远程需网络 IO，应在协程中调用 [loadAsync]）。
+     * 结果会被缓存，重复调用直接返回缓存值。
      */
     fun load(): GameConfigData {
-        return GameConfigData(
-            version = DEFAULT_CONFIG_VERSION,
-            // 基础游戏配置
-            gameConfig = GameConfigData.GameConfig(
-                name = GameConfig.Game.NAME,
-                version = GameConfig.Game.VERSION,
-                autoSaveIntervalSeconds = GameConfig.Game.AUTO_SAVE_INTERVAL_SECONDS,
-                maxSaveSlots = GameConfig.Game.MAX_SAVE_SLOTS
-            ),
-            // 弟子相关配置
-            discipleConfig = GameConfigData.DiscipleConfig(
-                maxDisciples = GameConfig.Disciple.MAX_DISCIPLES,
-                recruitCost = GameConfig.Disciple.RECRUIT_COST,
-                minAge = GameConfig.Disciple.MIN_AGE,
-                maxAge = GameConfig.Disciple.MAX_AGE
-            ),
-            // 时间系统配置
-            timeConfig = GameConfigData.TimeConfig(
-                tickInterval = GameConfig.Time.TICK_INTERVAL,
-                ticksPerSecond = GameConfig.Time.TICKS_PER_SECOND,
-                daysPerMonth = GameConfig.Time.DAYS_PER_MONTH,
-                monthsPerYear = GameConfig.Time.MONTHS_PER_YEAR
-            ),
-            // 境界配置
-            realmConfigs = GameConfig.Realm.CONFIGS,
-            // 稀有度配置
-            rarityConfigs = GameConfig.Rarity.CONFIGS,
-            // 灵根配置
-            spiritRootConfigs = GameConfigData.SpiritRootConfigData(
-                elements = GameConfig.SpiritRoot.ELEMENTS,
-                types = GameConfig.SpiritRoot.TYPES,
-                countWeights = GameConfig.SpiritRoot.COUNT_WEIGHTS
-            ),
-            // 妖兽类型配置
-            beastTypeConfigs = GameConfig.Beast.TYPES,
-            // 战斗配置
-            battleConfig = GameConfigData.BattleConfig(
-                maxTeamSize = GameConfig.Battle.MAX_TEAM_SIZE,
-                minBeastCount = GameConfig.Battle.MIN_BEAST_COUNT,
-                maxBeastCount = GameConfig.Battle.MAX_BEAST_COUNT,
-                maxTurns = GameConfig.Battle.MAX_TURNS,
-                critMultiplier = GameConfig.Battle.CRIT_MULTIPLIER
-            ),
-            // AI 配置
-            aiConfig = GameConfigData.AIConfig(
-                minDisciplesForAttack = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK,
-                powerRatioThreshold = GameConfig.AI.POWER_RATIO_THRESHOLD,
-                teamSize = GameConfig.AI.TEAM_SIZE
-            ),
-            // 世界地图配置
-            worldMapConfig = GameConfigData.WorldMapConfig(
-                mapWidth = GameConfig.WorldMap.MAP_WIDTH,
-                mapHeight = GameConfig.WorldMap.MAP_HEIGHT,
-                targetSectCount = GameConfig.WorldMap.TARGET_SECT_COUNT
-            ),
-            // 外交配置
-            diplomacyConfig = GameConfigData.DiplomacyConfig(
-                minAllianceFavor = GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR,
-                allianceDurationYears = GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS,
-                diplomaticEventChance = GameConfig.Diplomacy.DIPLOMATIC_EVENT_CHANCE
-            )
-        )
+        cachedConfig?.let { return it }
+        val config = loadFromAssets() ?: GameConfigData()
+        cachedConfig = config
+        return config
     }
-}
 
-/**
- * 游戏配置数据容器
- *
- * 统一的数据结构，用于承载从不同来源加载的配置数据。
- * 支持未来从 JSON、数据库或远程服务器加载配置。
- */
-data class GameConfigData(
-    val version: Int,
-    
-    // 基础游戏配置
-    val gameConfig: GameConfig,
-    
-    // 弟子配置
-    val discipleConfig: DiscipleConfig,
-    
-    // 时间系统配置
-    val timeConfig: TimeConfig,
-    
-    // 境界配置映射 (level -> RealmConfig)
-    val realmConfigs: Map<Int, RealmConfig>,
-    
-    // 稀有度配置映射 (level -> RarityConfig)
-    val rarityConfigs: Map<Int, RarityConfig>,
-    
-    // 灵根配置
-    val spiritRootConfigs: SpiritRootConfigData,
-    
-    val beastTypeConfigs: List<BeastTypeConfig>,
-    
-    // dungeonConfigs removed
+    /**
+     * 异步加载配置：按三级优先级尝试远程 → assets → 默认值。
+     *
+     * 远程拉取有 10s 超时（由 [RemoteConfigProvider] 实现控制），
+     * 任何环节失败均自动降级，最终必定返回有效配置。
+     */
+    suspend fun loadAsync(): GameConfigData {
+        cachedConfig?.let { return it }
 
-    // 战斗配置
-    val battleConfig: BattleConfig,
-    
-    // AI 配置
-    val aiConfig: AIConfig,
-    
-    // 世界地图配置
-    val worldMapConfig: WorldMapConfig,
-    
-    // 外交配置
-    val diplomacyConfig: DiplomacyConfig
-) {
-    /**
-     * 基础游戏配置
-     */
-    data class GameConfig(
-        val name: String,
-        val version: String,
-        val autoSaveIntervalSeconds: Long,
-        val maxSaveSlots: Int
-    )
-    
-    /**
-     * 弟子系统配置
-     */
-    data class DiscipleConfig(
-        val maxDisciples: Int,
-        val recruitCost: Long,
-        val minAge: Int,
-        val maxAge: Int
-    )
-    
-    /**
-     * 时间系统配置
-     */
-    data class TimeConfig(
-        val tickInterval: Long,
-        val ticksPerSecond: Int,
-        val daysPerMonth: Int,
-        val monthsPerYear: Int
-    )
-    
-    /**
-     * 灵根配置数据
-     */
-    data class SpiritRootConfigData(
-        val elements: List<String>,
-        val types: Map<String, SpiritRootConfig>,
-        val countWeights: Map<Int, Double>
-    )
-    
-    /**
-     * 战斗系统配置
-     */
-    data class BattleConfig(
-        val maxTeamSize: Int,
-        val minBeastCount: Int,
-        val maxBeastCount: Int,
-        val maxTurns: Int,
-        val critMultiplier: Double
-    )
-    
-    /**
-     * AI 系统配置
-     */
-    data class AIConfig(
-        val minDisciplesForAttack: Int,
-        val powerRatioThreshold: Double,
-        val teamSize: Int
-    )
-    
-    /**
-     * 世界地图配置
-     */
-    data class WorldMapConfig(
-        val mapWidth: Int,
-        val mapHeight: Int,
-        val targetSectCount: Int
-    )
-    
-    /**
-     * 外交系统配置
-     */
-    data class DiplomacyConfig(
-        val minAllianceFavor: Int,
-        val allianceDurationYears: Int,
-        val diplomaticEventChance: Double
-    )
+        // 1. 尝试远程 JSON（仅当 provider 和 URL 均已配置）
+        if (remoteConfigProvider != null && !remoteConfigUrl.isNullOrEmpty()) {
+            val remoteJson = remoteConfigProvider.fetchRemoteConfig(remoteConfigUrl)
+            if (remoteJson != null) {
+                parse(remoteJson, SOURCE_REMOTE)?.let {
+                    Log.i(TAG, "Config loaded from remote: v${it.version}")
+                    cachedConfig = it
+                    return it
+                }
+            }
+        }
+
+        // 2. 尝试 assets JSON
+        loadFromAssets()?.let {
+            Log.i(TAG, "Config loaded from assets: v${it.version}")
+            cachedConfig = it
+            return it
+        }
+
+        // 3. 默认值兜底
+        Log.w(TAG, "Config load failed, falling back to defaults")
+        val fallback = GameConfigData()
+        cachedConfig = fallback
+        return fallback
+    }
+
+    /** 强制清除缓存，下次 load()/loadAsync() 重新加载。 */
+    fun invalidateCache() {
+        cachedConfig = null
+    }
+
+    private fun loadFromAssets(): GameConfigData? {
+        return try {
+            context.assets.open(CONFIG_PATH).use { stream ->
+                val jsonString = stream.bufferedReader().use { it.readText() }
+                parse(jsonString, SOURCE_ASSETS)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load config from assets ($CONFIG_PATH): ${e.message}")
+            null
+        }
+    }
+
+    private fun parse(jsonString: String, source: String): GameConfigData? {
+        return try {
+            json.decodeFromString<GameConfigData>(jsonString)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse config JSON from $source: ${e.message}")
+            null
+        }
+    }
+
+    private companion object {
+        const val TAG = "ConfigLoader"
+        const val CONFIG_PATH = "config/game_config.json"
+        const val SOURCE_ASSETS = "assets"
+        const val SOURCE_REMOTE = "remote"
+    }
 }

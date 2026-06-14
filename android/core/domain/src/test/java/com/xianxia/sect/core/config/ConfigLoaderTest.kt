@@ -1,114 +1,134 @@
 package com.xianxia.sect.core.config
 
-import com.xianxia.sect.core.GameConfig
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
+/**
+ * ConfigLoader 测试。
+ *
+ * 使用 Robolectric 提供的 Application Context 访问 assets/config/game_config.json。
+ * 注意：Robolectric 默认环境下 app/assets 不自动合并到测试 classpath，
+ * load() 应优雅降级到 GameConfigData 默认值（来自 GameConfig const val 基线）。
+ */
+@RunWith(RobolectricTestRunner::class)
 class ConfigLoaderTest {
 
-    private val configData = ConfigLoader.load()
+    private fun newLoader(): ConfigLoader = ConfigLoader(RuntimeEnvironment.getApplication())
 
     @Test
-    fun load_returnsNonNullGameConfigData() {
-        assertNotNull(configData)
+    fun load_returnsNonNullConfigData() {
+        val config = newLoader().load()
+        assertNotNull(config)
     }
 
     @Test
-    fun version_is1() {
-        assertEquals(1, configData.version)
+    fun load_returnsDefaultValuesWhenAssetsMissing() {
+        val config = newLoader().load()
+        assertEquals("模拟宗门", config.game.name)
+        assertEquals("4.0.00", config.version)
     }
 
     @Test
-    fun gameConfig_name_is模拟宗门() {
-        assertEquals("模拟宗门", configData.gameConfig.name)
+    fun gameSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertEquals("模拟宗门", config.game.name)
+        assertEquals(5, config.game.maxSaveSlots)
+        assertEquals(60L, config.game.autoSaveIntervalSeconds)
+        assertEquals(30000L, config.game.autoSaveDebounceMs)
     }
 
     @Test
-    fun gameConfig_maxSaveSlots_is5() {
-        assertEquals(5, configData.gameConfig.maxSaveSlots)
+    fun discipleSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertEquals(1000, config.disciple.maxDisciples)
+        assertEquals(1000L, config.disciple.recruitCost)
+        assertEquals(5, config.disciple.minAge)
+        assertEquals(100, config.disciple.maxAge)
+        assertEquals(12, config.disciple.protectionMonths)
     }
 
     @Test
-    fun discipleConfig_maxDisciples_is1000() {
-        assertEquals(1000, configData.discipleConfig.maxDisciples)
+    fun timeSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertTrue(config.time.tickInterval > 0)
+        assertTrue(config.time.ticksPerSecond > 0)
+        assertTrue(config.time.monthsPerYear > 0)
+        assertEquals(3, config.time.phasesPerMonth)
     }
 
     @Test
-    fun discipleConfig_recruitCost_is1000() {
-        assertEquals(1000L, configData.discipleConfig.recruitCost)
+    fun battleSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertTrue(config.battle.maxTeamSize > 0)
+        assertTrue(config.battle.minBeastCount > 0)
+        assertTrue(config.battle.maxBeastCount > 0)
+        assertTrue(config.battle.critMultiplier > 0.0)
+        assertEquals(0.5, config.battle.realmGap.damageBonusPerRealm, 0.001)
+        assertEquals(3, config.battle.realmGap.instantKillGap)
     }
 
     @Test
-    fun discipleConfig_minAge_is5_maxAge_is100() {
-        assertEquals(5, configData.discipleConfig.minAge)
-        assertEquals(100, configData.discipleConfig.maxAge)
+    fun aiSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertTrue(config.ai.minDisciplesForAttack > 0)
+        assertTrue(config.ai.powerRatioThreshold > 0.0)
+        assertTrue(config.ai.teamSize > 0)
+        assertEquals(100.0, config.ai.powerWeights.realmBase, 0.001)
     }
 
     @Test
-    fun timeConfig_fieldsArePopulated() {
-        assertTrue(configData.timeConfig.tickInterval > 0)
-        assertTrue(configData.timeConfig.ticksPerSecond > 0)
-        assertTrue(configData.timeConfig.daysPerMonth > 0)
-        assertTrue(configData.timeConfig.monthsPerYear > 0)
+    fun worldMapSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertTrue(config.worldMap.mapWidth > 0)
+        assertTrue(config.worldMap.mapHeight > 0)
+        assertTrue(config.worldMap.targetSectCount > 0)
     }
 
     @Test
-    fun realmConfigs_has10Entries() {
-        assertEquals(10, configData.realmConfigs.size)
+    fun diplomacySection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertTrue(config.diplomacy.minAllianceFavor > 0)
+        assertTrue(config.diplomacy.allianceDurationYears > 0)
+        assertTrue(config.diplomacy.diplomaticEventChance > 0.0)
+        assertEquals(0.1, config.diplomacy.breakPenalty.spiritStonePenaltyRatio, 0.001)
     }
 
     @Test
-    fun rarityConfigs_has6Entries() {
-        assertEquals(6, configData.rarityConfigs.size)
+    fun policyConfigSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertEquals(3000L, config.policyConfig.enhancedSecurityCost)
+        assertEquals(0.2, config.policyConfig.spiritMineBoostBaseEffect, 0.001)
+        assertEquals("灵矿增产", config.policyConfig.spiritMineBoostName)
     }
 
     @Test
-    fun spiritRootConfigs_elements_has5Items() {
-        assertEquals(5, configData.spiritRootConfigs.elements.size)
+    fun lawEnforcementSection_defaultsAreCorrect() {
+        val config = newLoader().load()
+        assertEquals(30, config.lawEnforcement.loyaltyThreshold)
+        assertEquals(0.03, config.lawEnforcement.probPerPoint, 0.001)
+        assertEquals(12, config.lawEnforcement.newDiscipleProtectionMonths)
     }
 
     @Test
-    fun spiritRootConfigs_types_has5Entries() {
-        assertEquals(5, configData.spiritRootConfigs.types.size)
+    fun load_cachesResult() {
+        val loader = newLoader()
+        val first = loader.load()
+        val second = loader.load()
+        assertTrue(first === second) // 同一实例（缓存生效）
     }
 
     @Test
-    fun spiritRootConfigs_countWeights_has5Entries() {
-        assertEquals(5, configData.spiritRootConfigs.countWeights.size)
-    }
-
-    @Test
-    fun beastTypeConfigs_isNotEmpty() {
-        assertFalse(configData.beastTypeConfigs.isEmpty())
-    }
-
-    @Test
-    fun battleConfig_fieldsArePopulated() {
-        assertTrue(configData.battleConfig.maxTeamSize > 0)
-        assertTrue(configData.battleConfig.minBeastCount > 0)
-        assertTrue(configData.battleConfig.maxBeastCount > 0)
-        assertTrue(configData.battleConfig.maxTurns > 0)
-        assertTrue(configData.battleConfig.critMultiplier > 0.0)
-    }
-
-    @Test
-    fun aiConfig_fieldsArePopulated() {
-        assertTrue(configData.aiConfig.minDisciplesForAttack > 0)
-        assertTrue(configData.aiConfig.powerRatioThreshold > 0.0)
-        assertTrue(configData.aiConfig.teamSize > 0)
-    }
-
-    @Test
-    fun worldMapConfig_fieldsArePopulated() {
-        assertTrue(configData.worldMapConfig.mapWidth > 0)
-        assertTrue(configData.worldMapConfig.mapHeight > 0)
-        assertTrue(configData.worldMapConfig.targetSectCount > 0)
-    }
-
-    @Test
-    fun diplomacyConfig_fieldsArePopulated() {
-        assertTrue(configData.diplomacyConfig.minAllianceFavor > 0)
-        assertTrue(configData.diplomacyConfig.allianceDurationYears > 0)
-        assertTrue(configData.diplomacyConfig.diplomaticEventChance > 0.0)
+    fun invalidateCache_forcesReload() {
+        val loader = newLoader()
+        val first = loader.load()
+        loader.invalidateCache()
+        val second = loader.load()
+        // 内容应相等（缓存清除后重新加载）
+        assertEquals(first.version, second.version)
     }
 }
