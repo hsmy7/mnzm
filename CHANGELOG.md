@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.05] - 2026-06-14
+
+### 修复：华为模拟器创建新游戏后时间不动、弟子不修炼
+
+- **游戏启动标志时序修正**：`isGameStarted = true` 从 `createNewGame()` 内部移至 `startGameLoop()` 成功后设置。之前存档超时会导致 `return@launch` 永不启动游戏循环，但 UI 已显示主界面（`LaunchedEffect` 提前触发了地图预加载），玩家看到游戏界面但时间完全不动
+- **加载存档嵌套死锁修复**：`loadData()` 中行商物品/招募列表为空时，在 `stateStore.update{}` 内部调用 `refreshTravelingMerchant()`/`refreshRecruitList()` 导致不可重入 `Mutex` 协程死锁——与 v4.0.04 修复的 `initializeWorldAndServices()` 同类型问题，此次补全遗漏位置
+- **重启游戏一致性修复**：`restartGameInternal()` 同步移除前置 `isGameStarted = true` 设置，统一在游戏循环重启后设置标志
+
+### 影响文件
+- `GameEngineCoordination.kt`：`createNewGame()`/`restartGameInternal()`/`loadData()` 共 4 处修改
+- `SaveLoadViewModel.kt`：`startNewGame()` 正常路径/异常恢复路径、`restartGame()` finally 块共 4 处修改
+- `GameEngineCore.kt`：`startGameLoop()`/`tickInternal()` 新增诊断日志
+
 ## [4.0.04] - 2026-06-14
 
 ### 新增：天道试炼战斗动画系统

@@ -190,7 +190,13 @@ class GameEngineCore @Inject constructor(
 
         stateStore.setPausedDirect(false)
         DomainLog.i(TAG, "Game state resumed (isPaused=false)")
-        
+
+        val gd = stateStore.gameDataSnapshot
+        DomainLog.i(TAG, "startGameLoop: isGameStarted=${gd.isGameStarted}, " +
+            "speed=${gameClock.speed}, " +
+            "year=${gd.gameYear}, month=${gd.gameMonth}, " +
+            "sectName=${gd.sectName}")
+
         gameLoopJob = engineScope.launch {
             DomainLog.i(TAG, "Starting game loop")
             
@@ -424,6 +430,11 @@ class GameEngineCore @Inject constructor(
         val isSaving = stateStore.isSaving.value
         if (isPaused || isLoading || isSaving) {
             checkAndResetStuckStates(isSaving, isLoading)
+            // Periodic diagnostic: log stuck state every 100th skipped tick
+            if (_tickCount.value % 100 == 0L) {
+                DomainLog.d(TAG, "tickInternal: tick #${_tickCount.value} skipped " +
+                    "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
+            }
             return
         }
 

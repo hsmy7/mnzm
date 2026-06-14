@@ -248,9 +248,11 @@ suspend fun GameEngine.loadData(
     val currentData = stateStore.gameDataSnapshot
     if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
         DomainLog.w("GameEngine", "loadData: detected empty merchant items or recruit list after load, refreshing...")
-        stateStore.update {
-            if (this.gameData.travelingMerchantItems.isEmpty()) cultivationService.refreshTravelingMerchant(this.gameData.gameYear, this.gameData.gameMonth)
-            if (this.gameData.recruitList.isEmpty()) cultivationService.refreshRecruitList(this.gameData.gameYear)
+        if (currentData.travelingMerchantItems.isEmpty()) {
+            cultivationService.refreshTravelingMerchant(currentData.gameYear, currentData.gameMonth)
+        }
+        if (currentData.recruitList.isEmpty()) {
+            cultivationService.refreshRecruitList(currentData.gameYear)
         }
     }
     discipleService.syncAllDiscipleStatuses()
@@ -274,11 +276,13 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
     stateStore.update {
         val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-        gameData = gameData.copy(isGameStarted = true, slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+        gameData = gameData.copy(slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
         repeat(3) { discipleService.recruitDisciple() }
     }
     addInitialManual()
     // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
+    // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
+    // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
     try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
 }
 
@@ -293,14 +297,16 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
         val centerGrid = gridCells / 2 - 1
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-            gameData = gameData.copy(isGameStarted = true, slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+            gameData = gameData.copy(slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
             repeat(3) { discipleService.recruitDisciple() }
         }
         addInitialManual()
         // 2. 世界初始化完成后才加载邮件
+        // Note: isGameStarted is set to true later in SaveLoadViewModel.restartGame()
+        // after startGameLoop() succeeds
         try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
     } else {
-        stateStore.update { gameData = GameData(isGameStarted = true).copy(currentSlot = currentSlot) }
+        stateStore.update { gameData = GameData().copy(currentSlot = currentSlot) }
     }
 }
 

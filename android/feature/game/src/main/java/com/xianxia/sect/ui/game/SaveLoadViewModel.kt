@@ -528,7 +528,8 @@ class SaveLoadViewModel @Inject constructor(
                 needSlotRefresh = true
                 if (!saveSuccess) {
                     Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
-                    gameEngine.updateGameData { it.copy(isGameStarted = false) }
+                    // isGameStarted was never set to true (moved to after startGameLoop),
+                    // so no need to set it false here
                     showError("保存失败，无法启动游戏。请检查存储空间后重试。")
                     return@launch
                 }
@@ -541,6 +542,11 @@ class SaveLoadViewModel @Inject constructor(
 
                 startGameLoop()
                 Log.d(TAG, "Game loop started, isPaused=${gameEngineCore.state.value.isPaused}")
+
+                // Mark game as started AFTER game loop is running
+                // Ensures LaunchedEffect(gameData.isGameStarted) in GameActivity
+                // only shows MainGameScreen when the game is truly live
+                gameEngine.updateGameData { it.copy(isGameStarted = true) }
 
                 _isGameLoaded = true
                 gameStarted = true
@@ -563,6 +569,7 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
                         startGameLoop()
+                        gameEngine.updateGameData { it.copy(isGameStarted = true) }
                         _isGameLoaded = true
                         gameStarted = true
                         Log.w(TAG, "startNewGame: Game loop started with partial data")
@@ -571,7 +578,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 } else {
                     Log.e(TAG, "startNewGame: Game data not initialized, game loop will not start")
-                    gameEngine.updateGameData { it.copy(isGameStarted = false) }
+                    // isGameStarted remains false (default) — no change needed
                 }
 
                 showError(e.message ?: "开始新游戏失败")
@@ -1185,6 +1192,7 @@ class SaveLoadViewModel @Inject constructor(
                 gameEngineCore.clearActiveSaveJob()
                 if (wasRunning) {
                     gameEngineCore.startGameLoop()
+                    gameEngine.updateGameData { it.copy(isGameStarted = true) }
                     _isTimeRunning.value = true
                     Log.d(TAG, "Game loop restarted after restart operation")
                 }
