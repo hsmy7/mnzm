@@ -451,6 +451,40 @@ fun MainGameScreen(
                 }
             }
 
+            // === 2.5. 处理被移动的建筑（同一 instanceId，坐标变化） ===
+            for (prev in previousBuildings) {
+                val curr = effectivePlacedBuildings.find { it.instanceId == prev.instanceId } ?: continue
+                if (prev.gridX != curr.gridX || prev.gridY != curr.gridY) {
+                    // 擦除旧位置（恢复原始地形含装饰物）
+                    val obx = prev.gridX * tileSize
+                    val oby = prev.gridY * tileSize
+                    val obw = prev.width * tileSize
+                    val obh = prev.height * tileSize
+                    val srcBmp = fullMapBmp.asAndroidBitmap()
+                    val sRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
+                    val dRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
+                    canvas.drawBitmap(srcBmp, sRect, dRect, null)
+                    // 绘制新位置
+                    val nbx = curr.gridX * tileSize
+                    val nby = curr.gridY * tileSize
+                    val nbw = curr.width * tileSize
+                    val nbh = curr.height * tileSize
+                    val cbmp = buildingBitmaps[curr.displayName]
+                    if (cbmp != null) {
+                        val abmp = cbmp.asAndroidBitmap()
+                        canvas.drawBitmap(abmp,
+                            android.graphics.Rect(0, 0, abmp.width, abmp.height),
+                            android.graphics.Rect(nbx, nby, nbx + nbw, nby + nbh),
+                            null)
+                    } else {
+                        val p = android.graphics.Paint().apply { color = 0xCCBDBDBD.toInt() }
+                        canvas.drawRect(
+                            android.graphics.RectF(nbx.toFloat(), nby.toFloat(),
+                                (nbx + nbw).toFloat(), (nby + nbh).toFloat()), p)
+                    }
+                }
+            }
+
             // === 3. 绘制新增的建筑 ===
             val previousIds = previousBuildings.map { it.instanceId }.toSet()
             for (building in effectivePlacedBuildings) {
