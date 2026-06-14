@@ -1,8 +1,15 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.02] - 2026-06-14
+## [4.0.03] - 2026-06-14
 
-### 修复：世界地图部分机型宗门不显示
+### 修复：宗门数据静默丢失——存档重型数据管线根治
+
+- **恢复链路重构**：`ensureHeavyDataLoaded()` 从"单路径异步即发即弃"改为"三级回退同步加载"——优先 `game_heavy_data` 表恢复，失败则回退到 `world_map_state` 冗余表，再失败则从 `FixedSectPositions` 配置表重生，彻底消除宗门数据静默丢失的级联风险
+- **加载时序修正**：重型数据恢复从 `startGameLoop()` 异步即发即弃移至 `setSaveLoadState(false)` 之前同步执行，确保世界地图和外交界面在加载界面关闭前数据已就绪
+- **存档前防御校验**：`SaveFacadeImpl.getStateSnapshot()` 新增 `worldMapSects` 非空校验，若意外为空则从配置表紧急重生防止级联丢失；`StorageEngine` 增加存档前数据完整性日志
+- **领域接口解耦**：新增 `WorldMapStatePort` 领域端口避免 `engine` 模块直接依赖 `data` 模块 DAO，符合 Clean Architecture 依赖方向
+
+### 修复：世界地图部分机型宗门不显示（v4.0.02）
 
 - **Layout bounds 裁剪修复**：SectMarker/LevelMarker 将 `layout(placeable.width, placeable.height)` 改为 `layout(constraints.maxWidth, constraints.maxHeight)`，解决内容被 `place()` 放置到 bounds 之外时 Mali/PowerVR GPU 裁剪导致标记不渲染的问题
 - **地图自动缩放修正**：初始缩放从 `maxOf` 改为 `minOf`，确保在所有屏幕宽高比下地图完整适配视口，边缘宗门不再被剔除

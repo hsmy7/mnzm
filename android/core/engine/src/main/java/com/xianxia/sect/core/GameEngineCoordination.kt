@@ -79,21 +79,64 @@ suspend fun GameEngine.initializeNewGameSuspend(gameData: GameData) {
 suspend fun GameEngine.ensureHeavyDataLoaded() {
     if (heavyDataLoaded) return
     val slot = stateStore.gameDataSnapshot.currentSlot
-    val keys = try { heavyDataPort.getLoadedKeys(slot) } catch (e: Exception) {
-        DomainLog.w("GameEngine", "Failed to load heavy data keys, heavy data will be regenerated", e); heavyDataLoaded = true; return
+
+    // 第一层：尝试从 game_heavy_data 表恢复
+    val restoredFromHeavy = tryRestoreFromHeavyData(slot)
+
+    // 第二层：回退到 world_map_state 表
+    if (!restoredFromHeavy) {
+        DomainLog.w("GameEngine", "worldMapSects 重型数据恢复失败，尝试 world_map_state 表回退 slot=$slot")
+        val restoredFromState = tryRestoreFromWorldMapState(slot)
+        if (!restoredFromState) {
+            // 第三层：从 FixedSectPositions 配置表重生
+            DomainLog.e("GameEngine", "worldMapSects 所有回退源失败，从 FixedSectPositions 重生 slot=$slot")
+            regenerateWorldFromFixedPositions(slot)
+        }
     }
-    if (keys.isEmpty()) { heavyDataLoaded = true; return }
+
+    // 校验恢复后的数据一致性
+    val currentSects = stateStore.gameDataSnapshot.worldMapSects
+    if (currentSects.isEmpty()) {
+        DomainLog.e("GameEngine", "ensureHeavyDataLoaded: worldMapSects 仍为空，世界地图将无宗门显示 slot=$slot")
+    } else if (currentSects.size < 29) {
+        DomainLog.w("GameEngine", "ensureHeavyDataLoaded: worldMapSects 仅 ${currentSects.size} 个（预期 29），可能已被裁剪 slot=$slot")
+    }
+
+    heavyDataLoaded = true
+    DomainLog.d("GameEngine", "ensureHeavyDataLoaded: 完成 slot=$slot worldMapSects=${currentSects.size}")
+}
+
+/**
+ * 第一层恢复：从 game_heavy_data 表读取 Protobuf 编码的重型数据。
+ * @return true 如果 worldMapSects 成功恢复
+ */
+private suspend fun GameEngine.tryRestoreFromHeavyData(slot: Int): Boolean {
+    val keys = try {
+        heavyDataPort.getLoadedKeys(slot)
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "加载重型数据键失败 slot=$slot", e)
+        return false
+    }
+    if (keys.isEmpty()) {
+        DomainLog.w("GameEngine", "重型数据键为空 slot=$slot，数据库可能未包含重型数据")
+        return false
+    }
+
     val heavyRows = mutableListOf<GameHeavyData>()
     for (key in keys) {
         try {
             val row = heavyDataPort.getByKey(slot, key)
             if (row != null) heavyRows.add(row)
         } catch (e: Exception) {
-            DomainLog.w("GameEngine", "Heavy data key '$key' too large for CursorWindow, will be regenerated on next save", e)
+            DomainLog.w("GameEngine", "重型数据键 '$key' 过大无法加载，将在下次存档时重生", e)
             try { heavyDataPort.deleteByKey(slot, key) } catch (_: Exception) {}
         }
     }
-    if (heavyRows.isEmpty()) { heavyDataLoaded = true; return }
+    if (heavyRows.isEmpty()) {
+        DomainLog.w("GameEngine", "所有重型数据行加载失败 slot=$slot")
+        return false
+    }
+
     stateStore.update {
         val current = this.gameData
         val needsUpdate = current.aiSectDisciples.isEmpty() || current.sectDetails.isEmpty() ||
@@ -111,8 +154,67 @@ suspend fun GameEngine.ensureHeavyDataLoaded() {
             )
         }
     }
-    heavyDataLoaded = true
-    DomainLog.d("GameEngine", "ensureHeavyDataLoaded: loaded ${heavyRows.size} heavy data rows for slot $slot")
+
+    val restored = stateStore.gameDataSnapshot.worldMapSects.isNotEmpty()
+    if (restored) {
+        DomainLog.d("GameEngine", "ensureHeavyDataLoaded: 从 game_heavy_data 加载 ${heavyRows.size} 行重型数据 slot=$slot")
+    }
+    return restored
+}
+
+/**
+ * 第二层恢复：从 world_map_state 表读取（Room 直接存储，非 Protobuf 分块）。
+ * 该表在每次存档时与 game_heavy_data 同步写入，作为独立冗余副本。
+ * @return true 如果 worldMapSects 成功恢复
+ */
+private suspend fun GameEngine.tryRestoreFromWorldMapState(slot: Int): Boolean {
+    return try {
+        val entity = worldMapStatePort.getBySlot(slot) ?: return false
+        if (entity.worldMapSects.isEmpty()) return false
+
+        stateStore.update {
+            val current = this.gameData
+            this.gameData = current.copy(
+                worldMapSects = entity.worldMapSects,
+                aiSectDisciples = if (current.aiSectDisciples.isEmpty()) entity.aiSectDisciples else current.aiSectDisciples,
+                worldLevels = if (current.worldLevels.isNullOrEmpty()) entity.worldLevels else current.worldLevels,
+                cultivatorCaves = if (current.cultivatorCaves.isNullOrEmpty()) entity.cultivatorCaves else current.cultivatorCaves,
+                caveExplorationTeams = if (current.caveExplorationTeams.isEmpty()) entity.caveExplorationTeams else current.caveExplorationTeams,
+                aiCaveTeams = if (current.aiCaveTeams.isEmpty()) entity.aiCaveTeams else current.aiCaveTeams
+            )
+        }
+        DomainLog.w("GameEngine", "worldMapSects 已从 world_map_state 表恢复 slot=$slot sects=${entity.worldMapSects.size}")
+        true
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "从 world_map_state 表恢复失败 slot=$slot", e)
+        false
+    }
+}
+
+/**
+ * 第三层恢复（最后手段）：从 FixedSectPositions 配置表重生宗门数据。
+ * 重生后的宗门状态为默认（关系中立、无详情），但保证世界地图和外交功能可用。
+ */
+private suspend fun GameEngine.regenerateWorldFromFixedPositions(slot: Int) {
+    val currentSectName = stateStore.gameDataSnapshot.sectName
+    if (currentSectName.isBlank()) {
+        DomainLog.e("GameEngine", "无法重生宗门：当前宗门名为空 slot=$slot")
+        return
+    }
+
+    val generationResult = WorldMapGenerator.generateWorldSects(currentSectName)
+    val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
+
+    stateStore.update {
+        val current = this.gameData
+        this.gameData = current.copy(
+            worldMapSects = generationResult.sects,
+            sectRelations = sectRelations,
+            aiSectDisciples = if (current.aiSectDisciples.isEmpty()) generationResult.aiSectDisciples else current.aiSectDisciples
+        )
+    }
+    DomainLog.e("GameEngine", "宗门数据已从 FixedSectPositions 重生 slot=$slot " +
+        "sectName=$currentSectName sects=${generationResult.sects.size} — 存档数据已丢失，宗门关系和详情已重置为默认")
 }
 
 suspend fun GameEngine.loadData(

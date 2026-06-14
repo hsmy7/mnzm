@@ -87,6 +87,11 @@ interface GameHeavyDataPort {
     suspend fun deleteByKey(slot: Int, key: String)
 }
 
+/** Persistence port for WorldMapState — read redundant world_map_state table. */
+interface WorldMapStatePort {
+    suspend fun getBySlot(slot: Int): WorldMapStateEntity?
+}
+
 /** Decodes heavy data rows from storage into typed game state. */
 interface HeavyDataDecoder {
     fun decodeDiscipleListMapFromRows(rows: List<com.xianxia.sect.core.model.GameHeavyData>, key: String): Map<String, List<com.xianxia.sect.core.model.Disciple>>

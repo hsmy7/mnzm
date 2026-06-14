@@ -40,4 +40,7 @@ object BridgeBindingsModule {
 
     @Provides @Singleton
     fun provideHeavyDataDecoder(impl: HeavyDataDecoderImpl): HeavyDataDecoder = impl
+
+    @Provides @Singleton
+    fun provideWorldMapStatePort(impl: WorldMapStatePortImpl): WorldMapStatePort = impl
 }

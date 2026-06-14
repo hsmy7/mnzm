@@ -19,6 +19,9 @@ import com.xianxia.sect.core.util.MemoryMonitorProvider
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.network.SecureHttpClient
 import com.xianxia.sect.taptap.TapDBManager
+import kotlinx.coroutines.CoroutineScope
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import dagger.Module
@@ -34,6 +37,10 @@ object CoreModule {
     @Provides
     @Singleton
     fun provideCoroutineScopeProvider(impl: ApplicationScopeProvider): CoroutineScopeProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideCoroutineScope(scopeProvider: ApplicationScopeProvider): CoroutineScope = scopeProvider.scope
 
     @Provides
     @Singleton

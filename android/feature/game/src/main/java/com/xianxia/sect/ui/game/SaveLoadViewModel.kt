@@ -363,7 +363,6 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private fun startGameLoop() {
-        viewModelScope.launch { gameEngine.ensureHeavyDataLoaded() }
         gameEngineCore.startListening()
         gameEngineCore.startGameLoop()
         _isTimeRunning.value = true
@@ -729,6 +728,8 @@ class SaveLoadViewModel @Inject constructor(
                     productionSlots = saveData.productionSlots
                 )
 
+                gameEngine.ensureHeavyDataLoaded()
+
                 setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
 
                 // 修正已有存档中的建筑网格尺寸，补齐instanceId
@@ -858,6 +859,8 @@ class SaveLoadViewModel @Inject constructor(
 
                     preloadGameResources()
                     _loadingProgress.value = PROGRESS_GAME_LOOP_START
+
+                    gameEngine.ensureHeavyDataLoaded()
 
                     setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
 

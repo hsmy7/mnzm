@@ -629,6 +629,15 @@ class StorageEngine @Inject constructor(
             return
         }
 
+        // ── 存档前数据完整性校验 ──
+        if (data.gameData.worldMapSects.isEmpty()) {
+            Log.e(TAG, "存档前检测到 worldMapSects 为空 slot=$slot — 数据管线异常，" +
+                "世界地图宗门数据已丢失。请检查 ensureHeavyDataLoaded 日志。")
+        }
+        if (data.gameData.sectName.isBlank()) {
+            Log.w(TAG, "存档前检测到 sectName 为空 slot=$slot")
+        }
+
         val now = System.currentTimeMillis()
         val heavyDao = database.gameHeavyDataDao()
 
