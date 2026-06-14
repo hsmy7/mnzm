@@ -51,8 +51,8 @@ fun LevelMarker(
             .size(48.dp)
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
-                layout(placeable.width, placeable.height) {
-                    placeable.placeRelative(
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.place(
                         (screenX - placeable.width / 2).toInt(),
                         (screenY - placeable.height / 2).toInt()
                     )

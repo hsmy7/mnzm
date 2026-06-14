@@ -1,5 +1,13 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.02] - 2026-06-14
+
+### 修复：世界地图部分机型宗门不显示
+
+- **Layout bounds 裁剪修复**：SectMarker/LevelMarker 将 `layout(placeable.width, placeable.height)` 改为 `layout(constraints.maxWidth, constraints.maxHeight)`，解决内容被 `place()` 放置到 bounds 之外时 Mali/PowerVR GPU 裁剪导致标记不渲染的问题
+- **地图自动缩放修正**：初始缩放从 `maxOf` 改为 `minOf`，确保在所有屏幕宽高比下地图完整适配视口，边缘宗门不再被剔除
+- **LevelMarker RTL 防护**：`placeRelative` 改为 `place`，避免 RTL 布局方向下 X 坐标翻转
+
 ## [4.0.01] - 2026-06-13
 
 ### 架构根治：组件化实体存储 + 消除不可变对象拷贝

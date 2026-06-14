@@ -42,7 +42,7 @@ fun SectMarker(
         modifier = Modifier
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
-                layout(placeable.width, placeable.height) {
+                layout(constraints.maxWidth, constraints.maxHeight) {
                     placeable.place(
                         (x - placeable.width / 2f).toIntCoerced(),
                         (y - placeable.height / 2f).toIntCoerced()
