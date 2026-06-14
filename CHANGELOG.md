@@ -2,16 +2,24 @@
 
 ## [4.0.05] - 2026-06-14
 
-### 修复：华为模拟器创建新游戏后时间不动、弟子不修炼
+### 修复：创建新游戏后游戏完全卡死（时间不动、弟子不修炼、邮件/签到点击无反应）
 
-- **游戏启动标志时序修正**：`isGameStarted = true` 从 `createNewGame()` 内部移至 `startGameLoop()` 成功后设置。之前存档超时会导致 `return@launch` 永不启动游戏循环，但 UI 已显示主界面（`LaunchedEffect` 提前触发了地图预加载），玩家看到游戏界面但时间完全不动
-- **加载存档嵌套死锁修复**：`loadData()` 中行商物品/招募列表为空时，在 `stateStore.update{}` 内部调用 `refreshTravelingMerchant()`/`refreshRecruitList()` 导致不可重入 `Mutex` 协程死锁——与 v4.0.04 修复的 `initializeWorldAndServices()` 同类型问题，此次补全遗漏位置
-- **重启游戏一致性修复**：`restartGameInternal()` 同步移除前置 `isGameStarted = true` 设置，统一在游戏循环重启后设置标志
+- **根因：游戏循环 tick 内 `stateStore.update{}` 嵌套调用导致不可重入 `Mutex` 死锁（核心修复）**：`GameEngineCore.tickInternal()` 在 `stateStore.update{}` 块内调用各 GameSystem 的 `onPhaseTick`，而 `CultivationEventProcessor.processPhaseTick` 内部又调用了 `stateStore.update{}`。由于 `GameStateStoreImpl` 的 `transactionMutex` 是 `kotlinx.coroutines.sync.Mutex`（不可重入），同线程二次 `withLock` 永久挂起，锁被永久持有。此后**所有依赖 `stateStore.update` 的操作全部挂起**——时间推进（tick 本身）、弟子修炼（在 tick 内）、每日签到/邮件领取（`claimDailySignIn`/`markAllMailsAsRead` 走 `stateStore.update`，协程启动后永久 `withLock`，表现为点击无反应、无异常、无日志）。UI 导航正常（只读 StateFlow，不依赖 update）。这与设备无关，模拟器/真机均会死锁
+  - **修复方式**：`GameStateStoreImpl.update()` 新增 `transactionOwnerThread`（AtomicReference）重入检测——当当前线程已持有 `transactionMutex` 时，直接对事务内状态（`currentTransactionState`）执行 block 并返回，不再 `withLock`。游戏循环跑在单线程 dispatcher（`GameEngineCore.GAME_DISPATCHER`）上，用线程身份即可精确识别重入；UI/ViewModel 的 update 调用在主线程/IO 线程，不会误判
+  - **兜底修正**：`CultivationEventProcessor.processPhaseTick` 透传 `state` 参数，把 `:190` 的 `stateStore.update{}` 改为直接操作 `state.discipleTables`（与同文件 `advanceMonth`/`advanceYear` 的写法保持一致），消除一处确定的死锁点
+- **加载存档嵌套死锁修复（前次遗漏位置，保留有效）**：`loadData()` 中行商物品/招募列表为空时，在 `stateStore.update{}` 内部调用 `refreshTravelingMerchant()`/`refreshRecruitList()` 导致同类嵌套死锁——与 v4.0.04 修复的 `initializeWorldAndServices()` 同类型问题。本次的核心重入检测已自动覆盖此路径，但将其移出临界区仍是更好的设计（减少锁竞争），予以保留
+- **同类隐患说明**：`ProductionSubsystem`（锻造/炼丹完成、灵田收获、自动挖矿）另有 7 处 tick 内嵌套 `stateStore.update{}`，玩家建炼丹/锻造并开工后会触发同类死锁。本次核心重入检测已一并根治，无需逐点修改
+- **`isGameStarted` 时序修正（保留）**：`isGameStarted = true` 从 `createNewGame()` 内部移至 `startGameLoop()` 成功后设置，防止存档失败时出现"UI 已显示主界面但游戏循环未启动"的残留状态。这是独立于死锁的潜在 bug 修复，与本次正交
+
+### 历史说明
+v4.0.05 初版曾将根因误判为"游戏启动标志时序"并据此前提提交（commit `8c5f2a83`），实测修复无效。经系统化根因调查（`systematic-debugging`），定位真正根因为 tick 内 `stateStore.update` 嵌套调用导致的不可重入 Mutex 死锁，本次予以更正
 
 ### 影响文件
-- `GameEngineCoordination.kt`：`createNewGame()`/`restartGameInternal()`/`loadData()` 共 4 处修改
-- `SaveLoadViewModel.kt`：`startNewGame()` 正常路径/异常恢复路径、`restartGame()` finally 块共 4 处修改
-- `GameEngineCore.kt`：`startGameLoop()`/`tickInternal()` 新增诊断日志
+- `GameStateStoreImpl.kt`：`update()` 新增 `transactionOwnerThread` 重入检测分支，withLock 块设置/清除该标记
+- `CultivationEventProcessor.kt`：`processPhaseTick` 透传 `state`，`:190` 改为直接操作 `state.discipleTables`
+- `GameEngineCoordination.kt`：`loadData()` refresh 移出 `stateStore.update{}`（前次，保留）
+- `SaveLoadViewModel.kt`：`isGameStarted` 时序统一（前次，保留）
+- `GameEngineCore.kt`：`startGameLoop()`/`tickInternal()` 诊断日志（前次，保留）
 
 ## [4.0.04] - 2026-06-14
 

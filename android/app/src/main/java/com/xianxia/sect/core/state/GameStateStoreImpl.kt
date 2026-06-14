@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,6 +47,20 @@ class GameStateStoreImpl @Inject constructor(
     override val discipleTables: DiscipleTables get() = _discipleTables
 
     private val transactionMutex = Mutex()
+
+    /**
+     * 当前持有 transactionMutex 的线程（null 表示未持有）。
+     *
+     * 用于检测 [update] 的重入调用：游戏循环 tick 在 `stateStore.update {}` 块内
+     * 同步调用各 GameSystem，而某些 System/Service（如 CultivationEventProcessor.processPhaseTick、
+     * ProductionSubsystem 的生产完成逻辑）内部又调用了 `stateStore.update {}`。
+     * 由于 [transactionMutex] 是不可重入的，同线程二次 withLock 会永久死锁。
+     *
+     * 游戏循环跑在单线程 dispatcher（GameEngineCore.GAME_DISPATCHER）上，
+     * 因此用线程身份即可精确识别重入；UI/ViewModel 的 update 调用在主线程或 IO 线程，
+     * 不会与游戏循环线程混淆。
+     */
+    private val transactionOwnerThread = AtomicReference<Thread?>(null)
 
     @Volatile
     private var currentTransactionState: MutableGameState? = null
@@ -751,7 +766,22 @@ class GameStateStoreImpl @Inject constructor(
                     "Use currentTransactionMutableState() to modify state within a tick transaction."
             }
         }
+
+        // 重入检测：若当前线程已持有 transactionMutex，说明本次 update 是在
+        // tick 事务内被某个 System/Service 嵌套调用的。transactionMutex 不可重入，
+        // 若再次 withLock 会同线程自死锁。改为直接对事务内状态（reusableMutableState）
+        // 执行 block——它正是外层 update 正在操作的对象，改动会随外层 update 在
+        // 提交阶段统一写回 StateFlow。
+        if (transactionOwnerThread.get() == Thread.currentThread() && currentTransactionState != null) {
+            val txState = currentTransactionState!!
+            txState.block()
+            // 重入路径：txState 即外层 update 持有的 reusableMutableState，
+            // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
+            return
+        }
+
         transactionMutex.withLock {
+            transactionOwnerThread.set(Thread.currentThread())
             val curGame = _gameDataFlow.value
             val curES = _equipmentStacksFlow.value
             val curEI = _equipmentInstancesFlow.value
@@ -850,6 +880,7 @@ class GameStateStoreImpl @Inject constructor(
                 _discipleTables = reusableMutableState.discipleTables
             } finally {
                 currentTransactionState = null
+                transactionOwnerThread.set(null)
             }
         }
     }

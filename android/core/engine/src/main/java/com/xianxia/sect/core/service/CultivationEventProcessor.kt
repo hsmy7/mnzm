@@ -66,7 +66,10 @@ class CultivationEventProcessor @Inject constructor(
         val month = data.gameMonth
         val year = data.gameYear
 
-        processPhaseEvents(phase, month, year)
+        // advancePhase 在游戏循环 tick 的 stateStore.update{} 块内被同步调用，
+        // 此时持有 transactionMutex。processPhaseEvents 内部必须直接操作传入的
+        // targetState（即事务内状态），不能再调用 stateStore.update{}（不可重入锁会死锁）。
+        processPhaseEvents(phase, month, year, targetState)
 
         val focusedId = stateStore.focusedDiscipleId
         if (focusedId != null) {
@@ -125,15 +128,15 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    private suspend fun processPhaseEvents(phase: Int, month: Int, year: Int) {
+    private suspend fun processPhaseEvents(phase: Int, month: Int, year: Int, state: MutableGameState) {
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
-        safelyRun("processPhaseTick") { processPhaseTick(year, month, phase) }
+        safelyRun("processPhaseTick") { processPhaseTick(year, month, phase, state) }
         safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
     }
 
     // ── Phase Tick ──────────────────────────────────────────────────────
 
-    private suspend fun processPhaseTick(year: Int, month: Int, phase: Int) {
+    private suspend fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
         val phaseSecondsValue = gameClock.msPerPhase / 1000.0
         val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
         val manualMap = stateStore.manualInstances.value.associateBy { it.id }
@@ -187,12 +190,13 @@ class CultivationEventProcessor @Inject constructor(
 
         val aliveMap = processedAlive.associateBy { it.id }
         val updatedDisciplesList = stateStore.disciples.value.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
-        stateStore.update {
-            discipleTables.clear()
-            updatedDisciplesList.forEach { discipleTables.insert(it) }
-        }
+        // 直接操作事务内状态 state（即外层 tick 持有的 reusableMutableState）。
+        // 绝不能调用 stateStore.update{}——advancePhase 处于 tick 的 update 块内，
+        // transactionMutex 不可重入，嵌套调用会死锁（核心修复前的根因）。
+        state.discipleTables.clear()
+        updatedDisciplesList.forEach { state.discipleTables.insert(it) }
 
-        cultivationCore.applyAccumulator(acc, stateStore.currentTransactionMutableState() ?: return, maxEquipStack, maxManualStack)
+        cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
 
         processAutoFromWarehouse(year, month, phase)
     }
