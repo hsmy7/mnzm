@@ -78,6 +78,12 @@ object GameColors {
     val MpBar = Color(0xFF3498DB)
     val ExpBar = Color(0xFF4CAF50)
 
+    // 浮动伤害数字颜色
+    val DamagePhysical = Color(0xFFFF8C00)     // 物理伤害 - 橙色
+    val DamageMagic = Color(0xFF8B5CF6)        // 法术伤害 - 紫色
+    val DamageCrit = Color(0xFFF44336)         // 暴击伤害 - 红色
+    val DamageHeal = Color(0xFF4CAF50)         // 治疗 - 绿色
+
     val ButtonPrimary = Color.White
     val ButtonSecondary = Color(0xFF00A86B)
     val ButtonDanger = Color(0xFFE74C3C)

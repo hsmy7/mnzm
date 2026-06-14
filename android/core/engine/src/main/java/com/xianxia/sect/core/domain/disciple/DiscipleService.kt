@@ -413,7 +413,8 @@ private val scopeProvider: CoroutineScopeProvider,
      * Recruit new disciple
      */
     fun recruitDisciple(): Disciple {
-        val id = UUID.randomUUID().toString()
+        val id =
+            ((stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
         val existingNames = (stateStore.discipleTables.assembleAll() + stateStore.gameData.value.recruitList).map { it.name }.toSet()

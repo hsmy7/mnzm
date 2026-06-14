@@ -308,8 +308,10 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
     val generationResult = WorldMapGenerator.generateWorldSects(sectName)
     val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
     productionCoordinator.repository.initializeAllSlots(currentSlot)
+    cultivationService.refreshTravelingMerchant(1, 1)
+    cultivationService.refreshRecruitList(1)
+    cultivationService.refreshMerchantAcquisition(1, 1)
     stateStore.update {
-        cultivationService.refreshTravelingMerchant(1, 1); cultivationService.refreshRecruitList(1); cultivationService.refreshMerchantAcquisition(1, 1)
         gameData = gameData.copy(sectName = sectName, worldMapSects = generationResult.sects, sectRelations = sectRelations, aiSectDisciples = generationResult.aiSectDisciples, availableMissions = emptyList())
     }
 }
