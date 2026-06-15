@@ -32,7 +32,7 @@ class CultivationService @Inject constructor(
     private val breakthroughHandler: DiscipleBreakthroughHandler,
     private val cultivationSettlement: CultivationSettlement,
     private val eventProcessor: CultivationEventProcessor,
-    private val productionSubsystem: ProductionSubsystem,
+    private val productionProcessor: ProductionProcessor,
     private val merchantAndRecruitService: MerchantAndRecruitService,
     private val caveExplorationProcessor: CaveExplorationProcessor,
     private val sharedState: CultivationSharedState,
@@ -98,7 +98,7 @@ class CultivationService @Inject constructor(
     }
 
     internal fun processSpiritMineProduction() {
-        productionSubsystem.processSpiritMineProduction()
+        productionProcessor.processSpiritMineProduction()
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
@@ -143,34 +143,34 @@ class CultivationService @Inject constructor(
         eventProcessor.completeExploration(team, success, survivorIds, survivorHpMap, survivorMpMap)
     }
 
-    // ── 委托方法：ProductionSubsystem ─────────────────────────────────
+    // ── 委托方法：ProductionProcessor ─────────────────────────────────
 
     internal suspend fun processBuildingProduction(year: Int, month: Int) {
-        productionSubsystem.processBuildingProduction(year, month)
+        productionProcessor.processBuildingProduction(year, month)
     }
 
     internal suspend fun processHerbGardenGrowth(year: Int, month: Int) {
-        productionSubsystem.processHerbGardenGrowth(year, month)
+        productionProcessor.processHerbGardenGrowth(year, month)
     }
 
     internal suspend fun processAutoPlant() {
-        productionSubsystem.processAutoPlant()
+        productionProcessor.processAutoPlant()
     }
 
     internal suspend fun processSpiritFieldHarvest() {
-        productionSubsystem.processSpiritFieldHarvest()
+        productionProcessor.processSpiritFieldHarvest()
     }
 
     internal suspend fun processAutoAlchemy() {
-        productionSubsystem.processAutoAlchemy()
+        productionProcessor.processAutoAlchemy()
     }
 
     internal suspend fun processAutoForge() {
-        productionSubsystem.processAutoForge()
+        productionProcessor.processAutoForge()
     }
 
     internal suspend fun processAutoAssign() {
-        productionSubsystem.processAutoAssign()
+        productionProcessor.processAutoAssign()
     }
 
     // ── 委托方法：MerchantAndRecruitService ────────────────────────────

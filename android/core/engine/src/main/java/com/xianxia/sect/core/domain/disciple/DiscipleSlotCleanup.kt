@@ -1,13 +1,16 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.*
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * 弟子死亡/脱离时从所有槽位清理。
  * 由 DiscipleService 和 CultivationService 共用，
  * 确保新增槽位类型时不会漏掉。
  */
-object DiscipleSlotCleanup {
+@Singleton
+class DiscipleSlotCleanup @Inject constructor() {
 
     /**
      * 从 GameData 中清理指定弟子的所有槽位引用。
@@ -118,5 +121,22 @@ object DiscipleSlotCleanup {
         )
 
         return updated
+    }
+
+    // -- 向后兼容：companion 桥接，现有调用点无需改动 --
+
+    companion object {
+        @Volatile
+        private var _instance: DiscipleSlotCleanup? = null
+
+        internal fun initialize(instance: DiscipleSlotCleanup) {
+            _instance = instance
+        }
+
+        private val instance: DiscipleSlotCleanup
+            get() = _instance ?: DiscipleSlotCleanup().also { _instance = it }
+
+        fun clearAllSlots(data: GameData, discipleId: String): GameData =
+            instance.clearAllSlots(data, discipleId)
     }
 }

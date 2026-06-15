@@ -34,6 +34,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 // TickSystem: "InventorySystem"
+@com.xianxia.sect.core.engine.annotation.GameService("InventorySystem")
 @SystemPriority(order = 50)
 @Singleton
 class InventorySystem @Inject constructor(
@@ -143,6 +144,88 @@ class InventorySystem @Inject constructor(
     private fun logWarning(msg: String) = DomainLog.w(TAG, msg)
 
     private fun getMaxStackForType(type: String): Int = inventoryConfig.getMaxStackSize(type)
+
+    // ── StackableItemStore 统一合并键（单一事实来源，根除 6 套不一致）──
+
+    private fun equipmentStackKey(item: EquipmentStack) =
+        StackKey.of(item.name, item.rarity, item.slot.name)
+
+    private fun manualStackKey(item: ManualStack) =
+        StackKey.of(item.name, item.rarity, item.type.name)
+
+    private fun pillKey(item: Pill) =
+        StackKey.of(item.name, item.rarity, item.category.name, item.grade.name)
+
+    private fun materialKey(item: Material) =
+        StackKey.of(item.name, item.rarity, item.category.name)
+
+    private fun herbKey(item: Herb) =
+        StackKey.of(item.name, item.rarity, item.category)
+
+    private fun seedKey(item: Seed) =
+        StackKey.of(item.name, item.rarity, item.growTime)
+
+    // ── 泛型添加辅助：委托 StackableItemStore 做合并/新增，消除 ~48 同构方法 ──
+
+    private inline fun <reified T> addWithStore(
+        item: T,
+        currentItems: List<T>,
+        noinline stackKeyOf: (T) -> StackKey,
+        maxStack: Int,
+        noinline writeItems: (List<T>) -> Unit
+    ): DomainResult<T> where T : HasId, T : StackableItem {
+        // 禁用槽位检查（canAddItem 在外层单独做），仅用 Store 的合并逻辑
+        val store = StackableItemStore(
+            initialItems = currentItems,
+            stackKeyOf = stackKeyOf,
+            maxStack = maxStack,
+            maxSlots = { Int.MAX_VALUE },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+        val result = store.add(item)
+        if (result.isSuccess) {
+            writeItems(store.all())
+        }
+        return result
+    }
+
+    // ── 泛型删除 / 查询辅助：消除 ~30 同构方法 ──
+
+    /** 通用删除：委托 StackableItemStore，保留现有行为语义 */
+    private fun <T> removeStackable(
+        id: String, count: Int, bypassLock: Boolean,
+        currentItems: List<T>,
+        stackKeyOf: (T) -> StackKey,
+        maxStack: Int,
+        logType: String,
+        writeItems: (List<T>) -> Unit
+    ): Boolean where T : HasId, T : StackableItem {
+        if (count <= 0) return false
+        val existing = currentItems.find { it.id == id } ?: return false
+        if (!bypassLock && existing.isLocked) {
+            DomainLog.w(TAG, "Cannot remove locked $logType: ${existing.hashCode()}")
+            return false
+        }
+        if (existing.quantity < count) {
+            DomainLog.w(TAG, "Cannot remove $count $logType, only ${existing.quantity} available")
+            return false
+        }
+        val store = StackableItemStore(
+            initialItems = currentItems, stackKeyOf = stackKeyOf, maxStack = maxStack,
+            maxSlots = { Int.MAX_VALUE },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+        val result = store.remove(id, count)
+        if (result.isSuccess) { writeItems(store.all()); return true }
+        return false
+    }
+
+    /** 通用 getById */
+    private fun <T : HasId> getById(items: List<T>, id: String): T? = items.find { it.id == id }
+
+    /** 通用 getQuantity */
+    private fun <T> getQuantity(items: List<T>, id: String): Int where T : StackableItem =
+        (items.find { (it as HasId).id == id })?.quantity ?: 0
 
     // 事务外读取独立 StateFlow（同步更新），避免 unifiedState stateIn(Dispatchers.Default) 异步延迟
     private fun currentEquipmentStacks(): List<EquipmentStack> =
@@ -261,39 +344,24 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val currentItems: List<EquipmentStack> = ts?.equipmentStacks?.items ?: stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
+        if (!canAddItem() && currentItems.none { equipmentStackKey(it) == equipmentStackKey(item) }) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        val existing = currentStacks.find {
-            it.name == item.name && it.rarity == item.rarity && it.slot == item.slot
-        }
-        if (existing != null) {
-            val totalQty = existing.quantity + item.quantity
-            val newQty = totalQty.coerceAtMost(maxStack)
-            val merged = existing.copy(quantity = newQty)
-            if (ts != null) {
-                ts.equipmentStacks = ts.equipmentStacks.map {
-                    if (it.id == existing.id) merged else it
-                }
-            } else {
-                scope.launch { stateStore.update {
-                    equipmentStacks = equipmentStacks.map {
-                        if (it.id == existing.id) merged else it
-                    }
-                } }
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::equipmentStackKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.equipmentStacks = store
+                else scope.launch { stateStore.update { equipmentStacks = store } }
             }
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                else DomainResult.Success(merged)
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.equipmentStacks = ts.equipmentStacks + item
-        } else {
-            scope.launch { stateStore.update {
-                equipmentStacks = equipmentStacks + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     override fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance> {
@@ -320,40 +388,24 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
+        val currentItems: List<ManualStack> = ts?.manualStacks?.items ?: stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
+        if (!canAddItem() && (currentItems.none { manualStackKey(it) == manualStackKey(item) } || !merge)) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        if (merge) {
-            val existing = currentStacks.find {
-                it.name == item.name && it.rarity == item.rarity && it.type == item.type
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::manualStackKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.manualStacks = store
+                else scope.launch { stateStore.update { manualStacks = store } }
             }
-            if (existing != null) {
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                if (ts != null) {
-                    ts.manualStacks = ts.manualStacks.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                } else {
-                    scope.launch { stateStore.update {
-                        manualStacks = manualStacks.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } }
-                }
-                val merged = existing.copy(quantity = newQty)
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-            }
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.manualStacks = ts.manualStacks + item
-        } else {
-            scope.launch { stateStore.update {
-                manualStacks = manualStacks + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     override fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance> {
@@ -452,59 +504,14 @@ class InventorySystem @Inject constructor(
     }
 
     fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentEquipmentStacks().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked equipment stack: ${existing.name}")
-            return false
+        val currentItems = currentEquipmentStacks()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::equipmentStackKey, getMaxStackForType("equipment_stack"), "equipment"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.equipmentStacks = store
+            else scope.launch { stateStore.update { equipmentStacks = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.equipmentStacks = ts.equipmentStacks.mapNotNull { stack ->
-                if (stack.id == id && !removed) {
-                    val newQty = stack.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
-                            stack
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            stack.copy(quantity = newQty)
-                        }
-                    }
-                } else stack
-            }
-        } else {
-            scope.launch { stateStore.update {
-                equipmentStacks = equipmentStacks.mapNotNull { stack ->
-                    if (stack.id == id && !removed) {
-                        val newQty = stack.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
-                                stack
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                stack.copy(quantity = newQty)
-                            }
-                        }
-                    } else stack
-                }
-            } }
-        }
-        return removed
     }
 
     fun removeEquipmentInstance(id: String): Boolean {
@@ -570,68 +577,18 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getEquipmentStackById(id: String): EquipmentStack? {
-        return currentEquipmentStacks().find { it.id == id }
-    }
-
-    fun getEquipmentInstanceById(id: String): EquipmentInstance? {
-        return currentEquipmentInstances().find { it.id == id }
-    }
+    fun getEquipmentStackById(id: String): EquipmentStack? = getById(currentEquipmentStacks(), id)
+    fun getEquipmentInstanceById(id: String): EquipmentInstance? = getById(currentEquipmentInstances(), id)
 
     fun removeManual(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentManualStacks().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked manual stack: ${existing.name}")
-            return false
+        val currentItems = currentManualStacks()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::manualStackKey, getMaxStackForType("manual_stack"), "manual"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.manualStacks = store
+            else scope.launch { stateStore.update { manualStacks = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.manualStacks = ts.manualStacks.mapNotNull { stack ->
-                if (stack.id == id && !removed) {
-                    val newQty = stack.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
-                            stack
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            stack.copy(quantity = newQty)
-                        }
-                    }
-                } else stack
-            }
-        } else {
-            scope.launch { stateStore.update {
-                manualStacks = manualStacks.mapNotNull { stack ->
-                    if (stack.id == id && !removed) {
-                        val newQty = stack.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
-                                stack
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                stack.copy(quantity = newQty)
-                            }
-                        }
-                    } else stack
-                }
-            } }
-        }
-        return removed
     }
 
     fun removeManualInstance(id: String): Boolean {
@@ -697,109 +654,43 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getManualStackById(id: String): ManualStack? {
-        return currentManualStacks().find { it.id == id }
-    }
-
-    fun getManualInstanceById(id: String): ManualInstance? {
-        return currentManualInstances().find { it.id == id }
-    }
+    fun getManualStackById(id: String): ManualStack? = getById(currentManualStacks(), id)
+    fun getManualInstanceById(id: String): ManualInstance? = getById(currentManualInstances(), id)
 
     fun addPill(item: Pill, merge: Boolean = true): DomainResult<Pill> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentPills = ts?.pills ?: stateStore.pills.value
+        val currentItems: List<Pill> = ts?.pills?.items ?: stateStore.pills.value
+        val maxStack = getMaxStackForType("pill")
+        if (!canAddItem() && (currentItems.none { pillKey(it) == pillKey(item) } || !merge)) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        if (merge) {
-            val existing = currentPills.find {
-                it.name == item.name && it.rarity == item.rarity && it.category == item.category && it.grade == item.grade
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::pillKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.pills = store
+                else scope.launch { stateStore.update { pills = store } }
             }
-            if (existing != null) {
-                val maxStack = getMaxStackForType("pill")
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                if (ts != null) {
-                    ts.pills = ts.pills.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                } else {
-                    scope.launch { stateStore.update {
-                        pills = pills.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } }
-                }
-                val merged = existing.copy(quantity = newQty)
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-            }
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.pills = ts.pills + item
-        } else {
-            scope.launch { stateStore.update {
-                pills = pills + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentPills().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked pill: ${existing.name}")
-            return false
+        val currentItems = currentPills()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::pillKey, getMaxStackForType("pill"), "pill"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.pills = store
+            else scope.launch { stateStore.update { pills = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.pills = ts.pills.mapNotNull { pill ->
-                if (pill.id == id && !removed) {
-                    val newQty = pill.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${pill.quantity} available")
-                            pill
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            pill.copy(quantity = newQty)
-                        }
-                    }
-                } else pill
-            }
-        } else {
-            scope.launch { stateStore.update {
-                pills = pills.mapNotNull { pill ->
-                    if (pill.id == id && !removed) {
-                        val newQty = pill.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${pill.quantity} available")
-                                pill
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                pill.copy(quantity = newQty)
-                            }
-                        }
-                    } else pill
-                }
-            } }
-        }
-        return removed
     }
 
     fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false, grade: PillGrade? = null): Boolean {
@@ -888,13 +779,8 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getPillById(id: String): Pill? {
-        return currentPills().find { it.id == id }
-    }
-
-    fun getPillQuantity(id: String): Int {
-        return currentPills().find { it.id == id }?.quantity ?: 0
-    }
+    fun getPillById(id: String): Pill? = getById(currentPills(), id)
+    fun getPillQuantity(id: String): Int = getQuantity(currentPills(), id)
 
     fun hasPill(name: String, rarity: Int, quantity: Int = 1, grade: PillGrade? = null): Boolean {
         val item = currentPills().find {
@@ -908,96 +794,35 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentMaterials = ts?.materials ?: stateStore.materials.value
+        val currentItems: List<Material> = ts?.materials?.items ?: stateStore.materials.value
+        val maxStack = getMaxStackForType("material")
+        if (!canAddItem() && (currentItems.none { materialKey(it) == materialKey(item) } || !merge)) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        if (merge) {
-            val existing = currentMaterials.find {
-                it.name == item.name && it.rarity == item.rarity && it.category == item.category
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::materialKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.materials = store
+                else scope.launch { stateStore.update { materials = store } }
             }
-            if (existing != null) {
-                val maxStack = getMaxStackForType("material")
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                if (ts != null) {
-                    ts.materials = ts.materials.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                } else {
-                    scope.launch { stateStore.update {
-                        materials = materials.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } }
-                }
-                val merged = existing.copy(quantity = newQty)
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-            }
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.materials = ts.materials + item
-        } else {
-            scope.launch { stateStore.update {
-                materials = materials + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentMaterials().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked material: ${existing.name}")
-            return false
+        val currentItems = currentMaterials()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::materialKey, getMaxStackForType("material"), "material"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.materials = store
+            else scope.launch { stateStore.update { materials = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.materials = ts.materials.mapNotNull { material ->
-                if (material.id == id && !removed) {
-                    val newQty = material.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${material.quantity} available")
-                            material
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            material.copy(quantity = newQty)
-                        }
-                    }
-                } else material
-            }
-        } else {
-            scope.launch { stateStore.update {
-                materials = materials.mapNotNull { material ->
-                    if (material.id == id && !removed) {
-                        val newQty = material.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${material.quantity} available")
-                                material
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                material.copy(quantity = newQty)
-                            }
-                        }
-                    } else material
-                }
-            } }
-        }
-        return removed
     }
 
     fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -1084,13 +909,8 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getMaterialById(id: String): Material? {
-        return currentMaterials().find { it.id == id }
-    }
-
-    fun getMaterialQuantity(id: String): Int {
-        return currentMaterials().find { it.id == id }?.quantity ?: 0
-    }
+    fun getMaterialById(id: String): Material? = getById(currentMaterials(), id)
+    fun getMaterialQuantity(id: String): Int = getQuantity(currentMaterials(), id)
 
     fun hasMaterial(name: String, rarity: Int, quantity: Int = 1): Boolean {
         val item = currentMaterials().find { it.name == name && it.rarity == rarity } ?: return false
@@ -1102,96 +922,35 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentHerbs = ts?.herbs ?: stateStore.herbs.value
+        val currentItems: List<Herb> = ts?.herbs?.items ?: stateStore.herbs.value
+        val maxStack = getMaxStackForType("herb")
+        if (!canAddItem() && (currentItems.none { herbKey(it) == herbKey(item) } || !merge)) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        if (merge) {
-            val existing = currentHerbs.find {
-                it.name == item.name && it.rarity == item.rarity && it.category == item.category
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::herbKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.herbs = store
+                else scope.launch { stateStore.update { herbs = store } }
             }
-            if (existing != null) {
-                val maxStack = getMaxStackForType("herb")
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                if (ts != null) {
-                    ts.herbs = ts.herbs.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                } else {
-                    scope.launch { stateStore.update {
-                        herbs = herbs.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } }
-                }
-                val merged = existing.copy(quantity = newQty)
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-            }
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.herbs = ts.herbs + item
-        } else {
-            scope.launch { stateStore.update {
-                herbs = herbs + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentHerbs().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked herb: ${existing.name}")
-            return false
+        val currentItems = currentHerbs()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::herbKey, getMaxStackForType("herb"), "herb"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.herbs = store
+            else scope.launch { stateStore.update { herbs = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.herbs = ts.herbs.mapNotNull { herb ->
-                if (herb.id == id && !removed) {
-                    val newQty = herb.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${herb.quantity} available")
-                            herb
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            herb.copy(quantity = newQty)
-                        }
-                    }
-                } else herb
-            }
-        } else {
-            scope.launch { stateStore.update {
-                herbs = herbs.mapNotNull { herb ->
-                    if (herb.id == id && !removed) {
-                        val newQty = herb.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${herb.quantity} available")
-                                herb
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                herb.copy(quantity = newQty)
-                            }
-                        }
-                    } else herb
-                }
-            } }
-        }
-        return removed
     }
 
     fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -1278,13 +1037,8 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getHerbById(id: String): Herb? {
-        return currentHerbs().find { it.id == id }
-    }
-
-    fun getHerbQuantity(id: String): Int {
-        return currentHerbs().find { it.id == id }?.quantity ?: 0
-    }
+    fun getHerbById(id: String): Herb? = getById(currentHerbs(), id)
+    fun getHerbQuantity(id: String): Int = getQuantity(currentHerbs(), id)
 
     fun hasHerb(name: String, rarity: Int, quantity: Int = 1): Boolean {
         val item = currentHerbs().find { it.name == name && it.rarity == rarity } ?: return false
@@ -1296,40 +1050,24 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentSeeds = ts?.seeds ?: stateStore.seeds.value
+        val currentItems: List<Seed> = ts?.seeds?.items ?: stateStore.seeds.value
+        val maxStack = getMaxStackForType("seed")
+        if (!canAddItem() && (currentItems.none { seedKey(it) == seedKey(item) } || !merge)) {
+            return DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
 
-        if (merge) {
-            val existing = currentSeeds.find {
-                it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
+        val result = addWithStore(
+            item = item,
+            currentItems = currentItems,
+            stackKeyOf = ::seedKey,
+            maxStack = maxStack,
+            writeItems = { items ->
+                val store = EntityStore(items)
+                if (ts != null) ts.seeds = store
+                else scope.launch { stateStore.update { seeds = store } }
             }
-            if (existing != null) {
-                val maxStack = getMaxStackForType("seed")
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                if (ts != null) {
-                    ts.seeds = ts.seeds.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                } else {
-                    scope.launch { stateStore.update {
-                        seeds = seeds.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } }
-                }
-                val merged = existing.copy(quantity = newQty)
-            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-            }
-        }
-        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
-        if (ts != null) {
-            ts.seeds = ts.seeds + item
-        } else {
-            scope.launch { stateStore.update {
-                seeds = seeds + item
-            } }
-        }
-        return DomainResult.Success(item)
+        )
+        return result
     }
 
     suspend fun addSeedSync(item: Seed, merge: Boolean = true): DomainResult<Seed> {
@@ -1387,59 +1125,14 @@ class InventorySystem @Inject constructor(
     }
 
     fun removeSeed(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = currentSeeds().find { it.id == id }
-        if (!bypassLock && existing?.isLocked == true) {
-            logWarning("Cannot remove locked seed: ${existing.name}")
-            return false
+        val currentItems = currentSeeds()
+        return removeStackable(id, quantity, bypassLock, currentItems,
+            ::seedKey, getMaxStackForType("seed"), "seed"
+        ) { items -> val ts = stateStore.currentTransactionMutableState()
+            val store = EntityStore(items)
+            if (ts != null) ts.seeds = store
+            else scope.launch { stateStore.update { seeds = store } }
         }
-
-        var removed = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.seeds = ts.seeds.mapNotNull { seed ->
-                if (seed.id == id && !removed) {
-                    val newQty = seed.quantity - quantity
-                    when {
-                        newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${seed.quantity} available")
-                            seed
-                        }
-                        newQty == 0 -> {
-                            removed = true
-                            null
-                        }
-                        else -> {
-                            removed = true
-                            seed.copy(quantity = newQty)
-                        }
-                    }
-                } else seed
-            }
-        } else {
-            scope.launch { stateStore.update {
-                seeds = seeds.mapNotNull { seed ->
-                    if (seed.id == id && !removed) {
-                        val newQty = seed.quantity - quantity
-                        when {
-                            newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${seed.quantity} available")
-                                seed
-                            }
-                            newQty == 0 -> {
-                                removed = true
-                                null
-                            }
-                            else -> {
-                                removed = true
-                                seed.copy(quantity = newQty)
-                            }
-                        }
-                    } else seed
-                }
-            } }
-        }
-        return removed
     }
 
     suspend fun removeSeedSync(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -1594,13 +1287,8 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getSeedById(id: String): Seed? {
-        return currentSeeds().find { it.id == id }
-    }
-
-    fun getSeedQuantity(id: String): Int {
-        return currentSeeds().find { it.id == id }?.quantity ?: 0
-    }
+    fun getSeedById(id: String): Seed? = getById(currentSeeds(), id)
+    fun getSeedQuantity(id: String): Int = getQuantity(currentSeeds(), id)
 
     fun hasSeed(name: String, rarity: Int, quantity: Int = 1): Boolean {
         val item = currentSeeds().find { it.name == name && it.rarity == rarity } ?: return false

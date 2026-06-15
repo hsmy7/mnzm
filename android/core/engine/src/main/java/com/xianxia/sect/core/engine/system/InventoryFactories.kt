@@ -10,12 +10,17 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * 仓库物品工厂方法
  * 从 InventorySystem.kt 提取的无状态纯函数
  */
-object InventoryFactories {
+@Singleton
+class InventoryFactories @Inject constructor(
+    private val converter: MerchantItemConverter
+) {
 
     fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack {
         val template = EquipmentDatabase.getTemplateByName(recipe.name)
@@ -43,24 +48,46 @@ object InventoryFactories {
     }
 
     fun createEquipmentFromMerchantItem(item: MerchantItem): EquipmentStack {
-        val eq = MerchantItemConverter.toEquipment(item)
+        val eq = converter.toEquipment(item)
         return eq.copy(quantity = 1)
     }
 
     fun createManualFromMerchantItem(item: MerchantItem): ManualStack {
-        val manual = MerchantItemConverter.toManual(item)
+        val manual = converter.toManual(item)
         return manual.copy(quantity = 1)
     }
 
     fun createPillFromMerchantItem(item: MerchantItem): Pill =
-        MerchantItemConverter.toPill(item)
+        converter.toPill(item)
 
     fun createMaterialFromMerchantItem(item: MerchantItem): Material =
-        MerchantItemConverter.toMaterial(item)
+        converter.toMaterial(item)
 
     fun createHerbFromMerchantItem(item: MerchantItem): Herb =
-        MerchantItemConverter.toHerb(item)
+        converter.toHerb(item)
 
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
-        MerchantItemConverter.toSeed(item)
+        converter.toSeed(item)
+
+    // -- 向后兼容：companion 桥接 --
+
+    companion object {
+        @Volatile
+        private var _instance: InventoryFactories? = null
+
+        internal fun initialize(instance: InventoryFactories) {
+            _instance = instance
+        }
+
+        private val instance: InventoryFactories
+            get() = _instance ?: InventoryFactories(MerchantItemConverter.companionInstance).also { _instance = it }
+
+        fun createEquipmentFromRecipe(recipe: ForgeRecipe) = instance.createEquipmentFromRecipe(recipe)
+        fun createEquipmentFromMerchantItem(item: MerchantItem) = instance.createEquipmentFromMerchantItem(item)
+        fun createManualFromMerchantItem(item: MerchantItem) = instance.createManualFromMerchantItem(item)
+        fun createPillFromMerchantItem(item: MerchantItem) = instance.createPillFromMerchantItem(item)
+        fun createMaterialFromMerchantItem(item: MerchantItem) = instance.createMaterialFromMerchantItem(item)
+        fun createHerbFromMerchantItem(item: MerchantItem) = instance.createHerbFromMerchantItem(item)
+        fun createSeedFromMerchantItem(item: MerchantItem) = instance.createSeedFromMerchantItem(item)
+    }
 }

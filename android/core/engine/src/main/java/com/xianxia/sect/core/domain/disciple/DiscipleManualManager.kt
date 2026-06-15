@@ -3,10 +3,15 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.system.StackUpdate
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.StorageBagUtils
+import javax.inject.Inject
+import javax.inject.Singleton
 
-object DiscipleManualManager {
+@Singleton
+class DiscipleManualManager @Inject constructor() {
 
-    private const val MAX_MANUAL_STACK = 999
+    companion object {
+        private const val MAX_MANUAL_STACK = 999
+    }
 
     data class ManualLearnResult(
         val disciple: Disciple,

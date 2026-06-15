@@ -73,7 +73,7 @@ class InventoryFacadeImpl @Inject constructor(
                             description = template.description,
                             minRealm = com.xianxia.sect.core.GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
-                        val existingEqStack = equipmentStacks.all().find { it.name == stack.name && it.rarity == stack.rarity }
+                        val existingEqStack = equipmentStacks.all().find { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot }
                         if (existingEqStack != null) {
                             equipmentStacks.update(existingEqStack.id) { it.copy(quantity = it.quantity + 1) }
                         } else {
@@ -84,7 +84,7 @@ class InventoryFacadeImpl @Inject constructor(
                 "manual" -> {
                     val template = com.xianxia.sect.core.registry.ManualDatabase.getByName(item.name)
                     if (template != null) {
-                        val existingManualStack = manualStacks.all().find { it.name == template.name && it.rarity == template.rarity }
+                        val existingManualStack = manualStacks.all().find { it.name == template.name && it.rarity == template.rarity && it.type == template.type }
                         if (existingManualStack != null) {
                             manualStacks.update(existingManualStack.id) { it.copy(quantity = it.quantity + 1) }
                         } else {
@@ -97,7 +97,7 @@ class InventoryFacadeImpl @Inject constructor(
                         ?: com.xianxia.sect.core.registry.ItemDatabase.getPillByName(item.name)
                     if (template != null) {
                         val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)
-                        val existingPill = pills.all().find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
+                        val existingPill = pills.all().find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category && it.grade == pill.grade }
                         if (existingPill != null) {
                             pills.update(existingPill.id) { it.copy(quantity = it.quantity + 1) }
                         } else {
@@ -107,7 +107,8 @@ class InventoryFacadeImpl @Inject constructor(
                 }
                 "herb" -> {
                     val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(item.name)
-                    val existingHerb = herbs.all().find { it.name == item.name && it.rarity == item.rarity }
+                    val herbCategory = herbTemplate?.category ?: ""
+                    val existingHerb = herbs.all().find { it.name == item.name && it.rarity == item.rarity && it.category == herbCategory }
                     if (existingHerb != null) {
                         herbs.update(existingHerb.id) { it.copy(quantity = it.quantity + 1) }
                     } else {
@@ -121,22 +122,29 @@ class InventoryFacadeImpl @Inject constructor(
                     }
                 }
                 "seed" -> {
-                    val existingSeed = seeds.all().find { it.name == item.name && it.rarity == item.rarity }
+                    val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.getSeedByName(item.name)
+                    val seedGrowTime = seedTemplate?.growTime ?: 0
+                    val existingSeed = seeds.all().find { it.name == item.name && it.rarity == item.rarity && it.growTime == seedGrowTime }
                     if (existingSeed != null) {
                         seeds.update(existingSeed.id) { it.copy(quantity = it.quantity + 1) }
                     } else {
                         seeds.add(Seed(
                             name = item.name,
                             rarity = item.rarity,
-                            description = "",
-                            growTime = 0,
+                            description = seedTemplate?.description ?: "",
+                            growTime = seedGrowTime,
                             quantity = 1
                         ))
                     }
                 }
                 "material" -> {
                     val matTemplate = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
-                    val existingMat = materials.all().find { it.name == item.name && it.rarity == item.rarity }
+                    val matCategory: com.xianxia.sect.core.model.MaterialCategory = try {
+                        com.xianxia.sect.core.model.MaterialCategory.valueOf(matTemplate?.category ?: "BEAST_HIDE")
+                    } catch (_: IllegalArgumentException) {
+                        com.xianxia.sect.core.model.MaterialCategory.BEAST_HIDE
+                    }
+                    val existingMat = materials.all().find { it.name == item.name && it.rarity == item.rarity && it.category == matCategory }
                     if (existingMat != null) {
                         materials.update(existingMat.id) { it.copy(quantity = it.quantity + 1) }
                     } else {
@@ -144,6 +152,7 @@ class InventoryFacadeImpl @Inject constructor(
                             name = item.name,
                             rarity = item.rarity,
                             description = matTemplate?.description ?: "",
+                            category = matCategory,
                             quantity = 1
                         ))
                     }

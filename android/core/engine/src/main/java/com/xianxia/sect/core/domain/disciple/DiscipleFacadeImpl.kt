@@ -37,7 +37,8 @@ class DiscipleFacadeImpl @Inject constructor(
     private val cultivationService: CultivationService,
     private val gameEngineCore: GameEngineCore,
     private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val pillManager: DisciplePillManager
 ) : DiscipleFacade {
 
     companion object {
@@ -202,7 +203,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
+    override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {
         items.forEach { item ->
             when (item.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> rewardEquipment(discipleId, item)
@@ -213,6 +214,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 "seed" -> rewardSeed(discipleId, item, item.quantity.coerceAtLeast(1))
             }
         }
+        return DomainResult.Success(Unit)
     }
 
     private suspend fun rewardEquipment(discipleId: String, item: RewardSelectedItem) {
@@ -463,10 +465,10 @@ class DiscipleFacadeImpl @Inject constructor(
             val pillItem = StorageBagItem(itemId = item.id, itemType = "pill",
                 name = pill.name, rarity = pill.rarity, quantity = quantity,
                 obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
-                effect = DisciplePillManager.pillToItemEffect(pill),
+                effect = pillManager.pillToItemEffect(pill),
                 grade = pill.grade.displayName)
             val disciple = discipleTables.assemble(id)
-            val canUse = DisciplePillManager.canUsePill(disciple, pillItem).canUse
+            val canUse = pillManager.canUsePill(disciple, pillItem).canUse
             if (pill.quantity == quantity) pills.remove(item.id)
             else pills.update(item.id) { it.copy(quantity = pill.quantity - quantity) }
             if (canUse) {

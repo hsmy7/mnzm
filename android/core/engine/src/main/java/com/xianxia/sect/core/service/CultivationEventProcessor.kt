@@ -49,7 +49,9 @@ class CultivationEventProcessor @Inject constructor(
     private val merchantAndRecruitService: MerchantAndRecruitService,
     private val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
     private val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
-    private val diplomacyEventProcessor: DiplomacyEventProcessor
+    private val diplomacyEventProcessor: DiplomacyEventProcessor,
+    private val equipmentManager: DiscipleEquipmentManager,
+    private val manualManager: DiscipleManualManager
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -246,7 +248,7 @@ class CultivationEventProcessor @Inject constructor(
             var d = disciple
 
             if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
-                val result = DiscipleEquipmentManager.processAutoEquipFromWarehouse(
+                val result = equipmentManager.processAutoEquipFromWarehouse(
                     disciple = d,
                     warehouseStacks = eqStacks,
                     equipmentInstances = eqInstancesById,
@@ -271,7 +273,7 @@ class CultivationEventProcessor @Inject constructor(
             }
 
             if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
-                val result = DiscipleManualManager.processAutoLearnFromWarehouse(
+                val result = manualManager.processAutoLearnFromWarehouse(
                     disciple = d,
                     warehouseStacks = mnStacks,
                     manualInstances = mnInstancesById,

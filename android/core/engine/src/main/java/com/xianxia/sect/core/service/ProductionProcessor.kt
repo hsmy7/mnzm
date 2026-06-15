@@ -23,8 +23,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-@GameService("ProductionSubsystem")
-class ProductionSubsystem @Inject constructor(
+@GameService("ProductionProcessor")
+class ProductionProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
@@ -37,7 +37,7 @@ class ProductionSubsystem @Inject constructor(
     private val scope get() = scopeProvider.scope
 
     companion object {
-        private const val TAG = "ProductionSubsystem"
+        private const val TAG = "ProductionProcessor"
     }
 
     // ── 建筑生产 ──────────────────────────────────────────────────────

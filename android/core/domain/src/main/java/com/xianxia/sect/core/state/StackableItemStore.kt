@@ -83,7 +83,7 @@ class StackableItemStore<T>(
         val existingId = if (merge) keyIndex[key] else null
 
         if (existingId != null) {
-            val existing = store.get(existingId)!!
+            val existing = checkNotNull(store.get(existingId)) { "keyIndex 指向不存在的物品: $existingId" }
             val newQty = existing.quantity + item.quantity
             return if (newQty <= maxStack) {
                 val merged = existing.withQuantity(newQty) as T

@@ -26,7 +26,10 @@ class CultivationCore @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val thermalMonitor: ThermalMonitor,
     private val gameClock: GameTimeClock,
-    private val scopeProvider: CoroutineScopeProvider
+    private val scopeProvider: CoroutineScopeProvider,
+    private val pillManager: DisciplePillManager,
+    private val equipmentManager: DiscipleEquipmentManager,
+    private val manualManager: DiscipleManualManager
 ) {
 
     val phaseMultiplier: Int get() = 10
@@ -262,7 +265,7 @@ class CultivationCore @Inject constructor(
             }
         }
 
-        val pillResult = DisciplePillManager.processAutoUsePills(
+        val pillResult = pillManager.processAutoUsePills(
             disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
         )
         if (pillResult.disciple != d) {
@@ -272,7 +275,7 @@ class CultivationCore @Inject constructor(
         val hasEquipmentInBag = d.equipment.storageBagItems.any { it.itemType == "equipment" }
         val needEquipCheck = hasEquipmentInBag || d.id in autoEquipDirty
         val equipResult = if (needEquipCheck) {
-            DiscipleEquipmentManager.processAutoEquip(
+            equipmentManager.processAutoEquip(
                 disciple = d, equipmentStacks = equipmentStacksList,
                 equipmentInstances = equipmentMap,
                 gameYear = year, gameMonth = month, gamePhase = phase,
@@ -298,7 +301,7 @@ class CultivationCore @Inject constructor(
         val hasManualInBag = d.equipment.storageBagItems.any { it.itemType == "manual" }
         val needLearnCheck = hasManualInBag || d.id in autoLearnDirty
         val manualResult = if (needLearnCheck) {
-            DiscipleManualManager.processAutoLearn(
+            manualManager.processAutoLearn(
                 disciple = d, manualStacks = manualStacksList,
                 manualInstances = manualMap,
                 gameYear = year, gameMonth = month, gamePhase = phase,

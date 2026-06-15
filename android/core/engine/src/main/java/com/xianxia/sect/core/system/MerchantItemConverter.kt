@@ -20,8 +20,12 @@ import com.xianxia.sect.core.model.PillEffect
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 
-object MerchantItemConverter {
+@Singleton
+class MerchantItemConverter @Inject constructor() {
+
     fun toEquipment(item: MerchantItem): EquipmentStack {
         val template = EquipmentDatabase.getTemplateByName(item.name)
         if (template != null) {
@@ -266,5 +270,31 @@ object MerchantItemConverter {
         data class HerbParams(val name: String, val rarity: Int, val category: String) : CapacityCheckParams()
         data class SeedParams(val name: String, val rarity: Int, val growTime: Int) : CapacityCheckParams()
         object Unknown : CapacityCheckParams()
+    }
+
+    // -- 向后兼容：companion 桥接，现有调用点无需改动 --
+
+    companion object {
+        @Volatile
+        private var _instance: MerchantItemConverter? = null
+
+        internal fun initialize(instance: MerchantItemConverter) {
+            _instance = instance
+        }
+
+        private val instance: MerchantItemConverter
+            get() = _instance ?: MerchantItemConverter().also { _instance = it }
+
+        /** 供其他 companion 桥接使用的内部访问器 */
+        internal val companionInstance: MerchantItemConverter get() = instance
+
+        fun toEquipment(item: MerchantItem) = instance.toEquipment(item)
+        fun toEquipmentBatch(item: MerchantItem, quantity: Int) = instance.toEquipmentBatch(item, quantity)
+        fun toManual(item: MerchantItem) = instance.toManual(item)
+        fun toPill(item: MerchantItem) = instance.toPill(item)
+        fun toMaterial(item: MerchantItem) = instance.toMaterial(item)
+        fun toHerb(item: MerchantItem) = instance.toHerb(item)
+        fun toSeed(item: MerchantItem) = instance.toSeed(item)
+        fun getCapacityCheckParams(item: MerchantItem) = instance.getCapacityCheckParams(item)
     }
 }

@@ -3,8 +3,11 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.StorageBagUtils
+import javax.inject.Inject
+import javax.inject.Singleton
 
-object DisciplePillManager {
+@Singleton
+class DisciplePillManager @Inject constructor() {
 
     data class PillUseResult(
         val disciple: Disciple,

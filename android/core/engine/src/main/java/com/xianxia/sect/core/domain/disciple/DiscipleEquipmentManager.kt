@@ -3,10 +3,15 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.system.StackUpdate
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.StorageBagUtils
+import javax.inject.Inject
+import javax.inject.Singleton
 
-object DiscipleEquipmentManager {
+@Singleton
+class DiscipleEquipmentManager @Inject constructor() {
 
-    private const val MAX_EQUIPMENT_STACK = 999
+    companion object {
+        private const val MAX_EQUIPMENT_STACK = 999
+    }
 
     data class EquipmentProcessResult(
         val disciple: Disciple,
