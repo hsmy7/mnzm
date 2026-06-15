@@ -381,6 +381,8 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
+
+        markMutated()
     }
 
     /**

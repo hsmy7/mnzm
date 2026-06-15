@@ -990,7 +990,6 @@
     <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }</ID>
     <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储、查看或传输。建议优先使用快速认证（无需重新输入）。") }</ID>
     <ID>MaxLineLength:ProductionComponents.kt$sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)</ID>
-    <ID>MaxLineLength:ProductionError.kt$ProductionOperationResult$@Deprecated("Use AppError.Domain.Production via toAppError()", ReplaceWith("ProductionOperationResult", "com.xianxia.sect.core.model.production.ProductionOperationResult"))</ID>
     <ID>MaxLineLength:ProductionSlotRepository.kt$ProductionSlotRepository$return@withLock Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Slot state transition validation failed without exception"))</ID>
     <ID>MaxLineLength:ProductionSubsystem.kt$ProductionSubsystem$completionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth) + seedToPlant.growTime.coerceAtLeast(1)</ID>
     <ID>MaxLineLength:ProductionSubsystem.kt$ProductionSubsystem$val emptySlot = slots.firstOrNull { it.assignedDiscipleId.isNullOrEmpty() &amp;&amp; it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }</ID>
@@ -1391,7 +1390,6 @@
     <ID>TooGenericExceptionCaught:PrivacyConsentScreen.kt$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ProactiveMemoryGuard.kt$ProactiveMemoryGuard$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ProductionComponents.kt$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:ProductionError.kt$ProductionOperationResult.Companion$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ProductionViewModel.kt$ProductionViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e1: Exception</ID>
     <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e2: Exception</ID>

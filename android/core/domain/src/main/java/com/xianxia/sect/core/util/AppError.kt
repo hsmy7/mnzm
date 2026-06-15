@@ -432,6 +432,14 @@ sealed class AppError {
                 override val code = "INV_007"
                 override val message: String = "数量不足: 需 $need 有 $have"
             }
+
+            data class DuplicateId(
+                val itemId: String,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_008"
+                override val message: String = "物品ID重复: $itemId"
+            }
         }
 
         // === 建筑领域错误（复用已有 Production 子树的 SlotBusy/InsufficientMaterials/RecipeNotFound）===

@@ -146,10 +146,11 @@ private val inventorySystem: InventorySystem,
             alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
         )
 
-        if (result is DomainResult.Failure) {
-            return result
+        val startData = when (result) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Partial -> result.data
+            is DomainResult.Success -> result.data
         }
-        val startData = (result as DomainResult.Success).data
         stateStore.update { herbs.replaceAll(startData.materialUpdate.herbs) }
 
         val recipe = PillRecipeDatabase.getRecipeById(recipeId)
@@ -223,10 +224,11 @@ private val inventorySystem: InventorySystem,
             forgePolicyBonus = if (data.sectPolicies.forgeIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
         )
 
-        if (result is DomainResult.Failure) {
-            return result
+        val startData = when (result) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Partial -> result.data
+            is DomainResult.Success -> result.data
         }
-        val startData = (result as DomainResult.Success).data
         stateStore.update { materials.replaceAll(startData.materialUpdate.materials) }
 
         val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)

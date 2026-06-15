@@ -62,7 +62,7 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun addDisciple(disciple: Disciple) = discipleService.addDisciple(disciple)
 
-    override fun removeDisciple(discipleId: String): Boolean = discipleService.removeDisciple(discipleId)
+    override fun removeDisciple(discipleId: String): DomainResult<Unit> = discipleService.removeDisciple(discipleId)
 
     override fun getDiscipleById(discipleId: String): Disciple? = discipleService.getDiscipleById(discipleId)
 
@@ -355,6 +355,105 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
+    /**
+     * 统一的丹药效果应用逻辑。消除 rewardPill 与 usePill 约 150 行重复。
+     * 调用前须确保 pill 已从库存扣除，且 realm/cannotStack/functionalType 检查已通过。
+     */
+    private fun MutableGameState.applyPillEffectsToDisciple(id: Int, pill: Pill) {
+        val effect = pill.effects
+
+        if (effect.cultivationAdd > 0) {
+            discipleTables.cultivations[id] = discipleTables.cultivations[id] + effect.cultivationAdd
+        }
+
+        if (effect.skillExpAdd > 0) {
+            discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) ->
+                (v + effect.skillExpAdd).coerceAtMost(10000)
+            }
+        }
+
+        if (effect.cultivationSpeedPercent > 0) {
+            discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
+            discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30
+                else discipleTables.cultivationSpeedDurations[id]
+        }
+
+        if (effect.extendLife > 0) {
+            discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
+            val usedExtendLife = discipleTables.usedExtendLifePillIds[id]
+            if (!usedExtendLife.contains(pill.pillType)) {
+                discipleTables.usedExtendLifePillIds[id] = usedExtendLife + pill.pillType
+            }
+        }
+
+        if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
+            effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
+            effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
+            effect.miningAdd > 0
+        ) {
+            discipleTables.intelligences[id] = discipleTables.intelligences[id] + effect.intelligenceAdd
+            discipleTables.charms[id] = discipleTables.charms[id] + effect.charmAdd
+            discipleTables.loyalties[id] = discipleTables.loyalties[id] + effect.loyaltyAdd
+            discipleTables.comprehensions[id] = discipleTables.comprehensions[id] + effect.comprehensionAdd
+            discipleTables.artifactRefinings[id] = discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd
+            discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id] + effect.pillRefiningAdd
+            discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd
+            discipleTables.teachings[id] = discipleTables.teachings[id] + effect.teachingAdd
+            discipleTables.moralities[id] = discipleTables.moralities[id] + effect.moralityAdd
+            discipleTables.minings[id] = discipleTables.minings[id] + effect.miningAdd
+        }
+
+        if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
+            val usedTypes = discipleTables.usedFunctionalPillTypes[id]
+            discipleTables.usedFunctionalPillTypes[id] = usedTypes + pill.pillType
+        }
+
+        if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
+            effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
+            effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
+            effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
+            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
+        ) {
+            discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
+            discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
+            discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
+            discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
+            discipleTables.pillHpBonuses[id] = effect.hpAdd
+            discipleTables.pillMpBonuses[id] = effect.mpAdd
+            discipleTables.pillSpeedBonuses[id] = effect.speedAdd
+            discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
+            discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
+            discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
+            discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
+            discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
+            discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30
+                else discipleTables.pillEffectDurations[id]
+            discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name
+                else discipleTables.activePillCategories[id]
+        }
+
+        if (effect.healMaxHpPercent > 0) {
+            discipleTables.hpVariances[id] = 0
+        }
+
+        if (effect.clearAll) {
+            discipleTables.pillPhysicalAttackBonuses[id] = 0
+            discipleTables.pillMagicAttackBonuses[id] = 0
+            discipleTables.pillPhysicalDefenseBonuses[id] = 0
+            discipleTables.pillMagicDefenseBonuses[id] = 0
+            discipleTables.pillHpBonuses[id] = 0
+            discipleTables.pillMpBonuses[id] = 0
+            discipleTables.pillSpeedBonuses[id] = 0
+            discipleTables.pillEffectDurations[id] = 0
+            discipleTables.pillCritRateBonuses[id] = 0.0
+            discipleTables.pillCritEffectBonuses[id] = 0.0
+            discipleTables.pillCultivationSpeedBonuses[id] = 0.0
+            discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
+            discipleTables.pillNurtureSpeedBonuses[id] = 0.0
+            discipleTables.activePillCategories[id] = ""
+        }
+    }
+
     private suspend fun rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
             val pill = pills.get(item.id)
@@ -371,50 +470,7 @@ class DiscipleFacadeImpl @Inject constructor(
             if (pill.quantity == quantity) pills.remove(item.id)
             else pills.update(item.id) { it.copy(quantity = pill.quantity - quantity) }
             if (canUse) {
-                val effect = pill.effects
-                if (effect.cultivationAdd > 0) discipleTables.cultivations[id] = (discipleTables.cultivations[id] + effect.cultivationAdd).coerceAtLeast(0.0)
-                if (effect.skillExpAdd > 0) discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) }
-                if (effect.cultivationSpeedPercent > 0) { discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent; discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.cultivationSpeedDurations[id] }
-                if (effect.extendLife > 0) { discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife; val used = discipleTables.usedExtendLifePillIds[id]; if (!used.contains(pill.pillType)) discipleTables.usedExtendLifePillIds[id] = used + pill.pillType }
-                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 || effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 || effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 || effect.miningAdd > 0) {
-                    discipleTables.intelligences[id] = (discipleTables.intelligences[id] + effect.intelligenceAdd).coerceAtLeast(0)
-                    discipleTables.charms[id] = (discipleTables.charms[id] + effect.charmAdd).coerceAtLeast(0)
-                    discipleTables.loyalties[id] = (discipleTables.loyalties[id] + effect.loyaltyAdd).coerceAtLeast(0)
-                    discipleTables.comprehensions[id] = (discipleTables.comprehensions[id] + effect.comprehensionAdd).coerceAtLeast(0)
-                    discipleTables.artifactRefinings[id] = (discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd).coerceAtLeast(0)
-                    discipleTables.pillRefinings[id] = (discipleTables.pillRefinings[id] + effect.pillRefiningAdd).coerceAtLeast(0)
-                    discipleTables.spiritPlantings[id] = (discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd).coerceAtLeast(0)
-                    discipleTables.teachings[id] = (discipleTables.teachings[id] + effect.teachingAdd).coerceAtLeast(0)
-                    discipleTables.moralities[id] = (discipleTables.moralities[id] + effect.moralityAdd).coerceAtLeast(0)
-                    discipleTables.minings[id] = (discipleTables.minings[id] + effect.miningAdd).coerceAtLeast(0)
-                }
-                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) discipleTables.usedFunctionalPillTypes[id] = discipleTables.usedFunctionalPillTypes[id] + pill.pillType
-                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 || effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 || effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 || effect.critRateAdd > 0 || effect.critEffectAdd > 0 || effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0) {
-                    discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
-                    discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
-                    discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
-                    discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
-                    discipleTables.pillHpBonuses[id] = effect.hpAdd
-                    discipleTables.pillMpBonuses[id] = effect.mpAdd
-                    discipleTables.pillSpeedBonuses[id] = effect.speedAdd
-                    discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
-                    discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
-                    discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-                    discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
-                    discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
-                    discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.pillEffectDurations[id]
-                    discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name else discipleTables.activePillCategories[id]
-                }
-                if (effect.healMaxHpPercent > 0) discipleTables.hpVariances[id] = 0
-                if (effect.clearAll) {
-                    discipleTables.pillPhysicalAttackBonuses[id] = 0; discipleTables.pillMagicAttackBonuses[id] = 0
-                    discipleTables.pillPhysicalDefenseBonuses[id] = 0; discipleTables.pillMagicDefenseBonuses[id] = 0
-                    discipleTables.pillHpBonuses[id] = 0; discipleTables.pillMpBonuses[id] = 0
-                    discipleTables.pillSpeedBonuses[id] = 0; discipleTables.pillEffectDurations[id] = 0
-                    discipleTables.pillCritRateBonuses[id] = 0.0; discipleTables.pillCritEffectBonuses[id] = 0.0
-                    discipleTables.pillCultivationSpeedBonuses[id] = 0.0; discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
-                    discipleTables.pillNurtureSpeedBonuses[id] = 0.0; discipleTables.activePillCategories[id] = ""
-                }
+                applyPillEffectsToDisciple(id, pill)
             } else {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id], pillItem, inventoryConfig.getMaxStackSize("pill"))
@@ -683,94 +739,7 @@ class DiscipleFacadeImpl @Inject constructor(
                     pills.remove(pillId)
                 }
 
-                val effect = pill.effects
-
-                if (effect.cultivationAdd > 0) {
-                    discipleTables.cultivations[id] = (discipleTables.cultivations[id] + effect.cultivationAdd).coerceAtLeast(0.0)
-                }
-
-                if (effect.skillExpAdd > 0) {
-                    discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) ->
-                        (v + effect.skillExpAdd).coerceAtMost(10000)
-                    }
-                }
-
-                if (effect.cultivationSpeedPercent > 0) {
-                    discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-                    discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.cultivationSpeedDurations[id]
-                }
-
-                if (effect.extendLife > 0) {
-                    discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
-                    val usedExtendLife = discipleTables.usedExtendLifePillIds[id]
-                    if (!usedExtendLife.contains(pill.pillType)) {
-                        discipleTables.usedExtendLifePillIds[id] = usedExtendLife + pill.pillType
-                    }
-                }
-
-                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
-                    effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
-                    effect.miningAdd > 0
-                ) {
-                    discipleTables.intelligences[id] = (discipleTables.intelligences[id] + effect.intelligenceAdd).coerceAtLeast(0)
-                    discipleTables.charms[id] = (discipleTables.charms[id] + effect.charmAdd).coerceAtLeast(0)
-                    discipleTables.loyalties[id] = (discipleTables.loyalties[id] + effect.loyaltyAdd).coerceAtLeast(0)
-                    discipleTables.comprehensions[id] = (discipleTables.comprehensions[id] + effect.comprehensionAdd).coerceAtLeast(0)
-                    discipleTables.artifactRefinings[id] = (discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd).coerceAtLeast(0)
-                    discipleTables.pillRefinings[id] = (discipleTables.pillRefinings[id] + effect.pillRefiningAdd).coerceAtLeast(0)
-                    discipleTables.spiritPlantings[id] = (discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd).coerceAtLeast(0)
-                    discipleTables.teachings[id] = (discipleTables.teachings[id] + effect.teachingAdd).coerceAtLeast(0)
-                    discipleTables.moralities[id] = (discipleTables.moralities[id] + effect.moralityAdd).coerceAtLeast(0)
-                    discipleTables.minings[id] = (discipleTables.minings[id] + effect.miningAdd).coerceAtLeast(0)
-                }
-
-                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-                    discipleTables.usedFunctionalPillTypes[id] = usedFunctionalPillTypes + pill.pillType
-                }
-
-                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
-                    effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
-                    effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
-                    effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
-                    effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
-                ) {
-                    discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
-                    discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
-                    discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
-                    discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
-                    discipleTables.pillHpBonuses[id] = effect.hpAdd
-                    discipleTables.pillMpBonuses[id] = effect.mpAdd
-                    discipleTables.pillSpeedBonuses[id] = effect.speedAdd
-                    discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
-                    discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
-                    discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-                    discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
-                    discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
-                    discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.pillEffectDurations[id]
-                    discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name else activePillCategory
-                }
-
-                if (effect.healMaxHpPercent > 0) {
-                    discipleTables.hpVariances[id] = 0
-                }
-
-                if (effect.clearAll) {
-                    discipleTables.pillPhysicalAttackBonuses[id] = 0
-                    discipleTables.pillMagicAttackBonuses[id] = 0
-                    discipleTables.pillPhysicalDefenseBonuses[id] = 0
-                    discipleTables.pillMagicDefenseBonuses[id] = 0
-                    discipleTables.pillHpBonuses[id] = 0
-                    discipleTables.pillMpBonuses[id] = 0
-                    discipleTables.pillSpeedBonuses[id] = 0
-                    discipleTables.pillEffectDurations[id] = 0
-                    discipleTables.pillCritRateBonuses[id] = 0.0
-                    discipleTables.pillCritEffectBonuses[id] = 0.0
-                    discipleTables.pillCultivationSpeedBonuses[id] = 0.0
-                    discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
-                    discipleTables.pillNurtureSpeedBonuses[id] = 0.0
-                    discipleTables.activePillCategories[id] = ""
-                }
+                applyPillEffectsToDisciple(id, pill)
             }
         }
     }

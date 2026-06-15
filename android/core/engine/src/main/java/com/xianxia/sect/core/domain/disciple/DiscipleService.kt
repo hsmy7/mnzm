@@ -62,14 +62,16 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Remove disciple by ID
      */
-    fun removeDisciple(discipleId: String): Boolean {
-        val id = discipleId.toIntOrNull() ?: return false
+    fun removeDisciple(discipleId: String): DomainResult<Unit> {
+        val id = discipleId.toIntOrNull()
+            ?: return DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
         val tables = stateStore.discipleTables
-        if (tables.ids.contains(id)) {
+        return if (tables.ids.contains(id)) {
             tables.remove(id)
-            return true
+            DomainResult.Success(Unit)
+        } else {
+            DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
         }
-        return false
     }
 
     /**
@@ -453,17 +455,17 @@ private val scopeProvider: CoroutineScopeProvider,
      * Expel disciple from sect
      */
     suspend fun expelDisciple(discipleId: String): DomainResult<Unit> {
-        var result = false
+        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
             if (id == null || !discipleTables.ids.contains(id)) {
-                result = false
+                error = AppError.Domain.Disciple.NotFound(discipleId)
                 return@update
             }
 
             val isAlive = discipleTables.isAlive[id] == 1
             if (!isAlive) {
-                result = false
+                error = AppError.Domain.Disciple.NotAlive(discipleId)
                 return@update
             }
 
@@ -543,9 +545,10 @@ private val scopeProvider: CoroutineScopeProvider,
 
             discipleTables.remove(id)
 
-            result = true
+            error = null
         }
-        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
+        val finalError = error
+        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
     }
 
     // ==================== 装备管理 ====================
@@ -556,33 +559,51 @@ private val scopeProvider: CoroutineScopeProvider,
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
     suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
-        var result = false
+        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) { result = false; return@update }
+            if (id == null || !discipleTables.ids.contains(id)) {
+                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
+            }
 
             val equipmentStack = equipmentStacks.get(equipmentId)
             val equipmentInstance = equipmentInstances.get(equipmentId)
 
-            if (equipmentStack == null && equipmentInstance == null) { result = false; return@update }
+            if (equipmentStack == null && equipmentInstance == null) {
+                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
+            }
 
             val discipleRealm = discipleTables.realms[id]
 
             if (equipmentInstance != null) {
                 if (equipmentInstance.isEquipped) {
-                    if (equipmentInstance.ownerId == discipleId) { result = false; return@update }
-                    result = false; return@update
+                    if (equipmentInstance.ownerId == discipleId) {
+                        error = AppError.Domain.Disciple.AlreadyEquipped(
+                            slot = equipmentInstance.slot.name
+                        ); return@update
+                    }
+                    error = AppError.Domain.Disciple.AlreadyEquipped(
+                        slot = equipmentInstance.slot.name
+                    ); return@update
                 }
                 if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentInstance.minRealm)) {
-                    result = false; return@update
+                    error = AppError.Domain.Disciple.RealmTooLow(
+                        discipleId = discipleId,
+                        need = "境界${equipmentInstance.minRealm}"
+                    ); return@update
                 }
             } else if (equipmentStack != null) {
                 if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentStack.minRealm)) {
-                    result = false; return@update
+                    error = AppError.Domain.Disciple.RealmTooLow(
+                        discipleId = discipleId,
+                        need = "境界${equipmentStack.minRealm}"
+                    ); return@update
                 }
             }
 
-            val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run { result = false; return@update }
+            val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run {
+                error = AppError.Domain.Disciple.SlotInvalid("无法确定装备槽位"); return@update
+            }
             val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
 
             val oldEquipId = when (slot) {
@@ -596,7 +617,8 @@ private val scopeProvider: CoroutineScopeProvider,
                 val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
                 if (!unequipped) {
                     DomainLog.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
-                    result = false; return@update
+                    error = AppError.Domain.Disciple.SlotInvalid("卸下旧装备失败 $oldEquipId")
+                    return@update
                 }
             }
 
@@ -630,9 +652,10 @@ private val scopeProvider: CoroutineScopeProvider,
                 equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
             }
 
-            result = true
+            error = null
         }
-        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
+        val finalError = error
+        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
     }
 
     /**
@@ -642,19 +665,26 @@ private val scopeProvider: CoroutineScopeProvider,
      * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
-        var result = false
+        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) { result = false; return@update }
+            if (id == null || !discipleTables.ids.contains(id)) {
+                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
+            }
             val isEquipped = discipleTables.weaponIds[id] == equipmentId ||
                 discipleTables.armorIds[id] == equipmentId ||
                 discipleTables.bootsIds[id] == equipmentId ||
                 discipleTables.accessoryIds[id] == equipmentId
-            if (!isEquipped) { result = false; return@update }
+            if (!isEquipped) {
+                error = AppError.Domain.Disciple.SlotInvalid("装备未穿戴在弟子身上")
+                return@update
+            }
 
-            result = unequipEquipmentLogic(discipleId, equipmentId)
+            val unequipped = unequipEquipmentLogic(discipleId, equipmentId)
+            if (unequipped) error = null
         }
-        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
+        val finalError = error
+        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
     }
 
     private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {

@@ -104,7 +104,11 @@ class StackableItemStore<T>(
         }
 
         store.add(item)
-        keyIndex[key] = item.id
+        // 仅当 merge=true 或 keyIndex 中不存在同 key 时才更新索引；
+        // merge=false 时不覆盖已有映射，避免原物品在后续 remove/get 中不可见
+        if (merge || !keyIndex.containsKey(key)) {
+            keyIndex[key] = item.id
+        }
         return DomainResult.Success(item)
     }
 

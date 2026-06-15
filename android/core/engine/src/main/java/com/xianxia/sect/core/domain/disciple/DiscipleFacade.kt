@@ -13,7 +13,7 @@ interface DiscipleFacade {
     val realtimeCultivation: StateFlow<Map<String, Double>>
 
     fun addDisciple(disciple: Disciple)
-    fun removeDisciple(discipleId: String): Boolean
+    fun removeDisciple(discipleId: String): DomainResult<Unit>
     fun getDiscipleById(discipleId: String): Disciple?
     fun updateDisciple(disciple: Disciple)
     suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple)

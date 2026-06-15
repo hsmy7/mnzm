@@ -718,7 +718,9 @@ class GameStateStoreImpl @Inject constructor(
         // 执行 block——它正是外层 update 正在操作的对象，改动会随外层 update 在
         // 提交阶段统一写回 StateFlow。
         if (transactionOwnerThread.get() == Thread.currentThread() && currentTransactionState != null) {
-            val txState = currentTransactionState!!
+            val txState = requireNotNull(currentTransactionState) {
+                "currentTransactionState became null after reentrance check"
+            }
             txState.block()
             // 重入路径：txState 即外层 update 持有的 reusableMutableState，
             // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
@@ -848,7 +850,9 @@ class GameStateStoreImpl @Inject constructor(
         if (transactionOwnerThread.get() == Thread.currentThread()
             && currentTransactionState != null
         ) {
-            return currentTransactionState!!.block()
+            return requireNotNull(currentTransactionState) {
+                "currentTransactionState became null after reentrance check"
+            }.block()
         }
 
         transactionMutex.withLock {

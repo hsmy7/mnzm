@@ -74,6 +74,7 @@ data class UiError(
                 is AppError.Domain.Inventory.InvalidQuantity -> Triple("数量无效：${error.value}", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Inventory.Locked -> Triple("物品已锁定：${error.itemId}", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Inventory.Insufficient -> Triple("物品不足：需${error.need}，有${error.have}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.DuplicateId -> Triple("物品ID重复：${error.itemId}", UiErrorSeverity.INFO, false)
 
                 is AppError.Domain.Building.BuildingNotFound -> Triple("建筑不存在：${error.buildingId}", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Building.DiscipleBusy -> Triple("弟子正在忙：${error.discipleId}", UiErrorSeverity.INFO, false)

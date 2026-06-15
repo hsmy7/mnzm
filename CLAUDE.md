@@ -324,7 +324,7 @@ val productionSlots: StateFlow<List<ProductionSlot>> = _productionSlots.asStateF
 
 **6.2 🔴 UI 层禁止直接写 `GameStateStore`** — 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
 
-**6.3 🟡 多实体变更必须用 Shadow Transaction** — `createShadow()` → 多次修改 → `swapFromShadow()`，保证原子性。
+**6.3 🟡 多实体变更必须用 Shadow Transaction** — `createSettlementShadow()` → 多次修改 → `swapFromShadow()`，保证原子性。
 
 ```kotlin
 // ❌ BAD — 多次孤立的 update 调用
@@ -332,7 +332,7 @@ stateStore.update { it.copy(spiritStones = it.spiritStones + 100) }
 stateStore.update { it.copy(gameMonth = it.gameMonth + 1) }
 
 // ✅ GOOD — 一次原子 Shadow Transaction
-val shadow = stateStore.createShadow()
+val shadow = stateStore.createSettlementShadow()
 shadow.gameData.spiritStones += 100
 shadow.gameData.gameMonth += 1
 stateStore.swapFromShadow(shadow)

@@ -303,7 +303,7 @@ class InventorySystem @Inject constructor(
 
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
-        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
+        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.DuplicateId(item.id))
 
         if (ts != null) {
             ts.equipmentInstances = ts.equipmentInstances + item
@@ -363,7 +363,7 @@ class InventorySystem @Inject constructor(
 
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
-        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
+        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.DuplicateId(item.id))
 
         if (ts != null) {
             ts.manualInstances = ts.manualInstances + item
@@ -703,30 +703,6 @@ class InventorySystem @Inject constructor(
 
     fun getManualInstanceById(id: String): ManualInstance? {
         return currentManualInstances().find { it.id == id }
-    }
-
-    /** StackableItemStore 委托：统一 add/merge 逻辑，消除 48 同构方法 */
-    private inline fun <reified T> addViaStore(
-        item: T, merge: Boolean, typeKey: String,
-        crossinline readCurrent: () -> List<T>,
-        crossinline writeBack: (List<T>) -> Unit,
-        noinline mergeKey: (T) -> StackKey
-    ): DomainResult<T> where T : HasId, T : StackableItem {
-        val ts = stateStore.currentTransactionMutableState()
-        val current = readCurrent()
-        val maxStack = getMaxStackForType(typeKey)
-        val store = StackableItemStore(
-            initialItems = current,
-            stackKeyOf = mergeKey,
-            maxStack = maxStack,
-            maxSlots = { getMaxSlots() },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val result = store.add(item, merge)
-        if (result.isSuccess || result is DomainResult.Partial) {
-            writeBack(store.all())
-        }
-        return result
     }
 
     fun addPill(item: Pill, merge: Boolean = true): DomainResult<Pill> {
