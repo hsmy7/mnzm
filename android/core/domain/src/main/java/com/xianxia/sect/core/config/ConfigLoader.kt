@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.config
 
-import android.content.Context
-import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.serialization.json.Json
 
 /**
@@ -17,13 +16,15 @@ import kotlinx.serialization.json.Json
  *   实例化由 app 层 CoreModule 的 @Provides 方法负责，或在测试中直接构造。
  * - 复用 BuildingConfigService 已验证的 assets 加载模式 (kotlinx.serialization + ignoreUnknownKeys)。
  * - JSON 字段缺失时自动用 GameConfigData 默认值兜底，保证向前兼容（新增字段不会导致旧 JSON 解析失败）。
+ * - 不直接依赖 Android Context（domain 模块零 Android 框架依赖），
+ *   通过 [assetReader] 函数注入 assets 读取能力。
  *
- * @param context Android Context，用于访问 assets
+ * @param assetReader 读取 assets 文本的函数，输入为 assets 相对路径，返回文件内容或 null（不存在时）
  * @param remoteConfigProvider 可选的远程配置提供者；null 表示不启用远程拉取
  * @param remoteConfigUrl 远程配置 URL；仅当 remoteConfigProvider 非空时生效
  */
 class ConfigLoader(
-    private val context: Context,
+    private val assetReader: (String) -> String?,
     private val remoteConfigProvider: RemoteConfigProvider? = null,
     private val remoteConfigUrl: String? = null
 ) {
@@ -62,7 +63,7 @@ class ConfigLoader(
             val remoteJson = remoteConfigProvider.fetchRemoteConfig(remoteConfigUrl)
             if (remoteJson != null) {
                 parse(remoteJson, SOURCE_REMOTE)?.let {
-                    Log.i(TAG, "Config loaded from remote: v${it.version}")
+                    DomainLog.i(TAG, "Config loaded from remote: v${it.version}")
                     cachedConfig = it
                     return it
                 }
@@ -71,13 +72,13 @@ class ConfigLoader(
 
         // 2. 尝试 assets JSON
         loadFromAssets()?.let {
-            Log.i(TAG, "Config loaded from assets: v${it.version}")
+            DomainLog.i(TAG, "Config loaded from assets: v${it.version}")
             cachedConfig = it
             return it
         }
 
         // 3. 默认值兜底
-        Log.w(TAG, "Config load failed, falling back to defaults")
+        DomainLog.w(TAG, "Config load failed, falling back to defaults")
         val fallback = GameConfigData()
         cachedConfig = fallback
         return fallback
@@ -89,22 +90,15 @@ class ConfigLoader(
     }
 
     private fun loadFromAssets(): GameConfigData? {
-        return try {
-            context.assets.open(CONFIG_PATH).use { stream ->
-                val jsonString = stream.bufferedReader().use { it.readText() }
-                parse(jsonString, SOURCE_ASSETS)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not load config from assets ($CONFIG_PATH): ${e.message}")
-            null
-        }
+        val jsonString = assetReader(CONFIG_PATH) ?: return null
+        return parse(jsonString, SOURCE_ASSETS)
     }
 
     private fun parse(jsonString: String, source: String): GameConfigData? {
         return try {
             json.decodeFromString<GameConfigData>(jsonString)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse config JSON from $source: ${e.message}")
+            DomainLog.w(TAG, "Failed to parse config JSON from $source: ${e.message}")
             null
         }
     }

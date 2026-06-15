@@ -4,21 +4,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 
 /**
  * ConfigLoader 测试。
  *
- * 使用 Robolectric 提供的 Application Context 访问 assets/config/game_config.json。
- * 注意：Robolectric 默认环境下 app/assets 不自动合并到测试 classpath，
- * load() 应优雅降级到 GameConfigData 默认值（来自 GameConfig const val 基线）。
+ * 由于 ConfigLoader 不再依赖 Android Context（通过 assetReader 函数注入），
+ * 测试可在纯 JVM 环境运行，无需 Robolectric。
+ *
+ * 测试策略：传入返回 null 的 assetReader 模拟「assets 不存在」，
+ * 验证 load() 优雅降级到 GameConfigData 默认值（来自 GameConfig const val 基线）。
  */
-@RunWith(RobolectricTestRunner::class)
 class ConfigLoaderTest {
 
-    private fun newLoader(): ConfigLoader = ConfigLoader(RuntimeEnvironment.getApplication())
+    // 模拟 assets 不存在的场景（Robolectric 环境下 app/assets 不自动合并）
+    private val emptyAssetReader: (String) -> String? = { null }
+
+    private fun newLoader(): ConfigLoader = ConfigLoader(emptyAssetReader)
 
     @Test
     fun load_returnsNonNullConfigData() {
@@ -130,5 +131,18 @@ class ConfigLoaderTest {
         val second = loader.load()
         // 内容应相等（缓存清除后重新加载）
         assertEquals(first.version, second.version)
+    }
+
+    @Test
+    fun load_parsesCustomJson_whenProvided() {
+        // 验证 assetReader 注入能正确解析自定义 JSON
+        val customJson = """
+            {"version":"9.9.99","game":{"name":"测试宗门","maxSaveSlots":7}}
+        """.trimIndent()
+        val loader = ConfigLoader({ customJson })
+        val config = loader.load()
+        assertEquals("9.9.99", config.version)
+        assertEquals("测试宗门", config.game.name)
+        assertEquals(7, config.game.maxSaveSlots)
     }
 }

@@ -136,9 +136,19 @@ object CoreModule {
     @Provides
     @Singleton
     fun provideConfigLoader(@ApplicationContext context: Context): ConfigLoader {
+        // assetReader: 从 assets 读取文件文本，返回 null 表示文件不存在
+        val assetReader: (String) -> String? = { path ->
+            try {
+                context.assets.open(path).use { stream ->
+                    stream.bufferedReader().use { it.readText() }
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
         // 远程配置预留：启用热更新时改为
-        //   ConfigLoader(context, HttpRemoteConfigProvider(httpClientProvider), REMOTE_CONFIG_URL)
-        return ConfigLoader(context)
+        //   ConfigLoader(assetReader, HttpRemoteConfigProvider(httpClientProvider), REMOTE_CONFIG_URL)
+        return ConfigLoader(assetReader)
     }
 
     @Provides
