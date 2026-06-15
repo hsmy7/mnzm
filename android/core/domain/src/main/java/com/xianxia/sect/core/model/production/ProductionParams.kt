@@ -80,33 +80,3 @@ data class ProductionParams(
         )
     }
 }
-
-data class ProductionResult(
-    val success: Boolean,
-    val slot: ProductionSlot? = null,
-    val outcome: ProductionOutcome? = null,
-    val error: ProductionError? = null
-) {
-    @Deprecated("Use AppError.Domain.Production", ReplaceWith("AppError.Domain.Production", "com.xianxia.sect.core.util.AppError"))
-    sealed class ProductionError {
-        data class SlotNotFound(val buildingType: BuildingType, val slotIndex: Int) : ProductionError()
-        data class SlotBusy(val slotIndex: Int, val message: String = "") : ProductionError()
-        data class InsufficientMaterials(val missing: Map<String, Int>) : ProductionError()
-        data class InvalidStateTransition(
-            val from: ProductionSlotStatus,
-            val to: ProductionSlotStatus,
-            val message: String = ""
-        ) : ProductionError()
-        data class ProductionNotReady(val remainingTime: Int) : ProductionError()
-        data class DatabaseError(val message: String) : ProductionError()
-        data class UnknownError(val message: String) : ProductionError()
-    }
-
-    companion object {
-        fun success(slot: ProductionSlot, outcome: ProductionOutcome? = null): ProductionResult =
-            ProductionResult(success = true, slot = slot, outcome = outcome)
-
-        fun failure(error: ProductionError): ProductionResult =
-            ProductionResult(success = false, error = error)
-    }
-}

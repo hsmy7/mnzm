@@ -20,6 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("CultivationCore")
 class CultivationCore @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,

@@ -26,10 +26,12 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("CultivationEventProcessor")
 class CultivationEventProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,

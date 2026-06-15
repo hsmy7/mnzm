@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers

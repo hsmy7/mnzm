@@ -58,25 +58,6 @@ fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppErr
     SaveError.UNKNOWN -> AppError.Domain.Storage.Unknown(message.ifEmpty { "未知存储错误" }, cause)
 }
 
-fun com.xianxia.sect.core.model.production.ProductionError.toAppError(): AppError.Domain.Production = when (this) {
-    is com.xianxia.sect.core.model.production.ProductionError.SlotBusy ->
-        AppError.Domain.Production.SlotBusy(message, slotIndex)
-    is com.xianxia.sect.core.model.production.ProductionError.InsufficientMaterials ->
-        AppError.Domain.Production.InsufficientMaterials(message, missingMaterials)
-    is com.xianxia.sect.core.model.production.ProductionError.InvalidSlot ->
-        AppError.Domain.Production.InvalidSlot(message, slotIndex)
-    is com.xianxia.sect.core.model.production.ProductionError.RecipeNotFound ->
-        AppError.Domain.Production.RecipeNotFound(message, recipeId)
-    is com.xianxia.sect.core.model.production.ProductionError.InvalidStateTransition ->
-        AppError.Domain.Production.InvalidStateTransition(message, fromStatus, toStatus)
-    is com.xianxia.sect.core.model.production.ProductionError.DiscipleNotAvailable ->
-        AppError.Domain.Production.DiscipleNotAvailable(message, discipleId)
-    is com.xianxia.sect.core.model.production.ProductionError.ProductionFailed ->
-        AppError.Domain.Production.ProductionFailed(message, recipeName)
-    is com.xianxia.sect.core.model.production.ProductionError.Unknown ->
-        AppError.Domain.Production.Unknown(message)
-}
-
 fun com.xianxia.sect.data.crypto.VerificationResult.toAppError(): AppError.Domain.Storage? = when (this) {
     is com.xianxia.sect.data.crypto.VerificationResult.Valid -> null
     is com.xianxia.sect.data.crypto.VerificationResult.Invalid ->

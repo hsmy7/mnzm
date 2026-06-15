@@ -59,7 +59,7 @@ class StateRevertRegressionTest {
         }
 
         // Settlement: 修炼变化（通过 shadow 组件表操作）
-        val shadow = store.createShadow()
+        val shadow = store.createSettlementShadow()
         val sd = shadow.discipleTables.assemble(1)
         shadow.discipleTables.remove(1)
         shadow.discipleTables.insert(sd.copy(
@@ -98,7 +98,7 @@ class StateRevertRegressionTest {
             discipleTables.insert(d.copy(discipleType = "inner"))
         }
 
-        val shadow = store.createShadow()
+        val shadow = store.createSettlementShadow()
         val sd = shadow.discipleTables.assemble(1)
         shadow.discipleTables.remove(1)
         shadow.discipleTables.insert(sd.copy(cultivation = 500.0))
@@ -128,7 +128,7 @@ class StateRevertRegressionTest {
             )
         }
 
-        val shadow = store.createShadow()
+        val shadow = store.createSettlementShadow()
         store.swapFromShadow(shadow)
 
         assertTrue("玩家新种的灵草不应丢失",

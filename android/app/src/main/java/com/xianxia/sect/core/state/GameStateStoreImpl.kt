@@ -65,6 +65,9 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     private var currentTransactionState: MutableGameState? = null
 
+    /** 上次 assembleAll 时的 ids 指纹，用于跳过无结构变化的重新装配 */
+    private var lastAssembledIdsFingerprint: Int = 0
+
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
     internal val _gameDataFlow = MutableStateFlow(GameData())
     internal val _disciplesFlow = MutableStateFlow<List<Disciple>>(emptyList())
@@ -327,8 +330,6 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    override fun isInTransaction(): Boolean = currentTransactionState != null
-
     override fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
 
     private var shadowOrigin: UnifiedGameState? = null
@@ -516,62 +517,6 @@ class GameStateStoreImpl @Inject constructor(
             }
         },
     )
-
-    override fun createShadow(): MutableGameState {
-        val gd = _gameDataFlow.value
-        val disc = _disciplesFlow.value
-        val es = _equipmentStacksFlow.value
-        val ei = _equipmentInstancesFlow.value
-        val ms = _manualStacksFlow.value
-        val mi = _manualInstancesFlow.value
-        val p = _pillsFlow.value
-        val mat = _materialsFlow.value
-        val h = _herbsFlow.value
-        val s = _seedsFlow.value
-        val sb = _storageBagsFlow.value
-        val t = _teamsFlow.value
-        val bl = _battleLogsFlow.value
-        val snapshot = UnifiedGameState(
-            gameData = gd,
-            disciples = disc,
-            equipmentStacks = es,
-            equipmentInstances = ei,
-            manualStacks = ms,
-            manualInstances = mi,
-            pills = p,
-            materials = mat,
-            herbs = h,
-            seeds = s,
-            storageBags = sb,
-            teams = t,
-            battleLogs = bl,
-            alliances = gd.alliances,
-            isPaused = _isPaused.value,
-            isLoading = _isLoading.value,
-            isSaving = _isSaving.value,
-            pendingNotification = _pendingNotificationFlow.value
-        )
-        shadowOrigin = snapshot
-        return MutableGameState(
-            gameData = gd,
-            discipleTables = _discipleTables.deepCopy(),
-            equipmentStacks = EntityStore(es),
-            equipmentInstances = EntityStore(ei),
-            manualStacks = EntityStore(ms),
-            manualInstances = EntityStore(mi),
-            pills = EntityStore(p),
-            materials = EntityStore(mat),
-            herbs = EntityStore(h),
-            seeds = EntityStore(s),
-            storageBags = EntityStore(sb),
-            teams = t,
-            battleLogs = bl,
-            isPaused = _isPaused.value,
-            isLoading = _isLoading.value,
-            isSaving = _isSaving.value,
-            pendingNotification = _pendingNotificationFlow.value
-        )
-    }
 
     override fun createSettlementShadow(): MutableGameState {
         val gd = _gameDataFlow.value
@@ -842,7 +787,11 @@ class GameStateStoreImpl @Inject constructor(
                 if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
                 if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
-                _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
+                val fp = reusableMutableState.discipleTables.ids.hashCode()
+                if (disciplesChanged || fp != lastAssembledIdsFingerprint) {
+                    _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
+                    lastAssembledIdsFingerprint = fp
+                }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
                     disciples = disciplesChanged,
@@ -878,6 +827,149 @@ class GameStateStoreImpl @Inject constructor(
                     || blockChangedNotification
                 if (anyFieldChanged) _updateVersion.value++
                 _discipleTables = reusableMutableState.discipleTables
+            } finally {
+                currentTransactionState = null
+                transactionOwnerThread.set(null)
+            }
+        }
+    }
+
+    override suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R {
+        if (shadowTransactionThread == Thread.currentThread()) {
+            check(currentTransactionState == null) {
+                "GameStateStore.updateAndReturn() must not be called inside " +
+                    "an existing transaction (nested lock). " +
+                    "Use currentTransactionMutableState() to modify state " +
+                    "within a tick transaction."
+            }
+        }
+
+        // 重入检测：当前线程已持有 transactionMutex，直接对事务内状态执行 block
+        if (transactionOwnerThread.get() == Thread.currentThread()
+            && currentTransactionState != null
+        ) {
+            return currentTransactionState!!.block()
+        }
+
+        transactionMutex.withLock {
+            transactionOwnerThread.set(Thread.currentThread())
+            val curGame = _gameDataFlow.value
+            val curES = _equipmentStacksFlow.value
+            val curEI = _equipmentInstancesFlow.value
+            val curMS = _manualStacksFlow.value
+            val curMI = _manualInstancesFlow.value
+            val curP = _pillsFlow.value
+            val curMat = _materialsFlow.value
+            val curH = _herbsFlow.value
+            val curS = _seedsFlow.value
+            val curSB = _storageBagsFlow.value
+            val curBL = _battleLogsFlow.value
+            val curT = _teamsFlow.value
+            val curPaused = _isPaused.value
+            val curLoading = _isLoading.value
+            val curSaving = _isSaving.value
+            val curNotif = _pendingNotificationFlow.value
+            reusableMutableState.apply {
+                gameData = curGame
+                discipleTables = _discipleTables
+                equipmentStacks = EntityStore(curES)
+                equipmentInstances = EntityStore(curEI)
+                manualStacks = EntityStore(curMS)
+                manualInstances = EntityStore(curMI)
+                pills = EntityStore(curP)
+                materials = EntityStore(curMat)
+                herbs = EntityStore(curH)
+                seeds = EntityStore(curS)
+                storageBags = EntityStore(curSB)
+                battleLogs = curBL
+                teams = curT
+                isPaused = curPaused
+                isLoading = curLoading
+                isSaving = curSaving
+                pendingNotification = curNotif
+            }
+            currentTransactionState = reusableMutableState
+            try {
+                val notificationBeforeBlock = reusableMutableState.pendingNotification
+                val result = reusableMutableState.block()
+                val blockChangedNotification =
+                    reusableMutableState.pendingNotification !== notificationBeforeBlock
+                val finalPaused = if (_isPaused.value != curPaused)
+                    _isPaused.value else reusableMutableState.isPaused
+                val finalLoading = if (_isLoading.value != curLoading)
+                    _isLoading.value else reusableMutableState.isLoading
+                val finalSaving = if (_isSaving.value != curSaving)
+                    _isSaving.value else reusableMutableState.isSaving
+                _isPaused.value = finalPaused
+                _isLoading.value = finalLoading
+                _isSaving.value = finalSaving
+                if (reusableMutableState.gameData !== curGame)
+                    _gameDataFlow.value = reusableMutableState.gameData
+                if (reusableMutableState.equipmentStacks.items !== curES)
+                    _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
+                if (reusableMutableState.equipmentInstances.items !== curEI)
+                    _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
+                if (reusableMutableState.manualStacks.items !== curMS)
+                    _manualStacksFlow.value = reusableMutableState.manualStacks.items
+                if (reusableMutableState.manualInstances.items !== curMI)
+                    _manualInstancesFlow.value = reusableMutableState.manualInstances.items
+                if (reusableMutableState.pills.items !== curP)
+                    _pillsFlow.value = reusableMutableState.pills.items
+                if (reusableMutableState.materials.items !== curMat)
+                    _materialsFlow.value = reusableMutableState.materials.items
+                if (reusableMutableState.herbs.items !== curH)
+                    _herbsFlow.value = reusableMutableState.herbs.items
+                if (reusableMutableState.seeds.items !== curS)
+                    _seedsFlow.value = reusableMutableState.seeds.items
+                if (reusableMutableState.storageBags.items !== curSB)
+                    _storageBagsFlow.value = reusableMutableState.storageBags.items
+                if (reusableMutableState.teams !== curT)
+                    _teamsFlow.value = reusableMutableState.teams
+                if (reusableMutableState.battleLogs !== curBL)
+                    _battleLogsFlow.value = reusableMutableState.battleLogs
+                if (blockChangedNotification)
+                    _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
+                val fp = reusableMutableState.discipleTables.ids.hashCode()
+                if (disciplesChanged || fp != lastAssembledIdsFingerprint) {
+                    _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
+                    lastAssembledIdsFingerprint = fp
+                }
+                repository.markDirty(
+                    gameData = reusableMutableState.gameData !== curGame,
+                    disciples = disciplesChanged,
+                    equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
+                    equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
+                    manualStacks = reusableMutableState.manualStacks.items !== curMS,
+                    manualInstances = reusableMutableState.manualInstances.items !== curMI,
+                    pills = reusableMutableState.pills.items !== curP,
+                    materials = reusableMutableState.materials.items !== curMat,
+                    herbs = reusableMutableState.herbs.items !== curH,
+                    seeds = reusableMutableState.seeds.items !== curS,
+                    storageBags = reusableMutableState.storageBags.items !== curSB,
+                    teams = reusableMutableState.teams !== curT,
+                    battleLogs = reusableMutableState.battleLogs !== curBL
+                )
+                val anyFieldChanged = reusableMutableState.gameData !== curGame
+                    || disciplesChanged
+                    || reusableMutableState.equipmentStacks.items !== curES
+                    || reusableMutableState.equipmentInstances.items !== curEI
+                    || reusableMutableState.manualStacks.items !== curMS
+                    || reusableMutableState.manualInstances.items !== curMI
+                    || reusableMutableState.pills.items !== curP
+                    || reusableMutableState.materials.items !== curMat
+                    || reusableMutableState.herbs.items !== curH
+                    || reusableMutableState.seeds.items !== curS
+                    || reusableMutableState.storageBags.items !== curSB
+                    || reusableMutableState.teams !== curT
+                    || reusableMutableState.battleLogs !== curBL
+                    || finalPaused != curPaused
+                    || finalLoading != curLoading
+                    || finalSaving != curSaving
+                    || blockChangedNotification
+                if (anyFieldChanged) _updateVersion.value++
+                _discipleTables = reusableMutableState.discipleTables
+                return result
             } finally {
                 currentTransactionState = null
                 transactionOwnerThread.set(null)

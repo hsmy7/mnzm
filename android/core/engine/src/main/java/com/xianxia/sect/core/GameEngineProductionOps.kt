@@ -4,9 +4,10 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.service.FormulaService
+import com.xianxia.sect.core.util.DomainResult
 
-suspend fun GameEngine.startAlchemy(slotIndex: Int, recipeId: String): Boolean = buildingFacade.startAlchemy(slotIndex, recipeId)
-suspend fun GameEngine.startForging(slotIndex: Int, recipeId: String): Boolean = buildingFacade.startForging(slotIndex, recipeId)
+suspend fun GameEngine.startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> = buildingFacade.startAlchemy(slotIndex, recipeId)
+suspend fun GameEngine.startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> = buildingFacade.startForging(slotIndex, recipeId)
 suspend fun GameEngine.addProductionSlot(slot: ProductionSlot) = buildingFacade.addProductionSlot(slot)
 fun GameEngine.assignDiscipleToProductionSlot(buildingType: BuildingType, slotIndex: Int, discipleId: String, discipleName: String) = buildingFacade.assignDiscipleToProductionSlot(buildingType, slotIndex, discipleId, discipleName)
 fun GameEngine.removeDiscipleFromProductionSlot(buildingType: BuildingType, slotIndex: Int) = buildingFacade.removeDiscipleFromProductionSlot(buildingType, slotIndex)

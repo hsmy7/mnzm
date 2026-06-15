@@ -14,17 +14,7 @@ class EngineServiceAnnotationTest {
     private val scope = Konsist.scopeFromDirectory("core/engine/src/main")
 
     // 已知缺少 @GameService 的遗留类（只缩不增，修复后移除）
-    private val knownMissingAnnotation = setOf(
-        "CaveExplorationProcessor",
-        "CultivationCore",
-        "CultivationEventProcessor",
-        "CultivationSettlement",
-        "DiplomacyEventProcessor",
-        "DiscipleBreakthroughHandler",
-        "DiscipleLifecycleProcessor",
-        "MerchantAndRecruitService",
-        "ProductionSubsystem"
-    )
+    private val knownMissingAnnotation = emptySet<String>()
 
     @Test
     fun `new service classes must have GameService annotation`() {

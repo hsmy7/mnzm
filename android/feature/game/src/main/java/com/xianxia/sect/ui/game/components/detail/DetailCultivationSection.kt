@@ -189,7 +189,7 @@ fun BasicInfoSection(
             val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
                 disciple,
                 innerElderComprehension = innerElderComp,
-                outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - 80) / 4) * 0.01 else 0.0,
+                outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0,
                 adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
             )
             var showBreakthroughDetail by remember { mutableStateOf(false) }

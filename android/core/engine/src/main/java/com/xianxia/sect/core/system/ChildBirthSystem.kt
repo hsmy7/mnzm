@@ -17,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 @SystemPriority(order = 235)
 class ChildBirthSystem @Inject constructor(
-    private val stateStore: GameStateStore
+    private val stateStore: GameStateStore,
+    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 ) : GameSystem {
 
     override val systemName: String = "ChildBirthSystem"
@@ -138,81 +139,20 @@ class ChildBirthSystem @Inject constructor(
             else -> SpiritRootGenerator.generateWithGameRandom()
         }
 
-        val hpVariance = GameRandom.nextInt(-50, 51)
-        val mpVariance = GameRandom.nextInt(-50, 51)
-        val physicalAttackVariance = GameRandom.nextInt(-50, 51)
-        val magicAttackVariance = GameRandom.nextInt(-50, 51)
-        val physicalDefenseVariance = GameRandom.nextInt(-50, 51)
-        val magicDefenseVariance = GameRandom.nextInt(-50, 51)
-        val speedVariance = GameRandom.nextInt(-50, 51)
-        val spiritRootCount = spiritRootType.split(",").size
-        val comprehension = when (spiritRootCount) {
-            1 -> GameRandom.nextInt(80, 101)
-            2 -> GameRandom.nextInt(60, 101)
-            3 -> GameRandom.nextInt(40, 101)
-            4 -> GameRandom.nextInt(20, 101)
-            else -> GameRandom.nextInt(1, 101)
-        }
-
-        val talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id }
-
-        val disciple = Disciple(
-            id = id,
-            name = nameResult.fullName,
-            surname = nameResult.surname,
-            gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender),
-            age = 1,
-            realm = 9,
-            realmLayer = 0,
-            spiritRootType = spiritRootType,
-            status = DiscipleStatus.IDLE,
-            discipleType = "outer",
-            talentIds = talentIds,
-            combat = CombatAttributes(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance
-            ),
-            social = SocialData(
-                parentId1 = mother.id,
-                parentId2 = father.id
-            ),
-            skills = SkillStats(
-                intelligence = GameRandom.nextInt(1, 101),
-                charm = GameRandom.nextInt(1, 101),
-                loyalty = GameRandom.nextInt(1, 101),
-                comprehension = comprehension,
-                morality = GameRandom.nextInt(1, 101),
-                artifactRefining = GameRandom.nextInt(1, 101),
-                pillRefining = GameRandom.nextInt(1, 101),
-                spiritPlanting = GameRandom.nextInt(1, 101),
-                mining = GameRandom.nextInt(1, 101),
-                teaching = GameRandom.nextInt(1, 101)
+        return discipleFactory.create(
+            com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory.DiscipleSeed(
+                id = id,
+                gender = gender,
+                nameResult = nameResult,
+                spiritRootType = spiritRootType,
+                age = 1,
+                realmLayer = 0,
+                social = SocialData(
+                    parentId1 = mother.id,
+                    parentId2 = father.id
+                ),
+                nextInt = { from, until -> GameRandom.nextInt(from, until) }
             )
-        ).apply {
-            val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-            combat.baseHp = baseStats.baseHp
-            combat.baseMp = baseStats.baseMp
-            combat.basePhysicalAttack = baseStats.basePhysicalAttack
-            combat.baseMagicAttack = baseStats.baseMagicAttack
-            combat.basePhysicalDefense = baseStats.basePhysicalDefense
-            combat.baseMagicDefense = baseStats.baseMagicDefense
-            combat.baseSpeed = baseStats.baseSpeed
-
-            val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
-            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-            val baseLifespan = GameConfig.Realm.get(realm).maxAge
-            lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-        }
-
-        return disciple
+        )
     }
 }

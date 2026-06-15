@@ -17,6 +17,8 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.SpiritRootGenerator
+import com.xianxia.sect.core.util.AppError
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.DomainLog
 import java.util.UUID
 import javax.inject.Inject
@@ -29,13 +31,13 @@ class DiscipleService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository,
 private val scopeProvider: CoroutineScopeProvider,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val discipleFactory: DiscipleFactory
 ) {
     private val scope get() = scopeProvider.scope
 
-    private var currentDiscipleTables: DiscipleTables
+    private val currentDiscipleTables: DiscipleTables
         get() = stateStore.discipleTables
-        set(value) { /* DiscipleTables is mutable, changes are in-place */ }
 
     companion object {
         private const val TAG = "DiscipleService"
@@ -417,83 +419,25 @@ private val scopeProvider: CoroutineScopeProvider,
             ((stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
-        val existingNames = (stateStore.discipleTables.assembleAll() + stateStore.gameData.value.recruitList).map { it.name }.toSet()
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, existingNames)
+        val existingNames = (stateStore.discipleTables.assembleAll()
+            + stateStore.gameData.value.recruitList)
+            .map { it.name }.toSet()
+        val nameResult = NameService.generateName(
+            gender, NameService.NameStyle.FULL, existingNames
+        )
 
-
-        val spiritRootType = SpiritRootGenerator.generate()
-
-        val hpVariance = Random.nextInt(-50, 51)
-        val mpVariance = Random.nextInt(-50, 51)
-        val physicalAttackVariance = Random.nextInt(-50, 51)
-        val magicAttackVariance = Random.nextInt(-50, 51)
-        val physicalDefenseVariance = Random.nextInt(-50, 51)
-        val magicDefenseVariance = Random.nextInt(-50, 51)
-        val speedVariance = Random.nextInt(-50, 51)
-
-        val spiritRootCount = spiritRootType.split(",").size
-        val comprehension = when (spiritRootCount) {
-            1 -> Random.nextInt(80, 101)
-            2 -> Random.nextInt(60, 101)
-            3 -> Random.nextInt(40, 101)
-            4 -> Random.nextInt(20, 101)
-            else -> Random.nextInt(1, 101)
-        }
-
-        val disciple = Disciple(
-            id = id,
-            name = nameResult.fullName,
-            surname = nameResult.surname,
-            gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender),
-            age = Random.nextInt(16, 30),
-            realm = 9,
-            realmLayer = 1,
-            spiritRootType = spiritRootType,
-            status = DiscipleStatus.IDLE,
-            discipleType = "outer",
-            talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id },
-            combat = com.xianxia.sect.core.model.CombatAttributes(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance
-            ),
-            social = com.xianxia.sect.core.model.SocialData(),
-            skills = com.xianxia.sect.core.model.SkillStats(
-                intelligence = Random.nextInt(1, 101),
-                charm = Random.nextInt(1, 101),
-                loyalty = Random.nextInt(1, 101),
-                comprehension = comprehension,
-                morality = Random.nextInt(1, 101),
-                artifactRefining = Random.nextInt(1, 101),
-                pillRefining = Random.nextInt(1, 101),
-                spiritPlanting = Random.nextInt(1, 101),
-                mining = Random.nextInt(1, 101),
-                teaching = Random.nextInt(1, 101)
+        val disciple = discipleFactory.create(
+            DiscipleFactory.DiscipleSeed(
+                id = id,
+                gender = gender,
+                nameResult = nameResult,
+                spiritRootType = SpiritRootGenerator.generate(),
+                age = Random.nextInt(16, 30),
+                realmLayer = 1,
+                social = com.xianxia.sect.core.model.SocialData(),
+                nextInt = { from, until -> Random.nextInt(from, until) }
             )
-        ).apply {
-            val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-            combat.baseHp = baseStats.baseHp
-            combat.baseMp = baseStats.baseMp
-            combat.basePhysicalAttack = baseStats.basePhysicalAttack
-            combat.baseMagicAttack = baseStats.baseMagicAttack
-            combat.basePhysicalDefense = baseStats.basePhysicalDefense
-            combat.baseMagicDefense = baseStats.baseMagicDefense
-            combat.baseSpeed = baseStats.baseSpeed
-
-            // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
-            val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
-            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-            val baseLifespan = GameConfig.Realm.get(realm).maxAge
-            lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-        }
+        )
 
         // Set recruitment time
         val data = stateStore.gameData.value
@@ -508,7 +452,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Expel disciple from sect
      */
-    suspend fun expelDisciple(discipleId: String): Boolean {
+    suspend fun expelDisciple(discipleId: String): DomainResult<Unit> {
         var result = false
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -601,7 +545,7 @@ private val scopeProvider: CoroutineScopeProvider,
 
             result = true
         }
-        return result
+        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
     }
 
     // ==================== 装备管理 ====================
@@ -611,7 +555,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * 设计意图：装备是独占物品，不可共用。一件装备只能给一名弟子穿戴。
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
-    suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
+    suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
         var result = false
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -688,7 +632,7 @@ private val scopeProvider: CoroutineScopeProvider,
 
             result = true
         }
-        return result
+        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
     }
 
     /**
@@ -697,7 +641,7 @@ private val scopeProvider: CoroutineScopeProvider,
      *
      * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
-    suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
+    suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
         var result = false
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -710,7 +654,7 @@ private val scopeProvider: CoroutineScopeProvider,
 
             result = unequipEquipmentLogic(discipleId, equipmentId)
         }
-        return result
+        return if (result) DomainResult.Success(Unit) else DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
     }
 
     private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {

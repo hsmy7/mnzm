@@ -17,6 +17,7 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.util.equipmentBagStackIds
@@ -87,9 +88,9 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
 
-    override suspend fun expelDisciple(discipleId: String): Boolean = discipleService.expelDisciple(discipleId)
+    override suspend fun expelDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
-    override suspend fun expelTheftDisciple(discipleId: String): Boolean = discipleService.expelDisciple(discipleId)
+    override suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
     override suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
         stateStore.update {
@@ -119,10 +120,10 @@ class DiscipleFacadeImpl @Inject constructor(
         return loyaltyChange
     }
 
-    override suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
+    override suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
         discipleService.equipEquipment(discipleId, equipmentId)
 
-    override suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean =
+    override suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
         discipleService.unequipEquipment(discipleId, equipmentId)
 
     override fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean =
@@ -202,407 +203,275 @@ class DiscipleFacadeImpl @Inject constructor(
     }
 
     override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
-        val data = stateStore.gameData.value
         items.forEach { item ->
-            val quantity = item.quantity.coerceAtLeast(1)
             when (item.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    stateStore.update {
-                        val stack = equipmentStacks.get(item.id)
-                        if (stack == null || stack.quantity < 1) return@update
+                "equipment" -> rewardEquipment(discipleId, item)
+                "manual" -> rewardManual(discipleId, item)
+                "pill" -> rewardPill(discipleId, item, item.quantity.coerceAtLeast(1))
+                "material" -> rewardMaterial(discipleId, item, item.quantity.coerceAtLeast(1))
+                "herb" -> rewardHerb(discipleId, item, item.quantity.coerceAtLeast(1))
+                "seed" -> rewardSeed(discipleId, item, item.quantity.coerceAtLeast(1))
+            }
+        }
+    }
 
-                        val id = discipleId.toIntOrNull()
-                        if (id == null || !discipleTables.ids.contains(id)) return@update
-
-                        val discipleRealm = discipleTables.realms[id]
-                        val canEquip = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-
-                        if (canEquip) {
-                            val slot = stack.slot
-                            val oldEquipId = when (slot) {
-                                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-                                EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
-                                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
-                                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
-                                else -> ""
-                            }
-
-                            if (oldEquipId.isNotEmpty()) {
-                                val oldInstance = equipmentInstances.get(oldEquipId)
-                                if (oldInstance != null) {
-                                    val updatedDisciple = discipleTables.assemble(id)
-                                    val bagStackIds = updatedDisciple.equipmentBagStackIds()
-                                    val result = addEquipmentInstanceToDiscipleBag(
-                                        disciple = updatedDisciple,
-                                        instance = oldInstance,
-                                        bagStackIds = bagStackIds,
-                                        excludeStackId = stack.id,
-                                        gameYear = gameData.gameYear,
-                                        gameMonth = gameData.gameMonth,
-                                        gamePhase = gameData.gamePhase,
-                                        maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
-                                    )
-                                    // Write back updated bag fields
-                                    discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
-                                    discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
-                                    discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
-                                }
-
-                                when (slot) {
-                                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
-                                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = ""
-                                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = ""
-                                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = ""
-                                    else -> {}
-                                }
-                            }
-
-                            if (stack.quantity > 1) {
-                                equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
-                            } else {
-                                equipmentStacks.remove(item.id)
-                            }
-
-                            val instanceId = java.util.UUID.randomUUID().toString()
-                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isEquipped = true)
-                            equipmentInstances.add(instance)
-
-                            when (slot) {
-                                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = instanceId
-                                EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = instanceId
-                                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = instanceId
-                                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = instanceId
-                                else -> {}
-                            }
-
-                        } else {
-                            if (stack.quantity > 1) {
-                                equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
-                            } else {
-                                equipmentStacks.remove(item.id)
-                            }
-
-                            val currentDisciple = discipleTables.assemble(id)
-                            val bagStackIds = currentDisciple.equipmentBagStackIds()
-                            val bagStackId: String
-                            val existingBagStack = equipmentStacks.all().find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("equipment_stack")
-                            }
-                            if (existingBagStack != null) {
-                                equipmentStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
-                                bagStackId = existingBagStack.id
-                            } else {
-                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                                equipmentStacks.add(newStack)
-                                bagStackId = newStack.id
-                            }
-
-                            val currentBagItems = discipleTables.storageBagItems[id]
-                            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                currentBagItems,
-                                StorageBagItem(
-                                    itemId = bagStackId,
-                                    itemType = "equipment_stack",
-                                    name = stack.name,
-                                    rarity = stack.rarity,
-                                    quantity = 1,
-                                    obtainedYear = gameData.gameYear,
-                                    obtainedMonth = gameData.gameMonth,
-                                    forgetYear = gameData.gameYear,
-                                    forgetMonth = gameData.gameMonth,
-                                    forgetPhase = gameData.gamePhase
-                                ),
-                                inventoryConfig.getMaxStackSize("equipment_stack")
-                            )
-                        }
+    private suspend fun rewardEquipment(discipleId: String, item: RewardSelectedItem) {
+        stateStore.update {
+            val stack = equipmentStacks.get(item.id)
+            if (stack == null || stack.quantity < 1) return@update
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) return@update
+            val discipleRealm = discipleTables.realms[id]
+            val canEquip = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
+            if (canEquip) {
+                val slot = stack.slot
+                val oldEquipId = when (slot) {
+                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
+                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
+                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
+                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
+                    else -> ""
+                }
+                if (oldEquipId.isNotEmpty()) {
+                    val oldInstance = equipmentInstances.get(oldEquipId)
+                    if (oldInstance != null) {
+                        val updatedDisciple = discipleTables.assemble(id)
+                        val bagStackIds = updatedDisciple.equipmentBagStackIds()
+                        val result = addEquipmentInstanceToDiscipleBag(
+                            disciple = updatedDisciple, instance = oldInstance,
+                            bagStackIds = bagStackIds, excludeStackId = stack.id,
+                            gameYear = gameData.gameYear, gameMonth = gameData.gameMonth,
+                            gamePhase = gameData.gamePhase,
+                            maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
+                        )
+                        discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
+                        discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
+                        discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
+                    }
+                    when (slot) {
+                        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
+                        EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = ""
+                        EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = ""
+                        EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = ""
+                        else -> {}
                     }
                 }
-                "manual" -> {
-                    stateStore.update {
-                        val stack = manualStacks.get(item.id)
-                        if (stack == null || stack.quantity < 1) return@update
-
-                        val id = discipleId.toIntOrNull()
-                        if (id == null || !discipleTables.ids.contains(id)) return@update
-
-                        val discipleRealm = discipleTables.realms[id]
-                        val currentManualIds = discipleTables.manualIds[id]
-                        val canLearn = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm) &&
-                            currentManualIds.size < DiscipleStatCalculator.getMaxManualSlots(discipleTables.assemble(id)) &&
-                            !(stack.type == ManualType.MIND && currentManualIds.any { mid ->
-                                manualInstances.get(mid)?.type == ManualType.MIND
-                            }) &&
-                            !currentManualIds.any { mid ->
-                                manualInstances.get(mid)?.name == stack.name
-                            }
-
-                        if (canLearn) {
-                            val newQty = stack.quantity - 1
-                            if (newQty <= 0) {
-                                manualStacks.remove(item.id)
-                            } else {
-                                manualStacks.update(item.id) { it.copy(quantity = newQty) }
-                            }
-
-                            val instanceId = java.util.UUID.randomUUID().toString()
-                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
-                            manualInstances.add(instance)
-
-                            discipleTables.manualIds[id] = currentManualIds + instanceId
-
-                        } else {
-                            val newQty = stack.quantity - 1
-                            if (newQty <= 0) {
-                                manualStacks.remove(item.id)
-                            } else {
-                                manualStacks.update(item.id) { it.copy(quantity = newQty) }
-                            }
-
-                            val currentDisciple = discipleTables.assemble(id)
-                            val bagStackIds = currentDisciple.manualBagStackIds()
-
-                            val existingBagStack = manualStacks.all().find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("manual_stack")
-                            }
-
-                            val storageItemId: String
-                            if (existingBagStack != null) {
-                                manualStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
-                                storageItemId = existingBagStack.id
-                            } else {
-                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                                manualStacks.add(newStack)
-                                storageItemId = newStack.id
-                            }
-
-                            val currentBagItems = discipleTables.storageBagItems[id]
-                            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                currentBagItems,
-                                StorageBagItem(
-                                    itemId = storageItemId,
-                                    itemType = "manual_stack",
-                                    name = stack.name,
-                                    rarity = stack.rarity,
-                                    quantity = 1,
-                                    obtainedYear = gameData.gameYear,
-                                    obtainedMonth = gameData.gameMonth,
-                                    forgetYear = gameData.gameYear,
-                                    forgetMonth = gameData.gameMonth,
-                                    forgetPhase = gameData.gamePhase
-                                ),
-                                inventoryConfig.getMaxStackSize("manual_stack")
-                            )
-                        }
-                    }
+                if (stack.quantity > 1) {
+                    equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
+                } else {
+                    equipmentStacks.remove(item.id)
                 }
-                "pill" -> {
-                    stateStore.update {
-                        val pill = pills.get(item.id)
-                        if (pill != null && pill.quantity >= quantity) {
-                            val id = discipleId.toIntOrNull()
-                            if (id == null || !discipleTables.ids.contains(id)) return@update
-                            val pillItem = StorageBagItem(
-                                itemId = item.id,
-                                itemType = "pill",
-                                name = pill.name,
-                                rarity = pill.rarity,
-                                quantity = quantity,
-                                obtainedYear = gameData.gameYear,
-                                obtainedMonth = gameData.gameMonth,
-                                effect = DisciplePillManager.pillToItemEffect(pill),
-                                grade = pill.grade.displayName
-                            )
-                            val disciple = discipleTables.assemble(id)
-                            val canUse = DisciplePillManager.canUsePill(disciple, pillItem).canUse
+                val instanceId = java.util.UUID.randomUUID().toString()
+                equipmentInstances.add(stack.toInstance(id = instanceId, ownerId = discipleId, isEquipped = true))
+                when (slot) {
+                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = instanceId
+                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = instanceId
+                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = instanceId
+                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = instanceId
+                    else -> {}
+                }
+            } else {
+                if (stack.quantity > 1) {
+                    equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
+                } else {
+                    equipmentStacks.remove(item.id)
+                }
+                val currentDisciple = discipleTables.assemble(id)
+                val bagStackIds = currentDisciple.equipmentBagStackIds()
+                val existingBagStack = equipmentStacks.all().find {
+                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
+                        && it.id != item.id && it.id in bagStackIds
+                        && it.quantity < inventoryConfig.getMaxStackSize("equipment_stack")
+                }
+                val bagStackId: String
+                if (existingBagStack != null) {
+                    equipmentStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
+                    bagStackId = existingBagStack.id
+                } else {
+                    val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                    equipmentStacks.add(newStack)
+                    bagStackId = newStack.id
+                }
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id],
+                    StorageBagItem(itemId = bagStackId, itemType = "equipment_stack",
+                        name = stack.name, rarity = stack.rarity, quantity = 1,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                        forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
+                        forgetPhase = gameData.gamePhase),
+                    inventoryConfig.getMaxStackSize("equipment_stack")
+                )
+            }
+        }
+    }
 
-                            val pillNewQty = pill.quantity - quantity
-                            if (pillNewQty == 0) {
-                                pills.remove(item.id)
-                            } else {
-                                pills.update(item.id) { it.copy(quantity = pillNewQty) }
-                            }
+    private suspend fun rewardManual(discipleId: String, item: RewardSelectedItem) {
+        stateStore.update {
+            val stack = manualStacks.get(item.id)
+            if (stack == null || stack.quantity < 1) return@update
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) return@update
+            val discipleRealm = discipleTables.realms[id]
+            val currentManualIds = discipleTables.manualIds[id]
+            val canLearn = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm) &&
+                currentManualIds.size < DiscipleStatCalculator.getMaxManualSlots(discipleTables.assemble(id)) &&
+                !(stack.type == ManualType.MIND && currentManualIds.any { manualInstances.get(it)?.type == ManualType.MIND }) &&
+                !currentManualIds.any { manualInstances.get(it)?.name == stack.name }
+            if (canLearn) {
+                if (stack.quantity <= 1) manualStacks.remove(item.id)
+                else manualStacks.update(item.id) { it.copy(quantity = stack.quantity - 1) }
+                val instanceId = java.util.UUID.randomUUID().toString()
+                manualInstances.add(stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true))
+                discipleTables.manualIds[id] = currentManualIds + instanceId
+            } else {
+                if (stack.quantity <= 1) manualStacks.remove(item.id)
+                else manualStacks.update(item.id) { it.copy(quantity = stack.quantity - 1) }
+                val currentDisciple = discipleTables.assemble(id)
+                val bagStackIds = currentDisciple.manualBagStackIds()
+                val existingBagStack = manualStacks.all().find {
+                    it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
+                        && it.id != item.id && it.id in bagStackIds
+                        && it.quantity < inventoryConfig.getMaxStackSize("manual_stack")
+                }
+                val storageItemId: String
+                if (existingBagStack != null) {
+                    manualStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
+                    storageItemId = existingBagStack.id
+                } else {
+                    val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                    manualStacks.add(newStack)
+                    storageItemId = newStack.id
+                }
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id],
+                    StorageBagItem(itemId = storageItemId, itemType = "manual_stack",
+                        name = stack.name, rarity = stack.rarity, quantity = 1,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                        forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
+                        forgetPhase = gameData.gamePhase),
+                    inventoryConfig.getMaxStackSize("manual_stack")
+                )
+            }
+        }
+    }
 
-                            if (canUse) {
-                                val effect = pill.effects
-                                if (effect.cultivationAdd > 0) {
-                                    discipleTables.cultivations[id] = (discipleTables.cultivations[id] + effect.cultivationAdd).coerceAtLeast(0.0)
-                                }
-                                if (effect.skillExpAdd > 0) {
-                                    discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) }
-                                }
-                                if (effect.cultivationSpeedPercent > 0) {
-                                    discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-                                    discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.cultivationSpeedDurations[id]
-                                }
-                                if (effect.extendLife > 0) {
-                                    discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
-                                    val usedExtendLife = discipleTables.usedExtendLifePillIds[id]
-                                    if (!usedExtendLife.contains(pill.pillType)) {
-                                        discipleTables.usedExtendLifePillIds[id] = usedExtendLife + pill.pillType
-                                    }
-                                }
-                                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
-                                    effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-                                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
-                                    effect.miningAdd > 0
-                                ) {
-                                    discipleTables.intelligences[id] = (discipleTables.intelligences[id] + effect.intelligenceAdd).coerceAtLeast(0)
-                                    discipleTables.charms[id] = (discipleTables.charms[id] + effect.charmAdd).coerceAtLeast(0)
-                                    discipleTables.loyalties[id] = (discipleTables.loyalties[id] + effect.loyaltyAdd).coerceAtLeast(0)
-                                    discipleTables.comprehensions[id] = (discipleTables.comprehensions[id] + effect.comprehensionAdd).coerceAtLeast(0)
-                                    discipleTables.artifactRefinings[id] = (discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd).coerceAtLeast(0)
-                                    discipleTables.pillRefinings[id] = (discipleTables.pillRefinings[id] + effect.pillRefiningAdd).coerceAtLeast(0)
-                                    discipleTables.spiritPlantings[id] = (discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd).coerceAtLeast(0)
-                                    discipleTables.teachings[id] = (discipleTables.teachings[id] + effect.teachingAdd).coerceAtLeast(0)
-                                    discipleTables.moralities[id] = (discipleTables.moralities[id] + effect.moralityAdd).coerceAtLeast(0)
-                                    discipleTables.minings[id] = (discipleTables.minings[id] + effect.miningAdd).coerceAtLeast(0)
-                                }
-                                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-                                    val usedFunctional = discipleTables.usedFunctionalPillTypes[id]
-                                    discipleTables.usedFunctionalPillTypes[id] = usedFunctional + pill.pillType
-                                }
-                                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
-                                    effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
-                                    effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
-                                    effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
-                                    effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
-                                ) {
-                                    discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
-                                    discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
-                                    discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
-                                    discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
-                                    discipleTables.pillHpBonuses[id] = effect.hpAdd
-                                    discipleTables.pillMpBonuses[id] = effect.mpAdd
-                                    discipleTables.pillSpeedBonuses[id] = effect.speedAdd
-                                    discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
-                                    discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
-                                    discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-                                    discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
-                                    discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
-                                    discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.pillEffectDurations[id]
-                                    discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name else discipleTables.activePillCategories[id]
-                                }
-                                if (effect.healMaxHpPercent > 0) {
-                                    discipleTables.hpVariances[id] = 0
-                                }
-                                if (effect.clearAll) {
-                                    // Reset all pill effect tables
-                                    discipleTables.pillPhysicalAttackBonuses[id] = 0
-                                    discipleTables.pillMagicAttackBonuses[id] = 0
-                                    discipleTables.pillPhysicalDefenseBonuses[id] = 0
-                                    discipleTables.pillMagicDefenseBonuses[id] = 0
-                                    discipleTables.pillHpBonuses[id] = 0
-                                    discipleTables.pillMpBonuses[id] = 0
-                                    discipleTables.pillSpeedBonuses[id] = 0
-                                    discipleTables.pillEffectDurations[id] = 0
-                                    discipleTables.pillCritRateBonuses[id] = 0.0
-                                    discipleTables.pillCritEffectBonuses[id] = 0.0
-                                    discipleTables.pillCultivationSpeedBonuses[id] = 0.0
-                                    discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
-                                    discipleTables.pillNurtureSpeedBonuses[id] = 0.0
-                                    discipleTables.activePillCategories[id] = ""
-                                }
-                            } else {
-                                val currentBagItems = discipleTables.storageBagItems[id]
-                                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                    currentBagItems,
-                                    pillItem,
-                                    inventoryConfig.getMaxStackSize("pill")
-                                )
-                            }
-                        }
-                    }
+    private suspend fun rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+        stateStore.update {
+            val pill = pills.get(item.id)
+            if (pill == null || pill.quantity < quantity) return@update
+            val id = discipleId.toIntOrNull()
+            if (id == null || !discipleTables.ids.contains(id)) return@update
+            val pillItem = StorageBagItem(itemId = item.id, itemType = "pill",
+                name = pill.name, rarity = pill.rarity, quantity = quantity,
+                obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                effect = DisciplePillManager.pillToItemEffect(pill),
+                grade = pill.grade.displayName)
+            val disciple = discipleTables.assemble(id)
+            val canUse = DisciplePillManager.canUsePill(disciple, pillItem).canUse
+            if (pill.quantity == quantity) pills.remove(item.id)
+            else pills.update(item.id) { it.copy(quantity = pill.quantity - quantity) }
+            if (canUse) {
+                val effect = pill.effects
+                if (effect.cultivationAdd > 0) discipleTables.cultivations[id] = (discipleTables.cultivations[id] + effect.cultivationAdd).coerceAtLeast(0.0)
+                if (effect.skillExpAdd > 0) discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) }
+                if (effect.cultivationSpeedPercent > 0) { discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent; discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.cultivationSpeedDurations[id] }
+                if (effect.extendLife > 0) { discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife; val used = discipleTables.usedExtendLifePillIds[id]; if (!used.contains(pill.pillType)) discipleTables.usedExtendLifePillIds[id] = used + pill.pillType }
+                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 || effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 || effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 || effect.miningAdd > 0) {
+                    discipleTables.intelligences[id] = (discipleTables.intelligences[id] + effect.intelligenceAdd).coerceAtLeast(0)
+                    discipleTables.charms[id] = (discipleTables.charms[id] + effect.charmAdd).coerceAtLeast(0)
+                    discipleTables.loyalties[id] = (discipleTables.loyalties[id] + effect.loyaltyAdd).coerceAtLeast(0)
+                    discipleTables.comprehensions[id] = (discipleTables.comprehensions[id] + effect.comprehensionAdd).coerceAtLeast(0)
+                    discipleTables.artifactRefinings[id] = (discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd).coerceAtLeast(0)
+                    discipleTables.pillRefinings[id] = (discipleTables.pillRefinings[id] + effect.pillRefiningAdd).coerceAtLeast(0)
+                    discipleTables.spiritPlantings[id] = (discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd).coerceAtLeast(0)
+                    discipleTables.teachings[id] = (discipleTables.teachings[id] + effect.teachingAdd).coerceAtLeast(0)
+                    discipleTables.moralities[id] = (discipleTables.moralities[id] + effect.moralityAdd).coerceAtLeast(0)
+                    discipleTables.minings[id] = (discipleTables.minings[id] + effect.miningAdd).coerceAtLeast(0)
                 }
-                "material" -> {
-                    stateStore.update {
-                        val material = materials.get(item.id)
-                        if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                            val matNewQty = material.quantity - quantity
-                            if (matNewQty == 0) {
-                                materials.remove(item.id)
-                            } else {
-                                materials.update(item.id) { it.copy(quantity = matNewQty) }
-                            }
-                            val id = discipleId.toIntOrNull()
-                            if (id != null && discipleTables.ids.contains(id)) {
-                                val currentBagItems = discipleTables.storageBagItems[id]
-                                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                    currentBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "material",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = gameData.gameYear,
-                                        obtainedMonth = gameData.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("material")
-                                )
-                            }
-                        }
-                    }
+                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) discipleTables.usedFunctionalPillTypes[id] = discipleTables.usedFunctionalPillTypes[id] + pill.pillType
+                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 || effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 || effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 || effect.critRateAdd > 0 || effect.critEffectAdd > 0 || effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0) {
+                    discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
+                    discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
+                    discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
+                    discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
+                    discipleTables.pillHpBonuses[id] = effect.hpAdd
+                    discipleTables.pillMpBonuses[id] = effect.mpAdd
+                    discipleTables.pillSpeedBonuses[id] = effect.speedAdd
+                    discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
+                    discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
+                    discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
+                    discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
+                    discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
+                    discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30 else discipleTables.pillEffectDurations[id]
+                    discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name else discipleTables.activePillCategories[id]
                 }
-                "herb" -> {
-                    stateStore.update {
-                        val herb = herbs.get(item.id)
-                        if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                            val herbNewQty = herb.quantity - quantity
-                            if (herbNewQty == 0) {
-                                herbs.remove(item.id)
-                            } else {
-                                herbs.update(item.id) { it.copy(quantity = herbNewQty) }
-                            }
-                            val id = discipleId.toIntOrNull()
-                            if (id != null && discipleTables.ids.contains(id)) {
-                                val currentBagItems = discipleTables.storageBagItems[id]
-                                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                    currentBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "herb",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = gameData.gameYear,
-                                        obtainedMonth = gameData.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("herb")
-                                )
-                            }
-                        }
-                    }
+                if (effect.healMaxHpPercent > 0) discipleTables.hpVariances[id] = 0
+                if (effect.clearAll) {
+                    discipleTables.pillPhysicalAttackBonuses[id] = 0; discipleTables.pillMagicAttackBonuses[id] = 0
+                    discipleTables.pillPhysicalDefenseBonuses[id] = 0; discipleTables.pillMagicDefenseBonuses[id] = 0
+                    discipleTables.pillHpBonuses[id] = 0; discipleTables.pillMpBonuses[id] = 0
+                    discipleTables.pillSpeedBonuses[id] = 0; discipleTables.pillEffectDurations[id] = 0
+                    discipleTables.pillCritRateBonuses[id] = 0.0; discipleTables.pillCritEffectBonuses[id] = 0.0
+                    discipleTables.pillCultivationSpeedBonuses[id] = 0.0; discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
+                    discipleTables.pillNurtureSpeedBonuses[id] = 0.0; discipleTables.activePillCategories[id] = ""
                 }
-                "seed" -> {
-                    stateStore.update {
-                        val seed = seeds.get(item.id)
-                        if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                            val seedNewQty = seed.quantity - quantity
-                            if (seedNewQty == 0) {
-                                seeds.remove(item.id)
-                            } else {
-                                seeds.update(item.id) { it.copy(quantity = seedNewQty) }
-                            }
-                            val id = discipleId.toIntOrNull()
-                            if (id != null && discipleTables.ids.contains(id)) {
-                                val currentBagItems = discipleTables.storageBagItems[id]
-                                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                                    currentBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "seed",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = gameData.gameYear,
-                                        obtainedMonth = gameData.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("seed")
-                                )
-                            }
-                        }
-                    }
-                }
+            } else {
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id], pillItem, inventoryConfig.getMaxStackSize("pill"))
+            }
+        }
+    }
+
+    private suspend fun rewardMaterial(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+        stateStore.update {
+            val material = materials.get(item.id)
+            if (material == null || material.isLocked || quantity !in 1..material.quantity) return@update
+            if (material.quantity == quantity) materials.remove(item.id)
+            else materials.update(item.id) { it.copy(quantity = material.quantity - quantity) }
+            val id = discipleId.toIntOrNull()
+            if (id != null && discipleTables.ids.contains(id)) {
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id],
+                    StorageBagItem(itemId = item.id, itemType = "material", name = item.name,
+                        rarity = item.rarity, quantity = quantity,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
+                    inventoryConfig.getMaxStackSize("material"))
+            }
+        }
+    }
+
+    private suspend fun rewardHerb(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+        stateStore.update {
+            val herb = herbs.get(item.id)
+            if (herb == null || herb.isLocked || quantity !in 1..herb.quantity) return@update
+            if (herb.quantity == quantity) herbs.remove(item.id)
+            else herbs.update(item.id) { it.copy(quantity = herb.quantity - quantity) }
+            val id = discipleId.toIntOrNull()
+            if (id != null && discipleTables.ids.contains(id)) {
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id],
+                    StorageBagItem(itemId = item.id, itemType = "herb", name = item.name,
+                        rarity = item.rarity, quantity = quantity,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
+                    inventoryConfig.getMaxStackSize("herb"))
+            }
+        }
+    }
+
+    private suspend fun rewardSeed(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+        stateStore.update {
+            val seed = seeds.get(item.id)
+            if (seed == null || seed.isLocked || quantity !in 1..seed.quantity) return@update
+            if (seed.quantity == quantity) seeds.remove(item.id)
+            else seeds.update(item.id) { it.copy(quantity = seed.quantity - quantity) }
+            val id = discipleId.toIntOrNull()
+            if (id != null && discipleTables.ids.contains(id)) {
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    discipleTables.storageBagItems[id],
+                    StorageBagItem(itemId = item.id, itemType = "seed", name = item.name,
+                        rarity = item.rarity, quantity = quantity,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
+                    inventoryConfig.getMaxStackSize("seed"))
             }
         }
     }

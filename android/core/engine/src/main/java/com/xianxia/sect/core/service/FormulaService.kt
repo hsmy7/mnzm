@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.*
@@ -99,8 +100,8 @@ class FormulaService @Inject constructor(
      */
     private fun getBuildingCraftFlatBonus(talentEffects: Map<String, Double>, buildingId: String): Double {
         return when (buildingId) {
-            "alchemy" -> talentEffects["pillRefiningFlat"] ?: 0.0
-            "forge" -> talentEffects["artifactRefiningFlat"] ?: 0.0
+            BuildingNames.ALCHEMY -> talentEffects["pillRefiningFlat"] ?: 0.0
+            BuildingNames.FORGE -> talentEffects["artifactRefiningFlat"] ?: 0.0
             "herbGarden" -> talentEffects["spiritPlantingFlat"] ?: 0.0
             else -> 0.0
         }
@@ -131,12 +132,12 @@ class FormulaService @Inject constructor(
         val data = stateStore.gameData.value
 
         when (buildingId) {
-            "alchemy" -> {
-                val elderBonus = calculateElderAndDisciplesBonus("alchemy")
+            BuildingNames.ALCHEMY -> {
+                val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.ALCHEMY)
                 totalSpeedBonus += elderBonus.speedBonus
             }
-            "forge" -> {
-                val elderBonus = calculateElderAndDisciplesBonus("forge")
+            BuildingNames.FORGE -> {
+                val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.FORGE)
                 totalSpeedBonus += elderBonus.speedBonus
             }
             else -> {
@@ -161,7 +162,7 @@ class FormulaService @Inject constructor(
     private fun calculateReducedDuration(baseDuration: Int, speedBonus: Double): Int {
         if (speedBonus <= 0) return baseDuration
 
-        val reductionPercent = speedBonus / 4.0
+        val reductionPercent = speedBonus / GameConfig.PolicyConfig.SPEED_REDUCTION_DIVISOR
 
         val reducedMonths = (baseDuration * reductionPercent).toInt()
         return (baseDuration - reducedMonths).coerceAtLeast(1)
@@ -177,15 +178,15 @@ class FormulaService @Inject constructor(
      */
     private fun getElderPositionBonus(buildingId: String): Double {
         // Early return for unsupported building types
-        if (buildingId !in listOf("forge", "alchemy", "herbGarden")) return 0.0
+        if (buildingId !in listOf(BuildingNames.FORGE, BuildingNames.ALCHEMY, "herbGarden")) return 0.0
 
         // Check if there is an elder assigned to this building type
         val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
 
         val elderDiscipleId = when (buildingId) {
-            "forge" -> elderSlots.forgeElder
-            "alchemy" -> elderSlots.alchemyElder
+            BuildingNames.FORGE -> elderSlots.forgeElder
+            BuildingNames.ALCHEMY -> elderSlots.alchemyElder
             "herbGarden" -> elderSlots.herbGardenElder
             else -> null
         }
@@ -195,18 +196,18 @@ class FormulaService @Inject constructor(
         val elderDisciple = stateStore.disciples.value.find { it.id == resolvedElderDiscipleId } ?: return 0.0
 
         return when (buildingId) {
-            "forge" -> {
-                val baseline = 80
+            BuildingNames.FORGE -> {
+                val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.artifactRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
-            "alchemy" -> {
-                val baseline = 80
+            BuildingNames.ALCHEMY -> {
+                val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.pillRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             "herbGarden" -> {
-                val baseline = 80
+                val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.spiritPlanting - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
@@ -227,8 +228,8 @@ class FormulaService @Inject constructor(
         val (elderId, discipleSlots) = when (buildingType) {
             "spiritMine" -> return ElderBonusData(0.0, 0.0, 0.0)
             "herbGarden" -> data.elderSlots.herbGardenElder to data.elderSlots.herbGardenDisciples
-            "alchemy" -> data.elderSlots.alchemyElder to data.elderSlots.alchemyDisciples
-            "forge" -> data.elderSlots.forgeElder to data.elderSlots.forgeDisciples
+            BuildingNames.ALCHEMY -> data.elderSlots.alchemyElder to data.elderSlots.alchemyDisciples
+            BuildingNames.FORGE -> data.elderSlots.forgeElder to data.elderSlots.forgeDisciples
             else -> return ElderBonusData(0.0, 0.0, 0.0)
         }
 
@@ -255,7 +256,7 @@ class FormulaService @Inject constructor(
                     speedBonus += diff * 0.01
                 }
             }
-            "alchemy" -> {
+            BuildingNames.ALCHEMY -> {
                 val elderBaseline = 80
                 val discipleBaseline = 80
 
@@ -268,7 +269,7 @@ class FormulaService @Inject constructor(
                     speedBonus += diff * 0.01
                 }
             }
-            "forge" -> {
+            BuildingNames.FORGE -> {
                 val elderBaseline = 80
                 val discipleBaseline = 80
 

@@ -33,7 +33,8 @@ class PartnerSystem @Inject constructor(
         if (event !is BreakthroughEvent || !event.success) return
         scope.launch {
             stateStore.update {
-                val partnerId = discipleTables.ids.map { discipleTables.assemble(it) }.find { it.id == event.discipleId }?.social?.partnerId
+                val partnerId = event.discipleId.toIntOrNull()
+                    ?.let { id -> discipleTables.partnerIds[id] }
                     ?: return@update
                 for (id in discipleTables.ids) {
                     if (id.toString() == partnerId && discipleTables.isAlive[id] == 1) {

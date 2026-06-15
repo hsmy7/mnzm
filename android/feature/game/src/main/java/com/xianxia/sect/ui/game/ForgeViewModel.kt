@@ -6,9 +6,12 @@ import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
+import com.xianxia.sect.core.util.AppError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -70,9 +73,9 @@ class ForgeViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val success = gameEngine.startForging(slotIndex, recipe.id)
-                if (!success) {
-                    showError("锻造失败，请检查材料是否充足或是否已分配弟子")
+                val result = gameEngine.startForging(slotIndex, recipe.id)
+                if (result is DomainResult.Failure) {
+                    showError(result.error.message)
                 }
             } catch (e: Exception) {
                 showError(e.message ?: "开始锻造失败")
@@ -100,7 +103,7 @@ class ForgeViewModel @Inject constructor(
 
                 var startedCount = 0
                 for (slotIndex in idleSlotIndices) {
-                    if (startBestForgeRecipe(slotIndex)) startedCount++
+                    if (startBestForgeRecipe(slotIndex).isSuccess) startedCount++
                 }
 
                 if (startedCount > 0) {
@@ -114,7 +117,7 @@ class ForgeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun startBestForgeRecipe(slotIndex: Int): Boolean {
+    private suspend fun startBestForgeRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentMaterials = gameEngine.getCurrentMaterials()
         val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
@@ -128,7 +131,7 @@ class ForgeViewModel @Inject constructor(
                     available >= requiredQuantity
                 }
             }
-        } ?: return false
+        } ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
 
         return gameEngine.startForging(slotIndex, recipeToStart.id)
     }

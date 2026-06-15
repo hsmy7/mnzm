@@ -298,40 +298,6 @@ class WarehouseModelsTest {
     }
 
     // ============================================================
-    // CacheMetrics
-    // ============================================================
-
-    @Test
-    fun `CacheMetrics-utilizationRate计算`() {
-        val metrics = CacheMetrics(itemCount = 250, typeCount = 5, rarityCount = 5, lastAccessTime = System.currentTimeMillis(), isExpired = false, maxCacheSize = 500)
-        assertEquals(0.5f, metrics.utilizationRate, 0.001f)
-    }
-
-    @Test
-    fun `CacheMetrics-utilizationRate零容量返回0`() {
-        val metrics = CacheMetrics(itemCount = 0, typeCount = 0, rarityCount = 0, lastAccessTime = 0L, isExpired = false, maxCacheSize = 0)
-        assertEquals(0f, metrics.utilizationRate, 0.001f)
-    }
-
-    // ============================================================
-    // CompressionStats
-    // ============================================================
-
-    @Test
-    fun `CompressionStats数据类`() {
-        val stats = CompressionStats(
-            stringPoolSize = 10,
-            namePoolSize = 8,
-            uniqueStrings = 10,
-            uniqueNames = 8
-        )
-        assertEquals(10, stats.stringPoolSize)
-        assertEquals(8, stats.namePoolSize)
-        assertEquals(10, stats.uniqueStrings)
-        assertEquals(8, stats.uniqueNames)
-    }
-
-    // ============================================================
     // 辅助方法
     // ============================================================
 

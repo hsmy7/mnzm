@@ -11,9 +11,11 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,9 +31,11 @@ data class MerchantItemPools(
 )
 
 @Singleton
+@GameService("MerchantAndRecruitService")
 class MerchantAndRecruitService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider
+    private val scopeProvider: CoroutineScopeProvider,
+    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -295,76 +299,21 @@ class MerchantAndRecruitService @Inject constructor(
         val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
             val gender = if (Random.nextBoolean()) "male" else "female"
-            val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, usedNames)
-            val spiritRootType = SpiritRootGenerator.generate(Random)
-            val hpVariance = Random.nextInt(-50, 51)
-            val mpVariance = Random.nextInt(-50, 51)
-            val physicalAttackVariance = Random.nextInt(-50, 51)
-            val magicAttackVariance = Random.nextInt(-50, 51)
-            val physicalDefenseVariance = Random.nextInt(-50, 51)
-            val magicDefenseVariance = Random.nextInt(-50, 51)
-            val speedVariance = Random.nextInt(-50, 51)
-            val spiritRootCount = spiritRootType.split(",").size
-            val comprehension = when (spiritRootCount) {
-                1 -> Random.nextInt(80, 101)
-                2 -> Random.nextInt(60, 101)
-                3 -> Random.nextInt(40, 101)
-                4 -> Random.nextInt(20, 101)
-                else -> Random.nextInt(1, 101)
-            }
-            val disciple = Disciple(
-                id = java.util.UUID.randomUUID().toString(),
-                name = nameResult.fullName,
-                surname = nameResult.surname,
-                gender = gender,
-                portraitRes = PortraitPool.getRandomPortrait(gender),
-                age = Random.nextInt(16, 30),
-                realm = 9,
-                realmLayer = 1,
-                spiritRootType = spiritRootType,
-                status = DiscipleStatus.IDLE,
-                discipleType = "outer",
-                talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id },
-                combat = com.xianxia.sect.core.model.CombatAttributes(
-                    hpVariance = hpVariance,
-                    mpVariance = mpVariance,
-                    physicalAttackVariance = physicalAttackVariance,
-                    magicAttackVariance = magicAttackVariance,
-                    physicalDefenseVariance = physicalDefenseVariance,
-                    magicDefenseVariance = magicDefenseVariance,
-                    speedVariance = speedVariance
-                ),
-                social = com.xianxia.sect.core.model.SocialData(),
-                skills = com.xianxia.sect.core.model.SkillStats(
-                    intelligence = Random.nextInt(1, 101),
-                    charm = Random.nextInt(1, 101),
-                    loyalty = Random.nextInt(1, 101),
-                    comprehension = comprehension,
-                    morality = Random.nextInt(1, 101),
-                    artifactRefining = Random.nextInt(1, 101),
-                    pillRefining = Random.nextInt(1, 101),
-                    spiritPlanting = Random.nextInt(1, 101),
-                    mining = Random.nextInt(1, 101),
-                    teaching = Random.nextInt(1, 101)
+            val nameResult = NameService.generateName(
+                gender, NameService.NameStyle.FULL, usedNames
+            )
+            val disciple = discipleFactory.create(
+                DiscipleFactory.DiscipleSeed(
+                    id = java.util.UUID.randomUUID().toString(),
+                    gender = gender,
+                    nameResult = nameResult,
+                    spiritRootType = SpiritRootGenerator.generate(Random),
+                    age = Random.nextInt(16, 30),
+                    realmLayer = 1,
+                    social = SocialData(),
+                    nextInt = { from, until -> Random.nextInt(from, until) }
                 )
-            ).apply {
-                val baseStats = Disciple.calculateBaseStatsWithVariance(
-                    hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                    physicalDefenseVariance, magicDefenseVariance, speedVariance
-                )
-                combat.baseHp = baseStats.baseHp
-                combat.baseMp = baseStats.baseMp
-                combat.basePhysicalAttack = baseStats.basePhysicalAttack
-                combat.baseMagicAttack = baseStats.baseMagicAttack
-                combat.basePhysicalDefense = baseStats.basePhysicalDefense
-                combat.baseMagicDefense = baseStats.baseMagicDefense
-                combat.baseSpeed = baseStats.baseSpeed
-
-                val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
-                val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-                val baseLifespan = GameConfig.Realm.get(realm).maxAge
-                lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-            }
+            )
             newRecruitDisciples.add(disciple)
             usedNames.add(disciple.name)
         }

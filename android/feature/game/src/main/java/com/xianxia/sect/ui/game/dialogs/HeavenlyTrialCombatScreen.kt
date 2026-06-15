@@ -71,6 +71,23 @@ private data class AttackAnimationEvent(
     val isKill: Boolean = false
 )
 
+// AoE 全体命中事件：一次飞行 + 所有目标同时受击
+private data class AoeAnimationEvent(
+    val attackerId: String,
+    val targetIds: List<String>,
+    val damages: Map<String, Int>,    // 每个目标独立 roll 的伤害
+    val crits: Map<String, Boolean>,  // 每个目标独立暴击
+    val isPhysical: Boolean,
+    val isHeal: Boolean = false,
+    val skillName: String? = null
+)
+
+// 动画事件统一分发接口
+private sealed interface AnimEvent {
+    data class Single(val event: AttackAnimationEvent) : AnimEvent
+    data class Aoe(val event: AoeAnimationEvent) : AnimEvent
+}
+
 private data class DamageNumberState(
     val id: String = java.util.UUID.randomUUID().toString(),
     val damage: Int,
@@ -87,7 +104,17 @@ private enum class AnimPhase {
 private data class AttackAnimState(
     val attackerId: String? = null,
     val targetId: String? = null,
-    val phase: AnimPhase = AnimPhase.IDLE
+    val phase: AnimPhase = AnimPhase.IDLE,
+    // AoE 时覆盖飞行终点为敌群中心坐标；单体攻击保持 null
+    val overrideEnd: Offset? = null
+)
+
+// 传给每个格子的飞行动画信息：是否本格在飞、当前阶段、到目标的像素位移
+private data class FlightAnimState(
+    val isActive: Boolean = false,
+    val phase: AnimPhase = AnimPhase.IDLE,
+    val deltaX: Float = 0f,
+    val deltaY: Float = 0f
 )
 
 // endregion
@@ -97,7 +124,7 @@ private suspend fun playAttackSequence(
     cellPositions: Map<String, Offset>,
     currentAnimState: () -> AttackAnimState,
     setAnimState: (AttackAnimState) -> Unit,
-    setShaking: (String?) -> Unit,
+    setShaking: (Set<String>) -> Unit,
     addDamageNumber: (DamageNumberState) -> Unit,
     applyResult: (AttackAnimationEvent) -> Unit
 ) {
@@ -117,7 +144,7 @@ private suspend fun playAttackSequence(
         setAnimState(currentAnimState().copy(
             phase = AnimPhase.IMPACT
         ))
-        setShaking(event.targetId)
+        setShaking(setOf(event.targetId))
 
         addDamageNumber(DamageNumberState(
             damage = event.damage,
@@ -128,7 +155,7 @@ private suspend fun playAttackSequence(
         ))
 
         delay(250)
-        setShaking(null)
+        setShaking(emptySet())
 
         // 阶段 3: 返回原位
         setAnimState(currentAnimState().copy(
@@ -158,6 +185,72 @@ private suspend fun playAttackSequence(
     }
 }
 
+// AoE 全体命中：飞向敌群中心一次 → 全体目标同时抖动+伤害数字 → 飞回 → 一次性结算
+private suspend fun playAoeAttackSequence(
+    event: AoeAnimationEvent,
+    cellPositions: Map<String, Offset>,
+    currentAnimState: () -> AttackAnimState,
+    setAnimState: (AttackAnimState) -> Unit,
+    setShaking: (Set<String>) -> Unit,
+    addDamageNumber: (DamageNumberState) -> Unit,
+    applyAoeResult: (AoeAnimationEvent) -> Unit
+) {
+    val aPos = cellPositions[event.attackerId]
+    // 计算敌群中心点（所有目标位置的平均坐标）
+    val targetPositions = event.targetIds.mapNotNull { cellPositions[it] }
+    if (aPos == null || targetPositions.isEmpty()) {
+        // 位置缺失时直接结算
+        applyAoeResult(event)
+        delay(100)
+        return
+    }
+    val centerX = targetPositions.map { it.x }.average().toFloat()
+    val centerY = targetPositions.map { it.y }.average().toFloat()
+    val centerOffset = Offset(centerX, centerY)
+
+    // 阶段 1: 攻击者飞向敌群中心（overrideEnd 覆盖飞行终点）
+    setAnimState(AttackAnimState(
+        attackerId = event.attackerId,
+        targetId = event.targetIds.first(),
+        phase = AnimPhase.MOVE_TO_TARGET,
+        overrideEnd = centerOffset
+    ))
+    delay(300)
+
+    // 阶段 2: 命中 —— 全体目标同时抖动 + 同时弹出伤害数字
+    setAnimState(currentAnimState().copy(
+        phase = AnimPhase.IMPACT,
+        overrideEnd = centerOffset
+    ))
+    setShaking(event.targetIds.toSet())
+
+    event.targetIds.forEach { tid ->
+        val dmg = event.damages[tid] ?: 0
+        val crit = event.crits[tid] ?: false
+        addDamageNumber(DamageNumberState(
+            damage = dmg,
+            isCrit = crit,
+            isPhysical = event.isPhysical,
+            isHeal = event.isHeal,
+            targetId = tid
+        ))
+    }
+
+    delay(300)
+    setShaking(emptySet())
+
+    // 阶段 3: 返回原位
+    setAnimState(currentAnimState().copy(
+        phase = AnimPhase.RETURN_TO_START,
+        overrideEnd = centerOffset
+    ))
+    delay(300)
+
+    // 阶段 4: 一次性结算全体伤害
+    applyAoeResult(event)
+    setAnimState(AttackAnimState())
+}
+
 @Composable
 fun HeavenlyTrialCombatScreen(
     viewModel: HeavenlyTrialViewModel,
@@ -178,7 +271,7 @@ fun HeavenlyTrialCombatScreen(
     // Animation state
     var isAnimating by remember { mutableStateOf(false) }
     var currentAnimState by remember { mutableStateOf(AttackAnimState()) }
-    var shakingTargetId by remember { mutableStateOf<String?>(null) }
+    var shakingTargetIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var activeDamageNumbers by remember {
         mutableStateOf<List<DamageNumberState>>(emptyList())
     }
@@ -223,6 +316,42 @@ fun HeavenlyTrialCombatScreen(
         }
     }
 
+    // AoE 一次性结算：对所有目标同步应用伤害
+    fun applyAoeResult(event: AoeAnimationEvent) {
+        val damages = event.damages
+        if (event.isHeal) {
+            // 治疗型 AoE（暂未使用，预留）
+            val isTargetPlayer = playerTeam.any { it.id in event.targetIds }
+            if (isTargetPlayer) {
+                playerTeam = playerTeam.map { c ->
+                    val d = damages[c.id] ?: return@map c
+                    c.copy(hp = (c.hp + d).coerceAtMost(c.maxHp))
+                }
+            } else {
+                enemyTeam = enemyTeam.map { c ->
+                    val d = damages[c.id] ?: return@map c
+                    c.copy(hp = (c.hp + d).coerceAtMost(c.maxHp))
+                }
+            }
+        } else {
+            // 判定目标阵营
+            val damageOnPlayers = event.targetIds.any { id -> playerTeam.any { it.id == id } }
+            if (damageOnPlayers) {
+                playerTeam = playerTeam.map { c ->
+                    val d = damages[c.id] ?: return@map c
+                    c.copy(hp = (c.hp - d).coerceAtLeast(0))
+                }
+            }
+            val damageOnEnemies = event.targetIds.any { id -> enemyTeam.any { it.id == id } }
+            if (damageOnEnemies) {
+                enemyTeam = enemyTeam.map { c ->
+                    val d = damages[c.id] ?: return@map c
+                    c.copy(hp = (c.hp - d).coerceAtLeast(0))
+                }
+            }
+        }
+    }
+
     LaunchedEffect(playerTeam, enemyTeam) {
         if (playerTeam.all { it.isDead }) { phase = BattlePhase.LOST }
         else if (enemyTeam.all { it.isDead }) { phase = BattlePhase.WON }
@@ -233,61 +362,65 @@ fun HeavenlyTrialCombatScreen(
             isAnimating = true
             delay(600L)
 
-            // 预计算所有敌人行动 → 动画事件列表
+            // 敌人逐个行动：边算边播，确保 executeEnemyAction 始终看到
+            // 上一只敌人攻击后的真实血量（修复陈旧血量 bug）
             val sortedEnemies = enemyTeam.filter { !it.isDead }
                 .sortedByDescending { it.speed }
-            val events = mutableListOf<AttackAnimationEvent>()
 
             for (enemy in sortedEnemies) {
                 if (playerTeam.all { it.isDead }) break
+
                 val action = viewModel.trialService.executeEnemyAction(
                     attacker = enemy,
-                    playerTeam = playerTeam,
+                    playerTeam = playerTeam,   // 最新血量
                     allyTeam = enemyTeam.filter { it.id != enemy.id }
                 )
                 val skill = action.skill
                 val target = action.target
-                when (action.actionType) {
-                    ActionType.NONE -> { /* 被控跳过 */ }
+
+                // 把这次行动组装成 AnimEvent 并即时播放结算
+                val animEvent: AnimEvent? = when (action.actionType) {
+                    ActionType.NONE -> null
                     ActionType.ATTACK -> {
-                        if (skill != null) {
-                            if (skill.isAoe) {
-                                // AOE: 逐个目标生成事件
-                                for (p in playerTeam.filter { !it.isDead }) {
-                                    val dmg = computeSkillDamage(
+                        if (skill != null && skill.isAoe) {
+                            // AoE：一次飞行，每目标独立伤害
+                            val targets = playerTeam.filter { !it.isDead }
+                            if (targets.isEmpty()) null
+                            else {
+                                val damages = targets.associate { p ->
+                                    p.id to computeSkillDamage(
                                         enemy, p, skill,
                                         isDefending.contains(p.id)
                                     )
-                                    val isCrit = Random.nextDouble() < enemy.critRate
-                                    events.add(AttackAnimationEvent(
-                                        attackerId = enemy.id,
-                                        targetId = p.id,
-                                        damage = dmg,
-                                        isCrit = isCrit,
-                                        isPhysical = skill.damageType ==
-                                            DamageType.PHYSICAL,
-                                        skillName = skill.name,
-                                        isKill = p.hp - dmg <= 0
-                                    ))
                                 }
-                            } else if (target != null) {
-                                val dmg = computeSkillDamage(
-                                    enemy, target, skill,
-                                    isDefending.contains(target.id)
-                                )
-                                val isCrit = Random.nextDouble() < enemy.critRate
-                                events.add(AttackAnimationEvent(
+                                val crits = targets.associate {
+                                    it.id to (Random.nextDouble() < enemy.critRate)
+                                }
+                                AnimEvent.Aoe(AoeAnimationEvent(
                                     attackerId = enemy.id,
-                                    targetId = target.id,
-                                    damage = dmg,
-                                    isCrit = isCrit,
-                                    isPhysical = skill.damageType ==
-                                        DamageType.PHYSICAL,
-                                    skillName = skill.name,
-                                    isKill = target.hp - dmg <= 0
+                                    targetIds = targets.map { it.id },
+                                    damages = damages,
+                                    crits = crits,
+                                    isPhysical = skill.damageType == DamageType.PHYSICAL,
+                                    skillName = skill.name
                                 ))
                             }
-                        }
+                        } else if (skill != null && target != null) {
+                            val dmg = computeSkillDamage(
+                                enemy, target, skill,
+                                isDefending.contains(target.id)
+                            )
+                            val isCrit = Random.nextDouble() < enemy.critRate
+                            AnimEvent.Single(AttackAnimationEvent(
+                                attackerId = enemy.id,
+                                targetId = target.id,
+                                damage = dmg,
+                                isCrit = isCrit,
+                                isPhysical = skill.damageType == DamageType.PHYSICAL,
+                                skillName = skill.name,
+                                isKill = target.hp - dmg <= 0
+                            ))
+                        } else null
                     }
                     ActionType.NORMAL_ATTACK -> {
                         if (target != null) {
@@ -295,7 +428,7 @@ fun HeavenlyTrialCombatScreen(
                                 enemy, target,
                                 isDefending.contains(target.id)
                             )
-                            events.add(AttackAnimationEvent(
+                            AnimEvent.Single(AttackAnimationEvent(
                                 attackerId = enemy.id,
                                 targetId = target.id,
                                 damage = dmg,
@@ -303,59 +436,75 @@ fun HeavenlyTrialCombatScreen(
                                 isPhysical = true,
                                 isKill = target.hp - dmg <= 0
                             ))
-                        }
+                        } else null
                     }
                     ActionType.BUFF_ALLY -> {
                         if (skill != null && target != null) {
-                            events.add(AttackAnimationEvent(
-                                attackerId = target.id,
-                                targetId = target.id,
-                                damage = (target.maxHp *
-                                    skill.healPercent).toInt(),
-                                isCrit = false,
-                                isPhysical = false,
-                                isHeal = true,
-                                skillName = skill.name
-                            ))
-                            // Buff 效果立即应用
+                            // Buff 效果立即应用到敌方队伍（不经过动画结算）
                             val buffed = applyBuffToTarget(target, skill)
                             enemyTeam = enemyTeam.map {
                                 if (it.id == target.id) buffed else it
                             }
-                        }
-                    }
-                    ActionType.BUFF_SELF -> {
-                        if (skill != null) {
-                            events.add(AttackAnimationEvent(
-                                attackerId = enemy.id,
-                                targetId = enemy.id,
-                                damage = (enemy.maxHp *
-                                    skill.healPercent).toInt(),
+                            AnimEvent.Single(AttackAnimationEvent(
+                                attackerId = target.id,
+                                targetId = target.id,
+                                damage = (target.maxHp * skill.healPercent).toInt(),
                                 isCrit = false,
                                 isPhysical = false,
                                 isHeal = true,
                                 skillName = skill.name
                             ))
+                        } else null
+                    }
+                    ActionType.BUFF_SELF -> {
+                        if (skill != null) {
                             val buffed = applyBuffToTarget(enemy, skill)
                             enemyTeam = enemyTeam.map {
                                 if (it.id == enemy.id) buffed else it
                             }
-                        }
+                            AnimEvent.Single(AttackAnimationEvent(
+                                attackerId = enemy.id,
+                                targetId = enemy.id,
+                                damage = (enemy.maxHp * skill.healPercent).toInt(),
+                                isCrit = false,
+                                isPhysical = false,
+                                isHeal = true,
+                                skillName = skill.name
+                            ))
+                        } else null
                     }
                 }
-            }
 
-            // 依次播放攻击动画
-            for (event in events) {
-                playAttackSequence(event,
-                    cellPositions = cellPositions,
-                    currentAnimState = { currentAnimState },
-                    setAnimState = { currentAnimState = it },
-                    setShaking = { shakingTargetId = it },
-                    addDamageNumber = { activeDamageNumbers =
-                        activeDamageNumbers + it },
-                    applyResult = { e -> applyAnimationResult(e) }
-                )
+                // 即时播放并结算（更新 playerTeam / enemyTeam）
+                when (animEvent) {
+                    is AnimEvent.Aoe -> {
+                        playAoeAttackSequence(
+                            event = animEvent.event,
+                            cellPositions = cellPositions,
+                            currentAnimState = { currentAnimState },
+                            setAnimState = { currentAnimState = it },
+                            setShaking = { shakingTargetIds = it },
+                            addDamageNumber = {
+                                activeDamageNumbers = activeDamageNumbers + it
+                            },
+                            applyAoeResult = { e -> applyAoeResult(e) }
+                        )
+                    }
+                    is AnimEvent.Single -> {
+                        playAttackSequence(
+                            event = animEvent.event,
+                            cellPositions = cellPositions,
+                            currentAnimState = { currentAnimState },
+                            setAnimState = { currentAnimState = it },
+                            setShaking = { shakingTargetIds = it },
+                            addDamageNumber = {
+                                activeDamageNumbers = activeDamageNumbers + it
+                            },
+                            applyResult = { e -> applyAnimationResult(e) }
+                        )
+                    }
+                    null -> { /* 被控或无目标，跳过 */ }
+                }
             }
 
             isDefending = mutableSetOf()
@@ -421,6 +570,24 @@ fun HeavenlyTrialCombatScreen(
                             phase == BattlePhase.PLAYER_TURN
                         val allySelected = selectedTargetId != null && isPlayer && selectedIsAlly && selectedTargetId == cellCombatant?.id
                         val enemySelected = selectedTargetId != null && !isPlayer && !selectedIsAlly && selectedTargetId == cellCombatant?.id
+                        // 计算本格的飞行动画：仅当本格是当前飞行攻击者时激活，
+                        // delta = 目标位置 - 本格位置（屏幕像素）
+                        val flightAnim = if (cellCombatant != null &&
+                            currentAnimState.phase != AnimPhase.IDLE &&
+                            currentAnimState.attackerId == cellCombatant.id
+                        ) {
+                            val selfPos = cellPositions[cellCombatant.id]
+                            val targetPos = currentAnimState.overrideEnd
+                                ?: currentAnimState.targetId?.let { cellPositions[it] }
+                            if (selfPos != null && targetPos != null) {
+                                FlightAnimState(
+                                    isActive = true,
+                                    phase = currentAnimState.phase,
+                                    deltaX = targetPos.x - selfPos.x,
+                                    deltaY = targetPos.y - selfPos.y
+                                )
+                            } else FlightAnimState()
+                        } else FlightAnimState()
 
                         CombatUnitCell(
                             combatant = cellCombatant,
@@ -428,7 +595,8 @@ fun HeavenlyTrialCombatScreen(
                             isAllySelected = allySelected,
                             isEnemySelected = enemySelected,
                             isShaking = cellCombatant != null &&
-                                shakingTargetId == cellCombatant.id,
+                                shakingTargetIds.contains(cellCombatant.id),
+                            flightAnim = flightAnim,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -467,46 +635,9 @@ fun HeavenlyTrialCombatScreen(
             }
         }
 
-        // 动画覆盖层（攻击飞行 + 伤害数字）
-        if (activeDamageNumbers.isNotEmpty() ||
-            currentAnimState.phase != AnimPhase.IDLE
-        ) {
-            Box(modifier = Modifier.matchParentSize().zIndex(5f)) {
-                // 攻击者飞行精灵
-                val animState = currentAnimState
-                if (animState.phase != AnimPhase.IDLE &&
-                    animState.attackerId != null &&
-                    animState.targetId != null
-                ) {
-                    val aPos = cellPositions[animState.attackerId]
-                    val tPos = cellPositions[animState.targetId]
-                    if (aPos != null && tPos != null) {
-                        val attacker = (playerTeam + enemyTeam)
-                            .find { it.id == animState.attackerId }
-                        if (attacker != null) {
-                            val targetPos = when (animState.phase) {
-                                AnimPhase.MOVE_TO_TARGET, AnimPhase.IMPACT ->
-                                    tPos
-                                else -> aPos
-                            }
-                            val startPos = when (animState.phase) {
-                                AnimPhase.MOVE_TO_TARGET -> aPos
-                                AnimPhase.IMPACT -> tPos
-                                AnimPhase.RETURN_TO_START -> tPos
-                                else -> aPos
-                            }
-                            AttackerFlightOverlay(
-                                attacker = attacker,
-                                startX = startPos.x,
-                                startY = startPos.y,
-                                endX = targetPos.x,
-                                endY = targetPos.y,
-                                phase = animState.phase
-                            )
-                        }
-                    }
-                }
-
+        // 动画覆盖层（仅伤害数字；本体飞行由网格格子自身的位移实现）
+        if (activeDamageNumbers.isNotEmpty()) {
+            Box(modifier = Modifier.matchParentSize().zIndex(15f)) {
                 // 浮动伤害数字
                 activeDamageNumbers.forEach { dn ->
                     val pos = cellPositions[dn.targetId]
@@ -517,8 +648,8 @@ fun HeavenlyTrialCombatScreen(
                                 isCrit = dn.isCrit,
                                 isPhysical = dn.isPhysical,
                                 isHeal = dn.isHeal,
-                                screenX = pos.x + 20f,
-                                screenY = pos.y - 10f,
+                                screenX = pos.x + 8f,
+                                screenY = pos.y - 38f,
                                 onFadeComplete = {
                                     activeDamageNumbers =
                                         activeDamageNumbers.filter {
@@ -606,31 +737,35 @@ fun HeavenlyTrialCombatScreen(
                                                 if (isAttackSkill) {
                                                     val targets = enemyTeam
                                                         .filter { !it.isDead }
-                                                    for (t in targets) {
-                                                        val dmg = computeSkillDamage(
-                                                            currentCombatant, t,
-                                                            skill, false
-                                                        )
-                                                        val isCrit = Random.nextDouble() <
-                                                            currentCombatant.critRate
-                                                        playAttackSequence(
-                                                            AttackAnimationEvent(
+                                                    if (targets.isNotEmpty()) {
+                                                        // AoE：一次飞行 + 全体同时受击
+                                                        val damages = targets.associate { t ->
+                                                            t.id to computeSkillDamage(
+                                                                currentCombatant, t,
+                                                                skill, false
+                                                            )
+                                                        }
+                                                        val crits = targets.associate {
+                                                            it.id to (Random.nextDouble() <
+                                                                currentCombatant.critRate)
+                                                        }
+                                                        playAoeAttackSequence(
+                                                            AoeAnimationEvent(
                                                                 attackerId = currentCombatant.id,
-                                                                targetId = t.id,
-                                                                damage = dmg,
-                                                                isCrit = isCrit,
+                                                                targetIds = targets.map { it.id },
+                                                                damages = damages,
+                                                                crits = crits,
                                                                 isPhysical = skill.damageType ==
                                                                     DamageType.PHYSICAL,
-                                                                skillName = skill.name,
-                                                                isKill = t.hp - dmg <= 0
+                                                                skillName = skill.name
                                                             ),
                                                             cellPositions,
                                                             { currentAnimState },
                                                             { currentAnimState = it },
-                                                            { shakingTargetId = it },
+                                                            { shakingTargetIds = it },
                                                             { activeDamageNumbers =
                                                                 activeDamageNumbers + it },
-                                                            { e -> applyAnimationResult(e) }
+                                                            { e -> applyAoeResult(e) }
                                                         )
                                                     }
                                                 }
@@ -667,7 +802,7 @@ fun HeavenlyTrialCombatScreen(
                                                             cellPositions,
                                                             { currentAnimState },
                                                             { currentAnimState = it },
-                                                            { shakingTargetId = it },
+                                                            { shakingTargetIds = it },
                                                             { activeDamageNumbers =
                                                                 activeDamageNumbers + it },
                                                             { e -> applyAnimationResult(e) }
@@ -781,7 +916,7 @@ fun HeavenlyTrialCombatScreen(
                                                     cellPositions,
                                                     { currentAnimState },
                                                     { currentAnimState = it },
-                                                    { shakingTargetId = it },
+                                                    { shakingTargetIds = it },
                                                     { activeDamageNumbers =
                                                         activeDamageNumbers + it },
                                                     { e -> applyAnimationResult(e) }
@@ -849,6 +984,8 @@ private fun CombatUnitCell(
     isAllySelected: Boolean = false,
     isEnemySelected: Boolean = false,
     isShaking: Boolean = false,
+    // 飞行动画：本格是否为正在飞行的攻击者；若是，按 animState 平移本体
+    flightAnim: FlightAnimState = FlightAnimState(),
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -871,15 +1008,48 @@ private fun CombatUnitCell(
         }
     }
 
+    // 本体飞行进度：0=原位，1=目标位。仅攻击者自身参与。
+    val flightProgress = remember { Animatable(0f) }
+    LaunchedEffect(flightAnim.phase, flightAnim.isActive) {
+        if (flightAnim.isActive) {
+            when (flightAnim.phase) {
+                AnimPhase.MOVE_TO_TARGET -> {
+                    flightProgress.snapTo(0f)
+                    flightProgress.animateTo(1f, tween(250, easing = LinearEasing))
+                }
+                AnimPhase.IMPACT -> flightProgress.snapTo(1f)
+                AnimPhase.RETURN_TO_START -> {
+                    flightProgress.snapTo(1f)
+                    flightProgress.animateTo(0f, tween(250, easing = LinearEasing))
+                }
+                else -> flightProgress.snapTo(0f)
+            }
+        } else {
+            flightProgress.snapTo(0f)
+        }
+    }
+
+    // 平移量（屏幕像素）：从原位插值到目标位
+    val transX = flightAnim.deltaX * flightProgress.value
+    val transY = flightAnim.deltaY * flightProgress.value
+
+    // 外层 Box：固定在格子原位，承载背景色/点击/zIndex；不参与平移
     Box(
         modifier = modifier
-            .graphicsLayer { translationX = shakeOffset.value }
+            .zIndex(if (flightAnim.isActive) 10f else 0f)
             .background(bgColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
+        // 内层 Box：承载立绘内容，做飞行平移 + 受击抖动
         if (combatant != null && !combatant.isDead) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.graphicsLayer {
+                    translationX = shakeOffset.value + transX
+                    translationY = transY
+                }
+            ) {
                 // 气血文字 / 晕眩状态
                 if (combatant.hasControlEffect) {
                     Text("晕眩", fontSize = 9.sp, color = Color.Red)
@@ -916,7 +1086,7 @@ private fun CombatUnitCell(
 
                 Spacer(Modifier.height(4.dp))
 
-                // 肖像图标
+                // 肖像图标（本体直接飞行，无需额外覆盖层）
                 CombatantPortrait(combatant = combatant, size = 44)
             }
         }
@@ -997,11 +1167,12 @@ private fun FloatingDamageNumber(
         isPhysical -> GameColors.DamagePhysical
         else -> GameColors.DamageMagic
     }
-    val fontSize = if (isCrit) 22 else 16
+    // 字号：普通 18，暴击 24（带描边已足够清晰）
+    val fontSize = if (isCrit) 24 else 18
 
     LaunchedEffect(Unit) {
         launch { damageScale.animateTo(1.3f, tween(150)) }
-        launch { floatOffset.animateTo(-90f, tween(1200, easing = LinearEasing)) }
+        launch { floatOffset.animateTo(-120f, tween(1200, easing = LinearEasing)) }
         delay(150)
         launch { damageScale.animateTo(1.0f, tween(200)) }
         delay(500)
@@ -1012,13 +1183,10 @@ private fun FloatingDamageNumber(
     val displayText = if (isCrit) "暴击!$damage"
         else if (isHeal) "+$damage"
         else "$damage"
-    val fontWeight = if (isCrit) FontWeight.Bold else FontWeight.Normal
+    val fontWeight = if (isCrit) FontWeight.Bold else FontWeight.ExtraBold
 
-    Text(
-        text = displayText,
-        fontSize = fontSize.sp,
-        fontWeight = fontWeight,
-        color = textColor,
+    // 用 Box 叠加多层 Text 实现黑描边：8 方向黑色偏移 + 中心彩色填充
+    Box(
         modifier = Modifier
             .offset {
                 IntOffset(
@@ -1031,100 +1199,31 @@ private fun FloatingDamageNumber(
                 scaleY = damageScale.value
                 this.alpha = damageAlpha.value
             }
-    )
-}
-
-// region Attacker Flight Overlay
-
-@Composable
-private fun AttackerFlightOverlay(
-    attacker: Combatant,
-    startX: Float,
-    startY: Float,
-    endX: Float,
-    endY: Float,
-    phase: AnimPhase
-) {
-    val context = LocalContext.current
-    val progress = remember { Animatable(0f) }
-
-    LaunchedEffect(phase) {
-        when (phase) {
-            AnimPhase.MOVE_TO_TARGET -> {
-                progress.snapTo(0f)
-                progress.animateTo(1f, tween(250, easing = LinearEasing))
-            }
-            AnimPhase.IMPACT -> {
-                progress.snapTo(1f)
-            }
-            AnimPhase.RETURN_TO_START -> {
-                progress.snapTo(1f)
-                progress.animateTo(0f, tween(250, easing = LinearEasing))
-            }
-            else -> progress.snapTo(0f)
-        }
-    }
-
-    val curX = startX + (endX - startX) * progress.value
-    val curY = startY + (endY - startY) * progress.value
-    val size = 44
-
-    val portraitResId = remember(attacker.id, attacker.portraitRes,
-        attacker.isBeast
     ) {
-        when {
-            attacker.isBeast -> {
-                val index = attacker.portraitRes
-                    .removePrefix("beast_").toIntOrNull() ?: 0
-                beastDrawables.getOrNull(index) ?: R.drawable.tiger_beast
-            }
-            attacker.portraitRes.isNotBlank() -> {
-                PortraitPool.getResourceId(context, attacker.portraitRes)
-                    .takeIf { it != 0 } ?: R.drawable.disciple_portrait
-            }
-            else -> {
-                val randomPortrait = PortraitPool.getRandomPortrait(
-                    if (Random.nextBoolean()) "male" else "female"
-                )
-                PortraitPool.getResourceId(context, randomPortrait)
-                    .takeIf { it != 0 } ?: R.drawable.disciple_portrait
-            }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(curX.roundToInt(), curY.roundToInt()) }
-            .zIndex(10f)
-    ) {
-        if (attacker.isBeast) {
-            Image(
-                painter = painterResource(id = portraitResId),
-                contentDescription = null,
-                modifier = Modifier.size(size.dp),
-                contentScale = ContentScale.Fit
+        // 底层：8 方向黑色偏移构成描边
+        val strokeDirs = listOf(
+            -1 to -1, -1 to 0, -1 to 1,
+            0 to -1, 0 to 1,
+            1 to -1, 1 to 0, 1 to 1
+        )
+        strokeDirs.forEach { (dx, dy) ->
+            Text(
+                text = displayText,
+                fontSize = fontSize.sp,
+                fontWeight = fontWeight,
+                color = Color.Black,
+                modifier = Modifier.offset { IntOffset(dx, dy) }
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(size.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, Color.Gray, CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = portraitResId),
-                    contentDescription = null,
-                    modifier = Modifier.size((size - 4).dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
         }
+        // 顶层：彩色填充
+        Text(
+            text = displayText,
+            fontSize = fontSize.sp,
+            fontWeight = fontWeight,
+            color = textColor
+        )
     }
 }
-
-// endregion
 
 // region Battle Logic
 

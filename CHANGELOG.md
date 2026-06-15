@@ -1,5 +1,16 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.01] - 2026-06-15（架构重构：领域结果统一 + 仓库系统精简，versionCode=4001）
+
+- **领域结果统一**：引入 `DomainResult<T>` 密封接口（成功/部分成功/失败），替代全项目 15+ 处裸 Boolean 返回和 5 套碎片化错误类型。调用方通过 `when` 穷尽性强制处理所有分支，失败时携带具体错误原因
+- **错误体系整合**：`AppError.Domain` 新增弟子/道具/建筑三大领域错误子树（9 种具体错误类型），删除已废弃的 `ProductionError`、`ProductionOperationResult`、`ProductionResult` 等碎片类型
+- **事务返回值支持**：`GameStateStore` 新增 `updateAndReturn<R>` 方法，事务内可直接返回值，消除 `var result = false` 闭包捕获反模式
+- **死代码清理**：移除 `isInTransaction()`（0 调用点）、`createShadow()`（仅测试用，改用 `createSettlementShadow`）、`WarehouseCompressor`/`WarehousePager`/`WarehouseDiffManager`/`WarehouseCache`（含 rarity 截断 bug，未接入生产）
+- **道具系统**：新增 `StackableItemStore<T>` + `StackKey` 泛型可堆叠仓库，统一 6 类物品合并键。`AddResult` 枚举替换为 `DomainResult`，`ItemAdder` 接口及 7 个消费文件全部迁移
+- **生产系统**：`ProductionCoordinator` 统一返回 `DomainResult`，消除 `ProductionStartResult`/`ProductionCompleteResult` 中间层
+- **仓库系统**：`SectWarehouseManager` + `OptimizedWarehouseManager` 从全局 object 改为 `@Singleton class @Inject`，精简至核心 CRUD 操作
+- **引擎服务标注**：补齐 9 个缺失的 `@GameService` 注解（CaveExplorationProcessor、CultivationCore、CultivationEventProcessor 等），白名单清空
+
 ## [4.0.00] - 2026-06-14（删档重发版本，合并原 4.0.00~4.0.05，versionCode=4000）
 
 > 数据库保持 version=1，所有旧存档清空。本条目合并了原 4.0.00（基础架构/删档重置）、4.0.01（组件化实体存储）、4.0.02/4.0.03（世界地图修复+存档管线）、4.0.04（战斗动画）、4.0.05（死锁根治）的全部更新。

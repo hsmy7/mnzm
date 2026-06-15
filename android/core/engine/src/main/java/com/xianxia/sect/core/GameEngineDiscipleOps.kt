@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.DomainResult
 
 fun GameEngine.addDisciple(disciple: Disciple) = discipleFacade.addDisciple(disciple)
 fun GameEngine.removeDisciple(discipleId: String): Boolean = discipleFacade.removeDisciple(discipleId)
@@ -10,14 +11,14 @@ fun GameEngine.getDiscipleStatus(discipleId: String): DiscipleStatus = discipleF
 fun GameEngine.syncAllDiscipleStatuses() = discipleFacade.syncAllDiscipleStatuses()
 suspend fun GameEngine.resetAllDisciplesStatus() = discipleFacade.resetAllDisciplesStatus()
 fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
-suspend fun GameEngine.expelDisciple(discipleId: String): Boolean = discipleFacade.expelDisciple(discipleId)
-suspend fun GameEngine.expelTheftDisciple(discipleId: String): Boolean = discipleFacade.expelTheftDisciple(discipleId)
+suspend fun GameEngine.expelDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelDisciple(discipleId)
+suspend fun GameEngine.expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelTheftDisciple(discipleId)
 suspend fun GameEngine.imprisonTheftDisciple(discipleId: String, currentYear: Int) = discipleFacade.imprisonTheftDisciple(discipleId, currentYear)
 suspend fun GameEngine.releaseTheftDisciple(discipleId: String): Int = discipleFacade.releaseTheftDisciple(discipleId)
 fun GameEngine.clearPendingNotification() = discipleFacade.clearPendingNotification()
 suspend fun GameEngine.approveMarriage(maleId: String, femaleId: String) = discipleFacade.approveMarriage(maleId, femaleId)
-suspend fun GameEngine.equipEquipment(discipleId: String, equipmentId: String): Boolean = discipleFacade.equipEquipment(discipleId, equipmentId)
-suspend fun GameEngine.unequipEquipment(discipleId: String, equipmentId: String): Boolean = discipleFacade.unequipEquipment(discipleId, equipmentId)
+suspend fun GameEngine.equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleFacade.equipEquipment(discipleId, equipmentId)
+suspend fun GameEngine.unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleFacade.unequipEquipment(discipleId, equipmentId)
 fun GameEngine.isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = discipleFacade.isDiscipleAssignedToSpiritMine(discipleId)
 fun GameEngine.updateYearlySalaryEnabled(realm: Int, enabled: Boolean) = discipleFacade.updateYearlySalaryEnabled(realm, enabled)
 fun GameEngine.getAliveDisciplesCount(): Int = discipleFacade.getAliveDisciplesCount()

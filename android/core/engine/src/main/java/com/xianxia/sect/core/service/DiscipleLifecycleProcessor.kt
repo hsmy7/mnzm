@@ -11,10 +11,12 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("DiscipleLifecycleProcessor")
 class DiscipleLifecycleProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,

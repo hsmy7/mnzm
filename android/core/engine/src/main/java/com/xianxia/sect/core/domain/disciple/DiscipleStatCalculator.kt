@@ -470,7 +470,7 @@ object DiscipleStatCalculator {
         val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount, disciple.realmLayer)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
-            ((innerElderComprehension - 80) / 4) * 0.01
+            ((innerElderComprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
         } else {
             0.0
         }
@@ -498,7 +498,7 @@ object DiscipleStatCalculator {
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
-            ((innerElderComprehension - 80) / 4) * 0.01
+            ((innerElderComprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
         } else {
             0.0
         }
@@ -539,7 +539,7 @@ object DiscipleStatCalculator {
         if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
-        val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - 80) / 4) * 0.01 else 0.0
+        val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0
         val talentEffects = getTalentEffects(aggregate)
         val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)

@@ -16,7 +16,6 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 
 
@@ -277,7 +276,7 @@ class ExplorationService @Inject constructor(
                                 quantity = 1
                             )
                             val addResult = inventorySystem.addMaterial(material)
-                            if (addResult == AddResult.SUCCESS || addResult == AddResult.PARTIAL_SUCCESS) {
+                            if (addResult.isSuccess) {
                                 allRewards.add(BattleRewardItem(
                                     itemId = material.id, name = material.name,
                                     quantity = 1, rarity = material.rarity, type = "material"

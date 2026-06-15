@@ -7,10 +7,12 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("DiplomacyEventProcessor")
 class DiplomacyEventProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,

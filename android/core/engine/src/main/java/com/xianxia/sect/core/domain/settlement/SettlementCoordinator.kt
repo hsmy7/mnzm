@@ -633,7 +633,7 @@ class SettlementCoordinator @Inject constructor(
         if (disciple.realm < elder.realm) return 0.0
         val comprehension = elder.skills.comprehension
         return if (comprehension >= 80) {
-            ((comprehension - 80) / 4) * 0.01
+            ((comprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
         } else 0.0
     }
 

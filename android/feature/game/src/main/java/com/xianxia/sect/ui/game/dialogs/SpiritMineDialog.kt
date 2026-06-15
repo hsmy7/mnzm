@@ -93,7 +93,7 @@ fun SpiritMineDialog(
     val deaconBonus = deaconDisciples.mapNotNull { slot ->
         slot.discipleId?.let { id -> discipleMap[id] }
     }.sumOf { disciple ->
-        val baseline = 80
+        val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
         val diff = (disciple.morality - baseline).coerceAtLeast(0)
         diff * 0.01
     }

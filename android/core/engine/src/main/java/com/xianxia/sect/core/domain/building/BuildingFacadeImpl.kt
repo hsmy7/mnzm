@@ -7,6 +7,8 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.*
@@ -48,10 +50,10 @@ class BuildingFacadeImpl @Inject constructor(
     override fun getBuildingSlots(buildingId: String): List<BuildingSlot> =
         buildingService.getBuildingSlotsForBuilding(buildingId)
 
-    override suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean =
+    override suspend fun startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> =
         buildingService.startAlchemy(slotIndex, recipeId)
 
-    override suspend fun startForging(slotIndex: Int, recipeId: String): Boolean =
+    override suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> =
         buildingService.startForging(slotIndex, recipeId)
 
     override suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
@@ -90,16 +92,6 @@ class BuildingFacadeImpl @Inject constructor(
                     assignedDiscipleName = discipleName
                 )
             }
-            stateStore.update { gameData = gameData.copy(
-                productionSlots = gameData.productionSlots.map { slot ->
-                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
-                        slot.copy(
-                            assignedDiscipleId = discipleId,
-                            assignedDiscipleName = discipleName
-                        )
-                    } else slot
-                }
-            )}
         }
     }
 
@@ -108,9 +100,7 @@ class BuildingFacadeImpl @Inject constructor(
             val data = stateStore.gameDataSnapshot
             val currentYear = data.gameYear
             val currentMonth = data.gameMonth
-            val slot = data.productionSlots.find {
-                it.buildingType == buildingType && it.slotIndex == slotIndex
-            }
+            val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             val discipleId = slot?.assignedDiscipleId
 
             productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
@@ -127,24 +117,6 @@ class BuildingFacadeImpl @Inject constructor(
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
-            stateStore.update { gameData = gameData.copy(
-                productionSlots = gameData.productionSlots.map { s ->
-                    if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
-                        if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
-                            val remaining = s.remainingTime(currentYear, currentMonth)
-                            s.copy(
-                                assignedDiscipleId = null,
-                                assignedDiscipleName = "",
-                                startYear = currentYear,
-                                startMonth = currentMonth,
-                                duration = remaining.coerceAtLeast(1)
-                            )
-                        } else {
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        }
-                    } else s
-                }
-            )}
             if (discipleId != null) {
                 stateStore.update {
                     val id = discipleId.toIntOrNull() ?: return@update
@@ -160,13 +132,6 @@ class BuildingFacadeImpl @Inject constructor(
         productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
             slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
         }
-        stateStore.update { gameData = gameData.copy(
-            productionSlots = gameData.productionSlots.map { slot ->
-                if (slot.buildingType == buildingType && slot.slotIndex == slotIndex)
-                    slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-                else slot
-            }
-        )}
     }
 
     override suspend fun addProductionSlot(slot: ProductionSlot) {
@@ -178,7 +143,7 @@ class BuildingFacadeImpl @Inject constructor(
         if (seed.quantity <= 0) return
 
         val data = stateStore.gameData.value
-        val existingSlot = productionCoordinator.repository.getSlotByBuildingId("herbGarden", slotIndex)
+        val existingSlot = productionCoordinator.repository.getSlotByBuildingId(BuildingNames.HERB_GARDEN, slotIndex)
 
         if (existingSlot != null && existingSlot.isCompleted) {
             harvestHerbFromCompletedSlot(existingSlot)
@@ -191,7 +156,7 @@ class BuildingFacadeImpl @Inject constructor(
             id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
             slotIndex = slotIndex,
             buildingType = BuildingType.HERB_GARDEN,
-            buildingId = "herbGarden",
+            buildingId = BuildingNames.HERB_GARDEN,
             status = ProductionSlotStatus.WORKING,
             recipeId = herbDbSeedId ?: seedId,
             recipeName = seed.name,
@@ -206,7 +171,7 @@ class BuildingFacadeImpl @Inject constructor(
         )
 
         if (existingSlot != null) {
-            productionCoordinator.repository.updateSlotByBuildingId("herbGarden", slotIndex) { newSlot }
+            productionCoordinator.repository.updateSlotByBuildingId(BuildingNames.HERB_GARDEN, slotIndex) { newSlot }
         } else {
             productionCoordinator.repository.addSlot(newSlot)
         }
@@ -299,19 +264,19 @@ class BuildingFacadeImpl @Inject constructor(
     override fun clearAlchemySlot(slotIndex: Int) {
         if (slotIndex < 0) return
         gameEngineCore.launchInScope {
-            productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slotIndex)
+            productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slotIndex)
         }
     }
 
     override fun clearForgeSlot(slotIndex: Int) {
         gameEngineCore.launchInScope {
-            val slot = productionCoordinator.repository.getSlotByBuildingId("forge", slotIndex)
+            val slot = productionCoordinator.repository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)
             if (slot != null && !slot.isWorking) {
                 slot.assignedDiscipleId?.let { discipleId ->
                     updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
                 }
             }
-            productionCoordinator.resetSlotByBuildingIdAtomic("forge", slotIndex)
+            productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.FORGE, slotIndex)
         }
     }
 
@@ -319,136 +284,84 @@ class BuildingFacadeImpl @Inject constructor(
         stateStore.update {
             val building = gameData.placedBuildings.find { it.instanceId == instanceId }
                 ?: return@update
-
             val name = building.displayName
 
-            // 0. 收集将被移除的槽位上已分配的弟子 ID（用于后续恢复空闲）
-            val discipleIdsToFree = mutableSetOf<String>()
+            // 收集将被移除槽位上已分配的弟子 ID
+            val discipleIdsToFree = collectDiscipleIdsForRemoval(name, instanceId)
 
-            // 炼丹炉/锻造坊：收集最高 index ProductionSlot 的弟子
-            if (name == "炼丹炉" || name == "锻造坊") {
-                val buildingId = if (name == "炼丹炉") "alchemy" else "forge"
-                gameData.productionSlots
-                    .filter { it.buildingId == buildingId }
-                    .maxByOrNull { it.slotIndex }
-                    ?.assignedDiscipleId
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { discipleIdsToFree.add(it) }
-            }
+            // 移除建筑 + 返还灵石 + 清洁关联槽位
+            gameData = cleanupBuildingSlots(name, instanceId, refund)
 
-            // 住所（单人/多人）：收集 ResidenceSlot 上已分配的弟子
-            if (name.contains("住所")) {
-                gameData.residenceSlots
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { discipleIdsToFree.add(it) }
-            }
-
-            // 仓库：收集 WarehouseGarrisonSlot 上已分配的弟子
-            if (name == "仓库") {
-                gameData.warehouseGarrisons
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { discipleIdsToFree.add(it) }
-            }
-
-            // 灵矿场：收集最后 3 个 SpiritMineSlot 已分配的弟子
-            if (name == "灵矿场") {
-                gameData.spiritMineSlots.takeLast(3)
-                    .mapNotNull { it.discipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { discipleIdsToFree.add(it) }
-            }
-
-            // 巡视楼：收集最后 8 个 PatrolSlot 已分配的弟子
-            if (name == "巡视楼") {
-                gameData.patrolSlots.takeLast(8)
-                    .mapNotNull { it.discipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { discipleIdsToFree.add(it) }
-            }
-
-            // 1. 移除建筑本身 + 返还灵石
-            var updated = gameData.copy(
-                placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId },
-                spiritStones = gameData.spiritStones + refund
-            )
-
-            // 2. 清理关联槽位（按建筑类型）
-            // 灵矿场：移除最后 3 个 SpiritMineSlot
-            if (name == "灵矿场" && updated.spiritMineSlots.size >= 3) {
-                updated = updated.copy(
-                    spiritMineSlots = updated.spiritMineSlots.dropLast(3)
-                )
-            }
-
-            // 巡视楼：移除最后 8 个 PatrolSlot + 最后 1 个 PatrolConfig
-            if (name == "巡视楼") {
-                if (updated.patrolSlots.size >= 8) {
-                    updated = updated.copy(
-                        patrolSlots = updated.patrolSlots.dropLast(8),
-                        patrolConfigs = updated.patrolConfigs.dropLast(1)
-                    )
-                }
-            }
-
-            // 灵田：移除关联 SpiritFieldPlant（灵田无弟子槽位，不需处理弟子）
-            if (name == "灵田") {
-                updated = updated.copy(
-                    spiritFieldPlants = updated.spiritFieldPlants.filter {
-                        it.buildingInstanceId != instanceId
-                    }
-                )
-            }
-
-            // 住所：移除关联 ResidenceSlot
-            if (name.contains("住所")) {
-                updated = updated.copy(
-                    residenceSlots = updated.residenceSlots.filter {
-                        it.buildingInstanceId != instanceId
-                    }
-                )
-            }
-
-            // 仓库：移除关联 WarehouseGarrisonSlot
-            if (name == "仓库") {
-                updated = updated.copy(
-                    warehouseGarrisons = updated.warehouseGarrisons.filter {
-                        it.buildingInstanceId != instanceId
-                    }
-                )
-            }
-
-            // 炼丹炉/锻造坊：移除最高 index 的 ProductionSlot
-            // 注意：已消耗的炼丹/锻造材料不返还（材料在 startAlchemy/startForging 时已扣除）
-            if (name == "炼丹炉" || name == "锻造坊") {
-                val buildingId = if (name == "炼丹炉") "alchemy" else "forge"
-                val maxIndex = updated.productionSlots
-                    .filter { it.buildingId == buildingId }
-                    .maxOfOrNull { it.slotIndex } ?: -1
-                if (maxIndex >= 0) {
-                    updated = updated.copy(
-                        productionSlots = updated.productionSlots.filter {
-                            !(it.buildingId == buildingId && it.slotIndex == maxIndex)
-                        }
-                    )
-                }
-            }
-
-            gameData = updated
-
-            // 3. 将所有关联弟子恢复为空闲状态
-            if (discipleIdsToFree.isNotEmpty()) {
-                for (did in discipleIdsToFree) {
-                    val id = did.toIntOrNull() ?: continue
-                    if (discipleTables.ids.contains(id)) {
-                        discipleTables.statuses[id] = DiscipleStatus.IDLE
-                    }
+            // 将所有关联弟子恢复为空闲状态
+            for (did in discipleIdsToFree) {
+                val id = did.toIntOrNull() ?: continue
+                if (discipleTables.ids.contains(id)) {
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
             }
         }
+    }
+
+    private fun MutableGameState.collectDiscipleIdsForRemoval(
+        name: String, instanceId: String
+    ): Set<String> {
+        val ids = mutableSetOf<String>()
+        when {
+            name == "炼丹炉" || name == "锻造坊" -> {
+                val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
+                gameData.productionSlots.filter { it.buildingId == bid }
+                    .maxByOrNull { it.slotIndex }?.assignedDiscipleId
+                    ?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
+            }
+            name.contains("住所") -> gameData.residenceSlots
+                .filter { it.buildingInstanceId == instanceId }
+                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                .forEach { ids.add(it) }
+            name == "仓库" -> gameData.warehouseGarrisons
+                .filter { it.buildingInstanceId == instanceId }
+                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                .forEach { ids.add(it) }
+            name == "灵矿场" -> gameData.spiritMineSlots.takeLast(3)
+                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                .forEach { ids.add(it) }
+            name == "巡视楼" -> gameData.patrolSlots.takeLast(8)
+                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                .forEach { ids.add(it) }
+        }
+        return ids
+    }
+
+    private fun MutableGameState.cleanupBuildingSlots(
+        name: String, instanceId: String, refund: Long
+    ): GameData {
+        var gd = gameData.copy(
+            placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId },
+            spiritStones = gameData.spiritStones + refund
+        )
+        when {
+            name == "灵矿场" && gd.spiritMineSlots.size >= 3 ->
+                gd = gd.copy(spiritMineSlots = gd.spiritMineSlots.dropLast(3))
+            name == "巡视楼" && gd.patrolSlots.size >= 8 ->
+                gd = gd.copy(patrolSlots = gd.patrolSlots.dropLast(8),
+                    patrolConfigs = gd.patrolConfigs.dropLast(1))
+            name == "灵田" ->
+                gd = gd.copy(spiritFieldPlants = gd.spiritFieldPlants.filter {
+                    it.buildingInstanceId != instanceId })
+            name.contains("住所") ->
+                gd = gd.copy(residenceSlots = gd.residenceSlots.filter {
+                    it.buildingInstanceId != instanceId })
+            name == "仓库" ->
+                gd = gd.copy(warehouseGarrisons = gd.warehouseGarrisons.filter {
+                    it.buildingInstanceId != instanceId })
+            name == "炼丹炉" || name == "锻造坊" -> {
+                val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
+                val maxIdx = gd.productionSlots.filter { it.buildingId == bid }
+                    .maxOfOrNull { it.slotIndex } ?: -1
+                if (maxIdx >= 0) gd = gd.copy(productionSlots = gd.productionSlots.filter {
+                    !(it.buildingId == bid && it.slotIndex == maxIdx) })
+            }
+        }
+        return gd
     }
 
     private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {

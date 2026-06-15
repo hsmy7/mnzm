@@ -597,6 +597,11 @@ object GameConfig {
         // 灵植长老/灵植弟子成熟速度加成
         const val HERB_GARDEN_ELDER_SPIRIT_BASE = 80
         const val HERB_GARDEN_ELDER_SPIRIT_STEP = 4
+
+        // 长老技能基线 / 加成除数
+        const val ELDER_SKILL_BASELINE = 80
+        const val ELDER_BONUS_DIVISOR = 4
+        const val SPEED_REDUCTION_DIVISOR = 4.0
         const val HERB_GARDEN_ELDER_MAX = 0.20
         const val HERB_GARDEN_DISCIPLE_SPIRIT_BASE = 50
         const val HERB_GARDEN_DISCIPLE_SPIRIT_STEP = 5

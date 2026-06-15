@@ -112,14 +112,20 @@ interface GameStateStore : GameStateSnapshotProvider {
     // === 核心写入 API ===
     suspend fun update(block: suspend MutableGameState.() -> Unit)
 
+    /**
+     * 带返回值的事务更新。替代 `update {}` + `var result = false` 闭包捕获反模式。
+     *
+     * @param block 在 [MutableGameState] 上下文中执行的 lambda，返回类型为 [R]
+     * @return block 的返回值
+     */
+    suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R
+
     // === Shadow/Transaction API ===
-    fun createShadow(): MutableGameState
     fun createSettlementShadow(): MutableGameState
     suspend fun swapFromShadow(shadow: MutableGameState)
     fun beginShadowTransaction(shadow: MutableGameState)
     fun endShadowTransaction()
     fun currentTransactionMutableState(): MutableGameState?
-    fun isInTransaction(): Boolean
 
     // === 直接状态设置 ===
     fun setPausedDirect(paused: Boolean)

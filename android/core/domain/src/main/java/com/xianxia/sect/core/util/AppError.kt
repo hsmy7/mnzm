@@ -330,6 +330,128 @@ sealed class AppError {
                 override val code = "NET_099"
             }
         }
+
+        // === 弟子领域错误 ===
+        sealed class Disciple : Domain() {
+            data class NotFound(
+                val discipleId: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_001"
+                override val message: String = "弟子不存在 id=$discipleId"
+            }
+
+            data class NotAlive(
+                val discipleId: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_002"
+                override val message: String = "弟子已死亡 id=$discipleId"
+            }
+
+            data class RealmTooLow(
+                val discipleId: String,
+                val need: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_003"
+                override val message: String = "境界不足，需 $need"
+            }
+
+            data class AlreadyEquipped(
+                val slot: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_004"
+                override val message: String = "$slot 已装备"
+            }
+
+            data class SlotInvalid(
+                val detail: String,
+                override val cause: Throwable? = null
+            ) : Disciple() {
+                override val code = "DISCIPLE_005"
+                override val message: String = detail
+            }
+        }
+
+        // === 道具/仓库领域错误 ===
+        sealed class Inventory : Domain() {
+            data class Full(
+                override val message: String = "仓库已满",
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_001"
+            }
+
+            data class NotFound(
+                val itemId: String,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_002"
+                override val message: String = "物品不存在 id=$itemId"
+            }
+
+            data class InvalidName(
+                override val message: String = "物品名称无效",
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_003"
+            }
+
+            data class InvalidRarity(
+                val value: Int,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_004"
+                override val message: String = "稀有度无效: $value"
+            }
+
+            data class InvalidQuantity(
+                val value: Int,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_005"
+                override val message: String = "数量无效: $value"
+            }
+
+            data class Locked(
+                val itemId: String,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_006"
+                override val message: String = "物品已锁定 id=$itemId"
+            }
+
+            data class Insufficient(
+                val itemId: String,
+                val need: Int,
+                val have: Int,
+                override val cause: Throwable? = null
+            ) : Inventory() {
+                override val code = "INV_007"
+                override val message: String = "数量不足: 需 $need 有 $have"
+            }
+        }
+
+        // === 建筑领域错误（复用已有 Production 子树的 SlotBusy/InsufficientMaterials/RecipeNotFound）===
+        sealed class Building : Domain() {
+            data class BuildingNotFound(
+                val buildingId: String,
+                override val cause: Throwable? = null
+            ) : Building() {
+                override val code = "BLD_001"
+                override val message: String = "建筑不存在 id=$buildingId"
+            }
+
+            data class DiscipleBusy(
+                val discipleId: String,
+                override val cause: Throwable? = null
+            ) : Building() {
+                override val code = "BLD_002"
+                override val message: String = "弟子正在忙 id=$discipleId"
+            }
+        }
     }
 
     data class Unknown(

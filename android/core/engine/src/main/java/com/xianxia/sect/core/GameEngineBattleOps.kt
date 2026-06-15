@@ -11,7 +11,6 @@ import com.xianxia.sect.core.engine.domain.battle.WarRewards
 import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
@@ -334,7 +333,7 @@ private fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRe
             if (beastMaterial != null) {
                 val material = Material(id = java.util.UUID.randomUUID().toString(), name = beastMaterial.name, rarity = beastMaterial.rarity, description = beastMaterial.description, category = beastMaterial.materialCategory, quantity = 1)
                 val result = inventorySystem.addMaterial(material)
-                if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) rewards.add(BattleRewardItem(itemId = material.id, name = material.name, quantity = 1, rarity = material.rarity, type = "material"))
+                if (result.isSuccess) rewards.add(BattleRewardItem(itemId = material.id, name = material.name, quantity = 1, rarity = material.rarity, type = "material"))
             }
         }
     }
@@ -355,15 +354,15 @@ private fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRew
         when {
             typeRoll < 0.33 -> {
                 val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
-                if (manual != null) { val result = inventorySystem.addManualStack(manual); if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual")) }
+                if (manual != null) { val result = inventorySystem.addManualStack(manual); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual")) }
             }
             typeRoll < 0.66 -> {
                 val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-                if (equip != null) { val result = inventorySystem.addEquipmentStack(equip); if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment")) }
+                if (equip != null) { val result = inventorySystem.addEquipmentStack(equip); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment")) }
             }
             else -> {
                 val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
-                if (pill != null) { val result = inventorySystem.addPill(pill); if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill")) }
+                if (pill != null) { val result = inventorySystem.addPill(pill); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill")) }
             }
         }
     }

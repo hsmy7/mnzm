@@ -7,7 +7,6 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
@@ -15,21 +14,24 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
-import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("CaveExplorationProcessor")
 class CaveExplorationProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
     private val scopeProvider: CoroutineScopeProvider,
     private val battleSystem: BattleSystem,
     private val eventProcessor: CultivationEventProcessor,
-    private val analyticsTracker: AnalyticsTracker
+    private val analyticsTracker: AnalyticsTracker,
+    private val sectWarehouseManager: SectWarehouseManager
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -286,7 +288,7 @@ class CaveExplorationProcessor @Inject constructor(
                             quantity = reward.quantity
                         )
                         val result = inventorySystem.addEquipmentStack(equipment)
-                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                        if (result.isSuccess) {
                             battleRewardItems.add(BattleRewardItem(
                                 itemId = reward.itemId,
                                 name = reward.name,
@@ -305,7 +307,7 @@ class CaveExplorationProcessor @Inject constructor(
                             quantity = reward.quantity
                         )
                         val result = inventorySystem.addManualStack(manual)
-                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                        if (result.isSuccess) {
                             battleRewardItems.add(BattleRewardItem(
                                 itemId = reward.itemId,
                                 name = reward.name,
@@ -357,7 +359,7 @@ class CaveExplorationProcessor @Inject constructor(
                             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
                         val result = inventorySystem.addPill(pill)
-                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                        if (result.isSuccess) {
                             battleRewardItems.add(BattleRewardItem(
                                 itemId = reward.itemId,
                                 name = reward.name,
@@ -705,8 +707,8 @@ class CaveExplorationProcessor @Inject constructor(
 
                 if (result.winner == AIBattleWinner.ATTACKER) {
                     val playerDetail = updatedData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
-                    val lootResult = SectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
-                    val updatedWarehouse = SectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
+                    val lootResult = sectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
+                    val updatedWarehouse = sectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
                     updatedData = updatedData.copy(
                         sectDetails = updatedData.sectDetails.toMutableMap().apply {
                             this[playerSectId] = playerDetail.copy(warehouse = updatedWarehouse)

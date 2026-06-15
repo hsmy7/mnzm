@@ -15,7 +15,6 @@ import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
-import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.*
@@ -39,6 +38,7 @@ import kotlin.math.roundToLong
 import com.xianxia.sect.core.util.DomainLog
 
 @Singleton
+@GameService("CultivationSettlement")
 class CultivationSettlement @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
@@ -252,7 +252,7 @@ class CultivationSettlement @Inject constructor(
                 disciplesSnapshot.find { it.id == discipleId }
             }
         }.sumOf { disciple ->
-            val baseline = 80
+            val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
             val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline).coerceAtLeast(0)
             diff * 0.01
         }

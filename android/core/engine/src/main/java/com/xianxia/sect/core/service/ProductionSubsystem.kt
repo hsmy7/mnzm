@@ -8,19 +8,22 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@GameService("ProductionSubsystem")
 class ProductionSubsystem @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
@@ -40,7 +43,7 @@ class ProductionSubsystem @Inject constructor(
     // ── 建筑生产 ──────────────────────────────────────────────────────
 
     suspend fun processBuildingProduction(year: Int, month: Int) {
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         forgeSlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && slot.isFinished(year, month)) {
@@ -64,12 +67,12 @@ class ProductionSubsystem @Inject constructor(
                     }
                 }
 
-                productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slot.slotIndex) { s ->
                     ProductionSlot.createIdle(
                         id = s.id,
                         slotIndex = slot.slotIndex,
                         buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
-                        buildingId = "forge",
+                        buildingId = BuildingNames.FORGE,
                         autoRestartEnabled = slot.autoRestartEnabled,
                         assignedDiscipleId = slot.assignedDiscipleId,
                         assignedDiscipleName = slot.assignedDiscipleName,
@@ -116,12 +119,12 @@ class ProductionSubsystem @Inject constructor(
                     }
                 }
 
-                productionSlotRepository.updateSlotByBuildingId("alchemy", slot.slotIndex) { s ->
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slot.slotIndex) { s ->
                     ProductionSlot.createIdle(
                         id = s.id,
                         slotIndex = slot.slotIndex,
                         buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
-                        buildingId = "alchemy",
+                        buildingId = BuildingNames.ALCHEMY,
                         autoRestartEnabled = slot.autoRestartEnabled,
                         assignedDiscipleId = slot.assignedDiscipleId,
                         assignedDiscipleName = slot.assignedDiscipleName,
@@ -152,7 +155,7 @@ class ProductionSubsystem @Inject constructor(
                         quantity = actualYield
                     )
                     val result = inventorySystem.addHerb(herbItem)
-                    if (result != AddResult.SUCCESS) {
+                    if (!result.isSuccess) {
                         DomainLog.w(TAG, "HerbGarden harvest addHerb failed: ${herb.name} x${actualYield}, result=$result")
                     }
                 }
@@ -359,15 +362,13 @@ class ProductionSubsystem @Inject constructor(
                 currentYear = data.gameYear,
                 currentMonth = data.gameMonth,
                 herbs = currentHerbs,
-                buildingId = "alchemy",
+                buildingId = BuildingNames.ALCHEMY,
                 alchemyPolicyBonus = alchemyPolicyBonus
             )
 
-            if (result.success) {
-                if (result.materialUpdate != null) {
-                    stateStore.update {
-                        this.herbs.replaceAll(result.materialUpdate.herbs)
-                    }
+            if (result is DomainResult.Success) {
+                stateStore.update {
+                    this.herbs.replaceAll(result.data.materialUpdate.herbs)
                 }
             } else {
                 break
@@ -378,7 +379,7 @@ class ProductionSubsystem @Inject constructor(
     suspend fun processAutoForge() {
         val data = stateStore.gameData.value
 
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         val idleSlotIndices = forgeSlots
             .filter { it.autoRestartEnabled
                 && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
@@ -423,15 +424,13 @@ class ProductionSubsystem @Inject constructor(
                 currentYear = data.gameYear,
                 currentMonth = data.gameMonth,
                 materials = currentMaterials,
-                buildingId = "forge",
+                buildingId = BuildingNames.FORGE,
                 forgePolicyBonus = forgePolicyBonus
             )
 
-            if (result.success) {
-                if (result.materialUpdate != null) {
-                    stateStore.update {
-                        this.materials.replaceAll(result.materialUpdate.materials)
-                    }
+            if (result is DomainResult.Success) {
+                stateStore.update {
+                    this.materials.replaceAll(result.data.materialUpdate.materials)
                 }
             } else {
                 break
@@ -489,14 +488,14 @@ class ProductionSubsystem @Inject constructor(
         if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
             assignToProductionSlot(
                 takeCandidate(policies.autoAlchemyFocused, policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold) { it.pillRefining },
-                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, "alchemy"
+                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, BuildingNames.ALCHEMY
             )
         }
 
         if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
             assignToProductionSlot(
                 takeCandidate(policies.autoForgeFocused, policies.autoForgeRootCounts, policies.autoForgeThreshold) { it.artifactRefining },
-                com.xianxia.sect.core.model.production.BuildingType.FORGE, "forge"
+                com.xianxia.sect.core.model.production.BuildingType.FORGE, BuildingNames.FORGE
             )
         }
     }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @Singleton
+@GameService("DiscipleBreakthroughHandler")
 class DiscipleBreakthroughHandler @Inject constructor(
     private val stateStore: GameStateStore,
     private val cultivationCore: CultivationCore,
@@ -149,21 +150,27 @@ class DiscipleBreakthroughHandler @Inject constructor(
     fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0): Boolean {
         val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
-        val allDisciples = stateStore.disciples.value.associateBy { it.id }
 
         val innerElderId = elderSlots.innerElder
         val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == "inner") {
-            val elder = allDisciples[innerElderId]
-            if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
-                elder.skills.comprehension
-            } else {
-                0
-            }
-        } else {
-            0
-        }
+            val elderId = innerElderId.toIntOrNull()
+            if (elderId != null && stateStore.discipleTables.isAlive[elderId] == 1
+                && disciple.realm >= stateStore.discipleTables.realms[elderId]) {
+                stateStore.discipleTables.comprehensions[elderId]
+            } else { 0 }
+        } else { 0 }
 
-        val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data, allDisciples)
+        val outerElderId = data.elderSlots.outerElder
+        val outerElderComprehensionBonus = if (disciple.discipleType == "outer" && outerElderId.isNotEmpty()) {
+            val oid = outerElderId.toIntOrNull()
+            if (oid != null && stateStore.discipleTables.isAlive[oid] == 1
+                && disciple.realm >= stateStore.discipleTables.realms[oid]) {
+                val comp = stateStore.discipleTables.comprehensions[oid]
+                if (comp >= GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) {
+                    ((comp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
+                } else { 0.0 }
+            } else { 0.0 }
+        } else { 0.0 }
 
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
@@ -182,20 +189,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
             griefBreakthroughPenalty = griefBreakthroughPenalty
         )
         return Random.nextDouble() < chance
-    }
-
-    private fun calculateOuterElderBreakthroughBonus(disciple: Disciple, data: GameData, allDisciples: Map<String, Disciple>): Double {
-        if (disciple.discipleType != "outer") return 0.0
-        val outerElderId = data.elderSlots.outerElder
-        if (outerElderId.isEmpty()) return 0.0
-        val elder = allDisciples[outerElderId] ?: return 0.0
-        if (disciple.realm < elder.realm) return 0.0
-        val comprehension = elder.skills.comprehension
-        return if (comprehension >= 80) {
-            ((comprehension - 80) / 4) * 0.01
-        } else {
-            0.0
-        }
     }
 
     private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>, legacyCheck: (Disciple) -> Boolean): Boolean {

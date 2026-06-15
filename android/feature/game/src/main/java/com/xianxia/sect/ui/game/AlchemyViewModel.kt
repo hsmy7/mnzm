@@ -10,6 +10,8 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
+import com.xianxia.sect.core.util.AppError
+import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -65,9 +67,9 @@ class AlchemyViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val success = gameEngine.startAlchemy(slotIndex, recipe.id)
-                if (!success) {
-                    showError("炼制失败，请检查材料是否充足或是否已分配弟子")
+                val result = gameEngine.startAlchemy(slotIndex, recipe.id)
+                if (result is DomainResult.Failure) {
+                    showError(result.error.message)
                 }
             } catch (e: Exception) {
                 showError(e.message ?: "开始炼制失败")
@@ -95,7 +97,7 @@ class AlchemyViewModel @Inject constructor(
 
                 var startedCount = 0
                 for (slotIndex in idleSlotIndices) {
-                    if (startBestAlchemyRecipe(slotIndex)) startedCount++
+                    if (startBestAlchemyRecipe(slotIndex).isSuccess) startedCount++
                 }
 
                 if (startedCount > 0) {
@@ -109,7 +111,7 @@ class AlchemyViewModel @Inject constructor(
         }
     }
 
-    private suspend fun startBestAlchemyRecipe(slotIndex: Int): Boolean {
+    private suspend fun startBestAlchemyRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentHerbs = gameEngine.getCurrentHerbs()
         val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
         val recipeToStart = allRecipes.firstOrNull { recipe ->
@@ -120,7 +122,9 @@ class AlchemyViewModel @Inject constructor(
                 val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
                 herb != null && herb.quantity >= requiredQuantity
             }
-        } ?: return false
+        } ?: return DomainResult.Failure(
+            AppError.Domain.Production.InsufficientMaterials()
+        )
 
         return gameEngine.startAlchemy(slotIndex, recipeToStart.id)
     }

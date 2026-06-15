@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -57,7 +58,7 @@ class InventorySystemTest {
     fun `addEquipmentStack - normal add`() = runBlocking {
         stateStore.update {
             val item = EquipmentStack(id = "e1", name = "铁剑", rarity = 1)
-            assertEquals(AddResult.SUCCESS, system.addEquipmentStack(item))
+            assertTrue(system.addEquipmentStack(item).isSuccess)
         }
         assertNotNull(system.getEquipmentStackById("e1"))
     }
@@ -65,15 +66,15 @@ class InventorySystemTest {
     @Test
     fun `addEquipmentStack - empty name returns INVALID_NAME`() {
         val item = EquipmentStack(id = "e1", name = "", rarity = 1)
-        assertEquals(AddResult.INVALID_NAME, system.addEquipmentStack(item))
+        assertTrue(system.addEquipmentStack(item) is DomainResult.Failure)
     }
 
     @Test
     fun `addEquipmentStack - invalid rarity returns INVALID_RARITY`() {
         val item0 = EquipmentStack(id = "e1", name = "铁剑", rarity = 0)
-        assertEquals(AddResult.INVALID_RARITY, system.addEquipmentStack(item0))
+        assertTrue(system.addEquipmentStack(item0) is DomainResult.Failure)
         val item7 = EquipmentStack(id = "e2", name = "铁剑", rarity = 7)
-        assertEquals(AddResult.INVALID_RARITY, system.addEquipmentStack(item7))
+        assertTrue(system.addEquipmentStack(item7) is DomainResult.Failure)
     }
 
     @Test
@@ -119,7 +120,7 @@ class InventorySystemTest {
     fun `addPill - normal add`() = runBlocking {
         stateStore.update {
             val pill = Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5)
-            assertEquals(AddResult.SUCCESS, system.addPill(pill))
+            assertTrue(system.addPill(pill).isSuccess)
         }
         assertNotNull(system.getPillById("p1"))
         assertEquals(5, system.getPillQuantity("p1"))
@@ -138,19 +139,19 @@ class InventorySystemTest {
     @Test
     fun `addPill - empty name returns INVALID_NAME`() {
         val pill = Pill(id = "p1", name = "", rarity = 1, quantity = 1)
-        assertEquals(AddResult.INVALID_NAME, system.addPill(pill))
+        assertTrue(system.addPill(pill) is DomainResult.Failure)
     }
 
     @Test
     fun `addPill - invalid rarity returns INVALID_RARITY`() {
         val pill = Pill(id = "p1", name = "丹药", rarity = 0, quantity = 1)
-        assertEquals(AddResult.INVALID_RARITY, system.addPill(pill))
+        assertTrue(system.addPill(pill) is DomainResult.Failure)
     }
 
     @Test
     fun `addPill - invalid quantity returns INVALID_QUANTITY`() {
         val pill = Pill(id = "p1", name = "丹药", rarity = 1, quantity = 0)
-        assertEquals(AddResult.INVALID_QUANTITY, system.addPill(pill))
+        assertTrue(system.addPill(pill) is DomainResult.Failure)
     }
 
     @Test
@@ -230,7 +231,7 @@ class InventorySystemTest {
     fun `addManualStack - normal add`() = runBlocking {
         stateStore.update {
             val manual = ManualStack(id = "m1", name = "基础功法", rarity = 1, quantity = 1)
-            assertEquals(AddResult.SUCCESS, system.addManualStack(manual))
+            assertTrue(system.addManualStack(manual).isSuccess)
         }
         assertNotNull(system.getManualStackById("m1"))
     }
@@ -271,7 +272,7 @@ class InventorySystemTest {
     fun `addMaterial - normal add`() = runBlocking {
         stateStore.update {
             val material = Material(id = "mat1", name = "铁矿石", rarity = 1, quantity = 10)
-            assertEquals(AddResult.SUCCESS, system.addMaterial(material))
+            assertTrue(system.addMaterial(material).isSuccess)
         }
         assertNotNull(system.getMaterialById("mat1"))
     }
@@ -352,36 +353,36 @@ class InventorySystemTest {
     @Test
     fun `addPill - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("pill")
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 5))
             result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 10))
         }
-        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertTrue(result is DomainResult.Partial<*>)
         assertEquals(maxStack, system.getPillQuantity("p1"))
     }
 
     @Test
     fun `addPill - merge within maxStack returns SUCCESS`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("pill")
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 10))
             result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         }
-        assertEquals(AddResult.SUCCESS, result)
+        assertTrue((result as DomainResult<*>).isSuccess)
         assertEquals(maxStack - 5, system.getPillQuantity("p1"))
     }
 
     @Test
     fun `addEquipmentStack - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, quantity = maxStack - 5))
             result = system.addEquipmentStack(EquipmentStack(id = "e2", name = "铁剑", rarity = 1, quantity = 10))
         }
-        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertTrue(result is DomainResult.Partial<*>)
         assertEquals(maxStack, system.getEquipmentStackById("e1")!!.quantity)
     }
 
@@ -398,12 +399,12 @@ class InventorySystemTest {
     @Test
     fun `addHerb - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("herb")
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addHerb(Herb(id = "h1", name = "灵草", rarity = 1, category = "common", quantity = maxStack - 5))
             result = system.addHerb(Herb(id = "h2", name = "灵草", rarity = 1, category = "common", quantity = 10))
         }
-        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertTrue(result is DomainResult.Partial<*>)
         assertEquals(maxStack, system.getHerbById("h1")!!.quantity)
     }
 
@@ -420,24 +421,24 @@ class InventorySystemTest {
     @Test
     fun `addSeed - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("seed")
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addSeed(Seed(id = "s1", name = "灵草种子", rarity = 1, growTime = 3, quantity = maxStack - 5))
             result = system.addSeed(Seed(id = "s2", name = "灵草种子", rarity = 1, growTime = 3, quantity = 10))
         }
-        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertTrue(result is DomainResult.Partial<*>)
         assertEquals(maxStack, system.getSeedById("s1")!!.quantity)
     }
 
     @Test
     fun `returnEquipmentToStack - merge into existing stack`() = runBlocking {
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 5))
             val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
             result = system.returnEquipmentToStack(instance)
         }
-        assertEquals(AddResult.SUCCESS, result)
+        assertTrue((result as DomainResult<*>).isSuccess)
         val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(6, stack!!.quantity)
@@ -445,12 +446,12 @@ class InventorySystemTest {
 
     @Test
     fun `returnEquipmentToStack - create new stack when no match`() = runBlocking {
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
             result = system.returnEquipmentToStack(instance)
         }
-        assertEquals(AddResult.SUCCESS, result)
+        assertTrue((result as DomainResult<*>).isSuccess)
         val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(1, stack!!.quantity)
@@ -458,13 +459,13 @@ class InventorySystemTest {
 
     @Test
     fun `returnManualToStack - merge into existing stack`() = runBlocking {
-        var result = AddResult.SUCCESS
+        var result: Any? = null
         stateStore.update {
             system.addManualStack(ManualStack(id = "m1", name = "基础功法", rarity = 1, type = ManualType.MIND, quantity = 5))
             val instance = ManualInstance(id = "mi1", name = "基础功法", rarity = 1, type = ManualType.MIND)
             result = system.returnManualToStack(instance)
         }
-        assertEquals(AddResult.SUCCESS, result)
+        assertTrue((result as DomainResult<*>).isSuccess)
         assertEquals(6, system.getManualStackById("m1")!!.quantity)
     }
 

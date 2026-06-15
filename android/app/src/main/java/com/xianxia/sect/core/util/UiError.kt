@@ -61,6 +61,23 @@ data class UiError(
                 is AppError.Domain.GameLoop.EngineNotRunning -> Triple("游戏引擎未启动", UiErrorSeverity.ERROR, true)
                 is AppError.Domain.GameLoop.Unknown -> Triple("游戏运行错误", UiErrorSeverity.ERROR, false)
 
+                is AppError.Domain.Disciple.NotFound -> Triple("弟子不存在：${error.discipleId}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Disciple.NotAlive -> Triple("弟子已死亡：${error.discipleId}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Disciple.RealmTooLow -> Triple("弟子境界不足，需${error.need}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Disciple.AlreadyEquipped -> Triple("${error.slot}已装备", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Disciple.SlotInvalid -> Triple(error.detail, UiErrorSeverity.INFO, false)
+
+                is AppError.Domain.Inventory.Full -> Triple("仓库已满", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.NotFound -> Triple("物品不存在：${error.itemId}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.InvalidName -> Triple("物品名称无效", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.InvalidRarity -> Triple("稀有度无效：${error.value}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.InvalidQuantity -> Triple("数量无效：${error.value}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.Locked -> Triple("物品已锁定：${error.itemId}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Inventory.Insufficient -> Triple("物品不足：需${error.need}，有${error.have}", UiErrorSeverity.INFO, false)
+
+                is AppError.Domain.Building.BuildingNotFound -> Triple("建筑不存在：${error.buildingId}", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Building.DiscipleBusy -> Triple("弟子正在忙：${error.discipleId}", UiErrorSeverity.INFO, false)
+
                 is AppError.Unknown -> Triple("操作失败：${error.message}", UiErrorSeverity.ERROR, false)
             }
             return UiError(
@@ -77,9 +94,6 @@ data class UiError(
 
         fun fromSaveError(error: com.xianxia.sect.data.unified.SaveError, message: String = ""): UiError =
             fromAppError(error.toAppError(message))
-
-        fun fromProductionError(error: com.xianxia.sect.core.model.production.ProductionError): UiError =
-            fromAppError(error.toAppError())
 
         fun fromException(e: Throwable): UiError = fromAppError(AppError.fromException(e))
     }

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.StateFlow
 
 interface DiscipleFacade {
@@ -20,12 +21,12 @@ interface DiscipleFacade {
     fun syncAllDiscipleStatuses()
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
-    suspend fun expelDisciple(discipleId: String): Boolean
-    suspend fun expelTheftDisciple(discipleId: String): Boolean
+    suspend fun expelDisciple(discipleId: String): DomainResult<Unit>
+    suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
     suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
     suspend fun releaseTheftDisciple(discipleId: String): Int
-    suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean
-    suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean
+    suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
+    suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean
     fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
     fun getAliveDisciplesCount(): Int

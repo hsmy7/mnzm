@@ -1,13 +1,18 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.StackKey
+import com.xianxia.sect.core.state.StackableItemStore
+import com.xianxia.sect.core.util.StackableItem
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -21,6 +26,7 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -243,16 +249,16 @@ class InventorySystem @Inject constructor(
         return canMerge || canAddItem()
     }
 
-    private fun validateStackableItem(name: String, rarity: Int, quantity: Int): AddResult {
-        if (name.isBlank()) return AddResult.INVALID_NAME
-        if (rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
-        if (quantity <= 0) return AddResult.INVALID_QUANTITY
-        return AddResult.SUCCESS
+    private fun validateStackableItem(name: String, rarity: Int, quantity: Int): DomainResult<Unit> {
+        if (name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
+        if (rarity !in VALID_RARITY_RANGE) return DomainResult.Failure(AppError.Domain.Inventory.InvalidRarity(rarity))
+        if (quantity <= 0) return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(quantity))
+        return DomainResult.Success(Unit)
     }
 
-    override fun addEquipmentStack(item: EquipmentStack): AddResult {
+    override fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
@@ -264,20 +270,22 @@ class InventorySystem @Inject constructor(
         if (existing != null) {
             val totalQty = existing.quantity + item.quantity
             val newQty = totalQty.coerceAtMost(maxStack)
+            val merged = existing.copy(quantity = newQty)
             if (ts != null) {
                 ts.equipmentStacks = ts.equipmentStacks.map {
-                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    if (it.id == existing.id) merged else it
                 }
             } else {
                 scope.launch { stateStore.update {
                     equipmentStacks = equipmentStacks.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                        if (it.id == existing.id) merged else it
                     }
                 } }
             }
-            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
+                else DomainResult.Success(merged)
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.equipmentStacks = ts.equipmentStacks + item
         } else {
@@ -285,17 +293,17 @@ class InventorySystem @Inject constructor(
                 equipmentStacks = equipmentStacks + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
-    override fun addEquipmentInstance(item: EquipmentInstance): AddResult {
-        if (item.id.isBlank()) return AddResult.INVALID_ID
-        if (item.name.isBlank()) return AddResult.INVALID_NAME
-        if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
+    override fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance> {
+        if (item.id.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
+        if (item.name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
+        if (item.rarity !in VALID_RARITY_RANGE) return DomainResult.Failure(AppError.Domain.Inventory.InvalidRarity(item.rarity))
 
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
-        if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
+        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
 
         if (ts != null) {
             ts.equipmentInstances = ts.equipmentInstances + item
@@ -304,12 +312,12 @@ class InventorySystem @Inject constructor(
                 equipmentInstances = equipmentInstances + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
-    override fun addManualStack(item: ManualStack, merge: Boolean): AddResult {
+    override fun addManualStack(item: ManualStack, merge: Boolean): DomainResult<ManualStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
@@ -333,10 +341,11 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
             }
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.manualStacks = ts.manualStacks + item
         } else {
@@ -344,17 +353,17 @@ class InventorySystem @Inject constructor(
                 manualStacks = manualStacks + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
-    override fun addManualInstance(item: ManualInstance): AddResult {
-        if (item.id.isBlank()) return AddResult.INVALID_ID
-        if (item.name.isBlank()) return AddResult.INVALID_NAME
-        if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
+    override fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance> {
+        if (item.id.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
+        if (item.name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
+        if (item.rarity !in VALID_RARITY_RANGE) return DomainResult.Failure(AppError.Domain.Inventory.InvalidRarity(item.rarity))
 
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
-        if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
+        if (currentInstances.any { it.id == item.id }) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
 
         if (ts != null) {
             ts.manualInstances = ts.manualInstances + item
@@ -363,10 +372,10 @@ class InventorySystem @Inject constructor(
                 manualInstances = manualInstances + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
-    fun returnEquipmentToStack(instance: EquipmentInstance): AddResult {
+    fun returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentStack> {
         val ts = stateStore.currentTransactionMutableState()
         val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
@@ -377,20 +386,22 @@ class InventorySystem @Inject constructor(
         if (existing != null) {
             val totalQty = existing.quantity + 1
             val newQty = totalQty.coerceAtMost(maxStack)
+            val merged = existing.copy(quantity = newQty)
             if (ts != null) {
                 ts.equipmentStacks = ts.equipmentStacks.map {
-                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    if (it.id == existing.id) merged else it
                 }
             } else {
                 scope.launch { stateStore.update {
                     equipmentStacks = equipmentStacks.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                        if (it.id == existing.id) merged else it
                     }
                 } }
             }
-            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
+                else DomainResult.Success(merged)
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         val newStack = instance.toStack(quantity = 1)
         if (ts != null) {
             ts.equipmentStacks = ts.equipmentStacks + newStack
@@ -399,10 +410,10 @@ class InventorySystem @Inject constructor(
                 equipmentStacks = equipmentStacks + newStack
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(newStack)
     }
 
-    fun returnManualToStack(instance: ManualInstance): AddResult {
+    fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {
         val ts = stateStore.currentTransactionMutableState()
         val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
@@ -413,20 +424,22 @@ class InventorySystem @Inject constructor(
         if (existing != null) {
             val totalQty = existing.quantity + 1
             val newQty = totalQty.coerceAtMost(maxStack)
+            val merged = existing.copy(quantity = newQty)
             if (ts != null) {
                 ts.manualStacks = ts.manualStacks.map {
-                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    if (it.id == existing.id) merged else it
                 }
             } else {
                 scope.launch { stateStore.update {
                     manualStacks = manualStacks.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                        if (it.id == existing.id) merged else it
                     }
                 } }
             }
-            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
+                else DomainResult.Success(merged)
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         val newStack = instance.toStack(quantity = 1)
         if (ts != null) {
             ts.manualStacks = ts.manualStacks + newStack
@@ -435,7 +448,7 @@ class InventorySystem @Inject constructor(
                 manualStacks = manualStacks + newStack
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(newStack)
     }
 
     fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -692,9 +705,33 @@ class InventorySystem @Inject constructor(
         return currentManualInstances().find { it.id == id }
     }
 
-    fun addPill(item: Pill, merge: Boolean = true): AddResult {
+    /** StackableItemStore 委托：统一 add/merge 逻辑，消除 48 同构方法 */
+    private inline fun <reified T> addViaStore(
+        item: T, merge: Boolean, typeKey: String,
+        crossinline readCurrent: () -> List<T>,
+        crossinline writeBack: (List<T>) -> Unit,
+        noinline mergeKey: (T) -> StackKey
+    ): DomainResult<T> where T : HasId, T : StackableItem {
+        val ts = stateStore.currentTransactionMutableState()
+        val current = readCurrent()
+        val maxStack = getMaxStackForType(typeKey)
+        val store = StackableItemStore(
+            initialItems = current,
+            stackKeyOf = mergeKey,
+            maxStack = maxStack,
+            maxSlots = { getMaxSlots() },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+        val result = store.add(item, merge)
+        if (result.isSuccess || result is DomainResult.Partial) {
+            writeBack(store.all())
+        }
+        return result
+    }
+
+    fun addPill(item: Pill, merge: Boolean = true): DomainResult<Pill> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentPills = ts?.pills ?: stateStore.pills.value
@@ -718,10 +755,11 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
             }
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.pills = ts.pills + item
         } else {
@@ -729,7 +767,7 @@ class InventorySystem @Inject constructor(
                 pills = pills + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
     fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -889,9 +927,9 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    fun addMaterial(item: Material, merge: Boolean = true): AddResult {
+    fun addMaterial(item: Material, merge: Boolean = true): DomainResult<Material> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentMaterials = ts?.materials ?: stateStore.materials.value
@@ -915,10 +953,11 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
             }
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.materials = ts.materials + item
         } else {
@@ -926,7 +965,7 @@ class InventorySystem @Inject constructor(
                 materials = materials + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
     fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -1082,9 +1121,9 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    fun addHerb(item: Herb, merge: Boolean = true): AddResult {
+    fun addHerb(item: Herb, merge: Boolean = true): DomainResult<Herb> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentHerbs = ts?.herbs ?: stateStore.herbs.value
@@ -1108,10 +1147,11 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
             }
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.herbs = ts.herbs + item
         } else {
@@ -1119,7 +1159,7 @@ class InventorySystem @Inject constructor(
                 herbs = herbs + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
     fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
@@ -1275,9 +1315,9 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    fun addSeed(item: Seed, merge: Boolean = true): AddResult {
+    fun addSeed(item: Seed, merge: Boolean = true): DomainResult<Seed> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         val currentSeeds = ts?.seeds ?: stateStore.seeds.value
@@ -1301,10 +1341,11 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
             }
         }
-        if (!canAddItem()) return AddResult.FULL
+        if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
         if (ts != null) {
             ts.seeds = ts.seeds + item
         } else {
@@ -1312,12 +1353,12 @@ class InventorySystem @Inject constructor(
                 seeds = seeds + item
             } }
         }
-        return AddResult.SUCCESS
+        return DomainResult.Success(item)
     }
 
-    suspend fun addSeedSync(item: Seed, merge: Boolean = true): AddResult {
+    suspend fun addSeedSync(item: Seed, merge: Boolean = true): DomainResult<Seed> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation != AddResult.SUCCESS) return validation
+        if (validation is DomainResult.Failure) return validation
 
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
@@ -1333,15 +1374,16 @@ class InventorySystem @Inject constructor(
                     ts.seeds = ts.seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
-                    return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                    val merged = existing.copy(quantity = newQty)
+            return if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
                 }
             }
-            if (!canAddItem()) return AddResult.FULL
+            if (!canAddItem()) return DomainResult.Failure(AppError.Domain.Inventory.Full())
             ts.seeds = ts.seeds + item
-            return AddResult.SUCCESS
+            return DomainResult.Success(item)
         }
 
-        var overflowResult: AddResult = AddResult.SUCCESS
+        var overflowResult: DomainResult<Seed> = DomainResult.Success(item)
         stateStore.update {
             if (merge) {
                 val existing = seeds.find {
@@ -1354,12 +1396,13 @@ class InventorySystem @Inject constructor(
                     seeds = seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
-                    overflowResult = if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
+                    val merged = existing.copy(quantity = newQty)
+                    overflowResult = if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
                     return@update
                 }
             }
             if (getTotalSlotCount() >= getMaxSlots()) {
-                overflowResult = AddResult.FULL
+                overflowResult = DomainResult.Failure(AppError.Domain.Inventory.Full())
                 return@update
             }
             seeds = seeds + item
@@ -1688,8 +1731,8 @@ class InventorySystem @Inject constructor(
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
         InventoryFactories.createSeedFromMerchantItem(item)
 
-    override fun addPill(item: Pill): AddResult = addPill(item, merge = true)
-    override fun addMaterial(item: Material): AddResult = addMaterial(item, merge = true)
-    override fun addHerb(item: Herb): AddResult = addHerb(item, merge = true)
-    override fun addSeed(item: Seed): AddResult = addSeed(item, merge = true)
+    override fun addPill(item: Pill): DomainResult<Pill> = addPill(item, merge = true)
+    override fun addMaterial(item: Material): DomainResult<Material> = addMaterial(item, merge = true)
+    override fun addHerb(item: Herb): DomainResult<Herb> = addHerb(item, merge = true)
+    override fun addSeed(item: Seed): DomainResult<Seed> = addSeed(item, merge = true)
 }

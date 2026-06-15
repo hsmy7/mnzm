@@ -18,6 +18,13 @@ import com.xianxia.sect.core.model.*
  */
 class DiscipleTables {
 
+    /** 写操作计数器——GameStateStore 用于脏检测，跳过无变化的 assembleAll */
+    @Volatile var mutationVersion: Long = 0
+        private set
+
+    /** 在每次写操作后调用，递增版本号 */
+    fun markMutated() { mutationVersion++ }
+
     // === 标识 ===
     val ids = mutableListOf<Int>()          // 所有弟子 ID 的有序列表（遍历用）
 
@@ -264,6 +271,7 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
+        markMutated()
     }
 
     /**
@@ -541,6 +549,7 @@ class DiscipleTables {
         moralities.remove(id); salaryPaidCounts.remove(id); salaryMissedCounts.remove(id)
         usedFunctionalPillTypes.remove(id); usedExtendLifePillIds.remove(id)
         recruitedMonths.remove(id); hasReviveEffects.remove(id); hasClearAllEffects.remove(id)
+        markMutated()
     }
 
     /** 清空所有组件表 */
@@ -588,6 +597,7 @@ class DiscipleTables {
         moralities.clear(); salaryPaidCounts.clear(); salaryMissedCounts.clear()
         usedFunctionalPillTypes.clear(); usedExtendLifePillIds.clear()
         recruitedMonths.clear(); hasReviveEffects.clear(); hasClearAllEffects.clear()
+        markMutated()
     }
 
     /**

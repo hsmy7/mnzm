@@ -1,6 +1,13 @@
 package com.xianxia.sect.core.util
 
 object BuildingNames {
+    /** 常用建筑 ID 常量 */
+    const val ALCHEMY = "alchemy"
+    const val FORGE = "forge"
+    const val HERB_GARDEN = "herbGarden"
+    const val SPIRIT_MINE = "spiritMine"
+    const val LIBRARY = "library"
+
     private val DISPLAY_NAMES = mapOf(
         "alchemy" to "炼丹炉",
         "forge" to "锻造坊",

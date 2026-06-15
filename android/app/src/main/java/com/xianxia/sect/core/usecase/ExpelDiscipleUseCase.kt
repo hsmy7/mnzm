@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.usecase
 
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -8,7 +9,7 @@ import javax.inject.Singleton
 class ExpelDiscipleUseCase @Inject constructor(
     private val discipleFacade: DiscipleFacade
 ) {
-    suspend operator fun invoke(discipleId: String): Result<Boolean> = runCatching {
+    suspend operator fun invoke(discipleId: String): Result<DomainResult<Unit>> = runCatching {
         discipleFacade.expelDisciple(discipleId)
     }
 }

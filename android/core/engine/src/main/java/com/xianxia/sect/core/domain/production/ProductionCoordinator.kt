@@ -13,6 +13,7 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.transaction.ProductionTransactionResult
 import com.xianxia.sect.core.util.AppError
+import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -86,18 +87,15 @@ data class MaterialUpdate(
     val materials: List<Material>
 )
 
-data class ProductionStartResult(
-    val success: Boolean,
-    val slot: ProductionSlot? = null,
-    val error: ProductionError? = null,
-    val materialUpdate: MaterialUpdate? = null
-)
-
-data class ProductionCompleteResult(
-    val success: Boolean,
-    val outcome: ProductionOutcome? = null,
-    val error: ProductionError? = null,
-    val slot: ProductionSlot? = null
+/**
+ * 生产启动成功的数据载体。
+ *
+ * @param slot 已启动的生产槽位
+ * @param materialUpdate 材料扣除后的更新（herbs 用于炼丹，materials 用于锻造）
+ */
+data class ProductionStartData(
+    val slot: ProductionSlot,
+    val materialUpdate: MaterialUpdate
 )
 
 @Singleton
@@ -142,18 +140,14 @@ class ProductionCoordinator @Inject constructor(
         herbs: List<Herb>,
         buildingId: String = "alchemy",
         alchemyPolicyBonus: Double = 0.0
-    ): ProductionStartResult {
+    ): DomainResult<ProductionStartData> {
         DomainLog.d(TAG, "Starting alchemy: $buildingId[$slotIndex] recipe=$recipeId")
-        
+
         val recipe = PillRecipeDatabase.getRecipeById(recipeId)
-            ?: return ProductionStartResult(
-                success = false,
-                error = ProductionError.RecipeNotFound(
-                    message = "配方不存在",
-                    recipeId = recipeId
-                )
+            ?: return DomainResult.Failure(
+                AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
-        
+
         val availableMaterials = mutableMapOf<String, Int>()
         herbs.forEach { herb ->
             val herbData = HerbDatabase.getHerbByName(herb.name)
@@ -182,20 +176,13 @@ class ProductionCoordinator @Inject constructor(
             outputItemName = recipe.name,
             outputItemRarity = recipe.rarity
         )
-        
+
         if (!txResult.success) {
-            return ProductionStartResult(
-                success = false,
-                error = when (val err = txResult.error) {
-                    is AppError.Domain.Production.SlotBusy ->
-                        ProductionError.SlotBusy(message = err.message, slotIndex = err.slotIndex)
-                    is AppError.Domain.Production.InsufficientMaterials ->
-                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missingMaterials)
-                    else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
-                }
-            )
+            val appError = txResult.error
+                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
+            return DomainResult.Failure(appError)
         }
-        
+
         val newHerbs = herbs.map { herb ->
             var newQuantity = herb.quantity
             recipe.materials.forEach { (herbId, requiredAmount) ->
@@ -206,7 +193,7 @@ class ProductionCoordinator @Inject constructor(
             }
             herb.copy(quantity = newQuantity)
         }.filter { it.quantity > 0 }
-        
+
         val consumptionLog = MaterialConsumptionLog(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -218,12 +205,17 @@ class ProductionCoordinator @Inject constructor(
             buildingId = buildingId
         )
         _consumptionLogs.value = _consumptionLogs.value + consumptionLog
-        
+
         DomainLog.d(TAG, "Alchemy started successfully: $buildingId[$slotIndex]")
-        return ProductionStartResult(
-            success = true,
-            slot = txResult.slot,
-            materialUpdate = MaterialUpdate(herbs = newHerbs, materials = emptyList())
+        return DomainResult.Success(
+            ProductionStartData(
+                slot = txResult.slot ?: ProductionSlot(
+                    slotIndex = slotIndex,
+                    buildingType = BuildingType.ALCHEMY,
+                    buildingId = buildingId
+                ),
+                materialUpdate = MaterialUpdate(herbs = newHerbs, materials = emptyList())
+            )
         )
     }
     
@@ -235,18 +227,14 @@ class ProductionCoordinator @Inject constructor(
         materials: List<Material>,
         buildingId: String = "forge",
         forgePolicyBonus: Double = 0.0
-    ): ProductionStartResult {
+    ): DomainResult<ProductionStartData> {
         DomainLog.d(TAG, "Starting forging: $buildingId[$slotIndex] recipe=$recipeId")
-        
+
         val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
-            ?: return ProductionStartResult(
-                success = false,
-                error = ProductionError.RecipeNotFound(
-                    message = "配方不存在",
-                    recipeId = recipeId
-                )
+            ?: return DomainResult.Failure(
+                AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
-        
+
         val availableMaterials = mutableMapOf<String, Int>()
         materials.forEach { material ->
             val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
@@ -277,20 +265,13 @@ class ProductionCoordinator @Inject constructor(
             outputItemName = recipe.name,
             outputItemRarity = recipe.rarity
         )
-        
+
         if (!txResult.success) {
-            return ProductionStartResult(
-                success = false,
-                error = when (val err = txResult.error) {
-                    is AppError.Domain.Production.SlotBusy ->
-                        ProductionError.SlotBusy(message = err.message, slotIndex = err.slotIndex)
-                    is AppError.Domain.Production.InsufficientMaterials ->
-                        ProductionError.InsufficientMaterials(message = "材料不足", missingMaterials = err.missingMaterials)
-                    else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
-                }
-            )
+            val appError = txResult.error
+                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
+            return DomainResult.Failure(appError)
         }
-        
+
         val newMaterials = materials.map { material ->
             var newQuantity = material.quantity
             recipe.materials.forEach { (materialId, requiredAmount) ->
@@ -301,12 +282,17 @@ class ProductionCoordinator @Inject constructor(
             }
             material.copy(quantity = newQuantity)
         }.filter { it.quantity > 0 }
-        
+
         DomainLog.d(TAG, "Forging started successfully: $buildingId[$slotIndex]")
-        return ProductionStartResult(
-            success = true,
-            slot = txResult.slot,
-            materialUpdate = MaterialUpdate(herbs = emptyList(), materials = newMaterials)
+        return DomainResult.Success(
+            ProductionStartData(
+                slot = txResult.slot ?: ProductionSlot(
+                    slotIndex = slotIndex,
+                    buildingType = BuildingType.FORGE,
+                    buildingId = buildingId
+                ),
+                materialUpdate = MaterialUpdate(herbs = emptyList(), materials = newMaterials)
+            )
         )
     }
     
@@ -315,104 +301,83 @@ class ProductionCoordinator @Inject constructor(
         slotIndex: Int,
         currentYear: Int,
         currentMonth: Int
-    ): ProductionCompleteResult {
+    ): DomainResult<ProductionOutcome> {
         DomainLog.d(TAG, "Completing production: ${buildingType.name}[$slotIndex]")
-        
-        val txResult = transactionManager.executeCompleteProduction(buildingType, slotIndex, currentYear, currentMonth)
-        
+
+        val txResult = transactionManager.executeCompleteProduction(
+            buildingType, slotIndex, currentYear, currentMonth
+        )
+
         if (!txResult.success) {
-            return ProductionCompleteResult(
-                success = false,
-                error = when (val err = txResult.error) {
-                    is AppError.Domain.Production.InvalidStateTransition ->
-                        ProductionError.InvalidStateTransition(
-                            message = err.message,
-                            fromStatus = err.fromStatus,
-                            toStatus = err.toStatus
-                        )
-                    else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
-                }
-            )
+            val appError = txResult.error
+                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
+            return DomainResult.Failure(appError)
         }
-        
+
         DomainLog.d(TAG, "Production completed: ${buildingType.name}[$slotIndex]")
-        return ProductionCompleteResult(
-            success = true,
-            outcome = txResult.outcome,
-            slot = txResult.slot
+        return DomainResult.Success(
+            txResult.outcome
+                ?: ProductionOutcome.Failure("outcome data missing")
         )
     }
-    
+
     suspend fun completeProductionByBuildingIdAtomic(
         buildingId: String,
         slotIndex: Int,
         currentYear: Int,
         currentMonth: Int
-    ): ProductionCompleteResult {
+    ): DomainResult<ProductionOutcome> {
         DomainLog.d(TAG, "Completing production by buildingId: $buildingId[$slotIndex]")
-        
-        val txResult = transactionManager.executeCompleteProductionByBuildingId(buildingId, slotIndex, currentYear, currentMonth)
-        
+
+        val txResult = transactionManager.executeCompleteProductionByBuildingId(
+            buildingId, slotIndex, currentYear, currentMonth
+        )
+
         if (!txResult.success) {
-            return ProductionCompleteResult(
-                success = false,
-                error = when (val err = txResult.error) {
-                    is AppError.Domain.Production.InvalidStateTransition ->
-                        ProductionError.InvalidStateTransition(
-                            message = err.message,
-                            fromStatus = err.fromStatus,
-                            toStatus = err.toStatus
-                        )
-                    else -> ProductionError.InvalidSlot(message = err?.toString() ?: "Unknown error", slotIndex = slotIndex)
-                }
-            )
+            val appError = txResult.error
+                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
+            return DomainResult.Failure(appError)
         }
-        
+
         DomainLog.d(TAG, "Production completed: $buildingId[$slotIndex]")
-        return ProductionCompleteResult(
-            success = true,
-            outcome = txResult.outcome,
-            slot = txResult.slot
+        return DomainResult.Success(
+            txResult.outcome
+                ?: ProductionOutcome.Failure("outcome data missing")
         )
     }
-    
+
     suspend fun resetSlotAtomic(
         buildingType: BuildingType,
         slotIndex: Int
-    ): ProductionOperationResult<ProductionSlot> {
+    ): DomainResult<ProductionSlot> {
         DomainLog.d(TAG, "Resetting slot: ${buildingType.name}[$slotIndex]")
-        
+
         val txResult = transactionManager.executeResetSlot(buildingType, slotIndex)
-        
+
         return if (txResult.success) {
-            txResult.slot?.let { ProductionOperationResult.Success(it) }
-                ?: ProductionOperationResult.Failure(
-                    ProductionError.InvalidSlot(
-                        message = "Transaction succeeded but slot data is missing",
-                        slotIndex = slotIndex
-                    )
+            txResult.slot?.let { DomainResult.Success(it) }
+                ?: DomainResult.Failure(
+                    AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
                 )
         } else {
-            ProductionOperationResult.Failure(
-                ProductionError.InvalidSlot(
-                    message = txResult.error?.toString() ?: "Unknown error",
-                    slotIndex = slotIndex
-                )
+            DomainResult.Failure(
+                txResult.error
+                    ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
             )
         }
     }
-    
+
     suspend fun resetSlotByBuildingIdAtomic(
         buildingId: String,
         slotIndex: Int
-    ): ProductionOperationResult<ProductionSlot> {
+    ): DomainResult<ProductionSlot> {
         DomainLog.d(TAG, "Resetting slot by buildingId: $buildingId[$slotIndex]")
-        
+
         val slot = repository.getSlotByBuildingId(buildingId, slotIndex)
-            ?: return ProductionOperationResult.Failure(
-                ProductionError.InvalidSlot(message = "Slot not found", slotIndex = slotIndex)
+            ?: return DomainResult.Failure(
+                AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
             )
-        
+
         return resetSlotAtomic(slot.buildingType, slotIndex)
     }
     
