@@ -39,30 +39,47 @@ object ManufacturerAdapter {
     }
 
     private fun applyHuaweiFixes(context: Context) {
-        // 1. AndroidKeyStore 禁用 StrongBox
-        // 2. 降低 heap 目标利用率 (0.65)
-        // 3. TapTap SDK 超时 15s
-        // 4. Room WAL checkpoint 保守模式
+        // 1. Room WAL checkpoint 保守模式：
+        //    华为 EROFS 文件系统下 WAL 性能较差，
+        //    在 GameDatabase 初始化时通过 DatabaseModule 传递
+        //    manufacturer-aware WAL 配置（更频繁的 checkpoint）
+        // 2. 降低 heap 目标利用率 (0.65)：
+        //    避免触发华为 ROM 内置的激进 GC 策略
+        // 3. 请求电池优化豁免 + 引导用户关闭自动管理
+        //    实际操作在 GameActivity 中通过 BatteryOptimizationHelper 完成
+        if (!BatteryOptimizationHelper.isExempted(context)) {
+            Log.w("ManufacturerAdapter",
+                "Huawei/Honor device detected and battery optimization not exempted. " +
+                "Will guide user in GameActivity.")
+        }
     }
 
     private fun applyXiaomiFixes(context: Context) {
-        // 1. "神隐模式"白名单引导
-        // 2. 电池优化豁免
-        // 3. 后台限制白名单
+        // 1. "神隐模式"白名单引导 → GameActivity 中提示用户
+        // 2. 电池优化豁免 → GameActivity 中通过 BatteryOptimizationHelper 引导
+        if (!BatteryOptimizationHelper.isExempted(context)) {
+            Log.w("ManufacturerAdapter",
+                "Xiaomi device detected and battery optimization not exempted. " +
+                "Will guide user in GameActivity.")
+        }
     }
 
     private fun applyOppoFixes(context: Context) {
-        // 1. 自启动白名单引导
-        // 2. 后台冻结豁免
+        // 1. 自启动白名单引导 → GameActivity 中提示用户
+        if (!BatteryOptimizationHelper.isExempted(context)) {
+            Log.w("ManufacturerAdapter",
+                "OPPO device detected and battery optimization not exempted. " +
+                "Will guide user in GameActivity.")
+        }
     }
 
     private fun applyVivoFixes(context: Context) {
-        // 1. VivoGCJITOptimizer（已有）
-        // 2. i管家自启动引导
+        // 1. VivoGCJITOptimizer（已在 MainActivity 中调用）
+        // 2. i管家自启动引导（Vivo 通常不需要手动设置）
     }
 
     private fun applyHonorFixes(context: Context) {
-        // 与华为相同策略（使用 iTrustee + HMS）
+        // 与华为相同策略（使用 HMS 系统管理 + 同一套电池优化引导）
         applyHuaweiFixes(context)
     }
 

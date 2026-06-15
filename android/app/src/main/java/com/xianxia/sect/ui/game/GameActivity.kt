@@ -127,6 +127,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     @Inject
     lateinit var frameMetricsMonitor: FrameMetricsMonitor
 
+    @Inject
+    lateinit var wakeLockManager: com.xianxia.sect.core.util.WakeLockManager
+
     // GPU 分级检测 — 在 Activity 级别缓存，供地图预渲染使用
     // 来源: docs/device-adaptation-plan.md §5 Step 5 — 优先使用 GameManager API
     private val gpuRenderConfig: GpuRenderConfig by lazy { GpuRenderConfig.forTier(GpuTierDetector().detect(this)) }
@@ -484,6 +487,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         } catch (e: Exception) {
             Log.e(TAG, "Error pausing game engine in onPause", e)
         }
+        // 释放 WakeLock：游戏循环停止后再释放，
+        // 确保 stopGameLoop 和清理操作在 CPU 保护下完成
+        wakeLockManager.release()
     }
 
     override fun onStop() {
@@ -505,9 +511,15 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
         backgroundTaskScheduler.resume()
         Log.d(TAG, "onResume: background tasks resumed")
+        // 获取 WakeLock：保持 CPU 活跃，防止 OEM 省电策略挂起游戏线程
+        wakeLockManager.acquire()
+        // 通知系统退出加载状态 → 恢复正常游戏性能调度
+        notifyGameLoadingState(false)
         if (gameEngineCore.wasPausedByBackground) {
             gameEngineCore.resumeFromBackground()
         }
+        // 华为/荣耀设备：首次进入游戏时引导用户关闭电池优化
+        showBatteryOptimizationGuideIfNeeded()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -648,6 +660,64 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         } catch (e: Exception) {
             Log.e(TAG, "Emergency save failed", e)
             false
+        }
+    }
+
+    // ── GameState API (Android 13+) ──
+
+    /**
+     * 通知系统当前游戏加载状态。
+     *
+     * Android 13+ GameState API — 系统根据游戏状态调整 CPU 调度：
+     * - isLoading=true  → GAME_LOADING 模式，主动提升 CPU 频率
+     * - isLoading=false → 维持正常游戏性能调度
+     *
+     * 参考：https://developer.android.com/about/versions/13/features#game-performance
+     */
+    @Suppress("NewApi")
+    private fun notifyGameLoadingState(isLoading: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        try {
+            val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
+            // GameState(Boolean, Int, Int, Int): isLoading, ?, gameMode, ?
+            val gameState = android.app.GameState(
+                isLoading,
+                0,
+                gameManager.gameMode,
+                0
+            )
+            gameManager.setGameState(gameState)
+            Log.d(TAG, "GameState → loading=$isLoading")
+        } catch (e: Exception) {
+            Log.w(TAG, "setGameState failed (non-critical): ${e.message}")
+        }
+    }
+
+    // ── 电池优化引导 ──
+
+    /** 首次进入游戏时在华为/荣耀设备上引导用户关闭电池优化 */
+    private fun showBatteryOptimizationGuideIfNeeded() {
+        val helper = com.xianxia.sect.core.util.BatteryOptimizationHelper
+        if (!helper.shouldShowHuaweiGuide(this)) return
+
+        // 使用 SharedPreferences 记录是否已提示过，避免每次 resume 都弹
+        val prefs = getSharedPreferences("battery_guide", MODE_PRIVATE)
+        if (prefs.getBoolean("huawei_guide_shown", false)) return
+
+        prefs.edit().putBoolean("huawei_guide_shown", true).apply()
+
+        val guideText = helper.getGuideText(this)
+        if (guideText.isEmpty()) return
+
+        // 在 UI 线程显示引导
+        lifecycleScope.launch(Dispatchers.Main) {
+            android.widget.Toast.makeText(
+                this@GameActivity,
+                guideText,
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            // 直接请求电池优化豁免
+            helper.requestExemption(this@GameActivity)
         }
     }
 }

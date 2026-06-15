@@ -116,17 +116,19 @@ class GameTimeClockTest {
     // 11. 一次 tick 内累积多旬（从暂停恢复/卡顿后追赶）
     @Test
     fun multiPhaseInOneTick() {
+        // 8000ms < MAX_CATCHUP_MS(30000)，不被截断
         val result = simulateTick(8000L)
         assertEquals(4, result.phasesToAdvance)
     }
 
-    // 12. accumulatedGameMs 不溢出
+    // 12. 超大 delta 被安全上限截断，防止挂起恢复后时间爆炸
     @Test
-    fun noOverflow() {
+    fun largeDelta_cappedByMaxCatchup() {
         clock.setSpeed(2)
+        // 100000ms 真实时间 >> MAX_CATCHUP_MS(30000)，应被截断
+        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases
         val result = simulateTick(100_000L)
-        // 100000 * 2 = 200000 game ms, / 1000 = 200 phases
-        assertEquals(200, result.phasesToAdvance)
+        assertEquals(60, result.phasesToAdvance)
     }
 
     // 13. 暂停后恢复：speed=0 暂停 → speed=1 恢复，累积量不丢

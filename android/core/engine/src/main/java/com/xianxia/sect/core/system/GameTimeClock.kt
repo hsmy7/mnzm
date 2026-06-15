@@ -91,8 +91,12 @@ class GameTimeClock @Inject constructor() {
      */
     fun tick(isSettlementPending: Boolean): TickResult {
         val now = System.currentTimeMillis()
-        val realDelta = now - lastWallMs
+        val rawDelta = now - lastWallMs
         lastWallMs = now
+
+        // 防御：单次 delta 不超过 MAX_CATCHUP_MS，
+        // 防止线程长时间挂起后恢复时游戏时间爆炸式跳变
+        val realDelta = rawDelta.coerceAtMost(MAX_CATCHUP_MS)
 
         if (speed > 0) {
             accumulatedGameMs += realDelta * speed
@@ -103,6 +107,17 @@ class GameTimeClock @Inject constructor() {
             accumulatedGameMs -= phases.toLong() * msPerPhase
         }
         return TickResult(phases, isSettlementPending)
+    }
+
+    /**
+     * 消耗死区时间：更新 lastWallMs 但不累积游戏时间。
+     *
+     * 用于 tick 被阻止执行期间（保存/加载/暂停时），
+     * 确保 wall clock 基准保持最新，防止恢复后产生虚高 delta。
+     * accumulatedGameMs 保持不变 — 阻塞期间不产生游戏时间。
+     */
+    fun consumeDeadTime() {
+        lastWallMs = System.currentTimeMillis()
     }
 
     /**
@@ -125,5 +140,8 @@ class GameTimeClock @Inject constructor() {
     companion object {
         /** 1x 速度下每旬对应的真实时间毫秒数 */
         const val MS_PER_PHASE_1X: Long = 2000L
+
+        /** 单次 tick 最大追赶时间（毫秒）。防止线程长时间挂起后恢复时时间爆炸式跳变。 */
+        private const val MAX_CATCHUP_MS: Long = 30_000L  // 30秒 — 正常玩法不受影响，阻断分钟级挂起爆炸
     }
 }

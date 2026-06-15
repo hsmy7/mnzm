@@ -70,7 +70,7 @@ class GameEngineCore @Inject constructor(
         private const val TICK_INTERVAL_MS = 100L
         private const val MIN_TICK_DELAY_MS = 16L
         private const val TICK_WARNING_THRESHOLD_MS = 100f
-        private const val STUCK_STATE_TIMEOUT_MS = 30_000L
+        private const val STUCK_STATE_TIMEOUT_MS = 10_000L  // 从30s降至10s，更快恢复
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
         private const val IDLE_TICK_INTERVAL_MS = 2000L
         private const val IDLE_DETECTION_MS = 30_000L
@@ -182,7 +182,7 @@ class GameEngineCore @Inject constructor(
             DomainLog.w(TAG, "Game loop already running")
             return
         }
-        
+
         gameClock.start()
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
@@ -199,18 +199,28 @@ class GameEngineCore @Inject constructor(
 
         gameLoopJob = engineScope.launch {
             DomainLog.i(TAG, "Starting game loop")
-            
+
+            // 提升游戏线程优先级以对抗 OEM 省电策略
+            // （华为 PowerGenie、小米神隐模式等会对低优先级线程进行 CPU 挂起）
+            val originalPriority = Thread.currentThread().priority
+            try {
+                Thread.currentThread().priority = Thread.NORM_PRIORITY + 1
+                DomainLog.d(TAG, "Game thread priority: $originalPriority → ${Thread.NORM_PRIORITY + 1}")
+            } catch (e: SecurityException) {
+                DomainLog.w(TAG, "Cannot raise thread priority: ${e.message}")
+            }
+
             try {
                 while (isActive) {
                     try {
                 val startTime = System.currentTimeMillis()
-                
+
                 tick()
-                
+
                 val currentTime = System.currentTimeMillis()
                 val actualFrameInterval = (currentTime - lastFrameTime).toFloat()
                 lastFrameTime = currentTime
-                
+
                 val elapsed = currentTime - startTime
                 val isIdle = (System.currentTimeMillis() - lastUserInteractionTime) > IDLE_DETECTION_MS
                 val effectiveInterval = when {
@@ -225,7 +235,10 @@ class GameEngineCore @Inject constructor(
 
                 updateFps(actualFrameInterval)
 
-                        delay(delayMs)
+                        // 短轮询替代单次长 delay：
+                        // 华为等 OEM 的省电策略会检测线程"空闲"状态并挂起。
+                        // 使用 ≤16ms 的短间隔轮询使线程保持活跃，防止被标记为空闲。
+                        pollWithShortDelay(delayMs)
                     } catch (e: CancellationException) {
                         DomainLog.i(TAG, "Game loop cancelled")
                         throw e
@@ -430,6 +443,7 @@ class GameEngineCore @Inject constructor(
         val isSaving = stateStore.isSaving.value
         if (isPaused || isLoading || isSaving) {
             checkAndResetStuckStates(isSaving, isLoading)
+            gameClock.consumeDeadTime()  // 更新lastWallMs，防止恢复后时间跳变
             // Periodic diagnostic: log stuck state every 100th skipped tick
             if (_tickCount.value % 100 == 0L) {
                 DomainLog.d(TAG, "tickInternal: tick #${_tickCount.value} skipped " +
@@ -442,6 +456,7 @@ class GameEngineCore @Inject constructor(
         if (thermalMonitor.shouldEmergencySave()) {
             DomainLog.w(TAG, "Thermal status SEVERE+, triggering emergency save and skipping tick")
             _autoSaveTrigger.trySend(Unit)
+            gameClock.consumeDeadTime()  // 更新lastWallMs，防止恢复后时间跳变
             return
         }
         if (thermalMonitor.shouldReduceWorkload()) {
@@ -633,11 +648,31 @@ class GameEngineCore @Inject constructor(
     private fun updateFps(frameTime: Float) {
         frameCount++
         fpsAccumulator += frameTime
-        
+
         if (frameCount >= 10) {
             _fps.value = 1000f / (fpsAccumulator / frameCount)
             frameCount = 0
             fpsAccumulator = 0f
+        }
+    }
+
+    /**
+     * 短轮询延迟：将单次长 [delay] 拆分为多次短间隔轮询。
+     *
+     * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）会检测线程"空闲"状态，
+     * 对长时间未活跃的线程进行 CPU 挂起。
+     * 使用 ≤16ms 的短间隔使线程保持活跃，防止被标记为空闲。
+     *
+     * 参考：Kotlin Slack #coroutines 确认 delay() 精度 >30ms 抖动
+     * （https://slack-chats.kotlinlang.org/t/26866719）
+     */
+    private suspend fun pollWithShortDelay(totalMs: Long) {
+        val shortInterval = MIN_TICK_DELAY_MS  // 16ms — 约等于一帧，远低于 PowerGenie 检测窗口
+        var remaining = totalMs
+        while (remaining > 0 && currentCoroutineContext().isActive) {
+            val step = minOf(shortInterval, remaining)
+            delay(step)
+            remaining -= step
         }
     }
     
