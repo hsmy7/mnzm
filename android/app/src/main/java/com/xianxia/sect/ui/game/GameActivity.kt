@@ -679,10 +679,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
             val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
-            // GameState(Boolean, Int, Int, Int): isLoading, ?, gameMode, ?
+            // GameState(isLoading, mode, gameMode, label)
             val gameState = android.app.GameState(
                 isLoading,
-                0,
+                android.app.GameState.MODE_NONE,
                 gameManager.gameMode,
                 0
             )
