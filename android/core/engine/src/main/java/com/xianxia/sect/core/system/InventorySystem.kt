@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
@@ -27,31 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-
-enum class AddResult {
-    SUCCESS,
-    PARTIAL_SUCCESS,
-    FULL,
-    INVALID_ID,
-    INVALID_NAME,
-    INVALID_RARITY,
-    INVALID_QUANTITY,
-    DUPLICATE_ID,
-    ITEM_LOCKED
-}
-
-data class CapacityInfo(
-    val currentSlots: Int,
-    val maxSlots: Int,
-    val remainingSlots: Int,
-    val isFull: Boolean
-)
-
-data class StackUpdate(
-    val stackId: String,
-    val newQuantity: Int,
-    val isDeletion: Boolean = false
-)
 
 // TickSystem: "InventorySystem"
 @SystemPriority(order = 50)
@@ -1693,52 +1667,26 @@ class InventorySystem @Inject constructor(
         return result
     }
 
-    fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack {
-        val template = EquipmentDatabase.getTemplateByName(recipe.name)
-        if (template != null) {
-            return EquipmentStack(
-                id = java.util.UUID.randomUUID().toString(),
-                name = template.name,
-                slot = template.slot,
-                rarity = recipe.rarity,
-                physicalAttack = template.physicalAttack,
-                magicAttack = template.magicAttack,
-                physicalDefense = template.physicalDefense,
-                magicDefense = template.magicDefense,
-                speed = template.speed,
-                hp = template.hp,
-                mp = template.mp,
-                description = template.description,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
-            )
-        }
-        return EquipmentDatabase.generateRandom(recipe.rarity, recipe.rarity).copy(
-            id = java.util.UUID.randomUUID().toString(),
-            rarity = recipe.rarity
-        )
-    }
+    fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack =
+        InventoryFactories.createEquipmentFromRecipe(recipe)
 
-    fun createEquipmentFromMerchantItem(item: MerchantItem): EquipmentStack {
-        val eq = MerchantItemConverter.toEquipment(item)
-        return eq.copy(quantity = 1)
-    }
+    fun createEquipmentFromMerchantItem(item: MerchantItem): EquipmentStack =
+        InventoryFactories.createEquipmentFromMerchantItem(item)
 
-    fun createManualFromMerchantItem(item: MerchantItem): ManualStack {
-        val manual = MerchantItemConverter.toManual(item)
-        return manual.copy(quantity = 1)
-    }
+    fun createManualFromMerchantItem(item: MerchantItem): ManualStack =
+        InventoryFactories.createManualFromMerchantItem(item)
 
     fun createPillFromMerchantItem(item: MerchantItem): Pill =
-        MerchantItemConverter.toPill(item)
+        InventoryFactories.createPillFromMerchantItem(item)
 
     fun createMaterialFromMerchantItem(item: MerchantItem): Material =
-        MerchantItemConverter.toMaterial(item)
+        InventoryFactories.createMaterialFromMerchantItem(item)
 
     fun createHerbFromMerchantItem(item: MerchantItem): Herb =
-        MerchantItemConverter.toHerb(item)
+        InventoryFactories.createHerbFromMerchantItem(item)
 
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
-        MerchantItemConverter.toSeed(item)
+        InventoryFactories.createSeedFromMerchantItem(item)
 
     override fun addPill(item: Pill): AddResult = addPill(item, merge = true)
     override fun addMaterial(item: Material): AddResult = addMaterial(item, merge = true)

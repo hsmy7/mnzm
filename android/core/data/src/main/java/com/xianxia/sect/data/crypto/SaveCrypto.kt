@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Arrays
 import java.util.concurrent.ConcurrentHashMap
@@ -671,67 +670,45 @@ object SaveCrypto {
         Log.d(TAG, "Precomputed keys cleared (${toRemove.size} entries removed from unified cache)")
     }
 
-    // ==================== 工具方法（API 签名不变�?===================
+    // ==================== 工具方法（委托到 CryptoHashUtils）====================
 
     /**
      * 计算 SHA-256 哈希
      */
-    fun sha256(data: ByteArray): ByteArray {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(data)
-    }
+    fun sha256(data: ByteArray): ByteArray = CryptoHashUtils.sha256(data)
 
     /**
      * 计算 SHA-256 哈希并返回十六进制字符串
      */
-    fun sha256Hex(data: ByteArray): String {
-        return sha256(data).joinToString("") { "%02x".format(it) }
-    }
+    fun sha256Hex(data: ByteArray): String = CryptoHashUtils.sha256Hex(data)
 
     /**
-     * 生成数据的校验和（SHA-256�?
+     * 生成数据的校验和（SHA-256）
      */
-    fun generateChecksum(data: ByteArray): ByteArray {
-        return sha256(data)
-    }
+    fun generateChecksum(data: ByteArray): ByteArray = CryptoHashUtils.generateChecksum(data)
 
     /**
-     * 验证校验和是否匹配（时序安全比较�?
+     * 验证校验和是否匹配（时序安全比较）
      */
-    fun verifyChecksum(data: ByteArray, expectedChecksum: ByteArray): Boolean {
-        val actualChecksum = sha256(data)
-        return timingSafeEqual(actualChecksum, expectedChecksum)
-    }
+    fun verifyChecksum(data: ByteArray, expectedChecksum: ByteArray): Boolean =
+        CryptoHashUtils.verifyChecksum(data, expectedChecksum)
 
     /**
      * 将校验和嵌入数据头部
      */
-    fun embedChecksum(data: ByteArray): ByteArray {
-        val checksum = sha256(data)
-        val result = ByteArray(checksum.size + data.size)
-        System.arraycopy(checksum, 0, result, 0, checksum.size)
-        System.arraycopy(data, 0, result, checksum.size, data.size)
-        return result
-    }
+    fun embedChecksum(data: ByteArray): ByteArray = CryptoHashUtils.embedChecksum(data)
 
     /**
-     * 从嵌入数据中提取校验和数�?
+     * 从嵌入数据中提取校验和与数据
      */
-    fun extractChecksumAndData(embeddedData: ByteArray): Pair<ByteArray, ByteArray>? {
-        if (embeddedData.size < 32) return null
-        val checksum = embeddedData.copyOfRange(0, 32)
-        val data = embeddedData.copyOfRange(32, embeddedData.size)
-        return Pair(checksum, data)
-    }
+    fun extractChecksumAndData(embeddedData: ByteArray): Pair<ByteArray, ByteArray>? =
+        CryptoHashUtils.extractChecksumAndData(embeddedData)
 
     /**
      * 验证嵌入的校验和是否有效
      */
-    fun verifyEmbeddedChecksum(embeddedData: ByteArray): Boolean {
-        val (storedChecksum, data) = extractChecksumAndData(embeddedData) ?: return false
-        val actualChecksum = sha256(data)
-        return timingSafeEqual(storedChecksum, actualChecksum)
-    }
+    fun verifyEmbeddedChecksum(embeddedData: ByteArray): Boolean =
+        CryptoHashUtils.verifyEmbeddedChecksum(embeddedData)
 
     // ==================== 缓存管理方法（v3: 统一缓存接口�?===================
 
@@ -1374,52 +1351,10 @@ object SaveCrypto {
         }
     }
 
-    // ==================== 安全工具方法 ====================
+    // ==================== 安全工具方法（委托到 SecurityPrimitives.kt 顶层函数）====================
 
     /**
-     * 时序安全的字节数组比较（防时序攻击）
-     *
-     * 标准�?Arrays.equals() �?contentEquals() 会短路返回，
-     * 攻击者可通过测量响应时间推断正确的前缀长度�?
-     *
-     * 此方法始终比较所有字节，无论是否发现不匹配，
-     * 从而消除时序侧信道风险�?
-     *
-     * 用途：HMAC 签名验证、密码比较等安全敏感场景
-     *
-     * @param a 第一个字节数�?
-     * @param b 第二个字节数�?
-     * @return 如果内容完全相同返回 true，否则返�?false
-     */
-    private fun timingSafeEqual(a: ByteArray, b: ByteArray): Boolean {
-        if (a.size != b.size) return false
-
-        var result = 0
-        for (i in a.indices) {
-            result = result or (a[i].toInt() xor b[i].toInt())
-        }
-        return result == 0
-    }
-
-    /**
-     * 安全清除敏感字节数据
-     *
-     * 将数组每个字节设�?，然后请�?GC 回收�?
-     * 注意：JVM 不保证即�?GC，但填充零值可降低内存转储风险�?
-     *
-     * 对于极度敏感的场景，应考虑使用 Java Cryptography Architecture
-     * 的专用安全数组支持（�?JDK 8u151+ �?sun.misc.Unsafe �?
-     * Android 的特殊处理）�?
-     *
-     * @param data 需要清除的敏感数据
-     */
-    private fun securelyClear(data: ByteArray?) {
-        if (data == null) return
-        Arrays.fill(data, 0.toByte())
-    }
-
-    /**
-     * 清除所有密钥缓�?(v3: 统一缓存清理)
+     * 清除所有密钥缓存 (v3: 统一缓存清理)
      */
     fun clearAllKeyCache() {
         // 停止定期清理协程
