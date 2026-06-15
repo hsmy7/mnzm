@@ -49,6 +49,7 @@ import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import androidx.compose.ui.platform.LocalLocale
 import java.util.Locale
 
 @Composable
@@ -488,7 +489,7 @@ private fun EquipmentDetailDialog(
                         if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color.Black)
                         if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color.Black)
                         if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color.Black)
-                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)
                     }
                 }
 

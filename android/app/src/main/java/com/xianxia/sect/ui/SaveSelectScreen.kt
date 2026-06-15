@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
@@ -54,7 +55,8 @@ fun SaveSelectScreen(
     var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
     var sectNameInput by remember { mutableStateOf("") }
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    val locale = LocalLocale.current.platformLocale
+    val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
 
     GameBackground {
         Column(

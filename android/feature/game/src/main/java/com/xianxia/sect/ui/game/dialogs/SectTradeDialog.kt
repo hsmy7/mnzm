@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
+import androidx.compose.ui.platform.LocalLocale
 import java.util.Locale
 
 @Composable
@@ -120,13 +121,13 @@ fun SectTradeDialog(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                            text = "(${String.format(LocalLocale.current.platformLocale, "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                             fontSize = 10.sp,
                             color = Color(0xFF4CAF50)
                         )
                     } else if (relation >= 70) {
                         Text(
-                            text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                            text = "(${String.format(LocalLocale.current.platformLocale, "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                             fontSize = 10.sp,
                             color = Color(0xFF4CAF50)
                         )

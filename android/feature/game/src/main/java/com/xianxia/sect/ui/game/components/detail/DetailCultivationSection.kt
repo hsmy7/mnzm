@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -296,7 +297,7 @@ fun BasicInfoSection(
                         )
                     )
                     Text(
-                        text = "${String.format(Locale.getDefault(), "%.1f", cultivationSpeed)}/秒",
+                        text = "${String.format(LocalLocale.current.platformLocale, "%.1f", cultivationSpeed)}/秒",
                         fontSize = 10.sp,
                         color = Color(0xFF4CAF50)
                     )
