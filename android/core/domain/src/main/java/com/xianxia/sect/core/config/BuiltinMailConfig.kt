@@ -36,6 +36,16 @@ object BuiltinMailConfig {
             attachments = listOf(
                 MailAttachment(type = "storageBag", name = "宝品储物袋", quantity = 3, rarity = 3)
             )
+        ),
+        BuiltinMail(
+            id = "mail_qq_group_v4_0_03",
+            title = "加入官方玩家交流群",
+            content = "道友安好！\n\n为方便诸位道友交流修仙心得、分享宗门建设经验，特此建立官方玩家交流QQ群。\n\n群号：1085248982\n\n入群即可结识天下道友，共探仙道之秘。特奉上宝品储物袋十枚，助道友收纳四方宝物！\n\n——天道意志",
+            mailType = "reward",
+            minVersion = 4003,
+            attachments = listOf(
+                MailAttachment(type = "storageBag", name = "宝品储物袋", quantity = 10, rarity = 3)
+            )
         )
     )
 }

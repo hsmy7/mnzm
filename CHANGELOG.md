@@ -2,6 +2,10 @@
 
 ## [4.0.03] - 2026-06-16（versionCode=4003）
 
+### 新增
+
+- **新增：官方玩家交流群奖励邮件** — 邮件系统新增内置奖励邮件，邀请玩家加入官方玩家交流QQ群（群号：1085248982），奖励宝品储物袋×10
+
 ### 修复
 
 - **修复：招募弟子界面"同意"按钮点击无反应** — 招募列表弟子 ID 使用 UUID（如 `84ef16c0-...`），但 `DiscipleTables.insert()` 强制 `.toInt()` 导致 `NumberFormatException` 崩溃，协程吞掉异常后无任何提示。修复：手动招募、自动招募、全部招募三条路径统一在 `insert()` 前分配新整数 ID（`maxOrNull + 1`），与 `DiscipleService.recruitDisciple()` 的 ID 生成策略一致
