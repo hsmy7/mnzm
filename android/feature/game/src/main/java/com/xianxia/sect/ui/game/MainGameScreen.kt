@@ -375,9 +375,23 @@ fun MainGameScreen(
         // 已清除装饰物的格子（避免反复清除同一格）
         val clearedDecorationCells = remember { mutableSetOf<Long>() }
 
-        LaunchedEffect(effectivePlacedBuildings) {
+        // 追踪上一次的烘焙位图引用，检测位图整体替换场景
+        val lastBakedMapBmp = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+        // 烘焙完成版本号 — 每次烘焙后递增，触发 Compose 重绘
+        var bakeVersion by remember { mutableIntStateOf(0) }
+
+        LaunchedEffect(effectivePlacedBuildings, bakedMapBmp) {
             val currentBmp = bakedMapBmp ?: return@LaunchedEffect
             if (currentBmp.isRecycled) return@LaunchedEffect
+
+            // 检测烘焙位图是否被整体替换（非增量更新），若是则强制全量重绘
+            val isFreshBitmap = bakedMapBmp !== lastBakedMapBmp.value
+            if (isFreshBitmap) {
+                lastBakedMapBmp.value = bakedMapBmp
+                previousBuildings.clear()
+                clearedDecorationCells.clear()
+            }
             val canvas = android.graphics.Canvas(currentBmp)
             // Canvas 缩放到渲染分辨率，建筑绘制坐标仍基于世界空间
             // 来源: docs/gpu-tier-fairness-plan.md §3 — 内部位图可能低于世界分辨率
@@ -424,10 +438,12 @@ fun MainGameScreen(
                     val cx = (cellKey shr 32).toInt()
                     val cy = (cellKey and 0xFFFF_FFFF).toInt()
                     rawTileData[cy][cx] = TILE_GROUND
-                    val srcRect = android.graphics.Rect(
-                        cx * tileSize, cy * tileSize,
-                        (cx + 1) * tileSize, (cy + 1) * tileSize
-                    )
+                    // srcRect 必须使用渲染分辨率坐标（groundBmp 尺寸 = renderWidth × renderHeight）
+                    val srcX = (cx * tileSize * renderScale).toInt()
+                    val srcY = (cy * tileSize * renderScale).toInt()
+                    val srcX2 = ((cx + 1) * tileSize * renderScale).toInt()
+                    val srcY2 = ((cy + 1) * tileSize * renderScale).toInt()
+                    val srcRect = android.graphics.Rect(srcX, srcY, srcX2, srcY2)
                     val dstRect = android.graphics.Rect(
                         cx * tileSize, cy * tileSize,
                         (cx + 1) * tileSize, (cy + 1) * tileSize
@@ -445,7 +461,10 @@ fun MainGameScreen(
                     val bw = oldBuilding.width * tileSize
                     val bh = oldBuilding.height * tileSize
                     val srcBmp = fullMapBmp.asAndroidBitmap()
-                    val srcRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
+                    val srcRect = android.graphics.Rect(
+                        (bx * renderScale).toInt(), (by * renderScale).toInt(),
+                        ((bx + bw) * renderScale).toInt(), ((by + bh) * renderScale).toInt()
+                    )
                     val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
                     canvas.drawBitmap(srcBmp, srcRect, dstRect, null)
                 }
@@ -461,7 +480,10 @@ fun MainGameScreen(
                     val obw = prev.width * tileSize
                     val obh = prev.height * tileSize
                     val srcBmp = fullMapBmp.asAndroidBitmap()
-                    val sRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
+                    val sRect = android.graphics.Rect(
+                        (obx * renderScale).toInt(), (oby * renderScale).toInt(),
+                        ((obx + obw) * renderScale).toInt(), ((oby + obh) * renderScale).toInt()
+                    )
                     val dRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
                     canvas.drawBitmap(srcBmp, sRect, dRect, null)
                     // 绘制新位置
@@ -509,6 +531,9 @@ fun MainGameScreen(
             // 更新追踪列表
             previousBuildings.clear()
             previousBuildings.addAll(effectivePlacedBuildings)
+
+            // 通知 Compose 位图内容已变更，触发重绘
+            bakeVersion++
         }
 
         // 主动回收 Bitmap，避免依赖 GC
@@ -519,7 +544,9 @@ fun MainGameScreen(
         }
 
         // 用于 Compose 渲染的 ImageBitmap（低配设备直接用原始地图）
-        val displayMapBmp = bakedMapBmp?.asImageBitmap() ?: fullMapBmp
+        val displayMapBmp = remember(bakedMapBmp, bakeVersion) {
+            bakedMapBmp?.asImageBitmap() ?: fullMapBmp
+        }
 
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览）
         SectMapCanvas(
@@ -534,7 +561,7 @@ fun MainGameScreen(
                 placedBuildings = effectivePlacedBuildings,
                 buildingBitmaps = buildingBitmaps,
                 fullMapBmp = displayMapBmp,
-                buildingsBaked = shouldBakeBuildings
+                buildingsBaked = shouldBakeBuildings && bakedMapBmp != null
             ),
             placement = if (isPlacingBuilding) PlacementModeState(
                 isActive = true,
@@ -675,6 +702,9 @@ fun MainGameScreen(
 
             DemolishButton(
                 building = movingBuilding!!,
+                snappedGridX = movingSnappedGridX,
+                snappedGridY = movingSnappedGridY,
+                buildingSize = movingBuildingSize,
                 cameraState = cameraState,
                 tileSize = tileSize,
                 onDemolish = {
@@ -998,16 +1028,19 @@ private fun getBuildingColor(displayName: String): Color = BuildingRegistry.colo
 @Composable
 private fun DemolishButton(
     building: GridBuildingData,
+    snappedGridX: Int,
+    snappedGridY: Int,
+    buildingSize: GridSnapHelper.BuildingSize,
     cameraState: SectCameraState,
     tileSize: Int,
     onDemolish: () -> Unit
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val worldX = (building.gridX * tileSize).toFloat()
-    val worldY = (building.gridY * tileSize).toFloat()
-    val buildingBottomYDp = cameraState.worldToScreenY(worldY + building.height * tileSize) / density
+    val worldX = (snappedGridX * tileSize).toFloat()
+    val worldY = (snappedGridY * tileSize).toFloat()
+    val buildingBottomYDp = cameraState.worldToScreenY(worldY + buildingSize.height * tileSize) / density
     val buildingCenterXDp = cameraState.worldToScreenX(
-        worldX + building.width * tileSize / 2f
+        worldX + buildingSize.width * tileSize / 2f
     ) / density
 
     var showConfirm by remember { mutableStateOf(false) }

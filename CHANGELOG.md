@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.01] - 2026-06-16（versionCode=4001）
+
+- **修复：创建新游戏后宗门地图不显示初始灵矿场** — 根因是建筑烘焙系统存在两个独立 bug。(1) LaunchedEffect 异步时序导致建筑从未绘制到位图：produceState 在后台线程创建位图，LaunchedEffect 在主线程读取到 null 后提前退出，此后位图就绪但 key 未变不再触发。修复：增加 bakedMapBmp 到 LaunchedEffect 的 key 并增加 bakeVersion 计数器通知 Compose 重绘。(2) MEDIUM 档 GPU 渲染分辨率与建筑坐标不匹配：groundBmp/fullMapBmp 是渲染分辨率（2048×2048），但 srcRect 使用了世界坐标（3072×3072 空间），导致读/写完全错误的地图区域，在建筑位置留下错误色块，且移动建筑后旧位残留。修复：srcRect 坐标全部乘以 renderScale 转换到渲染空间
+- **修复：读档时报 NumberFormatException "For input string: """ — syncAllDiscipleStatuses 中 mapNotNull 只过滤 null，空字符串穿透到 toInt() 崩溃。修复：追加 takeIf { it.isNotEmpty() } 同时过滤空串
+- **修复：建筑拆除按钮不跟随建筑移动** — DemolishButton 使用 building.gridX/Y（拖拽初始坐标）定位，不随拖拽更新。修复：改用 snappedGridX/Y（实时吸附坐标）
+
 ## [4.0.00] - 2026-06-15（删档重发版本，合并原 4.0.00~4.0.05 + 架构重构 + 华为修复，versionCode=4000）
 
 > 数据库重置，所有旧存档清空，所有玩家统一从 4.0.00 开始。

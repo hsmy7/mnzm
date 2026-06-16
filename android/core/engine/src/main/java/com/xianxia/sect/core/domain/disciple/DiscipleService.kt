@@ -207,10 +207,10 @@ private val scopeProvider: CoroutineScopeProvider,
         elderSlots.alchemyReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
         elderSlots.forgeReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
 
-        val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
+        val studyingIds = data.librarySlots.mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toMutableSet()
 
         val miningIds = data.spiritMineSlots
-            .mapNotNull { it.discipleId }
+            .mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }
             .filter { id -> tables.ids.contains(id.toInt()) && tables.discipleTypes[id.toInt()] == "outer" }
             .toMutableSet()
 
