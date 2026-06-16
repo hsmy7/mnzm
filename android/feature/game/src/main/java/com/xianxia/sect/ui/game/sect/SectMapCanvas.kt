@@ -165,15 +165,24 @@ fun SectMapCanvas(
         val sw = size.width
         val sh = size.height
 
+        // 渲染时摄像机坐标取整 —— 消除浮点亚像素反走样
+        // 对标: Unity PixelPerfectCamera, LÖVE2D math.floor(camera)
+        // 逻辑层保持 Float 精度，仅在最终绘制时 snap
+        val renderCamX = config.cameraState.cameraX.roundToInt().toFloat()
+        val renderCamY = config.cameraState.cameraY.roundToInt().toFloat()
+
         withTransform({
-            translate(-config.cameraState.cameraX, -config.cameraState.cameraY)
+            translate(-renderCamX, -renderCamY)
         }) {
             // 1. 静态背景层（含已烘焙建筑，或纯地形背景）
             // 来源: docs/gpu-tier-fairness-plan.md §3 — 始终拉伸到世界尺寸，内部位图可能低于世界分辨率
+            // drawImage 四边各外扩 1px —— 防御 GPU 双线性边缘采样偏差
+            // 对标: Skia chromium:1324336 epsilon clamping
+            // 3072→3074 拉伸率 <0.1%，肉眼不可见，不影响建筑对齐
             drawImage(
                 staticData.fullMapBmp,
-                dstOffset = IntOffset.Zero,
-                dstSize = IntSize(worldPixelWidth, worldPixelHeight)
+                dstOffset = IntOffset(-1, -1),
+                dstSize = IntSize(worldPixelWidth + 2, worldPixelHeight + 2)
             )
 
             // 2. 动态建筑绘制

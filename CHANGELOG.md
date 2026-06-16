@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.02] - 2026-06-16（versionCode=4002）
+
+### 修复
+
+- **修复：华为手机宗门地图周边透出土青色底图** — Mali GPU 设备（MEDIUM 档）浮点摄像机亚像素反走样 + 位图 1.5× 非整数拉伸叠加，导致 drawImage 边缘产生 1px 间隙透出背景。(1) 渲染前摄像机坐标四舍五入为整数，消除亚像素偏移；(2) 背景图层四边各外扩 1px 防御 GPU 边缘采样偏差（对标 Skia chromium:1324336 epsilon clamping）
+
 ## [4.0.01] - 2026-06-16（versionCode=4001）
 
 - **修复：创建新游戏后宗门地图不显示初始灵矿场** — 根因是建筑烘焙系统存在两个独立 bug。(1) LaunchedEffect 异步时序导致建筑从未绘制到位图：produceState 在后台线程创建位图，LaunchedEffect 在主线程读取到 null 后提前退出，此后位图就绪但 key 未变不再触发。修复：增加 bakedMapBmp 到 LaunchedEffect 的 key 并增加 bakeVersion 计数器通知 Compose 重绘。(2) MEDIUM 档 GPU 渲染分辨率与建筑坐标不匹配：groundBmp/fullMapBmp 是渲染分辨率（2048×2048），但 srcRect 使用了世界坐标（3072×3072 空间），导致读/写完全错误的地图区域，在建筑位置留下错误色块，且移动建筑后旧位残留。修复：srcRect 坐标全部乘以 renderScale 转换到渲染空间
