@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
+import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,8 +11,11 @@ import javax.inject.Singleton
  * 游戏时间时钟 — 全项目唯一的时间推进入口。
  *
  * ## 三层时间模型
- * - 墙上时间 (wall clock)：System.currentTimeMillis()，仅在本类调用
- * - 游戏时间 (game time)：墙上时间 × speed，受暂停/倍速影响
+ * - 单调时钟 (monotonic clock)：SystemClock.elapsedRealtime()，仅在本类调用。
+ *   使用 elapsedRealtime() 而非 currentTimeMillis() 的原因：
+ *   currentTimeMillis() 会因 NTP 同步/用户调整时间而跳动（甚至回退），
+ *   elapsedRealtime() 是单调递增的，不受墙上时钟变化影响。
+ * - 游戏时间 (game time)：单调时钟 × speed，受暂停/倍速影响
  * - 旬推进 (phase tick)：固定 2s/tick（1x 下），由累积器消费游戏时间产出
  *
  * ## 速度映射
@@ -65,7 +69,7 @@ class GameTimeClock @Inject constructor() {
 
     /** 启动/重置时钟。游戏循环开始时调用。 */
     fun start() {
-        lastWallMs = System.currentTimeMillis()
+        lastWallMs = SystemClock.elapsedRealtime()
         accumulatedGameMs = 0L
     }
 
@@ -74,7 +78,7 @@ class GameTimeClock @Inject constructor() {
      * @param newSpeed 0=暂停, 1=1x, 2=2x
      */
     fun setSpeed(newSpeed: Int) {
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         // 先结算从上次取样到此刻的累积量（用旧速度）
         if (speed > 0) {
             accumulatedGameMs += (now - lastWallMs) * speed
@@ -90,7 +94,7 @@ class GameTimeClock @Inject constructor() {
      * @return 本 tick 应推进的旬数，以及是否需要等待结算
      */
     fun tick(isSettlementPending: Boolean): TickResult {
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         val rawDelta = now - lastWallMs
         lastWallMs = now
 
@@ -117,7 +121,7 @@ class GameTimeClock @Inject constructor() {
      * accumulatedGameMs 保持不变 — 阻塞期间不产生游戏时间。
      */
     fun consumeDeadTime() {
-        lastWallMs = System.currentTimeMillis()
+        lastWallMs = SystemClock.elapsedRealtime()
     }
 
     /**

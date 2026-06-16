@@ -7,7 +7,8 @@
                         "修复：招募弟子界面\"同意\"按钮点击无反应——招募列表弟子ID使用UUID（84ef16c0格式），但弟子表插入时强制转为整数导致NumberFormatException。修复：手动招募、自动招募、全部招募三条路径统一在插入前分配新整数ID",
                         "修复：招募弟子界面按钮完全无按压反馈——对话框内层pointerInput手势检测器抢先消耗触摸事件，导致子按钮clickable无法收到事件。修复：替换为标准clickable修饰符，子按钮在Main pass优先处理",
                         "修复：部分设备操作建筑（放置/移动/拆除）或快速拖动地图时闪退——Bitmap渲染线程与主线程读写竞争导致libhwui.so崩溃。修复方案：双缓冲架构（frontBuffer仅由渲染线程只读，backBuffer由主线程写入后原子交换），从根源消除竞争；建筑精灵图解码加入inSampleSize限制防止低端设备超出GPU纹理上限；移除Compose正在渲染的Bitmap上的危险recycle()调用",
-                        "修复：战斗日志弹窗/道具列表界面偶发崩溃——LazyColumn/LazyVerticalGrid中多处使用hashCode()作为item key，但不同对象hashCode可能相同导致重复key异常。修复：BattleLogDialogs改用itemsIndexed行索引为key；DetailPillSection/MerchantDialog改用System.identityHashCode确保对象级唯一"
+                        "修复：战斗日志弹窗/道具列表界面偶发崩溃——LazyColumn/LazyVerticalGrid中多处使用hashCode()作为item key，但不同对象hashCode可能相同导致重复key异常。修复：BattleLogDialogs改用itemsIndexed行索引为key；DetailPillSection/MerchantDialog改用System.identityHashCode确保对象级唯一",
+                        "修复：华为畅享70等机型游玩时游戏时间停止不动——根因五层叠加：ADPF Hint Session注册了错误线程ID（主线程而非游戏线程）、WakeLock tag被HwPFWService白名单拦截、delay()导致线程被PowerGenie检测为PARKED状态、currentTimeMillis()受NTP影响跳动、卡死检测与被挂起线程同线程无人发现。修复：移入游戏线程创建Hint Session、华为设备WakeLock tag改用AudioMix绕过、微延迟降至4ms+onSpinWait自旋、GameTimeClock迁移至elapsedRealtime()单调时钟、新增独立看门狗线程自动恢复（最多3次）"
                     ]
     },
     {

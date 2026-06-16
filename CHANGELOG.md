@@ -13,6 +13,8 @@
 - **修复：部分设备操作建筑（放置/移动/拆除）或快速拖动地图时闪退** — 根因为建筑烘焙管线中主线程直接修改正在屏幕显示的 Bitmap，与 HWUI 渲染线程产生读写竞争导致 libhwui.so SIGSEGV。修复：双缓冲架构——正面缓冲（frontBuffer）仅由渲染线程只读，背面缓冲（backBuffer）由主线程写入完成后原子交换，从根源消除竞争。同时限制建筑精灵图解码尺寸（inSampleSize）防止低端设备超出 GPU 纹理上限，移除 Compose 正在使用的 Bitmap 上的危险 recycle() 调用
 - **修复：战斗日志弹窗 / 道具列表界面偶发崩溃** — 根因为 LazyColumn/LazyVerticalGrid 中 6 处使用 `hashCode()` 作为 item key，但 data class 的 `hashCode()` 基于字段值不保证唯一，不同对象值相同时产生重复 key 导致 `IllegalArgumentException: Key was already used`。修复：(1) BattleLogDialogs 中 `List.hashCode()` 替换为 `itemsIndexed` 用行索引做 key；(2) DetailPillSection / MerchantDialog 中 `item.hashCode().toString()` 替换为 `System.identityHashCode(item)` 确保对象级唯一
 
+t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华为 PowerGenie（省电精灵）层层挂起游戏线程，根因有五：(1) ADPF Hint Session 在 `startGameLoop()` 中创建时运行在调用线程（主线程），`myTid()` 返回错误 TID，导致调度优化完全未作用于游戏线程；(2) WakeLock tag 使用 `XianxiaSect::GameLoop`，被 HwPFWService 白名单检测拦截；(3) `delay()` 底层 `LockSupport.parkNanos()` 使线程进入 PARKED 状态，PowerGenie 检测到空闲后挂起；(4) `System.currentTimeMillis()` 受 NTP 同步影响可能跳动；(5) 所有卡死检测与游戏线程同在一线程，线程被挂起后无人发现。修复：(1) `createHintSession()` 移入 `engineScope.launch {}` 内执行，确保 `myTid()` 返回游戏线程 TID；(2) 华为/荣耀设备 WakeLock tag 改为 `AudioMix` 绕过 HwPFWService 白名单；(3) 微延迟间隔从 16ms 降为 4ms + `Thread.onSpinWait()` 自旋，降低 PowerGenie 检测窗口；(4) `GameTimeClock` 时钟源从 `currentTimeMillis()` 迁移至 `SystemClock.elapsedRealtime()` 单调时钟；(5) 新增独立看门狗线程（`Dispatchers.Default`），每 5 秒检测 tickCount 是否推进，卡死时自动重启游戏循环（最多 3 次）；(6) 线程优先级提升在 Android 12+ 静默失败时 fallback 到 `Process.setThreadPriority(URGENT_DISPLAY)`
+
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 
 ### 修复

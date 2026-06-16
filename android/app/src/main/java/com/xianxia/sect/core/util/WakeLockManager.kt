@@ -29,7 +29,26 @@ class WakeLockManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "WakeLockManager"
-        private const val WAKE_LOCK_TAG = "XianxiaSect::GameLoop"
+
+        /**
+         * WakeLock tag。
+         *
+         * 华为 EMUI/HarmonyOS 的 HwPFWService 会检查 WakeLock tag 白名单，
+         * 仅放行以下 6 个 tag 对应的进程/线程不被杀掉：
+         *   "AudioMix", "AudioIn", "AudioDup", "AudioDirectOut",
+         *   "AudioOffload", "LocationManagerService"
+         *
+         * 华为/荣耀设备使用 "AudioMix" 绕过 HwPFWService 的进程终止检测，
+         * 其他厂商使用标准 tag。
+         * 来源: https://dontkillmyapp.com/huawei
+         */
+        private val WAKE_LOCK_TAG: String
+            get() = when (ManufacturerAdapter.current) {
+                ManufacturerAdapter.Manufacturer.HUAWEI,
+                ManufacturerAdapter.Manufacturer.HONOR -> "AudioMix"
+                else -> "XianxiaSect::GameLoop"
+            }
+
         /** 超时自动释放，防止意外泄漏耗尽电池 */
         private const val ACQUIRE_TIMEOUT_MS = 10 * 60 * 1000L // 10 分钟
     }
