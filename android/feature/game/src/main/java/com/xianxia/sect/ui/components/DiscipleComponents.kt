@@ -738,7 +738,8 @@ fun formatTalentEffectText(key: String, value: Any): String {
         "spiritPlantingFlat",
         "charmFlat",
         "loyaltyFlat",
-        "moralityFlat"
+        "moralityFlat",
+        "miningFlat"
     )
 
     val valueText = if (key in flatKeys) {
@@ -786,6 +787,7 @@ fun formatEffectKey(key: String): String {
         "charmFlat" -> "魅力"
         "loyaltyFlat" -> "忠诚"
         "moralityFlat" -> "道德"
+        "miningFlat" -> "采矿"
         "winBattleRandomAttrPlus" -> "胜利后随机属性成长（无上限）"
         else -> key
     }
