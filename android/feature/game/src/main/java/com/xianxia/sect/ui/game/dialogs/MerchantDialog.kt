@@ -1082,7 +1082,7 @@ private fun <T> InventorySelectGrid(
                     is Material -> "material_${item.id}_${item.quantity}"
                     is Herb -> "herb_${item.id}_${item.quantity}"
                     is Seed -> "seed_${item.id}_${item.quantity}"
-                    else -> item.hashCode().toString()
+                    else -> "unknown_${System.identityHashCode(item)}"
                 }
             }) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {
@@ -1241,7 +1241,7 @@ private fun AllItemsSelectGrid(
                     is Material -> "material_${item.id}_${item.quantity}"
                     is Herb -> "herb_${item.id}_${item.quantity}"
                     is Seed -> "seed_${item.id}_${item.quantity}"
-                    else -> item.hashCode().toString()
+                    else -> "unknown_${System.identityHashCode(item)}"
                 }
             }) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {

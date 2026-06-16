@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -217,7 +218,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    items(log.teamMembers.chunked(4), key = { it.hashCode() }) { rowMembers ->
+                    itemsIndexed(log.teamMembers.chunked(4), key = { index, _ -> index }) { index, rowMembers ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -251,7 +252,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    items(log.enemies.chunked(4), key = { it.hashCode() }) { rowEnemies ->
+                    itemsIndexed(log.enemies.chunked(4), key = { index, _ -> index }) { index, rowEnemies ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
