@@ -14,6 +14,9 @@
 - **修复：战斗日志弹窗 / 道具列表界面偶发崩溃** — 根因为 LazyColumn/LazyVerticalGrid 中 6 处使用 `hashCode()` 作为 item key，但 data class 的 `hashCode()` 基于字段值不保证唯一，不同对象值相同时产生重复 key 导致 `IllegalArgumentException: Key was already used`。修复：(1) BattleLogDialogs 中 `List.hashCode()` 替换为 `itemsIndexed` 用行索引做 key；(2) DetailPillSection / MerchantDialog 中 `item.hashCode().toString()` 替换为 `System.identityHashCode(item)` 确保对象级唯一
 
 t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华为 PowerGenie（省电精灵）层层挂起游戏线程，根因有五：(1) ADPF Hint Session 在 `startGameLoop()` 中创建时运行在调用线程（主线程），`myTid()` 返回错误 TID，导致调度优化完全未作用于游戏线程；(2) WakeLock tag 使用 `XianxiaSect::GameLoop`，被 HwPFWService 白名单检测拦截；(3) `delay()` 底层 `LockSupport.parkNanos()` 使线程进入 PARKED 状态，PowerGenie 检测到空闲后挂起；(4) `System.currentTimeMillis()` 受 NTP 同步影响可能跳动；(5) 所有卡死检测与游戏线程同在一线程，线程被挂起后无人发现。修复：(1) `createHintSession()` 移入 `engineScope.launch {}` 内执行，确保 `myTid()` 返回游戏线程 TID；(2) 华为/荣耀设备 WakeLock tag 改为 `AudioMix` 绕过 HwPFWService 白名单；(3) 微延迟间隔从 16ms 降为 4ms + `Thread.onSpinWait()` 自旋，降低 PowerGenie 检测窗口；(4) `GameTimeClock` 时钟源从 `currentTimeMillis()` 迁移至 `SystemClock.elapsedRealtime()` 单调时钟；(5) 新增独立看门狗线程（`Dispatchers.Default`），每 5 秒检测 tickCount 是否推进，卡死时自动重启游戏循环（最多 3 次）；(6) 线程优先级提升在 Android 12+ 静默失败时 fallback 到 `Process.setThreadPriority(URGENT_DISPLAY)`
+- **修复：世界地图横屏模式右侧出现白边** — `autoScale = minOf()` 选较小缩放比，宽屏设备地图宽度不足视口留白透出底图。修复：改用 `maxOf()` 确保地图始终至少在一个方向填满视口，横屏宽度填满、竖屏高度填满，彻底消除白边
+- **修复：世界地图宗门不显示** — `playerSect` 为 null 时回退坐标 `(2000, 1750)` 超出世界边界 `(1698×926)`，相机定位异常致 `isVisible` 误裁剪所有宗门标记。修复：回退坐标改为世界中心 `(849, 463)`，`isVisible` 默认 margin 从 0 改为 1 防御浮点精度误判
+- **修复：宗门地图 Mali GPU 设备边缘透出底图** — v4.0.02 修复（外扩 1px 防御 GPU 采样偏差）缺少 `clipRect` 裁剪约束，LOW 等级大比例拉伸（1536→3074）时 Mali GPU 边缘像素溢出 Canvas。修复：`withTransform` 前加入 `clipRect` 约束所有绘制在视口内
 
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 

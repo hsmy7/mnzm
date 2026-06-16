@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
@@ -171,6 +172,7 @@ fun SectMapCanvas(
         val renderCamX = config.cameraState.cameraX.roundToInt().toFloat()
         val renderCamY = config.cameraState.cameraY.roundToInt().toFloat()
 
+        clipRect(0f, 0f, size.width, size.height) {
         withTransform({
             translate(-renderCamX, -renderCamY)
         }) {
@@ -377,6 +379,7 @@ fun SectMapCanvas(
                     style = Stroke(width = 2.dp.toPx())
                 )
             }
+        }
         }
     }
 }

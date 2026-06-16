@@ -71,7 +71,7 @@ class WorldCameraState(
         }
     }
 
-    fun isVisible(wx: Float, wy: Float, margin: Float = 0f): Boolean {
+    fun isVisible(wx: Float, wy: Float, margin: Float = 1f): Boolean {
         if (viewportWidth <= 0 || viewportHeight <= 0) return true
         val sx = worldToScreenX(wx)
         val sy = worldToScreenY(wy)

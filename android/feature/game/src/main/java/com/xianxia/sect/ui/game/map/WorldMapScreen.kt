@@ -41,7 +41,7 @@ fun WorldMapScreen(
             .fillMaxSize()
             .onSizeChanged { size ->
                 cameraState.updateViewport(size.width, size.height)
-                val autoScale = minOf(
+                val autoScale = maxOf(
                     size.width.toFloat() / cameraState.worldWidth,
                     size.height.toFloat() / cameraState.worldHeight
                 )

@@ -14,6 +14,7 @@ import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
+import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -45,8 +46,10 @@ internal fun WorldMapDialog(
     val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
     val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
-    val playerSectX = playerSect?.x ?: 2000f
-    val playerSectY = playerSect?.y ?: 1750f
+    val playerSectX = playerSect?.x
+        ?: MapCoordinateSystem.WORLD_WIDTH / 2f
+    val playerSectY = playerSect?.y
+        ?: MapCoordinateSystem.WORLD_HEIGHT / 2f
     val sectItems = remember(worldSects) {
         MapItemMapper.fromWorldSects(worldSects, emptySet())
     }
