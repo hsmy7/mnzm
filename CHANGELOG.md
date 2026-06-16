@@ -6,6 +6,7 @@
 
 - **修复：招募弟子界面"同意"按钮点击无反应** — 招募列表弟子 ID 使用 UUID（如 `84ef16c0-...`），但 `DiscipleTables.insert()` 强制 `.toInt()` 导致 `NumberFormatException` 崩溃，协程吞掉异常后无任何提示。修复：手动招募、自动招募、全部招募三条路径统一在 `insert()` 前分配新整数 ID（`maxOrNull + 1`），与 `DiscipleService.recruitDisciple()` 的 ID 生成策略一致
 - **修复：招募界面按钮完全无按压反馈** — `UnifiedGameDialog` 内层 Box 的 `pointerInput` + `detectTapGestures` 抢先消耗了子级 `clickable` 的触摸事件，导致 `GameButton` 的缩放动画（`collectIsPressedAsState`）和点击回调均不触发。修复：替换为 `Modifier.clickable(indication=null)`，子按钮在 Main pass（leaf→root）优先处理
+- **修复：部分设备操作建筑（放置/移动/拆除）或快速拖动地图时闪退** — 根因为建筑烘焙管线中主线程直接修改正在屏幕显示的 Bitmap，与 HWUI 渲染线程产生读写竞争导致 libhwui.so SIGSEGV。修复：双缓冲架构——正面缓冲（frontBuffer）仅由渲染线程只读，背面缓冲（backBuffer）由主线程写入完成后原子交换，从根源消除竞争。同时限制建筑精灵图解码尺寸（inSampleSize）防止低端设备超出 GPU 纹理上限，移除 Compose 正在使用的 Bitmap 上的危险 recycle() 调用
 
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 

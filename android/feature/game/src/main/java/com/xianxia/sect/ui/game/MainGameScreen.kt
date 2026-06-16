@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.BuildingSpatialIndex
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -343,10 +344,12 @@ fun MainGameScreen(
 
         // [C2 静态建筑层架构]
         // 核心思路：将建筑预渲染（bake）到地图 Bitmap 上，Canvas 每帧只绘制单张 Bitmap，
-        // 避免逐帧遍历建筑列表。建筑变化时通过增量更新（擦除旧区域 + 绘制新建筑）修改 bakedMapBmp，
-        // 而非全量重建。低配设备（heap < 256MB）跳过烘焙，回退为动态绘制。
+        // 避免逐帧遍历建筑列表。建筑变化时通过增量更新（擦除旧区域 + 绘制新建筑）修改
+        // 离屏 backBuffer，完成后原子交换为 frontBuffer —— 消除 HWUI RenderThread 与
+        // 主线程之间的读写竞争（libhwui.so SIGSEGV 根因）。
+        // 低配设备（heap < 256MB）跳过烘焙，回退为动态绘制。
         // 注意：Canvas 本身因相机平移每帧内容都变，graphicsLayer(offscreen) 无法缓存；
-        // 真正的静态层优化由 bakedMapBmp 承担。
+        // 真正的静态层优化由 baked frontBuffer 承担。
         // 设备分级：GPU 能力 + 堆内存联动
         // 来源: docs/huawei-performance-research.md §4.2 + §4.4
         val maxHeapMB = remember { Runtime.getRuntime().maxMemory() / (1024 * 1024) }
@@ -356,17 +359,16 @@ fun MainGameScreen(
         else
             android.graphics.Bitmap.Config.RGB_565
 
-        // 增量绘制：只在建筑变化时增量更新，避免全量 copy
-        // 直接持有 Android Bitmap，避免 ImageBitmap↔Android Bitmap 反复转换
-        val bakedMapBmp by produceState<android.graphics.Bitmap?>(null, fullMapBmp, shouldBakeBuildings, bmpConfig) {
-            if (!shouldBakeBuildings) {
-                value = null
-            } else {
-                value = withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    val src = fullMapBmp.asAndroidBitmap()
-                    src.copy(bmpConfig, true) ?: src
-                }
-            }
+        // 双缓冲烘焙管线：
+        //   frontBufferBmp — Compose 渲染线程只读（通过 displayMapBmp → drawImage）
+        //   backBufferBmp  — 主线程写入（LaunchedEffect 中 canvas.drawBitmap）
+        // 写入完成后 swap：back → front, front → back（复用，不分配新内存）
+        // 这从根源消除了 SIGSEGV — HWUI 渲染线程永远不会读到正在被写的 Bitmap
+        var frontBufferBmp by remember {
+            mutableStateOf<android.graphics.Bitmap?>(null)
+        }
+        var backBufferBmp by remember {
+            mutableStateOf<android.graphics.Bitmap?>(null)
         }
 
         // 追踪上一次绘制的建筑列表，用于增量更新
@@ -375,27 +377,53 @@ fun MainGameScreen(
         // 已清除装饰物的格子（避免反复清除同一格）
         val clearedDecorationCells = remember { mutableSetOf<Long>() }
 
-        // 追踪上一次的烘焙位图引用，检测位图整体替换场景
-        val lastBakedMapBmp = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+        // 烘焙触发器 — 双缓冲重建时递增，强制 LaunchedEffect 全量重绘
+        var bakeTrigger by remember { mutableIntStateOf(0) }
 
-        // 烘焙完成版本号 — 每次烘焙后递增，触发 Compose 重绘
+        // 烘焙完成版本号 — swap 后递增，触发 Compose 重绘
         var bakeVersion by remember { mutableIntStateOf(0) }
 
-        LaunchedEffect(effectivePlacedBuildings, bakedMapBmp) {
-            val currentBmp = bakedMapBmp ?: return@LaunchedEffect
-            if (currentBmp.isRecycled) return@LaunchedEffect
+        // 初始化/重建双缓冲（shouldBakeBuildings / bmpConfig / fullMapBmp 变化时）
+        LaunchedEffect(shouldBakeBuildings, bmpConfig, fullMapBmp) {
+            // 回收旧缓冲
+            frontBufferBmp?.takeIf { !it.isRecycled }?.recycle()
+            backBufferBmp?.takeIf { !it.isRecycled }?.recycle()
+            frontBufferBmp = null
+            backBufferBmp = null
+            previousBuildings.clear()
+            clearedDecorationCells.clear()
 
-            // 检测烘焙位图是否被整体替换（非增量更新），若是则强制全量重绘
-            val isFreshBitmap = bakedMapBmp !== lastBakedMapBmp.value
-            if (isFreshBitmap) {
-                lastBakedMapBmp.value = bakedMapBmp
-                previousBuildings.clear()
-                clearedDecorationCells.clear()
+            if (shouldBakeBuildings) {
+                val src = fullMapBmp.asAndroidBitmap()
+                val b1 = withContext(Dispatchers.Default) {
+                    src.copy(bmpConfig, true) ?: src
+                }
+                val b2 = withContext(Dispatchers.Default) {
+                    src.copy(bmpConfig, true) ?: src
+                }
+                frontBufferBmp = b1
+                backBufferBmp = b2
+                bakeTrigger++
+                bakeVersion++
             }
-            val canvas = android.graphics.Canvas(currentBmp)
+        }
+
+        // 建筑变化时增量烘焙到 backBuffer，然后原子交换
+        LaunchedEffect(effectivePlacedBuildings, bakeTrigger) {
+            val backBmp = backBufferBmp?.takeIf { !it.isRecycled }
+                ?: return@LaunchedEffect
+
+            // 检测是否全量重绘（缓冲重建或 bakeTrigger 递增）
+            if (previousBuildings.isEmpty() && clearedDecorationCells.isEmpty()
+                && effectivePlacedBuildings.isNotEmpty()) {
+                // 全量重绘：无需额外操作，previousBuildings 已清空
+                // 步骤 2/2.5 自动跳过，步骤 3 绘制所有建筑
+            }
+
+            val canvas = android.graphics.Canvas(backBmp)
             // Canvas 缩放到渲染分辨率，建筑绘制坐标仍基于世界空间
             // 来源: docs/gpu-tier-fairness-plan.md §3 — 内部位图可能低于世界分辨率
-            val renderScale = currentBmp.width.toFloat() / worldPixelWidth.toFloat()
+            val renderScale = backBmp.width.toFloat() / worldPixelWidth.toFloat()
             canvas.scale(renderScale, renderScale)
             val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
 
@@ -405,7 +433,8 @@ fun MainGameScreen(
                 for (cx in b.gridX until b.gridX + b.width) {
                     for (cy in b.gridY until b.gridY + b.height) {
                         if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
-                            buildingCells.add((cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
+                            buildingCells.add(
+                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
                         }
                     }
                 }
@@ -420,11 +449,13 @@ fun MainGameScreen(
                     for (dy in -1..1) {
                         val tx = bx + dx
                         val ty = by + dy
-                        if (ty in rawTileData.indices && tx in rawTileData[ty].indices && rawTileData[ty][tx] == TILE_TREE) {
+                        if (ty in rawTileData.indices && tx in rawTileData[ty].indices
+                            && rawTileData[ty][tx] == TILE_TREE) {
                             for (ex in tx - 1..tx + 1) {
                                 for (ey in ty - 1..ty + 1) {
                                     if (ey in rawTileData.indices && ex in rawTileData[ey].indices) {
-                                        cellsToClear.add((ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
+                                        cellsToClear.add(
+                                            (ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
                                     }
                                 }
                             }
@@ -438,7 +469,7 @@ fun MainGameScreen(
                     val cx = (cellKey shr 32).toInt()
                     val cy = (cellKey and 0xFFFF_FFFF).toInt()
                     rawTileData[cy][cx] = TILE_GROUND
-                    // srcRect 必须使用渲染分辨率坐标（groundBmp 尺寸 = renderWidth × renderHeight）
+                    // srcRect 必须使用渲染分辨率坐标
                     val srcX = (cx * tileSize * renderScale).toInt()
                     val srcY = (cy * tileSize * renderScale).toInt()
                     val srcX2 = ((cx + 1) * tileSize * renderScale).toInt()
@@ -463,7 +494,8 @@ fun MainGameScreen(
                     val srcBmp = fullMapBmp.asAndroidBitmap()
                     val srcRect = android.graphics.Rect(
                         (bx * renderScale).toInt(), (by * renderScale).toInt(),
-                        ((bx + bw) * renderScale).toInt(), ((by + bh) * renderScale).toInt()
+                        ((bx + bw) * renderScale).toInt(),
+                        ((by + bh) * renderScale).toInt()
                     )
                     val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
                     canvas.drawBitmap(srcBmp, srcRect, dstRect, null)
@@ -472,7 +504,9 @@ fun MainGameScreen(
 
             // === 2.5. 处理被移动的建筑（同一 instanceId，坐标变化） ===
             for (prev in previousBuildings) {
-                val curr = effectivePlacedBuildings.find { it.instanceId == prev.instanceId } ?: continue
+                val curr = effectivePlacedBuildings.find {
+                    it.instanceId == prev.instanceId
+                } ?: continue
                 if (prev.gridX != curr.gridX || prev.gridY != curr.gridY) {
                     // 擦除旧位置（恢复原始地形含装饰物）
                     val obx = prev.gridX * tileSize
@@ -482,7 +516,8 @@ fun MainGameScreen(
                     val srcBmp = fullMapBmp.asAndroidBitmap()
                     val sRect = android.graphics.Rect(
                         (obx * renderScale).toInt(), (oby * renderScale).toInt(),
-                        ((obx + obw) * renderScale).toInt(), ((oby + obh) * renderScale).toInt()
+                        ((obx + obw) * renderScale).toInt(),
+                        ((oby + obh) * renderScale).toInt()
                     )
                     val dRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
                     canvas.drawBitmap(srcBmp, sRect, dRect, null)
@@ -499,10 +534,14 @@ fun MainGameScreen(
                             android.graphics.Rect(nbx, nby, nbx + nbw, nby + nbh),
                             null)
                     } else {
-                        val p = android.graphics.Paint().apply { color = 0xCCBDBDBD.toInt() }
+                        val p = android.graphics.Paint().apply {
+                            color = 0xCCBDBDBD.toInt()
+                        }
                         canvas.drawRect(
-                            android.graphics.RectF(nbx.toFloat(), nby.toFloat(),
-                                (nbx + nbw).toFloat(), (nby + nbh).toFloat()), p)
+                            android.graphics.RectF(
+                                nbx.toFloat(), nby.toFloat(),
+                                (nbx + nbw).toFloat(), (nby + nbh).toFloat()
+                            ), p)
                     }
                 }
             }
@@ -518,12 +557,19 @@ fun MainGameScreen(
                     val bmp = buildingBitmaps[building.displayName]
                     if (bmp != null) {
                         val androidBmp = bmp.asAndroidBitmap()
-                        val srcRect = android.graphics.Rect(0, 0, androidBmp.width, androidBmp.height)
+                        val srcRect = android.graphics.Rect(
+                            0, 0, androidBmp.width, androidBmp.height)
                         val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
                         canvas.drawBitmap(androidBmp, srcRect, dstRect, null)
                     } else {
-                        val paint = android.graphics.Paint().apply { color = 0xCCBDBDBD.toInt() }
-                        canvas.drawRect(android.graphics.RectF(bx.toFloat(), by.toFloat(), (bx + bw).toFloat(), (by + bh).toFloat()), paint)
+                        val paint = android.graphics.Paint().apply {
+                            color = 0xCCBDBDBD.toInt()
+                        }
+                        canvas.drawRect(
+                            android.graphics.RectF(
+                                bx.toFloat(), by.toFloat(),
+                                (bx + bw).toFloat(), (by + bh).toFloat()
+                            ), paint)
                     }
                 }
             }
@@ -532,20 +578,27 @@ fun MainGameScreen(
             previousBuildings.clear()
             previousBuildings.addAll(effectivePlacedBuildings)
 
-            // 通知 Compose 位图内容已变更，触发重绘
+            // 原子交换：backBuffer 变成新的 frontBuffer（渲染线程只读）
+            // 旧 frontBuffer 变成新的 backBuffer（下次写入复用，不分配新 Bitmap）
+            val tmp = frontBufferBmp
+            frontBufferBmp = backBmp
+            backBufferBmp = tmp
+
+            // 通知 Compose 双缓冲内容已变更，触发重绘
             bakeVersion++
         }
 
-        // 主动回收 Bitmap，避免依赖 GC
+        // 主动回收双缓冲 Bitmap，避免依赖 GC
         DisposableEffect(Unit) {
             onDispose {
-                bakedMapBmp?.takeIf { !it.isRecycled }?.recycle()
+                frontBufferBmp?.takeIf { !it.isRecycled }?.recycle()
+                backBufferBmp?.takeIf { !it.isRecycled }?.recycle()
             }
         }
 
         // 用于 Compose 渲染的 ImageBitmap（低配设备直接用原始地图）
-        val displayMapBmp = remember(bakedMapBmp, bakeVersion) {
-            bakedMapBmp?.asImageBitmap() ?: fullMapBmp
+        val displayMapBmp = remember(frontBufferBmp, bakeVersion) {
+            frontBufferBmp?.asImageBitmap() ?: fullMapBmp
         }
 
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览）
@@ -561,7 +614,7 @@ fun MainGameScreen(
                 placedBuildings = effectivePlacedBuildings,
                 buildingBitmaps = buildingBitmaps,
                 fullMapBmp = displayMapBmp,
-                buildingsBaked = shouldBakeBuildings && bakedMapBmp != null
+                buildingsBaked = shouldBakeBuildings && frontBufferBmp != null
             ),
             placement = if (isPlacingBuilding) PlacementModeState(
                 isActive = true,
@@ -946,6 +999,10 @@ private fun HideUiToggleButton(
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)
 
+// 建筑纹理最大尺寸 256px —— 建筑在网格上最大 3×3 格 = 192px
+// 限制纹理尺寸防止低端设备超出 GL_MAX_TEXTURE_SIZE 导致 libhwui.so SIGSEGV
+private const val MAX_BUILDING_TEXTURE_PX = 256
+
 @Composable
 private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -953,10 +1010,47 @@ private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.
     return remember {
         names.associateWith { name ->
             val resId = BuildingRegistry.drawableRes(name)
-            android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                .asImageBitmap()
+            val opts = android.graphics.BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            android.graphics.BitmapFactory.decodeResource(
+                context.resources, resId, opts)
+            opts.inSampleSize = calculateInSampleSize(
+                opts.outWidth, opts.outHeight, MAX_BUILDING_TEXTURE_PX)
+            opts.inJustDecodeBounds = false
+            android.graphics.BitmapFactory.decodeResource(
+                context.resources, resId, opts
+            )?.asImageBitmap() ?: createFallbackBuildingBitmap()
         }
     }
+}
+
+/**
+ * 计算 BitmapFactory 的 inSampleSize（总是 2 的幂），
+ * 确保解码后尺寸不超过 maxDimension。
+ */
+private fun calculateInSampleSize(
+    width: Int,
+    height: Int,
+    maxDimension: Int
+): Int {
+    var sampleSize = 1
+    while (width / (sampleSize * 2) >= maxDimension
+        || height / (sampleSize * 2) >= maxDimension
+    ) {
+        sampleSize *= 2
+    }
+    return sampleSize
+}
+
+/**
+ * 建筑纹理缺失时的回退 Bitmap — 2×2 灰色像素
+ */
+private fun createFallbackBuildingBitmap(): androidx.compose.ui.graphics.ImageBitmap {
+    val bmp = android.graphics.Bitmap.createBitmap(2, 2,
+        android.graphics.Bitmap.Config.ARGB_8888)
+    bmp.eraseColor(0xFFBDBDBD.toInt())
+    return bmp.asImageBitmap()
 }
 
 

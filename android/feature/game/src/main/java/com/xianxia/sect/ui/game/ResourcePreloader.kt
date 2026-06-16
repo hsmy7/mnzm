@@ -32,6 +32,7 @@ class ResourcePreloader @Inject constructor(
     companion object {
         private const val TAG = "ResourcePreloader"
         private const val MAX_SPRITE_DIMENSION = 300
+        private const val MAX_BUILDING_DIMENSION = 256
     }
 
     /**
@@ -82,8 +83,17 @@ class ResourcePreloader @Inject constructor(
         return bitmapNames.mapNotNull { name ->
             val resId = getBuildingDrawableResId(name)
             try {
-                name to (android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                    ?.asImageBitmap() ?: return@mapNotNull null)
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                android.graphics.BitmapFactory.decodeResource(
+                    context.resources, resId, opts)
+                opts.inSampleSize = calculateSpriteSampleSize(
+                    opts.outWidth, opts.outHeight, MAX_BUILDING_DIMENSION)
+                opts.inJustDecodeBounds = false
+                val bmp = android.graphics.BitmapFactory.decodeResource(
+                    context.resources, resId, opts)
+                name to (bmp?.asImageBitmap() ?: return@mapNotNull null)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to decode building bitmap: $name", e)
                 null

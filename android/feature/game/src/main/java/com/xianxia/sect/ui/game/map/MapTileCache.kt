@@ -45,7 +45,9 @@ class MapTileCache(
 
     fun recycle() {
         cache.evictAll()
-        if (!fullBitmap.isRecycled) fullBitmap.recycle()
+        // fullBitmap 可能正被 Compose Canvas 渲染线程使用（作为 ImageBitmap
+        // 的后备缓冲），显式回收会导致 libhwui.so SIGSEGV（use-after-free）。
+        // 生命周期由 Compose 托管，不再手动回收。
     }
 
     data class TileInfo(val worldX: Int, val worldY: Int, val bitmap: ImageBitmap)
