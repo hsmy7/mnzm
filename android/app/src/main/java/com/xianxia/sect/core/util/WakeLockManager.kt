@@ -42,10 +42,23 @@ class WakeLockManager @Inject constructor(
          * 其他厂商使用标准 tag。
          * 来源: https://dontkillmyapp.com/huawei
          */
+        /**
+         * WakeLock tag。
+         *
+         * 华为 EMUI/HarmonyOS 的 HwPFWService 会检查 WakeLock tag 白名单，
+         * 仅放行以下 6 个 tag 对应的进程/线程不被杀掉：
+         *   "AudioMix", "AudioIn", "AudioDup", "AudioDirectOut",
+         *   "AudioOffload", "LocationManagerService"
+         *
+         * 华为设备使用 "AudioMix" 绕过 HwPFWService 的进程终止检测。
+         *
+         * 荣耀 MagicOS 无 HwPFWService（Honor 2020年脱离华为后自研
+         * MagicOS，未继承此白名单机制），使用标准 tag 确保 MagicOS
+         * 电源管理正确识别 WakeLock 来源。
+         */
         private val WAKE_LOCK_TAG: String
             get() = when (ManufacturerAdapter.current) {
-                ManufacturerAdapter.Manufacturer.HUAWEI,
-                ManufacturerAdapter.Manufacturer.HONOR -> "AudioMix"
+                ManufacturerAdapter.Manufacturer.HUAWEI -> "AudioMix"
                 else -> "XianxiaSect::GameLoop"
             }
 

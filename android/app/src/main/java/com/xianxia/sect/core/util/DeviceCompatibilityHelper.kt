@@ -11,9 +11,16 @@ object DeviceCompatibilityHelper {
 
     private const val TAG = "DeviceCompat"
 
-    val isHuaweiOrHonor: Boolean by lazy {
-        ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HUAWEI ||
+    val isHuawei: Boolean by lazy {
+        ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HUAWEI
+    }
+
+    val isHonor: Boolean by lazy {
         ManufacturerAdapter.current == ManufacturerAdapter.Manufacturer.HONOR
+    }
+
+    val isHuaweiOrHonor: Boolean by lazy {
+        isHuawei || isHonor
     }
 
     val isVivo: Boolean by lazy {

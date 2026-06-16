@@ -87,6 +87,19 @@ class GameEngineCore @Inject constructor(
 
         private val GAME_DISPATCHER = Executors.newSingleThreadExecutor(gameThreadFactory)
             .asCoroutineDispatcher()
+
+        // 看门狗专用线程工厂 — 非守护线程，独立于 Dispatchers.Default。
+        // 荣耀 MagicOS 等 OEM 电源管理会挂起守护线程池中的线程，
+        // 非守护线程可防止看门狗自身被冻结，确保检测→恢复链路完整。
+        private val watchdogThreadFactory = ThreadFactory {
+            val thread = Thread(it, "GameEngine-Watchdog")
+            thread.priority = Thread.NORM_PRIORITY
+            thread.isDaemon = false
+            thread
+        }
+
+        private val WATCHDOG_DISPATCHER = Executors.newSingleThreadExecutor(watchdogThreadFactory)
+            .asCoroutineDispatcher()
     }
 
     private var currentTickInterval = TICK_INTERVAL_MS
@@ -311,6 +324,7 @@ class GameEngineCore @Inject constructor(
         engineJob.cancel()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
+        // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
         engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
         engineScope = CoroutineScope(engineJob + GAME_DISPATCHER + engineExceptionHandler)
         isInitialized = false
@@ -320,27 +334,33 @@ class GameEngineCore @Inject constructor(
     // ── 独立看门狗 — 监控游戏线程是否被 PowerGenie 等 OEM 机制挂起 ──
 
     /**
-     * 启动独立看门狗协程，运行在 [Dispatchers.Default] 上。
+     * 启动独立看门狗协程，运行在专用非守护线程上。
      *
-     * 每 5 秒检查一次 tickCount 是否有推进。如果在游戏循环声明为活跃
-     * 的状态下 tickCount 停滞超过 5 秒，说明游戏线程可能被 PowerGenie
-     * 等 OEM 省电机制挂起，触发恢复流程。
+     * 每 3-5 秒检查一次 tickCount 是否有推进。如果在游戏循环声明为活跃
+     * 的状态下 tickCount 停滞，说明游戏线程可能被 OEM 省电机制挂起，
+     * 触发恢复流程。
      *
-     * 看门狗与游戏线程完全独立，因此即使游戏线程被挂起也能检测并恢复。
+     * 看门狗线程：
+     * - 非守护线程（isDaemon=false）：荣耀 MagicOS 等 OEM 会挂起守护线程池
+     *   中的线程，非守护线程可防止看门狗自身被冻结。
+     * - 独立单线程执行器：与 Dispatchers.Default 线程池完全隔离。
+     * - 荣耀设备 3s 间隔（原 5s）：MagicOS 挂起恢复窗口更窄，更快检测。
      */
     private fun startWatchdog() {
         stopWatchdog()
         watchdogRecoveryAttempts = 0
-        watchdogJob = CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
+        val isHonor = Build.MANUFACTURER.lowercase().contains("honor")
+        val intervalMs = if (isHonor) 3000L else 5000L
+        watchdogJob = CoroutineScope(WATCHDOG_DISPATCHER + SupervisorJob()).launch {
             var lastTickCount = _tickCount.value
             while (isActive) {
-                delay(5000L)
+                delay(intervalMs)
                 val currentTickCount = _tickCount.value
                 val loopActive = gameLoopJob?.isActive == true
                 if (currentTickCount == lastTickCount && loopActive) {
                     watchdogRecoveryAttempts++
                     DomainLog.w(TAG,
-                        "Watchdog: no tick progress in 5s " +
+                        "Watchdog: no tick progress in ${intervalMs / 1000}s " +
                         "(attempt $watchdogRecoveryAttempts/$maxWatchdogRecoveries)")
                     if (watchdogRecoveryAttempts <= maxWatchdogRecoveries) {
                         // 尝试恢复：重启游戏循环
@@ -751,14 +771,18 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * 防挂起延迟：将等待时间拆分为 4ms 微延迟 + spin-wait 自旋。
+     * 防挂起延迟：将等待时间拆分为微延迟 + 自旋/忙等。
      *
      * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）检测线程"空闲"状态的
-     * 时间窗口约 50-100ms。将 delay 拆分为 4ms 间隔（远低于检测窗口）并
-     * 在间隔间使用 Thread.onSpinWait() 保持 CPU 活跃状态，可有效防止
-     * PowerGenie 将游戏线程标记为"空闲"并挂起。
+     * 时间窗口约 50-100ms。将 delay 拆分为微间隔（远低于检测窗口）并
+     * 在间隔间保持 CPU 活跃状态，可有效防止 PowerGenie 将游戏线程标记为
+     * "空闲"并挂起。
      *
-     * 成本：CPU 利用率增加约 5%，但远低于全自旋等待。
+     * API 33+：4ms 微延迟 + Thread.onSpinWait() 自旋提示
+     * API < 33：2ms 微延迟 + 每 64 周期插入 2ms 忙等（替代缺失的
+     *          onSpinWait，周期性打破 OEM 空闲检测窗口）
+     *
+     * 成本：API 33+ 约 5% CPU；API < 33 略高但仍在可接受范围。
      *
      * 参考：
      * - donotkillmyapp.com/huawei — PowerGenie 机制分析
@@ -766,16 +790,28 @@ class GameEngineCore @Inject constructor(
      *   (https://slack-chats.kotlinlang.org/t/26866719)
      */
     private suspend fun antiFreezeDelay(totalMs: Long) {
-        val microInterval = 4L  // 4ms — 远低于 PowerGenie ~50ms 检测窗口
+        val useSpinWait = Build.VERSION.SDK_INT >= 33
+        val microInterval = if (useSpinWait) 4L else 2L
         var remaining = totalMs
+        var cycleCount = 0L
         while (remaining > 0 && currentCoroutineContext().isActive) {
             val step = minOf(microInterval, remaining)
             delay(step)
             remaining -= step
-            // 自旋提示：告知 CPU 我们在忙等，保持线程处于 RUNNABLE 状态。
-            // onSpinWait() 从 API 33 开始可用，低版本跳过（效果略差但无影响）
-            if (remaining > 0 && Build.VERSION.SDK_INT >= 33) {
-                Thread.onSpinWait()
+            cycleCount++
+            if (remaining > 0) {
+                if (useSpinWait) {
+                    // 自旋提示：告知 CPU 我们在忙等，保持线程 RUNNABLE
+                    Thread.onSpinWait()
+                } else if (cycleCount % 64 == 0L) {
+                    // API < 33 补偿：每 64 个延迟周期插入 2ms 忙等。
+                    // SystemClock.elapsedRealtime() 轮询模拟 spin-wait，
+                    // 周期性线程保持 RUNNABLE 打破 OEM 空闲检测。
+                    val busyEnd = android.os.SystemClock.elapsedRealtime() + 2
+                    while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
+                        // 忙等 — 线程保持 RUNNABLE，不会被 OEM 判定为空闲
+                    }
+                }
             }
         }
     }

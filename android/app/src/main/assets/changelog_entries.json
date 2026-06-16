@@ -11,7 +11,8 @@
                         "修复：华为畅享70等机型游玩时游戏时间停止不动——根因五层叠加：ADPF Hint Session注册了错误线程ID（主线程而非游戏线程）、WakeLock tag被HwPFWService白名单拦截、delay()导致线程被PowerGenie检测为PARKED状态、currentTimeMillis()受NTP影响跳动、卡死检测与被挂起线程同线程无人发现。修复：移入游戏线程创建Hint Session、华为设备WakeLock tag改用AudioMix绕过、微延迟降至4ms+onSpinWait自旋、GameTimeClock迁移至elapsedRealtime()单调时钟、新增独立看门狗线程自动恢复（最多3次）",
                         "修复：世界地图横屏模式右侧出现白边——autoScale使用minOf选较小缩放比，宽屏设备地图宽度不足视口留白透出底图。修复：改用maxOf确保地图始终至少在一个方向填满视口，横屏宽度填满竖屏高度填满",
                         "修复：世界地图宗门不显示——playerSect为null时回退坐标(2000,1750)超出世界边界(1698×926)，相机定位异常致isVisible误裁剪标记。修复：回退坐标改为世界中心(849,463)，isVisible默认margin从0改为1",
-                        "修复：宗门地图Mali GPU设备边缘透出底图——v4.0.02修复（外扩1px防御GPU采样偏差）缺少clipRect裁剪约束，LOW等级大比例拉伸(1536→3074)时Mali GPU边缘像素溢出Canvas。修复：withTransform前加入clipRect约束绘制范围"
+                        "修复：宗门地图Mali GPU设备边缘透出底图——v4.0.02修复（外扩1px防御GPU采样偏差）缺少clipRect裁剪约束，LOW等级大比例拉伸(1536→3074)时Mali GPU边缘像素溢出Canvas。修复：withTransform前加入clipRect约束绘制范围",
+                        "修复：荣耀70（Honor 70）等MagicOS设备游戏时间停止不动——荣耀脱离华为后MagicOS与华为EMUI/HarmonyOS电源管理栈完全不同：(1)AudioMix WakeLock标签仅绕过华为HwPFWService，MagicOS无此服务，Honor恢复标准标签；(2)Thread.onSpinWait()仅API 33+可用，Honor 70出厂API 31完全跳过自旋——API<33插入2ms微延迟+每64周期忙等替代缺失的onSpinWait；(3)看门狗运行在Dispatchers.Default守护线程池上，MagicOS可挂起守护线程导致看门狗自身被冻结——迁移至独立非守护线程，Honor设备检测间隔缩短至3s；(4)厂商适配层荣耀从华为配置中完全分离，新增MagicOS版本检测与诊断日志"
                     ]
     },
     {

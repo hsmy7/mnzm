@@ -49,7 +49,7 @@ object ManufacturerAdapter {
         //    实际操作在 GameActivity 中通过 BatteryOptimizationHelper 完成
         if (!BatteryOptimizationHelper.isExempted(context)) {
             Log.w("ManufacturerAdapter",
-                "Huawei/Honor device detected and battery optimization not exempted. " +
+                "Huawei device detected and battery optimization not exempted. " +
                 "Will guide user in GameActivity.")
         }
     }
@@ -79,12 +79,46 @@ object ManufacturerAdapter {
     }
 
     private fun applyHonorFixes(context: Context) {
-        // 与华为相同策略（使用 HMS 系统管理 + 同一套电池优化引导）
-        applyHuaweiFixes(context)
+        // 荣耀 MagicOS 电源管理与华为 EMUI/HarmonyOS 完全不同：
+        // - 无 HwPFWService（WakeLock AudioMix 标签无意义，WakeLockManager 已处理）
+        // - 线程挂起策略可能更激进（GameEngineCore 已加固 antiFreezeDelay + 看门狗）
+        // - 电池优化豁免使用标准 Android API
+        val magicOsVer = detectMagicOSVersion()
+        Log.i("ManufacturerAdapter",
+            "Honor MagicOS $magicOsVer (${Build.MODEL}, SDK ${Build.VERSION.SDK_INT})")
+        if (!BatteryOptimizationHelper.isExempted(context)) {
+            Log.w("ManufacturerAdapter",
+                "Honor device detected and battery optimization not exempted. " +
+                "Will guide user in GameActivity.")
+        }
     }
 
     private fun applySamsungFixes(context: Context) {
         // 三星最接近原生 Android，通常不需要特殊处理
         // 仅需：Galaxy Store 审核要求 + Good Guardians 优化建议
+    }
+
+    /**
+     * 检测 MagicOS 版本。
+     *
+     * Honor 脱离华为后（2020年11月），MagicOS 系列从 EMUI fork 独立发展。
+     * 版本号格式示例：
+     * - MagicOS 6.0 / 6.1（Android 12，Honor 70 出厂版本）
+     * - MagicOS 7.0 / 7.1（Android 13）
+     * - MagicOS 8.0（Android 14）
+     *
+     * 优先从 Build.DISPLAY 读取，失败时回退到系统属性
+     * ro.build.version.emui（历史遗留，部分 MagicOS 版本仍设置此属性）。
+     */
+    private fun detectMagicOSVersion(): String {
+        val display = Build.DISPLAY
+        if (display.contains("MagicOS", ignoreCase = true)) return display
+        return try {
+            val c = Class.forName("android.os.SystemProperties")
+            (c.getMethod("get", String::class.java, String::class.java)
+                .invoke(null, "ro.build.version.emui", "unknown") as? String) ?: "unknown"
+        } catch (e: Exception) {
+            "unknown"
+        }
     }
 }
