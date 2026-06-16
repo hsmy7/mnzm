@@ -325,7 +325,12 @@ class MerchantAndRecruitService @Inject constructor(
         }
         if (autoRecruits.isNotEmpty()) {
             val currentMonthIndex = year * 12 + 1
-            autoRecruits.forEach { it.recruitedMonth = currentMonthIndex }
+            var nextId = (stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1
+            autoRecruits.forEach { disciple ->
+                disciple.id = nextId.toString()
+                disciple.recruitedMonth = currentMonthIndex
+                nextId++
+            }
             stateStore.update { autoRecruits.forEach { discipleTables.insert(it) } }
             newRecruitDisciples.clear()
             newRecruitDisciples.addAll(manualRecruits)

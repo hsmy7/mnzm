@@ -194,7 +194,11 @@ class DiscipleFacadeImpl @Inject constructor(
         val data = stateStore.gameData.value
         val disciple = data.recruitList.find { it.id == discipleId } ?: return
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        val recruitedDisciple = disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthValue))
+        val newId = ((stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
+        val recruitedDisciple = disciple.copy(
+            id = newId,
+            usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
+        )
         gameEngineCore.launchInScope {
             stateStore.update {
                 discipleTables.insert(recruitedDisciple)

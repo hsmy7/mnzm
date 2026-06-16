@@ -527,8 +527,19 @@ fun GameEngine.recruitAllFromList(): Boolean {
     val data = stateStore.gameData.value
     if (data.recruitList.isEmpty()) return false
     val currentMonthValue = data.gameYear * 12 + data.gameMonth
-    val recruitedDisciples = data.recruitList.map { it.copy(usage = it.usage.copy(recruitedMonth = currentMonthValue)) }
-    gameEngineCore.launchInScope { stateStore.update { recruitedDisciples.forEach { discipleTables.insert(it) }; gameData = gameData.copy(recruitList = emptyList()) } }
+    gameEngineCore.launchInScope {
+        stateStore.update {
+            var nextId = (discipleTables.ids.maxOrNull() ?: 0) + 1
+            val recruitedDisciples = gameData.recruitList.map {
+                it.copy(
+                    id = (nextId++).toString(),
+                    usage = it.usage.copy(recruitedMonth = currentMonthValue)
+                )
+            }
+            recruitedDisciples.forEach { discipleTables.insert(it) }
+            gameData = gameData.copy(recruitList = emptyList())
+        }
+    }
     return true
 }
 

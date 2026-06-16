@@ -4,7 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.input.pointer.pointerInput
+
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -97,11 +97,11 @@ fun UnifiedGameDialog(
             modifier = modifier
                 .then(widthModifier)
                 .then(heightModifier)
-                .pointerInput(Unit) {
-                    while (true) {
-                        detectTapGestures { /* consume tap to prevent click-through, scroll passes through */ }
-                    }
-                }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                )
                 .clip(RoundedCornerShape(CornerRadius.LG))
         ) {
             Image(
