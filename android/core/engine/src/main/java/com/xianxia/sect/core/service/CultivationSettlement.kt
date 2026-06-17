@@ -185,8 +185,12 @@ class CultivationSettlement @Inject constructor(
         } }
     }
 
-    fun processPolicyCosts() {
-        val data = stateStore.gameData.value
+    /**
+     * 政策月度灵石扣除。
+     * 直接操作影子状态，同步执行。
+     */
+    fun processPolicyCosts(state: MutableGameState) {
+        val data = state.gameData
         val policies = data.sectPolicies
         var currentStones = data.spiritStones
         var updatedPolicies = policies
@@ -219,13 +223,17 @@ class CultivationSettlement @Inject constructor(
             if (disabledPolicies.isNotEmpty()) {
                 updatedGameData = updatedGameData.copy(sectPolicies = updatedPolicies)
             }
-            scope.launch { stateStore.update { gameData = updatedGameData } }
+            state.gameData = updatedGameData
         }
     }
 
-    fun processSpiritMineProduction() {
-        val data = stateStore.gameData.value
-        val disciplesSnapshot = stateStore.disciples.value
+    /**
+     * 灵矿月度产出结算。
+     * 直接操作影子状态，同步执行，不使用异步协程。
+     */
+    fun processSpiritMineProduction(state: MutableGameState) {
+        val data = state.gameData
+        val tables = state.discipleTables
         val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
         val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
 
@@ -233,11 +241,12 @@ class CultivationSettlement @Inject constructor(
         data.spiritMineSlots.forEach { slot ->
             val discipleId = slot.discipleId
             if (discipleId.isNotEmpty()) {
-                val disciple = disciplesSnapshot.find { it.id == discipleId }
-                if (disciple != null) {
-                    val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
+                val idInt = discipleId.toIntOrNull() ?: return@forEach
+                if (tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
+                    val mining = tables.minings[idInt] ?: 0
                     if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
-                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) * GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
+                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) *
+                            GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
                     }
                 }
             }
@@ -249,34 +258,38 @@ class CultivationSettlement @Inject constructor(
 
         val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
             slot.discipleId?.let { discipleId ->
-                disciplesSnapshot.find { it.id == discipleId }
+                val idInt = discipleId.toIntOrNull()
+                if (idInt != null && tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
+                    tables.assemble(idInt)
+                } else null
             }
         }.sumOf { disciple ->
             val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
-            val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline).coerceAtLeast(0)
+            val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline)
+                .coerceAtLeast(0)
             diff * 0.01
         }
 
-        val totalSpiritStones = (baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier).toInt()
+        val totalSpiritStones = (
+            baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier
+        ).toInt()
 
-        val minerIds = data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
-        val updatedDisciples = disciplesSnapshot.map { d ->
-            if (d.id in minerIds) {
-                d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty - 1).coerceAtLeast(0)))
-            } else d
+        // 矿工忠诚度 -1（直接操作组件表）
+        data.spiritMineSlots.forEach { slot ->
+            val discipleId = slot.discipleId
+            if (discipleId.isNotEmpty()) {
+                val idInt = discipleId.toIntOrNull() ?: return@forEach
+                if (tables.ids.contains(idInt)) {
+                    val current = tables.loyalties[idInt] ?: 0
+                    tables.loyalties[idInt] = (current - 1).coerceAtLeast(0)
+                }
+            }
         }
 
-        val finalGameData = if (totalSpiritStones > 0) {
-            data.copy(spiritStones = data.spiritStones + totalSpiritStones)
-        } else null
-
-        scope.launch { stateStore.update {
-            discipleTables.clear()
-            updatedDisciples.forEach { discipleTables.insert(it) }
-            if (finalGameData != null) {
-                gameData = finalGameData
-            }
-        } }
+        // 灵石产出
+        if (totalSpiritStones > 0) {
+            state.gameData = data.copy(spiritStones = data.spiritStones + totalSpiritStones)
+        }
     }
 
     companion object {

@@ -22,15 +22,24 @@ class DiscipleBreakthroughHandler @Inject constructor(
 ) {
     private val scope get() = scopeProvider.scope
 
-    fun processRealtimeBreakthroughs(livingDisciples: List<Disciple>, data: GameData) {
+    /**
+     * 实时突破处理。
+     * 直接操作事务内状态 [state]，不使用异步协程，避免覆盖事务变更。
+     */
+    fun processRealtimeBreakthroughs(
+        livingDisciples: List<Disciple>, data: GameData, state: MutableGameState
+    ) {
         val candidates = livingDisciples.filter { disciple ->
             disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation && cultivationCore.isDiscipleFullHpMp(disciple)
         }
 
         if (candidates.isEmpty()) return
 
+        val tables = state.discipleTables
         val candidateIds = candidates.map { it.id }.toSet()
-        val updatedDisciples = stateStore.disciples.value.map { disciple ->
+        val allDiscipleIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        val updatedDisciples = allDiscipleIds.map { id ->
+            val disciple = tables.assemble(id)
             if (disciple.id !in candidateIds) return@map disciple
             if (disciple.cultivation < disciple.maxCultivation || disciple.realm <= 0) return@map disciple
 
@@ -61,15 +70,15 @@ class DiscipleBreakthroughHandler @Inject constructor(
                     disciple, data.breakthroughAutoPillFocused, data.breakthroughAutoPillRootCounts
                 ) { false }
                 if (autoPill) {
-                    val warehousePill = stateStore.pills.value
+                    val warehousePill = state.pills.all()
                         .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
                         .maxByOrNull { it.effects.breakthroughChance }
                     if (warehousePill != null) {
-                        val pillIndex = stateStore.pills.value.indexOf(warehousePill)
+                        val pillIndex = state.pills.all().indexOf(warehousePill)
                         if (pillIndex >= 0) {
-                            val updatedPills = stateStore.pills.value.toMutableList()
+                            val updatedPills = state.pills.all().toMutableList()
                             updatedPills.removeAt(pillIndex)
-                            scope.launch { stateStore.update { pills.replaceAll(updatedPills) } }
+                            state.pills.setItems(updatedPills)
                             pillBonus = warehousePill.effects.breakthroughChance
                         }
                     }
@@ -85,7 +94,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
                     }
                 }
 
-                val success = tryBreakthrough(disciple, pillBonus)
+                val success = tryBreakthrough(disciple, pillBonus, state)
                 if (success) {
                     newCultivation = 0.0
                     if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
@@ -118,7 +127,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
                 data.gameYear, data.gameMonth
             )
-            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, stateStore.discipleTables)
+            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables)
             val remainingCultivation = if (newCultivation < disciple.maxCultivation) disciple.maxCultivation - newCultivation else 0.0
             val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
                 .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)
@@ -141,31 +150,31 @@ class DiscipleBreakthroughHandler @Inject constructor(
             )
         }
 
-        scope.launch { stateStore.update {
-            discipleTables.clear()
-            updatedDisciples.forEach { discipleTables.insert(it) }
-        } }
+        // 直接写回事务内状态
+        tables.clear()
+        updatedDisciples.forEach { tables.insert(it) }
     }
 
-    fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0): Boolean {
-        val data = stateStore.gameData.value
+    fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0, state: MutableGameState? = null): Boolean {
+        val data = state?.gameData ?: stateStore.gameData.value
+        val tables = state?.discipleTables ?: stateStore.discipleTables
         val elderSlots = data.elderSlots
 
         val innerElderId = elderSlots.innerElder
         val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == "inner") {
             val elderId = innerElderId.toIntOrNull()
-            if (elderId != null && stateStore.discipleTables.isAlive[elderId] == 1
-                && disciple.realm >= stateStore.discipleTables.realms[elderId]) {
-                stateStore.discipleTables.comprehensions[elderId]
+            if (elderId != null && tables.isAlive[elderId] == 1
+                && disciple.realm >= tables.realms[elderId]) {
+                tables.comprehensions[elderId]
             } else { 0 }
         } else { 0 }
 
         val outerElderId = data.elderSlots.outerElder
         val outerElderComprehensionBonus = if (disciple.discipleType == "outer" && outerElderId.isNotEmpty()) {
             val oid = outerElderId.toIntOrNull()
-            if (oid != null && stateStore.discipleTables.isAlive[oid] == 1
-                && disciple.realm >= stateStore.discipleTables.realms[oid]) {
-                val comp = stateStore.discipleTables.comprehensions[oid]
+            if (oid != null && tables.isAlive[oid] == 1
+                && disciple.realm >= tables.realms[oid]) {
+                val comp = tables.comprehensions[oid]
                 if (comp >= GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) {
                     ((comp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
                 } else { 0.0 }
@@ -203,7 +212,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
     fun processMonthlyBreakthroughs(state: MutableGameState) {
         val data = state.gameData
         val livingDisciples = state.discipleTables.assembleAll().filter { it.isAlive }
-        processRealtimeBreakthroughs(livingDisciples, data)
+        processRealtimeBreakthroughs(livingDisciples, data, state)
     }
 
     companion object {

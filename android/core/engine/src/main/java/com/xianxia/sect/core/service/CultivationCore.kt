@@ -497,7 +497,7 @@ class CultivationCore @Inject constructor(
         val disciple = tables.assemble(idInt)
 
         if (disciple.cultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
-            breakthroughHandler.processRealtimeBreakthroughs(listOf(disciple), data)
+            breakthroughHandler.processRealtimeBreakthroughs(listOf(disciple), data, state)
         }
 
         val currentDisciple = tables.assemble(idInt)

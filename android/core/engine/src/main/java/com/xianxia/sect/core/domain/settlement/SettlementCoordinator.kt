@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.production.EconomySubsystem
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.engine.domain.production.ProductionSubsystem
 import com.xianxia.sect.core.engine.system.ChildBirthSystem
+import com.xianxia.sect.core.engine.system.MailSystem
 import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -27,6 +28,7 @@ class SettlementCoordinator @Inject constructor(
     private val productionSubsystem: ProductionSubsystem,
     private val economySubsystem: EconomySubsystem,
     private val explorationService: ExplorationService,
+    private val mailSystem: MailSystem,
     private val childBirthSystem: ChildBirthSystem,
     private val partnerSystem: PartnerSystem,
     private val stateStore: GameStateStore,
@@ -292,7 +294,7 @@ class SettlementCoordinator @Inject constructor(
         for (id in cleanIds) {
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-            val cultivationDelta = rate  // 每旬修炼值，一旬积累一次
+            val cultivationDelta = rate * 3  // 每旬修炼值 × 3旬/月
             val newCultivation = (disciple.cultivation + cultivationDelta).coerceIn(0.0, disciple.maxCultivation)
             tables.cultivations[id] = newCultivation
 
@@ -419,6 +421,8 @@ class SettlementCoordinator @Inject constructor(
             // GameEngineCore.tickInternal() 中于 shadow 创建前处理。
             // 此处仅保留直接操作 shadow 的方法。
             explorationService.processMonthlyWorldLevels(shadow)
+            economySubsystem.onMonthTick(shadow)
+            mailSystem.onMonthTick(shadow)
             childBirthSystem.onMonthTick(shadow)
             partnerSystem.onMonthTick(shadow)
             processBloodRefinementProgress(shadow)
@@ -740,7 +744,9 @@ class SettlementCoordinator @Inject constructor(
         cache: SettlementCache
     ): Int {
         var delta = 0
-        if (disciple.id in cache.residenceDiscipleIds) {
+        if (disciple.id in cache.residenceDiscipleIds &&
+            disciple.skills.loyalty < GameConfig.Disciple.MAX_LOYALTY
+        ) {
             delta += 1
         }
         return delta

@@ -1,5 +1,19 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.06] - 2026-06-17（versionCode=4006）
+
+### 修复
+
+- **修复：弟子忠诚度持续下降** — 灵矿月度结算（processSpiritMineProduction）在影子事务内使用 scope.launch 异步写回真实状态，协程捕获的影子提交前旧快照在影子交换后覆盖了 SettlementCoordinator 对弟子表的所有修改（修炼值、忠诚度居住加成、熟练度、温养）。修复：改为同步直接操作影子组件表，移除 clear+insert 全量覆盖模式
+- **修复：灵植阁种植后无收获** — 灵植阁收获（processHerbGardenGrowth）和灵田收获（processSpiritFieldHarvest）在影子事务内直接写真实 state（inventorySystem.addHerb / stateStore.update），影子交换时旧库存覆盖新收获。修复：改为直接操作影子 herbs/游戏数据
+- **修复：非焦点弟子每月仅获1/3修炼量** — Clean 批次弟子每月结算使用「每旬修炼值」而非「每月修炼值（rate×3）」，与 Dirty 批次行为不一致。修复：Clean 批次统一使用 rate×3
+- **修复：政策灵石消耗从未执行** — EconomySubsystem.onMonthTick() 从未被 SettlementCoordinator 调用，所有政策的月度灵石扣除完全丢失。修复：将 EconomySubsystem 接入月度结算，同步重构 processPolicyCosts 使用影子状态
+- **修复：Phase tick 内自动仓库装备/学习覆盖修炼进度** — processAutoFromWarehouse 在 stateStore.update{} 事务内使用 scope.launch 异步写回旧快照，覆盖 phase tick 中已写入事务状态的修炼/HP/MP 变更。修复：改为直接操作事务内 MutableGameState
+- **修复：实时突破处理覆盖修炼变更+丹药复制** — processRealtimeBreakthroughs 异步覆盖弟子突破结果（境界/寿命等）并可能复制已消耗的突破丹药。修复：改为直接操作事务内状态
+- **修复：在线邮件从不送达** — MailSystem.onMonthTick() 从未被 SettlementCoordinator 调用，processMonthlyMails 永远不运行。修复：将 MailSystem 接入月度结算
+- **修复：居住忠诚度无上限保护** — calculateLoyaltyDelta 缺少 MAX_LOYALTY 检查，忠诚度可突破 100。修复：达到上限后不再增长
+- **修复：LazyColumn 崩溃 "Key was already used"** — DiscipleTables.ids 为 MutableList（非 Set），28+ 处 clear+insert 模式在多协程交错执行时同一 ID 可被重复添加，导致 Compose LazyColumn key 碰撞崩溃。修复：insert() 加防御检查，ID 已存在时走 update 路径不重复追加
+
 ## [4.0.05] - 2026-06-17（versionCode=4005）
 
 ### 修复

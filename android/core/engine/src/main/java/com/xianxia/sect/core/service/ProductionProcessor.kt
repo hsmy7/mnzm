@@ -135,8 +135,10 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processHerbGardenGrowth(year: Int, month: Int) {
-        val data = stateStore.gameData.value
+    suspend fun processHerbGardenGrowth(state: MutableGameState) {
+        val data = state.gameData
+        val year = data.gameYear
+        val month = data.gameMonth
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         herbGardenSlots.forEach { slot ->
@@ -174,8 +176,8 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processAutoPlant() {
-        val data = stateStore.gameData.value
+    suspend fun processAutoPlant(state: MutableGameState) {
+        val data = state.gameData
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         val idleSlots = herbGardenSlots.filter {
@@ -184,7 +186,7 @@ class ProductionProcessor @Inject constructor(
         if (idleSlots.isEmpty()) return
 
         for (slot in idleSlots) {
-            val seeds = stateStore.getCurrentSeeds().filter { it.quantity > 0 }.sortedByDescending { it.rarity }
+            val seeds = state.seeds.all().filter { it.quantity > 0 }.sortedByDescending { it.rarity }
             val seedToPlant = seeds.firstOrNull() ?: break
 
             val herbDbSeedId = HerbDatabase.getSeedByName(seedToPlant.name)?.id
@@ -209,15 +211,25 @@ class ProductionProcessor @Inject constructor(
             )
 
             productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { newSlot }
-            inventorySystem.removeSeedSync(seedToPlant.id, 1)
+            // 消耗种子：直接在影子状态中扣减
+            val newQuantity = seedToPlant.quantity - 1
+            if (newQuantity <= 0) {
+                state.seeds.remove(seedToPlant.id)
+            } else {
+                state.seeds.update(seedToPlant.id) { it.copy(quantity = newQuantity) }
+            }
         }
     }
 
-    suspend fun processSpiritFieldHarvest() {
-        val data = stateStore.gameData.value
+    suspend fun processSpiritFieldHarvest(state: MutableGameState) {
+        val data = state.gameData
         val currentYear = data.gameYear
         val currentMonth = data.gameMonth
-        val allDisciples = stateStore.disciples.value
+        val tables = state.discipleTables
+
+        // 从影子组件表组装存活弟子（仅用于长老加成的属性查询）
+        val allDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
+            .map { tables.assemble(it) }
 
         val plants = data.spiritFieldPlants
         if (plants.isEmpty()) return
@@ -236,43 +248,49 @@ class ProductionProcessor @Inject constructor(
                 val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
                 if (dbHerb != null) {
                     val finalYield = plant.expectedYield.coerceAtLeast(1)
-
                     val herbName = dbHerb.name
                     val herbRarity = dbHerb.rarity
                     val herbCat = dbHerb.category
-                    stateStore.update {
-                        val currentHerbsList = herbs.all()
-                        val existingIdx = currentHerbsList.indexOfFirst { h ->
-                            h.name == herbName && h.rarity == herbRarity && h.category == herbCat
+
+                    // 直接在影子 herbs 中合并
+                    val currentHerbsList = state.herbs.all()
+                    val existingIdx = currentHerbsList.indexOfFirst { h ->
+                        h.name == herbName && h.rarity == herbRarity && h.category == herbCat
+                    }
+                    if (existingIdx >= 0) {
+                        val existing = currentHerbsList[existingIdx]
+                        state.herbs.update(existing.id) {
+                            it.copy(quantity = it.quantity + finalYield)
                         }
-                        if (existingIdx >= 0) {
-                            val updated = currentHerbsList.toMutableList()
-                            updated[existingIdx] = updated[existingIdx].let {
-                                Herb(id = it.id, name = it.name, rarity = it.rarity, description = it.description,
-                                    category = it.category, quantity = it.quantity + finalYield)
-                            }
-                            herbs = EntityStore(updated)
-                        } else {
-                            val newHerb = Herb(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = herbName, rarity = herbRarity, description = dbHerb.description,
-                                category = herbCat, quantity = finalYield
-                            )
-                            herbs = EntityStore(currentHerbsList + newHerb)
-                        }
+                    } else {
+                        val newHerb = Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = herbName, rarity = herbRarity,
+                            description = dbHerb.description,
+                            category = herbCat, quantity = finalYield
+                        )
+                        state.herbs.add(newHerb)
                     }
                 }
 
                 val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
                     val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
-                    val existingSeed = stateStore.getCurrentSeeds().find { s ->
-                        s.name == plant.seedName && s.rarity == (matchingSeed?.rarity ?: 1) && s.growTime == plant.growTime && s.quantity > 0
+                    val existingSeed = state.seeds.all().find { s ->
+                        s.name == plant.seedName &&
+                            s.rarity == (matchingSeed?.rarity ?: 1) &&
+                            s.growTime == plant.growTime && s.quantity > 0
                     }
                     val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
                     updatedPlants = updatedPlants.toMutableList().also {
                         if (existingSeed != null) {
-                            inventorySystem.removeSeedSync(existingSeed.id, 1)
+                            // 消耗种子：直接操作影子 seeds
+                            val newQty = existingSeed.quantity - 1
+                            if (newQty <= 0) {
+                                state.seeds.remove(existingSeed.id)
+                            } else {
+                                state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
+                            }
                             it[idx] = it[idx].copy(
                                 plantYear = currentYear, plantMonth = currentMonth,
                                 completionMonth = currentAbsoluteMonth + plant.growTime.coerceAtLeast(1),
@@ -292,7 +310,7 @@ class ProductionProcessor @Inject constructor(
         }
 
         if (hasChanges) {
-            stateStore.update { gameData = gameData.copy(spiritFieldPlants = updatedPlants) }
+            state.gameData = data.copy(spiritFieldPlants = updatedPlants)
         }
     }
 
@@ -531,7 +549,7 @@ class ProductionProcessor @Inject constructor(
         return d.statusData["followed"] == "true"
     }
 
-    fun processSpiritMineProduction() {
-        cultivationSettlement.processSpiritMineProduction()
+    fun processSpiritMineProduction(state: MutableGameState) {
+        cultivationSettlement.processSpiritMineProduction(state)
     }
 }

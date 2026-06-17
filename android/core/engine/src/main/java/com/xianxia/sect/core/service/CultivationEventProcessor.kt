@@ -213,13 +213,19 @@ class CultivationEventProcessor @Inject constructor(
 
         cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
 
-        processAutoFromWarehouse(year, month, phase)
+        processAutoFromWarehouse(year, month, phase, state)
     }
 
     // ── 自动从仓库装备/学习 ──────────────────────────────────────────
 
-    private fun processAutoFromWarehouse(year: Int, month: Int, phase: Int) {
-        val gameData = stateStore.gameData.value
+    /**
+     * 自动从仓库装备/学习。
+     * 直接操作事务内状态 [state]，不使用异步协程，避免影子事务覆盖问题。
+     */
+    private fun processAutoFromWarehouse(
+        year: Int, month: Int, phase: Int, state: MutableGameState
+    ) {
+        val gameData = state.gameData
         val equipFocused = gameData.autoEquipFromWarehouseFocused
         val equipRootCounts = gameData.autoEquipFromWarehouseRootCounts
         val learnFocused = gameData.autoLearnFromWarehouseFocused
@@ -229,7 +235,10 @@ class CultivationEventProcessor @Inject constructor(
 
         if (!hasAutoEquip && !hasAutoLearn) return
 
-        val updatedDisciples = stateStore.disciples.value.toMutableList()
+        val tables = state.discipleTables
+        val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
+            .map { tables.assemble(it) }.toMutableList()
+
         val bagEqIds = mutableSetOf<String>()
         val bagMnIds = mutableSetOf<String>()
         for (disciple in updatedDisciples) {
@@ -241,10 +250,10 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        var eqStacks = stateStore.equipmentStacks.value.filter { it.id !in bagEqIds }
-        var mnStacks = stateStore.manualStacks.value.filter { it.id !in bagMnIds }
-        val eqInstancesById = stateStore.equipmentInstances.value.associateBy { it.id }
-        val mnInstancesById = stateStore.manualInstances.value.associateBy { it.id }
+        var eqStacks = state.equipmentStacks.all().filter { it.id !in bagEqIds }
+        var mnStacks = state.manualStacks.all().filter { it.id !in bagMnIds }
+        val eqInstancesById = state.equipmentInstances.associateById()
+        val mnInstancesById = state.manualInstances.associateById()
         val newEqInstances = mutableListOf<EquipmentInstance>()
         val newMnInstances = mutableListOf<ManualInstance>()
 
@@ -313,16 +322,17 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        scope.launch {
-            stateStore.update {
-                discipleTables.clear()
-                updatedDisciples.forEach { discipleTables.insert(it) }
-                equipmentStacks.setItems(equipmentStacks.items.filter { it.id in bagEqIds } + eqStacks)
-                manualStacks.setItems(manualStacks.items.filter { it.id in bagMnIds } + mnStacks)
-                newEqInstances.forEach { equipmentInstances.add(it) }
-                newMnInstances.forEach { manualInstances.add(it) }
-            }
-        }
+        // 直接写回事务内状态，不使用异步协程
+        tables.clear()
+        updatedDisciples.forEach { tables.insert(it) }
+        state.equipmentStacks.setItems(
+            state.equipmentStacks.all().filter { it.id in bagEqIds } + eqStacks
+        )
+        state.manualStacks.setItems(
+            state.manualStacks.all().filter { it.id in bagMnIds } + mnStacks
+        )
+        newEqInstances.forEach { state.equipmentInstances.add(it) }
+        newMnInstances.forEach { state.manualInstances.add(it) }
     }
 
     // ── 月度/年度事件 ──────────────────────────────────────────────────

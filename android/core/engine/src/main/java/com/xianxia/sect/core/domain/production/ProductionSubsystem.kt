@@ -54,7 +54,7 @@ class ProductionSubsystem @Inject constructor(
         val year = state.gameData.gameYear
         val month = state.gameData.gameMonth
         cultivationService.processBuildingProduction(year, month)
-        cultivationService.processHerbGardenGrowth(year, month)
+        cultivationService.processHerbGardenGrowth(state)
         cultivationService.processAutoAlchemy()
         cultivationService.processAutoForge()
     }
@@ -67,17 +67,18 @@ class ProductionSubsystem @Inject constructor(
             awaitAll(alchemyJob, forgeJob)
         }
 
-        // spiritMineProduction 和 autoAssign 都写 currentGameData + currentDisciples，
-        // 不能并行，必须串行以避免数据竞争
-        cultivationService.processSpiritMineProduction()
+        // spiritMineProduction 和 autoAssign 都写游戏状态，
+        // 不能并行，必须串行以避免数据竞争。
+        // 所有方法改为直接操作 shadow，不再使用异步协程覆盖。
+        cultivationService.processSpiritMineProduction(state)
         cultivationService.processAutoAssign()
 
         // 组 B（串行，依赖 A 产出）
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
-        cultivationService.processHerbGardenGrowth(state.gameData.gameYear, state.gameData.gameMonth)
+        cultivationService.processHerbGardenGrowth(state)
 
         // 组 C（串行）
-        cultivationService.processSpiritFieldHarvest()
-        cultivationService.processAutoPlant()
+        cultivationService.processSpiritFieldHarvest(state)
+        cultivationService.processAutoPlant(state)
     }
 }

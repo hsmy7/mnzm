@@ -1,6 +1,21 @@
 [
     {
         "date":  "2026-06-17",
+        "version":  "4.0.06",
+        "changes":  [
+                        "修复：弟子忠诚度持续下降——灵矿月度结算在影子事务内使用异步协程写回旧快照，影子交换后覆盖了SettlementCoordinator对所有弟子的修改（修炼值、忠诚度居住加成、熟练度、温养）。修复：改为同步操作影子组件表",
+                        "修复：灵植阁种植后无收获——灵植阁/灵田收获在影子事务内直接写真实状态，影子交换时旧库存覆盖新收获。修复：改为直接操作影子herbs和游戏数据",
+                        "修复：非焦点弟子每月仅获1/3修炼量——Clean批次每月结算使用每旬修炼值而非每月修炼值（rate×3），与Dirty批次不一致。修复：统一使用rate×3",
+                        "修复：政策灵石消耗从未执行——EconomySubsystem.onMonthTick从未被调用，所有政策月度灵石扣除完全丢失。修复：接入月度结算并用影子状态同步扣除",
+                        "修复：自动仓库装备/学习覆盖修炼进度——processAutoFromWarehouse在tick事务内异步写回旧快照，覆盖phaseTick已写入事务状态的修炼HP/MP变更。修复：改为直接操作事务内MutableGameState",
+                        "修复：实时突破覆盖修炼变更——processRealtimeBreakthroughs异步覆盖弟子突破结果（境界/寿命等）并可能复制已消耗的突破丹药。修复：改为直接操作事务内状态",
+                        "修复：在线邮件从不送达——MailSystem.onMonthTick从未被SettlementCoordinator调用，processMonthlyMails永远不运行。修复：MailSystem接入月度结算",
+                        "修复：居住忠诚度无上限保护——calculateLoyaltyDelta缺少MAX_LOYALTY检查，忠诚度可突破100。修复：达到上限后不再增长",
+                        "修复：LazyColumn崩溃Key was already used——DiscipleTables.ids为MutableList非Set，28+处clear+insert模式多协程交错时同一ID重复添加导致Compose key碰撞崩溃。修复：insert()加防御检查已存在ID走update路径"
+                    ]
+    },
+    {
+        "date":  "2026-06-17",
         "version":  "4.0.05",
         "changes":  [
                         "修复：非焦点弟子不修炼的严重BUG——修炼速率缓存初始为空，首月结算前所有非焦点弟子每旬获得0修炼经验。只有玩家点看弟子（焦点弟子）才走实时计算路径不受影响。修复：每旬tick前检查缓存缺失则现场计算填充",

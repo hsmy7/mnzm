@@ -161,6 +161,12 @@ class DiscipleTables {
      */
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
+        // ids 是 MutableList，多协程交错 clear+insert 可能引入重复 ID。
+        // 防御性检查：ID 已存在时走 update 路径，不重复添加到 ids。
+        if (id in ids) {
+            update(disciple)
+            return
+        }
         ids.add(id)
 
         names[id] = disciple.name

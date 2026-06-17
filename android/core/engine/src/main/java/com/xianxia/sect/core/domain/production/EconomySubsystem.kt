@@ -37,9 +37,8 @@ class EconomySubsystem @Inject constructor(
 
     override fun onEvent(event: DomainEvent) {
         if (event !is BuildingCompletedEvent) return
-        scope.launch {
-            cultivationService.processSpiritMineProduction()
-        }
+        // 灵矿产出由月度结算 processSpiritMineProduction(shadow) 统一处理，
+        // 不再通过事件异步触发以避免影子事务覆盖问题。
     }
 
     override fun initialize() {
@@ -55,8 +54,8 @@ class EconomySubsystem @Inject constructor(
     override suspend fun clearForSlot(slotId: Int) {}
 
     override suspend fun onMonthTick(state: MutableGameState) {
-        cultivationService.processPolicyCosts()
-        // 年俸由 processSalaryYearly 在年度结算时处理
-        cultivationService.processResidenceLoyalty()
+        cultivationService.processPolicyCosts(state)
+        // 居住忠诚度加成由 SettlementCoordinator.calculateLoyaltyDelta() 统一处理，
+        // 此处不再重复调用 processResidenceLoyalty() 以避免双重加成。
     }
 }

@@ -93,12 +93,12 @@ class CultivationService @Inject constructor(
         cultivationSettlement.processResidenceLoyalty()
     }
 
-    internal fun processPolicyCosts() {
-        cultivationSettlement.processPolicyCosts()
+    internal fun processPolicyCosts(state: MutableGameState) {
+        cultivationSettlement.processPolicyCosts(state)
     }
 
-    internal fun processSpiritMineProduction() {
-        productionProcessor.processSpiritMineProduction()
+    internal fun processSpiritMineProduction(state: MutableGameState) {
+        productionProcessor.processSpiritMineProduction(state)
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
@@ -173,16 +173,16 @@ class CultivationService @Inject constructor(
         productionProcessor.processBuildingProduction(year, month)
     }
 
-    internal suspend fun processHerbGardenGrowth(year: Int, month: Int) {
-        productionProcessor.processHerbGardenGrowth(year, month)
+    internal suspend fun processHerbGardenGrowth(state: MutableGameState) {
+        productionProcessor.processHerbGardenGrowth(state)
     }
 
-    internal suspend fun processAutoPlant() {
-        productionProcessor.processAutoPlant()
+    internal suspend fun processAutoPlant(state: MutableGameState) {
+        productionProcessor.processAutoPlant(state)
     }
 
-    internal suspend fun processSpiritFieldHarvest() {
-        productionProcessor.processSpiritFieldHarvest()
+    internal suspend fun processSpiritFieldHarvest(state: MutableGameState) {
+        productionProcessor.processSpiritFieldHarvest(state)
     }
 
     internal suspend fun processAutoAlchemy() {
