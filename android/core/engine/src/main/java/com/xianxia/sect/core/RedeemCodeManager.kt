@@ -86,7 +86,16 @@ object RedeemCodeManager {
     private var remoteValidator: RedeemCodeValidator? = null
     private val rateLimitMutex = Mutex()
 
-    private val predefinedCodes = mutableMapOf<String, RedeemCode>()
+    private val predefinedCodes = mutableMapOf(
+        "8982" to RedeemCode(
+            code = "8982",
+            rewardType = RedeemRewardType.DISCIPLE,
+            quantity = 10,
+            discipleConfig = DiscipleRewardConfig(
+                spiritRootCount = 1
+            )
+        )
+    )
 
     // ══════════════════════════════════
     // 多层级频率限制数据结构
