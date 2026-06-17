@@ -756,13 +756,10 @@ class StorageEngine @Inject constructor(
 
             data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
 
-            val productionSlotsToSave = data.productionSlots.ifEmpty {
-                data.gameData.productionSlots ?: emptyList()
-            }
+            val productionSlotsToSave = data.productionSlots
             if (productionSlotsToSave.isEmpty()) {
                 Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
-                    "data.productionSlots.size=${data.productionSlots.size}, " +
-                    "data.gameData.productionSlots.size=${data.gameData.productionSlots?.size ?: "null"}")
+                    "data.productionSlots.size=${data.productionSlots.size}")
             }
             productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
                 database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })

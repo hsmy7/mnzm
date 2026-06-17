@@ -383,8 +383,12 @@ fun MainGameScreen(
         // 烘焙完成版本号 — swap 后递增，触发 Compose 重绘
         var bakeVersion by remember { mutableIntStateOf(0) }
 
-        // 初始化/重建双缓冲（shouldBakeBuildings / bmpConfig / fullMapBmp 变化时）
-        LaunchedEffect(shouldBakeBuildings, bmpConfig, fullMapBmp) {
+        // 重开版本号：重开后递增，强制烘焙管线全量重建
+        val restartVersion by saveLoadViewModel.restartVersion
+            .collectAsStateWithLifecycle()
+
+        // 初始化/重建双缓冲（shouldBakeBuildings / bmpConfig / fullMapBmp / restartVersion 变化时）
+        LaunchedEffect(shouldBakeBuildings, bmpConfig, fullMapBmp, restartVersion) {
             // 回收旧缓冲
             frontBufferBmp?.takeIf { !it.isRecycled }?.recycle()
             backBufferBmp?.takeIf { !it.isRecycled }?.recycle()

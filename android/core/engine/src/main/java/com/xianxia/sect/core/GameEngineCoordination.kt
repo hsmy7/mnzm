@@ -276,7 +276,21 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
     stateStore.update {
         val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-        gameData = gameData.copy(slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+        gameData = gameData.copy(
+            slotId = currentSlot,
+            currentSlot = currentSlot,
+            placedBuildings = listOf(initialMine),
+            spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
+            // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
+            productionSlots = emptyList(),
+            residenceSlots = emptyList(),
+            warehouseGarrisons = emptyList(),
+            patrolSlots = emptyList(),
+            patrolConfig = PatrolConfig(),
+            patrolConfigs = emptyList(),
+            librarySlots = emptyList(),
+            spiritFieldPlants = emptyList()
+        )
         repeat(3) { discipleService.recruitDisciple() }
     }
     addInitialManual()
@@ -297,7 +311,21 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
         val centerGrid = gridCells / 2 - 1
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-            gameData = gameData.copy(slotId = currentSlot, currentSlot = currentSlot, placedBuildings = listOf(initialMine), spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") })
+            gameData = gameData.copy(
+                slotId = currentSlot,
+                currentSlot = currentSlot,
+                placedBuildings = listOf(initialMine),
+                spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
+                // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
+                productionSlots = emptyList(),
+                residenceSlots = emptyList(),
+                warehouseGarrisons = emptyList(),
+                patrolSlots = emptyList(),
+                patrolConfig = PatrolConfig(),
+                patrolConfigs = emptyList(),
+                librarySlots = emptyList(),
+                spiritFieldPlants = emptyList()
+            )
             repeat(3) { discipleService.recruitDisciple() }
         }
         addInitialManual()

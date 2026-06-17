@@ -121,6 +121,10 @@ class SaveLoadViewModel @Inject constructor(
     private val _isTimeRunning = MutableStateFlow(false)
     val isTimeRunning: StateFlow<Boolean> = _isTimeRunning.asStateFlow()
 
+    /** 重开版本号，每次成功重开后递增，用于通知 UI 层强制重建烘焙管线 */
+    private val _restartVersion = MutableStateFlow(0)
+    val restartVersion: StateFlow<Int> = _restartVersion.asStateFlow()
+
     init {
         viewModelScope.launch {
             try {
@@ -1065,6 +1069,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 if (saveSuccess) {
                     Log.i(TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
+                    _restartVersion.value++
                     showSuccess("游戏已重置")
                 } else {
                     Log.e(TAG, "=== restartGame SAVE FAILED === slot=$currentSlot")
