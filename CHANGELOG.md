@@ -26,6 +26,7 @@ t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华
 - **修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨** — 数据库保存时 upsertAll 只覆盖同 ID 行，不删除旧存档中 ID 更高的残留行（如旧档 100 弟子、新档 3 弟子，数据库同时存在 100 行）。修复：全量保存时用事务包裹所有写入，18 张多行实体表先 deleteAll(slot) 再 upsertAll，确保数据库与内存状态严格一致。同时补全 delete(slot) 中遗漏的 8 个表清理调用
 - **修复：招募弟子界面每年不刷新** — 年度事件处理（招募刷新、商人刷新、俸禄、弟子年龄、外交等）在 Settlement 影子事务（shadow transaction）内部调用 `stateStore.update{}`，触发 `GameStateStoreImpl` 的影子事务守卫抛异常，被 `SettlementCoordinator` 静默捕获后重置整个年度结算，导致所有年度事件每年都静默失败。修复：将年度事件处理移至影子事务外——在时间推进提交后、Settlement 影子创建前执行
 - **修复：GameTimeClockTest 全部 13 个测试失败** — v4.0.03 将 GameTimeClock 时钟源从 currentTimeMillis() 迁移至 SystemClock.elapsedRealtime()，但测试的 simulateTick 仍用旧 API 设置 lastWallMs，两个时钟基准不同导致 delta 恒为负数。修复：测试同步迁移至 SystemClock.elapsedRealtime()
+- **修复：放置建筑时同类型旧建筑消失（最多只能看到2个）** — 烘焙渲染管线的增量更新假设 back buffer 已包含所有旧建筑，仅绘制「不在 previousIds 中」的新建筑。但双缓冲交换后 back buffer 拿到的是 2 轮前的旧 front buffer，原有建筑全部丢失，导致建筑在两块缓冲之间交替消失——建第3个时第2个消失，建第4个时第1和第3个消失。修复：步骤 3 改为每轮全量绘制所有建筑，不再依赖 back buffer 旧内容
 
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 

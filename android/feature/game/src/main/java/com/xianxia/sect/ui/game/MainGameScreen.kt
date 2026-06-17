@@ -546,31 +546,28 @@ fun MainGameScreen(
                 }
             }
 
-            // === 3. 绘制新增的建筑 ===
-            val previousIds = previousBuildings.map { it.instanceId }.toSet()
+            // === 3. 绘制所有建筑（全量重绘，避免增量更新导致的双缓冲交替丢失） ===
             for (building in effectivePlacedBuildings) {
-                if (building.instanceId !in previousIds) {
-                    val bx = building.gridX * tileSize
-                    val by = building.gridY * tileSize
-                    val bw = building.width * tileSize
-                    val bh = building.height * tileSize
-                    val bmp = buildingBitmaps[building.displayName]
-                    if (bmp != null) {
-                        val androidBmp = bmp.asAndroidBitmap()
-                        val srcRect = android.graphics.Rect(
-                            0, 0, androidBmp.width, androidBmp.height)
-                        val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
-                        canvas.drawBitmap(androidBmp, srcRect, dstRect, null)
-                    } else {
-                        val paint = android.graphics.Paint().apply {
-                            color = 0xCCBDBDBD.toInt()
-                        }
-                        canvas.drawRect(
-                            android.graphics.RectF(
-                                bx.toFloat(), by.toFloat(),
-                                (bx + bw).toFloat(), (by + bh).toFloat()
-                            ), paint)
+                val bx = building.gridX * tileSize
+                val by = building.gridY * tileSize
+                val bw = building.width * tileSize
+                val bh = building.height * tileSize
+                val bmp = buildingBitmaps[building.displayName]
+                if (bmp != null) {
+                    val androidBmp = bmp.asAndroidBitmap()
+                    val srcRect = android.graphics.Rect(
+                        0, 0, androidBmp.width, androidBmp.height)
+                    val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
+                    canvas.drawBitmap(androidBmp, srcRect, dstRect, null)
+                } else {
+                    val paint = android.graphics.Paint().apply {
+                        color = 0xCCBDBDBD.toInt()
                     }
+                    canvas.drawRect(
+                        android.graphics.RectF(
+                            bx.toFloat(), by.toFloat(),
+                            (bx + bw).toFloat(), (by + bh).toFloat()
+                        ), paint)
                 }
             }
 

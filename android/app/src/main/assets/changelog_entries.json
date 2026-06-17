@@ -21,7 +21,8 @@
         "changes":  [
                         "修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨——upsertAll只覆盖同ID行不删除旧档高ID行，导致弟子/装备/丹药等全类别实体表残留。修复：全量保存时用事务包裹，18张多行实体表先deleteAll(slot)再upsertAll，同时补全删除存档时遗漏的8个表清理",
                         "修复：招募弟子界面每年不刷新——年度事件处理（招募刷新、商人刷新、俸禄、弟子年龄、外交等）在Settlement影子事务内部调用stateStore.update{}触发异常守卫，被静默捕获后重置整个年度结算，所有年度事件每年都静默失败。修复：将年度事件移至影子事务外——时间推进后、Settlement影子创建前执行",
-                        "修复：GameTimeClockTest全部13个测试失败——v4.0.03时钟源迁移至SystemClock.elapsedRealtime()后测试未同步更新，仍用currentTimeMillis()设lastWallMs导致两个时钟基准不同、delta恒为负数"
+                        "修复：GameTimeClockTest全部13个测试失败——v4.0.03时钟源迁移至SystemClock.elapsedRealtime()后测试未同步更新，仍用currentTimeMillis()设lastWallMs导致两个时钟基准不同、delta恒为负数",
+                        "修复：放置建筑时同类型旧建筑消失（最多只能看到2个）——烘焙渲染管线增量更新假设back buffer已包含所有旧建筑，仅绘制不在previousIds中的新建筑。双缓冲交换后back buffer拿到的是2轮前的旧front buffer，原有建筑全部丢失，导致建筑在两块缓冲之间交替消失。修复：步骤3改为每轮全量绘制所有建筑"
                     ]
     },
     {
