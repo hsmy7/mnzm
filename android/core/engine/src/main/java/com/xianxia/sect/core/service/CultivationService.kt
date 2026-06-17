@@ -115,6 +115,16 @@ class CultivationService @Inject constructor(
         eventProcessor.advanceYear(state)
     }
 
+    /**
+     * 处理年度事件（招募刷新、商人刷新、俸禄、弟子成长、外交等）。
+     * 必须在 shadow transaction 外部调用，因为内部方法使用
+     * [GameStateStore.update] 不可在 shadow 期间调用。
+     */
+    suspend fun processYearlyEvents() {
+        val year = stateStore.gameData.value.gameYear
+        eventProcessor.processYearlyEvents(year)
+    }
+
     suspend fun processMonthlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)

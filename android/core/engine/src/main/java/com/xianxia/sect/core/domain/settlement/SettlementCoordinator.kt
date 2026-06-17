@@ -495,7 +495,8 @@ class SettlementCoordinator @Inject constructor(
     private suspend fun processAgingAndDeath(shadow: MutableGameState) {
         stateStore.beginShadowTransaction(shadow)
         try {
-            cultivationService.processYearlyEventsOnShadow(shadow)
+            // 年度事件（招募、俸禄、外交等）已在 GameEngineCore.tickInternal()
+            // 中于 shadow 创建前处理完毕。此处仅保留需 shadow 隔离的子嗣系统。
             childBirthSystem.onYearTick(shadow)
         } finally {
             stateStore.endShadowTransaction()

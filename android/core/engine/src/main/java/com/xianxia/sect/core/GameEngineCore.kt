@@ -648,6 +648,11 @@ class GameEngineCore @Inject constructor(
         if (settlementCoordinator.hasPendingWork && (monthChanged || yearChanged)) {
             forceCompleteSettlement()
         }
+        // 年变 → 在创建结算影子前，先将年度事件应用到真实游戏状态
+        // （内部方法使用 stateStore.update{}，不能在 shadow transaction 中调用）
+        if (yearChanged) {
+            cultivationService.processYearlyEvents()
+        }
         if (yearChanged) {
             val shadow = stateStore.createSettlementShadow()
             settlementCoordinator.scheduleYearly(shadow)
