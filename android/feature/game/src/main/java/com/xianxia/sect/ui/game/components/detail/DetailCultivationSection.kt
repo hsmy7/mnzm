@@ -252,13 +252,15 @@ fun BasicInfoSection(
                         disciple, elderSlots, allDisciples,
                         sectPolicies = sectPolicies
                     )
-                    disciple.calculateCultivationSpeed(
+                    // 每秒值 × 每旬秒数 → 每旬值
+                    val perSecond = disciple.calculateCultivationSpeed(
                         manualsMap, proficiencyMap,
                         buildingBonus = buildingBonus,
                         preachingElderBonus = preachingElderBonus,
                         preachingMastersBonus = preachingMastersBonus,
                         cultivationSubsidyBonus = cultivationSubsidyBonus
                     ).coerceIn(1.0, 1000.0)
+                    perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
                 }
 
                 Row(
@@ -297,7 +299,7 @@ fun BasicInfoSection(
                         )
                     )
                     Text(
-                        text = "${String.format(LocalLocale.current.platformLocale, "%.1f", cultivationSpeed)}/秒",
+                        text = "${String.format(LocalLocale.current.platformLocale, "%.1f", cultivationSpeed)}/旬",
                         fontSize = 10.sp,
                         color = Color(0xFF4CAF50)
                     )

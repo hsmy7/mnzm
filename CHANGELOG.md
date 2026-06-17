@@ -2,6 +2,14 @@
 
 ## [4.0.05] - 2026-06-17（versionCode=4005）
 
+### 修复
+
+- **修复：非焦点弟子不修炼的严重BUG** — 修炼速率缓存（cachedCultivationRates）初始为空Map，仅首月结算完成后才被填充。每旬tick中非焦点弟子的修炼增益依赖此缓存（`cachedCultivationRates[id] ?: 0.0`），缓存为空时返回0导致所有非焦点弟子零修炼进度。焦点弟子不受影响因为走独立的实时计算路径。修复：每旬tick遍历弟子前检查缓存，对缺失key调用calculateDiscipleCultivationPerPhase现场计算填充
+
+### 变更
+
+- **变更：修炼速度单位从每秒改为每旬** — calculateDiscipleCultivationPerSecond重命名为calculateDiscipleCultivationPerPhase，返回值乘以MS_PER_PHASE_1X/1000（= 2.0s/旬，1x速度）。移除所有调用处的*phaseSecondsValue / *monthSeconds乘法。每月修炼增益改为 rate × 3（3旬/月），UI显示 "/秒" → "/旬"。修炼速度与游戏倍速无关，每旬固定产出。同时将熟练度增长和装备温养也统一改为每旬计算
+
 ### 优化
 
 - **优化：奖励飞出卡片视觉重构** — 上下横线内改为深色渐变背景卡片，图片框改为品阶色底色+灰色边框，无精灵图物品显示"敬请期待"占位，卡片间以2dp间距错开有序飞出，图片框位置跨卡片统一对齐，物品名称金色字体、数量白色字体，卡片高度36dp紧凑布局

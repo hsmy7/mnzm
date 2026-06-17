@@ -86,18 +86,20 @@ object ManualProficiencySystem {
     }
 
     /**
-     * 统一熟练度增长公式（每秒增长量）
+     * 统一熟练度增长公式（每旬增长量）
      *
-     * 公式：BASE_PROFICIENCY_RATE × 悟性加成 × 藏经阁加成
+     * 公式：BASE_PROFICIENCY_RATE × 悟性加成 × 藏经阁加成 × 每旬秒数
      * - 悟性加成：1.0 + max(0, comprehension - 70) × 0.1
      * - 藏经阁加成：1.0 + libraryBonus
      */
-    fun calculateProficiencyGainPerSecond(
+    fun calculateProficiencyGainPerPhase(
         comprehension: Int,
         libraryBonus: Double = 0.0
     ): Double {
         val comprehensionBonus = 1.0 + max(0, comprehension - COMPREHENSION_BASELINE) * COMPREHENSION_BONUS_PER_POINT
-        return BASE_PROFICIENCY_RATE * comprehensionBonus * (1.0 + libraryBonus)
+        val perSecond = BASE_PROFICIENCY_RATE * comprehensionBonus * (1.0 + libraryBonus)
+        // 转为每旬
+        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
     }
 
     fun calculateSkillDamageMultiplier(

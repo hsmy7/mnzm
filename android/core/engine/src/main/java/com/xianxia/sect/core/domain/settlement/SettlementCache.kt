@@ -77,20 +77,19 @@ class SettlementCache(state: MutableGameState) {
 
     /**
      * 计算距离突破超过 2 个月的弟子集合。
-     * remaining / (rate * monthSeconds) > 2 → 跳过本月结算，等快满时再月结。
-     * 每月真实秒数 = 3 旬 × MS_PER_PHASE_1X / 1000 = 6.0s
+     * remaining / (rate * 3) > 2 → 跳过本月结算，等快满时再月结。
+     * rate 为每旬修炼值，每月 3 旬。
      */
     private fun computeFarFromCompletion(
         state: MutableGameState,
         rateCache: Map<String, Double>
     ): Set<String> {
-        val monthSeconds = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0
         return state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }.mapNotNull { id ->
             val d = state.discipleTables.assemble(id)
             val rate = rateCache[d.id] ?: return@mapNotNull null
             val remaining = d.maxCultivation - d.cultivation
             if (remaining <= 0) return@mapNotNull null  // 已满，必须结算
-            val monthsToFull = if (rate > 0) remaining / (rate * monthSeconds) else 999.0
+            val monthsToFull = if (rate > 0) remaining / (rate * 3) else 999.0
             if (monthsToFull > 2.0) d.id else null
         }.toSet()
     }
@@ -145,7 +144,7 @@ class SettlementCache(state: MutableGameState) {
 
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
-        return DiscipleStatCalculator.calculateCultivationSpeed(
+        val perSecond = DiscipleStatCalculator.calculateCultivationSpeed(
             disciple = disciple,
             manuals = manualInstanceMapLocal,
             manualProficiencies = discipleProficiencies,
@@ -154,6 +153,8 @@ class SettlementCache(state: MutableGameState) {
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus
         ).coerceIn(1.0, 1000.0)
+        // 转为每旬
+        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
     }
 
     private fun calculateBuildingCultivationBonus(

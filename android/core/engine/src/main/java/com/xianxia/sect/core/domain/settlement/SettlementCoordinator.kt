@@ -228,9 +228,8 @@ class SettlementCoordinator @Inject constructor(
 
         val disciple = tables.assemble(focusedIdInt)
         val data = shadow.gameData
-        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-        val monthlyGain = rate * monthSeconds
+        val monthlyGain = rate * 3  // 3旬/月
 
         val focusedGains = cultivationService.getHighFrequencyData().value.cultivationUpdates
         val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
@@ -250,8 +249,8 @@ class SettlementCoordinator @Inject constructor(
 
         // 重新组装以获取最新状态（突破可能已改变）
         val discipleAfterBreakthrough = tables.assemble(focusedIdInt)
-        val profUpdates = calculateProficiencyGains(discipleAfterBreakthrough, data, cache, monthSeconds, focusedProfGains[disciple.id] ?: emptyMap())
-        val nurtureUpdates = calculateNurtureGains(discipleAfterBreakthrough, shadow, cache, monthSeconds, focusedNurtureGains[disciple.id] ?: emptyMap())
+        val profUpdates = calculateProficiencyGains(discipleAfterBreakthrough, data, cache, focusedProfGains[disciple.id] ?: emptyMap())
+        val nurtureUpdates = calculateNurtureGains(discipleAfterBreakthrough, shadow, cache, focusedNurtureGains[disciple.id] ?: emptyMap())
 
         // 忠诚度（居住加成）
         val loyaltyDelta = calculateLoyaltyDelta(discipleAfterBreakthrough, cache)
@@ -274,7 +273,6 @@ class SettlementCoordinator @Inject constructor(
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
         val data = shadow.gameData
-        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val tables = shadow.discipleTables
@@ -294,7 +292,7 @@ class SettlementCoordinator @Inject constructor(
         for (id in cleanIds) {
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-            val cultivationDelta = rate * monthSeconds
+            val cultivationDelta = rate  // 每旬修炼值，一旬积累一次
             val newCultivation = (disciple.cultivation + cultivationDelta).coerceIn(0.0, disciple.maxCultivation)
             tables.cultivations[id] = newCultivation
 
@@ -315,7 +313,6 @@ class SettlementCoordinator @Inject constructor(
     private fun processDirtyDiscipleBatch(shadow: MutableGameState, cache: SettlementCache, offset: Int): Int {
         timer.start()
         val data = shadow.gameData
-        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val tables = shadow.discipleTables
@@ -343,7 +340,7 @@ class SettlementCoordinator @Inject constructor(
         for (id in batch) {
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-            val monthlyGain = rate * monthSeconds
+            val monthlyGain = rate * 3  // 3旬/月
             val alreadyGained = focusedGains[disciple.id] ?: 0.0
             val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
@@ -356,13 +353,13 @@ class SettlementCoordinator @Inject constructor(
             var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
             if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
                 val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
-                profUpdates = calculateProficiencyGains(disciple, data, cache, monthSeconds, profAlreadyGained)
+                profUpdates = calculateProficiencyGains(disciple, data, cache, profAlreadyGained)
             }
 
             var nurtureUpdates = emptyMap<String, EquipmentInstance>()
             if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
                 val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
-                nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, monthSeconds, nurtureAlreadyGained)
+                nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, nurtureAlreadyGained)
             }
 
             val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
@@ -644,7 +641,6 @@ class SettlementCoordinator @Inject constructor(
         disciple: Disciple,
         data: com.xianxia.sect.core.model.GameData,
         cache: SettlementCache,
-        monthSeconds: Double,
         alreadyGained: Map<String, Double>
     ): Map<String, List<ManualProficiencyData>> {
         val result = mutableMapOf<String, List<ManualProficiencyData>>()
@@ -652,8 +648,8 @@ class SettlementCoordinator @Inject constructor(
 
         val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val proficiencyGainPerSecond = ManualProficiencySystem.calculateProficiencyGainPerSecond(disciple.comprehension, libraryBonus)
-        val proficiencyGain = proficiencyGainPerSecond * monthSeconds
+        val proficiencyGainPerPhase = ManualProficiencySystem.calculateProficiencyGainPerPhase(disciple.comprehension, libraryBonus)
+        val proficiencyGain = proficiencyGainPerPhase * 3  // 3旬/月
         val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
 
         val profList = data.manualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
@@ -695,11 +691,11 @@ class SettlementCoordinator @Inject constructor(
         disciple: Disciple,
         shadow: MutableGameState,
         cache: SettlementCache,
-        monthSeconds: Double,
         alreadyGained: Map<String, Double>
     ): Map<String, EquipmentInstance> {
         val updates = mutableMapOf<String, EquipmentInstance>()
-        val monthlyNurtureGain = 5.0 * monthSeconds
+        // 温养每旬基础值：5.0/s × MS_PER_PHASE_1X/1000 → × 3旬/月
+        val monthlyNurtureGain = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0 * 3
 
         fun processNurture(eqId: String?) {
             eqId?.let { id ->

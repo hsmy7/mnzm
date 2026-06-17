@@ -14,7 +14,7 @@ import javax.inject.Singleton
 data class HighFrequencyData(
     val lastUpdateTime: Long = 0L,
     val lastCultivationTime: Long = 0L,
-    val cultivationPerSecond: Double = 0.0,
+    val cultivationPerPhase: Double = 0.0,
     val totalDisciples: Int = 0,
     val lastBreakthroughCheckTime: Long = 0L,
     val timestamp: Long = 0L,

@@ -118,7 +118,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
                 data.gameYear, data.gameMonth
             )
-            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerSecond(disciple, data, stateStore.discipleTables)
+            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, stateStore.discipleTables)
             val remainingCultivation = if (newCultivation < disciple.maxCultivation) disciple.maxCultivation - newCultivation else 0.0
             val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
                 .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)

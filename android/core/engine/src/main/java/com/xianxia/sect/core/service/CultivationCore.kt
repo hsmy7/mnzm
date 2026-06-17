@@ -34,7 +34,11 @@ class CultivationCore @Inject constructor(
 
     val phaseMultiplier: Int get() = 10
 
-    fun calculateDiscipleCultivationPerSecond(disciple: Disciple, data: GameData, tables: DiscipleTables): Double {
+    /**
+     * 计算弟子每旬修炼速度（1x 速度基准）。
+     * 返回值 = 每秒修炼速度 × MS_PER_PHASE_1X / 1000，即每旬获得的修炼经验。
+     */
+    fun calculateDiscipleCultivationPerPhase(disciple: Disciple, data: GameData, tables: DiscipleTables): Double {
         val buildingBonus = calculateBuildingCultivationBonus(disciple, data)
         val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "outer")
         val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "inner")
@@ -66,7 +70,7 @@ class CultivationCore @Inject constructor(
             0.0
         }
 
-        return DiscipleStatCalculator.calculateCultivationSpeed(
+        val perSecond = DiscipleStatCalculator.calculateCultivationSpeed(
             disciple = disciple,
             manuals = manualInstanceMap,
             manualProficiencies = discipleProficiencies,
@@ -77,6 +81,8 @@ class CultivationCore @Inject constructor(
             parentCultivationBonus = parentCultivationBonus,
             griefCultivationSpeedPenalty = griefPenalty
         ).coerceIn(1.0, 1000.0)
+        // 转为每旬：1旬 = MS_PER_PHASE_1X / 1000 秒（1x 下为 2.0s）
+        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
     }
 
     private fun calculatePreachingBonuses(
@@ -212,7 +218,6 @@ class CultivationCore @Inject constructor(
         manualStacksList: List<ManualStack>,
         maxEquipStack: Int, maxManualStack: Int,
         acc: PhaseTickAccumulator,
-        phaseSecondsValue: Double,
         focusedDiscipleId: String?,
         cachedCultivationRates: Map<String, Double>,
         highFrequencyData: HighFrequencyData,
@@ -260,8 +265,7 @@ class CultivationCore @Inject constructor(
         if (d.id != focusedDiscipleId) {
             val cultivationRate = cachedCultivationRates[d.id] ?: 0.0
             if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                val gain = cultivationRate * phaseSecondsValue
-                d = d.copy(cultivation = (d.cultivation + gain).coerceAtMost(d.maxCultivation))
+                d = d.copy(cultivation = (d.cultivation + cultivationRate).coerceAtMost(d.maxCultivation))
             }
         }
 
@@ -397,7 +401,6 @@ class CultivationCore @Inject constructor(
         val livingIds = tables.ids.filter { tables.isAlive[it] == 1 }
         if (livingIds.isEmpty()) return highFrequencyData
 
-        val monthSeconds = gameClock.msPerPhase * 3 / 1000.0
         val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
         val manualInstanceMap = state.manualInstances.associateBy { it.id }
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
@@ -409,16 +412,16 @@ class CultivationCore @Inject constructor(
 
         for (id in livingIds) {
             val disciple = tables.assemble(id)
-            val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data, tables)
-            val monthlyGain = cultivationPerSecond * monthSeconds
+            val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
+            val monthlyGain = cultivationPerPhase * 3  // 3旬/月
             val alreadyGained = focusedGains[disciple.id] ?: 0.0
             val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
             tables.cultivations[id] = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
 
             val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
             val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-            val proficiencyGainPerSecond = ManualProficiencySystem.calculateProficiencyGainPerSecond(disciple.comprehension, libraryBonus)
-            val proficiencyGain = proficiencyGainPerSecond * monthSeconds
+            val proficiencyGainPerPhase = ManualProficiencySystem.calculateProficiencyGainPerPhase(disciple.comprehension, libraryBonus)
+            val proficiencyGain = proficiencyGainPerPhase * 3  // 3旬/月
             val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
             disciple.manualIds.forEach { manualId ->
                 manualInstanceMap[manualId]?.let { manual ->
@@ -450,7 +453,8 @@ class CultivationCore @Inject constructor(
                 }
             }
 
-            val monthlyNurtureGain = 5.0 * monthSeconds
+            // 温养每旬基础值：5.0/s × MS_PER_PHASE_1X/1000 → × 3旬/月
+            val monthlyNurtureGain = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0 * 3
             val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
 
             fun processNurture(eqId: String?) {
@@ -498,19 +502,17 @@ class CultivationCore @Inject constructor(
 
         val currentDisciple = tables.assemble(idInt)
 
-        val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data, tables)
-        val perPhaseSeconds = gameClock.msPerPhase / 1000.0
-        val gained = cultivationPerSecond * perPhaseSeconds
+        val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
 
-        tables.cultivations.update(idInt) { (it + gained).coerceIn(0.0, currentDisciple.maxCultivation) }
+        tables.cultivations.update(idInt) { (it + cultivationPerPhase).coerceIn(0.0, currentDisciple.maxCultivation) }
 
         val accumGains = highFrequencyData.cultivationUpdates.toMutableMap()
-        accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + gained
+        accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + cultivationPerPhase
 
         val manualInstanceMap = state.manualInstances.associateBy { it.id }
         val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerSecond(currentDisciple.comprehension, libraryBonus) * perPhaseSeconds
+        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerPhase(currentDisciple.comprehension, libraryBonus)
 
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
         val profUpdatesMap = highFrequencyData.proficiencyUpdates.toMutableMap()
@@ -550,7 +552,8 @@ class CultivationCore @Inject constructor(
         }
 
         val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
-        val nurtureGainPerTick = 5.0 * perPhaseSeconds
+        // 温养每旬基础值 = 5.0/s × 每旬秒数
+        val nurtureGainPerTick = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
         val nurtureUpdatesMap = highFrequencyData.nurtureUpdates.toMutableMap()
         val discipleNurtureUpdates = nurtureUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
@@ -574,7 +577,7 @@ class CultivationCore @Inject constructor(
 
         return highFrequencyData.copy(
             lastCultivationTime = System.currentTimeMillis(),
-            cultivationPerSecond = cultivationPerSecond,
+            cultivationPerPhase = cultivationPerPhase,
             totalDisciples = tables.ids.count { tables.isAlive[it] == 1 },
             cultivationUpdates = accumGains,
             proficiencyUpdates = profUpdatesMap,

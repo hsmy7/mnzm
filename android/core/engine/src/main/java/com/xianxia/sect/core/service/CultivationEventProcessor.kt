@@ -141,7 +141,6 @@ class CultivationEventProcessor @Inject constructor(
     // ── Phase Tick ──────────────────────────────────────────────────────
 
     private suspend fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
-        val phaseSecondsValue = gameClock.msPerPhase / 1000.0
         val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
         val manualMap = stateStore.manualInstances.value.associateBy { it.id }
         val proficienciesMap = stateStore.gameData.value.manualProficiencies
@@ -154,6 +153,19 @@ class CultivationEventProcessor @Inject constructor(
 
         val aliveDisciples = stateStore.disciples.value.filter { it.isAlive }
 
+        // 确保所有存活弟子的修炼速率缓存已填充（首月结算前缓存可能为空）
+        val data = state.gameData
+        val tables = state.discipleTables
+        val existingRates = sharedState.cachedCultivationRates
+        val missingIds = aliveDisciples.filter { it.id !in existingRates }
+        if (missingIds.isNotEmpty()) {
+            val updatedRates = existingRates.toMutableMap()
+            for (d in missingIds) {
+                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables)
+            }
+            sharedState.cachedCultivationRates = updatedRates
+        }
+
         val acc = PhaseTickAccumulator()
 
         val batchSize = 50
@@ -163,7 +175,7 @@ class CultivationEventProcessor @Inject constructor(
                 cultivationCore.processDiscipleTick(
                     disciple, year, month, phase, equipmentMap, manualMap, proficienciesMap,
                     multiplier, decay, equipmentStacksList, manualStacksList, maxEquipStack, maxManualStack,
-                    acc, phaseSecondsValue,
+                    acc,
                     stateStore.focusedDiscipleId,
                     sharedState.cachedCultivationRates,
                     sharedState.highFrequencyData.value,
@@ -185,8 +197,7 @@ class CultivationEventProcessor @Inject constructor(
             if (d.id != stateStore.focusedDiscipleId) {
                 val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
                 if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                    val gain = cultivationRate * phaseSecondsValue
-                    accumGains[d.id] = (accumGains[d.id] ?: 0.0) + gain
+                    accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
                 }
             }
         }

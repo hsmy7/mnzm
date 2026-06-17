@@ -140,33 +140,33 @@ class ManualProficiencySystemTest {
     }
 
     @Test
-    fun `calculateProficiencyGainPerSecond - 悟性70无加成`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(70)
-        assertEquals(6.0, gain, 0.01)
+    fun `calculateProficiencyGainPerPhase - 悟性70无加成`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(70)
+        assertEquals(12.0, gain, 0.01)  // 6.0/s × 2.0s/旬
     }
 
     @Test
-    fun `calculateProficiencyGainPerSecond - 悟性低于基准无加成`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(50)
-        assertEquals(6.0, gain, 0.01)
-    }
-
-    @Test
-    fun `calculateProficiencyGainPerSecond - 悟性80加成翻倍`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(80)
+    fun `calculateProficiencyGainPerPhase - 悟性低于基准无加成`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(50)
         assertEquals(12.0, gain, 0.01)
     }
 
     @Test
-    fun `calculateProficiencyGainPerSecond - 藏经阁加成50%`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(70, 0.5)
-        assertEquals(9.0, gain, 0.01)
+    fun `calculateProficiencyGainPerPhase - 悟性80加成翻倍`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(80)
+        assertEquals(24.0, gain, 0.01)  // 12.0/s × 2.0s/旬
     }
 
     @Test
-    fun `calculateProficiencyGainPerSecond - 悟性加成与藏经阁加成叠加`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerSecond(80, 0.5)
-        assertEquals(18.0, gain, 0.01)
+    fun `calculateProficiencyGainPerPhase - 藏经阁加成50%`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(70, 0.5)
+        assertEquals(18.0, gain, 0.01)  // 9.0/s × 2.0s/旬
+    }
+
+    @Test
+    fun `calculateProficiencyGainPerPhase - 悟性加成与藏经阁加成叠加`() {
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(80, 0.5)
+        assertEquals(36.0, gain, 0.01)  // 18.0/s × 2.0s/旬
     }
 
     @Test
