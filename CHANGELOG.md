@@ -23,6 +23,7 @@ t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华
 
 ### 修复
 
+- **修复：部分设备因存档BLOB损坏导致OutOfMemoryError崩溃** — 重型存档数据（LZ4压缩BLOB）在极端情况下损坏，解码时头4字节被误读为~1GB原始大小直接分配GB级内存触发OOM。根因：`decodeFromBlobInternal` 缺少分配前上限校验。修复：增加三层纵深防御——(1) 分配前校验 originalSize 上限与解压比（25x），损坏数据立即拒绝返回空默认值；(2) OutOfMemoryError 兜底catch优雅降级不崩溃；(3) 全部7个重型数据解码路径自动受益
 - **修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨** — 数据库保存时 upsertAll 只覆盖同 ID 行，不删除旧存档中 ID 更高的残留行（如旧档 100 弟子、新档 3 弟子，数据库同时存在 100 行）。修复：全量保存时用事务包裹所有写入，18 张多行实体表先 deleteAll(slot) 再 upsertAll，确保数据库与内存状态严格一致。同时补全 delete(slot) 中遗漏的 8 个表清理调用
 - **修复：招募弟子界面每年不刷新** — 年度事件处理（招募刷新、商人刷新、俸禄、弟子年龄、外交等）在 Settlement 影子事务（shadow transaction）内部调用 `stateStore.update{}`，触发 `GameStateStoreImpl` 的影子事务守卫抛异常，被 `SettlementCoordinator` 静默捕获后重置整个年度结算，导致所有年度事件每年都静默失败。修复：将年度事件处理移至影子事务外——在时间推进提交后、Settlement 影子创建前执行
 - **修复：GameTimeClockTest 全部 13 个测试失败** — v4.0.03 将 GameTimeClock 时钟源从 currentTimeMillis() 迁移至 SystemClock.elapsedRealtime()，但测试的 simulateTick 仍用旧 API 设置 lastWallMs，两个时钟基准不同导致 delta 恒为负数。修复：测试同步迁移至 SystemClock.elapsedRealtime()

@@ -137,6 +137,13 @@ object ProtobufConverters {
     private const val DECODE_WARN_LENGTH =  50_000_000  // 50MB Base64 — 异常偏大，记录警告
     private const val DECODE_HARD_LIMIT   = 500_000_000  // 500MB Base64 — 必然异常，拒绝解码
 
+    // BLOB 解压上限 500MB（对齐 DECODE_HARD_LIMIT）
+    // 单个 chunk 正常 < 1MB（每 chunk 50~100 条实体），500MB 已有充足安全边际
+    private const val MAX_DECOMPRESS_SIZE = 500_000_000
+    // LZ4 最大解压比 25x（对齐 Tor Project compress.c 标准）
+    // LZ4 实际压缩比 ~2.1x，25x 覆盖所有合法场景，超出必为损坏/炸弹
+    private const val MAX_LZ4_DECOMPRESS_RATIO = 25
+
     internal fun <T> decodeFromBase64(serializer: KSerializer<T>, encoded: String, default: () -> T): T {
         if (encoded.isEmpty()) return default()
         if (encoded.length > DECODE_HARD_LIMIT) {
@@ -511,10 +518,33 @@ object ProtobufConverters {
                                   ((data[2].toInt() and 0xFF) shl 16) or
                                   ((data[3].toInt() and 0xFF) shl 8) or
                                   (data[4].toInt() and 0xFF)
+                val compressedSize = data.size - 5
+
+                // L1: 分配前校验 — 防止损坏 header 导致 GB 级分配
+                if (originalSize <= 0 ||
+                    originalSize > MAX_DECOMPRESS_SIZE ||
+                    (compressedSize > 0 &&
+                     originalSize / compressedSize > MAX_LZ4_DECOMPRESS_RATIO)) {
+                    Log.e(TAG,
+                        "LZ4 header REJECTED for ${serializer.descriptor.serialName}: " +
+                        "originalSize=$originalSize, compressedSize=$compressedSize, " +
+                        "max=$MAX_DECOMPRESS_SIZE, maxRatio=$MAX_LZ4_DECOMPRESS_RATIO. " +
+                        "Data may be corrupted, returning default"
+                    )
+                    return default()
+                }
+
                 val compressedData = data.copyOfRange(5, data.size)
                 val decompressed = ByteArray(originalSize)
                 lz4Decompressor.decompress(compressedData, 0, decompressed, 0, originalSize)
                 return protoBuf.decodeFromByteArray(serializer, decompressed)
+            } catch (e: OutOfMemoryError) {
+                // L2: OOM 兜底 — 极端情况下的最后防线
+                Log.e(TAG,
+                    "OOM during LZ4 decompress for ${serializer.descriptor.serialName}, " +
+                    "returning default"
+                )
+                return default()
             } catch (e: Exception) {
                 Log.w(TAG, "LZ4 decompression failed for ${serializer.descriptor.serialName}, falling back to direct decode", e)
             }
@@ -523,6 +553,13 @@ object ProtobufConverters {
         // 直接 protobuf 解码
         try {
             return protoBuf.decodeFromByteArray(serializer, data)
+        } catch (e: OutOfMemoryError) {
+            // L2: OOM 兜底 — 直接解码路径的异常保护
+            Log.e(TAG,
+                "OOM during BLOB decode for ${serializer.descriptor.serialName}, " +
+                "dataSize=${data.size}, returning default"
+            )
+            return default()
         } catch (e: Exception) {
             Log.e(TAG,
                 "BLOB decode FAILED for ${serializer.descriptor.serialName}, " +
