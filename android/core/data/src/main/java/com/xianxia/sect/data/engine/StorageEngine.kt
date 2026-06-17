@@ -264,6 +264,14 @@ class StorageEngine @Inject constructor(
                     database.battleLogDao().deleteAll(slot)
                     database.mailDao().deleteAllForSlot(slot)
                     database.saveSlotMetadataDao().deleteBySlotId(slot)
+                    database.storageBagDao().deleteAll(slot)
+                    database.gameHeavyDataDao().deleteAllForSlot(slot)
+                    database.diplomacyStateDao().deleteBySlot(slot)
+                    database.productionStateDao().deleteBySlot(slot)
+                    database.patrolStateDao().deleteBySlot(slot)
+                    database.worldMapStateDao().deleteBySlot(slot)
+                    database.sectPolicyStateDao().deleteBySlot(slot)
+                    database.discipleCompactDao().deleteAll(slot)
                 }
 
                 clearCacheForSlot(slot)
@@ -697,106 +705,129 @@ class StorageEngine @Inject constructor(
             recruitList = emptyList(),
             worldMapSects = emptyList()
         )
-        database.gameDataDao().insert(lightGameData)
+        database.withTransaction {
+            // ── 先清空所有旧数据，再写入新数据 ──
+            // 防止重新开始游戏时，旧存档的高 ID 行残留在数据库中
+            database.discipleDao().deleteAll(slot)
+            database.discipleCoreDao().deleteAll(slot)
+            database.discipleCombatStatsDao().deleteAll(slot)
+            database.discipleEquipmentDao().deleteAll(slot)
+            database.discipleExtendedDao().deleteAll(slot)
+            database.discipleAttributesDao().deleteAll(slot)
+            database.equipmentStackDao().deleteAll(slot)
+            database.equipmentInstanceDao().deleteAll(slot)
+            database.manualStackDao().deleteAll(slot)
+            database.manualInstanceDao().deleteAll(slot)
+            database.pillDao().deleteAll(slot)
+            database.materialDao().deleteAll(slot)
+            database.herbDao().deleteAll(slot)
+            database.seedDao().deleteAll(slot)
+            database.storageBagDao().deleteAll(slot)
+            database.explorationTeamDao().deleteAll(slot)
+            database.battleLogDao().deleteAll(slot)
+            database.recipeDao().deleteAll(slot)
+            database.productionSlotDao().deleteBySlot(slot)
 
-        data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
-            val withSlot = batch.map { d -> d.copy(slotId = slot) }
-            database.discipleDao().upsertAll(withSlot)
-            database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
-            database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
-            database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
-            database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
-            database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+            // ── 轻型 GameData ──
+            database.gameDataDao().insert(lightGameData)
+
+            data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
+                val withSlot = batch.map { d -> d.copy(slotId = slot) }
+                database.discipleDao().upsertAll(withSlot)
+                database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
+                database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
+                database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
+                database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
+                database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+            }
+
+            data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+            data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+            data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
+            data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
+            data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
+
+            data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().upsertAll(it) }
+
+            data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
+
+            data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
+
+            val productionSlotsToSave = data.productionSlots.ifEmpty {
+                data.gameData.productionSlots ?: emptyList()
+            }
+            if (productionSlotsToSave.isEmpty()) {
+                Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
+                    "data.productionSlots.size=${data.productionSlots.size}, " +
+                    "data.gameData.productionSlots.size=${data.gameData.productionSlots?.size ?: "null"}")
+            }
+            productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
+                database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
+            }
+
+            data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
+                database.recipeDao().upsertAll(recipes)
+            }
+
+            syncSlotMetadata(slot, data)
+
+            // ── 领域实体表写入（Phase B：细粒度读取路径）──
+            val gd = data.gameData
+            database.diplomacyStateDao().upsert(DiplomacyState(
+                slotId = slot,
+                sectRelations = gd.sectRelations,
+                alliances = gd.alliances,
+                playerAllianceSlots = gd.playerAllianceSlots,
+                playerProtectionEnabled = gd.playerProtectionEnabled,
+                playerProtectionStartYear = gd.playerProtectionStartYear,
+                playerHasAttackedAI = gd.playerHasAttackedAI,
+                sectDetails = gd.sectDetails,
+                exploredSects = gd.exploredSects,
+                scoutInfo = gd.scoutInfo
+            ))
+            database.productionStateDao().upsert(ProductionState(
+                slotId = slot,
+                spiritFieldPlants = gd.spiritFieldPlants,
+                unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
+                unlockedManuals = gd.unlockedManuals ?: emptyList(),
+                manualProficiencies = gd.manualProficiencies
+            ))
+            database.patrolStateDao().upsert(PatrolStateEntity(
+                slotId = slot,
+                patrolSlots = gd.patrolSlots,
+                patrolConfig = gd.patrolConfig,
+                patrolConfigs = gd.patrolConfigs,
+                patrolBattleResultPopup = gd.patrolBattleResultPopup
+            ))
+            database.worldMapStateDao().upsert(WorldMapStateEntity(
+                slotId = slot,
+                worldMapSects = gd.worldMapSects,
+                aiSectDisciples = gd.aiSectDisciples,
+                cultivatorCaves = gd.cultivatorCaves,
+                caveExplorationTeams = gd.caveExplorationTeams,
+                aiCaveTeams = gd.aiCaveTeams,
+                worldLevels = gd.worldLevels
+            ))
+            database.sectPolicyStateDao().upsert(SectPolicyState(
+                slotId = slot,
+                sectPolicies = gd.sectPolicies,
+                autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
+                daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
+                daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
+                breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
+                breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
+                autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,
+                autoEquipFromWarehouseRootCounts = gd.autoEquipFromWarehouseRootCounts,
+                autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
+                autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
+                yearlySalary = gd.yearlySalary,
+                yearlySalaryEnabled = gd.yearlySalaryEnabled,
+                autoSaveIntervalMonths = gd.autoSaveIntervalMonths
+            ))
         }
-
-        data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-        data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-        data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
-        data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-        data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
-        data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
-
-        data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().upsertAll(it) }
-
-        data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
-
-        data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
-
-        database.productionSlotDao().deleteBySlot(slot)
-
-        val productionSlotsToSave = data.productionSlots.ifEmpty {
-            data.gameData.productionSlots ?: emptyList()
-        }
-        if (productionSlotsToSave.isEmpty()) {
-            Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
-                "data.productionSlots.size=${data.productionSlots.size}, " +
-                "data.gameData.productionSlots.size=${data.gameData.productionSlots?.size ?: "null"}")
-        }
-        productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-            database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
-        }
-
-        data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
-            database.recipeDao().upsertAll(recipes)
-        }
-
-        syncSlotMetadata(slot, data)
-
-        // ── 领域实体表写入（Phase B：细粒度读取路径）──
-        val gd = data.gameData
-        database.diplomacyStateDao().upsert(DiplomacyState(
-            slotId = slot,
-            sectRelations = gd.sectRelations,
-            alliances = gd.alliances,
-            playerAllianceSlots = gd.playerAllianceSlots,
-            playerProtectionEnabled = gd.playerProtectionEnabled,
-            playerProtectionStartYear = gd.playerProtectionStartYear,
-            playerHasAttackedAI = gd.playerHasAttackedAI,
-            sectDetails = gd.sectDetails,
-            exploredSects = gd.exploredSects,
-            scoutInfo = gd.scoutInfo
-        ))
-        database.productionStateDao().upsert(ProductionState(
-            slotId = slot,
-            spiritFieldPlants = gd.spiritFieldPlants,
-            unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
-            unlockedManuals = gd.unlockedManuals ?: emptyList(),
-            manualProficiencies = gd.manualProficiencies
-        ))
-        database.patrolStateDao().upsert(PatrolStateEntity(
-            slotId = slot,
-            patrolSlots = gd.patrolSlots,
-            patrolConfig = gd.patrolConfig,
-            patrolConfigs = gd.patrolConfigs,
-            patrolBattleResultPopup = gd.patrolBattleResultPopup
-        ))
-        database.worldMapStateDao().upsert(WorldMapStateEntity(
-            slotId = slot,
-            worldMapSects = gd.worldMapSects,
-            aiSectDisciples = gd.aiSectDisciples,
-            cultivatorCaves = gd.cultivatorCaves,
-            caveExplorationTeams = gd.caveExplorationTeams,
-            aiCaveTeams = gd.aiCaveTeams,
-            worldLevels = gd.worldLevels
-        ))
-        database.sectPolicyStateDao().upsert(SectPolicyState(
-            slotId = slot,
-            sectPolicies = gd.sectPolicies,
-            autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
-            daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
-            daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
-            breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
-            breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
-            autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,
-            autoEquipFromWarehouseRootCounts = gd.autoEquipFromWarehouseRootCounts,
-            autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
-            autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
-            yearlySalary = gd.yearlySalary,
-            yearlySalaryEnabled = gd.yearlySalaryEnabled,
-            autoSaveIntervalMonths = gd.autoSaveIntervalMonths
-        ))
     }
 
     private suspend fun syncSlotMetadata(slot: Int, data: SaveData) {

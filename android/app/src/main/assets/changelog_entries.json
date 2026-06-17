@@ -16,6 +16,14 @@
                     ]
     },
     {
+        "date":  "2026-06-17",
+        "version":  "4.0.04",
+        "changes":  [
+                        "修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨——upsertAll只覆盖同ID行不删除旧档高ID行，导致弟子/装备/丹药等全类别实体表残留。修复：全量保存时用事务包裹，18张多行实体表先deleteAll(slot)再upsertAll，同时补全删除存档时遗漏的8个表清理",
+                        "修复：GameTimeClockTest全部13个测试失败——v4.0.03时钟源迁移至SystemClock.elapsedRealtime()后测试未同步更新，仍用currentTimeMillis()设lastWallMs导致两个时钟基准不同、delta恒为负数"
+                    ]
+    },
+    {
         "date":  "2026-06-16",
         "version":  "4.0.02",
         "changes":  [

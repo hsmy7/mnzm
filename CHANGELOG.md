@@ -19,6 +19,13 @@ t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华
 - **修复：世界地图宗门不显示** — `playerSect` 为 null 时回退坐标 `(2000, 1750)` 超出世界边界 `(1698×926)`，相机定位异常致 `isVisible` 误裁剪所有宗门标记。修复：回退坐标改为世界中心 `(849, 463)`，`isVisible` 默认 margin 从 0 改为 1 防御浮点精度误判
 - **修复：宗门地图 Mali GPU 设备边缘透出底图** — v4.0.02 修复（外扩 1px 防御 GPU 采样偏差）缺少 `clipRect` 裁剪约束，LOW 等级大比例拉伸（1536→3074）时 Mali GPU 边缘像素溢出 Canvas。修复：`withTransform` 前加入 `clipRect` 约束所有绘制在视口内
 
+## [4.0.04] - 2026-06-17（versionCode=4004）
+
+### 修复
+
+- **修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨** — 数据库保存时 upsertAll 只覆盖同 ID 行，不删除旧存档中 ID 更高的残留行（如旧档 100 弟子、新档 3 弟子，数据库同时存在 100 行）。修复：全量保存时用事务包裹所有写入，18 张多行实体表先 deleteAll(slot) 再 upsertAll，确保数据库与内存状态严格一致。同时补全 delete(slot) 中遗漏的 8 个表清理调用
+- **修复：GameTimeClockTest 全部 13 个测试失败** — v4.0.03 将 GameTimeClock 时钟源从 currentTimeMillis() 迁移至 SystemClock.elapsedRealtime()，但测试的 simulateTick 仍用旧 API 设置 lastWallMs，两个时钟基准不同导致 delta 恒为负数。修复：测试同步迁移至 SystemClock.elapsedRealtime()
+
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 
 ### 修复

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
+import android.os.SystemClock
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -176,7 +177,7 @@ class GameTimeClockTest {
         // 通过反射设置 lastWallMs 来模拟时间流逝
         val field = GameTimeClock::class.java.getDeclaredField("lastWallMs")
         field.isAccessible = true
-        field.setLong(clock, System.currentTimeMillis() - elapsedMs)
+        field.setLong(clock, SystemClock.elapsedRealtime() - elapsedMs)
         return clock.tick(isSettlementPending)
     }
 }
