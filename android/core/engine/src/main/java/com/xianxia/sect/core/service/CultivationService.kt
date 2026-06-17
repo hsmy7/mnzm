@@ -125,6 +125,20 @@ class CultivationService @Inject constructor(
         eventProcessor.processYearlyEvents(year)
     }
 
+    /**
+     * 处理月度事件（盗窃检测、任务刷新、侦察过期、外交月度事件等）。
+     * 必须在 shadow transaction 外部调用，因为内部方法使用
+     * [GameStateStore.update] 不可在 shadow 期间调用。
+     */
+    suspend fun processMonthlyEvents() {
+        val data = stateStore.gameData.value
+        eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+    }
+
+    /**
+     * @deprecated 月度事件已移至 shadow 外部处理（见 [processMonthlyEvents]），
+     * 此方法不再从 SettlementCoordinator 调用。保留供兼容。
+     */
     suspend fun processMonthlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)

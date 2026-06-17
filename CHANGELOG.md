@@ -1,5 +1,16 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.04] - 2026-06-17（versionCode=4004）
+
+### 修复
+
+- **修复：部分设备因存档BLOB损坏导致OutOfMemoryError崩溃** — 重型存档数据（LZ4压缩BLOB）在极端情况下损坏，解码时头4字节被误读为~1GB原始大小直接分配GB级内存触发OOM。根因：`decodeFromBlobInternal` 缺少分配前上限校验。修复：增加三层纵深防御——(1) 分配前校验 originalSize 上限与解压比（25x），损坏数据立即拒绝返回空默认值；(2) OutOfMemoryError 兜底catch优雅降级不崩溃；(3) 全部7个重型数据解码路径自动受益
+- **修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨** — 数据库保存时 upsertAll 只覆盖同 ID 行，不删除旧存档中 ID 更高的残留行（如旧档 100 弟子、新档 3 弟子，数据库同时存在 100 行）。修复：全量保存时用事务包裹所有写入，18 张多行实体表先 deleteAll(slot) 再 upsertAll，确保数据库与内存状态严格一致。同时补全 delete(slot) 中遗漏的 8 个表清理调用
+- **修复：招募弟子界面每年不刷新** — 年度事件处理（招募刷新、商人刷新、俸禄、弟子年龄、外交等）在 Settlement 影子事务（shadow transaction）内部调用 `stateStore.update{}`，触发 `GameStateStoreImpl` 的影子事务守卫抛异常，被 `SettlementCoordinator` 静默捕获后重置整个年度结算，导致所有年度事件每年都静默失败。修复：将年度事件处理移至影子事务外——在时间推进提交后、Settlement 影子创建前执行
+- **修复：GameTimeClockTest 全部 13 个测试失败** — v4.0.03 将 GameTimeClock 时钟源从 currentTimeMillis() 迁移至 SystemClock.elapsedRealtime()，但测试的 simulateTick 仍用旧 API 设置 lastWallMs，两个时钟基准不同导致 delta 恒为负数。修复：测试同步迁移至 SystemClock.elapsedRealtime()
+- **修复：放置建筑时同类型旧建筑消失（最多只能看到2个）** — 烘焙渲染管线的增量更新假设 back buffer 已包含所有旧建筑，仅绘制「不在 previousIds 中」的新建筑。但双缓冲交换后 back buffer 拿到的是 2 轮前的旧 front buffer，原有建筑全部丢失，导致建筑在两块缓冲之间交替消失——建第3个时第2个消失，建第4个时第1和第3个消失。修复：步骤 3 改为每轮全量绘制所有建筑，不再依赖 back buffer 旧内容
+- **修复：月度结算中盗窃检测/任务完成/侦察过期等事件静默失败** — 月度事件处理（盗窃检测、任务刷新与完成奖励、侦察信息过期、外交月度事件、游戏结束检测）在 Settlement 影子事务内部调用 `stateStore.update{}`。当存在低道德/低忠诚度弟子且灵石>0时，`processTheftMonthly()` 同步调用 `stateStore.update{}` 触发影子事务守卫抛出 `IllegalStateException`，被 `SettlementCoordinator.executeStep()` 静默捕获后调用 `resetOnError()` 丢弃整个月度结算，导致所有月度事件每月静默失败。修复：将月度事件移至影子事务外——在时间推进提交后、Settlement 影子创建前执行 `processMonthlyEvents()`，与年度事件修复一致
+
 ## [4.0.03] - 2026-06-16（versionCode=4003）
 
 ### 新增
@@ -18,16 +29,6 @@ t- **修复：华为畅享70等机型游玩时游戏时间停止不动** — 华
 - **修复：世界地图横屏模式右侧出现白边** — `autoScale = minOf()` 选较小缩放比，宽屏设备地图宽度不足视口留白透出底图。修复：改用 `maxOf()` 确保地图始终至少在一个方向填满视口，横屏宽度填满、竖屏高度填满，彻底消除白边
 - **修复：世界地图宗门不显示** — `playerSect` 为 null 时回退坐标 `(2000, 1750)` 超出世界边界 `(1698×926)`，相机定位异常致 `isVisible` 误裁剪所有宗门标记。修复：回退坐标改为世界中心 `(849, 463)`，`isVisible` 默认 margin 从 0 改为 1 防御浮点精度误判
 - **修复：宗门地图 Mali GPU 设备边缘透出底图** — v4.0.02 修复（外扩 1px 防御 GPU 采样偏差）缺少 `clipRect` 裁剪约束，LOW 等级大比例拉伸（1536→3074）时 Mali GPU 边缘像素溢出 Canvas。修复：`withTransform` 前加入 `clipRect` 约束所有绘制在视口内
-
-## [4.0.04] - 2026-06-17（versionCode=4004）
-
-### 修复
-
-- **修复：部分设备因存档BLOB损坏导致OutOfMemoryError崩溃** — 重型存档数据（LZ4压缩BLOB）在极端情况下损坏，解码时头4字节被误读为~1GB原始大小直接分配GB级内存触发OOM。根因：`decodeFromBlobInternal` 缺少分配前上限校验。修复：增加三层纵深防御——(1) 分配前校验 originalSize 上限与解压比（25x），损坏数据立即拒绝返回空默认值；(2) OutOfMemoryError 兜底catch优雅降级不崩溃；(3) 全部7个重型数据解码路径自动受益
-- **修复：重新开始游戏后旧存档数据残留导致弟子数量暴涨** — 数据库保存时 upsertAll 只覆盖同 ID 行，不删除旧存档中 ID 更高的残留行（如旧档 100 弟子、新档 3 弟子，数据库同时存在 100 行）。修复：全量保存时用事务包裹所有写入，18 张多行实体表先 deleteAll(slot) 再 upsertAll，确保数据库与内存状态严格一致。同时补全 delete(slot) 中遗漏的 8 个表清理调用
-- **修复：招募弟子界面每年不刷新** — 年度事件处理（招募刷新、商人刷新、俸禄、弟子年龄、外交等）在 Settlement 影子事务（shadow transaction）内部调用 `stateStore.update{}`，触发 `GameStateStoreImpl` 的影子事务守卫抛异常，被 `SettlementCoordinator` 静默捕获后重置整个年度结算，导致所有年度事件每年都静默失败。修复：将年度事件处理移至影子事务外——在时间推进提交后、Settlement 影子创建前执行
-- **修复：GameTimeClockTest 全部 13 个测试失败** — v4.0.03 将 GameTimeClock 时钟源从 currentTimeMillis() 迁移至 SystemClock.elapsedRealtime()，但测试的 simulateTick 仍用旧 API 设置 lastWallMs，两个时钟基准不同导致 delta 恒为负数。修复：测试同步迁移至 SystemClock.elapsedRealtime()
-- **修复：放置建筑时同类型旧建筑消失（最多只能看到2个）** — 烘焙渲染管线的增量更新假设 back buffer 已包含所有旧建筑，仅绘制「不在 previousIds 中」的新建筑。但双缓冲交换后 back buffer 拿到的是 2 轮前的旧 front buffer，原有建筑全部丢失，导致建筑在两块缓冲之间交替消失——建第3个时第2个消失，建第4个时第1和第3个消失。修复：步骤 3 改为每轮全量绘制所有建筑，不再依赖 back buffer 旧内容
 
 ## [4.0.02] - 2026-06-16（versionCode=4002）
 

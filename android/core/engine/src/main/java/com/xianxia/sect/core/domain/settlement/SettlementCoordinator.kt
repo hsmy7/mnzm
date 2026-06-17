@@ -418,7 +418,9 @@ class SettlementCoordinator @Inject constructor(
         timer.start()
         stateStore.beginShadowTransaction(shadow)
         try {
-            cultivationService.processMonthlyEventsOnShadow(shadow)
+            // 月度事件（盗窃检测、任务刷新、侦察过期等）已移至
+            // GameEngineCore.tickInternal() 中于 shadow 创建前处理。
+            // 此处仅保留直接操作 shadow 的方法。
             explorationService.processMonthlyWorldLevels(shadow)
             childBirthSystem.onMonthTick(shadow)
             partnerSystem.onMonthTick(shadow)
