@@ -222,6 +222,7 @@ class RedeemCodeService @Inject constructor(
                         val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
                         repeat(reward.quantity.coerceAtLeast(1)) {
                             val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
+                            disciple.id = ((discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
                             disciple.usage.recruitedMonth = currentMonthValue
                             discipleTables.insert(disciple)
                             usedNames.add(disciple.name)
@@ -445,9 +446,9 @@ class RedeemCodeService @Inject constructor(
 
             result.disciples.forEach { disciple ->
                 val currentMonthValue = data.gameYear * 12 + data.gameMonth
-                val discipleWithRecruitTime = disciple.copy()
-                discipleWithRecruitTime.usage.recruitedMonth = currentMonthValue
-                discipleTables.insert(discipleWithRecruitTime)
+                disciple.id = ((discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
+                disciple.usage.recruitedMonth = currentMonthValue
+                discipleTables.insert(disciple)
             }
 
             gameData = gameData.copy(

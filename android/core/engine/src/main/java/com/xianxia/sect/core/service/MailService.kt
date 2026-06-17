@@ -532,6 +532,7 @@ class MailService @Inject constructor(
                     val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
                     repeat(attachment.quantity.coerceAtLeast(1)) {
                         val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
+                        disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
                         disciple.usage.recruitedMonth = currentMonthValue
                         state.discipleTables.insert(disciple)
                         usedNames.add(disciple.name)
