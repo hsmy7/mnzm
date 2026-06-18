@@ -989,7 +989,8 @@ class SaveLoadViewModel @Inject constructor(
                 teams = snapshot.teams,
                 battleLogs = snapshot.battleLogs,
                 alliances = snapshot.alliances,
-                productionSlots = snapshot.productionSlots
+                productionSlots = snapshot.productionSlots,
+                storageBags = snapshot.storageBags
             )
             coroutineScopeProvider.ioScope.launch {
                 try {
@@ -1133,7 +1134,8 @@ class SaveLoadViewModel @Inject constructor(
                     teams = snapshot.teams,
                         battleLogs = snapshot.battleLogs,
                     alliances = snapshot.alliances,
-                    productionSlots = snapshot.productionSlots
+                    productionSlots = snapshot.productionSlots,
+                    storageBags = snapshot.storageBags
                 )
 
                 val success = withTimeoutOrNull(30_000L) {
@@ -1269,7 +1271,8 @@ class SaveLoadViewModel @Inject constructor(
                     teams = snapshotToSave.teams,
                     battleLogs = snapshotToSave.battleLogs,
                     alliances = snapshotToSave.alliances,
-                    productionSlots = snapshotToSave.productionSlots
+                    productionSlots = snapshotToSave.productionSlots,
+                    storageBags = snapshotToSave.storageBags
                 )
                 var exitSaveResult: SaveResult<Unit> = SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
                 val saveLatch = java.util.concurrent.CountDownLatch(1)

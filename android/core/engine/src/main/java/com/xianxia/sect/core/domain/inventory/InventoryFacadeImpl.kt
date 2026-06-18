@@ -295,20 +295,24 @@ class InventoryFacadeImpl @Inject constructor(
     }
 
     override suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean {
-        var success = false
+        var remaining = quantity
         stateStore.update {
-            val material = materials.all().find { it.name == name && it.rarity == rarity }
-            if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                val newQty = material.quantity - quantity
+            val matching = materials.all().filter {
+                it.name == name && it.rarity == rarity && !it.isLocked
+            }
+            for (mat in matching) {
+                if (remaining <= 0) break
+                val take = minOf(remaining, mat.quantity)
+                val newQty = mat.quantity - take
                 if (newQty <= 0) {
-                    materials.remove(material.id)
+                    materials.remove(mat.id)
                 } else {
-                    materials.update(material.id) { it.copy(quantity = newQty) }
+                    materials.update(mat.id) { it.copy(quantity = newQty) }
                 }
-                success = true
+                remaining -= take
             }
         }
-        return success
+        return remaining == 0
     }
 
     // ── Bulk sell ────────────────────────────────────────────────────────

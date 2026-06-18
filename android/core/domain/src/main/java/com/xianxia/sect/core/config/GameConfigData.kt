@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class GameConfigData(
-    val version: String = "4.0.00",
+    val version: String = "4.0.09",
     val game: GameSection = GameSection(),
     val disciple: DiscipleSection = DiscipleSection(),
     val elder: ElderSection = ElderSection(),
@@ -39,7 +39,7 @@ data class GameConfigData(
     @Serializable
     data class GameSection(
         val name: String = "模拟宗门",
-        val version: String = "4.0.00",
+        val version: String = "4.0.09",
         val autoSaveIntervalSeconds: Long = 60L,
         val autoSaveDebounceMs: Long = 30000L,
         val maxSaveSlots: Int = 5

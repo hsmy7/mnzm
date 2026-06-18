@@ -796,7 +796,7 @@ class GameStateStoreImpl @Inject constructor(
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
-                    disciples = disciplesChanged,
+                    disciples = disciplesChanged || mutated != lastAssembledMutationVersion,
                     equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
                     equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
                     manualStacks = reusableMutableState.manualStacks.items !== curMS,
@@ -811,7 +811,7 @@ class GameStateStoreImpl @Inject constructor(
                 )
                 // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
                 val anyFieldChanged = reusableMutableState.gameData !== curGame
-                    || disciplesChanged
+                    || disciplesChanged || mutated != lastAssembledMutationVersion
                     || reusableMutableState.equipmentStacks.items !== curES
                     || reusableMutableState.equipmentInstances.items !== curEI
                     || reusableMutableState.manualStacks.items !== curMS
@@ -941,7 +941,7 @@ class GameStateStoreImpl @Inject constructor(
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
-                    disciples = disciplesChanged,
+                    disciples = disciplesChanged || mutated != lastAssembledMutationVersion,
                     equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
                     equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
                     manualStacks = reusableMutableState.manualStacks.items !== curMS,
@@ -955,7 +955,7 @@ class GameStateStoreImpl @Inject constructor(
                     battleLogs = reusableMutableState.battleLogs !== curBL
                 )
                 val anyFieldChanged = reusableMutableState.gameData !== curGame
-                    || disciplesChanged
+                    || disciplesChanged || mutated != lastAssembledMutationVersion
                     || reusableMutableState.equipmentStacks.items !== curES
                     || reusableMutableState.equipmentInstances.items !== curEI
                     || reusableMutableState.manualStacks.items !== curMS

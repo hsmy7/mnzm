@@ -194,7 +194,8 @@ class SavePipeline @Inject constructor(
             teams = request.snapshot.teams,
             battleLogs = request.snapshot.battleLogs,
             alliances = request.snapshot.alliances,
-            productionSlots = request.snapshot.productionSlots
+            productionSlots = request.snapshot.productionSlots,
+            storageBags = request.snapshot.storageBags
         )
 
         val operationType = when (request.source) {

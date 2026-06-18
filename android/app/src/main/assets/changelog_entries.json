@@ -1,6 +1,24 @@
 [
     {
         "date":  "2026-06-18",
+        "version":  "4.0.10",
+        "changes":  [
+                        "修复：弟子身份切换后增量存档丢失修改——DiscipleTables脏检测使用引用比较永远为false，增量存档跳过弟子数据写入DB，导致身份切换等所有DiscipleTables原地写操作在自动存档后丢失。修复：markDirty判据加入mutationVersion变化检测"
+                    ]
+    },
+    {
+        "date":  "2026-06-18",
+        "version":  "4.0.09",
+        "changes":  [
+                        "修复：自动存档恢复进度错误——增量存档DB写入后未清理缓存，加载时优先读取缓存旧数据导致月份回退。修复：增量存档后清理缓存+统一id字段+查询加ORDER BY防御",
+                        "修复：紧急存档后储物袋消失——储物袋在所有完整存档路径中被遗漏，仅增量存档能正确持久化。SaveSnapshot缺少storageBags字段，7处SaveData构造均未传递。修复：补全所有存档路径的storageBags传递",
+                        "修复：血练池不扣兽血、不加属性——consumeMaterialByName仅取首个堆叠导致多堆叠时扣除失败且返回值被忽略，完成无通知。修复：跨堆叠扣除+失败回滚+完成通知弹窗",
+                        "变更：矿工忠诚度改为每连续挖矿3月扣1点——原为每月扣1点，现改为每连续3月扣1点，离位后连续计数重置",
+                        "新增：储物袋详情界面全部开启按钮——第二行新增全部开启按钮（带占位符保持按钮大小一致），一次性开启该储物袋全部数量，奖励统一展示"
+                    ]
+    },
+    {
+        "date":  "2026-06-18",
         "version":  "4.0.08",
         "changes":  [
                         "修复：LazyColumn/Grid崩溃 \"Key '1' was already used\" 未根治——v4.0.06在insert()加的防御检查if (id in ids)非原子操作，check-add两步间多协程可同时通过检查产生重复ID。修复：(1) insert()/remove()/clear()中对ids操作加synchronized锁保证check-and-add原子性；(2) assembleAll()增加.distinct()防御层，即使ids出现重复也不触发Compose Key碰撞"

@@ -141,7 +141,7 @@ class GameStateRepository @Inject constructor(
             coroutineScope {
                 if (snapshot.gameData) launch(Dispatchers.IO) {
                     database.withTransaction {
-                        gameDataDao.insert(gameData.copy(slotId = slotId))
+                        gameDataDao.insert(gameData.copy(id = "game_data_$slotId", slotId = slotId))
                     }
                 }
                 if (snapshot.disciples) launch(Dispatchers.IO) {

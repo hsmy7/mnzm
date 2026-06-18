@@ -513,6 +513,10 @@ class StorageEngine @Inject constructor(
                     )
                 }
 
+                // 增量存档后清理缓存，确保下次 load() 从 DB 读取最新数据
+                // 而非返回初始完整存档时的陈旧缓存
+                clearCacheForSlot(slot)
+
                 val elapsed = System.currentTimeMillis() - startTime
                 _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
                 StorageResult.success(SaveOperationStats(

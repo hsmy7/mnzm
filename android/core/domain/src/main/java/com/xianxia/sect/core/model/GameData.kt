@@ -836,7 +836,8 @@ data class SpiritMineSlot(
     val discipleId: String = "",
     val discipleName: String = "",
     val output: Int = 100,
-    val sectId: String = ""
+    val sectId: String = "",
+    val consecutiveMiningMonths: Int = 0
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

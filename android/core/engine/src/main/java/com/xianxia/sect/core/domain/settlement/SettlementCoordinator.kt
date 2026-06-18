@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
@@ -482,6 +483,14 @@ class SettlementCoordinator @Inject constructor(
                 val currentRefinements = shadow.gameData.bloodRefinements.toMutableMap()
                 currentRefinements[d.id] = (currentRefinements[d.id] ?: emptyList()) + progress.materialId
                 shadow.gameData = shadow.gameData.copy(bloodRefinements = currentRefinements)
+
+                // 发出完成通知
+                if (shadow.pendingNotification == null) {
+                    shadow.pendingNotification = GameNotification.BloodRefinementComplete(
+                        discipleName = d.name,
+                        statName = progress.selectedStat
+                    )
+                }
 
                 completedRefinements.add(buildingId)
             }

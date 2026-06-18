@@ -120,8 +120,19 @@ class BloodRefiningViewModel @Inject constructor(
                 )
             }
 
-            // 2. 扣除材料
-            gameEngine.consumeMaterialByName(material.name, material.rarity, REQUIRED_MATERIAL_COUNT)
+            // 2. 扣除材料（跨堆叠扣除，失败则回滚）
+            val consumed = gameEngine.consumeMaterialByName(material.name, material.rarity, REQUIRED_MATERIAL_COUNT)
+            if (!consumed) {
+                // 回滚：退还灵石 + 移除进度
+                gameEngine.updateGameData { gameData ->
+                    gameData.copy(
+                        spiritStones = gameData.spiritStones + REQUIRED_SPIRIT_STONES,
+                        activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
+                    )
+                }
+                showError("兽血材料不足，洗炼失败")
+                return@launch
+            }
 
             // 3. 更新弟子状态
             gameEngine.updateDisciple(disciple.id) { d ->

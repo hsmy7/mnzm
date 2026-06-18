@@ -39,7 +39,8 @@ object SaveDataTrimmer {
             teams = snapshot.teams,
             battleLogs = trimmedBattleLogs,
             alliances = snapshot.alliances,
-            productionSlots = snapshot.productionSlots
+            productionSlots = snapshot.productionSlots,
+            storageBags = snapshot.storageBags
         )
     }
 }

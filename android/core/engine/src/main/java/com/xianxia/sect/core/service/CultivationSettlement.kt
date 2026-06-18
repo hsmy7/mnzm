@@ -274,21 +274,33 @@ class CultivationSettlement @Inject constructor(
             baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier
         ).toInt()
 
-        // 矿工忠诚度 -1（直接操作组件表）
-        data.spiritMineSlots.forEach { slot ->
-            val discipleId = slot.discipleId
-            if (discipleId.isNotEmpty()) {
-                val idInt = discipleId.toIntOrNull() ?: return@forEach
-                if (tables.ids.contains(idInt)) {
-                    val current = tables.loyalties[idInt] ?: 0
-                    tables.loyalties[idInt] = (current - 1).coerceAtLeast(0)
+        // 矿工忠诚度：每连续挖矿3月扣1点（直接操作组件表）
+        val updatedSlots = data.spiritMineSlots.map { slot ->
+            if (slot.discipleId.isNotEmpty()) {
+                val idInt = slot.discipleId.toIntOrNull()
+                if (idInt != null && tables.ids.contains(idInt)) {
+                    val newMonths = slot.consecutiveMiningMonths + 1
+                    if (newMonths >= 3) {
+                        val current = tables.loyalties[idInt] ?: 0
+                        tables.loyalties[idInt] = (current - 1).coerceAtLeast(0)
+                        slot.copy(consecutiveMiningMonths = 0)  // 扣完重置
+                    } else {
+                        slot.copy(consecutiveMiningMonths = newMonths)
+                    }
+                } else {
+                    slot.copy(consecutiveMiningMonths = 0)  // 弟子无效则重置
                 }
+            } else {
+                slot.copy(consecutiveMiningMonths = 0)  // 空槽位重置
             }
         }
+        state.gameData = data.copy(spiritMineSlots = updatedSlots)
 
         // 灵石产出
         if (totalSpiritStones > 0) {
-            state.gameData = data.copy(spiritStones = data.spiritStones + totalSpiritStones)
+            state.gameData = state.gameData.copy(
+                spiritStones = data.spiritStones + totalSpiritStones
+            )
         }
     }
 

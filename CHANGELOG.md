@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.10] - 2026-06-18（versionCode=4010）
+
+### 修复
+
+- **修复：弟子身份切换后增量存档丢失修改** — 弟子详情界面切换内外门身份后退出，身份恢复原值。根因：`GameStateStoreImpl.update()` 中 DiscipleTables 使用引用比较 `!==` 检测脏数据，但 `update()` 入口已将 `discipleTables` 赋值为同一引用，脏标记永远为 `false`，导致增量存档（自动存档）跳过弟子数据写入 Room DB。影响范围：所有通过 DiscipleTables 原地写入的弟子字段（身份、名称、忠诚度、境界、修炼进度等）在增量存档中均丢失。修复：`markDirty(disciples = ...)` 和 `anyFieldChanged` 的判据从仅引用比较扩展为引用比较或 `mutationVersion` 变化
+
+## [4.0.09] - 2026-06-18（versionCode=4009）
+
+### 修复
+
+- **修复：自动存档恢复进度错误** — 新游戏后等待至三月自动存档，读取该存档恢复到一月而非三月。根因：增量存档（自动存档使用）写入Room DB后未清理缓存，加载时优先读取缓存命中初始完整存档的旧数据（gameMonth=1），不触及DB中已正确写入的三月数据。修复：(1) 增量存档写入DB后添加`clearCacheForSlot()`确保下次加载走DB；(2) 增量写入时统一`id`字段为`"game_data_$slot"`与完整存档路径一致；(3) `getGameData`查询添加`ORDER BY lastSaveTime DESC`防御重复行
+- **修复：紧急存档后储物袋消失** — 储物袋(`storageBags`)在所有完整存档路径（紧急存档/手动存档/SavePipeline自动存档/后台存档/重启存档/退出存档）中被遗漏，仅增量存档能正确持久化。根因：`SaveSnapshot`缺少`storageBags`字段，且`SaveDataTrimmer`和多处`SaveData`直接构造均未传递`storageBags`，导致`writeAllDataToDatabase()`先deleteAll再upsertAll空列表，DB中储物袋永久丢失。修复：`SaveSnapshot`加字段 + 7处SaveData/SaveSnapshot构造补传`storageBags`
+- **修复：血练池不扣兽血、不加属性** — (1) `consumeMaterialByName`用`find()`只取首个材料堆叠，兽血分散多堆叠时单堆不足200导致扣除静默失败，返回值被忽略；(2) 血练完成仅靠月度结算处理，无实时检测和通知。修复：(1) 重写为遍历所有匹配堆叠逐个扣除；(2) 扣除失败时回滚灵石和进度并提示错误；(3) 新增`BloodRefinementComplete`通知，完成后弹窗提示
+- **变更：矿工忠诚度改为每连续3月扣1点** — 原为每月扣1点忠诚度，现改为每连续挖矿3月扣1点。连续计数随矿工在位自动累加，离位（撤下槽位）后重置
+- **新增：储物袋详情界面增加"全部开启"按钮** — 储物袋详情弹窗第二行新增"全部开启"按钮（附带两个空白占位符保持按钮大小一致），点击后一次性开启该储物袋全部数量，奖励统一展示
+
 ## [4.0.08] - 2026-06-18（versionCode=4008）
 
 ### 修复

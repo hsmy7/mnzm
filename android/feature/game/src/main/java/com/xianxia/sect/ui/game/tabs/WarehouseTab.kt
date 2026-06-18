@@ -396,23 +396,43 @@ internal fun WarehouseTab(
                     selectedItemId = null
                 },
                 extraActions = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (!isLocked) {
+                    val scope = rememberCoroutineScope()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (!isLocked) {
+                                GameButton(
+                                    text = "售卖",
+                                    onClick = { showSellDialog = true }
+                                )
+                            }
                             GameButton(
-                                text = "售卖",
-                                onClick = { showSellDialog = true }
+                                text = if (isLocked) "已锁定" else "锁定",
+                                onClick = { viewModel.toggleItemLock(itemId, itemType) }
+                            )
+                            GameButton(
+                                text = "赏赐",
+                                onClick = { showDiscipleSelectDialog = true }
                             )
                         }
-                        GameButton(
-                            text = if (isLocked) "已锁定" else "锁定",
-                            onClick = { viewModel.toggleItemLock(itemId, itemType) }
-                        )
-                        GameButton(
-                            text = "赏赐",
-                            onClick = { showDiscipleSelectDialog = true }
-                        )
+                        if (item is StorageBag) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                GameButton(
+                                    text = "全部开启",
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.openAllStorageBags(item.id)
+                                        }
+                                    }
+                                )
+                                // 空白占位符保持按钮大小一致
+                                Spacer(modifier = Modifier.size(ButtonSizes.StandardWidth, ButtonSizes.StandardHeight))
+                                Spacer(modifier = Modifier.size(ButtonSizes.StandardWidth, ButtonSizes.StandardHeight))
+                            }
+                        }
                     }
                 }
             )

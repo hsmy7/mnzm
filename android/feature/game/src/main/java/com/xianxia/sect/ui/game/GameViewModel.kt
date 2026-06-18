@@ -718,6 +718,21 @@ class GameViewModel @Inject constructor(
         return rewards
     }
 
+    suspend fun openAllStorageBags(bagId: String): List<BattleRewardItem> {
+        val bag = storageBags.value.find { it.id == bagId } ?: return emptyList()
+        val totalQty = bag.quantity
+        val allRewards = mutableListOf<BattleRewardItem>()
+        val allCards = mutableListOf<RewardCardItem>()
+        repeat(totalQty) {
+            val (rewards, cards) = gameEngine.openStorageBag(bagId)
+            allRewards.addAll(rewards)
+            allCards.addAll(cards)
+        }
+        pendingBagCards = allCards
+        _bagRewardCards.value = allCards
+        return allRewards
+    }
+
     fun enqueueBagRewardCards() {
         if (pendingBagCards.isNotEmpty()) {
             dailySignInService.enqueueSignInCards(pendingBagCards)

@@ -566,6 +566,14 @@ fun GameOverlayHost(
                     onReject = { viewModel.rejectMarriage() }
                 )
             }
+            is GameNotification.BloodRefinementComplete -> {
+                StandardPromptDialog(
+                    onDismissRequest = { viewModel.clearNotification() },
+                    title = "血练完成",
+                    text = "${notification.discipleName} 的血练已完成！属性「${notification.statName}」获得提升。",
+                    confirmLabel = "知道了"
+                )
+            }
         }
     }
     }

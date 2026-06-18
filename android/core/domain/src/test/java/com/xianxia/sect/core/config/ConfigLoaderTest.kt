@@ -31,7 +31,7 @@ class ConfigLoaderTest {
     fun load_returnsDefaultValuesWhenAssetsMissing() {
         val config = newLoader().load()
         assertEquals("模拟宗门", config.game.name)
-        assertEquals("4.0.00", config.version)
+        assertEquals("4.0.09", config.version)
     }
 
     @Test

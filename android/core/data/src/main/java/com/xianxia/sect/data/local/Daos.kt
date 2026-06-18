@@ -7,10 +7,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GameDataDao {
-    @Query("SELECT * FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    @Query("SELECT * FROM game_data WHERE slot_id = :slotId ORDER BY lastSaveTime DESC LIMIT 1")
     fun getGameData(slotId: Int): Flow<GameData?>
 
-    @Query("SELECT * FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    @Query("SELECT * FROM game_data WHERE slot_id = :slotId ORDER BY lastSaveTime DESC LIMIT 1")
     suspend fun getGameDataSync(slotId: Int): GameData?
 
     @Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")

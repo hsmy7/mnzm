@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.production.ProductionSlot
 
 /**
@@ -32,6 +33,7 @@ data class SaveSnapshot(
     val battleLogs: List<com.xianxia.sect.core.model.BattleLog>,
     val alliances: List<com.xianxia.sect.core.model.Alliance>,
     val productionSlots: List<ProductionSlot>,
+    val storageBags: List<StorageBag> = emptyList(),
 )
 
 /**
