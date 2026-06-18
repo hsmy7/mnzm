@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.08] - 2026-06-18（versionCode=4008）
+
+### 修复
+
+- **修复：LazyColumn/Grid 崩溃 "Key '1' was already used" 未根治** — v4.0.06 在 `DiscipleTables.insert()` 加的防御检查 `if (id in ids) { update(...); return }` 解决了大部分 Key 重复问题，但 check-and-add 两步操作非原子，多协程同时 insert 相同 ID 时仍可同时通过检查产生重复。修复：(1) `insert()`/`remove()`/`clear()` 中对 `ids` 的操作加 `synchronized(ids)` 锁保证 check-and-add 原子性；(2) `assembleAll()` 增加 `.distinct()` 防御层，即使 ids 因任何原因出现重复也不触发 Compose Key 碰撞崩溃
+
 ## [4.0.07] - 2026-06-18（versionCode=4007）
 
 ### 修复

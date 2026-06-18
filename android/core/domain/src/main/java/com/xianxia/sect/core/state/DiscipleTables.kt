@@ -163,13 +163,14 @@ class DiscipleTables {
      */
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
-        // ids 是 MutableList，多协程交错 clear+insert 可能引入重复 ID。
-        // 防御性检查：ID 已存在时走 update 路径，不重复添加到 ids。
-        if (id in ids) {
-            update(disciple)
-            return
+        // synchronized 确保 check-and-add 原子性，防止多协程交错产生重复 ID。
+        synchronized(ids) {
+            if (id in ids) {
+                update(disciple)
+                return
+            }
+            ids.add(id)
         }
-        ids.add(id)
 
         names[id] = disciple.name
         surnames[id] = disciple.surname
@@ -506,14 +507,14 @@ class DiscipleTables {
         )
     }
 
-    /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容） */
-    fun assembleAll(): List<Disciple> = ids.map { assemble(it) }
+    /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。 */
+    fun assembleAll(): List<Disciple> = ids.distinct().map { assemble(it) }
 
     /**
      * 删除一个弟子。所有组件表同时删除对应行。
      */
     fun remove(id: Int) {
-        ids.remove(id)
+        synchronized(ids) { ids.remove(id) }
         names.remove(id); surnames.remove(id); genders.remove(id)
         portraitRes.remove(id); discipleTypes.remove(id); spiritRootTypes.remove(id)
         slotIds.remove(id)
@@ -560,7 +561,7 @@ class DiscipleTables {
 
     /** 清空所有组件表 */
     fun clear() {
-        ids.clear()
+        synchronized(ids) { ids.clear() }
         names.clear(); surnames.clear(); genders.clear()
         portraitRes.clear(); discipleTypes.clear(); spiritRootTypes.clear()
         slotIds.clear()

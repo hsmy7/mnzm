@@ -1,6 +1,13 @@
 [
     {
         "date":  "2026-06-18",
+        "version":  "4.0.08",
+        "changes":  [
+                        "修复：LazyColumn/Grid崩溃 \"Key '1' was already used\" 未根治——v4.0.06在insert()加的防御检查if (id in ids)非原子操作，check-add两步间多协程可同时通过检查产生重复ID。修复：(1) insert()/remove()/clear()中对ids操作加synchronized锁保证check-and-add原子性；(2) assembleAll()增加.distinct()防御层，即使ids出现重复也不触发Compose Key碰撞"
+                    ]
+    },
+    {
+        "date":  "2026-06-18",
         "version":  "4.0.07",
         "changes":  [
                         "修复：弟子穿装备后UI不显示——装备穿戴写入了discipleTables但脏检测门控使用ids.hashCode()判据导致跳过UI刷新。修复：给ComponentTable加onWrite回调自动bump mutationVersion，门控改用mutationVersion替代ids.hashCode()。同时修复装备/卸装备DomainResult被丢弃导致失败仍显示成功的问题",
