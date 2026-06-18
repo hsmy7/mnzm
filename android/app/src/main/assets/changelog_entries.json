@@ -3,7 +3,8 @@
         "date":  "2026-06-18",
         "version":  "4.0.10",
         "changes":  [
-                        "修复：弟子身份切换后增量存档丢失修改——DiscipleTables脏检测使用引用比较永远为false，增量存档跳过弟子数据写入DB，导致身份切换等所有DiscipleTables原地写操作在自动存档后丢失。修复：markDirty判据加入mutationVersion变化检测"
+                        "修复：弟子身份切换后增量存档丢失修改——DiscipleTables脏检测使用引用比较永远为false，增量存档跳过弟子数据写入DB，导致身份切换等所有DiscipleTables原地写操作在自动存档后丢失。修复：markDirty判据加入mutationVersion变化检测",
+                        "修复：荣耀70设备游戏月份停止推进——WakeLock自初版使用10分钟超时自动释放，MagicOS在无活跃WakeLock时将CPU挂起导致游戏冻结。修复：WakeLock去掉超时限制改为持续持有+加强荣耀antiFreezeDelay忙等频率"
                     ]
     },
     {

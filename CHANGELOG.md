@@ -5,6 +5,7 @@
 ### 修复
 
 - **修复：弟子身份切换后增量存档丢失修改** — 弟子详情界面切换内外门身份后退出，身份恢复原值。根因：`GameStateStoreImpl.update()` 中 DiscipleTables 使用引用比较 `!==` 检测脏数据，但 `update()` 入口已将 `discipleTables` 赋值为同一引用，脏标记永远为 `false`，导致增量存档（自动存档）跳过弟子数据写入 Room DB。影响范围：所有通过 DiscipleTables 原地写入的弟子字段（身份、名称、忠诚度、境界、修炼进度等）在增量存档中均丢失。修复：`markDirty(disciples = ...)` 和 `anyFieldChanged` 的判据从仅引用比较扩展为引用比较或 `mutationVersion` 变化
+- **修复：荣耀70设备游戏月份停止推进（v4.0.03回归）** — v4.0.03 四项 Honor 修复均完好未被动过，回归根因是潜伏缺陷：`WakeLockManager` 自初版使用 `acquire(timeout=10min)`，10分钟后 WakeLock 自动释放，荣耀 MagicOS 在无活跃 WakeLock 时将 CPU 挂起（即使 App 在前台），导致游戏线程冻结、月份停止推进。修复：(1) WakeLock 去掉超时限制，改为 `acquire()` 持续持有，生命周期由 `onResume`/`onPause` 管理；(2) 加强荣耀 antiFreezeDelay 忙等频率：间隔从每 64 周期缩短至 16 周期（~32ms），忙等时长从 2ms 增至 4ms，匹配 MagicOS 更窄的空闲检测窗口
 
 ## [4.0.09] - 2026-06-18（versionCode=4009）
 

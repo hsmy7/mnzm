@@ -14,12 +14,14 @@ import javax.inject.Singleton
  * 必须额外持有 PARTIAL_WAKE_LOCK 才能防止系统在游戏运行期间挂起 CPU。
  *
  * ## 使用
- * - [acquire] 在游戏循环启动时调用
- * - [release] 在游戏循环停止时调用
+ * - [acquire] 在游戏循环启动时调用（GameActivity.onResume）
+ * - [release] 在游戏循环停止时调用（GameActivity.onPause）
+ * - 无超时限制：WakeLock 持续持有直到 App 进入后台，防止
+ *   荣耀 MagicOS 等激进 OEM 在游戏中途挂起 CPU
  *
- * ## Google Play 政策
- * 2026 年 3 月起，24h 内持有非豁免 WakeLock >2h 的应用会展示警告。
- * 本 WakeLock 仅在游戏循环活跃（前台）时持有，正常使用远低于阈值。
+ * ## 安全性
+ * 生命周期由 Activity 的 onResume/onPause 管理。Android 系统在
+ * App 进程被杀死时自动释放 WakeLock，不会持久泄漏。
  *
  * 参考：https://developer.android.google.cn/training/scheduling/wakelock
  */
@@ -61,9 +63,6 @@ class WakeLockManager @Inject constructor(
                 ManufacturerAdapter.Manufacturer.HUAWEI -> "AudioMix"
                 else -> "XianxiaSect::GameLoop"
             }
-
-        /** 超时自动释放，防止意外泄漏耗尽电池 */
-        private const val ACQUIRE_TIMEOUT_MS = 10 * 60 * 1000L // 10 分钟
     }
 
     @Volatile
@@ -82,15 +81,18 @@ class WakeLockManager @Inject constructor(
             return
         }
 
+        // 无超时 acquire()：游戏期间需持续持有 WakeLock 防止 OEM 挂起 CPU。
+        // 荣耀 MagicOS 等激进电源管理在 WakeLock 缺失时会将 CPU 挂起，
+        // 即使 App 在前台。生命周期由 GameActivity.onPause() → release() 管理。
         wakeLock = pm.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
             WAKE_LOCK_TAG
         ).apply {
             setReferenceCounted(false)
-            acquire(ACQUIRE_TIMEOUT_MS)
+            acquire()
         }
 
-        Log.d(TAG, "WakeLock acquired (timeout=${ACQUIRE_TIMEOUT_MS}ms)")
+        Log.d(TAG, "WakeLock acquired (no timeout, released in onPause)")
     }
 
     /** 释放 WakeLock。幂等。 */

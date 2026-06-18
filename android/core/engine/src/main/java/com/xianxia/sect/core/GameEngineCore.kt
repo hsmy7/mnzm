@@ -787,10 +787,12 @@ class GameEngineCore @Inject constructor(
      * "空闲"并挂起。
      *
      * API 33+：4ms 微延迟 + Thread.onSpinWait() 自旋提示
-     * API < 33：2ms 微延迟 + 每 64 周期插入 2ms 忙等（替代缺失的
-     *          onSpinWait，周期性打破 OEM 空闲检测窗口）
+     * API < 33：2ms 微延迟 + 周期性忙等替代缺失的 onSpinWait。
+     *   荣耀 MagicOS 空闲检测窗口更窄（约 10-30ms），忙等间隔缩短至
+     *   每 16 周期（约 32ms），忙等时长增至 4ms，确保 CPU 持续活跃。
      *
-     * 成本：API 33+ 约 5% CPU；API < 33 略高但仍在可接受范围。
+     * 成本：API 33+ 约 5% CPU；非荣耀 API < 33 略高；
+     *   荣耀 MagicOS 版约 8-10% CPU，但远优于游戏完全冻结。
      *
      * 参考：
      * - donotkillmyapp.com/huawei — PowerGenie 机制分析
@@ -799,7 +801,11 @@ class GameEngineCore @Inject constructor(
      */
     private suspend fun antiFreezeDelay(totalMs: Long) {
         val useSpinWait = Build.VERSION.SDK_INT >= 33
+        val isHonor = Build.MANUFACTURER.lowercase().contains("honor")
         val microInterval = if (useSpinWait) 4L else 2L
+        // 荣耀 MagicOS 空闲检测窗口 ~10-30ms，更激进地保持 CPU 活跃
+        val busyInterval = if (isHonor) 16L else 64L
+        val busyDuration = if (isHonor) 4L else 2L
         var remaining = totalMs
         var cycleCount = 0L
         while (remaining > 0 && currentCoroutineContext().isActive) {
@@ -811,11 +817,10 @@ class GameEngineCore @Inject constructor(
                 if (useSpinWait) {
                     // 自旋提示：告知 CPU 我们在忙等，保持线程 RUNNABLE
                     Thread.onSpinWait()
-                } else if (cycleCount % 64 == 0L) {
-                    // API < 33 补偿：每 64 个延迟周期插入 2ms 忙等。
-                    // SystemClock.elapsedRealtime() 轮询模拟 spin-wait，
-                    // 周期性线程保持 RUNNABLE 打破 OEM 空闲检测。
-                    val busyEnd = android.os.SystemClock.elapsedRealtime() + 2
+                } else if (cycleCount % busyInterval == 0L) {
+                    // 忙等补偿：周期性保持线程 RUNNABLE 打破 OEM 空闲检测。
+                    // SystemClock.elapsedRealtime() 轮询模拟 spin-wait。
+                    val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
                     while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
                         // 忙等 — 线程保持 RUNNABLE，不会被 OEM 判定为空闲
                     }
