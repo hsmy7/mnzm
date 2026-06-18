@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
@@ -85,7 +86,15 @@ class DiscipleDelegate(
     fun equipItem(discipleId: String, equipmentId: String) {
         scope.launch {
             try {
-                gameEngine.equipItem(discipleId, equipmentId)
+                val result = gameEngine.equipItem(discipleId, equipmentId)
+                if (result is DomainResult.Failure) {
+                    android.util.Log.w(
+                        "DiscipleDelegate",
+                        "equipItem failed: disciple=$discipleId" +
+                            " equipment=$equipmentId" +
+                            " error=${result.error.message}"
+                    )
+                }
             } catch (e: Exception) {
                 /* error handled by BaseViewModel */
             }
@@ -95,7 +104,15 @@ class DiscipleDelegate(
     fun unequipItem(discipleId: String, slot: EquipmentSlot) {
         scope.launch {
             try {
-                gameEngine.unequipItem(discipleId, slot)
+                val result = gameEngine.unequipItem(discipleId, slot)
+                if (result == null) return@launch // disciple not found or slot empty
+                if (result is DomainResult.Failure) {
+                    android.util.Log.w(
+                        "DiscipleDelegate",
+                        "unequipItem(slot) failed: disciple=$discipleId" +
+                            " slot=$slot error=${result.error.message}"
+                    )
+                }
             } catch (e: Exception) {
                 /* error handled by BaseViewModel */
             }
@@ -105,7 +122,15 @@ class DiscipleDelegate(
     fun unequipItem(discipleId: String, equipmentId: String) {
         scope.launch {
             try {
-                gameEngine.unequipItemById(discipleId, equipmentId)
+                val result = gameEngine.unequipItemById(discipleId, equipmentId)
+                if (result is DomainResult.Failure) {
+                    android.util.Log.w(
+                        "DiscipleDelegate",
+                        "unequipItem(id) failed: disciple=$discipleId" +
+                            " equipment=$equipmentId" +
+                            " error=${result.error.message}"
+                    )
+                }
             } catch (e: Exception) {
                 /* error handled by BaseViewModel */
             }

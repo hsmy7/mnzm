@@ -125,7 +125,7 @@ object GameConfig {
 
     object Production {
 
-        const val SPIRIT_MINE_BASE_OUTPUT_PER_MINER = 160
+        const val SPIRIT_MINE_BASE_OUTPUT_PER_MINER = 220
         const val SPIRIT_MINE_MINING_THRESHOLD = 70
         const val SPIRIT_MINE_MINING_BONUS_RATE = 0.02
     }

@@ -152,6 +152,8 @@ class DiscipleTables {
     // === 弟子总数 ===
     val count: Int get() = ids.size
 
+    init { bindAllOnWrite() }
+
     /* ================================================================
      * 核心 API
      * ================================================================ */
@@ -277,7 +279,6 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
-        markMutated()
     }
 
     /**
@@ -387,8 +388,6 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
-
-        markMutated()
     }
 
     /**
@@ -557,7 +556,6 @@ class DiscipleTables {
         moralities.remove(id); salaryPaidCounts.remove(id); salaryMissedCounts.remove(id)
         usedFunctionalPillTypes.remove(id); usedExtendLifePillIds.remove(id)
         recruitedMonths.remove(id); hasReviveEffects.remove(id); hasClearAllEffects.remove(id)
-        markMutated()
     }
 
     /** 清空所有组件表 */
@@ -605,7 +603,80 @@ class DiscipleTables {
         moralities.clear(); salaryPaidCounts.clear(); salaryMissedCounts.clear()
         usedFunctionalPillTypes.clear(); usedExtendLifePillIds.clear()
         recruitedMonths.clear(); hasReviveEffects.clear(); hasClearAllEffects.clear()
-        markMutated()
+    }
+
+    /**
+     * 绑定所有子表的 onWrite → markMutated，确保字段级写自动 bump 版本号。
+     * deepCopy() 创建的副本不调用此方法——副本写不应影响原表版本号。
+     */
+    private fun bindAllOnWrite() {
+        val cb: () -> Unit = ::markMutated
+        // 基础信息
+        names.onWrite = cb; surnames.onWrite = cb; genders.onWrite = cb
+        portraitRes.onWrite = cb; discipleTypes.onWrite = cb
+        spiritRootTypes.onWrite = cb; slotIds.onWrite = cb
+        // 境界与修为
+        realms.onWrite = cb; realmLayers.onWrite = cb; cultivations.onWrite = cb
+        ages.onWrite = cb; lifespans.onWrite = cb; isAlive.onWrite = cb
+        soulPowers.onWrite = cb
+        // 修炼加速
+        cultivationSpeedBonuses.onWrite = cb
+        cultivationSpeedDurations.onWrite = cb
+        // 自动行为
+        autoLearnFromWarehouse.onWrite = cb; autoEquipFromWarehouse.onWrite = cb
+        // 列表类型
+        manualIds.onWrite = cb; talentIds.onWrite = cb; manualMasteries.onWrite = cb
+        // 状态
+        statuses.onWrite = cb; statusData.onWrite = cb
+        // 战斗属性
+        baseHps.onWrite = cb; baseMps.onWrite = cb
+        basePhysicalAttacks.onWrite = cb; baseMagicAttacks.onWrite = cb
+        basePhysicalDefenses.onWrite = cb; baseMagicDefenses.onWrite = cb
+        baseSpeeds.onWrite = cb
+        hpVariances.onWrite = cb; mpVariances.onWrite = cb
+        physicalAttackVariances.onWrite = cb; magicAttackVariances.onWrite = cb
+        physicalDefenseVariances.onWrite = cb; magicDefenseVariances.onWrite = cb
+        speedVariances.onWrite = cb
+        totalCultivations.onWrite = cb; breakthroughCounts.onWrite = cb
+        breakthroughFailCounts.onWrite = cb
+        currentHps.onWrite = cb; currentMps.onWrite = cb
+        // 丹药效果
+        pillPhysicalAttackBonuses.onWrite = cb; pillMagicAttackBonuses.onWrite = cb
+        pillPhysicalDefenseBonuses.onWrite = cb; pillMagicDefenseBonuses.onWrite = cb
+        pillHpBonuses.onWrite = cb; pillMpBonuses.onWrite = cb
+        pillSpeedBonuses.onWrite = cb; pillEffectDurations.onWrite = cb
+        pillCritRateBonuses.onWrite = cb; pillCritEffectBonuses.onWrite = cb
+        pillCultivationSpeedBonuses.onWrite = cb
+        pillSkillExpSpeedBonuses.onWrite = cb
+        pillNurtureSpeedBonuses.onWrite = cb; activePillCategories.onWrite = cb
+        // 装备
+        weaponIds.onWrite = cb; armorIds.onWrite = cb
+        bootsIds.onWrite = cb; accessoryIds.onWrite = cb
+        weaponNurtures.onWrite = cb; armorNurtures.onWrite = cb
+        bootsNurtures.onWrite = cb; accessoryNurtures.onWrite = cb
+        storageBagItems.onWrite = cb; storageBagSpiritStones.onWrite = cb
+        discipleSpiritStones.onWrite = cb
+        cultivationCompletionMonths.onWrite = cb
+        cultivationCompletionPhases.onWrite = cb
+        manualCompletionMonths.onWrite = cb
+        manualCompletionPhases.onWrite = cb
+        equipmentNurturingCompletionMonths.onWrite = cb
+        equipmentNurturingCompletionPhases.onWrite = cb
+        // 社交
+        partnerIds.onWrite = cb; partnerSectIds.onWrite = cb
+        parentId1s.onWrite = cb; parentId2s.onWrite = cb
+        lastChildYears.onWrite = cb; childBirthMonths.onWrite = cb
+        griefEndYears.onWrite = cb
+        // 技能
+        intelligences.onWrite = cb; charms.onWrite = cb; loyalties.onWrite = cb
+        comprehensions.onWrite = cb; artifactRefinings.onWrite = cb
+        pillRefinings.onWrite = cb; spiritPlantings.onWrite = cb
+        minings.onWrite = cb; teachings.onWrite = cb; moralities.onWrite = cb
+        salaryPaidCounts.onWrite = cb; salaryMissedCounts.onWrite = cb
+        // 使用记录
+        usedFunctionalPillTypes.onWrite = cb
+        usedExtendLifePillIds.onWrite = cb; recruitedMonths.onWrite = cb
+        hasReviveEffects.onWrite = cb; hasClearAllEffects.onWrite = cb
     }
 
     /**

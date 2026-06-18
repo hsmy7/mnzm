@@ -26,6 +26,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 
 // ── Focus / UI state ────────────────────────────────────────────────
 
@@ -455,16 +456,23 @@ fun GameEngine.usePill(discipleId: String, pillId: String) {
 
 // ── Cross-domain: Manual operations ─────────────────────────────────
 
-suspend fun GameEngine.equipItem(discipleId: String, equipmentId: String) { discipleService.equipEquipment(discipleId, equipmentId) }
-
-suspend fun GameEngine.unequipItem(discipleId: String, slot: EquipmentSlot) {
-    val disciple = getDiscipleById(discipleId) ?: return
-    val equipId = when (slot) { EquipmentSlot.WEAPON -> disciple.equipment.weaponId; EquipmentSlot.ARMOR -> disciple.equipment.armorId; EquipmentSlot.BOOTS -> disciple.equipment.bootsId; EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId }
-    if (equipId.isNotEmpty()) { discipleService.unequipEquipment(discipleId, equipId); cultivationService.markAutoEquipDirty(discipleId) }
+suspend fun GameEngine.equipItem(discipleId: String, equipmentId: String): DomainResult<Unit> {
+    return discipleService.equipEquipment(discipleId, equipmentId)
 }
 
-suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String) {
-    discipleService.unequipEquipment(discipleId, equipmentId); cultivationService.markAutoEquipDirty(discipleId)
+suspend fun GameEngine.unequipItem(discipleId: String, slot: EquipmentSlot): DomainResult<Unit>? {
+    val disciple = getDiscipleById(discipleId) ?: return null
+    val equipId = when (slot) { EquipmentSlot.WEAPON -> disciple.equipment.weaponId; EquipmentSlot.ARMOR -> disciple.equipment.armorId; EquipmentSlot.BOOTS -> disciple.equipment.bootsId; EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId }
+    if (equipId.isEmpty()) return null
+    val result = discipleService.unequipEquipment(discipleId, equipId)
+    cultivationService.markAutoEquipDirty(discipleId)
+    return result
+}
+
+suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String): DomainResult<Unit> {
+    val result = discipleService.unequipEquipment(discipleId, equipmentId)
+    cultivationService.markAutoEquipDirty(discipleId)
+    return result
 }
 
 suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {

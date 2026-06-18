@@ -1,5 +1,16 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.07] - 2026-06-18（versionCode=4007）
+
+### 修复
+
+- **修复：弟子穿装备后UI不显示** — 装备穿戴写入了discipleTables但脏检测门控使用`ids.hashCode()`判据，穿装备不增删弟子导致ids不变，门控条件不满足跳过UI刷新（`_disciplesFlow`不更新）。根因：v4.0.01三大系统重构引入的`assembleAll`脏检测优化使用了错误判据。修复方案：(1) 给`ComponentTable`/`IntComponentTable`/`DoubleComponentTable`加`onWrite`回调；(2) `DiscipleTables`初始化时通过`bindAllOnWrite()`将所有子表的写入回调指向`markMutated()`，确保字段级原地写自动bump版本号；(3) `GameStateStoreImpl`提交门控改用`mutationVersion`替代`ids.hashCode()`。深层影响：所有原地修改discipleTables字段但不增删弟子的操作（使用丹药、突破、修炼进度、功法分配等）的UI刷新一并修复
+- **修复：装备失败仍显示装备成功** — `GameEngine.equipItem`吞掉了`DiscipleService.equipEquipment`返回的`DomainResult`，无论境界不足/槽位冲突等失败一律显示"装备成功"。修复：`equipItem`改为返回`DomainResult<Unit>`，`DiscipleViewModel`和`DiscipleDelegate`分别处理Success/Failure/Partial结果。同时修复unequipItem同理吞结果的对称问题
+
+### 变更
+
+- **变更：灵矿基础产出提升** — 每位矿工每月基础产出从 160 灵石提升至 220 灵石（+37.5%）
+
 ## [4.0.06] - 2026-06-17（versionCode=4006）
 
 ### 修复

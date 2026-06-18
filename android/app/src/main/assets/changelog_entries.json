@@ -1,5 +1,13 @@
 [
     {
+        "date":  "2026-06-18",
+        "version":  "4.0.07",
+        "changes":  [
+                        "修复：弟子穿装备后UI不显示——装备穿戴写入了discipleTables但脏检测门控使用ids.hashCode()判据导致跳过UI刷新。修复：给ComponentTable加onWrite回调自动bump mutationVersion，门控改用mutationVersion替代ids.hashCode()。同时修复装备/卸装备DomainResult被丢弃导致失败仍显示成功的问题",
+                        "变更：灵矿基础产出从160提升至220灵石/人/月（+37.5%）"
+                    ]
+    },
+    {
         "date":  "2026-06-17",
         "version":  "4.0.06",
         "changes":  [

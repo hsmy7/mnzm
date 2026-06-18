@@ -65,8 +65,8 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     private var currentTransactionState: MutableGameState? = null
 
-    /** 上次 assembleAll 时的 ids 指纹，用于跳过无结构变化的重新装配 */
-    private var lastAssembledIdsFingerprint: Int = 0
+    /** 上次 assembleAll 时的 mutationVersion，用于跳过无变化的重新装配 */
+    private var lastAssembledMutationVersion: Long = 0
 
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
     internal val _gameDataFlow = MutableStateFlow(GameData())
@@ -789,10 +789,10 @@ class GameStateStoreImpl @Inject constructor(
                 if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
                 if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
-                val fp = reusableMutableState.discipleTables.ids.hashCode()
-                if (disciplesChanged || fp != lastAssembledIdsFingerprint) {
+                val mutated = reusableMutableState.discipleTables.mutationVersion
+                if (disciplesChanged || mutated != lastAssembledMutationVersion) {
                     _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
-                    lastAssembledIdsFingerprint = fp
+                    lastAssembledMutationVersion = mutated
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
@@ -934,10 +934,10 @@ class GameStateStoreImpl @Inject constructor(
                 if (blockChangedNotification)
                     _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
-                val fp = reusableMutableState.discipleTables.ids.hashCode()
-                if (disciplesChanged || fp != lastAssembledIdsFingerprint) {
+                val mutated = reusableMutableState.discipleTables.mutationVersion
+                if (disciplesChanged || mutated != lastAssembledMutationVersion) {
                     _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
-                    lastAssembledIdsFingerprint = fp
+                    lastAssembledMutationVersion = mutated
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,

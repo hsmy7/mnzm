@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -182,8 +183,12 @@ class DiscipleViewModel @Inject constructor(
     fun equipItem(discipleId: String, equipmentId: String) {
         viewModelScope.launch {
             try {
-                gameEngine.equipItem(discipleId, equipmentId)
-                showSuccess("装备成功")
+                val result = gameEngine.equipItem(discipleId, equipmentId)
+                when (result) {
+                    is DomainResult.Success -> showSuccess("装备成功")
+                    is DomainResult.Failure -> showError(result.error.message)
+                    is DomainResult.Partial -> showSuccess("装备部分成功")
+                }
             } catch (e: Exception) {
                 showError(e.message ?: "装备失败")
             }
@@ -193,8 +198,12 @@ class DiscipleViewModel @Inject constructor(
     fun unequipItem(discipleId: String, equipmentId: String) {
         viewModelScope.launch {
             try {
-                gameEngine.unequipItemById(discipleId, equipmentId)
-                showSuccess("卸下装备成功")
+                val result = gameEngine.unequipItemById(discipleId, equipmentId)
+                when (result) {
+                    is DomainResult.Success -> showSuccess("卸下装备成功")
+                    is DomainResult.Failure -> showError(result.error.message)
+                    is DomainResult.Partial -> showSuccess("卸下装备部分成功")
+                }
             } catch (e: Exception) {
                 showError(e.message ?: "卸下失败")
             }

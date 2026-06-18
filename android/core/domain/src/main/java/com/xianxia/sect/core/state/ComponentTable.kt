@@ -18,6 +18,9 @@ class ComponentTable<T> @JvmOverloads constructor(
 ) {
     @PublishedApi internal val store = SparseArray<T>(initialCapacity)
 
+    /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
+    @JvmField var onWrite: (() -> Unit)? = null
+
     // === 读取 ===
 
     /** O(log n) 获取 */
@@ -34,12 +37,12 @@ class ComponentTable<T> @JvmOverloads constructor(
 
     /** 设置值 */
     operator fun set(id: Int, value: T) {
-        store.put(id, value)
+        store.put(id, value); onWrite?.invoke()
     }
 
     /** 原子更新（读取 → 变换 → 写回） */
     inline fun update(id: Int, block: (T) -> T) {
-        store[id] = block(store[id])
+        store[id] = block(store[id]); onWrite?.invoke()
     }
 
     // === 遍历 ===
@@ -81,17 +84,17 @@ class ComponentTable<T> @JvmOverloads constructor(
 
     /** 插入 */
     fun put(id: Int, value: T) {
-        store.put(id, value)
+        store.put(id, value); onWrite?.invoke()
     }
 
     /** 删除 */
     fun remove(id: Int) {
-        store.remove(id)
+        store.remove(id); onWrite?.invoke()
     }
 
     /** 清空 */
     fun clear() {
-        store.clear()
+        store.clear(); onWrite?.invoke()
     }
 }
 
@@ -102,10 +105,15 @@ class ComponentTable<T> @JvmOverloads constructor(
 class IntComponentTable(initialCapacity: Int = 64) {
     @PublishedApi internal val store = SparseIntArray(initialCapacity)
 
+    /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
+    @JvmField var onWrite: (() -> Unit)? = null
+
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
-    operator fun set(id: Int, value: Int) { store.put(id, value) }
-    inline fun update(id: Int, block: (Int) -> Int) { store.put(id, block(store[id])) }
+    operator fun set(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
+    inline fun update(id: Int, block: (Int) -> Int) {
+        store.put(id, block(store[id])); onWrite?.invoke()
+    }
     fun ids(): IntArray {
         val result = IntArray(store.size())
         for (i in 0 until store.size()) result[i] = store.keyAt(i)
@@ -117,9 +125,9 @@ class IntComponentTable(initialCapacity: Int = 64) {
         for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
     }
     fun values(): List<Int> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Int) { store.put(id, value) }
-    fun remove(id: Int) { store.delete(id) }
-    fun clear() { store.clear() }
+    fun put(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
+    fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
+    fun clear() { store.clear(); onWrite?.invoke() }
 }
 
 /**
@@ -132,11 +140,14 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     // 因为弟子数 < 500，性能不是瓶颈
     @PublishedApi internal val store = SparseArray<Double>(initialCapacity)
 
+    /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
+    @JvmField var onWrite: (() -> Unit)? = null
+
     operator fun get(id: Int): Double = store[id] ?: 0.0
     fun getOrDefault(id: Int, default: Double): Double = store[id] ?: default
-    operator fun set(id: Int, value: Double) { store.put(id, value) }
+    operator fun set(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
     inline fun update(id: Int, block: (Double) -> Double) {
-        store[id] = block(store[id] ?: 0.0)
+        store[id] = block(store[id] ?: 0.0); onWrite?.invoke()
     }
     fun ids(): IntArray {
         val result = IntArray(store.size())
@@ -149,7 +160,7 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
         for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
     }
     fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Double) { store.put(id, value) }
-    fun remove(id: Int) { store.remove(id) }
-    fun clear() { store.clear() }
+    fun put(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
+    fun remove(id: Int) { store.remove(id); onWrite?.invoke() }
+    fun clear() { store.clear(); onWrite?.invoke() }
 }

@@ -104,4 +104,55 @@ class ComponentTableTest {
         table.update(1) { it * 2.0 }
         assertEquals(3.0, table[1], 0.001)
     }
+
+    // === onWrite callback tests ===
+
+    @Test
+    fun `onWrite callback invoked on set update remove put clear`() {
+        val table = IntComponentTable()
+        var writeCount = 0
+        table.onWrite = { writeCount++ }
+        table[1] = 10
+        assertEquals(1, writeCount)
+        table.update(1) { it + 1 }
+        assertEquals(2, writeCount)
+        table.remove(1)
+        assertEquals(3, writeCount)
+        table.put(2, 20)
+        assertEquals(4, writeCount)
+        table.clear()
+        assertEquals(5, writeCount)
+    }
+
+    @Test
+    fun `onWrite defaults to null no crash`() {
+        val table1 = ComponentTable<String>()
+        table1[1] = "hello"
+        table1.clear()
+
+        val table2 = IntComponentTable()
+        table2[1] = 42
+        table2.clear()
+
+        val table3 = DoubleComponentTable()
+        table3[1] = 3.14
+        table3.clear()
+        // No assertion needed — just verifying no crash
+    }
+
+    @Test
+    fun `onWrite not invoked on reads`() {
+        val table = IntComponentTable()
+        var writeCount = 0
+        table.onWrite = { writeCount++ }
+        table[1] = 100
+        assertEquals(1, writeCount)
+        val v = table[1]
+        assertEquals(100, v)
+        assertEquals(1, writeCount) // read did not bump
+        table.contains(1)
+        assertEquals(1, writeCount) // contains did not bump
+        table.size
+        assertEquals(1, writeCount) // size did not bump
+    }
 }
