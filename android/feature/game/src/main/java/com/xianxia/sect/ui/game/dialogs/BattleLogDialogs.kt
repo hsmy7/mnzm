@@ -218,7 +218,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    itemsIndexed(log.teamMembers.chunked(4), key = { index, _ -> index }) { index, rowMembers ->
+                    itemsIndexed(log.teamMembers.chunked(4), key = { index, _ -> "team_$index" }) { index, rowMembers ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -252,7 +252,7 @@ internal fun BattleLogDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    itemsIndexed(log.enemies.chunked(4), key = { index, _ -> index }) { index, rowEnemies ->
+                    itemsIndexed(log.enemies.chunked(4), key = { index, _ -> "enemy_$index" }) { index, rowEnemies ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -293,7 +293,7 @@ internal fun BattleLogDetailDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        items(log.rounds, key = { it.roundNumber }) { round ->
+                        items(log.rounds, key = { "round_${it.roundNumber}" }) { round ->
                             BattleRoundItem(round = round)
                         }
                     }

@@ -14,6 +14,7 @@
 - **优化：宗门信息卡片仅显示等级图标** — 移除宗门名称右侧的等级文字（如"小型宗门"），宗门名称左侧的等级图标已足够表达宗门等级
 - **修复：TapTap 登录 lateinit context 崩溃** — AndroidManifest 因合规要求移除了 TapTapKitInitProvider，导致 TapTapKit.context 从未赋值，点击登录时崩溃。修复：SDK 初始化成功后反射设置 context + 登录按钮等待 SDK 就绪 + 全局异常处理器改进混淆兼容
 - **修复：招募弟子时 ConcurrentModificationException 崩溃** — DiscipleTables.ids 使用 ArrayList 无并发保护，游戏线程写 ID 列表时 UI 线程读（maxOrNull）触发 CME。修复：将 ids 改为 CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全
+- **修复：战斗日志详情 LazyColumn key 重复崩溃** — 同一 LazyColumn 中三个 itemsIndexed/items 调用使用整数 key（index），当队伍成员和敌人均存在时 key 冲突。修复：为三组分块列表的 key 分别添加 "team_"、"enemy_"、"round_" 前缀确保全局唯一
 
 ### 变更
 

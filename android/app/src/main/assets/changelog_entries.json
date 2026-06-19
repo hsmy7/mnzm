@@ -11,7 +11,8 @@
                         "优化：宗门信息卡片仅显示等级图标——移除宗门名称右侧的等级文字（如\"小型宗门\"），宗门名称左侧的等级图标已充分表达宗门等级",
                         "修复：TapTap登录lateinit context崩溃——AndroidManifest因合规要求移除了TapTapKitInitProvider导致context从未赋值，点击登录时崩溃。修复：SDK初始化成功后反射设置context+登录按钮等待SDK就绪+全局异常处理器改进混淆兼容",
                         "变更：修炼速度数值缩小为1/10——各境界每旬修炼速度和修炼基础值等比缩小为1/10（如炼气期单灵根每旬从280降至28），突破耗时保持不变。旧存档加载时自动迁移修为值",
-                        "修复：招募弟子时ConcurrentModificationException崩溃——DiscipleTables.ids使用ArrayList无并发保护，游戏线程写ID列表时UI线程读（maxOrNull）触发CME。修复：将ids改为CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全"
+                        "修复：招募弟子时ConcurrentModificationException崩溃——DiscipleTables.ids使用ArrayList无并发保护，游戏线程写ID列表时UI线程读（maxOrNull）触发CME。修复：将ids改为CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全",
+                        "修复：战斗日志详情LazyColumn key重复崩溃——同一LazyColumn中三个itemsIndexed/items调用使用整数key（index），当队伍成员和敌人均存在时key冲突。修复：为三组分块列表的key分别添加team_、enemy_、round_前缀确保全局唯一"
                     ]
     },
     {
