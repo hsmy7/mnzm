@@ -283,8 +283,7 @@ class SettlementCoordinator @Inject constructor(
         val cleanIds = tables.ids.filter { id ->
             tables.isAlive[id] == 1 &&
             id.toString() != focusedId &&
-            id.toString() in cache.cleanDiscipleIds &&
-            id.toString() !in cache.farFromCompletionIds
+            id.toString() in cache.cleanDiscipleIds
         }
 
         if (cleanIds.isEmpty()) {
@@ -298,6 +297,14 @@ class SettlementCoordinator @Inject constructor(
             val cultivationDelta = rate * 3  // 每旬修炼值 × 3旬/月
             val newCultivation = (disciple.cultivation + cultivationDelta).coerceIn(0.0, disciple.maxCultivation)
             tables.cultivations[id] = newCultivation
+
+            // clean 弟子也需要检查突破（月结修炼值可能使其满值）
+            val needsBreakthrough = newCultivation >= disciple.maxCultivation &&
+                isDiscipleFullHpMp(disciple)
+            if (needsBreakthrough) {
+                val afterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
+                writeDiscipleToTables(afterBreakthrough, tables)
+            }
 
             val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
             if (loyaltyDelta != 0) {
@@ -323,8 +330,7 @@ class SettlementCoordinator @Inject constructor(
         val dirtyIds = tables.ids.filter { id ->
             tables.isAlive[id] == 1 &&
             id.toString() != focusedId &&
-            id.toString() in cache.dirtyDiscipleIds &&
-            id.toString() !in cache.farFromCompletionIds
+            id.toString() in cache.dirtyDiscipleIds
         }
 
         val batch = dirtyIds.drop(offset).take(MAX_DIRTY_BATCH_SIZE)

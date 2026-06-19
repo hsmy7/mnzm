@@ -10,6 +10,7 @@
 ### 修复
 
 - **修复：探查报告宗门最高境界显示错误** — 探查成功后敌情报告中 `maxRealm` 使用了 `maxOfOrNull { it.realm }`（数值最大=境界最低），改为 `minOfOrNull` 正确显示该宗门最高境界
+- **修复：不查看弟子信息界面弟子不修炼不突破** — 二层根因叠加：(1) 月结`farFromCompletionIds`跳过距突破>2个月的弟子，修炼速度慢者永远被跳过；(2) `processCleanDiscipleBatch`只加修炼值不检查突破，clean弟子月结满值也无法突破。修复：移除`farFromCompletionIds`过滤 + clean批次添加突破检查
 
 ## [4.0.10] - 2026-06-18（versionCode=4010）
 
