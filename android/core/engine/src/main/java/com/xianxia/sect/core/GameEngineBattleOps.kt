@@ -316,7 +316,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     if (victory) {
         val allSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
         val realmDistribution = allSectDisciples.groupingBy { it.realm }.eachCount()
-        val scoutInfo = SectScoutInfo(sectId = sectId, sectName = targetSect.name, scoutYear = data.gameYear, scoutMonth = data.gameMonth, discipleCount = allSectDisciples.size, maxRealm = allSectDisciples.maxOfOrNull { it.realm } ?: 9, disciples = realmDistribution, isKnown = true, expiryYear = data.gameYear + 1, expiryMonth = data.gameMonth)
+        val scoutInfo = SectScoutInfo(sectId = sectId, sectName = targetSect.name, scoutYear = data.gameYear, scoutMonth = data.gameMonth, discipleCount = allSectDisciples.size, maxRealm = allSectDisciples.minOfOrNull { it.realm } ?: 9, disciples = realmDistribution, isKnown = true, expiryYear = data.gameYear + 1, expiryMonth = data.gameMonth)
         updateGameDataSync { val existingDetail = it.sectDetails[sectId] ?: SectDetail(sectId = sectId); it.copy(sectDetails = it.sectDetails + (sectId to existingDetail.copy(scoutInfo = scoutInfo))) }
     }
 }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -374,36 +375,13 @@ object AISectDiscipleManager {
         val sectMaxRealm: Int
     ) {
         companion object {
-            fun forLevel(level: Int): SectLevelConfig = when (level) {
-                0 -> SectLevelConfig(
-                    normalMin = 20, normalMax = 60,
-                    normalMaxRealm = 6,
-                    eliteCount = 5, eliteRealm = 5,
-                    sectMaxRealm = 5
-                )
-                1 -> SectLevelConfig(
-                    normalMin = 40, normalMax = 80,
-                    normalMaxRealm = 5,
-                    eliteCount = 5, eliteRealm = 3,
-                    sectMaxRealm = 3
-                )
-                2 -> SectLevelConfig(
-                    normalMin = 40, normalMax = 120,
-                    normalMaxRealm = 4,
-                    eliteCount = 5, eliteRealm = 2,
-                    sectMaxRealm = 2
-                )
-                3 -> SectLevelConfig(
-                    normalMin = 50, normalMax = 120,
-                    normalMaxRealm = 3,
-                    eliteCount = 5, eliteRealm = 1,
-                    sectMaxRealm = 1
-                )
-                else -> SectLevelConfig(
-                    normalMin = 20, normalMax = 60,
-                    normalMaxRealm = 6,
-                    eliteCount = 5, eliteRealm = 5,
-                    sectMaxRealm = 5
+            fun forLevel(level: Int): SectLevelConfig {
+                val maxRealm = SectLevel.maxRealmForLevel(level)
+                return SectLevelConfig(
+                    normalMin = 50, normalMax = 50,
+                    normalMaxRealm = maxRealm,
+                    eliteCount = 0, eliteRealm = maxRealm,
+                    sectMaxRealm = maxRealm
                 )
             }
         }
@@ -444,6 +422,43 @@ object AISectDiscipleManager {
         }
 
         return distribution
+    }
+
+    /**
+     * 旧存档兼容：将 AI 宗门弟子补充至目标数量。
+     * 新增弟子境界在宗门等级允许范围内随机分配。
+     *
+     * @param sectName 宗门名称
+     * @param existingDisciples 现有弟子列表
+     * @param targetCount 目标弟子总数（如 50）
+     * @param sectLevel 宗门等级（用于境界上限）
+     * @return 补满后的弟子列表
+     */
+    fun fillDisciplesToTarget(
+        sectName: String,
+        existingDisciples: List<Disciple>,
+        targetCount: Int,
+        sectLevel: Int
+    ): List<Disciple> {
+        if (existingDisciples.size >= targetCount) return existingDisciples
+
+        val maxRealm = SectLevel.maxRealmForLevel(sectLevel)
+        val usedNames = existingDisciples.map { it.name }.toMutableSet()
+        val newDisciples = mutableListOf<Disciple>()
+
+        val fillCount = targetCount - existingDisciples.size
+        val realmDistribution = generateRealmDistribution(fillCount, maxRealm)
+
+        realmDistribution.forEach { (realm, count) ->
+            repeat(count) {
+                val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
+                val adjusted = adjustDiscipleRealm(disciple, realm)
+                newDisciples.add(adjusted)
+                usedNames.add(adjusted.name)
+            }
+        }
+
+        return existingDisciples + newDisciples
     }
 
     private fun adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {

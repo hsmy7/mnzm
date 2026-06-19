@@ -266,6 +266,27 @@ suspend fun GameEngine.loadData(
         }
         stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = regenerated) }
     }
+    // 旧存档兼容：AI 宗门弟子数不足 50 人时补充至 50 人
+    val currentDisciples = stateStore.gameData.value.aiSectDisciples
+    val worldSects = stateStore.gameData.value.worldMapSects
+    if (currentDisciples.isNotEmpty() && worldSects.isNotEmpty()) {
+        val filled = currentDisciples.toMutableMap()
+        var filledCount = 0
+        for (sect in worldSects) {
+            if (sect.isPlayerSect) continue
+            val existing = filled[sect.id] ?: continue
+            if (existing.size < 50) {
+                filled[sect.id] = AISectDiscipleManager.fillDisciplesToTarget(
+                    sect.name, existing, 50, sect.level
+                )
+                filledCount++
+            }
+        }
+        if (filledCount > 0) {
+            DomainLog.i("GameEngine", "loadData: filled $filledCount AI sects to 50 disciples")
+            stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = filled) }
+        }
+    }
     try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
 }
 

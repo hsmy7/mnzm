@@ -56,6 +56,7 @@ import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.ui.navigation.toDialogRoute
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.perf.GpuTier
 import com.xianxia.sect.core.perf.GpuTierDetector
@@ -778,6 +779,7 @@ fun MainGameScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isUiVisible) {
+                    val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
                     SectInfoCard(
                         sectName = gameData?.sectName ?: "青云宗",
                         gameYear = gameData?.gameYear ?: 1,
@@ -785,7 +787,9 @@ fun MainGameScreen(
                         gamePhase = gameData?.gamePhase ?: 0,
                         spiritStones = gameData?.spiritStones ?: 0L,
                         discipleCount = aliveDisciples.value.size,
-                        combatPower = sectCombatPower
+                        combatPower = sectCombatPower,
+                        sectLevel = currentSectLevel,
+                        levelName = SectLevel.levelName(currentSectLevel)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -898,7 +902,9 @@ private fun SectInfoCard(
     gamePhase: Int,
     spiritStones: Long,
     discipleCount: Int,
-    combatPower: Long
+    combatPower: Long,
+    sectLevel: Int = SectLevel.MEDIUM,
+    levelName: String = "中型宗门"
 ) {
     Box(
         modifier = Modifier
@@ -918,7 +924,7 @@ private fun SectInfoCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(1)
+                val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(sectLevel)
                 if (sectIconResId != null) {
                     Image(
                         painter = painterResource(id = sectIconResId),
@@ -929,6 +935,12 @@ private fun SectInfoCard(
                 Text(
                     text = sectName,
                     fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Text(
+                    text = levelName,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.FixedSectPositions
 import com.xianxia.sect.core.config.SectAlignment
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
@@ -153,23 +154,17 @@ object WorldMapGenerator {
 
     private fun generateSectLevelAndDisciples(level: Int): SectLevelInfo {
         val levelNames = listOf("小型宗门", "中型宗门", "大型宗门", "顶级宗门")
+        val maxRealm = SectLevel.maxRealmForLevel(level)
 
-        val (normalMin, normalMax, normalMaxRealm, eliteCount, eliteRealm) = when (level) {
-            0 -> Tuple5(20, 60, 6, 5, 5)
-            1 -> Tuple5(40, 80, 5, 5, 3)
-            2 -> Tuple5(40, 120, 4, 5, 2)
-            3 -> Tuple5(50, 120, 3, 5, 1)
-            else -> Tuple5(20, 60, 6, 5, 5)
-        }
-
-        val normalCount = Random.nextInt(normalMin, normalMax + 1)
+        // 所有 AI 宗门固定 50 名弟子，境界在允许范围内随机分配
+        val normalCount = 50
 
         val disciples = mutableMapOf<Int, Int>()
         for (realm in 0..9) {
             disciples[realm] = 0
         }
 
-        val realmRange = (normalMaxRealm + 1)..9
+        val realmRange = (maxRealm + 1)..9
         if (!realmRange.isEmpty()) {
             val weights = realmRange.associateWith { realm ->
                 when (realm) {
@@ -199,31 +194,22 @@ object WorldMapGenerator {
                 }
             }
         }
-
-        disciples[eliteRealm] = eliteCount
 
         return SectLevelInfo(level, levelNames[level], disciples)
     }
 
-    private data class Tuple5<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
     private fun generateDisciplesForLevel(level: Int): Map<Int, Int> {
+        // 玩家宗门的 WorldSect.disciples 仅用于显示，使用固定数值
+        val maxRealm = SectLevel.maxRealmForLevel(level)
         val disciples = mutableMapOf<Int, Int>()
         for (realm in 0..9) {
             disciples[realm] = 0
         }
 
-        val (normalMin, normalMax, normalMaxRealm, eliteCount, eliteRealm) = when (level) {
-            0 -> Tuple5(20, 60, 6, 5, 5)
-            1 -> Tuple5(40, 80, 5, 5, 3)
-            2 -> Tuple5(40, 120, 4, 5, 2)
-            3 -> Tuple5(50, 120, 3, 5, 1)
-            else -> Tuple5(20, 60, 6, 5, 5)
-        }
+        val normalCount = 50
 
-        val normalCount = Random.nextInt(normalMin, normalMax + 1)
-
-        val realmRange = (normalMaxRealm + 1)..9
+        val realmRange = (maxRealm + 1)..9
         if (!realmRange.isEmpty()) {
             val weights = realmRange.associateWith { realm ->
                 when (realm) {
@@ -253,8 +239,6 @@ object WorldMapGenerator {
                 }
             }
         }
-
-        disciples[eliteRealm] = eliteCount
 
         return disciples
     }

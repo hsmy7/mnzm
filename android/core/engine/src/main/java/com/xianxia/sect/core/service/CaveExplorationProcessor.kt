@@ -5,6 +5,7 @@ import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
@@ -517,11 +518,47 @@ class CaveExplorationProcessor @Inject constructor(
             AISectDiscipleManager.processMonthlyCultivation(disciples)
         }
 
+        // 同步 AI 宗门等级 — 月度修炼弟子只会变强，仅用 any{} 短路检查升级（只升不降）
+        val syncedWorldSects = data.worldMapSects.map { sect ->
+            if (sect.isPlayerSect) {
+                // 玩家宗门：从 DiscipleTables 计算当前最高境界，只升不降
+                val tables = stateStore.discipleTables
+                var highestRealm = 9
+                tables.realms.forEach { id, realm ->
+                    if (tables.isAlive[id] == 1 && realm < highestRealm) {
+                        highestRealm = realm
+                    }
+                }
+                val newLevel = SectLevel.fromHighestRealm(highestRealm)
+                if (newLevel > sect.level) {
+                    sect.copy(level = newLevel, levelName = SectLevel.levelName(newLevel))
+                } else {
+                    sect
+                }
+            } else if (sect.level >= SectLevel.TOP) {
+                sect  // 已是顶级 → 跳过
+            } else {
+                val disciples = updatedAiDisciples[sect.id] ?: return@map sect
+                val newLevel = when (sect.level) {
+                    SectLevel.SMALL -> if (disciples.any { it.isAlive && it.realm <= 5 }) SectLevel.MEDIUM else sect.level
+                    SectLevel.MEDIUM -> if (disciples.any { it.isAlive && it.realm <= 4 }) SectLevel.LARGE else sect.level
+                    SectLevel.LARGE -> if (disciples.any { it.isAlive && it.realm <= 2 }) SectLevel.TOP else sect.level
+                    else -> sect.level
+                }
+                if (sect.level != newLevel) {
+                    sect.copy(level = newLevel, levelName = SectLevel.levelName(newLevel))
+                } else {
+                    sect
+                }
+            }
+        }
+
         scope.launch {
             stateStore.update {
                 gameData = gameData.copy(
                     sectDetails = cleanedSectDetails,
-                    aiSectDisciples = updatedAiDisciples
+                    aiSectDisciples = updatedAiDisciples,
+                    worldMapSects = syncedWorldSects
                 )
             }
         }
@@ -576,6 +613,7 @@ class CaveExplorationProcessor @Inject constructor(
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
             AISectDiscipleManager.processAging(disciples)
         }
+        // 年度老化仅修改年龄，不改变境界，无需同步宗门等级
         scope.launch {
             stateStore.update { gameData = data.copy(aiSectDisciples = updatedAiDisciples) }
         }

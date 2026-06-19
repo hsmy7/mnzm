@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.perf.ThermalMonitor
@@ -366,6 +367,17 @@ class GameViewModel @Inject constructor(
         .map { it.filter { d -> d.isAlive } }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    /**
+     * 玩家宗门等级 — 只升不降，取自 WorldSect.level（由月度 tick 同步更新）。
+     * 小型=0（无化神及以上），中型=1（有化神），大型=2（有炼虚/合体），顶级=3（有大乘及以上）
+     */
+    val playerSectLevel: StateFlow<Int> = gameData
+        .map { data ->
+            data.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.MEDIUM
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, SectLevel.MEDIUM)
 
     /**
      * 可招募弟子聚合数据 - 响应式数据流
