@@ -155,4 +155,71 @@ class LevelGeneratorTest {
             assertTrue("Level type should be BEAST or CAVE", level.type in validTypes)
         }
     }
+
+    // ---- selectBeastRealm ----
+
+    @Test
+    fun selectBeastRealm_returnsValidRealmRange() {
+        for (year in listOf(0, 1, 100, 500, 2000, 9999)) {
+            val realm = LevelGenerator.selectBeastRealm(year)
+            assertTrue("realm should be 0..9, got $realm for year=$year",
+                realm in 0..9)
+        }
+    }
+
+    @Test
+    fun selectBeastRealm_year1_mostlyLowRealms() {
+        // 统计 500 次采样，炼气+筑基应占主导
+        val samples = List(500) { LevelGenerator.selectBeastRealm(1) }
+        val lowCount = samples.count { it in 8..9 }  // 炼气/筑基
+        val highCount = samples.count { it in 0..2 } // 仙人/渡劫/大乘
+        // 炼气+筑基应超过 40%
+        assertTrue("year 1: 炼气+筑基比例应>40%, 实际=${lowCount * 100 / 500}%",
+            lowCount > 200)
+        // 高境界应少于 10%
+        assertTrue("year 1: 高境界比例应<10%, 实际=${highCount * 100 / 500}%",
+            highCount < 50)
+    }
+
+    @Test
+    fun selectBeastRealm_year2000_mostlyHighRealms() {
+        // 统计 500 次采样，高境界应占主导
+        val samples = List(500) { LevelGenerator.selectBeastRealm(2000) }
+        val lowCount = samples.count { it in 8..9 }  // 炼气/筑基
+        val highCount = samples.count { it in 0..2 } // 仙人/渡劫/大乘
+        // 高境界应超过 40%
+        assertTrue("year 2000: 高境界比例应>40%, 实际=${highCount * 100 / 500}%",
+            highCount > 200)
+        // 炼气+筑基应很少（<5%）
+        assertTrue("year 2000: 炼气+筑基比例应<5%, 实际=${lowCount * 100 / 500}%",
+            lowCount < 25)
+    }
+
+    @Test
+    fun selectBeastRealm_year500_isMidGameDistribution() {
+        val samples = List(500) { LevelGenerator.selectBeastRealm(500) }
+        val midCount = samples.count { it in 4..6 }  // 化神/元婴/炼虚
+        val lowCount = samples.count { it in 8..9 }
+        val highCount = samples.count { it in 0..2 }
+        // 中期：低境界下降，高境界增长，中间段最高
+        assertTrue("year 500: 中期境界应有显著占比, 实际=${midCount * 100 / 500}%",
+            midCount > 150)
+        assertTrue("year 500: 低境界比例应下降, 实际=${lowCount * 100 / 500}%",
+            lowCount < 100)
+        assertTrue("year 500: 高境界比例应增长, 实际=${highCount * 100 / 500}%",
+            highCount > 50)
+    }
+
+    @Test
+    fun selectBeastRealm_interpolationSmooth() {
+        // 验证插值平滑性：year 250 的分布应介于 year 1 和 year 500 之间
+        val year1Avg = List(200) { LevelGenerator.selectBeastRealm(1) }.average()
+        val year250Avg = List(200) { LevelGenerator.selectBeastRealm(250) }.average()
+        val year500Avg = List(200) { LevelGenerator.selectBeastRealm(500) }.average()
+        // realm 值越高境界越低，平均值应随年份递减
+        assertTrue("year250 应介于 year1($year1Avg) 和 year500($year500Avg) 之间",
+            year250Avg < year1Avg)
+        assertTrue("year250 应介于 year1 和 year500 之间",
+            year250Avg > year500Avg)
+    }
 }

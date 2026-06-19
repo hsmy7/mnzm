@@ -29,6 +29,65 @@ object LevelGenerator {
         "洞府", "秘洞", "灵窟", "仙窟", "古洞"
     )
 
+    /**
+     * 妖兽境界年份锚点权重。
+     * 索引 0=仙人, 1=渡劫, 2=大乘, 3=合体, 4=炼虚,
+     *      5=化神, 6=元婴, 7=金丹, 8=筑基, 9=炼气
+     */
+    private data class BeastRealmAnchor(
+        val year: Int,
+        val weights: List<Int>  // 10 个元素，索引 = realm 值
+    )
+
+    private val BEAST_REALM_ANCHORS = listOf(
+        BeastRealmAnchor(
+            year = 1,
+            weights = listOf(1, 3, 8, 15, 30, 60, 120, 220, 320, 400)
+        ),
+        BeastRealmAnchor(
+            year = 500,
+            weights = listOf(40, 60, 90, 130, 170, 180, 150, 100, 50, 20)
+        ),
+        BeastRealmAnchor(
+            year = 2000,
+            weights = listOf(160, 170, 150, 120, 90, 60, 30, 15, 6, 2)
+        )
+    )
+
+    /**
+     * 按年份加权随机选取妖兽境界。
+     * 在两个锚点之间线性插值权重，归一化后加权随机。
+     *
+     * @param year 当前游戏年份（≥1，小于1钳制为1）
+     * @return 境界值 0~9（0=仙人…9=炼气）
+     */
+    internal fun selectBeastRealm(year: Int): Int {
+        val clampedYear = year.coerceAtLeast(1)
+        val anchors = BEAST_REALM_ANCHORS
+
+        val lower = anchors.last { it.year <= clampedYear }
+        val upper = anchors.firstOrNull { it.year >= clampedYear } ?: lower
+
+        val weights = if (lower == upper) {
+            lower.weights.map { it.toDouble() }
+        } else {
+            val fraction = (clampedYear - lower.year).toDouble() /
+                (upper.year - lower.year)
+            lower.weights.zip(upper.weights).map { (lo, hi) ->
+                lo + (hi - lo) * fraction
+            }
+        }
+
+        // 加权随机选取
+        val total = weights.sum()
+        var roll = Random.nextDouble() * total
+        for (i in weights.indices) {
+            roll -= weights[i]
+            if (roll <= 0.0) return i
+        }
+        return 9 // fallback
+    }
+
     fun generateWorldLevels(
         existingSects: List<WorldSect>,
         connectionEdges: List<MSTEdge>,
@@ -82,7 +141,7 @@ object LevelGenerator {
     ): WorldLevel {
         val beastTypeIndex = Random.nextInt(0, 8)
         val beastConfig = GameConfig.Beast.getType(beastTypeIndex)
-        val realm = Random.nextInt(0, 10)
+        val realm = selectBeastRealm(currentYear)
         val realmLayer = Random.nextInt(1, 10)
         val count = Random.nextInt(1, 14)
         val realmName = when (realm) {
