@@ -46,6 +46,18 @@ object BuiltinMailConfig {
             attachments = listOf(
                 MailAttachment(type = "storageBag", name = "宝品储物袋", quantity = 10, rarity = 3)
             )
+        ),
+        BuiltinMail(
+            id = "mail_dragon_boat_2026",
+            title = "端午安康",
+            content = "道友安好！\n\n五月初五，龙舟竞渡，粽叶飘香。\n\n值此端午佳节，天道意志特奉薄礼一份，愿道友仙途坦荡、宗门昌盛，早日登临仙道之巅！\n\n——天道意志",
+            mailType = "reward",
+            minVersion = 4012,
+            deadlineMs = 1781971199000L, // 2026-06-19 23:59:59 CST 仅端午节当天
+            attachments = listOf(
+                MailAttachment(type = "storageBag", name = "灵品储物袋", quantity = 5, rarity = 2),
+                MailAttachment(type = "spiritStones", name = "灵石", quantity = 50000, rarity = 1)
+            )
         )
     )
 }

@@ -780,6 +780,7 @@ fun MainGameScreen(
             ) {
                 if (isUiVisible) {
                     val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
+                    val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
                     SectInfoCard(
                         sectName = gameData?.sectName ?: "青云宗",
                         gameYear = gameData?.gameYear ?: 1,
@@ -788,7 +789,9 @@ fun MainGameScreen(
                         spiritStones = gameData?.spiritStones ?: 0L,
                         discipleCount = aliveDisciples.value.size,
                         combatPower = sectCombatPower,
-                        sectLevel = currentSectLevel
+                        sectLevel = currentSectLevel,
+                        showRewardBadge = showRewardBadge,
+                        onSectIconClick = { viewModel.navigateToSectLevelDetail() }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -902,7 +905,9 @@ private fun SectInfoCard(
     spiritStones: Long,
     discipleCount: Int,
     combatPower: Long,
-    sectLevel: Int = SectLevel.MEDIUM
+    sectLevel: Int = SectLevel.MEDIUM,
+    showRewardBadge: Boolean = false,
+    onSectIconClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -924,11 +929,25 @@ private fun SectInfoCard(
             ) {
                 val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(sectLevel)
                 if (sectIconResId != null) {
-                    Image(
-                        painter = painterResource(id = sectIconResId),
-                        contentDescription = "宗门等级",
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Box(modifier = Modifier.size(28.dp)) {
+                        Image(
+                            painter = painterResource(id = sectIconResId),
+                            contentDescription = "宗门等级",
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { onSectIconClick() }
+                        )
+                        // 奖励可领取红点
+                        if (showRewardBadge) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 2.dp, y = (-4).dp)
+                                    .size(7.dp)
+                                    .background(Color.Red, CircleShape)
+                            )
+                        }
+                    }
                 }
                 Text(
                     text = sectName,

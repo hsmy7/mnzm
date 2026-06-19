@@ -6,6 +6,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 import com.xianxia.sect.core.model.*
@@ -76,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 2  // 4.0.00 删档重置：从 v1 升级以触发 destructive migration，清空所有旧存档
+    version = 3  // 4.0.13: v2→v3 新增 sectLevelClaimRecords 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -337,6 +338,17 @@ abstract class GameDatabase : RoomDatabase() {
     companion object {
         private const val TAG = "GameDatabase"
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
+
+        /** 4.0.13: 新增 sectLevelClaimRecords 列 — 宗门等级每周奖励领取记录 */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE game_data ADD COLUMN sectLevelClaimRecords TEXT " +
+                    "NOT NULL DEFAULT '[]'"
+                )
+                Log.i(TAG, "Migration 2→3: added sectLevelClaimRecords column to game_data")
+            }
+        }
         private val threadCounter = AtomicInteger(0)
 
         fun create(context: Context): GameDatabase {
@@ -358,6 +370,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
+                .addMigrations(MIGRATION_2_3)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

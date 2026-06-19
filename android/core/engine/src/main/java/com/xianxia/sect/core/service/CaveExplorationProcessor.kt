@@ -519,22 +519,10 @@ class CaveExplorationProcessor @Inject constructor(
         }
 
         // 同步 AI 宗门等级 — 月度修炼弟子只会变强，仅用 any{} 短路检查升级（只升不降）
+        // 玩家宗门等级由玩家手动升级（通过 SectLevelDetailDialog），此处跳过
         val syncedWorldSects = data.worldMapSects.map { sect ->
             if (sect.isPlayerSect) {
-                // 玩家宗门：从 DiscipleTables 计算当前最高境界，只升不降
-                val tables = stateStore.discipleTables
-                var highestRealm = 9
-                tables.realms.forEach { id, realm ->
-                    if (tables.isAlive[id] == 1 && realm < highestRealm) {
-                        highestRealm = realm
-                    }
-                }
-                val newLevel = SectLevel.fromHighestRealm(highestRealm)
-                if (newLevel > sect.level) {
-                    sect.copy(level = newLevel, levelName = SectLevel.levelName(newLevel))
-                } else {
-                    sect
-                }
+                sect  // 玩家宗门手动升级，月度 tick 不再自动升级
             } else if (sect.level >= SectLevel.TOP) {
                 sect  // 已是顶级 → 跳过
             } else {

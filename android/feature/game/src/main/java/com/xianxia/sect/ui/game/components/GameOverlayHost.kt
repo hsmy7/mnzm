@@ -470,6 +470,15 @@ fun GameOverlayHost(
                 )
             }
         }
+        is DialogRoute.SectLevelDetail -> {
+            val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
+            SectLevelDetailDialog(
+                gameData = gameData,
+                aliveDisciples = aliveDisciples,
+                viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+        }
         is DialogRoute.GameOver -> {
             GameOverDialog(
                 onRestartGame = {

@@ -454,4 +454,16 @@ object CollectionConverters {
     @JvmStatic
     fun toMailClaimRecordList(value: String): List<MailClaimRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(MailClaimRecord.serializer()), value) { emptyList() }
+
+    // ==================== 宗门等级领取记录转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSectLevelClaimRecordList(value: List<SectLevelClaimRecord>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(SectLevelClaimRecord.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSectLevelClaimRecordList(value: String): List<SectLevelClaimRecord> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(SectLevelClaimRecord.serializer()), value) { emptyList() }
 }

@@ -27,6 +27,17 @@ data class MailClaimRecord(
     val source: String = "builtin"
 )
 
+/**
+ * 宗门等级每周奖励领取记录。
+ * 使用现实时间戳判断 7 天间隔。
+ */
+@Keep
+@Serializable
+data class SectLevelClaimRecord(
+    val level: Int,
+    val claimedAtEpochMs: Long = 0L  // System.currentTimeMillis()
+)
+
 @Keep
 @Serializable
 @Entity(
@@ -282,6 +293,9 @@ data class GameData(
 
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var mailRecords: List<MailClaimRecord> = emptyList(),
+
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var sectLevelClaimRecords: List<SectLevelClaimRecord> = emptyList(),
 
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
     @SettlementStrategy(Strategy.PRESERVE_OLD)

@@ -369,8 +369,9 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
     /**
-     * 玩家宗门等级 — 只升不降，取自 WorldSect.level（由月度 tick 同步更新）。
+     * 玩家宗门等级 — 只升不降，取自 WorldSect.level。
      * 小型=0（无化神及以上），中型=1（有化神），大型=2（有炼虚/合体），顶级=3（有大乘及以上）
+     * 自 v4.0.12 起改为玩家手动升级，月度 tick 不再自动升级。
      */
     val playerSectLevel: StateFlow<Int> = gameData
         .map { data ->
@@ -378,6 +379,54 @@ class GameViewModel @Inject constructor(
         }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, SectLevel.SMALL)
+
+    /** 宗门等级每周奖励是否可领取（驱动红点） */
+    val sectLevelRewardClaimable: StateFlow<Boolean> = combine(
+        gameData, playerSectLevel
+    ) { data, level ->
+        val lastClaim = data.sectLevelClaimRecords.find { it.level == level }
+        lastClaim == null || (System.currentTimeMillis() - lastClaim.claimedAtEpochMs) >= 7L * 24 * 60 * 60 * 1000
+    }.distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, false)
+
+    /** 打开宗门等级详情界面 */
+    fun navigateToSectLevelDetail() {
+        navigateToDialog(DialogRoute.SectLevelDetail)
+    }
+
+    /** 领取宗门等级每周奖励（成功时由 RewardCardHost 播放飞出动画，不弹 toast） */
+    fun claimSectLevelReward(level: Int) {
+        viewModelScope.launch {
+            val result = gameEngine.claimSectLevelReward(level)
+            when (result) {
+                is com.xianxia.sect.core.engine.SectLevelClaimResult.Success -> {
+                    // 奖励已通过 GameEngine 入队 rewardCardQueue，
+                    // RewardCardHost 在 MainGameScreen 中自动播放飞出动画
+                }
+                is com.xianxia.sect.core.engine.SectLevelClaimResult.AlreadyClaimed ->
+                    showError("本周已领取过该等级奖励")
+                is com.xianxia.sect.core.engine.SectLevelClaimResult.Error ->
+                    showError(result.message)
+            }
+        }
+    }
+
+    /** 手动升级宗门等级 */
+    fun upgradeSectLevel() {
+        viewModelScope.launch {
+            val result = gameEngine.upgradeSectLevel()
+            when (result) {
+                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.Success ->
+                    showSuccess("宗门晋升至${SectLevel.levelName(result.newLevel)}!")
+                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.AlreadyMaxLevel ->
+                    showSuccess("已达最高等级")
+                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.ConditionsNotMet ->
+                    showError("条件未满足: ${result.unmetConditions.joinToString("、")}")
+                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.Error ->
+                    showError(result.message)
+            }
+        }
+    }
 
     /**
      * 可招募弟子聚合数据 - 响应式数据流
