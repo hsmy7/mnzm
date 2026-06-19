@@ -79,8 +79,8 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
             val capturedDisciples = data.aiSectDisciples[sectId]?.filter { it.isAlive } ?: emptyList()
             stateStore.update {
                 gameData = gameData.copy(
-                    worldMapSects = gameData.worldMapSects.map { sect -> if (sect.id == sectId) sect.copy(isPlayerOccupied = true, occupierSectId = playerSect?.id ?: "", garrisonSlots = garrisonSlots) else sect },
-                    recruitList = gameData.recruitList + capturedDisciples,
+                    worldMapSects = gameData.worldMapSects.toList().map { sect -> if (sect.id == sectId) sect.copy(isPlayerOccupied = true, occupierSectId = playerSect?.id ?: "", garrisonSlots = garrisonSlots) else sect },
+                    recruitList = gameData.recruitList.toList() + capturedDisciples,
                     aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() }
                 )
                 addSpiritStones(warRewards.spiritStones)

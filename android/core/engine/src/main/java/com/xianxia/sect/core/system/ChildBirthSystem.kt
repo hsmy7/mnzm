@@ -104,7 +104,7 @@ class ChildBirthSystem @Inject constructor(
 
             val child = createChild(mother, father, currentYear, state)
             state.gameData = state.gameData.copy(
-                recruitList = state.gameData.recruitList + child
+                recruitList = state.gameData.recruitList.toList() + child
             )
 
             currentList = currentList.map { disciple ->
