@@ -788,8 +788,7 @@ fun MainGameScreen(
                         spiritStones = gameData?.spiritStones ?: 0L,
                         discipleCount = aliveDisciples.value.size,
                         combatPower = sectCombatPower,
-                        sectLevel = currentSectLevel,
-                        levelName = SectLevel.levelName(currentSectLevel)
+                        sectLevel = currentSectLevel
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -903,8 +902,7 @@ private fun SectInfoCard(
     spiritStones: Long,
     discipleCount: Int,
     combatPower: Long,
-    sectLevel: Int = SectLevel.MEDIUM,
-    levelName: String = "中型宗门"
+    sectLevel: Int = SectLevel.MEDIUM
 ) {
     Box(
         modifier = Modifier
@@ -935,12 +933,6 @@ private fun SectInfoCard(
                 Text(
                     text = sectName,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Text(
-                    text = levelName,
-                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )

@@ -729,7 +729,7 @@ enum class WorldMapDialogType { SCOUT, TRADE, ALLIANCE, GIFT, ENVOY }
 data class WorldSect(
     val id: String = "",
     val name: String = "",
-    val level: Int = 1,
+    val level: Int = 0,
     val levelName: String = "小型宗门",
     val x: Float = 0f,
     val y: Float = 0f,

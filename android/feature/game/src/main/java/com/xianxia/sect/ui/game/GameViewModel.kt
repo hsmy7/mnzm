@@ -374,10 +374,10 @@ class GameViewModel @Inject constructor(
      */
     val playerSectLevel: StateFlow<Int> = gameData
         .map { data ->
-            data.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.MEDIUM
+            data.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
         }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, sharingStarted, SectLevel.MEDIUM)
+        .stateIn(viewModelScope, sharingStarted, SectLevel.SMALL)
 
     /**
      * 可招募弟子聚合数据 - 响应式数据流

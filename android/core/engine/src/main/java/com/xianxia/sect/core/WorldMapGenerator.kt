@@ -78,9 +78,9 @@ object WorldMapGenerator {
                     y = pos.worldY,
                     isPlayerSect = true,
                     isRighteous = true,
-                    level = 1,
-                    levelName = "中型宗门",
-                    disciples = generateDisciplesForLevel(1),
+                    level = 0,
+                    levelName = "小型宗门",
+                    disciples = generateDisciplesForLevel(0),
                     relation = 100,
                     discovered = true
                 )
