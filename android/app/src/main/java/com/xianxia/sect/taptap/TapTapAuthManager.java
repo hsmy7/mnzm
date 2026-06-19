@@ -23,10 +23,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.lang.reflect.Field;
 
 public class TapTapAuthManager {
     private static final String TAG = "TapTapAuthManager";
     private static boolean isInitialized = false;
+    /** SDK 真正就绪（init 成功 + context 可访问），登录按钮此标记为 true 才可点击 */
+    private static boolean isSdkReady = false;
     private static boolean limitAdTrackingEnabled = true;
 
     private static final ExecutorService initExecutor = Executors.newSingleThreadExecutor(r -> {
@@ -44,6 +47,12 @@ public class TapTapAuthManager {
 
         if (isInitialized) {
             Log.d(TAG, "TapTap SDK 已初始化，更新限制广告追踪状态: " + limitAdTracking);
+            if (!isSdkReady) {
+                // 上次初始化可能超时，重新尝试验证 context
+                ensureTapTapKitContext(activity.getApplicationContext());
+                isSdkReady = true;
+                Log.d(TAG, "二次验证 TapTapKit.context 成功");
+            }
             return;
         }
 
@@ -69,12 +78,13 @@ public class TapTapAuthManager {
         try {
             future.get(timeoutMs, TimeUnit.MILLISECONDS);
             isInitialized = true;
+            ensureTapTapKitContext(activity.getApplicationContext());
+            isSdkReady = true;
             Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL") + "，限制广告追踪: " + limitAdTracking);
         } catch (TimeoutException e) {
-            isInitialized = true;
-            Log.e(TAG, "TapTap SDK 初始化超时（模拟器环境），标记已完成", e);
+            // 超时不标记 isInitialized/isSdkReady，避免进入未就绪状态
+            Log.e(TAG, "TapTap SDK 初始化超时（模拟器环境），跳过登录功能", e);
         } catch (Exception e) {
-            isInitialized = true;
             Log.e(TAG, "TapTap SDK 初始化异常", e);
         }
     }
@@ -83,7 +93,47 @@ public class TapTapAuthManager {
         return limitAdTrackingEnabled;
     }
 
+    /** SDK 是否已就绪，可安全调用登录等 UI 操作 */
+    public static boolean isReady() {
+        if (!isSdkReady) return false;
+        try {
+            // 双重验证：反射确认 context 确实可达
+            Class<?> kitClass = Class.forName("com.taptap.sdk.kit.internal.TapTapKit");
+            Field contextField = kitClass.getDeclaredField("context");
+            contextField.setAccessible(true);
+            return contextField.get(null) != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 反射设置 TapTapKit.context。
+     * TapTapKitInitProvider 在 AndroidManifest 中被移除（合规需要），
+     * 导致 lateinit context 从未赋值。此方法在 TapTapSdk.init() 成功后兜底。
+     */
+    private static void ensureTapTapKitContext(Context appContext) {
+        try {
+            Class<?> kitClass = Class.forName("com.taptap.sdk.kit.internal.TapTapKit");
+            Field contextField = kitClass.getDeclaredField("context");
+            contextField.setAccessible(true);
+            if (contextField.get(null) == null) {
+                contextField.set(null, appContext);
+                Log.d(TAG, "TapTapKit.context 已通过反射设置（兜底）");
+            } else {
+                Log.d(TAG, "TapTapKit.context 已存在，无需兜底");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "无法设置 TapTapKit.context: " + e.getMessage());
+        }
+    }
+
     public static void login(Activity activity, final LoginResultCallback callback) {
+        if (!isReady()) {
+            Log.w(TAG, "TapTap SDK 未就绪，拒绝登录请求");
+            callback.onFailure(new Exception("TapTap SDK 正在初始化，请稍后再试"));
+            return;
+        }
         Log.d(TAG, "开始 TapTap 登录...");
 
         try {
@@ -128,6 +178,7 @@ public class TapTapAuthManager {
     }
 
     public static boolean isLoggedIn() {
+        if (!isReady()) return false;
         try {
             TapTapAccount account = TapTapLogin.getCurrentTapAccount();
             return account != null && account.getAccessToken() != null;

@@ -115,6 +115,8 @@ class MainActivity : ComponentActivity() {
     lateinit var crashHandler: CrashHandler
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
+    /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
+    internal var tapTapReady = mutableStateOf(false)
     internal val loadingProgress = mutableFloatStateOf(0f)
     internal var isLoadComplete = false
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -284,6 +286,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         sessionManager = sessionManager,
                         complianceDialogState = complianceDialogState,
+                        tapTapReady = tapTapReady.value,
                         onLoginSuccess = {
                             showSaveSelectScreen()
                         },
@@ -449,7 +452,9 @@ class MainActivity : ComponentActivity() {
                     BuildConfig.TAPTAP_IS_CN,
                     sessionManager.limitAdTracking
                 )
-                Log.d(TAG, "TapTap SDK初始化成功")
+                // 反射验证 context 并通过 isReady() 双重确认
+                tapTapReady.value = TapTapAuthManager.isReady()
+                Log.d(TAG, "TapTap SDK初始化成功，就绪状态: ${tapTapReady.value}")
 
                 initAdSdk()
                 com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
@@ -457,11 +462,13 @@ class MainActivity : ComponentActivity() {
                     ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
                 }
             } catch (e: java.util.concurrent.TimeoutException) {
+                tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
                 withContext(Dispatchers.Main) {
                     showSaveSelectScreen()
                 }
             } catch (e: Exception) {
+                tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}", e)
             }
         }
@@ -549,6 +556,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
+    tapTapReady: Boolean = false,
     onLoginSuccess: () -> Unit,
     onPrivacyAgreed: () -> Unit = {}
 ) {
@@ -645,6 +653,11 @@ fun MainScreen(
                     onClick = {
                         if (!privacyChecked) {
                             Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        if (!tapTapReady) {
+                            Toast.makeText(context, "TapTap SDK 正在初始化，请稍后再试", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 

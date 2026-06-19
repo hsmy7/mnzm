@@ -26,7 +26,11 @@ class DiscipleTables {
     fun markMutated() { mutationVersion++ }
 
     // === 标识 ===
-    val ids = mutableListOf<Int>()          // 所有弟子 ID 的有序列表（遍历用）
+    // CopyOnWriteArrayList 保证并发安全：读操作（maxOrNull/for-in/filter）
+    // 无需额外同步，迭代器为快照不会抛 ConcurrentModificationException。
+    // 写操作仍使用 synchronized(ids) 保护多表原子性（DiscipleTables 不是
+    // 唯一受影响的表 — insert/remove 操作约 90 张组件表）。
+    val ids: MutableList<Int> = java.util.concurrent.CopyOnWriteArrayList<Int>()
 
     // === 基础信息（ComponentTable<String>） ===
     val names = ComponentTable<String>()          // id → name

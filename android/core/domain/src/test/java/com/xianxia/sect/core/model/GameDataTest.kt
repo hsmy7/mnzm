@@ -620,7 +620,7 @@ class GameDataTest {
         val sect = WorldSect()
         assertEquals("", sect.id)
         assertEquals("", sect.name)
-        assertEquals(1, sect.level)
+        assertEquals(0, sect.level)
         assertFalse(sect.isPlayerSect)
         assertFalse(sect.discovered)
         assertEquals(10, sect.garrisonSlots.size)

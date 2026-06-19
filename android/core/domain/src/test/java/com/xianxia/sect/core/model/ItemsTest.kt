@@ -601,7 +601,7 @@ class ItemsTest {
         val sect = WorldSect()
         assertEquals("", sect.id)
         assertEquals("", sect.name)
-        assertEquals(1, sect.level)
+        assertEquals(0, sect.level)
         assertEquals("小型宗门", sect.levelName)
         assertEquals(0f, sect.x, 0.001f)
         assertEquals(0f, sect.y, 0.001f)

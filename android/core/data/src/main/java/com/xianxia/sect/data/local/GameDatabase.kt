@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 3  // 4.0.13: v2→v3 新增 sectLevelClaimRecords 列
+    version = 4  // 4.0.13: v3→v4 新增 saveVersion 列 + 修炼值缩放迁移
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -349,6 +349,20 @@ abstract class GameDatabase : RoomDatabase() {
                 Log.i(TAG, "Migration 2→3: added sectLevelClaimRecords column to game_data")
             }
         }
+
+        /** 4.0.13: 新增 saveVersion 列 + 修炼基础值缩放 1/10 */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE game_data ADD COLUMN save_version INTEGER " +
+                    "NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "UPDATE disciple_compact SET cultivation = cultivation / 10.0"
+                )
+                Log.i(TAG, "Migration 3→4: added saveVersion + scaled cultivation values")
+            }
+        }
         private val threadCounter = AtomicInteger(0)
 
         fun create(context: Context): GameDatabase {
@@ -370,7 +384,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

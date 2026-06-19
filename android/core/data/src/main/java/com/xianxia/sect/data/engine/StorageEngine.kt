@@ -888,17 +888,74 @@ class StorageEngine @Inject constructor(
         if (loadHeavyData) {
             val merged = mergeHeavyData(gameData, slot)
             val saveData = buildSaveDataFromDatabase(slot, merged)
-            if (saveData != null && !validateSaveData(saveData)) {
-                Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
+            if (saveData != null) {
+                val migrated = migrateSaveDataIfNeeded(saveData)
+                if (!validateSaveData(migrated)) {
+                    Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
+                }
+                return migrated
             }
             return saveData
         }
 
         val saveData = buildSaveDataFromDatabase(slot, gameData)
-        if (saveData != null && !validateSaveData(saveData)) {
-            Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")
+        if (saveData != null) {
+            val migrated = migrateSaveDataIfNeeded(saveData)
+            if (!validateSaveData(migrated)) {
+                Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")
+            }
+            return migrated
         }
         return saveData
+    }
+
+    /**
+     * 迁移旧版存档数据（saveVersion < 1）。
+     *
+     * v4.0.13 将修炼基础值(REALM_SPEED_PER_PHASE / cultivationBase)
+     * 等比缩小为 1/10，旧存档中的 cultivation 值需同步缩放。
+     */
+    private fun migrateSaveDataIfNeeded(saveData: SaveData): SaveData {
+        val gd = saveData.gameData
+        if (gd.saveVersion >= 1) return saveData
+
+        val scaleFactor = 10.0
+        Log.i(TAG, "Migrating save data: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})")
+
+        // 1. 宗门总修为
+        val migratedGd = gd.copy(
+            sectCultivation = gd.sectCultivation / scaleFactor,
+            saveVersion = 1,
+            // 2. 招募列表中的弟子
+            recruitList = gd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
+            // 3. AI宗门弟子
+            aiSectDisciples = gd.aiSectDisciples.mapValues { (_, list) ->
+                list.map { d -> d.scaleCultivation(scaleFactor) }
+            }
+        )
+
+        // 4. 主弟子列表
+        val migratedDisciples = saveData.disciples.map { it.scaleCultivation(scaleFactor) }
+
+        Log.i(TAG, "Save migration complete: ${migratedDisciples.size} disciples scaled")
+        return saveData.copy(
+            gameData = migratedGd,
+            disciples = migratedDisciples
+        )
+    }
+
+    /**
+     * 将弟子的修炼值和战力值同步缩放（向上取整，宁可多不可少）。
+     */
+    private fun Disciple.scaleCultivation(factor: Double): Disciple {
+        return this.copy(
+            cultivation = this.cultivation / factor,
+            combat = this.combat.copy(
+                totalCultivation = kotlin.math.ceil(
+                    this.combat.totalCultivation / factor
+                ).toLong()
+            )
+        )
     }
 
     /**

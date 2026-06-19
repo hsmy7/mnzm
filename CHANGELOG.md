@@ -12,10 +12,13 @@
 
 - **修复：玩家宗门初始即为中型宗门** — 新建游戏时宗门等级错误初始化为中型（level=1），应从小型（level=0）起步。修复：WorldMapGenerator 玩家宗门初始等级改为小型、WorldSect 默认值修正、ViewModel fallback 修正
 - **优化：宗门信息卡片仅显示等级图标** — 移除宗门名称右侧的等级文字（如"小型宗门"），宗门名称左侧的等级图标已足够表达宗门等级
+- **修复：TapTap 登录 lateinit context 崩溃** — AndroidManifest 因合规要求移除了 TapTapKitInitProvider，导致 TapTapKit.context 从未赋值，点击登录时崩溃。修复：SDK 初始化成功后反射设置 context + 登录按钮等待 SDK 就绪 + 全局异常处理器改进混淆兼容
+- **修复：招募弟子时 ConcurrentModificationException 崩溃** — DiscipleTables.ids 使用 ArrayList 无并发保护，游戏线程写 ID 列表时 UI 线程读（maxOrNull）触发 CME。修复：将 ids 改为 CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全
 
 ### 变更
 
 - **玩家宗门月度自动升级已移除** — 玩家宗门等级不再由月度 tick 自动提升，改为手动操作（AI宗门仍自动升级）
+- **修炼速度数值缩小为 1/10** — 各境界每旬修炼速度和修炼基础值等比缩小为原来的 1/10（如炼气期单灵根每旬从 280 降至 28），突破耗时保持不变。旧存档加载时自动迁移修为值
 
 ## [4.0.11] - 2026-06-19（versionCode=4011）
 

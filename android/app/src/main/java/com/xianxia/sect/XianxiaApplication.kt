@@ -341,12 +341,16 @@ class XianxiaApplication : Application() {
 
         // 合规：TapTap SDK 必须在用户同意隐私政策后才能初始化。
         // 但在同意前，TapTap 内部可能触发 Toast 等操作访问 lateinit context 导致崩溃。
-        // 此处安装全局异常守卫，仅拦截 TapTap SDK 内部的 UninitializedPropertyAccessException。
+        // 此处安装全局异常守卫，拦截 TapTap SDK 内部的 lateinit 异常（含混淆后变体）。
         val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            if (throwable is kotlin.UninitializedPropertyAccessException
-                && throwable.stackTrace.any { it.className?.contains("taptap", ignoreCase = true) == true }
-            ) {
+            val isTapTapLateinit = throwable.stackTrace.any {
+                it.className?.contains("taptap", ignoreCase = true) == true
+            } && (
+                throwable is kotlin.UninitializedPropertyAccessException ||
+                throwable.message?.contains("lateinit", ignoreCase = true) == true
+            )
+            if (isTapTapLateinit) {
                 Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)
                 return@setDefaultUncaughtExceptionHandler
             }

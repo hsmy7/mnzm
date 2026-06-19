@@ -297,6 +297,11 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var sectLevelClaimRecords: List<SectLevelClaimRecord> = emptyList(),
 
+    // 存档数据格式版本号，用于迁移旧存档数据
+    @ColumnInfo(name = "save_version", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var saveVersion: Int = 0,
+
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionEnabled: Boolean = true,
