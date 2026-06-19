@@ -672,6 +672,79 @@ fun HeavenlyTrialCombatScreen(
                 .size(32.dp)
         )
 
+        // 跳过按钮（战斗栏外部右侧，随时可点击即时结算）
+        if (phase != BattlePhase.WON && phase != BattlePhase.LOST) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 8.dp, bottom = 16.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .border(
+                                2.dp, GameColors.Gold,
+                                RoundedCornerShape(4.dp)
+                            )
+                            .background(Color.White)
+                            .clickable {
+                                coroutineScope.launch {
+                                    isAnimating = true
+                                    val (finalPlayers, finalEnemies) =
+                                        simulateInstantResolve(
+                                            playerTeam, enemyTeam,
+                                            viewModel.trialService
+                                        )
+                                    playerTeam = finalPlayers
+                                    enemyTeam = finalEnemies
+                                    isAnimating = false
+                                    if (finalPlayers.all { it.isDead }) {
+                                        phase = BattlePhase.LOST
+                                    } else if (finalEnemies.all {
+                                            it.isDead
+                                    }) {
+                                        phase = BattlePhase.WON
+                                    } else {
+                                        // 超轮上限未分胜负：按血量比判定
+                                        val pHp = finalPlayers
+                                            .sumOf { it.hp }
+                                        val pMax = finalPlayers
+                                            .sumOf { it.maxHp }
+                                        val eHp = finalEnemies
+                                            .sumOf { it.hp }
+                                        val eMax = finalEnemies
+                                            .sumOf { it.maxHp }
+                                        phase = if (pMax > 0 && eMax > 0 &&
+                                            pHp.toDouble() / pMax >=
+                                            eHp.toDouble() / eMax
+                                        )
+                                            BattlePhase.WON
+                                        else BattlePhase.LOST
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "跳过",
+                            fontSize = 10.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        "跳过",
+                        fontSize = 9.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+
         // 战斗栏（左右留空隙）
         if (phase == BattlePhase.PLAYER_TURN && currentCombatant != null) {
             Box(
@@ -1371,6 +1444,249 @@ private fun advanceTurn(
     if (nextIdx >= alivePlayers.size)
         onResult(0, BattlePhase.ENEMY_TURN, isDefending)
     else onResult(nextIdx, BattlePhase.PLAYER_TURN, isDefending)
+}
+
+// region Instant Resolve（即时结算）
+
+/**
+ * 即时结算：模拟整场战斗，跳过所有动画，直接返回最终双方状态。
+ * 玩家方自动选择最优技能/普攻，敌方复用 AI。
+ *
+ * @return Pair(最终玩家队伍, 最终敌方队伍)
+ */
+private fun simulateInstantResolve(
+    playerTeam: List<Combatant>,
+    enemyTeam: List<Combatant>,
+    trialService: com.xianxia.sect.core.engine.domain.battle.HeavenlyTrialService
+): Pair<List<Combatant>, List<Combatant>> {
+    var players = playerTeam.map { p ->
+        p.copy(skills = p.skills.map { it.copy() })
+    }
+    var enemies = enemyTeam.map { e ->
+        e.copy(skills = e.skills.map { it.copy() })
+    }
+
+    val maxRounds = 100
+    var round = 0
+
+    while (round < maxRounds) {
+        if (enemies.all { it.isDead } || players.all { it.isDead }) break
+
+        // 回合开始：所有技能冷却 -1
+        players = players.map { p ->
+            p.copy(skills = p.skills.map { s ->
+                s.copy(currentCooldown =
+                    (s.currentCooldown - 1).coerceAtLeast(0))
+            })
+        }
+        enemies = enemies.map { e ->
+            e.copy(skills = e.skills.map { s ->
+                s.copy(currentCooldown =
+                    (s.currentCooldown - 1).coerceAtLeast(0))
+            })
+        }
+
+        // 按速度降序排列行动顺序
+        val turnOrder = (players.filter { !it.isDead } +
+            enemies.filter { !it.isDead })
+            .sortedByDescending { it.effectiveSpeed }
+
+        for (unit in turnOrder) {
+            if (enemies.all { it.isDead }) break
+            if (players.all { it.isDead }) break
+
+            val isPlayer = players.any { it.id == unit.id }
+            if (isPlayer) {
+                val result = autoResolvePlayerAction(
+                    unit, players, enemies)
+                players = result.first
+                enemies = result.second
+            } else {
+                val action = trialService.executeEnemyAction(
+                    unit, players,
+                    enemies.filter { it.id != unit.id && !it.isDead }
+                )
+                val result = resolveEnemyAction(unit, action,
+                    players, enemies)
+                players = result.first
+                enemies = result.second
+            }
+        }
+        round++
+    }
+
+    return players to enemies
+}
+
+/**
+ * 玩家自动行动：选择最优攻击技能或普攻，
+ * 始终攻击 HP 最低的存活敌人。
+ */
+private fun autoResolvePlayerAction(
+    player: Combatant,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    val aliveEnemies = enemies.filter { !it.isDead }
+    if (aliveEnemies.isEmpty()) return players to enemies
+
+    val attackSkills = player.skills.filter {
+        it.currentCooldown <= 0 &&
+            player.mp >= it.mpCost &&
+            (it.skillType == com.xianxia.sect.core.SkillType.ATTACK ||
+                it.damageMultiplier > 0)
+    }
+
+    val playerIdx = players.indexOfFirst { it.id == player.id }
+
+    if (attackSkills.isNotEmpty()) {
+        // AoE 按存活敌人数加权，选综合收益最高的技能
+        val bestSkill = attackSkills.maxByOrNull {
+            it.damageMultiplier *
+                (if (it.isAoe)
+                    aliveEnemies.size.coerceAtMost(3).toDouble()
+                else 1.0)
+        } ?: return players to enemies
+
+        // 扣除 MP + 设置冷却
+        var updatedPlayers = players
+        if (playerIdx >= 0) {
+            val drained = updatedPlayers[playerIdx].copy(
+                mp = (updatedPlayers[playerIdx].mp - bestSkill.mpCost)
+                    .coerceAtLeast(0),
+                skills = updatedPlayers[playerIdx].skills.map { s ->
+                    if (s.name == bestSkill.name)
+                        s.copy(currentCooldown = s.cooldown)
+                    else s
+                }
+            )
+            updatedPlayers = updatedPlayers.toMutableList()
+                .apply { this[playerIdx] = drained }
+        }
+
+        val updatedEnemies = if (bestSkill.isAoe) {
+            enemies.map { e ->
+                if (!e.isDead) {
+                    val dmg = computeSkillDamage(
+                        player, e, bestSkill, false)
+                    e.copy(hp = (e.hp - dmg).coerceAtLeast(0))
+                } else e
+            }
+        } else {
+            val target = aliveEnemies.minByOrNull { it.hp }
+                ?: return players to enemies
+            val dmg = computeSkillDamage(
+                player, target, bestSkill, false)
+            enemies.map {
+                if (it.id == target.id)
+                    it.copy(hp = (it.hp - dmg).coerceAtLeast(0))
+                else it
+            }
+        }
+        return updatedPlayers to updatedEnemies
+    }
+
+    // 无可用技能 → 普攻最弱敌人
+    val target = aliveEnemies.minByOrNull { it.hp }
+        ?: return players to enemies
+    val dmg = computeNormalAttackDamage(player, target, false)
+    val updatedEnemies = enemies.map {
+        if (it.id == target.id)
+            it.copy(hp = (it.hp - dmg).coerceAtLeast(0))
+        else it
+    }
+    return players to updatedEnemies
+}
+
+/**
+ * 结算单次敌方行动，更新双方队伍状态。
+ */
+private fun resolveEnemyAction(
+    enemy: Combatant,
+    action: com.xianxia.sect.core.engine.domain.battle.EnemyAction,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    var updatedPlayers = players
+    var updatedEnemies = enemies
+
+    val skill = action.skill
+    val target = action.target
+
+    when (action.actionType) {
+        ActionType.NONE -> {}
+        ActionType.ATTACK -> {
+            if (skill != null && skill.isAoe) {
+                updatedPlayers = updatedPlayers.map { p ->
+                    if (!p.isDead) {
+                        val dmg = computeSkillDamage(
+                            enemy, p, skill, false)
+                        p.copy(hp = (p.hp - dmg).coerceAtLeast(0))
+                    } else p
+                }
+            } else if (skill != null && target != null) {
+                val dmg = computeSkillDamage(
+                    enemy, target, skill, false)
+                updatedPlayers = updatedPlayers.map {
+                    if (it.id == target.id)
+                        it.copy(hp = (it.hp - dmg).coerceAtLeast(0))
+                    else it
+                }
+            }
+        }
+        ActionType.NORMAL_ATTACK -> {
+            if (target != null) {
+                val dmg = computeNormalAttackDamage(
+                    enemy, target, false)
+                updatedPlayers = updatedPlayers.map {
+                    if (it.id == target.id)
+                        it.copy(hp = (it.hp - dmg).coerceAtLeast(0))
+                    else it
+                }
+            }
+        }
+        ActionType.BUFF_ALLY -> {
+            if (skill != null && target != null) {
+                val buffed = applyBuffToTarget(target, skill)
+                updatedEnemies = updatedEnemies.map {
+                    if (it.id == target.id) buffed else it
+                }
+            }
+        }
+        ActionType.BUFF_SELF -> {
+            if (skill != null) {
+                val buffed = applyBuffToTarget(enemy, skill)
+                updatedEnemies = updatedEnemies.map {
+                    if (it.id == enemy.id) buffed else it
+                }
+            }
+        }
+    }
+
+    // 敌方技能消耗：扣除 MP + 设置冷却
+    if (skill != null &&
+        action.actionType != ActionType.NONE &&
+        action.actionType != ActionType.NORMAL_ATTACK
+    ) {
+        val enemyIdx = updatedEnemies.indexOfFirst {
+            it.id == enemy.id
+        }
+        if (enemyIdx >= 0) {
+            updatedEnemies = updatedEnemies.toMutableList().apply {
+                this[enemyIdx] = this[enemyIdx].copy(
+                    mp = (this[enemyIdx].mp - skill.mpCost)
+                        .coerceAtLeast(0),
+                    skills = this[enemyIdx].skills.map { s ->
+                        if (s.name == skill.name)
+                            s.copy(currentCooldown = s.cooldown)
+                        else s
+                    }
+                )
+            }
+        }
+    }
+
+    return updatedPlayers to updatedEnemies
 }
 
 // endregion
