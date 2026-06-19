@@ -338,11 +338,12 @@ object DiscipleStatCalculator {
         parentCultivationBonus: Double = 0.0,
         griefCultivationSpeedPenalty: Double = 0.0
     ): Double {
-        val baseCultivation = disciple.spiritRoot.cultivationBonus
+        val rootCount = disciple.spiritRoot.types.size.coerceAtLeast(1)
+        val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(disciple.realm) / rootCount.toDouble()
 
         var totalBonus = 0.0
 
-        totalBonus += (disciple.skills.comprehensionSpeedBonus - 1.0)
+        // 悟性不再影响修炼速度（仅影响突破/悟道等）
 
         if (manuals.isNotEmpty()) {
             disciple.manualIds.forEach { manualId ->
@@ -387,7 +388,7 @@ object DiscipleStatCalculator {
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
-        return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
+        return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
     fun calculateCultivationSpeed(
@@ -402,11 +403,12 @@ object DiscipleStatCalculator {
         parentCultivationBonus: Double = 0.0,
         griefCultivationSpeedPenalty: Double = 0.0
     ): Double {
-        val baseCultivation = aggregate.spiritRoot.cultivationBonus
+        val rootCount = aggregate.spiritRoot.types.size.coerceAtLeast(1)
+        val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(aggregate.realm) / rootCount.toDouble()
 
         var totalBonus = 0.0
 
-        totalBonus += (aggregate.comprehensionSpeedBonus - 1.0)
+        // 悟性不再影响修炼速度（仅影响突破/悟道等）
 
         val manualIds = aggregate.manualIds
         if (manuals.isNotEmpty()) {
@@ -453,7 +455,7 @@ object DiscipleStatCalculator {
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
-        return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
+        return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
     fun getBreakthroughChance(

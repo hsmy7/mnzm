@@ -36,7 +36,7 @@ class CultivationCore @Inject constructor(
 
     /**
      * 计算弟子每旬修炼速度（1x 速度基准）。
-     * 返回值 = 每秒修炼速度 × MS_PER_PHASE_1X / 1000，即每旬获得的修炼经验。
+     * calculateCultivationSpeed 已直接返回每旬值，无需再换算。
      */
     fun calculateDiscipleCultivationPerPhase(disciple: Disciple, data: GameData, tables: DiscipleTables): Double {
         val buildingBonus = calculateBuildingCultivationBonus(disciple, data)
@@ -80,9 +80,9 @@ class CultivationCore @Inject constructor(
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             parentCultivationBonus = parentCultivationBonus,
             griefCultivationSpeedPenalty = griefPenalty
-        ).coerceIn(1.0, 1000.0)
-        // 转为每旬：1旬 = MS_PER_PHASE_1X / 1000 秒（1x 下为 2.0s）
-        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
+        ).coerceAtLeast(1.0)
+        // calculateCultivationSpeed 已直接返回每旬值，无需再换算
+        return perSecond
     }
 
     private fun calculatePreachingBonuses(

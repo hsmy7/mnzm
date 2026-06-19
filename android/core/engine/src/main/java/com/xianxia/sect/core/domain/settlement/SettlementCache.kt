@@ -152,9 +152,9 @@ class SettlementCache(state: MutableGameState) {
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus
-        ).coerceIn(1.0, 1000.0)
-        // 转为每旬
-        return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
+        ).coerceAtLeast(1.0)
+        // calculateCultivationSpeed 已直接返回每旬值，无需再换算
+        return perSecond
     }
 
     private fun calculateBuildingCultivationBonus(

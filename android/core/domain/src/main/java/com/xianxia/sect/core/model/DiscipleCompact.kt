@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.xianxia.sect.core.GameConfig
 
 @Entity(
     tableName = "disciple_compact",
@@ -86,7 +87,8 @@ data class DiscipleCompact(
             isAlive = disciple.isAlive,
             spiritRoot = disciple.spiritRoot.types.size,
             combatPower = disciple.combat.totalCultivation,
-            cultivationSpeed = disciple.spiritRoot.cultivationBonus,
+            cultivationSpeed = GameConfig.Cultivation.getRealmPerPhase(disciple.realm) /
+                disciple.spiritRoot.types.size.coerceAtLeast(1),
             cultivationSpeedBonus = disciple.cultivationSpeedBonus,
             cultivationSpeedDuration = disciple.cultivationSpeedDuration,
             status = disciple.status.ordinal,

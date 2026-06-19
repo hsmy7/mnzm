@@ -158,12 +158,51 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 高悟性修炼更快`() {
+    fun `calculateCultivationSpeed - 悟性不影响修炼速度`() {
         val lowComp = createDisciple(comprehension = 30)
         val highComp = createDisciple(comprehension = 90)
         val lowSpeed = DiscipleStatCalculator.calculateCultivationSpeed(lowComp)
         val highSpeed = DiscipleStatCalculator.calculateCultivationSpeed(highComp)
-        assertTrue("高悟性应修炼更快", highSpeed > lowSpeed)
+        assertEquals("悟性不应影响修炼速度", lowSpeed, highSpeed, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationSpeed - 单灵根炼气每旬基准速度`() {
+        val disciple = createDisciple(spiritRootType = "metal") // 单灵根, 炼气
+        val speed = DiscipleStatCalculator.calculateCultivationSpeed(disciple)
+        assertEquals("单灵根炼气每旬应为280", 280.0, speed, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationSpeed - 境界越高修炼越快`() {
+        val lianqi = createDisciple(realm = 9)
+        val zhuji = createDisciple(realm = 8)
+        val jindan = createDisciple(realm = 7)
+
+        val sL = DiscipleStatCalculator.calculateCultivationSpeed(lianqi)
+        val sZ = DiscipleStatCalculator.calculateCultivationSpeed(zhuji)
+        val sJ = DiscipleStatCalculator.calculateCultivationSpeed(jindan)
+
+        assertTrue("筑基应快于炼气", sZ > sL)
+        assertTrue("金丹应快于筑基", sJ > sZ)
+    }
+
+    @Test
+    fun `calculateCultivationSpeed - 灵根越少修炼越快`() {
+        val single = createDisciple(spiritRootType = "metal")
+        val double = createDisciple(spiritRootType = "metal,wood")
+        val triple = createDisciple(spiritRootType = "metal,wood,water")
+
+        val s1 = DiscipleStatCalculator.calculateCultivationSpeed(single)
+        val s2 = DiscipleStatCalculator.calculateCultivationSpeed(double)
+        val s3 = DiscipleStatCalculator.calculateCultivationSpeed(triple)
+
+        assertTrue("单灵根应快于双灵根: $s1 vs $s2", s1 > s2)
+        assertTrue("双灵根应快于三灵根: $s2 vs $s3", s2 > s3)
+        // 双灵根约为单灵根一半
+        assertEquals(s1, s2 * 2.0, 1.0)
+        // 三灵根约为单灵根三分之一
+        assertEquals(s1, s3 * 3.0, 2.0)
     }
 
     @Test

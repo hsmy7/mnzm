@@ -429,13 +429,13 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `炼气的修炼基础值应为600`() {
-        assertEquals(600, GameConfig.Realm.getCultivationBase(9))
+    fun `炼气的修炼基础值应为500`() {
+        assertEquals(500, GameConfig.Realm.getCultivationBase(9))
     }
 
     @Test
-    fun `筑基的修炼基础值应为3000`() {
-        assertEquals(3000, GameConfig.Realm.getCultivationBase(8))
+    fun `筑基的修炼基础值应为2000`() {
+        assertEquals(2000, GameConfig.Realm.getCultivationBase(8))
     }
 
     @Test
@@ -444,38 +444,38 @@ class GameConfigTest {
     }
 
     @Test
-    fun `元婴的修炼基础值应为20000`() {
-        assertEquals(20000, GameConfig.Realm.getCultivationBase(6))
+    fun `元婴的修炼基础值应为30000`() {
+        assertEquals(30000, GameConfig.Realm.getCultivationBase(6))
     }
 
     @Test
-    fun `化神的修炼基础值应为50000`() {
-        assertEquals(50000, GameConfig.Realm.getCultivationBase(5))
+    fun `化神的修炼基础值应为100000`() {
+        assertEquals(100000, GameConfig.Realm.getCultivationBase(5))
     }
 
     @Test
-    fun `炼虚的修炼基础值应为100000`() {
-        assertEquals(100000, GameConfig.Realm.getCultivationBase(4))
+    fun `炼虚的修炼基础值应为300000`() {
+        assertEquals(300000, GameConfig.Realm.getCultivationBase(4))
     }
 
     @Test
-    fun `合体的修炼基础值应为180000`() {
-        assertEquals(180000, GameConfig.Realm.getCultivationBase(3))
+    fun `合体的修炼基础值应为1000000`() {
+        assertEquals(1000000, GameConfig.Realm.getCultivationBase(3))
     }
 
     @Test
-    fun `大乘的修炼基础值应为300000`() {
-        assertEquals(300000, GameConfig.Realm.getCultivationBase(2))
+    fun `大乘的修炼基础值应为3000000`() {
+        assertEquals(3000000, GameConfig.Realm.getCultivationBase(2))
     }
 
     @Test
-    fun `渡劫的修炼基础值应为450000`() {
-        assertEquals(450000, GameConfig.Realm.getCultivationBase(1))
+    fun `渡劫的修炼基础值应为10000000`() {
+        assertEquals(10000000, GameConfig.Realm.getCultivationBase(1))
     }
 
     @Test
-    fun `仙人的修炼基础值应为650000`() {
-        assertEquals(650000, GameConfig.Realm.getCultivationBase(0))
+    fun `仙人的修炼基础值应为30000000`() {
+        assertEquals(30000000, GameConfig.Realm.getCultivationBase(0))
     }
 
     @Test

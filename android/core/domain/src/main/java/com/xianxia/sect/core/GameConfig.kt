@@ -117,9 +117,24 @@ object GameConfig {
     }
     
     object Cultivation {
-        const val BASE_SPEED = 8.0
-        const val REALM_SPEED_BONUS_THRESHOLD = 3
-        const val REALM_SPEED_BONUS = 1.5
+        /** 单灵根每旬修炼速度（按境界查表，realm → 每旬修为值） */
+        val REALM_SPEED_PER_PHASE: Map<Int, Double> = mapOf(
+            9 to 280.0,     // 炼气
+            8 to 380.0,     // 筑基
+            7 to 620.0,     // 金丹
+            6 to 1000.0,    // 元婴
+            5 to 1560.0,    // 化神
+            4 to 3040.0,    // 炼虚
+            3 to 4720.0,    // 合体
+            2 to 7620.0,    // 大乘
+            1 to 11800.0,   // 渡劫
+            0 to 16000.0    // 仙人
+        )
+
+        /** 查询某境界的单灵根每旬修炼速度 */
+        fun getRealmPerPhase(realm: Int): Double =
+            REALM_SPEED_PER_PHASE[realm] ?: REALM_SPEED_PER_PHASE.getValue(9)
+
         const val DAILY_HP_MP_RECOVERY_RATE = 0.05
     }
 
@@ -166,11 +181,11 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 600, 10,
+            9 to RealmConfig(9, "炼气", 500, 10,
                 maxAge = 80, maxLayers = 9,
                 baseHp = 203, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
                 basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
-            8 to RealmConfig(8, "筑基", 3000, 30,
+            8 to RealmConfig(8, "筑基", 2000, 30,
                 maxAge = 120, maxLayers = 9,
                 baseHp = 507, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
                 basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
@@ -178,26 +193,26 @@ object GameConfig {
                 maxAge = 200, maxLayers = 9,
                 baseHp = 1318, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
                 basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
-            6 to RealmConfig(6, "元婴", 20000, 80,
+            6 to RealmConfig(6, "元婴", 30000, 80,
                 maxAge = 300, maxLayers = 9,
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
-            5 to RealmConfig(5, "化神", 50000, 110,
+            5 to RealmConfig(5, "化神", 100000, 110,
                 maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
-            4 to RealmConfig(4, "炼虚", 100000, 180,
+            4 to RealmConfig(4, "炼虚", 300000, 180,
                 maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
-            3 to RealmConfig(3, "合体", 180000, 220,
+            3 to RealmConfig(3, "合体", 1000000, 220,
                 maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
-            2 to RealmConfig(2, "大乘", 300000, 280,
+            2 to RealmConfig(2, "大乘", 3000000, 280,
                 maxAge = 3000, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
-            1 to RealmConfig(1, "渡劫", 450000, 360,
+            1 to RealmConfig(1, "渡劫", 10000000, 360,
                 maxAge = 5000, maxLayers = 9,                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
-            0 to RealmConfig(0, "仙人", 650000, 500,
+            0 to RealmConfig(0, "仙人", 30000000, 500,
                 maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
