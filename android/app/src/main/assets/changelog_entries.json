@@ -13,7 +13,8 @@
                         "变更：修炼速度数值缩小为1/10——各境界每旬修炼速度和修炼基础值等比缩小为1/10（如炼气期单灵根每旬从280降至28），突破耗时保持不变。旧存档加载时自动迁移修为值",
                         "修复：招募弟子时ConcurrentModificationException崩溃——DiscipleTables.ids使用ArrayList无并发保护，游戏线程写ID列表时UI线程读（maxOrNull）触发CME。修复：将ids改为CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全",
                         "修复：招募弟子时ConcurrentModificationException再次崩溃（#4015）——v4.0.12首次修复后将ids改为CopyOnWriteArrayList解决了maxOrNull的CME，但recruitList的find迭代仍存在同类问题。DiscipleFacadeImpl.recruitDiscipleFromList中data.recruitList.find{}迭代时，recruitList内部ArrayList可能被ChildBirthSystem等系统的重入stateStore.update{}并发修改。修复：DiscipleFacadeImpl、GameEngineBattleOps、GameEngineCoordination、ChildBirthSystem共5处对recruitList/worldMapSects的迭代前添加.toList()防御性快照，阻断并发修改导致的迭代器失效",
-                        "修复：战斗日志详情LazyColumn key重复崩溃——同一LazyColumn中三个itemsIndexed/items调用使用整数key（index），当队伍成员和敌人均存在时key冲突。修复：为三组分块列表的key分别添加team_、enemy_、round_前缀确保全局唯一"
+                        "修复：战斗日志详情LazyColumn key重复崩溃——同一LazyColumn中三个itemsIndexed/items调用使用整数key（index），当队伍成员和敌人均存在时key冲突。修复：为三组分块列表的key分别添加team_、enemy_、round_前缀确保全局唯一",
+                        "修复：天道试炼第一小关通关后仍显示未通关——dismissResult()在phase0获胜时提前调用startDiscipleSelect(1)将selectedPhaseIndex从0改为1，导致后续onCombatFinished中的recordPhaseClear记录了错误的阶段（phase1而非phase0）。修复：dismissResult()仅隐藏弹窗，导航和记录统一由onFinished→onCombatFinished完整处理"
                     ]
     },
     {

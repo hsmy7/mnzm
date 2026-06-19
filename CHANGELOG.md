@@ -15,6 +15,7 @@
 - **修复：TapTap 登录 lateinit context 崩溃** — AndroidManifest 因合规要求移除了 TapTapKitInitProvider，导致 TapTapKit.context 从未赋值，点击登录时崩溃。修复：SDK 初始化成功后反射设置 context + 登录按钮等待 SDK 就绪 + 全局异常处理器改进混淆兼容
 - **修复：招募弟子时 ConcurrentModificationException 崩溃** — DiscipleTables.ids 使用 ArrayList 无并发保护，游戏线程写 ID 列表时 UI 线程读（maxOrNull）触发 CME。修复：将 ids 改为 CopyOnWriteArrayList，读操作无需同步，迭代器为快照自动安全
 - **修复：战斗日志详情 LazyColumn key 重复崩溃** — 同一 LazyColumn 中三个 itemsIndexed/items 调用使用整数 key（index），当队伍成员和敌人均存在时 key 冲突。修复：为三组分块列表的 key 分别添加 "team_"、"enemy_"、"round_" 前缀确保全局唯一
+- **修复：天道试炼第一小关通关后仍显示未通关** — dismissResult() 在 phase0 获胜时提前调用 startDiscipleSelect(1) 将 selectedPhaseIndex 从 0 改为 1，导致后续 onCombatFinished 中的 recordPhaseClear 记录了错误的阶段（phase1 而非 phase0），phase1ClearedLevels 始终为空。修复：dismissResult() 仅隐藏弹窗，导航和阶段记录统一由 onFinished → onCombatFinished 完整处理
 - **修复：招募弟子时 ConcurrentModificationException 崩溃（#4015）** — DiscipleFacadeImpl.recruitDiscipleFromList 中 data.recruitList.find{} 迭代时，recruitList 内部 ArrayList 可能被 ChildBirthSystem 等系统的重入 stateStore.update{} 并发修改。修复：DiscipleFacadeImpl、GameEngineBattleOps、GameEngineCoordination、ChildBirthSystem 共 5 处 recruitList/worldMapSects 的迭代前添加 .toList() 防御性快照，阻断并发修改导致的迭代器失效
 
 ### 变更

@@ -119,12 +119,9 @@ class HeavenlyTrialViewModel @Inject constructor(
 
     fun dismissResult() {
         showResult = false
-        if (resultWon) {
-            if (selectedPhaseIndex == 0) startDiscipleSelect(1)
-            else onCombatFinished(true)
-        } else {
-            _currentScreen.value = Screen.BattlePrep(selectedLevelIndex)
-        }
+        // 导航和阶段通关记录统一由 CombatScreen 的 onFinished
+        // → onCombatFinished 处理，避免在此处提前修改
+        // selectedPhaseIndex 导致 recordPhaseClear 记录错误的阶段
     }
 
     fun dismiss() { _currentScreen.value = Screen.Panel }
