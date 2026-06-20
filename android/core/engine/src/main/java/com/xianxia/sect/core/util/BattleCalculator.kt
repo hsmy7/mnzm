@@ -142,7 +142,8 @@ object BattleCalculator {
     fun calculateCombatantDamage(
         attacker: Combatant,
         defender: Combatant,
-        skill: CombatSkill? = null
+        skill: CombatSkill? = null,
+        damageModifier: Double = 1.0
     ): DamageResult {
         val isSkillAttack = skill != null
         val dodgeModifier = if (isSkillAttack) 0.3 else 0.5
@@ -172,7 +173,8 @@ object BattleCalculator {
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()
         val variance = calculateDamageVariance()
-        val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
+        val finalDamage = (baseDamage * variance * damageModifier)
+            .toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
         return DamageResult(
             damage = finalDamage,
@@ -182,6 +184,35 @@ object BattleCalculator {
             skillName = skill?.name,
             hits = skill?.hits ?: 1
         )
+    }
+
+    /**
+     * 确定性伤害估算（无随机数），供 AI 决策使用（斩杀判断等）。
+     * 使用期望暴击率代替随机暴击，不含闪避概率，不含伤害波动。
+     */
+    fun estimateDamage(
+        attacker: Combatant,
+        defender: Combatant,
+        skill: CombatSkill
+    ): Int {
+        val isPhysical = skill.damageType == DamageType.PHYSICAL
+        val atk = if (isPhysical)
+            attacker.effectivePhysicalAttack
+        else attacker.effectiveMagicAttack
+        val def = if (isPhysical)
+            defender.effectivePhysicalDefense
+        else defender.effectiveMagicDefense
+        val reduction = def.toDouble() /
+            (def + GameConfig.Battle.DEFENSE_CONSTANT)
+        val realmGap = calculateRealmGapMultiplier(
+            attacker.realm, defender.realm
+        )
+        val avgCrit = 1.0 + attacker.effectiveCritRate *
+            (GameConfig.Battle.CRIT_MULTIPLIER - 1.0)
+        val rawDmg = atk.toDouble() * skill.damageMultiplier *
+            (1.0 - reduction) * realmGap * avgCrit * skill.hits
+        return rawDmg.toInt()
+            .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
 
     private fun calculateCombatantDodgeChance(

@@ -34,6 +34,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.engine.domain.battle.ActionType
 import com.xianxia.sect.core.engine.domain.battle.BattleAI
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.CloseButton
@@ -1539,8 +1540,10 @@ private fun resolveAIAction(
             if (skill != null) {
                 val newEnemyTeam = enemyTeam.map { e ->
                     if (!e.isDead) {
-                        val dmg = computeSkillDamage(
-                            actor, e, skill, false)
+                        val dmg = BattleCalculator
+                            .calculateCombatantDamage(
+                                actor, e, skill
+                            ).damage
                         e.copy(hp = (e.hp - dmg).coerceAtLeast(0))
                     } else e
                 }
@@ -1550,8 +1553,10 @@ private fun resolveAIAction(
         }
         com.xianxia.sect.core.engine.domain.battle.BattleAI.AIActionType.SKILL_ATTACK_SINGLE -> {
             if (skill != null && target != null) {
-                val dmg = computeSkillDamage(
-                    actor, target, skill, false)
+                val dmg = BattleCalculator
+                    .calculateCombatantDamage(
+                        actor, target, skill
+                    ).damage
                 if (actorIsPlayer) {
                     updatedEnemies = updatedEnemies.map {
                         if (it.id == target.id)
@@ -1569,8 +1574,10 @@ private fun resolveAIAction(
         }
         com.xianxia.sect.core.engine.domain.battle.BattleAI.AIActionType.NORMAL_ATTACK -> {
             if (target != null) {
-                val dmg = computeNormalAttackDamage(
-                    actor, target, false)
+                val dmg = BattleCalculator
+                    .calculateCombatantDamage(
+                        actor, target, null
+                    ).damage
                 if (actorIsPlayer) {
                     updatedEnemies = updatedEnemies.map {
                         if (it.id == target.id)

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
@@ -265,48 +264,18 @@ object BattleAI {
 
     /**
      * 确定性伤害估算（无随机数，用于 AI 斩杀判断）。
+     * 委托到 [BattleCalculator.estimateDamage]。
      */
     fun estimateDamage(
         attacker: Combatant,
         defender: Combatant,
         skill: CombatSkill
     ): Int {
-        val isPhysical = skill.damageType == DamageType.PHYSICAL
-        val atk = if (isPhysical)
-            attacker.effectivePhysicalAttack
-        else attacker.effectiveMagicAttack
-        val def = if (isPhysical)
-            defender.effectivePhysicalDefense
-        else defender.effectiveMagicDefense
-        val reduction = def.toDouble() /
-            (def + GameConfig.Battle.DEFENSE_CONSTANT)
-        val realmGap = calculateRealmGap(
-            attacker.realm, defender.realm
-        )
-        val avgCrit = 1.0 + attacker.effectiveCritRate *
-            (GameConfig.Battle.CRIT_MULTIPLIER - 1.0)
-        val rawDmg = atk.toDouble() * skill.damageMultiplier *
-            (1.0 - reduction) * realmGap * avgCrit * skill.hits
-        return rawDmg.toInt()
-            .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
+        return com.xianxia.sect.core.util.BattleCalculator
+            .estimateDamage(attacker, defender, skill)
     }
 
     // === 私有辅助方法 ===
-
-    private fun calculateRealmGap(
-        attackerRealm: Int,
-        defenderRealm: Int
-    ): Double {
-        val gap = attackerRealm - defenderRealm
-        return when {
-            gap == 0 -> 1.0
-            gap > 0 -> 1.0 + gap *
-                GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
-            else -> (1.0 + gap *
-                GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM)
-                .coerceAtLeast(0.1)
-        }
-    }
 
     private fun findSelfPreservation(
         unit: Combatant,
