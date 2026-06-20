@@ -35,6 +35,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
@@ -172,6 +173,20 @@ class GameViewModel @Inject constructor(
     fun openBattleLogDialog() = navigation.openBattleLogDialog()
 
     fun dismissBattleResult() = navigation.dismissBattleResult()
+
+    fun resolveBeastAttackPayTribute(beastLevelId: String) {
+        gameEngine.resolveBeastAttackPayTribute(beastLevelId)
+    }
+
+    fun resolveBeastAttackFight(beastLevelId: String) {
+        viewModelScope.launch {
+            gameEngine.resolveBeastAttackFight(beastLevelId)
+        }
+    }
+
+    fun clearPendingBeastAttacks() {
+        gameEngine.clearPendingBeastAttacks()
+    }
 
     fun enqueueBattleRewardCards() {
         val cards = gameEngine.pendingBattleRewardCards.value
@@ -472,6 +487,7 @@ class GameViewModel @Inject constructor(
 
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = gameEngine.pendingBattleRewardCards
+    val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = gameEngine.pendingBeastAttacks
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }

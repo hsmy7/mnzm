@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -135,6 +136,34 @@ fun GameOverlayHost(
                 viewModel.dismissDialog()
             }
         }
+    }
+
+    // 妖兽进攻预警
+    val pendingBeastAttacks by viewModel.pendingBeastAttacks
+        .collectAsStateWithLifecycle()
+    val currentAttack = pendingBeastAttacks.firstOrNull()
+    val coroutineScope = rememberCoroutineScope()
+
+    if (currentAttack != null) {
+        val gdSnapshot by viewModel.gameDataUi.collectAsStateWithLifecycle()
+        BeastAttackWarningDialog(
+            attack = currentAttack,
+            currentSpiritStones = gdSnapshot.spiritStones,
+            onPayTribute = {
+                viewModel.resolveBeastAttackPayTribute(
+                    currentAttack.beastLevel.id
+                )
+                viewModel.clearPendingBeastAttacks()
+            },
+            onFight = {
+                coroutineScope.launch {
+                    viewModel.resolveBeastAttackFight(
+                        currentAttack.beastLevel.id
+                    )
+                    viewModel.clearPendingBeastAttacks()
+                }
+            }
+        )
     }
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }

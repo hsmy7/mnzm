@@ -150,8 +150,8 @@ object LevelGenerator {
             else -> "炼气"
         }
 
-        // 持续4个月
-        val beastNewMonth = currentMonth + 4
+        // 持续6个月
+        val beastNewMonth = currentMonth + 6
         val beastExpiryYear = currentYear + (beastNewMonth - 1) / 12
         val beastExpiryMonth = (beastNewMonth - 1) % 12 + 1
 
@@ -188,8 +188,8 @@ object LevelGenerator {
         val realmName = GameConfig.Realm.getName(caveRealm)
         val caveName = "${caveNamePrefixes.random()}$realmName${caveNameSuffixes.random()}"
 
-        // 持续4个月
-        val caveNewMonth = currentMonth + 4
+        // 持续6个月
+        val caveNewMonth = currentMonth + 6
         val caveExpiryYear = currentYear + (caveNewMonth - 1) / 12
         val caveExpiryMonth = (caveNewMonth - 1) % 12 + 1
 

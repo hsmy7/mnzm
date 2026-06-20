@@ -770,6 +770,15 @@ object GameConfig {
         const val CAVE_MIN_PATH_DISTANCE = 20.0
         const val CAVE_MIN_CAVE_DISTANCE = 20.0
         const val LEVEL_MIN_DISTANCE = 20.0
+
+        // 妖兽移动与攻击
+        const val BEAST_MOVE_DISTANCE = 25.0     // 每月最大移动距离
+        const val BEAST_ATTACK_RADIUS = 80.0     // 攻击触发最远距离
+        const val BEAST_ATTACK_BASE_PROB = 0.20  // 距离0时的攻击概率
+        const val BEAST_TRIBUTE_RATIO = 0.30     // 上交灵石比例 30%
+        const val BEAST_TRIBUTE_MIN = 20_000L    // 最少上交 2 万灵石
+        const val BEAST_LOOT_RATIO = 0.50        // 掠夺比例 50%
+        const val SPIRIT_STONES_PER_ITEM = 20_000L  // 2万灵石=1物品
     }
     
     object Diplomacy {

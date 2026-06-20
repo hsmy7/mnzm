@@ -34,6 +34,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     val pendingBattleResult: StateFlow<BattleResultUIData?>
     val pendingNotification: StateFlow<GameNotification?>
     val rewardCardQueue: StateFlow<List<RewardCardItem>>
+    val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>>
 
     // === 三层 StateFlow 架构 ===
     data class HighFreqState(
@@ -97,6 +98,8 @@ interface GameStateStore : GameStateSnapshotProvider {
 
     // === 战斗奖励卡片（延迟入队，先展示小屏界面） ===
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>>
+    fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>)
+    fun clearPendingBeastAttacks()
     fun setPendingBattleRewardCards(cards: List<RewardCardItem>)
     fun clearPendingBattleRewardCards()
 
