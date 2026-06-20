@@ -150,7 +150,11 @@ class MailService @Inject constructor(
     suspend fun loadBuiltinMails(slotId: Int) {
         val now = System.currentTimeMillis()
         BuiltinMailConfig.mails.forEach { builtinMail ->
-            // 限时邮件超过截止时间：仅停止发放，已存在的保留至正常过期
+            // 限时邮件：未到生效时间，暂不发放
+            if (builtinMail.startMs > 0 && now < builtinMail.startMs) {
+                return@forEach
+            }
+            // 限时邮件超过截止时间：停止发放，已存在的保留至正常过期
             if (builtinMail.deadlineMs > 0 && now > builtinMail.deadlineMs) {
                 DomainLog.i(TAG, "Builtin mail ${builtinMail.id} deadline passed, skipping (now=$now, deadline=${builtinMail.deadlineMs})")
                 return@forEach
