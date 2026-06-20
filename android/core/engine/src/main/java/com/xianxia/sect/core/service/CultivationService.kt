@@ -21,7 +21,9 @@ data class HighFrequencyData(
     val cultivationUpdates: Map<String, Double> = emptyMap(),
     val realtimeCultivation: Map<String, Double>? = null,
     val proficiencyUpdates: Map<String, Map<String, Double>> = emptyMap(),
-    val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap()
+    val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap(),
+    /** 本月焦点域已处理的旬数，用于月结时扣除已应用的 HP/MP 恢复和衰减 */
+    val focusedPhaseCount: Int = 0
 )
 
 @GameService("CultivationService")
@@ -65,6 +67,29 @@ class CultivationService @Inject constructor(
 
     fun recoverHpMpForAllDisciples(state: MutableGameState) {
         cultivationCore.recoverHpMpForAllDisciples(state)
+    }
+
+    /** 月度 HP/MP 恢复（月结制专用） */
+    fun recoverMonthlyHpMp(
+        tables: com.xianxia.sect.core.state.DiscipleTables, id: Int,
+        focusedPhaseCount: Int = 0
+    ) {
+        cultivationCore.recoverMonthlyHpMp(tables, id, focusedPhaseCount)
+    }
+
+    /** 月度自动从仓库装备/学习（月结制专用） */
+    fun processAutoFromWarehouseMonthly(
+        year: Int, month: Int, state: MutableGameState
+    ) {
+        eventProcessor.processAutoFromWarehouseMonthly(year, month, state)
+    }
+
+    /** 月度持续效果衰减（月结制专用） */
+    fun applyMonthlyDurationDecay(
+        tables: com.xianxia.sect.core.state.DiscipleTables, id: Int,
+        focusedPhaseCount: Int = 0
+    ) {
+        cultivationCore.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
     }
 
     fun updateMonthlyCultivation(state: MutableGameState) {

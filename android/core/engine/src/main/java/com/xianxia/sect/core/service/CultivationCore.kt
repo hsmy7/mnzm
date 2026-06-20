@@ -179,6 +179,81 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 月度 HP/MP 恢复（月结制专用）。
+     * 每旬 multiplier=10，每月 3 旬 → 月度 multiplier=30。
+     * @param focusedPhaseCount 本月焦点域已处理的旬数，用于扣除已应用的恢复
+     */
+    fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) {
+        val curHp = tables.currentHps[id]
+        val curMp = tables.currentMps[id]
+        if (curHp < 0 && curMp < 0) return
+
+        // 扣除已在焦点域旬结算中应用的部分，避免双计
+        val monthlyMultiplier = (30.0 - focusedPhaseCount * 10).coerceAtLeast(0.0)
+        if (monthlyMultiplier <= 0.0) return
+
+        val maxHp = tables.baseHps[id]
+        val maxMp = tables.baseMps[id]
+
+        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * monthlyMultiplier)
+            .toInt().coerceAtLeast(1)
+        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * monthlyMultiplier)
+            .toInt().coerceAtLeast(1)
+        val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+        val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+        if (newHp != curHp) tables.currentHps[id] = newHp
+        if (newMp != curMp) tables.currentMps[id] = newMp
+    }
+
+    /**
+     * 月度持续效果衰减（月结制专用）。
+     * 修炼速度加成和丹药效果每旬衰减 10，每月衰减 30。
+     * @param focusedPhaseCount 本月焦点域已处理的旬数，用于扣除已应用的衰减
+     */
+    fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) {
+        // 扣除已在焦点域旬结算中应用的部分，避免双计
+        val monthlyDecay = (30 - focusedPhaseCount * 10).coerceAtLeast(0)
+        if (monthlyDecay <= 0) return
+
+        // 修炼速度加成衰减
+        val speedDuration = tables.cultivationSpeedDurations[id]
+        if (speedDuration > 0) {
+            val newDuration = speedDuration - monthlyDecay
+            if (newDuration <= 0) {
+                tables.cultivationSpeedBonuses[id] = 0.0
+                tables.cultivationSpeedDurations[id] = 0
+            } else {
+                tables.cultivationSpeedDurations[id] = newDuration
+            }
+        }
+
+        // 丹药效果衰减
+        val pillDuration = tables.pillEffectDurations[id]
+        if (pillDuration > 0) {
+            val newDuration = pillDuration - monthlyDecay
+            if (newDuration <= 0) {
+                tables.pillHpBonuses[id] = 0
+                tables.pillMpBonuses[id] = 0
+                tables.pillPhysicalAttackBonuses[id] = 0
+                tables.pillMagicAttackBonuses[id] = 0
+                tables.pillPhysicalDefenseBonuses[id] = 0
+                tables.pillMagicDefenseBonuses[id] = 0
+                tables.pillSpeedBonuses[id] = 0
+                tables.pillCritRateBonuses[id] = 0.0
+                tables.pillCritEffectBonuses[id] = 0.0
+                tables.pillCultivationSpeedBonuses[id] = 0.0
+                tables.pillSkillExpSpeedBonuses[id] = 0.0
+                tables.pillNurtureSpeedBonuses[id] = 0.0
+                tables.activePillCategories[id] = ""
+                tables.pillEffectDurations[id] = 0
+            } else {
+                tables.pillEffectDurations[id] = newDuration
+            }
+        }
+    }
+
     fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }

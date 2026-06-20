@@ -498,11 +498,21 @@ class GameEngineCore @Inject constructor(
 
         when (dialog) {
             "Alchemy", "Forge", "HerbGarden", "SpiritMine",
-            "WarehouseBuilding", "Residence" -> domains.add(FocusDomain.BUILDINGS)
+            "WarehouseBuilding" -> domains.add(FocusDomain.BUILDINGS)
             "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
-            "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
-            "MissionHall", "PatrolTower" -> domains.add(FocusDomain.EXPLORATION)
+            "Diplomacy" -> {
+                domains.add(FocusDomain.DIPLOMACY)
+                domains.add(FocusDomain.DISCIPLES)
+            }
+            "MissionHall", "PatrolTower" -> {
+                domains.add(FocusDomain.EXPLORATION)
+                domains.add(FocusDomain.DISCIPLES)
+            }
             "Warehouse" -> domains.add(FocusDomain.WAREHOUSE)
+            // 显示弟子卡片（境界、忠诚度需实时结算）
+            "Recruit", "Residence", "Library", "WenDaoPeak", "QingyunPeak",
+            "TianshuHall", "LawEnforcementHall", "ReflectionCliff",
+            "BloodRefiningPool", "BattleLog" -> domains.add(FocusDomain.DISCIPLES)
         }
 
         return domains

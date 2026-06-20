@@ -19,6 +19,7 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.perf.ThermalMonitor
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -35,7 +36,8 @@ class SettlementCoordinator @Inject constructor(
     private val stateStore: GameStateStore,
     private val scheduler: SettlementScheduler,
     private val metricsCollector: SettlementMetricsCollector,
-    private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock
+    private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
+    private val thermalMonitor: ThermalMonitor
 ) {
     @Volatile
     private var shadowState: MutableGameState? = null
@@ -43,6 +45,12 @@ class SettlementCoordinator @Inject constructor(
     private var currentCache: SettlementCache? = null
 
     private var lastFingerprint: CultivationRateFingerprint? = null
+
+    // 非焦点域热控分批：记录上次结算的绝对月份和当前批次数
+    private var nonFocusedLastSettleMonth: Int = 0
+    private var nonFocusedBatchMonths: Int = 1
+    // 焦点域检测：DISCIPLES 域活跃时弟子已有旬结算，月度修炼结算应跳过
+    private var isDisciplesFocused: Boolean = false
     private var reusableCache: SettlementCache? = null
 
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
@@ -77,6 +85,19 @@ class SettlementCoordinator @Inject constructor(
     fun scheduleMonthly(shadow: MutableGameState) {
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
+
+        // 焦点域检测：DISCIPLES 活跃时弟子已有旬结算
+        isDisciplesFocused = isDiscipleDomainActive()
+
+        // 非焦点域热控分批：仅当 DISCIPLES 域不活跃时计算
+        val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
+            shadow.gameData.gameYear, shadow.gameData.gameMonth
+        )
+        if (!isDisciplesFocused) {
+            computeNonFocusedBatch(currentAbsMonth)
+        } else {
+            nonFocusedBatchMonths = 0  // 焦点域：跳过月度修炼结算
+        }
 
         val fingerprint = computeFingerprint(shadow)
         val cachePhase: Phase_BuildCache?
@@ -129,6 +150,19 @@ class SettlementCoordinator @Inject constructor(
     fun scheduleYearly(shadow: MutableGameState) {
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
+
+        // 焦点域检测
+        isDisciplesFocused = isDiscipleDomainActive()
+
+        // 非焦点域热控分批：仅当 DISCIPLES 域不活跃时计算
+        val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
+            shadow.gameData.gameYear, shadow.gameData.gameMonth
+        )
+        if (!isDisciplesFocused) {
+            computeNonFocusedBatch(currentAbsMonth)
+        } else {
+            nonFocusedBatchMonths = 0  // 焦点域：跳过月度修炼结算
+        }
 
         val fingerprint = computeFingerprint(shadow)
         val cachePhase: Phase_BuildCache?
@@ -218,6 +252,11 @@ class SettlementCoordinator @Inject constructor(
 
     private suspend fun processFocusedDiscipleImmediate(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
+        // 焦点域活跃时，弟子已有旬结算，月度修炼结算完全跳过
+        if (isDisciplesFocused) {
+            metricsBuilder.focusedDiscipleMs = timer.stop()
+            return
+        }
         val focusedId = stateStore.focusedDiscipleId ?: run {
             metricsBuilder.focusedDiscipleMs = timer.stop()
             return
@@ -241,13 +280,28 @@ class SettlementCoordinator @Inject constructor(
         val alreadyGained = focusedGains[disciple.id] ?: 0.0
         val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
-        val newCultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
+        val rawCultivation = disciple.cultivation + netGain
+        val overflow = if (rawCultivation > disciple.maxCultivation)
+            rawCultivation - disciple.maxCultivation else 0.0
+        val newCultivation = rawCultivation.coerceAtMost(disciple.maxCultivation)
         tables.cultivations[focusedIdInt] = newCultivation
+
+        // 月度 HP/MP 恢复（扣除焦点域已处理旬数）
+        val hfd = cultivationService.getHighFrequencyData().value
+        cultivationService.recoverMonthlyHpMp(tables, focusedIdInt, hfd.focusedPhaseCount)
+
+        // 月度持续效果衰减（扣除焦点域已处理旬数）
+        cultivationService.applyMonthlyDurationDecay(tables, focusedIdInt, hfd.focusedPhaseCount)
 
         // 突破检查
         if (newCultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
             val updatedDisciple = processBreakthroughForDisciple(disciple, shadow, cache)
             writeDiscipleToTables(updatedDisciple, tables)
+            // 溢出修为带入新境界
+            if (overflow > 0 && updatedDisciple.realm > 0) {
+                tables.cultivations[focusedIdInt] =
+                    overflow.coerceAtMost(updatedDisciple.maxCultivation)
+            }
         }
 
         // 重新组装以获取最新状态（突破可能已改变）
@@ -275,6 +329,11 @@ class SettlementCoordinator @Inject constructor(
 
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
+        // 焦点域活跃时弟子已有旬结算，跳过月度修炼结算
+        if (isDisciplesFocused) {
+            metricsBuilder.cleanBatchMs = timer.stop()
+            return
+        }
         val data = shadow.gameData
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
@@ -291,30 +350,68 @@ class SettlementCoordinator @Inject constructor(
             return
         }
 
+        val hfd = cultivationService.getHighFrequencyData().value
+        val focusedGains = hfd.cultivationUpdates
+        val focusedPhaseCount = hfd.focusedPhaseCount
+
         for (id in cleanIds) {
+            val isFocused = id.toString() == focusedId
+            val batchMonths = if (isFocused) 1 else nonFocusedBatchMonths
+
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-            val cultivationDelta = rate * 3  // 每旬修炼值 × 3旬/月
-            val newCultivation = (disciple.cultivation + cultivationDelta).coerceIn(0.0, disciple.maxCultivation)
-            tables.cultivations[id] = newCultivation
 
-            // clean 弟子也需要检查突破（月结修炼值可能使其满值）
-            val needsBreakthrough = newCultivation >= disciple.maxCultivation &&
-                isDiscipleFullHpMp(disciple)
-            if (needsBreakthrough) {
-                val afterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
-                writeDiscipleToTables(afterBreakthrough, tables)
+            if (batchMonths > 0) {
+                // 非焦点域热控分批：每月修炼值 × 批次数，扣除焦点域已获增益
+                val monthlyGain = rate * 3
+                val alreadyGained = focusedGains[disciple.id] ?: 0.0
+                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val rawCultivation = disciple.cultivation + totalGain
+                val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
+                    Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
+                } else {
+                    Pair(rawCultivation, 0.0)
+                }
+                tables.cultivations[id] = newCultivation
+
+                // 月度 HP/MP 恢复 × 批次（扣除焦点域已处理旬数）
+                val phaseCountForBatch = if (batchMonths == 1) focusedPhaseCount else 0
+                repeat(batchMonths) {
+                    cultivationService.recoverMonthlyHpMp(tables, id, phaseCountForBatch)
+                }
+
+                // 月度持续效果衰减 × 批次（扣除焦点域已处理旬数）
+                repeat(batchMonths) {
+                    cultivationService.applyMonthlyDurationDecay(tables, id, phaseCountForBatch)
+                }
+
+                // 突破检查
+                val needsBreakthrough = newCultivation >= disciple.maxCultivation &&
+                    isDiscipleFullHpMp(disciple)
+                var dAfterBreakthrough: Disciple? = null
+                if (needsBreakthrough) {
+                    dAfterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
+                    writeDiscipleToTables(dAfterBreakthrough, tables)
+                    // 溢出修为带入新境界
+                    if (overflow > 0 && dAfterBreakthrough.realm > 0) {
+                        val newMaxCult = dAfterBreakthrough.maxCultivation
+                        tables.cultivations[id] = overflow.coerceAtMost(newMaxCult)
+                    }
+                }
+
+                val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
+                if (loyaltyDelta != 0) {
+                    tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta * batchMonths).coerceAtLeast(0)
+                }
+
+                val remaining = (dAfterBreakthrough?.maxCultivation ?: disciple.maxCultivation) -
+                    tables.cultivations[id]
+                val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, rate)
+                tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
+                tables.cultivationCompletionPhases[id] = 1
             }
-
-            val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
-            if (loyaltyDelta != 0) {
-                tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta).coerceAtLeast(0)
-            }
-
-            val remaining = disciple.maxCultivation - newCultivation
-            val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, rate)
-            tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
-            tables.cultivationCompletionPhases[id] = 1
+            // batchMonths == 0: 跳过非焦点修炼结算，等待累积到批次阈值
         }
 
         metricsBuilder.cleanBatchMs = timer.stop()
@@ -339,26 +436,54 @@ class SettlementCoordinator @Inject constructor(
             return 0
         }
 
-        val focusedGains = cultivationService.getHighFrequencyData().value.cultivationUpdates
-        val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
-        val focusedNurtureGains = cultivationService.getHighFrequencyData().value.nurtureUpdates
+        val hfd = cultivationService.getHighFrequencyData().value
+        val focusedGains = hfd.cultivationUpdates
+        val focusedProfGains = hfd.proficiencyUpdates
+        val focusedNurtureGains = hfd.nurtureUpdates
+        val focusedPhaseCount = hfd.focusedPhaseCount
 
         val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
         var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
 
         for (id in batch) {
+            val isFocused = id.toString() == focusedId
+            val batchMonths = if (isFocused) 1 else nonFocusedBatchMonths
+
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-            val monthlyGain = rate * 3  // 3旬/月
-            val alreadyGained = focusedGains[disciple.id] ?: 0.0
-            val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
-            val newCultivation = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
-            tables.cultivations[id] = newCultivation
+            if (batchMonths > 0) {
+                // 每月修炼值 = rate × 3旬 × batchMonths，扣除焦点域已获增益
+                val monthlyGain = rate * 3
+                val alreadyGained = focusedGains[disciple.id] ?: 0.0
+                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val rawCultivation = disciple.cultivation + totalGain
+                val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
+                    Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
+                } else {
+                    Pair(rawCultivation, 0.0)
+                }
+                tables.cultivations[id] = newCultivation
 
+                // 月度 HP/MP 恢复 × 批次（扣除焦点域已处理旬数）
+                val phaseCountForBatch = if (batchMonths == 1) focusedPhaseCount else 0
+                repeat(batchMonths) {
+                    cultivationService.recoverMonthlyHpMp(tables, id, phaseCountForBatch)
+                }
+
+                // 月度持续效果衰减 × 批次（扣除焦点域已处理旬数）
+                repeat(batchMonths) {
+                    cultivationService.applyMonthlyDurationDecay(tables, id, phaseCountForBatch)
+                }
+            }
+
+            // 突破检查（batchMonths == 0 时也可触发，因为装备/功法变更可能改变状态）
+            val currentCult = tables.cultivations[id]
             val needsBreakthrough = DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[disciple.id] ?: emptySet()) &&
-                newCultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)
+                currentCult >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)
 
+            val effectiveBatch = if (batchMonths > 0) batchMonths else 1
             var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
             if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
                 val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
@@ -373,19 +498,35 @@ class SettlementCoordinator @Inject constructor(
 
             val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
             if (loyaltyDelta != 0) {
-                tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta).coerceAtLeast(0)
+                tables.loyalties[id] = (tables.loyalties[id] + loyaltyDelta * effectiveBatch).coerceAtLeast(0)
             }
 
             // 修炼完成时间
-            val remaining = disciple.maxCultivation - newCultivation
+            val cultAfter = tables.cultivations[id]
+            val maxCult = if (needsBreakthrough) {
+                // 突破后重新获取 maxCultivation
+                val dAfter = tables.assemble(id)
+                dAfter.maxCultivation
+            } else {
+                disciple.maxCultivation
+            }
+            val remaining = maxCult - cultAfter
             val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, rate)
             tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
             tables.cultivationCompletionPhases[id] = 1
 
             // 突破处理（需要消费 shadow.pills，串行）
             if (needsBreakthrough) {
+                // 计算溢出（突破前修为超出 maxCultivation 的部分）
+                val overflowBeforeBreakthrough =
+                    (tables.cultivations[id] - disciple.maxCultivation).coerceAtLeast(0.0)
                 val afterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
                 writeDiscipleToTables(afterBreakthrough, tables)
+                // 溢出修为带入新境界
+                if (overflowBeforeBreakthrough > 0 && afterBreakthrough.realm > 0) {
+                    tables.cultivations[id] =
+                        overflowBeforeBreakthrough.coerceAtMost(afterBreakthrough.maxCultivation)
+                }
             }
 
             equipmentInstanceUpdates.putAll(nurtureUpdates)
@@ -433,6 +574,10 @@ class SettlementCoordinator @Inject constructor(
             childBirthSystem.onMonthTick(shadow)
             partnerSystem.onMonthTick(shadow)
             processBloodRefinementProgress(shadow)
+            // 月结制：自动从仓库装备/学习
+            cultivationService.processAutoFromWarehouseMonthly(
+                shadow.gameData.gameYear, shadow.gameData.gameMonth, shadow
+            )
         } finally {
             stateStore.endShadowTransaction()
         }
@@ -810,6 +955,56 @@ class SettlementCoordinator @Inject constructor(
         val monthsToNext = LazyEvaluationDispatcher.estimateMonthsToNextBreakthrough(remaining, cultivationRate)
         tables.cultivationCompletionMonths[id] = currentAbsoluteMonth + monthsToNext
         tables.cultivationCompletionPhases[id] = 1
+    }
+
+    /**
+     * 检测 DISCIPLES 焦点域是否活跃。
+     * 活跃时弟子已有每旬结算，月度结算应跳过修炼/HP/衰减。
+     */
+    private fun isDiscipleDomainActive(): Boolean {
+        val tab = stateStore.activeTab
+        if (tab == "DISCIPLES" || tab == "OVERVIEW") return true
+        if (stateStore.focusedDiscipleId != null) return true
+        // 显示弟子卡片的对话框（需实时更新境界、忠诚度）
+        val dialog = stateStore.activeDialog ?: return false
+        return dialog in setOf(
+            "Recruit", "Residence", "Library", "WenDaoPeak", "QingyunPeak",
+            "TianshuHall", "LawEnforcementHall", "ReflectionCliff",
+            "BloodRefiningPool", "BattleLog",
+            "Diplomacy", "MissionHall", "PatrolTower"
+        )
+    }
+
+    /**
+     * 非焦点域热控分批：根据手机发热程度决定结算间隔。
+     * - 常温 → 每月结算
+     * - 发热(shouldReduceWorkload) → 每 6 月结算一次
+     * - 发热严重(shouldEmergencySave) → 每 12 月结算一次
+     */
+    private fun computeNonFocusedBatch(currentAbsoluteMonth: Int) {
+        if (nonFocusedLastSettleMonth == 0) {
+            // 首次结算
+            nonFocusedLastSettleMonth = currentAbsoluteMonth
+            nonFocusedBatchMonths = 1
+            return
+        }
+        val monthsSince = currentAbsoluteMonth - nonFocusedLastSettleMonth
+        if (monthsSince <= 0) {
+            nonFocusedBatchMonths = 1
+            return
+        }
+        val batchSize = when {
+            thermalMonitor.shouldEmergencySave() -> 12
+            thermalMonitor.shouldReduceWorkload() -> 6
+            else -> 1
+        }
+        nonFocusedBatchMonths = if (monthsSince >= batchSize) {
+            nonFocusedLastSettleMonth = currentAbsoluteMonth
+            monthsSince
+        } else {
+            // 尚未达到批次阈值，跳过非焦点修炼结算
+            0
+        }
     }
 
     companion object {

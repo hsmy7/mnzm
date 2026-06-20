@@ -202,7 +202,10 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-        sharedState.highFrequencyData.value = currentHfd.copy(cultivationUpdates = accumGains)
+        sharedState.highFrequencyData.value = currentHfd.copy(
+            cultivationUpdates = accumGains,
+            focusedPhaseCount = currentHfd.focusedPhaseCount + 1
+        )
 
         val aliveMap = processedAlive.associateBy { it.id }
         val updatedDisciplesList = stateStore.disciples.value.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
@@ -223,6 +226,11 @@ class CultivationEventProcessor @Inject constructor(
      * 自动从仓库装备/学习。
      * 直接操作事务内状态 [state]，不使用异步协程，避免影子事务覆盖问题。
      */
+    /** 月度自动从仓库装备/学习（月结制专用） */
+    fun processAutoFromWarehouseMonthly(year: Int, month: Int, state: MutableGameState) {
+        processAutoFromWarehouse(year, month, 0, state)
+    }
+
     private fun processAutoFromWarehouse(
         year: Int, month: Int, phase: Int, state: MutableGameState
     ) {
