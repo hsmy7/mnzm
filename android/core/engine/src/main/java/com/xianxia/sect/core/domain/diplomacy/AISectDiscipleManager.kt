@@ -263,60 +263,77 @@ object AISectDiscipleManager {
         return generateRandomDisciple(sectName, 9, existingNames)
     }
 
-    fun processMonthlyCultivation(disciples: List<Disciple>, manualProficienciesMap: Map<String, Map<String, ManualProficiencyData>> = emptyMap()): List<Disciple> {
+    fun processMonthlyCultivation(
+        disciples: List<Disciple>,
+        batchMonths: Int = 1,
+        manualProficienciesMap: Map<String, Map<String, ManualProficiencyData>> = emptyMap()
+    ): List<Disciple> {
+        if (batchMonths <= 0 || disciples.isEmpty()) return disciples
+
         return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
 
-            val cultivationSpeed = DiscipleStatCalculator.calculateCultivationSpeed(
-                disciple,
-                manuals = emptyMap(),
-                manualProficiencies = emptyMap(),
-                buildingBonus = 1.0,
-                additionalBonus = 0.0,
-                preachingElderBonus = 0.0,
-                preachingMastersBonus = 0.0,
-                cultivationSubsidyBonus = 0.0
-            )
-            val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
+            var workingDisciple = disciple
 
-            var newCultivation = disciple.cultivation + monthlyGain
-            var newRealm = disciple.realm
-            var newRealmLayer = disciple.realmLayer
+            repeat(batchMonths) {
+                // 每月重新计算修炼速度（突破后境界可能改变）
+                val cultivationSpeed = DiscipleStatCalculator.calculateCultivationSpeed(
+                    workingDisciple,
+                    manuals = emptyMap(),
+                    manualProficiencies = emptyMap(),
+                    buildingBonus = 1.0,
+                    additionalBonus = 0.0,
+                    preachingElderBonus = 0.0,
+                    preachingMastersBonus = 0.0,
+                    cultivationSubsidyBonus = 0.0
+                )
+                val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
 
-            while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
-                val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                val rootCount = disciple.spiritRoot.types.size
-                val breakthroughChance = GameConfig.Realm.getBreakthroughChance(newRealm, rootCount, newRealmLayer)
-                if (Random.nextDouble() < breakthroughChance) {
-                    newCultivation = 0.0
+                var newCultivation = workingDisciple.cultivation + monthlyGain
+                var newRealm = workingDisciple.realm
+                var newRealmLayer = workingDisciple.realmLayer
 
-                    if (!isMajorBreakthrough) {
-                        newRealmLayer++
+                while (newCultivation >= workingDisciple.maxCultivation && newRealm > 0) {
+                    val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
+                    val rootCount = workingDisciple.spiritRoot.types.size
+                    val breakthroughChance = GameConfig.Realm.getBreakthroughChance(
+                        newRealm, rootCount, newRealmLayer
+                    )
+                    if (Random.nextDouble() < breakthroughChance) {
+                        newCultivation = 0.0
+
+                        if (!isMajorBreakthrough) {
+                            newRealmLayer++
+                        } else {
+                            newRealm--
+                            newRealmLayer = 1
+                        }
                     } else {
-                        newRealm--
-                        newRealmLayer = 1
+                        newCultivation = 0.0
+                        break
                     }
-                } else {
-                    newCultivation = 0.0
-                    break
                 }
+
+                val newLifespan = if (newRealm != workingDisciple.realm) {
+                    val baseLifespan = GameConfig.Realm.get(newRealm).maxAge
+                    val talentEffects = TalentDatabase.calculateTalentEffects(
+                        workingDisciple.talentIds
+                    )
+                    val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+                    (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
+                } else {
+                    workingDisciple.lifespan
+                }
+
+                workingDisciple = workingDisciple.copy(
+                    cultivation = newCultivation,
+                    realm = newRealm,
+                    realmLayer = newRealmLayer,
+                    lifespan = newLifespan
+                )
             }
 
-            val newLifespan = if (newRealm != disciple.realm) {
-                val baseLifespan = GameConfig.Realm.get(newRealm).maxAge
-                val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-                val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-                (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-            } else {
-                disciple.lifespan
-            }
-
-            disciple.copy(
-                cultivation = newCultivation,
-                realm = newRealm,
-                realmLayer = newRealmLayer,
-                lifespan = newLifespan
-            )
+            workingDisciple
         }
     }
 

@@ -19,6 +19,8 @@ import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
+import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,9 +34,14 @@ class CaveExplorationProcessor @Inject constructor(
     private val battleSystem: BattleSystem,
     private val eventProcessor: CultivationEventProcessor,
     private val analyticsTracker: AnalyticsTracker,
-    private val sectWarehouseManager: SectWarehouseManager
+    private val sectWarehouseManager: SectWarehouseManager,
+    private val thermalMonitor: ThermalMonitor
 ) {
     private val scope get() = scopeProvider.scope
+
+    // AI 非焦点域热控分批状态
+    private var aiNonFocusedLastSettleMonth: Int = 0
+    private var aiNonFocusedBatchMonths: Int = 1
 
     companion object {
         private const val TAG = "CaveExplorationProc"
@@ -499,9 +506,43 @@ class CaveExplorationProcessor @Inject constructor(
 
     // ── AI 宗门 ──────────────────────────────────────────────────────
 
+    /**
+     * AI 弟子热控分批：根据手机发热程度决定结算间隔。
+     * - 常温 → 每月结算
+     * - 发热(shouldReduceWorkload) → 每 6 月结算一次
+     * - 发热严重(shouldEmergencySave) → 每 12 月结算一次
+     */
+    private fun computeAIBatch(currentAbsoluteMonth: Int) {
+        if (aiNonFocusedLastSettleMonth == 0) {
+            aiNonFocusedLastSettleMonth = currentAbsoluteMonth
+            aiNonFocusedBatchMonths = 1
+            return
+        }
+        val monthsSince = currentAbsoluteMonth - aiNonFocusedLastSettleMonth
+        if (monthsSince <= 0) {
+            aiNonFocusedBatchMonths = 1
+            return
+        }
+        val batchSize = when {
+            thermalMonitor.shouldEmergencySave() -> 12
+            thermalMonitor.shouldReduceWorkload() -> 6
+            else -> 1
+        }
+        aiNonFocusedBatchMonths = if (monthsSince >= batchSize) {
+            aiNonFocusedLastSettleMonth = currentAbsoluteMonth
+            monthsSince
+        } else {
+            0
+        }
+    }
+
     fun processAISectOperations(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples
+
+        // 热控分批
+        val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
+        computeAIBatch(currentAbsMonth)
 
         val cleanedSectDetails = data.sectDetails.mapValues { (sectId, detail) ->
             val sect = data.worldMapSects.find { it.id == sectId }
@@ -512,10 +553,17 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        val updatedAiDisciples = aiDisciples.mapValues { (sectId, disciples) ->
-            val sect = data.worldMapSects.find { it.id == sectId }
-            if (sect == null || sect.isPlayerSect) return@mapValues disciples
-            AISectDiscipleManager.processMonthlyCultivation(disciples)
+        // AI 弟子修炼（热控分批：跳过时保留原数据）
+        val updatedAiDisciples = if (aiNonFocusedBatchMonths > 0) {
+            aiDisciples.mapValues { (sectId, disciples) ->
+                val sect = data.worldMapSects.find { it.id == sectId }
+                if (sect == null || sect.isPlayerSect) return@mapValues disciples
+                AISectDiscipleManager.processMonthlyCultivation(
+                    disciples, aiNonFocusedBatchMonths
+                )
+            }
+        } else {
+            aiDisciples
         }
 
         // 同步 AI 宗门等级 — 月度修炼弟子只会变强，仅用 any{} 短路检查升级（只升不降）
