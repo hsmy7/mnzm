@@ -245,7 +245,8 @@ fun PlantingDialog(
                                         name = seed.name,
                                         description = seed.description,
                                         rarity = seed.rarity,
-                                        quantity = seed.quantity
+                                        quantity = seed.quantity,
+                                        isSeed = true
                                     ),
                                     isSelected = seed.id == selectedSeedId,
                                     onClick = {
@@ -373,7 +374,8 @@ fun PlantingDialog(
                                                     name = plantedSeed.name,
                                                     description = plantedSeed.description,
                                                     rarity = plantedSeed.rarity,
-                                                    quantity = plantedSeed.quantity
+                                                    quantity = plantedSeed.quantity,
+                                                    isSeed = true
                                                 ),
                                                 isSelected = false,
                                                 onClick = { selectedSeedId = plantedSeed.id },

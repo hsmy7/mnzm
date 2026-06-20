@@ -24,6 +24,12 @@ object SpriteResRegistry {
         private set
     var allEquipmentResIds: List<Int> = emptyList()
         private set
+    var herbSprites: Map<String, Int> = emptyMap()
+        private set
+    var seedSprites: Map<String, Int> = emptyMap()
+        private set
+    var growingSprites: Map<String, Int> = emptyMap()
+        private set
 
     fun initialize(
         equipmentSprites: Map<String, Int>,
@@ -33,7 +39,10 @@ object SpriteResRegistry {
         materialSprites: Map<String, Int>,
         storageBagSprites: Map<Int, Int>,
         sectIconSprites: Map<Int, Int>,
-        allEquipmentResIds: List<Int>
+        allEquipmentResIds: List<Int>,
+        herbSprites: Map<String, Int> = emptyMap(),
+        seedSprites: Map<String, Int> = emptyMap(),
+        growingSprites: Map<String, Int> = emptyMap()
     ) {
         this.equipmentSprites = equipmentSprites
         this.manualSprites = manualSprites
@@ -43,6 +52,9 @@ object SpriteResRegistry {
         this.storageBagSprites = storageBagSprites
         this.sectIconSprites = sectIconSprites
         this.allEquipmentResIds = allEquipmentResIds
+        this.herbSprites = herbSprites
+        this.seedSprites = seedSprites
+        this.growingSprites = growingSprites
     }
 }
 
@@ -60,6 +72,34 @@ fun materialSpriteRes(name: String): Int? {
         .removePrefix("地").removePrefix("天")
     return SpriteResRegistry.materialSprites[baseName]
 }
+
+/**
+ * 通过草药中文名查找草药精灵图资源ID。
+ * 例如 "聚灵草" → R.drawable.herb_spiritgrass1
+ */
+fun herbSpriteRes(name: String): Int? {
+    val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(name)
+        ?: return null
+    return SpriteResRegistry.herbSprites[herb.id]
+}
+
+/**
+ * 通过种子中文名查找种子精灵图资源ID。
+ * 例如 "聚灵草种" → R.drawable.seed_spiritgrass1
+ */
+fun seedSpriteRes(seedName: String): Int? {
+    val seed = com.xianxia.sect.core.registry.HerbDatabase.getSeedByName(seedName)
+        ?: return null
+    val herbId = com.xianxia.sect.core.registry.HerbDatabase.getHerbIdFromSeedId(seed.id)
+        ?: return null
+    return SpriteResRegistry.seedSprites[herbId]
+}
+
+/**
+ * 通过 herbId 直接查找成长期精灵图资源ID（地图渲染用）。
+ */
+fun growingSpriteRes(herbId: String): Int? =
+    SpriteResRegistry.growingSprites[herbId]
 
 fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }
 
@@ -84,7 +124,9 @@ fun getRewardSprite(itemType: String, itemName: String, rarity: Int): Int? {
         "pill" -> pillSpriteRes(rarity)
         "material" -> materialSpriteRes(itemName)
             ?: SpriteResRegistry.materialSprites.values.firstOrNull()
-        "herb" -> pillSpriteRes(rarity)
+        "herb" -> herbSpriteRes(itemName) ?: pillSpriteRes(rarity)
+        "seed" -> seedSpriteRes(itemName)
+            ?: SpriteResRegistry.materialSprites.values.firstOrNull()
         "spiritStones" -> spiritStoneSpriteRes()
         "storageBag" -> storageBagSpriteRes(rarity)
         "beastMaterial" -> materialSpriteRes(itemName)

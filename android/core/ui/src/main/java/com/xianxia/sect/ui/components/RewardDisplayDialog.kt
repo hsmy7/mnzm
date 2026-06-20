@@ -54,8 +54,10 @@ fun RewardCardItem.toItemCardData(): ItemCardData = ItemCardData(
     rarity = rarity,
     quantity = quantity,
     type = itemType,
-    isPill = itemType in listOf("pill", "herb"),
-    isMaterial = itemType in listOf("material", "seed", "beastMaterial"),
+    isPill = itemType == "pill",
+    isHerb = itemType == "herb",
+    isMaterial = itemType in listOf("material", "beastMaterial"),
+    isSeed = itemType == "seed",
     isSpiritStone = itemType == "spiritStones",
     isBag = itemType == "storageBag",
     isManual = itemType == "manual"

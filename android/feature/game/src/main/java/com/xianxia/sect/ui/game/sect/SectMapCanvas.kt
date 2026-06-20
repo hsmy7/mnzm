@@ -25,14 +25,42 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.game.building.BuildingDef
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class DragTarget { CAMERA, BUILDING_MOVE, BUILDING_PLACE }
+
+/** 灵田作物生长阶段 */
+private enum class GrowthStage { SEED, GROWING, MATURE }
+
+/**
+ * 根据种植时间和当前时间计算作物生长阶段。
+ * 前20%时间 → 种子期，中70%时间 → 成长期，后10%时间 → 成熟期。
+ * 返回 null 表示灵田未种植或数据无效。
+ */
+private fun getGrowthStage(
+    plant: SpiritFieldPlant,
+    currentYear: Int,
+    currentMonth: Int
+): GrowthStage? {
+    if (plant.seedId.isEmpty() || plant.growTime <= 0) return null
+    val elapsed = (currentYear - plant.plantYear) * 12 +
+            (currentMonth - plant.plantMonth)
+    val progress = (elapsed.toFloat() / plant.growTime.toFloat())
+        .coerceIn(0f, 1f)
+    return when {
+        progress < 0.20f -> GrowthStage.SEED
+        progress < 0.90f -> GrowthStage.GROWING
+        else -> GrowthStage.MATURE
+    }
+}
 
 @Composable
 fun SectMapCanvas(
@@ -216,6 +244,44 @@ fun SectMapCanvas(
                     if (bmp != null) {
                         drawImage(bmp, dstOffset = IntOffset(bx, by), dstSize = IntSize(bw, bh), alpha = 0.5f)
                     }
+                }
+            }
+
+            // 2.1 灵田作物动态叠加层 — 不参与烘焙（生长状态随时间逐月变化）
+            val spiritFieldName = BuildingDef.SPIRIT_FIELD.displayName
+            val cropBitmaps = staticData.cropBitmaps
+            if (cropBitmaps.isNotEmpty() && staticData.spiritFieldPlants.isNotEmpty()) {
+                for (building in staticData.placedBuildings) {
+                    if (building.displayName != spiritFieldName) continue
+                    val plant = staticData.spiritFieldPlants
+                        .firstOrNull { it.buildingInstanceId == building.instanceId }
+                        ?: continue
+                    if (plant.seedId.isEmpty()) continue
+                    val stage = getGrowthStage(
+                        plant, staticData.currentGameYear, staticData.currentGameMonth
+                    ) ?: continue
+                    val herbId = HerbDatabase.getHerbIdFromSeedId(plant.seedId)
+                        ?: continue
+                    // 无种子图片的植物不显示
+                    if (SpriteResRegistry.seedSprites[herbId] == null) continue
+
+                    val cropBmpKey = when (stage) {
+                        GrowthStage.SEED -> "seed_$herbId"
+                        GrowthStage.GROWING -> "growing_$herbId"
+                        GrowthStage.MATURE -> "herb_$herbId"
+                    }
+                    val cropBmp = cropBitmaps[cropBmpKey] ?: continue
+
+                    val bx = building.gridX * config.tileSize
+                    val by = building.gridY * config.tileSize
+                    val bw = building.width * config.tileSize
+                    val bh = building.height * config.tileSize
+                    drawImage(
+                        cropBmp,
+                        dstOffset = IntOffset(bx, by),
+                        dstSize = IntSize(bw, bh),
+                        alpha = 0.9f
+                    )
                 }
             }
 

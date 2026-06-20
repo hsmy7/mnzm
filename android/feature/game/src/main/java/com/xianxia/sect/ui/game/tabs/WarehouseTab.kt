@@ -287,6 +287,8 @@ internal fun WarehouseTab(
                                             isManual = warehouseItem.item is ManualStack,
                                             isPill = warehouseItem.item is Pill,
                                             isMaterial = warehouseItem.item is Material,
+                                            isHerb = warehouseItem.item is Herb,
+                                            isSeed = warehouseItem.item is Seed,
                                             isSpiritStone = warehouseItem.item is SpiritStoneInfo,
                                             isBag = warehouseItem.item is StorageBag
                                         ),

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.sect
 
 import androidx.compose.ui.graphics.ImageBitmap
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.perf.GpuRenderConfig
 import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -19,7 +20,11 @@ data class SectMapStaticData(
     val placedBuildings: List<GridBuildingData>,
     val buildingBitmaps: Map<String, ImageBitmap>,
     val fullMapBmp: ImageBitmap,
-    val buildingsBaked: Boolean
+    val buildingsBaked: Boolean,
+    val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
+    val cropBitmaps: Map<String, ImageBitmap> = emptyMap(),
+    val currentGameYear: Int = 1,
+    val currentGameMonth: Int = 1
 )
 
 data class PlacementModeState(

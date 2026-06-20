@@ -333,6 +333,39 @@ class XianxiaApplication : Application() {
                 R.drawable.yin_yun_pei, R.drawable.you_shuo_zhu,
                 R.drawable.yu_jie_zhi, R.drawable.yun_qi_xue,
                 R.drawable.yun_ling_jie, R.drawable.zhui_feng_xue
+            ),
+            herbSprites = mapOf(
+                "spiritGrass1" to R.drawable.herb_spiritgrass1,
+                "spiritGrass2" to R.drawable.herb_spiritgrass2,
+                "spiritGrass3" to R.drawable.herb_spiritgrass3,
+                "spiritFlower1" to R.drawable.herb_spiritflower1,
+                "spiritFlower2" to R.drawable.herb_spiritflower2,
+                "spiritFlower3" to R.drawable.herb_spiritflower3,
+                "spiritFruit1" to R.drawable.herb_spiritfruit1,
+                "spiritFruit2" to R.drawable.herb_spiritfruit2,
+                "spiritFruit3" to R.drawable.herb_spiritfruit3
+            ),
+            seedSprites = mapOf(
+                "spiritGrass1" to R.drawable.seed_spiritgrass1,
+                "spiritGrass2" to R.drawable.seed_spiritgrass2,
+                "spiritGrass3" to R.drawable.seed_spiritgrass3,
+                "spiritFlower1" to R.drawable.seed_spiritflower1,
+                "spiritFlower2" to R.drawable.seed_spiritflower2,
+                "spiritFlower3" to R.drawable.seed_spiritflower3,
+                "spiritFruit1" to R.drawable.seed_spiritfruit1,
+                "spiritFruit2" to R.drawable.seed_spiritfruit2,
+                "spiritFruit3" to R.drawable.seed_spiritfruit3
+            ),
+            growingSprites = mapOf(
+                "spiritGrass1" to R.drawable.growing_spiritgrass1,
+                "spiritGrass2" to R.drawable.growing_spiritgrass2,
+                "spiritGrass3" to R.drawable.growing_spiritgrass3,
+                "spiritFlower1" to R.drawable.growing_spiritflower1,
+                "spiritFlower2" to R.drawable.growing_spiritflower2,
+                "spiritFlower3" to R.drawable.growing_spiritflower3,
+                "spiritFruit1" to R.drawable.growing_spiritfruit1,
+                "spiritFruit2" to R.drawable.growing_spiritfruit2,
+                "spiritFruit3" to R.drawable.growing_spiritfruit3
             )
         )
 

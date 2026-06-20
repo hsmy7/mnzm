@@ -42,7 +42,9 @@ data class ItemCardData(
     val isPill: Boolean = false,
     val isMaterial: Boolean = false,
     val isSpiritStone: Boolean = false,
-    val isBag: Boolean = false
+    val isBag: Boolean = false,
+    val isHerb: Boolean = false,
+    val isSeed: Boolean = false
 )
 
 @Composable
@@ -65,6 +67,8 @@ fun UnifiedItemCard(
         data.isManual -> manualSpriteRes(data.rarity)
         data.isPill -> pillSpriteRes(data.rarity)
         data.isMaterial -> materialSpriteRes(data.name)
+        data.isHerb -> herbSpriteRes(data.name)
+        data.isSeed -> seedSpriteRes(data.name)
         else -> equipmentSpriteRes(data.name)
     }
 

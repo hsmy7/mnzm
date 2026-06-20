@@ -36,8 +36,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
+import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
+import com.xianxia.sect.ui.components.SpriteResRegistry
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onSizeChanged
@@ -66,6 +70,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
+import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
@@ -343,6 +348,35 @@ fun MainGameScreen(
         val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
             else rememberBuildingBitmaps()
 
+        // 灵田作物图片预加载 — 以 "stage_herbId" 为 key 缓存三种生长阶段位图
+        val context = LocalContext.current
+        val cropBitmaps = remember {
+            val map = mutableMapOf<String, ImageBitmap>()
+            val resources = context.resources
+            for ((herbId, seedResId) in SpriteResRegistry.seedSprites) {
+                // 种子图
+                val seedBmp = BitmapFactory.decodeResource(resources, seedResId)
+                if (seedBmp != null) {
+                    map["seed_$herbId"] = seedBmp.asImageBitmap()
+                }
+                // 成长期图
+                SpriteResRegistry.growingSprites[herbId]?.let { growResId ->
+                    val growBmp = BitmapFactory.decodeResource(resources, growResId)
+                    if (growBmp != null) {
+                        map["growing_$herbId"] = growBmp.asImageBitmap()
+                    }
+                }
+                // 成熟（草药成品）图
+                SpriteResRegistry.herbSprites[herbId]?.let { herbResId ->
+                    val herbBmp = BitmapFactory.decodeResource(resources, herbResId)
+                    if (herbBmp != null) {
+                        map["herb_$herbId"] = herbBmp.asImageBitmap()
+                    }
+                }
+            }
+            map
+        }
+
         // [C2 静态建筑层架构]
         // 核心思路：将建筑预渲染（bake）到地图 Bitmap 上，Canvas 每帧只绘制单张 Bitmap，
         // 避免逐帧遍历建筑列表。建筑变化时通过增量更新（擦除旧区域 + 绘制新建筑）修改
@@ -616,7 +650,11 @@ fun MainGameScreen(
                 placedBuildings = effectivePlacedBuildings,
                 buildingBitmaps = buildingBitmaps,
                 fullMapBmp = displayMapBmp,
-                buildingsBaked = shouldBakeBuildings && frontBufferBmp != null
+                buildingsBaked = shouldBakeBuildings && frontBufferBmp != null,
+                spiritFieldPlants = gameData.spiritFieldPlants,
+                cropBitmaps = cropBitmaps,
+                currentGameYear = gameData.gameYear,
+                currentGameMonth = gameData.gameMonth
             ),
             placement = if (isPlacingBuilding) PlacementModeState(
                 isActive = true,

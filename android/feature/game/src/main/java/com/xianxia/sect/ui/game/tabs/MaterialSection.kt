@@ -74,7 +74,8 @@ internal fun SellableHerbSection(
                     data = ItemCardData(
                         name = item.name,
                         rarity = item.rarity,
-                        quantity = item.quantity
+                        quantity = item.quantity,
+                        isHerb = true
                     ),
                     modifier = Modifier.weight(1f),
                     onLongPress = { onItemLongPress(item) }
@@ -110,7 +111,8 @@ internal fun SellableSeedSection(
                     data = ItemCardData(
                         name = item.name,
                         rarity = item.rarity,
-                        quantity = item.quantity
+                        quantity = item.quantity,
+                        isSeed = true
                     ),
                     modifier = Modifier.weight(1f),
                     onLongPress = { onItemLongPress(item) }
