@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.15] - 2026-06-20（versionCode=4015）
+
+### 修复
+
+- **修复：血炼池和多人住所消失问题** — 修复硬编码默认配置中缺失血炼池（blood_refining_pool）导致的建筑丢失隐患；修正多人住所硬编码默认gridHeight错误（3→2）；补全拆除血炼池时的关联数据清理逻辑（activeBloodRefinements、弟子状态释放）；GridBuildingData反序列化失败时增加诊断日志；GridBuildingData默认高度对齐（3→2）
+
 ## [4.0.14] - 2026-06-20（versionCode=4014）
 
 ### 变更

@@ -326,7 +326,7 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 1.0,
                     cost = 30000,
                     gridWidth = 3,
-                    gridHeight = 3,
+                    gridHeight = 2,
                     description = "供多名弟子共同修炼，修炼速度+10%"
                 ),
                 "single_residence_upgraded" to BuildingConfigModel(
@@ -369,6 +369,17 @@ class BuildingConfigService @Inject constructor(
                     gridWidth = 2,
                     gridHeight = 3,
                     description = "驻守弟子自动巡视地图攻击妖兽"
+                ),
+                "blood_refining_pool" to BuildingConfigModel(
+                    id = "blood_refining_pool",
+                    displayName = "血炼池",
+                    buildingType = "BLOOD_REFINING_POOL",
+                    slotCount = 1,
+                    baseSuccessRate = 1.0,
+                    cost = 50000,
+                    gridWidth = 2,
+                    gridHeight = 2,
+                    description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
                 )
             ),
             buildingAliases = mapOf(
@@ -443,7 +454,9 @@ class BuildingConfigService @Inject constructor(
                 "single_residence_upgraded" to "single_residence_upgraded",
                 "warehouse" to "warehouse",
                 "patrol_tower" to "patrol_tower",
-                "patroltower" to "patrol_tower"
+                "patroltower" to "patrol_tower",
+                "bloodrefiningpool" to "blood_refining_pool",
+                "blood_refining_pool" to "blood_refining_pool"
             )
         )
     }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.local
 
+import android.util.Log
 import androidx.room.TypeConverter
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -170,7 +171,20 @@ object CollectionConverters {
     @TypeConverter
     @JvmStatic
     fun toGridBuildingDataList(value: String): List<GridBuildingData> =
-        ProtobufConverters.decodeFromBase64(ListSerializer(GridBuildingData.serializer()), value) { emptyList() }
+        ProtobufConverters.decodeFromBase64(
+            ListSerializer(GridBuildingData.serializer()), value
+        ) {
+            if (value.isNotEmpty()) {
+                Log.wtf(
+                    "CollectionConverters",
+                    "CRITICAL: toGridBuildingDataList deserialization FAILED! " +
+                    "All placedBuildings will be lost. " +
+                    "Input length: ${value.length}, " +
+                    "first 100 chars: ${value.take(100)}"
+                )
+            }
+            emptyList()
+        }
 
     @TypeConverter
     @JvmStatic

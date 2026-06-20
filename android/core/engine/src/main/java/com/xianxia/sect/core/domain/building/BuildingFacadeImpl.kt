@@ -327,6 +327,8 @@ class BuildingFacadeImpl @Inject constructor(
             name == "巡视楼" -> gameData.patrolSlots.takeLast(8)
                 .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
                 .forEach { ids.add(it) }
+            name == "血炼池" -> gameData.activeBloodRefinements[instanceId]
+                ?.discipleId?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
         }
         return ids
     }
@@ -360,6 +362,10 @@ class BuildingFacadeImpl @Inject constructor(
                 if (maxIdx >= 0) gd = gd.copy(productionSlots = gd.productionSlots.filter {
                     !(it.buildingId == bid && it.slotIndex == maxIdx) })
             }
+            name == "血炼池" -> gd = gd.copy(
+                activeBloodRefinements = gd.activeBloodRefinements
+                    .toMutableMap().apply { remove(instanceId) }
+            )
         }
         return gd
     }

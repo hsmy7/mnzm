@@ -14,7 +14,7 @@ data class GridBuildingData(
     @ProtoNumber(3) val gridX: Int = 0,
     @ProtoNumber(4) val gridY: Int = 0,
     @ProtoNumber(5) val width: Int = 2,
-    @ProtoNumber(6) val height: Int = 3,
+    @ProtoNumber(6) val height: Int = 2,
     @ProtoNumber(7) val instanceId: String = "",
     @ProtoNumber(8) val sectId: String = ""
 ) {

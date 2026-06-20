@@ -202,7 +202,7 @@ class MapModelsTest {
         assertEquals(0, data.gridX)
         assertEquals(0, data.gridY)
         assertEquals(2, data.width)
-        assertEquals(3, data.height)
+        assertEquals(2, data.height)
         assertEquals("", data.instanceId)
         assertEquals("", data.sectId)
     }

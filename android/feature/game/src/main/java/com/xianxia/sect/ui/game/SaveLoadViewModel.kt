@@ -645,6 +645,14 @@ class SaveLoadViewModel @Inject constructor(
 
                 // 修正已有存档中的建筑网格尺寸，补齐instanceId
                 gameEngine.updateGameData { data ->
+                    if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
+                        android.util.Log.wtf(
+                            "SaveLoad",
+                            "DATA INTEGRITY: placedBuildings is empty but residenceSlots " +
+                            "has ${data.residenceSlots.size} entries! " +
+                            "Suspected GridBuildingData deserialization failure."
+                        )
+                    }
                     val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
                     val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                     if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
@@ -763,6 +771,14 @@ class SaveLoadViewModel @Inject constructor(
 
                     // 修正已有存档中的建筑网格尺寸，补齐instanceId
                     gameEngine.updateGameData { data ->
+                        if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
+                            android.util.Log.wtf(
+                                "SaveLoad",
+                                "DATA INTEGRITY: placedBuildings is empty but residenceSlots " +
+                                "has ${data.residenceSlots.size} entries! " +
+                                "Suspected GridBuildingData deserialization failure."
+                            )
+                        }
                         val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
                         val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                         if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
