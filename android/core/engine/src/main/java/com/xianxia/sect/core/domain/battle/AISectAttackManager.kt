@@ -769,19 +769,35 @@ object AISectAttackManager {
         }
     }
 
+    // 临时保存 BattleAI 决策结果，供 selectAISkill → selectAITarget 配对使用
+    private var pendingAiAction: BattleAI.AIAction? = null
+
     private fun selectAISkill(
         combatant: Combatant,
         enemies: List<Combatant>,
         allies: List<Combatant>,
         isSilenced: Boolean
     ): CombatSkill? {
-        return BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced)
+        if (isSilenced) {
+            pendingAiAction = null
+            return null
+        }
+        val action = BattleAI.decideAction(combatant, allies, enemies)
+        pendingAiAction = action
+        return action.skill
     }
 
     private fun selectAITarget(attacker: Combatant, targets: List<Combatant>): Combatant {
         val aliveTargets = targets.filter { !it.isDead }
         if (aliveTargets.isEmpty()) return targets.first()
-        return BattleCalculator.selectTarget(attacker, aliveTargets)
+        val action = pendingAiAction
+        if (action != null && action.target != null) {
+            pendingAiAction = null
+            return action.target
+        }
+        pendingAiAction = null
+        return BattleAI.selectAttackTarget(attacker, aliveTargets, null)
+            ?: aliveTargets.first()
     }
 
     fun getGarrisonDisciples(sect: WorldSect, allDisciples: List<Disciple>): List<Disciple> {

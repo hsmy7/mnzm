@@ -203,171 +203,43 @@ class HeavenlyTrialService @Inject constructor(
         }
     }
 
-    // region Enhanced Enemy AI
+    // region Enemy AI（委托到统一 BattleAI）
 
+    /**
+     * 敌方 AI 决策 —— 委托到统一 [BattleAI.decideAction]。
+     * 所有敌人（天道试炼、妖兽、AI 弟子等）共用同一套 8 层级联 AI。
+     */
     fun executeEnemyAction(
         attacker: Combatant,
         playerTeam: List<Combatant>,
         allyTeam: List<Combatant> = emptyList()
     ): EnemyAction {
-        // 被控跳过
-        if (attacker.hasControlEffect) {
-            return EnemyAction(null, null, ActionType.NONE)
-        }
-
-        val alivePlayers = playerTeam.filter { !it.isDead }
-        if (alivePlayers.isEmpty()) return EnemyAction(null, null, ActionType.NONE)
-
-        val usable = filterUsableSkills(attacker)
-        val attackSkills = usable.filter { it.skillType == SkillType.ATTACK || it.damageMultiplier > 0 }
-        val supportSkills = usable.filter { it.skillType != SkillType.ATTACK && it.damageMultiplier <= 0 }
-
-        // Priority 1: 斩杀残血玩家 (80%)
-        if (Random.nextDouble() < 0.8 && attackSkills.isNotEmpty()) {
-            val killAction = findKillTarget(attacker, alivePlayers, attackSkills)
-            if (killAction != null) return killAction
-        }
-
-        // Priority 2: 治疗/保护残血队友 (85%)
-        if (Random.nextDouble() < 0.85 && supportSkills.isNotEmpty()) {
-            val allyAction = findAllySupportAction(attacker, allyTeam, supportSkills)
-            if (allyAction != null) return allyAction
-        }
-
-        // Priority 3: AOE 多目标 (75%)
-        if (alivePlayers.size >= 2 && Random.nextDouble() < 0.75 && attackSkills.isNotEmpty()) {
-            val aoeSkills = attackSkills.filter { it.isAoe }
-            if (aoeSkills.isNotEmpty()) {
-                val bestAoe = aoeSkills.maxByOrNull { it.damageMultiplier }
-                if (bestAoe != null) return EnemyAction(bestAoe, null, ActionType.ATTACK)
-            }
-        }
-
-        // Priority 4: Buff 自身/队友 (60%)
-        if (Random.nextDouble() < 0.6 && supportSkills.isNotEmpty()) {
-            val buffAction = findBuffAction(attacker, allyTeam, supportSkills)
-            if (buffAction != null) return buffAction
-        }
-
-        // Priority 5: 最优攻击技能打最弱防御
-        if (attackSkills.isNotEmpty()) {
-            val bestSkill = if (attacker.mpPercent < 0.3) {
-                attackSkills.minByOrNull { it.mpCost }
-            } else {
-                attackSkills.maxByOrNull { it.damageMultiplier / it.mpCost.coerceAtLeast(1).toDouble() }
-            }
-            if (bestSkill != null) {
-                val target = findWeakestTarget(attacker, alivePlayers, bestSkill)
-                return EnemyAction(bestSkill, target, ActionType.ATTACK)
-            }
-        }
-
-        // Priority 6: 普攻兜底
-        val target = alivePlayers.minByOrNull { it.hp }
-        if (target != null) return EnemyAction(null, target, ActionType.NORMAL_ATTACK)
-        return EnemyAction(null, null, ActionType.NONE)
+        val aiAction = BattleAI.decideAction(
+            attacker, allyTeam, playerTeam
+        )
+        return convertToEnemyAction(aiAction)
     }
 
-    private fun filterUsableSkills(attacker: Combatant): List<CombatSkill> {
-        val available = attacker.skills.filter {
-            it.currentCooldown <= 0 && attacker.mp >= it.mpCost
+    /**
+     * 将统一 [BattleAI.AIAction] 映射回 HeavenlyTrialCombatScreen
+     * 使用的 [EnemyAction] 类型，保持 UI 层兼容。
+     */
+    private fun convertToEnemyAction(
+        ai: BattleAI.AIAction
+    ): EnemyAction {
+        val legacyType = when (ai.actionType) {
+            BattleAI.AIActionType.SKILL_ATTACK_SINGLE,
+            BattleAI.AIActionType.SKILL_ATTACK_AOE -> ActionType.ATTACK
+            BattleAI.AIActionType.SKILL_HEAL_ALLY,
+            BattleAI.AIActionType.SKILL_BUFF_ALLY,
+            BattleAI.AIActionType.SKILL_HEAL_TEAM,
+            BattleAI.AIActionType.SKILL_BUFF_TEAM -> ActionType.BUFF_ALLY
+            BattleAI.AIActionType.SKILL_HEAL_SELF,
+            BattleAI.AIActionType.SKILL_BUFF_SELF -> ActionType.BUFF_SELF
+            BattleAI.AIActionType.NORMAL_ATTACK -> ActionType.NORMAL_ATTACK
+            BattleAI.AIActionType.NONE -> ActionType.NONE
         }
-        if (available.isEmpty()) return emptyList()
-        if (attacker.mpPercent < 0.3) {
-            val cheap = available.filter { it.mpCost <= attacker.mp / 2 }
-            return cheap.ifEmpty { available }
-        }
-        return available
-    }
-
-    private fun findKillTarget(
-        attacker: Combatant,
-        players: List<Combatant>,
-        attackSkills: List<CombatSkill>
-    ): EnemyAction? {
-        val lowHp = players.filter { it.hpPercent < 0.3 }
-        if (lowHp.isEmpty()) return null
-        for (target in lowHp.sortedByDescending { it.effectivePhysicalAttack + it.effectiveMagicAttack }) {
-            val bestSkill = attackSkills.filter { !it.isAoe }
-                .maxByOrNull { it.damageMultiplier * (if (it.damageType == DamageType.PHYSICAL) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack) }
-                ?: continue
-            val estDmg = calculateEstimatedDamage(attacker, target, bestSkill)
-            if (estDmg >= target.hp) {
-                return EnemyAction(bestSkill, target, ActionType.ATTACK)
-            }
-        }
-        return null
-    }
-
-    private fun findAllySupportAction(
-        attacker: Combatant,
-        allies: List<Combatant>,
-        supportSkills: List<CombatSkill>
-    ): EnemyAction? {
-        val aliveAllies = allies.filter { !it.isDead }
-        if (aliveAllies.isEmpty()) return null
-
-        // 优先给最低 HP 队友加 HP Buff
-        val lowestHpAlly = aliveAllies.minByOrNull { it.hpPercent }
-        if (lowestHpAlly != null && lowestHpAlly.hpPercent < 0.5) {
-            val hpBuff = supportSkills.firstOrNull { s ->
-                s.buffs.any { it.first.name.contains("HP") } || s.buffType?.name?.contains("HP") == true
-            }
-            if (hpBuff != null) return EnemyAction(hpBuff, lowestHpAlly, ActionType.BUFF_ALLY)
-        }
-
-        // 其次给防御最低队友加防御 Buff
-        val lowestDef = aliveAllies.minByOrNull { it.effectivePhysicalDefense + it.effectiveMagicDefense }
-        if (lowestDef != null) {
-            val defBuff = supportSkills.firstOrNull { s ->
-                s.buffs.any { it.first.name.contains("DEFENSE") } || s.buffType?.name?.contains("DEFENSE") == true
-            }
-            if (defBuff != null) return EnemyAction(defBuff, lowestDef, ActionType.BUFF_ALLY)
-        }
-
-        return null
-    }
-
-    private fun findBuffAction(
-        attacker: Combatant,
-        allies: List<Combatant>,
-        supportSkills: List<CombatSkill>
-    ): EnemyAction? {
-        // 团队 Buff 优先
-        val teamBuffs = supportSkills.filter { it.targetScope == "team" && it.isAoe }
-        if (teamBuffs.isNotEmpty()) {
-            return EnemyAction(teamBuffs.first(), null, ActionType.BUFF_ALLY)
-        }
-        // 自身 Buff
-        val selfBuffs = supportSkills.filter { it.targetScope == "self" }
-        if (selfBuffs.isNotEmpty()) {
-            return EnemyAction(selfBuffs.first(), attacker, ActionType.BUFF_SELF)
-        }
-        return null
-    }
-
-    private fun findWeakestTarget(
-        attacker: Combatant,
-        players: List<Combatant>,
-        skill: CombatSkill
-    ): Combatant {
-        val isPhysical = skill.damageType == DamageType.PHYSICAL
-        return players.minByOrNull { t ->
-            if (isPhysical) t.effectivePhysicalDefense else t.effectiveMagicDefense
-        } ?: players.first()
-    }
-
-    private fun calculateEstimatedDamage(
-        attacker: Combatant,
-        defender: Combatant,
-        skill: CombatSkill
-    ): Int {
-        val atk = if (skill.damageType == DamageType.PHYSICAL)
-            attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
-        val def = if (skill.damageType == DamageType.PHYSICAL)
-            defender.effectivePhysicalDefense else defender.effectiveMagicDefense
-        val rawDmg = atk * skill.damageMultiplier * (1.0 - def / (def + 500.0))
-        return (rawDmg * skill.hits).toInt().coerceAtLeast(1)
+        return EnemyAction(ai.skill, ai.target, legacyType)
     }
 
     // endregion

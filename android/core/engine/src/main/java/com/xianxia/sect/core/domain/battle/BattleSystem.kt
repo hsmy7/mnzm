@@ -844,17 +844,33 @@ class BattleSystem @Inject constructor() {
         return BattleCalculator.calculateRealmGapMultiplier(attackerRealm, defenderRealm)
     }
 
+    // 临时保存 BattleAI 决策结果，供 selectSkill → selectTarget 配对使用
+    private var pendingAiAction: BattleAI.AIAction? = null
+
     private fun selectSkill(
         combatant: Combatant,
         enemies: List<Combatant>,
         allies: List<Combatant>,
         isSilenced: Boolean
     ): CombatSkill? {
-        return BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced)
+        if (isSilenced) {
+            pendingAiAction = null
+            return null
+        }
+        val action = BattleAI.decideAction(combatant, allies, enemies)
+        pendingAiAction = action
+        return action.skill
     }
 
     private fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant {
-        return BattleCalculator.selectTarget(attacker, targets)
+        val action = pendingAiAction
+        if (action != null && action.target != null) {
+            pendingAiAction = null
+            return action.target
+        }
+        pendingAiAction = null
+        return BattleAI.selectAttackTarget(attacker, targets, null)
+            ?: targets.first()
     }
 
     private fun generateRewards(beastCount: Int): Map<String, Int> {
