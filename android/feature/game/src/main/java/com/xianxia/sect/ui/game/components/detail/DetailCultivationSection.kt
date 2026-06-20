@@ -1,6 +1,6 @@
 package com.xianxia.sect.ui.game.components.detail
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -124,7 +124,10 @@ fun BasicInfoSection(
     sectPolicies: SectPolicies? = null,
     residenceSlots: List<ResidenceSlot> = emptyList(),
     placedBuildings: List<GridBuildingData> = emptyList(),
-    viewModel: GameViewModel? = null
+    viewModel: GameViewModel? = null,
+    gameMonth: Int = 1,
+    gamePhase: Int = 0,
+    gameSpeed: Int = 1
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -274,15 +277,47 @@ fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    val cultivationTarget = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
-                    val cultivationProgressState = rememberUpdatedState(cultivationTarget)
+                    // 旬切换检测 — 修为进度条每旬动画一次
+                    val cultivationPhaseKey = "$gameMonth-$gamePhase"
+                    var cultivationLastPhaseKey by remember { mutableStateOf(cultivationPhaseKey) }
+
+                    // 每旬修为进度增量
+                    val speedProgressPerPhase = if (disciple.maxCultivation > 0) {
+                        (cultivationSpeed / disciple.maxCultivation).toFloat().coerceIn(0f, 1f)
+                    } else 0f
+
+                    // 动画状态
+                    val animatedCultivationProgress = remember {
+                        Animatable(disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
+                    }
+
+                    // 旬切换时触发修为进度动画
+                    LaunchedEffect(cultivationPhaseKey) {
+                        if (cultivationPhaseKey != cultivationLastPhaseKey && gameSpeed > 0) {
+                            cultivationLastPhaseKey = cultivationPhaseKey
+                            val currentProgress = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
+                            val targetProgress = (currentProgress + speedProgressPerPhase).coerceIn(0f, 1f)
+                            val phaseDurationMs = (com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / gameSpeed).toInt()
+
+                            if (targetProgress < animatedCultivationProgress.value - 0.001f) {
+                                // 突破/渡劫导致进度回退，瞬间同步
+                                animatedCultivationProgress.snapTo(currentProgress)
+                            } else {
+                                animatedCultivationProgress.animateTo(
+                                    targetValue = targetProgress,
+                                    animationSpec = tween(durationMillis = phaseDurationMs)
+                                )
+                            }
+                        }
+                    }
+
                     Canvas(
                         modifier = Modifier
                             .weight(1f)
                             .height(10.dp)
                             .clip(RoundedCornerShape(5.dp))
                     ) {
-                        val progress = cultivationProgressState.value
+                        val progress = animatedCultivationProgress.value
                         drawRect(Color(0xFFE8E8E8))
                         drawRect(
                             Color(0xFF4CAF50),
@@ -331,12 +366,20 @@ fun BasicInfoSection(
             disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
         }
 
-        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp)
+        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp,
+            gameMonth = gameMonth, gamePhase = gamePhase, gameSpeed = gameSpeed)
     }
 }
 
 @Composable
-fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverride: Int? = null) {
+fun HpMpBars(
+    disciple: DiscipleAggregate,
+    maxHpOverride: Int? = null,
+    maxMpOverride: Int? = null,
+    gameMonth: Int = 1,
+    gamePhase: Int = 0,
+    gameSpeed: Int = 1
+) {
     val maxHp = maxHpOverride ?: disciple.maxHp
     val maxMp = maxMpOverride ?: disciple.maxMp
     val rawCurrentHp = disciple.currentHp
@@ -346,26 +389,43 @@ fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverr
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
-    val prevHpTarget = remember { mutableStateOf(hpFraction) }
-    val prevMpTarget = remember { mutableStateOf(mpFraction) }
-    val hpShouldSnap = hpFraction < prevHpTarget.value - 0.5f
-    val mpShouldSnap = mpFraction < prevMpTarget.value - 0.5f
+    // 旬切换检测 — 气血/灵力每旬动画一次
+    val currentPhaseKey = "$gameMonth-$gamePhase"
+    var lastHpPhaseKey by remember { mutableStateOf(currentPhaseKey) }
+    var lastMpPhaseKey by remember { mutableStateOf(currentPhaseKey) }
 
-    val animatedHpFraction by animateFloatAsState(
-        targetValue = hpFraction,
-        animationSpec = if (hpShouldSnap) snap() else tween(durationMillis = 300),
-        label = "hpProgress"
-    )
-    val animatedMpFraction by animateFloatAsState(
-        targetValue = mpFraction,
-        animationSpec = if (mpShouldSnap) snap() else tween(durationMillis = 300),
-        label = "mpProgress"
-    )
-    val hpProgressState = rememberUpdatedState(animatedHpFraction)
-    val mpProgressState = rememberUpdatedState(animatedMpFraction)
-    SideEffect {
-        prevHpTarget.value = hpFraction
-        prevMpTarget.value = mpFraction
+    // 动画状态
+    val animatedHpProgress = remember { Animatable(hpFraction) }
+    val animatedMpProgress = remember { Animatable(mpFraction) }
+    val phaseDurationMs = if (gameSpeed > 0) {
+        (com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / gameSpeed).toInt()
+    } else 300
+
+    // 气血动画：每旬更新
+    LaunchedEffect(currentPhaseKey) {
+        if (currentPhaseKey != lastHpPhaseKey && gameSpeed > 0) {
+            lastHpPhaseKey = currentPhaseKey
+            val target = hpFraction
+            if (target < animatedHpProgress.value - 0.5f) {
+                // 骤降超过50%，瞬间同步（濒死/受重伤）
+                animatedHpProgress.snapTo(target)
+            } else {
+                animatedHpProgress.animateTo(target, tween(phaseDurationMs))
+            }
+        }
+    }
+
+    // 灵力动画：每旬更新
+    LaunchedEffect(currentPhaseKey) {
+        if (currentPhaseKey != lastMpPhaseKey && gameSpeed > 0) {
+            lastMpPhaseKey = currentPhaseKey
+            val target = mpFraction
+            if (target < animatedMpProgress.value - 0.5f) {
+                animatedMpProgress.snapTo(target)
+            } else {
+                animatedMpProgress.animateTo(target, tween(phaseDurationMs))
+            }
+        }
     }
 
     Row(
@@ -393,7 +453,7 @@ fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverr
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
                     Color(0xFFE74C3C),
-                    size = Size(size.width * hpProgressState.value, size.height)
+                    size = Size(size.width * animatedHpProgress.value, size.height)
                 )
             }
             Text(
@@ -427,7 +487,7 @@ fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverr
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
                     Color(0xFF3498DB),
-                    size = Size(size.width * mpProgressState.value, size.height)
+                    size = Size(size.width * animatedMpProgress.value, size.height)
                 )
             }
             Text(

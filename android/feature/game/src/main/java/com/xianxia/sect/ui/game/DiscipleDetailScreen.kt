@@ -99,6 +99,11 @@ fun DiscipleDetailDialog(
     val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }
     val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<ResidenceSlot>()) }
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
+    val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
+    val gameMonth = gameData?.gameMonth ?: 1
+    val gamePhase = gameData?.gamePhase ?: 0
+    @Suppress("DEPRECATION")
+    val gameSpeed = gameData?.gameSpeed ?: 1
 
     val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
     val hasPrev = currentIndex > 0
@@ -167,7 +172,10 @@ fun DiscipleDetailDialog(
                                         sectPolicies = sectPolicies,
                                         residenceSlots = vmResidenceSlots,
                                         placedBuildings = vmPlacedBuildings,
-                                        viewModel = viewModel
+                                        viewModel = viewModel,
+                                        gameMonth = gameMonth,
+                                        gamePhase = gamePhase,
+                                        gameSpeed = gameSpeed
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
