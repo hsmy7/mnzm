@@ -26,13 +26,19 @@ if (apiPropertiesFile.exists()) {
     apiProperties.load(new FileInputStream(apiPropertiesFile))
 }
 
+def versionPropsFile = rootProject.file("../version.properties")
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+}
+
 android {
     namespace = 'com.xianxia.sect'
 
     defaultConfig {
         applicationId = "com.xianxia.sect"
-        versionCode = 4013
-        versionName = "4.0.13"
+        versionCode = versionProps.getProperty('versionCode', '1').toInteger()
+        versionName = versionProps.getProperty('versionName', '0.0.00')
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'

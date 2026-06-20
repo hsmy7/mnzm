@@ -13,6 +13,12 @@ if (apiPropertiesFile.exists()) {
     apiProperties.load(new FileInputStream(apiPropertiesFile))
 }
 
+def versionPropsFile = rootProject.file("../version.properties")
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+}
+
 android {
     namespace = 'com.xianxia.sect.core.engine'
 
@@ -31,7 +37,8 @@ android {
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
-        buildConfigField "int", "VERSION_CODE", "4000"
+        buildConfigField "int", "VERSION_CODE",
+            versionProps.getProperty('versionCode', '1')
     }
 }
 

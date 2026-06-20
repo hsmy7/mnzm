@@ -2,11 +2,12 @@
 
 **每次完成任务后执行以下版本发布流程**：
 
-1. **更新版本号**：编辑 `android/app/build.gradle`
+1. **更新版本号**：编辑 `version.properties`（项目根目录）
    - `versionCode` 递增 1
    - `versionName` 格式 `x.x.xx`（三段式，末段两位数字，不足前补零）
    - 例：`2.6.0` → `2.6.01`，`2.6.09` → `2.6.10`，`2.6.99` → `2.7.00`
    - **禁止写成 `2.6.1`（缺少前补零）**
+   - 此文件为唯一版本真源，所有模块（app、core:domain、core:engine）自动同步
 
 2. **同时更新两个更新日志**：
    
@@ -53,7 +54,7 @@
 | GameData 主模型 | `.../core/model/GameData.kt` |
 | 存档视图模型 | `.../ui/game/SaveLoadViewModel.kt` |
 | 游戏引擎 | `.../core/engine/GameEngine.kt` |
-| 版本配置 | `android/app/build.gradle` (versionName) |
+| 版本配置 | `version.properties` (项目根目录，唯一版本真源) |
 | 更新日志（项目） | `CHANGELOG.md` (项目根目录) |
 | 更新日志（游戏内） | `.../core/ChangelogData.kt` |
 | 构建设置 | `android/settings.gradle` |

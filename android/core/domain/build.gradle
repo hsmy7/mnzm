@@ -4,15 +4,25 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+def versionPropsFile = rootProject.file("../version.properties")
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+}
+
 android {
     namespace = 'com.xianxia.sect.core.domain'
 
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
+
+        buildConfigField "String", "VERSION_NAME",
+            '"' + versionProps.getProperty('versionName', '0.0.00') + '"'
     }
 
     buildFeatures {
         compose = false
+        buildConfig = true
     }
 }
 
