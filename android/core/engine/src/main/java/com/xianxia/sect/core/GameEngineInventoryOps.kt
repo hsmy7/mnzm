@@ -39,3 +39,13 @@ suspend fun GameEngine.bulkSellItems(operations: List<GameEngine.BulkSellOperati
     val facadeResult = inventoryFacade.bulkSellItems(operations.map { InventoryFacade.BulkSellOperation(it.id, it.name, it.quantity, it.itemType) })
     return GameEngine.BulkSellResult(facadeResult.soldCount, facadeResult.totalEarned, facadeResult.soldItemNames, facadeResult.failedItemNames)
 }
+
+// ── 自动购买 ────────────────────────────────────────────────────────
+
+/** 返回所有可被商人出售的物品目录，供自动购买选择界面使用 */
+fun GameEngine.getAllAutoBuyableItems(): List<AutoBuyCatalogItem> =
+    autoBuyService.getAllAutoBuyableItems()
+
+/** 执行自动购买（引擎层调用，1月和12月） */
+suspend fun GameEngine.executeAutoBuy(year: Int, month: Int) =
+    autoBuyService.executeAutoBuy(year, month)

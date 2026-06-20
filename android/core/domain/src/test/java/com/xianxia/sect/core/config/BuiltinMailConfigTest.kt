@@ -133,17 +133,17 @@ class BuiltinMailConfigTest {
     }
 
     @Test
-    fun builtinMailConfig_bloodRefiningPoolMailExists() {
-        val mail = BuiltinMailConfig.mails.find { it.id == "mail_blood_refining_pool_v3_2_04" }
-        assertNotNull("血炼池邮件应存在", mail)
+    fun builtinMailConfig_qqGroupMailExists() {
+        val mail = BuiltinMailConfig.mails.find { it.id == "mail_qq_group_v4_0_03" }
+        assertNotNull("QQ群邮件应存在", mail)
         assertEquals("reward", mail!!.mailType)
         assertTrue(mail.attachments.isNotEmpty())
     }
 
     @Test
-    fun builtinMailConfig_systemLaunchMailExists() {
-        val mail = BuiltinMailConfig.mails.find { it.id == "mail_system_launch_v3_1_96" }
-        assertNotNull("邮件系统上线邮件应存在", mail)
+    fun builtinMailConfig_holidayMailExists() {
+        val mail = BuiltinMailConfig.mails.find { it.id == "mail_new_year_2026" }
+        assertNotNull("元旦邮件应存在", mail)
         assertEquals("reward", mail!!.mailType)
         assertTrue(mail.attachments.isNotEmpty())
     }

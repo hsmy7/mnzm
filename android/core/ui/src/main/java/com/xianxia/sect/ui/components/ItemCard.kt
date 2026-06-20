@@ -52,6 +52,7 @@ fun UnifiedItemCard(
     data: ItemCardData,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
+    selectedBorderColor: Color = Color(0xFFFFD700),
     showQuantity: Boolean = true,
     showPrice: Boolean = false,
     craftable: Boolean = true,
@@ -82,7 +83,7 @@ fun UnifiedItemCard(
                 .clip(RoundedCornerShape(6.dp))
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) Color(0xFFFFD700) else GameColors.Border,
+                    color = if (isSelected) selectedBorderColor else GameColors.Border,
                     shape = RoundedCornerShape(6.dp)
                 )
                 .combinedClickable(

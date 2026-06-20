@@ -68,6 +68,7 @@ fun MerchantDialog(
     var buyQuantity by remember { mutableIntStateOf(1) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showListingDialog by remember { mutableStateOf(false) }
+    var showAutoBuyDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(MerchantFilter.ALL) }
     var merchantMode by remember { mutableStateOf(MerchantMode.BUY) }
     var showSellConfirmDialog by remember { mutableStateOf(false) }
@@ -114,6 +115,10 @@ fun MerchantDialog(
             GameButton(
                 text = "上架",
                 onClick = { showListingDialog = true }
+            )
+            GameButton(
+                text = "自动购买",
+                onClick = { showAutoBuyDialog = true }
             )
         }
     ) {
@@ -422,6 +427,14 @@ fun MerchantDialog(
             )
         }
     }
+
+    if (showAutoBuyDialog) {
+        AutoBuyDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showAutoBuyDialog = false }
+        )
+    }
 }
 
 
@@ -435,8 +448,10 @@ private fun PurchasePanel(
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val totalPrice = (item?.price ?: 0L) * quantity
-    val canAfford = spiritStones >= totalPrice && item != null
+    if (item == null) return
+
+    val totalPrice = item.price * quantity
+    val canAfford = spiritStones >= totalPrice
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -447,104 +462,96 @@ private fun PurchasePanel(
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (item != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = item.name,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextPrimary
-                        )
-                        Text(
-                            text = "单价: ${item.price} 灵石",
-                            fontSize = 10.sp,
-                            color = GameColors.TextSecondary
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "购买数量:",
-                            fontSize = 11.sp,
-                            color = GameColors.TextSecondary
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GameColors.Background)
-                                .clickable { onQuantityChange(quantity - 1) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
-                        }
-
-                        Text(
-                            text = "$quantity",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextPrimary,
-                            modifier = Modifier.widthIn(min = 24.dp),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GameColors.Background)
-                                .clickable { onQuantityChange(quantity + 1) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
-                        }
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = item.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GameColors.TextPrimary
+                    )
+                    Text(
+                        text = "单价: ${item.price} 灵石",
+                        fontSize = 10.sp,
+                        color = GameColors.TextSecondary
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "总价: $totalPrice 灵石",
+                        text = "购买数量:",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (canAfford) GameColors.GoldDark else Color.Red
+                        color = GameColors.TextSecondary
                     )
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GameColors.Background)
+                            .clickable { onQuantityChange(quantity - 1) },
+                        contentAlignment = Alignment.Center
                     ) {
-                        GameButton(
-                            text = "取消",
-                            onClick = onCancel
-                        )
+                        Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
+                    }
 
-                        GameButton(
-                            text = "确认购买",
-                            onClick = onConfirm,
-                            enabled = canAfford && quantity > 0
-                        )
+                    Text(
+                        text = "$quantity",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GameColors.TextPrimary,
+                        modifier = Modifier.widthIn(min = 24.dp),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GameColors.Background)
+                            .clickable { onQuantityChange(quantity + 1) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
                     }
                 }
-            } else {
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "请选择要购买的商品",
-                    fontSize = 12.sp,
-                    color = GameColors.TextSecondary
+                    text = "总价: $totalPrice 灵石",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (canAfford) GameColors.GoldDark else Color.Red
                 )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onCancel
+                    )
+
+                    GameButton(
+                        text = "确认购买",
+                        onClick = onConfirm,
+                        enabled = canAfford && quantity > 0
+                    )
+                }
             }
         }
     }

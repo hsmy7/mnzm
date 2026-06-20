@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.model.AutoBuyCatalogItem
+import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -103,5 +105,42 @@ class InventoryDelegate(
 
     fun getSeedById(id: String): Seed? {
         return gameEngine.seeds.value.find { it.id == id }
+    }
+
+    // ── 自动购买 ────────────────────────────────────────────────────
+
+    fun addAutoBuyEntries(entries: List<AutoBuyEntry>) {
+        scope.launch {
+            try {
+                gameEngine.updateGameData { gd ->
+                    gd.copy(autoBuyList = (gd.autoBuyList + entries).distinctBy {
+                        "${it.itemName}:${it.itemType}:${it.rarity}"
+                    })
+                }
+            } catch (e: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) {
+        scope.launch {
+            try {
+                val keysToRemove = entries.map {
+                    "${it.itemName}:${it.itemType}:${it.rarity}"
+                }.toSet()
+                gameEngine.updateGameData { gd ->
+                    gd.copy(autoBuyList = gd.autoBuyList.filter { entry ->
+                        "${entry.itemName}:${entry.itemType}:${entry.rarity}" !in keysToRemove
+                    })
+                }
+            } catch (e: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    fun getAllAutoBuyableItems(): List<AutoBuyCatalogItem> {
+        return gameEngine.getAllAutoBuyableItems()
     }
 }

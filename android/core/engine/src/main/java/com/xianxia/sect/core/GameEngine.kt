@@ -20,6 +20,7 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.service.RedeemCodeService
 import com.xianxia.sect.core.engine.service.DailySignInService
+import com.xianxia.sect.core.engine.service.AutoBuyService
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
@@ -74,6 +75,7 @@ class GameEngine @Inject constructor(
     internal val formulaService: FormulaService,
     internal val mailService: MailService,
     internal val dailySignInService: DailySignInService,
+    internal val autoBuyService: AutoBuyService,
     internal val heavyDataPort: com.xianxia.sect.core.repository.GameHeavyDataPort,
     internal val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder,
     internal val discipleFacade: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade,

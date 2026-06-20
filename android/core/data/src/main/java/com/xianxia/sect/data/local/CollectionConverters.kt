@@ -443,6 +443,18 @@ object CollectionConverters {
     fun toHeavenlyTrialSaveData(value: String): HeavenlyTrialSaveData =
         ProtobufConverters.decodeFromBase64(HeavenlyTrialSaveData.serializer(), value) { HeavenlyTrialSaveData() }
 
+    // ==================== 自动购买列表转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAutoBuyEntryList(value: List<AutoBuyEntry>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(AutoBuyEntry.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAutoBuyEntryList(value: String): List<AutoBuyEntry> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(AutoBuyEntry.serializer()), value) { emptyList() }
+
     // ==================== 邮件领取记录转换器 ====================
 
     @TypeConverter

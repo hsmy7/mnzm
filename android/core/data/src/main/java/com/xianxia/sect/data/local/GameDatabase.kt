@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 4  // 4.0.13: v3→v4 新增 saveVersion 列 + 修炼值缩放迁移
+    version = 5  // 5.0.01: 新增 autoBuyList 列 — 自动购买列表
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -363,6 +363,17 @@ abstract class GameDatabase : RoomDatabase() {
                 Log.i(TAG, "Migration 3→4: added saveVersion + scaled cultivation values")
             }
         }
+
+        /** 5.0.01: 新增 autoBuyList 列 — 自动购买列表 */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE game_data ADD COLUMN autoBuyList TEXT " +
+                    "NOT NULL DEFAULT '[]'"
+                )
+                Log.i(TAG, "Migration 4→5: added autoBuyList column to game_data")
+            }
+        }
         private val threadCounter = AtomicInteger(0)
 
         fun create(context: Context): GameDatabase {
@@ -384,7 +395,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

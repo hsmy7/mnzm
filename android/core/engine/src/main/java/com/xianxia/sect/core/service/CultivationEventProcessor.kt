@@ -51,7 +51,8 @@ class CultivationEventProcessor @Inject constructor(
     private val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
     private val diplomacyEventProcessor: DiplomacyEventProcessor,
     private val equipmentManager: DiscipleEquipmentManager,
-    private val manualManager: DiscipleManualManager
+    private val manualManager: DiscipleManualManager,
+    private val autoBuyService: AutoBuyService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -345,6 +346,9 @@ class CultivationEventProcessor @Inject constructor(
         processTheftIfNeeded()
         processMissionRefreshIfDue(month)
         processCompletedMissionsLazy(year, month)
+        if (month == 12) {
+            autoBuyService.executeAutoBuy(year, month)
+        }
     }
 
     suspend fun processYearlyEvents(year: Int) {
@@ -354,6 +358,7 @@ class CultivationEventProcessor @Inject constructor(
         cultivationSettlement.processSalaryYearly(year)
         merchantAndRecruitService.refreshRecruitList(year)
         merchantAndRecruitService.refreshTravelingMerchant(year, 1)
+        autoBuyService.executeAutoBuy(year, 1)
         merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
         diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
         diplomacyEventProcessor.checkAllianceExpiry(year)

@@ -17,5 +17,6 @@ data class EconomicState(
     val merchantRefreshCount: Int = 0,
     val playerListedItems: List<MerchantItem> = emptyList(),
     val merchantAcquisitionItems: List<MerchantItem> = emptyList(),
-    val merchantAcquisitionLastRefreshYear: Int = 0
+    val merchantAcquisitionLastRefreshYear: Int = 0,
+    val autoBuyList: List<AutoBuyEntry> = emptyList()
 )

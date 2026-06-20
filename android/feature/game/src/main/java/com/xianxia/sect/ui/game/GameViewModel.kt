@@ -875,6 +875,14 @@ class GameViewModel @Inject constructor(
 
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
 
+    // ── 自动购买 ────────────────────────────────────────────────────
+
+    fun addAutoBuyEntries(entries: List<AutoBuyEntry>) = inventory.addAutoBuyEntries(entries)
+
+    fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) = inventory.removeAutoBuyEntries(entries)
+
+    fun getAllAutoBuyableItems(): List<AutoBuyCatalogItem> = inventory.getAllAutoBuyableItems()
+
     fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {
         viewModelScope.launch {
             gameEngine.consumeMaterialByName(name, rarity, quantity)
