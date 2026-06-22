@@ -224,7 +224,7 @@ class BloodRefinementSimpleInterestTest {
         // 单利：每次 bonus 都应相同（100），因为基于原始 base 1000
         assertEquals("每次单利 bonus 应相同", listOf(100, 100, 100, 100, 100), bonuses)
         assertEquals("5 次后 base 应为 1500", 1500, currentBase)
-        assertEquals("5 次后累计 bonus 应为 500", 500, bonusTotal!!.hpBonus)
+        assertEquals("5 次后累计 bonus 应为 500", 500, checkNotNull(bonusTotal).hpBonus)
     }
 
     @Test
@@ -247,13 +247,13 @@ class BloodRefinementSimpleInterestTest {
         var accPa = DiscipleStatCalculator.getAccumulatedBonus(bonusTotal, "physicalAttack")
         var bonus2 = DiscipleStatCalculator.calculateSimpleInterestBonus(currentPhysicalAttack, accPa, bonusPercent)
         currentPhysicalAttack += bonus2
-        bonusTotal = DiscipleStatCalculator.addBonusToTotal(bonusTotal!!, "physicalAttack", bonus2)
+        bonusTotal = DiscipleStatCalculator.addBonusToTotal(checkNotNull(bonusTotal), "physicalAttack", bonus2)
 
         // 第 3 次：hp（验证 hp 单利不变）
         accHp = DiscipleStatCalculator.getAccumulatedBonus(bonusTotal, "hp")
         var bonus3 = DiscipleStatCalculator.calculateSimpleInterestBonus(currentHp, accHp, bonusPercent)
         currentHp += bonus3
-        bonusTotal = DiscipleStatCalculator.addBonusToTotal(bonusTotal!!, "hp", bonus3)
+        bonusTotal = DiscipleStatCalculator.addBonusToTotal(checkNotNull(bonusTotal), "hp", bonus3)
 
         // 验证：hp 两次 bonus 相同（单利），physicalAttack 一次 bonus 独立计算
         assertEquals("hp 首次 bonus = 100", 100, bonus1)

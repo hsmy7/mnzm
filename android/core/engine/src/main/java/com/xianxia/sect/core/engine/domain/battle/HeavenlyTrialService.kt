@@ -29,6 +29,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.random.Random
+import java.util.Locale
 
 enum class ActionType { ATTACK, BUFF_ALLY, BUFF_SELF, NORMAL_ATTACK, NONE }
 
@@ -557,7 +558,7 @@ class HeavenlyTrialService @Inject constructor(
         val types = listOf("attack", "defense", "support", "mind")
         val result = mutableListOf<ManualDatabase.ManualTemplate>()
         for (t in types) {
-            eligible.filter { it.type.name.lowercase() == t }
+            eligible.filter { it.type.name.lowercase(Locale.ROOT) == t }
                 .maxByOrNull { it.rarity }
                 ?.let { result.add(it) }
         }
@@ -584,7 +585,7 @@ class HeavenlyTrialService @Inject constructor(
         val result = mutableListOf<ManualDatabase.ManualTemplate>()
 
         // 按角色优先级选取各类型功法
-        val typePriority = when (role.lowercase()) {
+        val typePriority = when (role.lowercase(Locale.ROOT)) {
             "tank" -> listOf("defense" to 2, "attack" to 1, "mind" to 1, "support" to 0)
             "dps" -> listOf("attack" to 3, "mind" to 1, "defense" to 0, "support" to 0)
             "support" -> listOf("support" to 2, "mind" to 1, "defense" to 1, "attack" to 0)
@@ -593,7 +594,7 @@ class HeavenlyTrialService @Inject constructor(
 
         for ((type, desired) in typePriority) {
             val typeManuals = eligible
-                .filter { it.type.name.lowercase() == type.lowercase() }
+                .filter { it.type.name.lowercase(Locale.ROOT) == type.lowercase(Locale.ROOT) }
                 .sortedByDescending { it.rarity }
                 .take(desired)
             result.addAll(typeManuals)
@@ -612,12 +613,12 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     private fun ManualDatabase.ManualTemplate.toCombatSkill(): CombatSkill {
-        val skillTypeEnum = when (skillType.lowercase()) {
+        val skillTypeEnum = when (skillType.lowercase(Locale.ROOT)) {
             "attack" -> SkillType.ATTACK
             "support" -> SkillType.SUPPORT
             else -> SkillType.ATTACK
         }
-        val damageTypeEnum = when (skillDamageType.lowercase()) {
+        val damageTypeEnum = when (skillDamageType.lowercase(Locale.ROOT)) {
             "physical" -> DamageType.PHYSICAL
             "magic" -> DamageType.MAGIC
             else -> DamageType.PHYSICAL
@@ -630,7 +631,7 @@ class HeavenlyTrialService @Inject constructor(
             if (bt != null) Triple(bt, buff.value, buff.duration) else null
         }.filterNotNull()
 
-        val healTypeEnum = when (skillHealType.lowercase()) {
+        val healTypeEnum = when (skillHealType.lowercase(Locale.ROOT)) {
             "mp" -> HealType.MP
             else -> HealType.HP
         }

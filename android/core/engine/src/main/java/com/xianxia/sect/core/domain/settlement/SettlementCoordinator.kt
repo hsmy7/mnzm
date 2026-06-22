@@ -250,7 +250,7 @@ class SettlementCoordinator @Inject constructor(
         val disciple = tables.assemble(focusedIdInt)
         val data = shadow.gameData
         val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
-        val monthlyGain = rate * 3  // 3旬/月
+        val monthlyGain = rate * PHASES_PER_MONTH  // 3旬/月
 
         val focusedGains = cultivationService.getHighFrequencyData().value.cultivationUpdates
         val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
@@ -337,7 +337,7 @@ class SettlementCoordinator @Inject constructor(
 
             if (batchMonths > 0) {
                 // 非焦点域热控分批：每月修炼值 × 批次数，扣除焦点域已获增益
-                val monthlyGain = rate * 3
+                val monthlyGain = rate * PHASES_PER_MONTH
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
                 val totalGain = calculateBatchCultivationGain(monthlyGain, alreadyGained, batchMonths)
                 val rawCultivation = disciple.cultivation + totalGain
@@ -427,7 +427,7 @@ class SettlementCoordinator @Inject constructor(
 
             if (batchMonths > 0) {
                 // 每月修炼值 = rate × 3旬 × batchMonths，扣除焦点域已获增益
-                val monthlyGain = rate * 3
+                val monthlyGain = rate * PHASES_PER_MONTH
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
                 val totalGain = calculateBatchCultivationGain(monthlyGain, alreadyGained, batchMonths)
                 val rawCultivation = disciple.cultivation + totalGain
@@ -659,6 +659,7 @@ class SettlementCoordinator @Inject constructor(
         }
     }
 
+    // 以下三个方法为年度结算阶段占位，功能待后续版本实现
     private fun processRecruitRefresh(shadow: MutableGameState) {}
 
     private fun processAISectYearly(shadow: MutableGameState) {}
@@ -800,7 +801,7 @@ class SettlementCoordinator @Inject constructor(
         val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val proficiencyGainPerPhase = ManualProficiencySystem.calculateProficiencyGainPerPhase(disciple.comprehension, libraryBonus)
-        val proficiencyGain = proficiencyGainPerPhase * 3  // 3旬/月
+        val proficiencyGain = proficiencyGainPerPhase * PHASES_PER_MONTH  // 3旬/月
         val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
 
         val profList = data.manualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
@@ -899,6 +900,9 @@ class SettlementCoordinator @Inject constructor(
         return delta
     }
 
+    // 注：此方法与 CultivationCore.isDiscipleFullHpMp(Disciple) 逻辑一致，
+    // 因 SettlementCoordinator 不依赖 CultivationCore，暂保留本地副本。
+    // 后续若引入共享工具类可消除重复。
     private fun isDiscipleFullHpMp(disciple: Disciple): Boolean {
         val hp = if (disciple.combat.currentHp < 0) disciple.maxHp else disciple.combat.currentHp
         val mp = if (disciple.combat.currentMp < 0) disciple.maxMp else disciple.combat.currentMp
@@ -955,9 +959,9 @@ class SettlementCoordinator @Inject constructor(
             return
         }
         val batchSize = when {
-            thermalMonitor.shouldEmergencySave() -> 12
-            thermalMonitor.shouldReduceWorkload() -> 6
-            else -> 1
+            thermalMonitor.shouldEmergencySave() -> THERMAL_EMERGENCY_BATCH
+            thermalMonitor.shouldReduceWorkload() -> THERMAL_REDUCE_BATCH
+            else -> THERMAL_NORMAL_BATCH
         }
         nonFocusedBatchMonths = if (monthsSince >= batchSize) {
             nonFocusedLastSettleMonth = currentAbsoluteMonth
@@ -971,6 +975,14 @@ class SettlementCoordinator @Inject constructor(
     companion object {
         private const val TAG = "SettlementCoordinator"
         private const val MAX_DIRTY_BATCH_SIZE = 100
+        /** 每月旬数 */
+        private const val PHASES_PER_MONTH = 3
+        /** 热控紧急存档：每12个月结算一次非焦点域 */
+        private const val THERMAL_EMERGENCY_BATCH = 12
+        /** 热控降负：每6个月结算一次非焦点域 */
+        private const val THERMAL_REDUCE_BATCH = 6
+        /** 正常模式：每月结算非焦点域 */
+        private const val THERMAL_NORMAL_BATCH = 1
 
         /**
          * 计算非焦点弟子批处理的修炼净增益。

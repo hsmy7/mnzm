@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
@@ -45,6 +46,9 @@ class CaveExplorationProcessor @Inject constructor(
 
     companion object {
         private const val TAG = "CaveExplorationProc"
+        private const val THERMAL_EMERGENCY_BATCH = 12
+        private const val THERMAL_REDUCE_BATCH = 6
+        private const val THERMAL_NORMAL_BATCH = 1
     }
 
     // ── 洞府探索 ──────────────────────────────────────────────────────
@@ -126,7 +130,8 @@ class CaveExplorationProcessor @Inject constructor(
                 if (result.third) {
                     finalExplorationTeams.removeAll { it.id == team.id }
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 DomainLog.e(TAG, "Error processing cave exploration for team ${team.id}", e)
                 teamsWithError.add(team)
             }
@@ -204,26 +209,10 @@ class CaveExplorationProcessor @Inject constructor(
         }
 
         val aiTeamInCave = currentAITeams.find { it.caveId == cave.id && it.status == AITeamStatus.EXPLORING }
-
-        val battleResult = if (aiTeamInCave != null) {
-            val battle = CaveExplorationSystem.createAIBattle(
-                playerDisciples = teamMembers,
-                playerEquipmentMap = equipmentMap,
-                playerManualMap = manualMap,
-                playerManualProficiencies = allProficiencies,
-                aiTeam = aiTeamInCave
-            )
-            battleSystem.executeBattle(battle)
-        } else {
-            val battle = CaveExplorationSystem.createGuardianBattle(
-                playerDisciples = teamMembers,
-                playerEquipmentMap = equipmentMap,
-                playerManualMap = manualMap,
-                playerManualProficiencies = allProficiencies,
-                cave = cave
-            )
-            battleSystem.executeBattle(battle)
-        }
+        val battleResult = executeBattleForTeam(
+            teamMembers, equipmentMap, manualMap, allProficiencies,
+            aiTeamInCave, cave
+        )
 
         val survivorIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
         val survivorHpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.hp }
@@ -394,29 +383,20 @@ class CaveExplorationProcessor @Inject constructor(
             teamId = team.id,
             teamMembers = battleResult.log.teamMembers.map { member ->
                 BattleLogMember(
-                    id = member.id,
-                    name = member.name,
-                    realm = member.realm,
-                    realmName = member.realmName,
-                    hp = member.hp,
-                    maxHp = member.maxHp,
-                    mp = member.mp,
-                    maxMp = member.maxMp,
-                    isAlive = member.isAlive,
-                    portraitRes = member.portraitRes
+                    id = member.id, name = member.name,
+                    realm = member.realm, realmName = member.realmName,
+                    hp = member.hp, maxHp = member.maxHp,
+                    mp = member.mp, maxMp = member.maxMp,
+                    isAlive = member.isAlive, portraitRes = member.portraitRes
                 )
             },
             enemies = battleResult.log.enemies.map { enemy ->
                 BattleLogEnemy(
-                    id = enemy.id,
-                    name = enemy.name,
-                    realm = enemy.realm,
-                    realmName = enemy.realmName,
+                    id = enemy.id, name = enemy.name,
+                    realm = enemy.realm, realmName = enemy.realmName,
                     realmLayer = enemy.realmLayer,
-                    hp = enemy.hp,
-                    maxHp = enemy.maxHp,
-                    isAlive = enemy.isAlive,
-                    portraitRes = enemy.portraitRes
+                    hp = enemy.hp, maxHp = enemy.maxHp,
+                    isAlive = enemy.isAlive, portraitRes = enemy.portraitRes
                 )
             },
             rounds = battleResult.log.rounds.map { round ->
@@ -424,16 +404,11 @@ class CaveExplorationProcessor @Inject constructor(
                     roundNumber = round.roundNumber,
                     actions = round.actions.map { action ->
                         BattleLogAction(
-                            type = action.type,
-                            attacker = action.attacker,
-                            attackerType = action.attackerType,
-                            target = action.target,
-                            damage = action.damage,
-                            damageType = action.damageType,
-                            isCrit = action.isCrit,
-                            isKill = action.isKill,
-                            message = action.message,
-                            skillName = action.skillName
+                            type = action.type, attacker = action.attacker,
+                            attackerType = action.attackerType, target = action.target,
+                            damage = action.damage, damageType = action.damageType,
+                            isCrit = action.isCrit, isKill = action.isKill,
+                            message = action.message, skillName = action.skillName
                         )
                     }
                 )
@@ -473,6 +448,36 @@ class CaveExplorationProcessor @Inject constructor(
         val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
 
         return Triple(updatedCaves, updatedAITeams, true)
+    }
+
+    /** 执行洞府战斗：玩家团队 vs AI团队或守护妖兽 */
+    private fun executeBattleForTeam(
+        teamMembers: List<Disciple>,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        aiTeamInCave: AICaveTeam?,
+        cave: CultivatorCave
+    ): com.xianxia.sect.core.engine.domain.battle.BattleSystemResult = if (aiTeamInCave != null) {
+        battleSystem.executeBattle(
+            CaveExplorationSystem.createAIBattle(
+                playerDisciples = teamMembers,
+                playerEquipmentMap = equipmentMap,
+                playerManualMap = manualMap,
+                playerManualProficiencies = allProficiencies,
+                aiTeam = aiTeamInCave
+            )
+        )
+    } else {
+        battleSystem.executeBattle(
+            CaveExplorationSystem.createGuardianBattle(
+                playerDisciples = teamMembers,
+                playerEquipmentMap = equipmentMap,
+                playerManualMap = manualMap,
+                playerManualProficiencies = allProficiencies,
+                cave = cave
+            )
+        )
     }
 
     fun findNearbySects(cave: CultivatorCave, range: Float): List<WorldSect> {
@@ -524,9 +529,9 @@ class CaveExplorationProcessor @Inject constructor(
             return
         }
         val batchSize = when {
-            thermalMonitor.shouldEmergencySave() -> 12
-            thermalMonitor.shouldReduceWorkload() -> 6
-            else -> 1
+            thermalMonitor.shouldEmergencySave() -> THERMAL_EMERGENCY_BATCH
+            thermalMonitor.shouldReduceWorkload() -> THERMAL_REDUCE_BATCH
+            else -> THERMAL_NORMAL_BATCH
         }
         aiNonFocusedBatchMonths = if (monthsSince >= batchSize) {
             aiNonFocusedLastSettleMonth = currentAbsoluteMonth

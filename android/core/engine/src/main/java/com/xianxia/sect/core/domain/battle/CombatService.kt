@@ -18,7 +18,7 @@ class CombatService @Inject constructor(
     private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
     private val productionSlotRepository: ProductionSlotRepository,
-private val eventBus: EventBusPort,
+    private val eventBus: EventBusPort,
     private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
 ) {
 

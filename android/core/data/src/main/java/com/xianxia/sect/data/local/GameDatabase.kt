@@ -364,7 +364,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** 5.0.01: 新增 autoBuyList + bloodRefinementBonusTotals 列 */
+        /** v4→v5: 新增 autoBuyList + bloodRefinementBonusTotals 列 */
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -373,7 +373,7 @@ abstract class GameDatabase : RoomDatabase() {
                 )
                 db.execSQL(
                     "ALTER TABLE game_data ADD COLUMN bloodRefinementBonusTotals TEXT " +
-                    "NOT NULL DEFAULT ''"
+                    "NOT NULL DEFAULT '{}'"
                 )
                 Log.i(TAG, "Migration 4→5: added autoBuyList, bloodRefinementBonusTotals columns")
             }

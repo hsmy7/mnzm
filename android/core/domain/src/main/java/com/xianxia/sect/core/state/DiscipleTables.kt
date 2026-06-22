@@ -565,6 +565,7 @@ class DiscipleTables {
         moralities.remove(id); salaryPaidCounts.remove(id); salaryMissedCounts.remove(id)
         usedFunctionalPillTypes.remove(id); usedExtendLifePillIds.remove(id)
         recruitedMonths.remove(id); hasReviveEffects.remove(id); hasClearAllEffects.remove(id)
+        lastTheftMonths.remove(id)
     }
 
     /** 清空所有组件表 */
@@ -612,6 +613,7 @@ class DiscipleTables {
         moralities.clear(); salaryPaidCounts.clear(); salaryMissedCounts.clear()
         usedFunctionalPillTypes.clear(); usedExtendLifePillIds.clear()
         recruitedMonths.clear(); hasReviveEffects.clear(); hasClearAllEffects.clear()
+        lastTheftMonths.clear()
     }
 
     /**
@@ -686,6 +688,7 @@ class DiscipleTables {
         usedFunctionalPillTypes.onWrite = cb
         usedExtendLifePillIds.onWrite = cb; recruitedMonths.onWrite = cb
         hasReviveEffects.onWrite = cb; hasClearAllEffects.onWrite = cb
+        lastTheftMonths.onWrite = cb
     }
 
     /**

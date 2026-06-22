@@ -136,7 +136,7 @@ class BuiltinMailConfigTest {
     fun builtinMailConfig_qqGroupMailExists() {
         val mail = BuiltinMailConfig.mails.find { it.id == "mail_qq_group_v4_0_03" }
         assertNotNull("QQ群邮件应存在", mail)
-        assertEquals("reward", mail!!.mailType)
+        assertEquals("reward", checkNotNull(mail).mailType)
         assertTrue(mail.attachments.isNotEmpty())
     }
 
@@ -144,7 +144,7 @@ class BuiltinMailConfigTest {
     fun builtinMailConfig_holidayMailExists() {
         val mail = BuiltinMailConfig.mails.find { it.id == "mail_new_year_2026" }
         assertNotNull("元旦邮件应存在", mail)
-        assertEquals("reward", mail!!.mailType)
+        assertEquals("reward", checkNotNull(mail).mailType)
         assertTrue(mail.attachments.isNotEmpty())
     }
 

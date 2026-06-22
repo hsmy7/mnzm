@@ -21,6 +21,28 @@ class AutoBuyService @Inject constructor(
 ) {
     companion object {
         private const val TAG = "AutoBuyService"
+
+        /** 判断自动购买条目是否匹配商人商品 */
+        internal fun matches(
+            entry: AutoBuyEntry,
+            item: MerchantItem
+        ): Boolean =
+            item.name == entry.itemName &&
+            item.type == entry.itemType &&
+            item.rarity == entry.rarity
+
+        /** 根据灵石和价格计算可购买数量 */
+        internal fun calculateBuyQuantity(
+            spiritStones: Long,
+            price: Long,
+            merchantQuantity: Int
+        ): Int {
+            if (merchantQuantity <= 0) return 0
+            val maxAffordable = if (price > 0L)
+                (spiritStones / price).toInt()
+            else merchantQuantity
+            return minOf(merchantQuantity, maxAffordable.coerceAtLeast(0))
+        }
     }
 
     // ── 自动购买执行 ────────────────────────────────────────────────
@@ -46,9 +68,7 @@ class AutoBuyService @Inject constructor(
 
             for (entry in autoBuyList) {
                 val matchIdx = newMerchantItems.indexOfFirst { item ->
-                    item.name == entry.itemName &&
-                    item.type == entry.itemType &&
-                    item.rarity == entry.rarity
+                    matches(entry, item)
                 }
                 if (matchIdx < 0) continue
 
@@ -63,14 +83,12 @@ class AutoBuyService @Inject constructor(
                 }
 
                 // 计算可买数量
-                val maxAffordable = if (merchantItem.price > 0L)
-                    (stones / merchantItem.price).toInt()
-                    else merchantItem.quantity
-                if (maxAffordable <= 0) {
+                val buyQty = calculateBuyQuantity(
+                    stones, merchantItem.price, merchantItem.quantity)
+                if (buyQty <= 0) {
                     skippedNoFunds++
                     continue
                 }
-                val buyQty = minOf(merchantItem.quantity, maxAffordable)
                 val cost = merchantItem.price * buyQty
 
                 stones -= cost
@@ -124,7 +142,7 @@ class AutoBuyService @Inject constructor(
     // ── 内部方法（在 MutableGameState 上下文中调用） ─────────────────
 
     private fun canAddToWarehouse(item: MerchantItem): Boolean =
-        when (item.type.lowercase(Locale.getDefault())) {
+        when (item.type.lowercase(Locale.ROOT)) {
             "equipment" -> {
                 val eq = MerchantItemConverter.toEquipment(item)
                 inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)
@@ -160,7 +178,7 @@ class AutoBuyService @Inject constructor(
         item: MerchantItem,
         quantity: Int
     ) {
-        when (item.type.lowercase(Locale.getDefault())) {
+        when (item.type.lowercase(Locale.ROOT)) {
             "equipment" -> {
                 val stack = MerchantItemConverter.toEquipment(item)
                     .copy(quantity = quantity)

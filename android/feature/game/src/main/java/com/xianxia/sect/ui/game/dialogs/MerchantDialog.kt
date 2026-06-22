@@ -55,7 +55,6 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
-import java.util.Locale
 
 @Composable
 fun MerchantDialog(

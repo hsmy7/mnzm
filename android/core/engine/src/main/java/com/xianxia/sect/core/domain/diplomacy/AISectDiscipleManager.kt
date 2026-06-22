@@ -225,15 +225,7 @@ object AISectDiscipleManager {
         sectName: String,
         existingDisciples: List<Disciple>
     ): List<Disciple> {
-        val newDisciples = mutableListOf<Disciple>()
-        val usedNames = existingDisciples.map { it.name }.toMutableSet()
-
-        repeat(Random.nextInt(0, 7)) {
-            val disciple = generateQiRefiningDisciple(sectName, usedNames)
-            newDisciples.add(disciple)
-            usedNames.add(disciple.name)
-        }
-
+        val newDisciples = generateYearlyRecruits(sectName, existingDisciples)
         val allDisciples = existingDisciples + newDisciples
         return if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
             allDisciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)

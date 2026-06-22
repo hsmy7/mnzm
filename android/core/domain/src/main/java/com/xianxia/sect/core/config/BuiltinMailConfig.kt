@@ -109,16 +109,6 @@ object BuiltinMailConfig {
             attachments = HOLIDAY_ATTACHMENTS
         ),
         BuiltinMail(
-            id = "mail_father_2026",
-            title = "父亲节快乐",
-            content = "道友安好！\n\n父爱如山，沉默而厚重。\n\n值此父亲节，天道意志特奉薄礼一份，愿道友感念父恩，修炼之余不忘人间至亲。\n\n——天道意志",
-            mailType = "reward",
-            minVersion = 4013,
-            startMs = 1782000000000L, // 2026-06-21 00:00 UTC (6月第3个周日)
-            deadlineMs = 1783209600000L, // +14天
-            attachments = HOLIDAY_ATTACHMENTS
-        ),
-        BuiltinMail(
             id = "mail_dragon_boat_2026",
             title = "端午安康",
             content = "道友安好！\n\n五月初五，龙舟竞渡，粽叶飘香。\n\n值此端午佳节，天道意志特奉薄礼一份，愿道友仙途坦荡、宗门昌盛，早日登临仙道之巅！\n\n——天道意志",
@@ -126,6 +116,16 @@ object BuiltinMailConfig {
             minVersion = 4013,
             startMs = 1781827200000L, // 2026-06-19 00:00 UTC (农历五月初五)
             deadlineMs = 1783036800000L, // +14天, 2026-07-03 00:00 UTC 截止
+            attachments = HOLIDAY_ATTACHMENTS
+        ),
+        BuiltinMail(
+            id = "mail_father_2026",
+            title = "父亲节快乐",
+            content = "道友安好！\n\n父爱如山，沉默而厚重。\n\n值此父亲节，天道意志特奉薄礼一份，愿道友感念父恩，修炼之余不忘人间至亲。\n\n——天道意志",
+            mailType = "reward",
+            minVersion = 4013,
+            startMs = 1782000000000L, // 2026-06-21 00:00 UTC (6月第3个周日)
+            deadlineMs = 1783209600000L, // +14天
             attachments = HOLIDAY_ATTACHMENTS
         ),
         BuiltinMail(
@@ -254,16 +254,6 @@ object BuiltinMailConfig {
             attachments = HOLIDAY_ATTACHMENTS
         ),
         BuiltinMail(
-            id = "mail_father_2027",
-            title = "父亲节快乐",
-            content = "道友安好！\n\n父爱如山，沉默而厚重。\n\n值此父亲节，天道意志特奉薄礼一份，愿道友感念父恩，修炼之余不忘人间至亲。\n\n——天道意志",
-            mailType = "reward",
-            minVersion = 4013,
-            startMs = 1813449600000L, // 2027-06-20 00:00 UTC (6月第3个周日)
-            deadlineMs = 1814659200000L, // +14天
-            attachments = HOLIDAY_ATTACHMENTS
-        ),
-        BuiltinMail(
             id = "mail_dragon_boat_2027",
             title = "端午安康",
             content = "道友安好！\n\n五月初五，龙舟竞渡，粽叶飘香。\n\n值此端午佳节，天道意志特奉薄礼一份，愿道友仙途坦荡、宗门昌盛，早日登临仙道之巅！\n\n——天道意志",
@@ -271,6 +261,16 @@ object BuiltinMailConfig {
             minVersion = 4013,
             startMs = 1812499200000L, // 2027-06-09 00:00 UTC (农历五月初五)
             deadlineMs = 1813708800000L, // +14天
+            attachments = HOLIDAY_ATTACHMENTS
+        ),
+        BuiltinMail(
+            id = "mail_father_2027",
+            title = "父亲节快乐",
+            content = "道友安好！\n\n父爱如山，沉默而厚重。\n\n值此父亲节，天道意志特奉薄礼一份，愿道友感念父恩，修炼之余不忘人间至亲。\n\n——天道意志",
+            mailType = "reward",
+            minVersion = 4013,
+            startMs = 1813449600000L, // 2027-06-20 00:00 UTC (6月第3个周日)
+            deadlineMs = 1814659200000L, // +14天
             attachments = HOLIDAY_ATTACHMENTS
         ),
         BuiltinMail(

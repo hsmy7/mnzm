@@ -437,6 +437,8 @@ class StorageFacade @Inject constructor(
     suspend fun loadEmergencySaveSuspend(): SaveData? {
         return try {
             engine.loadEmergencySave()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "loadEmergencySave failed", e)
             null
@@ -460,6 +462,8 @@ class StorageFacade @Inject constructor(
     suspend fun clearEmergencySaveSuspend() {
         try {
             engine.clearEmergencySave()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "clearEmergencySave failed", e)
         }
