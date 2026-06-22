@@ -4,6 +4,7 @@ import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
@@ -229,21 +231,16 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
-    private val aggregateCache = ConcurrentHashMap<String, DiscipleAggregate>()
-
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _disciplesFlow
+        .sample(200)
         .map { disciples ->
-            val currentIds = disciples.map { it.id }.toSet()
-            aggregateCache.keys.retainAll(currentIds)
-            disciples.map { disciple ->
-                aggregateCache.getOrPut(disciple.id) { disciple.toAggregate() }
-                    .takeIf { it.sourceRef === disciple }
-                    ?: disciple.toAggregate().also { aggregateCache[disciple.id] = it }
-            }
+            disciples.map { it.toAggregate() }
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _disciplesFlow.value.map { it.toAggregate() }
+    override val discipleAggregatesSnapshot: List<DiscipleAggregate>
+        get() = _disciplesFlow.value.map { it.toAggregate() }
 
     private data class CachedPower(
         val fingerprint: Int,
@@ -292,7 +289,9 @@ class GameStateStoreImpl @Inject constructor(
             }
         }
         total
-    }.distinctUntilChanged()
+    }.sample(300)
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     private val aiSectDisciplesFlow = _gameDataFlow
@@ -1014,7 +1013,6 @@ class GameStateStoreImpl @Inject constructor(
         transactionMutex.withLock {
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
-            aggregateCache.clear()
             _gameDataFlow.value = gameData
             _disciplesFlow.value = disciples
             _discipleTables.clear()
@@ -1043,7 +1041,6 @@ class GameStateStoreImpl @Inject constructor(
         transactionMutex.withLock {
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
-            aggregateCache.clear()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
             _discipleTables.clear()

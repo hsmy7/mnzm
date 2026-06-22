@@ -337,7 +337,7 @@ class BattleSystem @Inject constructor() {
 
             val aliveEnemies = enemies.filter { !it.isDead }
             if (aliveEnemies.isEmpty()) {
-                return Pair(battle.copy(team = team, beasts = beasts, isFinished = true), BattleRoundData(battle.turn, actions))
+                return Pair(battle.copy(team = team, beasts = beasts, isFinished = true), BattleRoundData(battle.turn + 1, actions))
             }
 
             val currentCombatant = allies.find { it.id == combatant.id } ?: combatant

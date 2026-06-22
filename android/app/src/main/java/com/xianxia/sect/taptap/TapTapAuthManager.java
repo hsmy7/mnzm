@@ -72,7 +72,14 @@ public class TapTapAuthManager {
             .build();
 
         Future<?> future = initExecutor.submit(() -> {
-            TapTapSdk.init(activity.getApplicationContext(), options, eventOptions);
+            try {
+                TapTapSdk.init(activity.getApplicationContext(), options, eventOptions);
+            } catch (Throwable t) {
+                // 捕获 TapTap SDK 内部异常（包括 sandbox hook 等底层错误），
+                // 防止初始化失败导致应用崩溃
+                Log.e(TAG, "TapTapSdk.init 内部异常（可能是 sandbox/hook 兼容性问题）", t);
+                throw new RuntimeException("TapTap init failed", t);
+            }
         });
         long timeoutMs = com.xianxia.sect.core.util.DeviceCompatibilityHelper.INSTANCE.getTapTapInitTimeoutMs();
         try {
@@ -86,6 +93,12 @@ public class TapTapAuthManager {
             Log.e(TAG, "TapTap SDK 初始化超时（模拟器环境），跳过登录功能", e);
         } catch (Exception e) {
             Log.e(TAG, "TapTap SDK 初始化异常", e);
+            // 兜底：即使 init 失败，仍尝试设置 context，让后续登录等操作能优雅降级
+            try {
+                ensureTapTapKitContext(activity.getApplicationContext());
+            } catch (Exception ctxEx) {
+                Log.w(TAG, "兜底设置 context 也失败: " + ctxEx.getMessage());
+            }
         }
     }
 

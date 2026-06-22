@@ -293,7 +293,7 @@ internal fun BattleLogDetailDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        items(log.rounds, key = { "round_${it.roundNumber}" }) { round ->
+                        itemsIndexed(log.rounds, key = { index, round -> "round_${round.roundNumber}_$index" }) { _, round ->
                             BattleRoundItem(round = round)
                         }
                     }

@@ -152,10 +152,24 @@ class CultivationCore @Inject constructor(
 
     fun recoverHpMpForAllDisciples(state: MutableGameState) {
         val tables = state.discipleTables
+        val multiplier = phaseMultiplier.toDouble()
+
+        // 快速扫描：无存活弟子则跳过所有计算
+        var hasAlive = false
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val curHp = tables.currentHps[id]
+            val curMp = tables.currentMps[id]
+            if (curHp >= 0 || curMp >= 0) {
+                hasAlive = true
+                break
+            }
+        }
+        if (!hasAlive) return
+
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = state.gameData.manualProficiencies
-        val multiplier = phaseMultiplier.toDouble()
 
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue

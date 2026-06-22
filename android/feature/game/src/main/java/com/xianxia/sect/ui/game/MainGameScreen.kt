@@ -349,32 +349,36 @@ fun MainGameScreen(
             else rememberBuildingBitmaps()
 
         // 灵田作物图片预加载 — 以 "stage_herbId" 为 key 缓存三种生长阶段位图
+        // 异步加载避免首次 composition 阻塞主线程（BitmapFactory.decodeResource 是阻塞 I/O）
         val context = LocalContext.current
-        val cropBitmaps = remember {
-            val map = mutableMapOf<String, ImageBitmap>()
-            val resources = context.resources
-            for ((herbId, seedResId) in SpriteResRegistry.seedSprites) {
-                // 种子图
-                val seedBmp = BitmapFactory.decodeResource(resources, seedResId)
-                if (seedBmp != null) {
-                    map["seed_$herbId"] = seedBmp.asImageBitmap()
-                }
-                // 成长期图
-                SpriteResRegistry.growingSprites[herbId]?.let { growResId ->
-                    val growBmp = BitmapFactory.decodeResource(resources, growResId)
-                    if (growBmp != null) {
-                        map["growing_$herbId"] = growBmp.asImageBitmap()
+        var cropBitmaps by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
+        LaunchedEffect(Unit) {
+            cropBitmaps = withContext(Dispatchers.IO) {
+                val map = mutableMapOf<String, ImageBitmap>()
+                val resources = context.resources
+                for ((herbId, seedResId) in SpriteResRegistry.seedSprites) {
+                    // 种子图
+                    val seedBmp = BitmapFactory.decodeResource(resources, seedResId)
+                    if (seedBmp != null) {
+                        map["seed_$herbId"] = seedBmp.asImageBitmap()
+                    }
+                    // 成长期图
+                    SpriteResRegistry.growingSprites[herbId]?.let { growResId ->
+                        val growBmp = BitmapFactory.decodeResource(resources, growResId)
+                        if (growBmp != null) {
+                            map["growing_$herbId"] = growBmp.asImageBitmap()
+                        }
+                    }
+                    // 成熟（草药成品）图
+                    SpriteResRegistry.herbSprites[herbId]?.let { herbResId ->
+                        val herbBmp = BitmapFactory.decodeResource(resources, herbResId)
+                        if (herbBmp != null) {
+                            map["herb_$herbId"] = herbBmp.asImageBitmap()
+                        }
                     }
                 }
-                // 成熟（草药成品）图
-                SpriteResRegistry.herbSprites[herbId]?.let { herbResId ->
-                    val herbBmp = BitmapFactory.decodeResource(resources, herbResId)
-                    if (herbBmp != null) {
-                        map["herb_$herbId"] = herbBmp.asImageBitmap()
-                    }
-                }
+                map
             }
-            map
         }
 
         // [C2 静态建筑层架构]
