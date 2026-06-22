@@ -194,17 +194,13 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         val currentHfd = sharedState.highFrequencyData.value
-        val accumGains = currentHfd.cultivationUpdates.toMutableMap()
-        processedAlive.forEach { d ->
-            if (d.id != stateStore.focusedDiscipleId) {
-                val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
-                if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                    accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
-                }
-            }
-        }
+        // 修复回归 #1：不再为无焦点弟子累加修炼值到 cultivationUpdates。
+        // cultivationUpdates 仅用于追踪已实际写入 disciple.cultivation 的修炼量
+        //（通过 updateFocusedDisciple 对焦点弟子写入）。
+        // 非焦点弟子的修炼值在此处仅为"预估"，若累加进 cultivationUpdates，
+        // 月度结算时会被 calculateBatchCultivationGain 的 alreadyGained 减法抵消，
+        // 导致非焦点弟子修炼进度始终为零（"不看就不修炼" bug）。
         sharedState.highFrequencyData.value = currentHfd.copy(
-            cultivationUpdates = accumGains,
             focusedPhaseCount = currentHfd.focusedPhaseCount + 1
         )
 

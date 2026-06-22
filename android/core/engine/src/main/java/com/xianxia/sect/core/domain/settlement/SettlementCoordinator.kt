@@ -215,6 +215,12 @@ class SettlementCoordinator @Inject constructor(
             cultivationService.cachedCultivationRates = cache.cultivationRateCache
         }
 
+        // 修复回归 #1：结算完成后重置高频数据（cultivationUpdates / focusedPhaseCount）。
+        // 之前仅在 processFocusedDiscipleImmediate 中调用 resetHighFrequencyData，
+        // 无焦点弟子时不重置，导致 focusedPhaseCount 跨月累积，HP/MP 恢复衰减计算
+        // 用错倍数。此处无条件重置确保每个结算周期后状态干净。
+        cultivationService.resetHighFrequencyData()
+
         val metrics = metricsBuilder.build(
             monthYear = shadow.gameData.gameYear to shadow.gameData.gameMonth,
             totalDiscipleCount = shadow.discipleTables.ids.count { shadow.discipleTables.isAlive[it] == 1 },
