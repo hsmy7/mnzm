@@ -49,8 +49,6 @@ class SettlementCoordinator @Inject constructor(
     // 非焦点域热控分批：记录上次结算的绝对月份和当前批次数
     private var nonFocusedLastSettleMonth: Int = 0
     private var nonFocusedBatchMonths: Int = 1
-    // 焦点域检测：DISCIPLES 域活跃时弟子已有旬结算，月度修炼结算应跳过
-    private var isDisciplesFocused: Boolean = false
     private var reusableCache: SettlementCache? = null
 
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
@@ -86,18 +84,11 @@ class SettlementCoordinator @Inject constructor(
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
 
-        // 焦点域检测：DISCIPLES 活跃时弟子已有旬结算
-        isDisciplesFocused = isDiscipleDomainActive()
-
-        // 非焦点域热控分批：仅当 DISCIPLES 域不活跃时计算
+        // 非焦点域热控分批：始终计算，月度结算永不跳过修炼
         val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             shadow.gameData.gameYear, shadow.gameData.gameMonth
         )
-        if (!isDisciplesFocused) {
-            computeNonFocusedBatch(currentAbsMonth)
-        } else {
-            nonFocusedBatchMonths = 0  // 焦点域：跳过月度修炼结算
-        }
+        computeNonFocusedBatch(currentAbsMonth)
 
         val fingerprint = computeFingerprint(shadow)
         val cachePhase: Phase_BuildCache?
@@ -151,18 +142,11 @@ class SettlementCoordinator @Inject constructor(
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
 
-        // 焦点域检测
-        isDisciplesFocused = isDiscipleDomainActive()
-
-        // 非焦点域热控分批：仅当 DISCIPLES 域不活跃时计算
+        // 非焦点域热控分批：始终计算，月度结算永不跳过修炼
         val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             shadow.gameData.gameYear, shadow.gameData.gameMonth
         )
-        if (!isDisciplesFocused) {
-            computeNonFocusedBatch(currentAbsMonth)
-        } else {
-            nonFocusedBatchMonths = 0  // 焦点域：跳过月度修炼结算
-        }
+        computeNonFocusedBatch(currentAbsMonth)
 
         val fingerprint = computeFingerprint(shadow)
         val cachePhase: Phase_BuildCache?
@@ -252,11 +236,6 @@ class SettlementCoordinator @Inject constructor(
 
     private suspend fun processFocusedDiscipleImmediate(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
-        // 焦点域活跃时，弟子已有旬结算，月度修炼结算完全跳过
-        if (isDisciplesFocused) {
-            metricsBuilder.focusedDiscipleMs = timer.stop()
-            return
-        }
         val focusedId = stateStore.focusedDiscipleId ?: run {
             metricsBuilder.focusedDiscipleMs = timer.stop()
             return
@@ -329,11 +308,6 @@ class SettlementCoordinator @Inject constructor(
 
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
-        // 焦点域活跃时弟子已有旬结算，跳过月度修炼结算
-        if (isDisciplesFocused) {
-            metricsBuilder.cleanBatchMs = timer.stop()
-            return
-        }
         val data = shadow.gameData
         val focusedId = stateStore.focusedDiscipleId
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
@@ -958,24 +932,6 @@ class SettlementCoordinator @Inject constructor(
     }
 
     /**
-     * 检测 DISCIPLES 焦点域是否活跃。
-     * 活跃时弟子已有每旬结算，月度结算应跳过修炼/HP/衰减。
-     */
-    private fun isDiscipleDomainActive(): Boolean {
-        val tab = stateStore.activeTab
-        if (tab == "DISCIPLES" || tab == "OVERVIEW") return true
-        if (stateStore.focusedDiscipleId != null) return true
-        // 显示弟子卡片的对话框（需实时更新境界、忠诚度）
-        val dialog = stateStore.activeDialog ?: return false
-        return dialog in setOf(
-            "Recruit", "Residence", "Library", "WenDaoPeak", "QingyunPeak",
-            "TianshuHall", "LawEnforcementHall", "ReflectionCliff",
-            "BloodRefiningPool", "BattleLog",
-            "Diplomacy", "MissionHall", "PatrolTower"
-        )
-    }
-
-    /**
      * 非焦点域热控分批：根据手机发热程度决定结算间隔。
      * - 常温 → 每月结算
      * - 发热(shouldReduceWorkload) → 每 6 月结算一次
@@ -1002,8 +958,8 @@ class SettlementCoordinator @Inject constructor(
             nonFocusedLastSettleMonth = currentAbsoluteMonth
             monthsSince
         } else {
-            // 尚未达到批次阈值，跳过非焦点修炼结算
-            0
+            // 未达批次阈值，但最少处理1个月（永不跳过修炼）
+            1
         }
     }
 

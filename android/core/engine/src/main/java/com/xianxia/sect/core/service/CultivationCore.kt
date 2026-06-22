@@ -337,13 +337,6 @@ class CultivationCore @Inject constructor(
             d = d.copy(combat = d.combat.copy(currentHp = newHp, currentMp = newMp))
         }
 
-        if (d.id != focusedDiscipleId) {
-            val cultivationRate = cachedCultivationRates[d.id] ?: 0.0
-            if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                d = d.copy(cultivation = (d.cultivation + cultivationRate).coerceAtMost(d.maxCultivation))
-            }
-        }
-
         val pillResult = pillManager.processAutoUsePills(
             disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
         )
