@@ -314,22 +314,11 @@ object AISectDiscipleManager {
                     }
                 }
 
-                val newLifespan = if (newRealm != workingDisciple.realm) {
-                    val baseLifespan = GameConfig.Realm.get(newRealm).maxAge
-                    val talentEffects = TalentDatabase.calculateTalentEffects(
-                        workingDisciple.talentIds
-                    )
-                    val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-                    (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-                } else {
-                    workingDisciple.lifespan
-                }
-
                 workingDisciple = workingDisciple.copy(
                     cultivation = newCultivation,
                     realm = newRealm,
                     realmLayer = newRealmLayer,
-                    lifespan = newLifespan
+                    lifespan = workingDisciple.lifespan
                 )
             }
 

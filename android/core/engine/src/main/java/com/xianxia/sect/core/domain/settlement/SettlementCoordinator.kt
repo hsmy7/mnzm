@@ -339,8 +339,7 @@ class SettlementCoordinator @Inject constructor(
                 // 非焦点域热控分批：每月修炼值 × 批次数，扣除焦点域已获增益
                 val monthlyGain = rate * 3
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
-                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val totalGain = calculateBatchCultivationGain(monthlyGain, alreadyGained, batchMonths)
                 val rawCultivation = disciple.cultivation + totalGain
                 val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
                     Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
@@ -430,8 +429,7 @@ class SettlementCoordinator @Inject constructor(
                 // 每月修炼值 = rate × 3旬 × batchMonths，扣除焦点域已获增益
                 val monthlyGain = rate * 3
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
-                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val totalGain = calculateBatchCultivationGain(monthlyGain, alreadyGained, batchMonths)
                 val rawCultivation = disciple.cultivation + totalGain
                 val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
                     Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
@@ -580,7 +578,17 @@ class SettlementCoordinator @Inject constructor(
                     progress.startYear, progress.startMonth,
                     progress.durationMonths, currentYear, currentMonth
             )) {
-                val bonus = (DiscipleStatCalculator.getBaseStatValue(d.combat, progress.selectedStat) * progress.bonusPercent).toInt().coerceAtLeast(1)
+                // 单利计算（#8 修复）：
+                // 旧实现 bonus = 当前 base × bonusPercent，导致复利叠加 baseₙ = base₀ × (1+p)ⁿ
+                // 修复后 bonus = (当前 base - 已累计 bonus) × bonusPercent，基于原始 base 计算单利
+                val currentBase = DiscipleStatCalculator.getBaseStatValue(d.combat, progress.selectedStat)
+                val bonusTotal = shadow.gameData.bloodRefinementBonusTotals[d.id]
+                val accumulatedBonus = DiscipleStatCalculator.getAccumulatedBonus(bonusTotal, progress.selectedStat)
+                val bonus = DiscipleStatCalculator.calculateSimpleInterestBonus(
+                    currentBase = currentBase,
+                    accumulatedBonus = accumulatedBonus,
+                    bonusPercent = progress.bonusPercent
+                )
                 val newCombat = DiscipleStatCalculator.applyStatBonus(d.combat, progress.selectedStat, bonus)
                 // 直接更新组件表
                 tables.baseHps[dId] = newCombat.baseHp
@@ -608,6 +616,17 @@ class SettlementCoordinator @Inject constructor(
                 val currentRefinements = shadow.gameData.bloodRefinements.toMutableMap()
                 currentRefinements[d.id] = (currentRefinements[d.id] ?: emptyList()) + progress.materialId
                 shadow.gameData = shadow.gameData.copy(bloodRefinements = currentRefinements)
+
+                // 更新累计血炼加成记录（用于下次单利计算基准）
+                val currentBonusTotal = bonusTotal ?: com.xianxia.sect.core.model.BloodRefinementBonusTotal(discipleId = d.id)
+                val updatedBonusTotal = DiscipleStatCalculator.addBonusToTotal(
+                    total = currentBonusTotal,
+                    statKey = progress.selectedStat,
+                    bonus = bonus
+                )
+                val updatedBonusTotals = shadow.gameData.bloodRefinementBonusTotals.toMutableMap()
+                updatedBonusTotals[d.id] = updatedBonusTotal
+                shadow.gameData = shadow.gameData.copy(bloodRefinementBonusTotals = updatedBonusTotals)
 
                 // 发出完成通知
                 if (shadow.pendingNotification == null) {
@@ -698,17 +717,11 @@ class SettlementCoordinator @Inject constructor(
                     newRealm--
                     newRealmLayer = 1
                 }
-                val lifespanGain = getLifespanGainForRealm(newRealm)
-                val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(d.talentIds)["lifespan"] ?: 0.0
-                val extraLifespan = if (lifespanTalentBonus != 0.0) {
-                    (getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
-                } else 0
-
                 d = d.copy(
                     cultivation = 0.0,
                     realm = newRealm,
                     realmLayer = newRealmLayer,
-                    lifespan = d.lifespan + lifespanGain + extraLifespan
+                    lifespan = d.lifespan
                 )
             } else {
                 val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
@@ -892,14 +905,6 @@ class SettlementCoordinator @Inject constructor(
         return hp >= disciple.maxHp && mp >= disciple.maxMp
     }
 
-    private fun getLifespanGainForRealm(realm: Int): Int {
-        return when (realm) {
-            8 -> 50; 7 -> 100; 6 -> 200; 5 -> 400
-            4 -> 800; 3 -> 1500; 2 -> 3000; 1 -> 5000
-            0 -> 10000; else -> 0
-        }
-    }
-
     /**
      * 将 Disciple 对象的变更字段写回组件表。
      * 仅在 processBreakthroughForDisciple 返回后调用。
@@ -966,6 +971,28 @@ class SettlementCoordinator @Inject constructor(
     companion object {
         private const val TAG = "SettlementCoordinator"
         private const val MAX_DIRTY_BATCH_SIZE = 100
+
+        /**
+         * 计算非焦点弟子批处理的修炼净增益。
+         *
+         * 语义约定：
+         * - [monthlyGain] 每月修炼速率（已含 3 旬，即 rate × 3）
+         * - [alreadyGained] 焦点域已在该月为该弟子写入的修炼增益（已持久化到 disciple.cultivation）
+         * - [batchMonths] 本次批处理覆盖的月数
+         *
+         * 返回值：本次批处理应追加到 disciple.cultivation 的净增益。
+         *
+         * 注意：disciple.cultivation 已包含 alreadyGained，因此返回值不应再重复加 alreadyGained。
+         * 历史 bug：曾在此处错误地 `+ alreadyGained`，导致月结时修炼值被重复计算。
+         */
+        internal fun calculateBatchCultivationGain(
+            monthlyGain: Double,
+            alreadyGained: Double,
+            batchMonths: Int
+        ): Double {
+            val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
+            return netMonthlyGain * batchMonths
+        }
     }
 
     private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {

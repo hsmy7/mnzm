@@ -135,21 +135,6 @@ class CultivationCore @Inject constructor(
         return hp >= tables.baseHps[id] && mp >= tables.baseMps[id]
     }
 
-    fun getLifespanGainForRealm(realm: Int): Int {
-        return when (realm) {
-            8 -> 50
-            7 -> 100
-            6 -> 200
-            5 -> 400
-            4 -> 800
-            3 -> 1500
-            2 -> 3000
-            1 -> 5000
-            0 -> 10000
-            else -> 0
-        }
-    }
-
     fun recoverHpMpForAllDisciples(state: MutableGameState) {
         val tables = state.discipleTables
         val multiplier = phaseMultiplier.toDouble()
