@@ -974,6 +974,8 @@ class SettlementCoordinator @Inject constructor(
             monthsSince
         } else {
             // 未达批次阈值，但最少处理1个月（永不跳过修炼）
+            // 修复回归：推进 nonFocusedLastSettleMonth 防止月份漂移
+            nonFocusedLastSettleMonth += 1
             1
         }
     }

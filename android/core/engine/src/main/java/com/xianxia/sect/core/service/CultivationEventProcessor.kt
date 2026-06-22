@@ -204,6 +204,16 @@ class CultivationEventProcessor @Inject constructor(
             focusedPhaseCount = currentHfd.focusedPhaseCount + 1
         )
 
+        // 修复回归 #2：表重建前保存修炼值快照。
+        // processDiscipleTick 仅修改 HP/MP、丹药效果、装备、功法，不修改修炼值。
+        // 但 rebuild 从 stateStore.disciples.value（StateFlow 派生，可能滞后于
+        // 月结 settlement 的 swapFromShadow）重建所有字段，会覆写 settlement 写入的修炼值。
+        // 解决：重建前从权威数据源 state.discipleTables 保存修炼值，重建后恢复。
+        val cultivationSnapshot = mutableMapOf<Int, Double>()
+        for (id in state.discipleTables.ids) {
+            cultivationSnapshot[id] = state.discipleTables.cultivations[id]
+        }
+
         val aliveMap = processedAlive.associateBy { it.id }
         val updatedDisciplesList = stateStore.disciples.value.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
         // 直接操作事务内状态 state（即外层 tick 持有的 reusableMutableState）。
@@ -211,6 +221,11 @@ class CultivationEventProcessor @Inject constructor(
         // transactionMutex 不可重入，嵌套调用会死锁（核心修复前的根因）。
         state.discipleTables.clear()
         updatedDisciplesList.forEach { state.discipleTables.insert(it) }
+
+        // 恢复修炼值快照，保护 settlement 写入的修炼进度不被覆写
+        for ((id, cult) in cultivationSnapshot) {
+            state.discipleTables.cultivations[id] = cult
+        }
 
         cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
 
