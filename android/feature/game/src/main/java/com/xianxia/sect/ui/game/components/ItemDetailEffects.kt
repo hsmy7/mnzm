@@ -37,6 +37,12 @@ internal fun getBuffTypeName(buffType: String): String = when (buffType) {
     "freeze" -> com.xianxia.sect.core.BuffType.FREEZE.displayName
     "silence" -> com.xianxia.sect.core.BuffType.SILENCE.displayName
     "taunt" -> com.xianxia.sect.core.BuffType.TAUNT.displayName
+    "damage_link" -> com.xianxia.sect.core.BuffType.DAMAGE_LINK.displayName
+    "damage_share" -> com.xianxia.sect.core.BuffType.DAMAGE_SHARE.displayName
+    "shield" -> com.xianxia.sect.core.BuffType.SHIELD.displayName
+    "damage_reduction" -> com.xianxia.sect.core.BuffType.DAMAGE_REDUCTION.displayName
+    "damage_boost" -> com.xianxia.sect.core.BuffType.DAMAGE_BOOST.displayName
+    "turn_advance" -> com.xianxia.sect.core.BuffType.TURN_ADVANCE.displayName
     else -> buffType
 }
 
@@ -66,6 +72,12 @@ internal fun parseManualStackBuffs(json: String): List<Triple<com.xianxia.sect.c
                 "freeze" -> com.xianxia.sect.core.BuffType.FREEZE
                 "silence" -> com.xianxia.sect.core.BuffType.SILENCE
                 "taunt" -> com.xianxia.sect.core.BuffType.TAUNT
+                "damage_link" -> com.xianxia.sect.core.BuffType.DAMAGE_LINK
+                "damage_share" -> com.xianxia.sect.core.BuffType.DAMAGE_SHARE
+                "shield" -> com.xianxia.sect.core.BuffType.SHIELD
+                "damage_reduction" -> com.xianxia.sect.core.BuffType.DAMAGE_REDUCTION
+                "damage_boost" -> com.xianxia.sect.core.BuffType.DAMAGE_BOOST
+                "turn_advance" -> com.xianxia.sect.core.BuffType.TURN_ADVANCE
                 else -> return@mapNotNull null
             }
             val value = parts[1].toDoubleOrNull() ?: return@mapNotNull null
@@ -73,6 +85,30 @@ internal fun parseManualStackBuffs(json: String): List<Triple<com.xianxia.sect.c
             Triple(type, value, duration)
         } else null
     }
+}
+
+internal fun getTargetScopeName(scope: String): String = when (scope) {
+    "self" -> "自身"
+    "ally" -> "友方"
+    "enemy" -> "敌方"
+    "team" -> "全队"
+    else -> scope
+}
+
+internal fun formatBuffLine(buffType: String, value: Double, duration: Int): String {
+    val buffName = getBuffTypeName(buffType)
+    val durationText = if (duration > 0) " (${duration}回合)" else ""
+    val specialTypes = setOf("poison", "burn", "stun", "freeze", "silence", "taunt")
+    if (buffType in specialTypes) {
+        return "$buffName$durationText"
+    }
+    val isDebuff = try {
+        com.xianxia.sect.core.BuffType.valueOf(buffType.uppercase()).isDebuff
+    } catch (_: IllegalArgumentException) {
+        false
+    }
+    val sign = if (isDebuff) "-" else "+"
+    return "$buffName ${sign}${(value * 100).toInt()}%$durationText"
 }
 
 internal fun getStatDisplayName(key: String): String = when (key) {
@@ -110,12 +146,12 @@ internal fun getHerbCategoryName(category: String): String = when (category) {
 internal fun MutableList<String>.addForgeMaterialsInfo(equipmentName: String) {
     val forgeRecipe = ForgeRecipeDatabase.getAllRecipes().find { it.name == equipmentName }
     if (forgeRecipe != null && forgeRecipe.materials.isNotEmpty()) {
-        add("")
-        add("锻造所需:")
-        forgeRecipe.materials.forEach { (materialId, count) ->
+        val materialsText = forgeRecipe.materials.map { (materialId, count) ->
             val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId
-            add("  · $materialName $count")
-        }
+            "$materialName×$count"
+        }.joinToString("、")
+        add("")
+        add("锻造材料：$materialsText")
     }
 }
 
@@ -127,16 +163,35 @@ internal fun MutableList<String>.addManualSkillInfo(template: ManualDatabase.Man
     if (template.skillType == "support") {
         add("  类型: 辅助")
     }
-    if (template.skillTargetScope == "team") {
-        add("  作用范围: 全队")
+    if (template.skillTargetScope.isNotEmpty()) {
+        add("  作用目标: ${getTargetScopeName(template.skillTargetScope)}")
+    }
+    if (template.skillIsAoe) {
+        add("  范围: 全体")
+    }
+    if (template.skillDamageMultiplier > 0 && template.skillType != "support") {
+        add("  伤害类型: ${if (template.skillDamageType == "magic") "法术" else "物理"}")
+        add("  伤害倍率: ${(template.skillDamageMultiplier * 100).toInt()}%")
     }
     if (template.skillHealPercent > 0) {
         val healTypeName = if (template.skillHealType == "mp") "灵力" else "生命"
         add("  治疗: ${(template.skillHealPercent * 100).toInt()}% $healTypeName")
     }
-    if (template.skillDamageMultiplier > 0 && template.skillType != "support") {
-        add("  伤害类型: ${if (template.skillDamageType == "magic") "法术" else "物理"}")
-        add("  伤害倍率: ${(template.skillDamageMultiplier * 100).toInt()}%")
+    if (template.skillHealFixed > 0) {
+        val healTypeName = if (template.skillHealType == "mp") "灵力" else "生命"
+        add("  固定治疗: +${template.skillHealFixed} $healTypeName")
+    }
+    if (template.skillShieldPercent > 0) {
+        add("  护盾: ${(template.skillShieldPercent * 100).toInt()}% 最大生命")
+    }
+    if (template.skillTurnAdvancePercent > 0) {
+        add("  行动提前: ${(template.skillTurnAdvancePercent * 100).toInt()}%")
+    }
+    if (template.skillDamageSharePercent > 0) {
+        add("  伤害分摊: ${(template.skillDamageSharePercent * 100).toInt()}%")
+    }
+    if (template.skillDamageLinkPercent > 0) {
+        add("  伤害链接: ${(template.skillDamageLinkPercent * 100).toInt()}%")
     }
     add("  连击次数: ${template.skillHits}")
     if (template.skillCooldown > 0) {
@@ -146,14 +201,11 @@ internal fun MutableList<String>.addManualSkillInfo(template: ManualDatabase.Man
         add("  灵力消耗: ${template.skillMpCost}")
     }
     template.skillBuffs.forEach { buff ->
-        val buffName = getBuffTypeName(buff.type)
-        add("  $buffName +${(buff.value * 100).toInt()}% (${buff.duration}回合)")
+        add("  ${formatBuffLine(buff.type, buff.value, buff.duration)}")
     }
     if (template.skillBuffs.isEmpty() && template.skillBuffType != null && template.skillBuffValue > 0) {
         val buffType = template.skillBuffType!!
-        val buffName = getBuffTypeName(buffType)
-        val durationText = if (template.skillBuffDuration > 0) " (${template.skillBuffDuration}回合)" else ""
-        add("  $buffName +${(template.skillBuffValue * 100).toInt()}%$durationText")
+        add("  ${formatBuffLine(buffType, template.skillBuffValue, template.skillBuffDuration)}")
     }
 }
 
@@ -161,12 +213,12 @@ internal fun MutableList<String>.addPillRecipeInfo(pillId: String, pillName: Str
     val pillRecipe = PillRecipeDatabase.getRecipeById(pillId)
         ?: PillRecipeDatabase.getRecipeByName(pillName)
     if (pillRecipe != null && pillRecipe.materials.isNotEmpty()) {
-        add("")
-        add("炼制所需:")
-        pillRecipe.materials.forEach { (herbId, count) ->
+        val materialsText = pillRecipe.materials.map { (herbId, count) ->
             val herbName = HerbDatabase.getHerbById(herbId)?.name ?: herbId
-            add("  · $herbName $count")
-        }
+            "$herbName×$count"
+        }.joinToString("、")
+        add("")
+        add("炼制材料：$materialsText")
     }
 }
 
@@ -286,16 +338,35 @@ internal fun getManualStackEffects(item: ManualStack): List<String> = buildList 
         if (item.skillType == "support") {
             add("  类型: 辅助")
         }
-        if (item.skillTargetScope == "team") {
-            add("  作用范围: 全队")
+        if (item.skillTargetScope.isNotEmpty()) {
+            add("  作用目标: ${getTargetScopeName(item.skillTargetScope)}")
+        }
+        if (item.skillIsAoe) {
+            add("  范围: 全体")
+        }
+        if (item.skillDamageMultiplier > 0 && item.skillType != "support") {
+            add("  伤害类型: ${if (item.skillDamageType == "magic") "法术" else "物理"}")
+            add("  伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
         }
         if (item.skillHealPercent > 0) {
             val healTypeName = if (item.skillHealType == "mp") "灵力" else "生命"
             add("  治疗: ${(item.skillHealPercent * 100).toInt()}% $healTypeName")
         }
-        if (item.skillDamageMultiplier > 0 && item.skillType != "support") {
-            add("  伤害类型: ${if (item.skillDamageType == "magic") "法术" else "物理"}")
-            add("  伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
+        if (item.skillHealFixed > 0) {
+            val healTypeName = if (item.skillHealType == "mp") "灵力" else "生命"
+            add("  固定治疗: +${item.skillHealFixed} $healTypeName")
+        }
+        if (item.skillShieldPercent > 0) {
+            add("  护盾: ${(item.skillShieldPercent * 100).toInt()}% 最大生命")
+        }
+        if (item.skillTurnAdvancePercent > 0) {
+            add("  行动提前: ${(item.skillTurnAdvancePercent * 100).toInt()}%")
+        }
+        if (item.skillDamageSharePercent > 0) {
+            add("  伤害分摊: ${(item.skillDamageSharePercent * 100).toInt()}%")
+        }
+        if (item.skillDamageLinkPercent > 0) {
+            add("  伤害链接: ${(item.skillDamageLinkPercent * 100).toInt()}%")
         }
         add("  连击次数: ${item.skillHits}")
         if (item.skillCooldown > 0) {
@@ -306,16 +377,12 @@ internal fun getManualStackEffects(item: ManualStack): List<String> = buildList 
         }
         val buffs = parseManualStackBuffs(item.skillBuffsJson)
         buffs.forEach { (buffType, value, duration) ->
-            val buffName = getBuffTypeName(buffType)
-            add("  $buffName +${(value * 100).toInt()}% (${duration}回合)")
+            add("  ${formatBuffLine(buffType.name.lowercase(), value, duration)}")
         }
         if (buffs.isEmpty() && item.skillBuffType != null && item.skillBuffValue > 0) {
             val itemBuffType = item.skillBuffType
             if (itemBuffType != null) {
-            val buffName = getBuffTypeName(itemBuffType)
-            val itemBuffDuration = item.skillBuffDuration
-            val durationText = if (itemBuffDuration > 0) " (${itemBuffDuration}回合)" else ""
-            add("  $buffName +${(item.skillBuffValue * 100).toInt()}%$durationText")
+                add("  ${formatBuffLine(itemBuffType, item.skillBuffValue, item.skillBuffDuration)}")
             }
         }
     } else if (ManualDatabase.isInitialized) {
@@ -358,8 +425,15 @@ internal fun getManualEffects(item: ManualInstance): List<String> = buildList {
         if (skill.skillType == com.xianxia.sect.core.SkillType.SUPPORT) {
             add("  类型: 辅助")
         }
-        if (skill.targetScope == "team") {
-            add("  作用范围: 全队")
+        if (skill.targetScope.isNotEmpty()) {
+            add("  作用目标: ${getTargetScopeName(skill.targetScope)}")
+        }
+        if (skill.isAoe) {
+            add("  范围: 全体")
+        }
+        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
+            add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}")
+            add("  伤害倍率: ${(skill.damageMultiplier * 100).toInt()}%")
         }
         if (skill.healPercent > 0) {
             val healTypeName = when (skill.healType) {
@@ -368,9 +442,24 @@ internal fun getManualEffects(item: ManualInstance): List<String> = buildList {
             }
             add("  治疗: ${(skill.healPercent * 100).toInt()}% $healTypeName")
         }
-        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
-            add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}")
-            add("  伤害倍率: ${(skill.damageMultiplier * 100).toInt()}%")
+        if (skill.healFixed > 0) {
+            val healTypeName = when (skill.healType) {
+                com.xianxia.sect.core.HealType.HP -> "生命"
+                com.xianxia.sect.core.HealType.MP -> "灵力"
+            }
+            add("  固定治疗: +${skill.healFixed} $healTypeName")
+        }
+        if (skill.shieldPercent > 0) {
+            add("  护盾: ${(skill.shieldPercent * 100).toInt()}% 最大生命")
+        }
+        if (skill.turnAdvancePercent > 0) {
+            add("  行动提前: ${(skill.turnAdvancePercent * 100).toInt()}%")
+        }
+        if (skill.damageSharePercent > 0) {
+            add("  伤害分摊: ${(skill.damageSharePercent * 100).toInt()}%")
+        }
+        if (skill.damageLinkPercent > 0) {
+            add("  伤害链接: ${(skill.damageLinkPercent * 100).toInt()}%")
         }
         add("  连击次数: ${skill.hits}")
         if (skill.cooldown > 0) {
@@ -380,16 +469,12 @@ internal fun getManualEffects(item: ManualInstance): List<String> = buildList {
             add("  灵力消耗: ${skill.mpCost}")
         }
         skill.buffs.forEach { (buffType, value, duration) ->
-            val buffName = getBuffTypeName(buffType)
-            add("  $buffName +${(value * 100).toInt()}% (${duration}回合)")
+            add("  ${formatBuffLine(buffType.name.lowercase(), value, duration)}")
         }
         if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
             val skillBuffType = skill.buffType
             if (skillBuffType != null) {
-            val buffName = getBuffTypeName(skillBuffType)
-            val skillBuffDuration = skill.buffDuration
-            val durationText = if (skillBuffDuration > 0) " (${skillBuffDuration}回合)" else ""
-            add("  $buffName +${(skill.buffValue * 100).toInt()}%$durationText")
+                add("  ${formatBuffLine(skillBuffType.name.lowercase(), skill.buffValue, skill.buffDuration)}")
             }
         }
     }
@@ -406,7 +491,25 @@ internal fun getPillEffects(item: Pill): List<String> = buildList {
     add("")
     add("效果:")
     val isInstant = item.category == PillCategory.FUNCTIONAL ||
-        (item.category == PillCategory.CULTIVATION && item.pillType == "breakthrough")
+        (item.category == PillCategory.CULTIVATION && item.pillType == "breakthrough") ||
+        item.cultivationAdd > 0 ||
+        item.skillExpAdd > 0 ||
+        item.nurtureAdd > 0 ||
+        item.extendLife > 0 ||
+        item.healMaxHpPercent > 0 ||
+        item.mpRecoverMaxMpPercent > 0 ||
+        item.revive ||
+        item.clearAll ||
+        item.intelligenceAdd > 0 ||
+        item.charmAdd > 0 ||
+        item.loyaltyAdd > 0 ||
+        item.comprehensionAdd > 0 ||
+        item.artifactRefiningAdd > 0 ||
+        item.pillRefiningAdd > 0 ||
+        item.spiritPlantingAdd > 0 ||
+        item.teachingAdd > 0 ||
+        item.moralityAdd > 0 ||
+        item.miningAdd > 0
     when (item.category) {
         PillCategory.FUNCTIONAL -> {
             if (item.breakthroughChance > 0) {
@@ -476,14 +579,5 @@ internal fun getPillEffects(item: Pill): List<String> = buildList {
         add("  (一次性效果)")
     }
 
-    val pillRecipe = PillRecipeDatabase.getRecipeById(item.id)
-        ?: PillRecipeDatabase.getRecipeByName(item.name)
-    if (pillRecipe != null && pillRecipe.materials.isNotEmpty()) {
-        add("")
-        add("炼制所需:")
-        pillRecipe.materials.forEach { (herbId, count) ->
-            val herbName = HerbDatabase.getHerbById(herbId)?.name ?: herbId
-            add("  · $herbName $count")
-        }
-    }
+    addPillRecipeInfo(item.id, item.name)
 }

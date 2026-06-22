@@ -15,16 +15,21 @@ import com.xianxia.sect.core.util.GameUtils
 internal fun getMaterialEffects(item: Material): List<String> = buildList {
     add("类型: ${item.category.displayName}")
     add("数量: ${item.quantity}")
+    if (item.description.isNotBlank()) {
+        add(item.description)
+    }
 
-    val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(item.id)
+    val templateId = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.id ?: item.id
+    val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
+        val recipesText = forgeRecipes.take(5).map { recipe ->
+            val count = recipe.materials[templateId] ?: 1
+            "${recipe.name}×$count"
+        }.joinToString("、")
         add("")
-        add("可用于炼器:")
-        forgeRecipes.take(5).forEach { recipe ->
-            add("  · ${recipe.name}")
-        }
+        add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {
-            add("  · 等${forgeRecipes.size}种装备")
+            add("  等${forgeRecipes.size}种装备")
         }
     }
 }
@@ -32,16 +37,21 @@ internal fun getMaterialEffects(item: Material): List<String> = buildList {
 internal fun getHerbEffects(item: Herb): List<String> = buildList {
     add("类型: ${getHerbCategoryName(item.category)}")
     add("数量: ${item.quantity}")
+    if (item.description.isNotBlank()) {
+        add(item.description)
+    }
 
-    val pillRecipes = PillRecipeDatabase.getRecipesByHerb(item.id)
+    val templateId = HerbDatabase.getHerbByName(item.name)?.id ?: item.id
+    val pillRecipes = PillRecipeDatabase.getRecipesByHerb(templateId)
     if (pillRecipes.isNotEmpty()) {
+        val recipesText = pillRecipes.take(5).map { recipe ->
+            val count = recipe.materials[templateId] ?: 1
+            "${recipe.name}×$count"
+        }.joinToString("、")
         add("")
-        add("可用于炼丹:")
-        pillRecipes.take(5).forEach { recipe ->
-            add("  · ${recipe.name}")
-        }
+        add("可用于炼制：$recipesText")
         if (pillRecipes.size > 5) {
-            add("  · 等${pillRecipes.size}种丹药")
+            add("  等${pillRecipes.size}种丹药")
         }
     }
 }
@@ -51,30 +61,35 @@ internal fun getSeedEffects(item: Seed): List<String> = buildList {
     add("生长时间: ${item.growTime / 12}年")
     add("收获数量: ${item.yield}")
     add("数量: ${item.quantity}")
+    if (item.description.isNotBlank()) {
+        add(item.description)
+    }
 
     val herb = HerbDatabase.getHerbFromSeedName(item.name)
         ?: HerbDatabase.getHerbFromSeed(item.id)
     if (herb != null) {
         add("")
-        add("长成后:")
-        add("  · ${herb.name}")
-        add("  · ${herb.description}")
+        add("成熟后：${herb.name}")
+        if (herb.description.isNotBlank()) {
+            add("  ${herb.description}")
+        }
 
         val pillRecipes = PillRecipeDatabase.getRecipesByHerb(herb.id)
         if (pillRecipes.isNotEmpty()) {
+            val recipesText = pillRecipes.take(3).map { recipe ->
+                val count = recipe.materials[herb.id] ?: 1
+                "${recipe.name}×$count"
+            }.joinToString("、")
             add("")
-            add("可用于炼丹:")
-            pillRecipes.take(3).forEach { recipe ->
-                add("  · ${recipe.name}")
-            }
+            add("可用于炼制：$recipesText")
             if (pillRecipes.size > 3) {
-                add("  · 等${pillRecipes.size}种丹药")
+                add("  等${pillRecipes.size}种丹药")
             }
         }
     } else {
         val herbName = HerbDatabase.getHerbNameFromSeedName(item.name)
         add("")
-        add("长成后: $herbName")
+        add("成熟后：$herbName")
     }
 }
 
@@ -148,7 +163,25 @@ internal fun getMerchantItemEffects(item: MerchantItem): List<String> = buildLis
             if (pillTemplate != null) {
                 add("效果:")
                 val isInstant = pillTemplate.category == PillCategory.FUNCTIONAL ||
-                    (pillTemplate.category == PillCategory.CULTIVATION && pillTemplate.pillType == "breakthrough")
+                    (pillTemplate.category == PillCategory.CULTIVATION && pillTemplate.pillType == "breakthrough") ||
+                    pillTemplate.cultivationAdd > 0 ||
+                    pillTemplate.skillExpAdd > 0 ||
+                    pillTemplate.nurtureAdd > 0 ||
+                    pillTemplate.extendLife > 0 ||
+                    pillTemplate.healMaxHpPercent > 0 ||
+                    pillTemplate.mpRecoverMaxMpPercent > 0 ||
+                    pillTemplate.revive ||
+                    pillTemplate.clearAll ||
+                    pillTemplate.intelligenceAdd > 0 ||
+                    pillTemplate.charmAdd > 0 ||
+                    pillTemplate.loyaltyAdd > 0 ||
+                    pillTemplate.comprehensionAdd > 0 ||
+                    pillTemplate.artifactRefiningAdd > 0 ||
+                    pillTemplate.pillRefiningAdd > 0 ||
+                    pillTemplate.spiritPlantingAdd > 0 ||
+                    pillTemplate.teachingAdd > 0 ||
+                    pillTemplate.moralityAdd > 0 ||
+                    pillTemplate.miningAdd > 0
                 when (pillTemplate.category) {
                     PillCategory.FUNCTIONAL -> {
                         if (pillTemplate.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pillTemplate.breakthroughChance)}")
@@ -213,17 +246,28 @@ internal fun getMerchantItemEffects(item: MerchantItem): List<String> = buildLis
             }
         }
         "material" -> {
-            add("效果:")
-            val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(item.itemId)
+            val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
+            if (materialData != null && materialData.description.isNotBlank()) {
+                add("效果:")
+                add("  ${materialData.description}")
+            } else if (item.description.isNotEmpty()) {
+                add("效果:")
+                add("  ${item.description}")
+            }
+            val templateId = materialData?.id ?: item.itemId
+            val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
             if (forgeRecipes.isNotEmpty()) {
-                add("  可用于炼器:")
-                forgeRecipes.take(5).forEach { recipe ->
-                    add("    · ${recipe.name}")
-                }
+                val recipesText = forgeRecipes.take(5).map { recipe ->
+                    val count = recipe.materials[templateId] ?: 1
+                    "${recipe.name}×$count"
+                }.joinToString("、")
+                add("")
+                add("可用于锻造：$recipesText")
                 if (forgeRecipes.size > 5) {
-                    add("    · 等${forgeRecipes.size}种装备")
+                    add("  等${forgeRecipes.size}种装备")
                 }
-            } else {
+            } else if (materialData == null && item.description.isEmpty()) {
+                add("效果:")
                 add("  炼器材料")
             }
         }
@@ -232,42 +276,61 @@ internal fun getMerchantItemEffects(item: MerchantItem): List<String> = buildLis
                 ?: HerbDatabase.getHerbByName(item.name)
             if (herbData != null) {
                 add("类型: ${getHerbCategoryName(herbData.category)}")
+                if (herbData.description.isNotBlank()) {
+                    add("效果:")
+                    add("  ${herbData.description}")
+                }
             }
-            add("效果:")
-            val pillRecipes = PillRecipeDatabase.getRecipesByHerb(item.itemId)
+            val templateId = herbData?.id ?: item.itemId
+            val pillRecipes = PillRecipeDatabase.getRecipesByHerb(templateId)
             if (pillRecipes.isNotEmpty()) {
-                add("  可用于炼丹:")
-                pillRecipes.take(5).forEach { recipe ->
-                    add("    · ${recipe.name}")
-                }
+                val recipesText = pillRecipes.take(5).map { recipe ->
+                    val count = recipe.materials[templateId] ?: 1
+                    "${recipe.name}×$count"
+                }.joinToString("、")
+                add("")
+                add("可用于炼制：$recipesText")
                 if (pillRecipes.size > 5) {
-                    add("    · 等${pillRecipes.size}种丹药")
+                    add("  等${pillRecipes.size}种丹药")
                 }
-            } else {
+            } else if (herbData == null) {
+                add("效果:")
                 add("  炼丹材料")
             }
         }
         "seed" -> {
+            val seedData = HerbDatabase.getSeedByName(item.name)
+            if (seedData != null && seedData.description.isNotBlank()) {
+                add("效果:")
+                add("  ${seedData.description}")
+            } else if (item.description.isNotEmpty()) {
+                add("效果:")
+                add("  ${item.description}")
+            }
             val herb = HerbDatabase.getHerbFromSeedName(item.name)
                 ?: HerbDatabase.getHerbFromSeed(item.itemId)
             if (herb != null) {
-                add("长成后:")
-                add("  · ${herb.name}")
-                add("  · ${herb.description}")
+                add("")
+                add("成熟后：${herb.name}")
+                if (herb.description.isNotBlank()) {
+                    add("  ${herb.description}")
+                }
                 val pillRecipes = PillRecipeDatabase.getRecipesByHerb(herb.id)
                 if (pillRecipes.isNotEmpty()) {
+                    val recipesText = pillRecipes.take(3).map { recipe ->
+                        val count = recipe.materials[herb.id] ?: 1
+                        "${recipe.name}×$count"
+                    }.joinToString("、")
                     add("")
-                    add("可用于炼丹:")
-                    pillRecipes.take(3).forEach { recipe ->
-                        add("  · ${recipe.name}")
-                    }
+                    add("可用于炼制：$recipesText")
                     if (pillRecipes.size > 3) {
-                        add("  · 等${pillRecipes.size}种丹药")
+                        add("  等${pillRecipes.size}种丹药")
                     }
                 }
             } else {
                 val herbName = HerbDatabase.getHerbNameFromSeedName(item.name)
-                add("长成后: $herbName")
+                add("")
+                add("成熟后：$herbName")
             }
         }
         else -> {
@@ -370,7 +433,25 @@ internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buil
             item.effect?.let { effect ->
                 add("效果:")
                 val isInstantPill = effect.pillCategory == PillCategory.FUNCTIONAL.name ||
-                    (effect.pillCategory == PillCategory.CULTIVATION.name && effect.pillType == "breakthrough")
+                    (effect.pillCategory == PillCategory.CULTIVATION.name && effect.pillType == "breakthrough") ||
+                    effect.cultivationAdd > 0 ||
+                    effect.skillExpAdd > 0 ||
+                    effect.nurtureAdd > 0 ||
+                    effect.extendLife > 0 ||
+                    effect.healMaxHpPercent > 0 ||
+                    effect.mpRecoverMaxMpPercent > 0 ||
+                    effect.revive ||
+                    effect.clearAll ||
+                    effect.intelligenceAdd > 0 ||
+                    effect.charmAdd > 0 ||
+                    effect.loyaltyAdd > 0 ||
+                    effect.comprehensionAdd > 0 ||
+                    effect.artifactRefiningAdd > 0 ||
+                    effect.pillRefiningAdd > 0 ||
+                    effect.spiritPlantingAdd > 0 ||
+                    effect.teachingAdd > 0 ||
+                    effect.moralityAdd > 0 ||
+                    effect.miningAdd > 0
                 when (effect.pillCategory) {
                     PillCategory.FUNCTIONAL.name -> {
                         if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
@@ -432,16 +513,24 @@ internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buil
             }
         }
         "material" -> {
-            val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(item.itemId)
+            val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
+            if (materialData != null && materialData.description.isNotBlank()) {
+                add("效果:")
+                add("  ${materialData.description}")
+            }
+            val templateId = materialData?.id ?: item.itemId
+            val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
             if (forgeRecipes.isNotEmpty()) {
-                add("可用于炼器:")
-                forgeRecipes.take(5).forEach { recipe ->
-                    add("  · ${recipe.name}")
-                }
+                val recipesText = forgeRecipes.take(5).map { recipe ->
+                    val count = recipe.materials[templateId] ?: 1
+                    "${recipe.name}×$count"
+                }.joinToString("、")
+                add("")
+                add("可用于锻造：$recipesText")
                 if (forgeRecipes.size > 5) {
-                    add("  · 等${forgeRecipes.size}种装备")
+                    add("  等${forgeRecipes.size}种装备")
                 }
-            } else {
+            } else if (materialData == null) {
                 add("炼器材料")
             }
         }
@@ -450,41 +539,57 @@ internal fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buil
                 ?: HerbDatabase.getHerbByName(item.name)
             if (herbData != null) {
                 add("类型: ${getHerbCategoryName(herbData.category)}")
+                if (herbData.description.isNotBlank()) {
+                    add("效果:")
+                    add("  ${herbData.description}")
+                }
             }
-            val pillRecipes = PillRecipeDatabase.getRecipesByHerb(item.itemId)
+            val templateId = herbData?.id ?: item.itemId
+            val pillRecipes = PillRecipeDatabase.getRecipesByHerb(templateId)
             if (pillRecipes.isNotEmpty()) {
-                add("可用于炼丹:")
-                pillRecipes.take(5).forEach { recipe ->
-                    add("  · ${recipe.name}")
-                }
+                val recipesText = pillRecipes.take(5).map { recipe ->
+                    val count = recipe.materials[templateId] ?: 1
+                    "${recipe.name}×$count"
+                }.joinToString("、")
+                add("")
+                add("可用于炼制：$recipesText")
                 if (pillRecipes.size > 5) {
-                    add("  · 等${pillRecipes.size}种丹药")
+                    add("  等${pillRecipes.size}种丹药")
                 }
-            } else {
+            } else if (herbData == null) {
                 add("炼丹材料")
             }
         }
         "seed" -> {
+            val seedData = HerbDatabase.getSeedByName(item.name)
+            if (seedData != null && seedData.description.isNotBlank()) {
+                add("效果:")
+                add("  ${seedData.description}")
+            }
             val herb = HerbDatabase.getHerbFromSeedName(item.name)
                 ?: HerbDatabase.getHerbFromSeed(item.itemId)
             if (herb != null) {
-                add("长成后:")
-                add("  · ${herb.name}")
-                add("  · ${herb.description}")
+                add("")
+                add("成熟后：${herb.name}")
+                if (herb.description.isNotBlank()) {
+                    add("  ${herb.description}")
+                }
                 val pillRecipes = PillRecipeDatabase.getRecipesByHerb(herb.id)
                 if (pillRecipes.isNotEmpty()) {
+                    val recipesText = pillRecipes.take(3).map { recipe ->
+                        val count = recipe.materials[herb.id] ?: 1
+                        "${recipe.name}×$count"
+                    }.joinToString("、")
                     add("")
-                    add("可用于炼丹:")
-                    pillRecipes.take(3).forEach { recipe ->
-                        add("  · ${recipe.name}")
-                    }
+                    add("可用于炼制：$recipesText")
                     if (pillRecipes.size > 3) {
-                        add("  · 等${pillRecipes.size}种丹药")
+                        add("  等${pillRecipes.size}种丹药")
                     }
                 }
             } else {
                 val herbName = HerbDatabase.getHerbNameFromSeedName(item.name)
-                add("长成后: $herbName")
+                add("")
+                add("成熟后：$herbName")
             }
         }
         else -> {

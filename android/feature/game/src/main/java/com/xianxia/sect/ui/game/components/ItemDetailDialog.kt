@@ -32,7 +32,6 @@ import com.xianxia.sect.ui.components.SmallScreenDialog
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
 import com.xianxia.sect.ui.theme.getRarityColor
-import java.util.Locale
 
 @Composable
 fun ItemDetailDialog(
@@ -163,37 +162,7 @@ fun ItemDetailDialog(
                 item.skillName?.let { skillName ->
                     add("")
                     add("技能: $skillName")
-                    item.skillDescription?.let { add(it) }
-                    if (item.skillDamageMultiplier > 0) {
-                        add("伤害类型: ${if (item.skillDamageType == "physical") "物理" else "法术"}")
-                        add("伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
-                        add("连击次数: ${item.skillHits}")
-                    }
-                    if (item.skillIsAoe) add("范围: 全体")
-                    if (item.skillHealPercent > 0) add("治疗: ${(item.skillHealPercent * 100).toInt()}% ${if (item.skillHealType == "hp") "生命" else "灵力"}")
-                    if (item.skillShieldPercent > 0) add("护盾: ${(item.skillShieldPercent * 100).toInt()}% 最大生命")
-                    if (item.skillDamageSharePercent > 0) add("伤害分摊: ${(item.skillDamageSharePercent * 100).toInt()}%")
-                    if (item.skillTurnAdvancePercent > 0) add("行动提前: ${(item.skillTurnAdvancePercent * 100).toInt()}%")
-                    if (item.skillDamageLinkPercent > 0) add("伤害链接: ${(item.skillDamageLinkPercent * 100).toInt()}%")
-                    if (item.skillCooldown > 0) add("冷却: ${item.skillCooldown}回合")
-                    if (item.skillMpCost > 0) add("灵力消耗: ${item.skillMpCost}")
-                    item.skillBuffs.forEach { buff ->
-                        val bt = com.xianxia.sect.core.BuffType.entries
-                            .find { it.name.equals(buff.type, ignoreCase = true) }
-                        if (bt != null) {
-                            val buffName = getBuffTypeName(bt)
-                            add("$buffName: +${(buff.value * 100).toInt()}% (${buff.duration}回合)")
-                        }
-                    }
-                    if (item.skillBuffs.isEmpty() && item.skillBuffType != null && item.skillBuffValue > 0) {
-                        val bt = com.xianxia.sect.core.BuffType.entries
-                            .find { it.name.equals(item.skillBuffType, ignoreCase = true) }
-                        if (bt != null) {
-                            val buffName = getBuffTypeName(bt)
-                            val durText = if (item.skillBuffDuration > 0) " (${item.skillBuffDuration}回合)" else ""
-                            add("$buffName: +${(item.skillBuffValue * 100).toInt()}%$durText")
-                        }
-                    }
+                    addManualSkillInfo(item)
                 }
                 if (item.minRealm < 9) {
                     add("")
@@ -554,9 +523,28 @@ private fun ManualStatsContent(
                 color = Color.Black
             )
         }
-        if (skill.targetScope == "team") {
+        if (skill.targetScope.isNotEmpty()) {
             Text(
-                text = "作用范围: 全队",
+                text = "作用目标：${getTargetScopeName(skill.targetScope)}",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        if (skill.isAoe) {
+            Text(
+                text = "范围：全体",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
+            Text(
+                text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+            Text(
+                text = "伤害倍率：${(skill.damageMultiplier * 100).toInt()}%",
                 fontSize = 10.sp,
                 color = Color.Black
             )
@@ -572,14 +560,41 @@ private fun ManualStatsContent(
                 color = Color.Black
             )
         }
-        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
+        if (skill.healFixed > 0) {
+            val healTypeName = when (skill.healType) {
+                com.xianxia.sect.core.HealType.HP -> "生命"
+                com.xianxia.sect.core.HealType.MP -> "灵力"
+            }
             Text(
-                text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}",
+                text = "固定治疗：+${skill.healFixed} $healTypeName",
                 fontSize = 10.sp,
                 color = Color.Black
             )
+        }
+        if (skill.shieldPercent > 0) {
             Text(
-                text = "伤害倍率：${(skill.damageMultiplier * 100).toInt()}%",
+                text = "护盾：${(skill.shieldPercent * 100).toInt()}% 最大生命",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        if (skill.turnAdvancePercent > 0) {
+            Text(
+                text = "行动提前：${(skill.turnAdvancePercent * 100).toInt()}%",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        if (skill.damageSharePercent > 0) {
+            Text(
+                text = "伤害分摊：${(skill.damageSharePercent * 100).toInt()}%",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        if (skill.damageLinkPercent > 0) {
+            Text(
+                text = "伤害链接：${(skill.damageLinkPercent * 100).toInt()}%",
                 fontSize = 10.sp,
                 color = Color.Black
             )
@@ -604,9 +619,8 @@ private fun ManualStatsContent(
             )
         }
         skill.buffs.forEach { (buffType, value, duration) ->
-            val buffName = getBuffTypeName(buffType)
             Text(
-                text = "$buffName：+${(value * 100).toInt()}% (${duration}回合)",
+                text = "${formatBuffLine(buffType.name.lowercase(), value, duration)}",
                 fontSize = 10.sp,
                 color = Color.Black
             )
@@ -614,14 +628,11 @@ private fun ManualStatsContent(
         if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
             val skillBuffType = skill.buffType
             if (skillBuffType != null) {
-            val buffName = getBuffTypeName(skillBuffType)
-            val buffDuration = skill.buffDuration
-            val durationText = if (buffDuration > 0) " (${buffDuration}回合)" else ""
-            Text(
-                text = "$buffName：+${(skill.buffValue * 100).toInt()}%$durationText",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
+                Text(
+                    text = "${formatBuffLine(skillBuffType.name.lowercase(), skill.buffValue, skill.buffDuration)}",
+                    fontSize = 10.sp,
+                    color = Color.Black
+                )
             }
         }
     }

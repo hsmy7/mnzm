@@ -4,12 +4,17 @@
 
 ### 新增
 
-- **新增：弟子卡片显示年龄** — 所有使用统一弟子卡片（`PortraitDiscipleCard`）的界面（弟子列表、招募、选择器等）均在性别右侧显示弟子年龄，格式为“xx岁”。年龄文本由独立可测试的 `formatDiscipleAge` 格式化函数生成，避免硬编码字符串散落在多处 UI 代码中
+- **新增：弟子卡片显示年龄** — 所有使用统一弟子卡片（`PortraitDiscipleCard`）的界面（弟子列表、招募、选择器等）均在性别右侧显示弟子年龄，格式为"xx岁"。年龄文本由独立可测试的 `formatDiscipleAge` 格式化函数生成，避免硬编码字符串散落在多处 UI 代码中
+- **新增：物品关联配方/产物信息展示** — 种子详情显示成熟后产出的草药名称及该草药可炼制的丹药；草药详情显示可用其炼制的丹药列表及所需数量；丹药详情显示炼制所需草药及数量；装备详情显示锻造所需材料及数量；材料详情显示可用其锻造的装备列表及所需数量。商人购买界面和储物袋物品界面同步展示上述关联信息
 
 ### 修复
 
 - **修复：探查 AI 宗门弟子分布改为快照显示** — 世界地图宗门详情中，探查后各境界弟子数量原本读取 `aiSectDisciples` 实时活着弟子并持续更新，且 `SectScoutInfo` 中保存的是含死亡弟子的全量分布，导致显示与探查情报语义不符。修复后：探查成功时保存当前活着弟子的境界分布快照；宗门详情始终显示该快照，不再随弟子死亡/突破实时变化；同时移除探查过期判断，一次探查永久有效，直到再次探查刷新
 - **修复：建筑槽位详情按钮素材错误** — 所有建筑中用于说明槽位用途的 `ElderBonusInfoButton` 默认背景素材由通用按钮（`R.drawable.ui_button`）错误地使用了详情按钮的设计资源（`R.drawable.ui_detail_button`）。已将 `ui_detail_button.webp` 下沉到 `core:ui` 模块，并把组件默认值修正为 `R.drawable.ui_detail_button`，覆盖天枢殿、仓库、灵矿场、灵植阁、执法堂、问道塔/青云塔等各峰场景
+- **修复：功法 buff 类型英文显示** — `damage_link`、`damage_share`、`shield`、`damage_reduction`、`damage_boost`、`turn_advance` 等 buff 类型在物品详情中直接显示英文原文。现已补全 `getBuffTypeName` 映射及 `parseManualStackBuffs` 解析，全部转为中文显示
+- **修复：功法技能详情信息不完整** — 功法技能详情缺少作用目标、是否全体、固定治疗、护盾、行动提前、伤害分摊、伤害链接等字段。现已在 `ManualStack`/`ManualInstance`/`ManualTemplate`/`MerchantItem`/`StorageBagItem`/`LearnedManualDetailDialog` 全部六处功法展示路径中统一补全上述字段
+- **修复：一次性丹药错误显示持续时间** — 部分立即生效的丹药（固定数值增加、治疗、复活、清除负面状态、延寿等）仍显示"持续 X 旬"。修正了 `getPillEffects` 及商人/储物袋丹药分支的 `isInstant` 判定逻辑，覆盖全部一次性效果字段
+- **修复：材料、灵草、种子描述缺失** — 物品详情效果列表中未展示 `description` 字段。现已在 `getMaterialEffects`/`getHerbEffects`/`getSeedEffects` 及对应商人/储物袋分支中追加描述显示
 
 ### 变更
 

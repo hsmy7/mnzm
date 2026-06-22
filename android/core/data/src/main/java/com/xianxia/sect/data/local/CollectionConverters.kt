@@ -425,6 +425,16 @@ object CollectionConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromBloodRefinementBonusTotalMap(value: Map<String, BloodRefinementBonusTotal>): String =
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBloodRefinementBonusTotalMap(value: String): Map<String, BloodRefinementBonusTotal> =
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value) { emptyMap() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromStringListMap(value: Map<String, List<String>>): String =
         ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value)
 
