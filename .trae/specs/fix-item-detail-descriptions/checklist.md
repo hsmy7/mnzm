@@ -1,0 +1,11 @@
+- [ ] `shield` / `damage_link` / `damage_share` / `damage_reduction` / `damage_boost` / `turn_advance` 等 buff 类型在物品详情中显示中文
+- [ ] 功法技能详情包含作用目标、是否全体、固定治疗、护盾、行动提前、伤害分摊、伤害链接
+- [ ] `ManualInstance` / `ManualStack` / `ManualTemplate` / `MerchantItem` / `StorageBagItem` 的功法技能展示一致
+- [ ] 立即生效丹药详情显示“（一次性效果）”且不显示“持续 X 旬”
+- [ ] 材料、灵草、种子详情显示其 `description` 描述
+- [ ] 种子详情显示成熟后产出的草药名称
+- [ ] 草药详情显示可用其炼制的丹药及数量
+- [ ] 丹药详情显示炼制所需草药及数量
+- [ ] 装备详情显示锻造所需材料及数量
+- [ ] 材料详情显示可用其锻造的装备及数量
+- [ ] 代码编译通过，现有测试与 lint/detekt 无新增失败

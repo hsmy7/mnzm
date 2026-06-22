@@ -48,7 +48,6 @@ data class GameConfigData(
     @Serializable
     data class DiscipleSection(
         val maxDisciples: Int = 1000,
-        val recruitCost: Long = 1000L,
         val minLoyalty: Int = 0,
         val maxLoyalty: Int = 100,
         val minAge: Int = 5,

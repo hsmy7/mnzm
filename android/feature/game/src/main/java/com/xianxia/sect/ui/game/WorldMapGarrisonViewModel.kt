@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.WorldSect
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,7 +36,8 @@ class WorldMapGarrisonViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.attackSect(sectId, attackSlots)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "进攻失败")
             }
         }
@@ -45,7 +47,8 @@ class WorldMapGarrisonViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.assignGarrisonDisciple(sectId, slotIndex, discipleId)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "驻守失败")
             }
         }
@@ -55,7 +58,8 @@ class WorldMapGarrisonViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.removeGarrisonDisciple(sectId, slotIndex)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
             }
         }

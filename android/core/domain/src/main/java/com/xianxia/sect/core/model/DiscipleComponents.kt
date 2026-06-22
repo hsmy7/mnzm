@@ -167,5 +167,6 @@ data class UsageTracking(
     var usedExtendLifePillIds: List<String> = emptyList(),
     var recruitedMonth: Int = 0,
     var hasReviveEffect: Boolean = false,
-    var hasClearAllEffect: Boolean = false
+    var hasClearAllEffect: Boolean = false,
+    var lastTheftMonth: Int = 0  // 最近偷盗月份（绝对月），0=从未
 )

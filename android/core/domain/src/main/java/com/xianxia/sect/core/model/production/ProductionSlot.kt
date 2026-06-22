@@ -53,7 +53,18 @@ data class ProductionSlot(
     @ColumnInfo(defaultValue = "0")
     val completionMonth: Int = 0,
     @ColumnInfo(defaultValue = "1")
-    val completionPhase: Int = 1
+    val completionPhase: Int = 1,
+    /**
+     * 所属建筑实例 ID（炼丹炉/锻造坊）。
+     *
+     * 用于建筑移除时按实例精确匹配槽位，替代旧的 `maxOfOrNull { it.slotIndex }`
+     * 按最大 slotIndex 移除的模式（多建筑同类型时可能移除错误槽位）。
+     *
+     * 旧存档加载时为空字符串。由于 ProductionSlot 已迁移到 Repository 管理，
+     * 旧数据回填需在 Repository 初始化时按 buildingId 分组顺序推断。
+     */
+    @ColumnInfo(defaultValue = "")
+    val buildingInstanceId: String = ""
 ) {
     val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
     val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING

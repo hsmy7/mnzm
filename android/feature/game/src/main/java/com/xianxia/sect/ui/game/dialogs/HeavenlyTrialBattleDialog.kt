@@ -350,7 +350,7 @@ private fun EnemyInfoDetail(enemy: Combatant) {
     // 长按详情弹窗 — 使用正式的 ItemDetailDialog
     if (detailTarget != null) {
         ItemDetailDialog(
-            item = detailTarget!!,
+            item = checkNotNull(detailTarget) { "detailTarget is null" },
             onDismiss = { detailTarget = null }
         )
     }

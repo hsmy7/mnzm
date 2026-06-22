@@ -990,8 +990,9 @@ class SettlementCoordinator @Inject constructor(
             alreadyGained: Double,
             batchMonths: Int
         ): Double {
-            val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-            return netMonthlyGain * batchMonths
+            // 修复：alreadyGained 是焦点域已为该弟子写入的总增益（非月度值），
+            // 不应乘以 batchMonths。正确公式：月度增益 × 月数 - 已获得增益
+            return (monthlyGain * batchMonths - alreadyGained).coerceAtLeast(0.0)
         }
     }
 

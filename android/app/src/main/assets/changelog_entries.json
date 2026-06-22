@@ -13,7 +13,25 @@
 			"优化：世界地图宗门信息界面布局调整——删除等级宗门文本，等级图标移至宗门名称左侧；关系左侧新增所属势力显示，被占领宗门显示占领者名称，未被占领显示自身名称；下方操作按钮改为根据屏幕宽度自动换行排列",
 			"优化：物品卡片统一组件重构——所有显示物品卡片的界面全面改用UnifiedItemCard统一组件。新增size参数支持动态卡片尺寸适配不同场景。每日签到、生产槽位、商人挂售等界面手写物品卡片均迁移至UnifiedItemCard。删除了未被引用的ItemCard、CompactItemCard、RarityBadge、StatBonus四个冗余组件",
 			"变更：大乘最大寿命3000→2500、渡劫最大寿命5000→4000，其余境界保持不变",
-			"变更：移除境界突破额外增加寿命机制——玩家弟子、AI宗门弟子突破境界后寿命不再额外增长，突破仅改变境界不改变寿命值"
+			"变更：移除境界突破额外增加寿命机制——玩家弟子、AI宗门弟子突破境界后寿命不再额外增长，突破仅改变境界不改变寿命值",
+			"修复：月结修炼双重计算——批量结算中alreadyGained被错误乘以batchMonths，导致非焦点弟子月度修炼值多扣。修正公式为月度增益×月数−已获增益",
+			"修复：战斗伤亡非原子写入——processBattleCasualties中6组写操作分散在多个事务外，重构为单次stateStore.update原子事务",
+			"修复：商人购买功法溢出丢失——buyMerchantItem的manual分支未使用mergeStackable且无maxStack检查，购买可堆叠功法时超出上限部分静默丢失",
+			"修复：存档加载无回滚保护——loadFromSnapshot中途失败时已写入的15个Flow值无法恢复，增加保存旧状态快照并失败时完整回滚",
+			"修复：天道试炼领奖容量不足静默丢奖——randomPill等分支达上限时跳过发放但claimedRewardLevels标记仍写入，增加distributeFailed标志失败回滚",
+			"修复：天道试炼伤害公式与战斗系统不一致——动画战斗路径使用本地简化公式与BattleCalculator存在7处偏差，改调BattleCalculator.calculateCombatantDamage",
+			"修复：血炼启动非原子操作——灵石扣除、材料消耗、弟子状态更新分三步独立调用，新增startBloodRefinementAtomic单事务方法",
+			"修复：放置建筑时ProductionSlot索引非原子——idx在updateGameData闭包外基于快照计算，移入闭包内基于当前data保证原子性",
+			"修复：弟子死亡后伴侣关系残留——handleDiscipleDeath和ChildBirthSystem双点补全partnerId清理",
+			"修复：外交结盟陈旧数据覆盖——requestAlliance改用lambda参数gameData读取最新状态，删除从未触发的onEvent死代码",
+			"修复：巡察塔战败不清理阵亡槽位——阵亡弟子槽位清理移出if(result.victory)分支",
+			"修复：邮件附件领取Saga补偿——增加mailRecords二次保护+mailRepo.update容错防止重复领取",
+			"修复：签到午夜跨越时间不一致——getDayState内多次Calendar.getInstance()改为复用同一实例",
+			"修复：兑换码签名校验——APK_SIGNATURE_HASH为空时仅Debug构建允许跳过，Release构建拒绝",
+			"修复：修炼计算双状态访问——calculateDiscipleCultivationPerPhase改为从调用方传入manualInstanceMap",
+			"修复：招募费死配置清理——删除GameConfig/GameConfigData/game_config.json三处recruitCost定义及测试引用",
+			"优化：代码质量全面清理——移除12处!!操作符、118处CancellationException重抛、7处空catch添加日志、BaseViewModel废弃StateFlow仅保留Channel",
+			"优化：血炼加成数据Room持久化——补充bloodRefinementBonusTotals的Migration 4→5 ALTER TABLE"
 		]
 	},
 	{

@@ -873,6 +873,16 @@ class ExplorationService @Inject constructor(
             // 奖励
             val allRewards = mutableListOf<BattleRewardItem>()
 
+            // 清理阵亡弟子槽位（无论胜负都清理，避免战败时阵亡弟子残留）
+            val deadIds = disciples.filter { !it.isAlive }.map { it.id }.toSet()
+            if (deadIds.isNotEmpty()) {
+                gd = gd.copy(
+                    patrolSlots = gd.patrolSlots.map { slot ->
+                        if (slot.discipleId in deadIds) PatrolSlot(index = slot.index) else slot
+                    }
+                )
+            }
+
             // 标记妖兽已击败
             if (result.victory) {
                 gd = gd.copy(
@@ -880,15 +890,6 @@ class ExplorationService @Inject constructor(
                         if (it.id == target.id) it.copy(defeated = true) else it
                     }
                 )
-                // 清理阵亡弟子槽位
-                val deadIds = disciples.filter { !it.isAlive }.map { it.id }.toSet()
-                if (deadIds.isNotEmpty()) {
-                    gd = gd.copy(
-                        patrolSlots = gd.patrolSlots.map { slot ->
-                            if (slot.discipleId in deadIds) PatrolSlot(index = slot.index) else slot
-                        }
-                    )
-                }
 
                 // 幸存弟子神魂+1，有天赋的随机属性+1
                 disciples = disciples.map { d ->

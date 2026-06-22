@@ -152,6 +152,7 @@ class DiscipleTables {
     val recruitedMonths = IntComponentTable()
     val hasReviveEffects = IntComponentTable()    // 0/1
     val hasClearAllEffects = IntComponentTable()  // 0/1
+    val lastTheftMonths = IntComponentTable()
 
     // === 弟子总数 ===
     val count: Int get() = ids.size
@@ -284,6 +285,7 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
+        lastTheftMonths[id] = u.lastTheftMonth
     }
 
     /**
@@ -393,6 +395,7 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
+        lastTheftMonths[id] = u.lastTheftMonth
     }
 
     /**
@@ -506,7 +509,8 @@ class DiscipleTables {
                 usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
                 recruitedMonth = recruitedMonths.getOrDefault(id, 0),
                 hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
-                hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1
+                hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
+                lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
             )
         )
     }
@@ -753,6 +757,7 @@ class DiscipleTables {
         copyIntTable(this.recruitedMonths, copy.recruitedMonths)
         copyIntTable(this.hasReviveEffects, copy.hasReviveEffects)
         copyIntTable(this.hasClearAllEffects, copy.hasClearAllEffects)
+        copyIntTable(this.lastTheftMonths, copy.lastTheftMonths)
 
         // Double 表
         copyDoubleTable(this.cultivations, copy.cultivations)

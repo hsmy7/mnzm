@@ -181,7 +181,7 @@ internal fun BattleResultDialog(
     }
 
     if (showDetail && detailReward != null) {
-        val reward = detailReward!!
+        val reward = checkNotNull(detailReward)
         ItemDetailDialog(
             item = MerchantItem(
                 id = reward.itemId,

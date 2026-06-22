@@ -660,31 +660,6 @@ object DiscipleStatCalculator {
     // ==================== 血炼系统属性加成 ====================
 
     /**
-     * 计算血炼加成并应用到 CombatAttributes 的 base* 字段。
-     * 遍历 bloodRefinements 中该弟子已完成的材料ID，累加属性加成。
-     */
-    fun applyBloodRefinementBonuses(
-        disciple: Disciple,
-        bloodRefinements: Map<String, List<String>>
-    ): Disciple {
-        val completedMaterials = bloodRefinements[disciple.id] ?: return disciple
-        if (completedMaterials.isEmpty()) return disciple
-
-        var c = disciple.combat
-        for (materialId in completedMaterials) {
-            val bloodType = BeastMaterialDatabase.getBloodTypeFromMaterialId(materialId) ?: continue
-            val rule = BeastMaterialDatabase.BLOOD_RULES[bloodType] ?: continue
-            val material = BeastMaterialDatabase.getMaterialById(materialId) ?: continue
-            val percentage = BeastMaterialDatabase.getTierPercentage(material.tier)
-
-            // 每个材料只加一个属性，但这里无法知道当初随机选了哪个，
-            // 所以血炼完成时已直接修改了 base* 字段，此处无需重复计算。
-            // 此方法保留供未来查询/显示使用。
-        }
-        return disciple
-    }
-
-    /**
      * 根据血种随机选择属性（50/50），返回属性key。
      */
     fun randomBloodRefineStat(bloodType: String): String {
@@ -717,6 +692,67 @@ object DiscipleStatCalculator {
             "physicalDefense" -> combat.copy(basePhysicalDefense = combat.basePhysicalDefense + bonus)
             "magicDefense" -> combat.copy(baseMagicDefense = combat.baseMagicDefense + bonus)
             else -> combat
+        }
+    }
+
+    // ==================== 血炼单利计算（#8 修复） ====================
+
+    /**
+     * 计算单利血炼加成。
+     *
+     * 修复历史 bug：旧实现使用 `当前 base × bonusPercent` 计算加成，
+     * 导致 baseₙ = base₀ × (1+p)ⁿ 复利叠加。改为 `(当前 base - 已累计 bonus) × bonusPercent`，
+     * 确保每次加成基于原始 base 值，实现单利。
+     *
+     * @param currentBase 当前 base 值（含历史血炼加成）
+     * @param accumulatedBonus 已累计的血炼加成总量
+     * @param bonusPercent 加成比例（如 0.01 = 1%）
+     * @return 本次血炼的加成值（至少为 1）
+     */
+    fun calculateSimpleInterestBonus(
+        currentBase: Int,
+        accumulatedBonus: Int,
+        bonusPercent: Double
+    ): Int {
+        val originalBase = (currentBase - accumulatedBonus).coerceAtLeast(1)
+        return (originalBase * bonusPercent).toInt().coerceAtLeast(1)
+    }
+
+    /**
+     * 从累计加成记录中读取指定属性的已累计 bonus。
+     */
+    fun getAccumulatedBonus(
+        total: com.xianxia.sect.core.model.BloodRefinementBonusTotal?,
+        statKey: String
+    ): Int {
+        if (total == null) return 0
+        return when (statKey) {
+            "speed" -> total.speedBonus
+            "hp" -> total.hpBonus
+            "physicalAttack" -> total.physicalAttackBonus
+            "magicAttack" -> total.magicAttackBonus
+            "physicalDefense" -> total.physicalDefenseBonus
+            "magicDefense" -> total.magicDefenseBonus
+            else -> 0
+        }
+    }
+
+    /**
+     * 将本次血炼加成累加到累计记录中，返回更新后的记录。
+     */
+    fun addBonusToTotal(
+        total: com.xianxia.sect.core.model.BloodRefinementBonusTotal,
+        statKey: String,
+        bonus: Int
+    ): com.xianxia.sect.core.model.BloodRefinementBonusTotal {
+        return when (statKey) {
+            "speed" -> total.copy(speedBonus = total.speedBonus + bonus)
+            "hp" -> total.copy(hpBonus = total.hpBonus + bonus)
+            "physicalAttack" -> total.copy(physicalAttackBonus = total.physicalAttackBonus + bonus)
+            "magicAttack" -> total.copy(magicAttackBonus = total.magicAttackBonus + bonus)
+            "physicalDefense" -> total.copy(physicalDefenseBonus = total.physicalDefenseBonus + bonus)
+            "magicDefense" -> total.copy(magicDefenseBonus = total.magicDefenseBonus + bonus)
+            else -> total
         }
     }
 

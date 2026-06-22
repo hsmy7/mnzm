@@ -13,6 +13,7 @@ import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -71,7 +72,8 @@ class AlchemyViewModel @Inject constructor(
                 if (result is DomainResult.Failure) {
                     showError(result.error.message)
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "开始炼制失败")
             } finally {
                 _isStartingAlchemy.value = false
@@ -105,7 +107,8 @@ class AlchemyViewModel @Inject constructor(
                 } else {
                     showError("没有足够的草药进行炼丹")
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "自动炼丹失败")
             }
         }
@@ -223,7 +226,8 @@ class AlchemyViewModel @Inject constructor(
                 } else {
                     showError("没有可添加的弟子")
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "添加失败")
             }
         }
@@ -235,7 +239,8 @@ class AlchemyViewModel @Inject constructor(
                 val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "移除失败")
             }
         }

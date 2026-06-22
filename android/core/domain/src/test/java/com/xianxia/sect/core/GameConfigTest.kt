@@ -42,11 +42,6 @@ class GameConfigTest {
     }
 
     @Test
-    fun `招募费用应为1000灵石`() {
-        assertEquals(1000L, GameConfig.Disciple.RECRUIT_COST)
-    }
-
-    @Test
     fun `忠诚度最小值应为0`() {
         assertEquals(0, GameConfig.Disciple.MIN_LOYALTY)
     }

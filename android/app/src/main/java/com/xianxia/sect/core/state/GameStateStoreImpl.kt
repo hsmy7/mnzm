@@ -2,8 +2,10 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1011,29 +1013,79 @@ class GameStateStoreImpl @Inject constructor(
         isSaving: Boolean
     ) {
         transactionMutex.withLock {
+            // 缓存清除在所有写入之前执行
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
-            _gameDataFlow.value = gameData
-            _disciplesFlow.value = disciples
-            _discipleTables.clear()
-            disciples.forEach { _discipleTables.insert(it) }
-            _equipmentStacksFlow.value = equipmentStacks
-            _equipmentInstancesFlow.value = equipmentInstances
-            _manualStacksFlow.value = manualStacks
-            _manualInstancesFlow.value = manualInstances
-            _pillsFlow.value = pills
-            _materialsFlow.value = materials
-            _herbsFlow.value = herbs
-            _seedsFlow.value = seeds
-            _storageBagsFlow.value = storageBags
-            _teamsFlow.value = teams
-            _battleLogsFlow.value = battleLogs
-            _isPaused.value = isPaused
-            _isLoading.value = isLoading
-            _isSaving.value = isSaving
-            repository.setActiveSlot(gameData.slotId)
-            repository.markAllDirty()
-            _updateVersion.value++
+
+            // 保存旧值用于失败回滚
+            val oldGameData = _gameDataFlow.value
+            val oldDisciples = _disciplesFlow.value
+            val oldEquipmentStacks = _equipmentStacksFlow.value
+            val oldEquipmentInstances = _equipmentInstancesFlow.value
+            val oldManualStacks = _manualStacksFlow.value
+            val oldManualInstances = _manualInstancesFlow.value
+            val oldPills = _pillsFlow.value
+            val oldMaterials = _materialsFlow.value
+            val oldHerbs = _herbsFlow.value
+            val oldSeeds = _seedsFlow.value
+            val oldStorageBags = _storageBagsFlow.value
+            val oldTeams = _teamsFlow.value
+            val oldBattleLogs = _battleLogsFlow.value
+            val oldIsPaused = _isPaused.value
+            val oldIsLoading = _isLoading.value
+            val oldIsSaving = _isSaving.value
+            val oldTables = _discipleTables.deepCopy()
+
+            try {
+                _gameDataFlow.value = gameData
+                _disciplesFlow.value = disciples
+                _discipleTables.clear()
+                disciples.forEach { _discipleTables.insert(it) }
+                _equipmentStacksFlow.value = equipmentStacks
+                _equipmentInstancesFlow.value = equipmentInstances
+                _manualStacksFlow.value = manualStacks
+                _manualInstancesFlow.value = manualInstances
+                _pillsFlow.value = pills
+                _materialsFlow.value = materials
+                _herbsFlow.value = herbs
+                _seedsFlow.value = seeds
+                _storageBagsFlow.value = storageBags
+                _teamsFlow.value = teams
+                _battleLogsFlow.value = battleLogs
+                _isPaused.value = isPaused
+                _isLoading.value = isLoading
+                _isSaving.value = isSaving
+                repository.setActiveSlot(gameData.slotId)
+                repository.markAllDirty()
+                _updateVersion.value++
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 回滚所有已写入的 Flow 值
+                DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
+                _gameDataFlow.value = oldGameData
+                _disciplesFlow.value = oldDisciples
+                _discipleTables.clear()
+                oldTables.ids.forEach { id ->
+                    val d = oldTables.assemble(id)
+                    _discipleTables.insert(d)
+                }
+                _equipmentStacksFlow.value = oldEquipmentStacks
+                _equipmentInstancesFlow.value = oldEquipmentInstances
+                _manualStacksFlow.value = oldManualStacks
+                _manualInstancesFlow.value = oldManualInstances
+                _pillsFlow.value = oldPills
+                _materialsFlow.value = oldMaterials
+                _herbsFlow.value = oldHerbs
+                _seedsFlow.value = oldSeeds
+                _storageBagsFlow.value = oldStorageBags
+                _teamsFlow.value = oldTeams
+                _battleLogsFlow.value = oldBattleLogs
+                _isPaused.value = oldIsPaused
+                _isLoading.value = oldIsLoading
+                _isSaving.value = oldIsSaving
+                throw e
+            }
         }
     }
 

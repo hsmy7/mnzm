@@ -96,7 +96,13 @@ class ChildBirthSystem @Inject constructor(
             if (father == null || !father.isAlive) {
                 currentList = currentList.map { disciple ->
                     if (disciple.id == mother.id) {
-                        disciple.copy(social = disciple.social.copy(childBirthMonth = null))
+                        // 清除 childBirthMonth 和 partnerId，
+                        // 修复历史 bug：父亲死亡时仅清除 childBirthMonth，
+                        // partnerId 仍指向死者，导致母亲永久无法重新配对
+                        disciple.copy(social = disciple.social.copy(
+                            childBirthMonth = null,
+                            partnerId = null
+                        ))
                     } else disciple
                 }
                 continue

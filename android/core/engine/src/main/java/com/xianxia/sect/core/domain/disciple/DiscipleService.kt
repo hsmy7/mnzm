@@ -11,6 +11,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.mergeStackable
 import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.util.equipmentBagStackIds
 import com.xianxia.sect.core.config.InventoryConfig
@@ -488,16 +489,12 @@ private val scopeProvider: CoroutineScopeProvider,
             returnEquipIds.forEach { eid ->
                 val eq = equipmentInstances.get(eid) ?: return@forEach
                 val stack = eq.toStack()
-                val existingStack = equipmentStacks.firstOrNull {
-                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id !in bagStackIds
-                }
-                if (existingStack != null) {
-                    val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                    val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                    equipmentStacks.update(existingStack.id) { it.copy(quantity = newQty) }
-                } else {
-                    equipmentStacks = equipmentStacks + stack
-                }
+                val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                equipmentStacks = equipmentStacks.mergeStackable(
+                    item = stack,
+                    matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id !in bagStackIds },
+                    maxStack = maxStack
+                )
                 equipmentInstances.remove(eid)
             }
 
@@ -505,16 +502,12 @@ private val scopeProvider: CoroutineScopeProvider,
                 val m = manualInstances.get(bagItem.itemId)
                 if (m != null) {
                     val stack = m.toStack()
-                    val existingStack = manualStacks.firstOrNull {
-                        it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
-                    }
-                    if (existingStack != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                        manualStacks.update(existingStack.id) { it.copy(quantity = newQty) }
-                    } else {
-                        manualStacks = manualStacks + stack
-                    }
+                    val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                    manualStacks = manualStacks.mergeStackable(
+                        item = stack,
+                        matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type },
+                        maxStack = maxStack
+                    )
                     manualInstances.remove(bagItem.itemId)
                 }
             }
@@ -523,16 +516,12 @@ private val scopeProvider: CoroutineScopeProvider,
                 val m = manualInstances.get(manualId)
                 if (m != null) {
                     val stack = m.toStack()
-                    val existingStack = manualStacks.firstOrNull {
-                        it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
-                    }
-                    if (existingStack != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
-                        manualStacks.update(existingStack.id) { it.copy(quantity = newQty) }
-                    } else {
-                        manualStacks = manualStacks + stack
-                    }
+                    val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                    manualStacks = manualStacks.mergeStackable(
+                        item = stack,
+                        matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type },
+                        maxStack = maxStack
+                    )
                     manualInstances.remove(manualId)
                 }
             }

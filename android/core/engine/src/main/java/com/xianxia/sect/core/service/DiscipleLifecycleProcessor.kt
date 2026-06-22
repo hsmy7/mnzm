@@ -86,7 +86,18 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
         val griefUpdated = DiscipleStatCalculator.applyGriefToRelatives(
             currentDiscipleList, listOf(disciple), currentYear
-        )
+        ).toMutableList()
+
+        // 清除死亡弟子的伴侣关系：若死者有伴侣，清除伴侣的 partnerId 指向
+        val partnerId = disciple.social.partnerId
+        if (partnerId != null) {
+            val partnerIndex = griefUpdated.indexOfFirst { it.id == partnerId }
+            if (partnerIndex >= 0) {
+                griefUpdated[partnerIndex] = griefUpdated[partnerIndex].copy(
+                    social = griefUpdated[partnerIndex].social.copy(partnerId = null)
+                )
+            }
+        }
 
         stateStore.update {
             discipleTables.clear()

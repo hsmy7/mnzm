@@ -362,7 +362,7 @@ internal fun BulkSellDialog(
 
     if (showDetailDialog && detailItem != null) {
         ItemDetailDialog(
-            item = detailItem!!,
+            item = checkNotNull(detailItem) { "detailItem is null" },
             onDismiss = {
                 showDetailDialog = false
                 detailItem = null

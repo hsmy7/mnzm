@@ -33,37 +33,8 @@ class DiplomacyService @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
     private val eventBus: EventBusPort
-) : DomainEventSubscriber {
-    override val subscribedTypes: Set<String> = setOf("battle_completed")
-
+) {
     private val scope get() = scopeProvider.scope
-
-    init {
-        eventBus.subscribe(this)
-    }
-
-    override fun onEvent(event: DomainEvent) {
-        if (event !is BattleCompletedEvent || !event.result.victory) return
-        scope.launch {
-            val data = stateStore.gameData.value
-            val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return@launch
-            val targetSect = data.worldMapSects.find {
-                it.isUnderAttack && it.attackerSectId == playerSect.id
-            }
-            if (targetSect != null) {
-                val currentFavor = data.sectRelations.find {
-                    (it.sectId1 == playerSect.id && it.sectId2 == targetSect.id) ||
-                    (it.sectId1 == targetSect.id && it.sectId2 == playerSect.id)
-                }?.favor ?: 0
-                val newFavor = (currentFavor - 5).coerceAtLeast(0)
-                stateStore.update { gameData = data.copy(
-                    sectRelations = updateSectRelationFavor(
-                        data.sectRelations, playerSect.id, targetSect.id, newFavor, data.gameYear
-                    )
-                ) }
-            }
-        }
-    }
 
     private val discipleTables: DiscipleTables
         get() = stateStore.discipleTables
@@ -228,7 +199,7 @@ class DiplomacyService @Inject constructor(
      * @param envoyDiscipleId 使者弟子ID
      * @return 结盟结果（是否成功，消息）
      */
-    fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> {
+    suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> {
         val (canAlliance, message, cost) = checkAllianceConditions(sectId, envoyDiscipleId)
 
         if (!canAlliance) {
@@ -262,23 +233,27 @@ class DiplomacyService @Inject constructor(
                 envoyDiscipleId = envoyDiscipleId
             )
 
-            val updatedSects = data.worldMapSects.map { s ->
-                when {
-                    s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
-                    s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
-                    else -> s
-                }
+            // 在 update 块内基于当前 gameData 读取最新状态，避免使用外部快照 data
+            // 导致陈旧数据覆盖并发修改
+            stateStore.update {
+                gameData = gameData.copy(
+                    spiritStones = gameData.spiritStones - cost,
+                    alliances = gameData.alliances + alliance,
+                    worldMapSects = gameData.worldMapSects.map { s ->
+                        when {
+                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                            else -> s
+                        }
+                    }
+                )
             }
-
-            scope.launch { stateStore.update { gameData = data.copy(
-                spiritStones = data.spiritStones - cost,
-                alliances = data.alliances + alliance,
-                worldMapSects = updatedSects
-            ) } }
 
             return Pair(true, "结盟成功！")
         } else {
-            scope.launch { stateStore.update { gameData = data.copy(spiritStones = data.spiritStones - cost / 2) } }
+            stateStore.update {
+                gameData = gameData.copy(spiritStones = gameData.spiritStones - cost / 2)
+            }
             return Pair(false, "游说失败，关系不足以达成结盟")
         }
     }

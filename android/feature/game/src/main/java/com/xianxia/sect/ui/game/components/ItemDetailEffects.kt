@@ -204,7 +204,7 @@ internal fun MutableList<String>.addManualSkillInfo(template: ManualDatabase.Man
         add("  ${formatBuffLine(buff.type, buff.value, buff.duration)}")
     }
     if (template.skillBuffs.isEmpty() && template.skillBuffType != null && template.skillBuffValue > 0) {
-        val buffType = template.skillBuffType!!
+        val buffType = checkNotNull(template.skillBuffType) { "skillBuffType is null" }
         add("  ${formatBuffLine(buffType, template.skillBuffValue, template.skillBuffDuration)}")
     }
 }

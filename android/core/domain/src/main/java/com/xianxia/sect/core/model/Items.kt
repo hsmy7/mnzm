@@ -905,12 +905,15 @@ data class StorageBag(
     @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
-    val name: String = "",
-    val rarity: Int = 1,
+    override val name: String = "",
+    override val rarity: Int = 1,
     val description: String = "可随机获得5-20件同品阶物品",
-    var quantity: Int = 1,
-    val isLocked: Boolean = false
-) : HasId {
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
+) : HasId, StackableItem {
+
+    override fun withQuantity(newQuantity: Int): StorageBag = copy(quantity = newQuantity)
+
     companion object {
         val TIER_NAMES = listOf("凡品储物袋", "灵品储物袋", "宝品储物袋", "玄品储物袋", "地品储物袋", "天品储物袋")
         val SPIRIT_STONE_AMOUNTS = listOf(500L, 2000L, 10000L, 50000L, 200000L, 500000L)

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapDialogState
 import com.xianxia.sect.core.model.WorldMapDialogType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -44,7 +45,8 @@ class WorldMapInteractionViewModel @Inject constructor(
             try {
                 gameEngine.scoutSect(sectId, memberIds)
                 closeScoutDialog()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "探查失败")
             }
         }
@@ -54,7 +56,8 @@ class WorldMapInteractionViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.giftSpiritStones(sectId, tier)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "送礼失败")
             }
         }
@@ -86,7 +89,8 @@ class WorldMapInteractionViewModel @Inject constructor(
                 } else {
                     showError(message)
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "结盟失败")
             }
         }
@@ -101,7 +105,8 @@ class WorldMapInteractionViewModel @Inject constructor(
                 } else {
                     showError(message)
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "解除结盟失败")
             }
         }
@@ -135,7 +140,8 @@ class WorldMapInteractionViewModel @Inject constructor(
                 _dialogs.value = _dialogs.value.copy(
                     tradeItems = gameEngine.getOrRefreshSectTradeItems(sectId)
                 )
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "购买失败")
             }
         }

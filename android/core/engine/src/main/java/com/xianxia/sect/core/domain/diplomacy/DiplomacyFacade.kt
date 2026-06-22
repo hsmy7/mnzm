@@ -4,7 +4,7 @@ import com.xianxia.sect.core.model.MerchantItem
 
 interface DiplomacyFacade {
     fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult
-    fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String>
+    suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String>
     fun dissolveAlliance(sectId: String): Pair<Boolean, String>
     fun getRejectProbability(sectLevel: Int, rarity: Int): Int
     fun checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int>

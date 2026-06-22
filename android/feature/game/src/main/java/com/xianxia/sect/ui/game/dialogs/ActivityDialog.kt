@@ -53,8 +53,8 @@ fun ActivityDialog(
     val isTrialChallenge = trialViewModel != null && trialScreen != null &&
         trialScreen !is HeavenlyTrialViewModel.Screen.Panel
 
-    BackHandler(onBack = if (isTrialChallenge) {
-        { trialViewModel!!.dismiss() }
+    BackHandler(onBack = if (isTrialChallenge && trialViewModel != null) {
+        { trialViewModel?.dismiss() ?: onDismiss() }
     } else {
         onDismiss
     })
@@ -80,9 +80,10 @@ fun ActivityDialog(
                             is HeavenlyTrialViewModel.Screen.DiscipleSelect -> s.levelIndex
                             else -> 0
                         }
+                        val vm = checkNotNull(trialViewModel) { "trialViewModel null in BattlePrep" }
                         HeavenlyTrialBattleDialog(
                             levelIndex = levelIdx,
-                            viewModel = trialViewModel!!,
+                            viewModel = vm,
                             gameViewModel = gameViewModel,
                             onDismiss = { trialViewModel.dismiss() }
                         )
@@ -179,8 +180,9 @@ fun ActivityDialog(
                             if (selectedActivity != null) {
                                 when (selectedActivity.id) {
                                     "heavenly_trial" -> {
+                                        val vm = checkNotNull(trialViewModel) { "trialViewModel null in HeavenlyTrialPanel" }
                                         HeavenlyTrialPanel(
-                                            viewModel = trialViewModel!!,
+                                            viewModel = vm,
                                             onOpenClearRewards = {
                                                 trialViewModel.openClearRewards()
                                             }

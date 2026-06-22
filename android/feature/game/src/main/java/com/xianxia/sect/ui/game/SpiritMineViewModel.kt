@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -80,7 +81,8 @@ class SpiritMineViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
 
                 gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.DEACONING)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "任命失败")
             }
         }
@@ -99,7 +101,8 @@ class SpiritMineViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
 
                 removedDeaconId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
             }
         }
@@ -127,7 +130,8 @@ class SpiritMineViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 assignDisciplesToEmptyMineSlotsInternal(selectedDisciples, mineIndex)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "分配失败")
             }
         }
@@ -152,7 +156,8 @@ class SpiritMineViewModel @Inject constructor(
                         gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
             }
         }
@@ -173,7 +178,8 @@ class SpiritMineViewModel @Inject constructor(
                     oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
                     gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "更换失败")
             }
         }
@@ -185,7 +191,8 @@ class SpiritMineViewModel @Inject constructor(
                 val availableDisciples = getAvailableDisciplesForSpiritMining()
                 if (availableDisciples.isEmpty()) return@launch
                 assignDisciplesToEmptyMineSlotsInternal(availableDisciples, mineIndex)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "一键任命失败")
             }
         }

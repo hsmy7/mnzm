@@ -8,7 +8,7 @@ fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> = 
 fun GameEngine.buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTrade(sectId, itemId, quantity)
 suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTradeSync(sectId, itemId, quantity)
 fun GameEngine.giftSpiritStones(sectId: String, tier: Int): GiftResult = diplomacyFacade.giftSpiritStones(sectId, tier)
-fun GameEngine.requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
+suspend fun GameEngine.requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
 fun GameEngine.dissolveAlliance(sectId: String): Pair<Boolean, String> = diplomacyFacade.dissolveAlliance(sectId)
 fun GameEngine.getRejectProbability(sectLevel: Int, rarity: Int): Int = diplomacyFacade.getRejectProbability(sectLevel, rarity)
 fun GameEngine.checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> = diplomacyFacade.checkAllianceConditions(sectId, envoyDiscipleId)

@@ -15,6 +15,22 @@
 - **修复：功法技能详情信息不完整** — 功法技能详情缺少作用目标、是否全体、固定治疗、护盾、行动提前、伤害分摊、伤害链接等字段。现已在 `ManualStack`/`ManualInstance`/`ManualTemplate`/`MerchantItem`/`StorageBagItem`/`LearnedManualDetailDialog` 全部六处功法展示路径中统一补全上述字段
 - **修复：一次性丹药错误显示持续时间** — 部分立即生效的丹药（固定数值增加、治疗、复活、清除负面状态、延寿等）仍显示"持续 X 旬"。修正了 `getPillEffects` 及商人/储物袋丹药分支的 `isInstant` 判定逻辑，覆盖全部一次性效果字段
 - **修复：材料、灵草、种子描述缺失** — 物品详情效果列表中未展示 `description` 字段。现已在 `getMaterialEffects`/`getHerbEffects`/`getSeedEffects` 及对应商人/储物袋分支中追加描述显示
+- **修复：月结修炼双重计算** — 批量结算中 `alreadyGained` 被错误乘以 `batchMonths`，导致非焦点弟子月度修炼值多扣。修正公式为"月度增益 × 月数 − 已获增益"
+- **修复：战斗伤亡非原子写入** — `processBattleCasualties` 中 6 组写操作分散在多个事务外，中途崩溃导致弟子状态、装备、槽位不一致。重构为单次 `stateStore.update` 原子事务
+- **修复：商人购买功法溢出丢失** — `buyMerchantItem` 的 `manual` 分支未使用 `mergeStackable` 且无 `maxStack` 检查，购买可堆叠功法时超出上限部分静默丢失。改用 `mergeStackable` 与其他物品类型一致
+- **修复：存档加载无回滚保护** — `loadFromSnapshot` 中途失败时已写入的 15 个 Flow 值无法恢复。保存旧状态快照，失败时完整回滚所有已写入值
+- **修复：天道试炼领奖容量不足静默丢奖** — `randomPill`/`randomEquipment`/`randomManual` 分支达上限时跳过发放但 `claimedRewardLevels` 标记仍写入，用户无法重领。增加 `distributeFailed` 标志，失败时抛异常触发事务回滚
+- **修复：天道试炼伤害公式与战斗系统不一致** — 动画战斗路径使用本地简化公式（硬编码防御常量500、无暴击/闪避/境界差系数），与 `BattleCalculator` 存在 7 处偏差。改调 `BattleCalculator.calculateCombatantDamage` 并同步暴击闪避判定
+- **修复：血炼启动非原子操作** — 灵石扣除、材料消耗、弟子状态更新分三步独立调用，中途崩溃导致灵石已扣但血炼未启动。新增 `startBloodRefinementAtomic` 单事务方法
+- **修复：放置建筑时 ProductionSlot 索引非原子** — `idx` 在 `updateGameData` 闭包外基于快照计算，并发放置同类型建筑可能重复。`idx` 计算移入闭包内基于当前 `data` 保证原子性
+- **修复：弟子死亡后伴侣关系残留** — `handleDiscipleDeath` 清除所有槽位和装备但未清除幸存伴侣的 `partnerId`；`ChildBirthSystem` 父亲死亡时仅清除 `childBirthMonth`。双点补全 `partnerId` 清理
+- **修复：外交结盟陈旧数据覆盖** — `requestAlliance` 在 `stateStore.update` 内使用外部快照 `data.copy` 而非 lambda 参数 `gameData`，并发修改被覆盖丢失。同时删除从未触发的 `onEvent` 死代码（`BattleCompletedEvent` 无任何 emit 调用）
+- **修复：巡察塔战败不清理阵亡槽位** — 阵亡弟子槽位清理在 `if (result.victory)` 分支内，战败时阵亡弟子残留在巡逻槽中。清理逻辑移出胜利分支
+- **修复：邮件附件领取 Saga 补偿** — `mailRepo.update` 在 `stateStore` 事务外，若 DB 写入失败则物品已入库但邮件仍可重复领取。增加 `mailRecords` 二次保护 + `mailRepo.update` 容错
+- **修复：签到午夜跨越时间不一致** — `getDayState` 内两次 `Calendar.getInstance()` 调用可能跨越午夜导致 `todayDayOfYear` 与 `today` 不一致。改为复用同一 `Calendar` 实例
+- **修复：兑换码签名校验** — `APK_SIGNATURE_HASH` 为空时返回 `true` 允许跳过校验。改为仅 Debug 构建允许跳过，Release 构建空 hash 拒绝
+- **修复：修炼计算双状态访问** — `calculateDiscipleCultivationPerPhase` 绕过传入的 shadow state 参数直接读 `stateStore.manualInstances`，与月结 shadow 隔离语义冲突。改为从调用方传入 `manualInstanceMap` 参数
+- **修复：招募费死配置清理** — `recruitCost` 字段在 `GameConfig`/`GameConfigData`/`game_config.json` 三处定义但 `recruitDisciple()` 从未消费，删除全部引用
 
 ### 变更
 
@@ -25,6 +41,8 @@
 
 - **优化：世界地图宗门信息界面布局调整** — 删除等级宗门文本，等级图标移至宗门名称左侧；关系左侧新增所属势力显示，被占领宗门显示占领者名称，未被占领显示自身名称；下方操作按钮改为根据屏幕宽度自动换行排列
 - **优化：物品卡片统一组件重构** — 所有显示物品卡片的界面全面改用 `UnifiedItemCard` 统一组件。新增 `size` 参数支持动态卡片尺寸适配不同场景。每日签到 `SignInDayCard`/`MilestoneRewardRow`、生产槽位 `ProductionSlotItem`、商人挂售 `ListedItemCard` 中的手写物品卡片均迁移至 `UnifiedItemCard`，保留各自特有的状态覆盖层和操作按钮。删除了未被任何代码引用的 `ItemCard`、`CompactItemCard`、`RarityBadge`、`StatBonus` 四个冗余组件
+- **优化：代码质量全面清理** — 移除全部 12 处 `!!` 操作符改为 `checkNotNull`；118 处 `catch (Exception)` 前补充 `CancellationException` 重抛；7 处空 `catch` 块添加日志记录；`BaseViewModel` 废弃 `StateFlow` 双通道仅保留 `Channel` 队列
+- **优化：血炼加成数据 Room 持久化** — `bloodRefinementBonusTotals` 补充 CollectionConverters TypeConverter 并在 `MIGRATION_4_5` 中添加 `ALTER TABLE`，确保旧存档升级时列完整
 
 ## [4.0.17] - 2026-06-22（versionCode=4017）
 

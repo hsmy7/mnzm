@@ -368,6 +368,12 @@ data class GameData(
     @ColumnInfo(defaultValue = "{}")
     var activeBloodRefinements: Map<String, BloodRefinementProgress> = emptyMap(),
 
+    // 血炼系统：弟子已累计的血炼加成总量（discipleId → BloodRefinementBonusTotal）
+    // 用于单利计算基准，防止复利叠加（#8 修复）
+    @SettlementStrategy(Strategy.CUSTOM)
+    @ColumnInfo(defaultValue = "{}")
+    var bloodRefinementBonusTotals: Map<String, BloodRefinementBonusTotal> = emptyMap(),
+
     // 天道试炼状态
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @ColumnInfo(name = "heavenly_trial_state", defaultValue = "{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}")
@@ -547,6 +553,30 @@ data class BloodRefinementProgress(
     val durationMonths: Int = 0,
     val selectedStat: String = "",    // "speed"/"hp"/"physicalAttack"/"magicAttack"/"physicalDefense"/"magicDefense"
     val bonusPercent: Double = 0.0
+)
+
+/**
+ * 血炼加成累计记录（单利计算基准）。
+ *
+ * 用于修复血炼加成复利叠加 bug（#8）：
+ * - 旧实现每次血炼 bonus = 当前 base × bonusPercent，导致 baseₙ = base₀ × (1+p)ⁿ 复利叠加
+ * - 修复后 bonus = (当前 base - 已累计 bonus) × bonusPercent，实现单利
+ *
+ * 旧存档加载时此字段为空 Map，弟子当前 base 被视为原始 base（已存在的复利加成无法回溯，
+ * 但后续血炼将基于单利计算，防止进一步复利）。
+ *
+ * @see com.xianxia.sect.core.domain.disciple.DiscipleStatCalculator.calculateSimpleInterestBonus
+ */
+@Keep
+@Serializable
+data class BloodRefinementBonusTotal(
+    val discipleId: String = "",
+    val hpBonus: Int = 0,
+    val physicalAttackBonus: Int = 0,
+    val magicAttackBonus: Int = 0,
+    val physicalDefenseBonus: Int = 0,
+    val magicDefenseBonus: Int = 0,
+    val speedBonus: Int = 0
 )
 
 // 长老槽位数据
@@ -862,7 +892,15 @@ data class SpiritMineSlot(
     val discipleName: String = "",
     val output: Int = 100,
     val sectId: String = "",
-    val consecutiveMiningMonths: Int = 0
+    val consecutiveMiningMonths: Int = 0,
+    /**
+     * 所属灵矿场建筑实例 ID。
+     *
+     * 用于建筑移除时按实例精确匹配槽位，替代旧的 `dropLast(3)` 按位置截断模式。
+     * 旧存档加载时为空字符串，由 [com.xianxia.sect.core.engine.GameEngine.validateAndFixSpiritMineData]
+     * 按建筑顺序回填。
+     */
+    val buildingInstanceId: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

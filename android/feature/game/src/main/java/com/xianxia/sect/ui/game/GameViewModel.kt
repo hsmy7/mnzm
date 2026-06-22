@@ -202,18 +202,12 @@ class GameViewModel @Inject constructor(
             val cost = config?.cost ?: 1000L
             val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
 
-            // Pre-compute new production slot for alchemy/forge multi-build
-            val newProductionSlot = when (name) {
-                BuildingDef.ALCHEMY.displayName -> {
-                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName }
-                    ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
-                }
-                BuildingDef.FORGE.displayName -> {
-                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName }
-                    ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
-                }
-                else -> null
-            }
+            // Pre-compute new building instance ID so production slot can reference it
+            val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
+
+            // 在 updateGameData 闭包外保留对新 ProductionSlot 的引用，
+            // 但其 idx 在闭包内基于当前 data 计算以保证原子性
+            var newProductionSlot: ProductionSlot? = null
 
             val activeId = gameEngine.currentActiveSectId()
             gameEngine.updateGameData { data ->
@@ -227,21 +221,6 @@ class GameViewModel @Inject constructor(
                 }
                 if (data.spiritStones < cost) return@updateGameData data
 
-                val newSlots = if (name == BuildingDef.SPIRIT_MINE.displayName) {
-                    val nextIndex = data.spiritMineSlots.size
-                    (0 until 3).map { SpiritMineSlot(index = nextIndex + it) }
-                } else emptyList()
-
-                val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    val nextIndex = data.patrolSlots.size
-                    val slotCount = buildingConfigService.getSlotCountByDisplayName(name)
-                    (0 until slotCount).map { PatrolSlot(index = nextIndex + it) }
-                } else emptyList()
-
-                val newPatrolConfigs = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    data.patrolConfigs + PatrolConfig()
-                } else emptyList()
-
                 val newBuilding = GridBuildingData(
                     buildingId = name,
                     displayName = name,
@@ -249,8 +228,42 @@ class GameViewModel @Inject constructor(
                     gridY = gridY,
                     width = gridW,
                     height = gridH,
-                    sectId = activeId
-                ).withInstanceId()
+                    sectId = activeId,
+                    instanceId = newBuildingInstanceId
+                )
+
+                // 在事务闭包内基于当前 data 计算 idx，避免并发放置同类型建筑时
+                // idx 重复（历史 bug：idx 在闭包外基于快照计算，与闭包内 data 非原子）
+                newProductionSlot = when (name) {
+                    BuildingDef.ALCHEMY.displayName -> {
+                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName }
+                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+                            .copy(buildingInstanceId = newBuildingInstanceId)
+                    }
+                    BuildingDef.FORGE.displayName -> {
+                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName }
+                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
+                            .copy(buildingInstanceId = newBuildingInstanceId)
+                    }
+                    else -> null
+                }
+
+                // 创建灵矿场槽位时写入 buildingInstanceId，用于建筑移除时精确匹配
+                val newSlots = if (name == BuildingDef.SPIRIT_MINE.displayName) {
+                    val nextIndex = data.spiritMineSlots.size
+                    (0 until 3).map { SpiritMineSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
+                } else emptyList()
+
+                // 创建巡视楼槽位时写入 buildingInstanceId
+                val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
+                    val nextIndex = data.patrolSlots.size
+                    val slotCount = buildingConfigService.getSlotCountByDisplayName(name)
+                    (0 until slotCount).map { PatrolSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
+                } else emptyList()
+
+                val newPatrolConfigs = if (name == BuildingDef.PATROL_TOWER.displayName) {
+                    data.patrolConfigs + PatrolConfig()
+                } else emptyList()
 
                 val newResidenceSlots = when (name) {
                     BuildingDef.SINGLE_RESIDENCE.displayName -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
@@ -263,8 +276,9 @@ class GameViewModel @Inject constructor(
                 } else emptyList()
 
                 @Suppress("DEPRECATION")
-                val updatedProductionSlots = if (newProductionSlot != null)
-                    data.productionSlots + newProductionSlot else data.productionSlots
+                val slot = newProductionSlot
+                val updatedProductionSlots = if (slot != null)
+                    data.productionSlots + slot else data.productionSlots
                 data.copy(
                     spiritStones = data.spiritStones - cost,
                     placedBuildings = data.placedBuildings + newBuilding,
@@ -277,8 +291,8 @@ class GameViewModel @Inject constructor(
                 )
             }
 
-            if (newProductionSlot != null) {
-                buildingFacade.addProductionSlot(newProductionSlot)
+            newProductionSlot?.let { slot ->
+                buildingFacade.addProductionSlot(slot)
             }
         }
     }
@@ -824,7 +838,8 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 buildingFacade.startManualPlanting(slotIndex, seed.id)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "种植失败")
             }
         }
@@ -964,10 +979,12 @@ class GameViewModel @Inject constructor(
                     } else {
                         showError("出售失败，物品可能已被锁定或不存在")
                     }
-                } catch (e: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
                     showError("出售过程中发生错误: ${e.message}")
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "一键出售失败")
             }
         }
@@ -984,7 +1001,8 @@ class GameViewModel @Inject constructor(
             try {
                 // Phase3: planned feature
                 gameEngine.startMission(mission, selectedDisciples.map { it.toDisciple() })
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError(e.message ?: "开始任务失败")
             }
         }
@@ -1013,7 +1031,8 @@ class GameViewModel @Inject constructor(
         Log.i(TAG, "清理 GameViewModel 资源")
         try {
             gameEngineCore.stopGameLoop()
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.w(TAG, "stopGameLoop failed: ${e.message}")
         }
     }
@@ -1059,7 +1078,8 @@ class GameViewModel @Inject constructor(
                 } else {
                     showError(result.message)
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 Log.e(TAG, "Error redeeming code", e)
                 showError("兑换失败: ${e.message}")
             }

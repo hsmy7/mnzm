@@ -129,12 +129,14 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 Log.e(TAG, "Failed to load save slots in init, retrying after delay", e)
                 delay(500)
                 try {
                     _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                } catch (e2: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (e2: Exception) {
                     Log.e(TAG, "Retry loading save slots also failed", e2)
                 }
             }
@@ -165,7 +167,8 @@ class SaveLoadViewModel @Inject constructor(
                 if (result.success) {
                     try {
                         _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.e(TAG, "Failed to refresh slots after pipeline save: ${e.message}", e)
                     }
                     Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
@@ -184,8 +187,8 @@ class SaveLoadViewModel @Inject constructor(
         val finalIsSaving = isSaving ?: current.isSaving
         val finalIsLoading = isLoading ?: current.isLoading
 
-        try { stateStore.update { this.isLoading = finalIsLoading } } catch (e: Exception) { Log.w(TAG, "Failed to sync isLoading to stateStore: ${e.message}") }
-        try { stateStore.update { this.isSaving = finalIsSaving } } catch (e: Exception) { Log.w(TAG, "Failed to sync isSaving to stateStore: ${e.message}") }
+        try { stateStore.update { this.isLoading = finalIsLoading } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "Failed to sync isLoading to stateStore: ${e.message}") }
+        try { stateStore.update { this.isSaving = finalIsSaving } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "Failed to sync isSaving to stateStore: ${e.message}") }
 
         _pendingSlot.value = pendingSlot
         _pendingAction.value = pendingAction
@@ -198,8 +201,8 @@ class SaveLoadViewModel @Inject constructor(
 
     fun resetSaveLoadState() {
         viewModelScope.launch {
-            try { stateStore.update { isLoading = false } } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setLoading failed: ${e.message}") }
-            try { stateStore.update { isSaving = false } } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaving failed: ${e.message}") }
+            try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setLoading failed: ${e.message}") }
+            try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaving failed: ${e.message}") }
         }
         _pendingSlot.value = null
         _pendingAction.value = null
@@ -276,7 +279,8 @@ class SaveLoadViewModel @Inject constructor(
     private fun stopGameLoop() {
         try {
             gameEngineCore.stopGameLoop()
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "Error stopping game loop", e)
         } finally {
             _isTimeRunning.value = false
@@ -313,7 +317,8 @@ class SaveLoadViewModel @Inject constructor(
                         Log.d(TAG, "Auto incremental save succeeded for slot: $autoSaveSlot")
                         try {
                             _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                        } catch (e: Exception) {
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
                             Log.e(TAG, "Failed to refresh slots after incremental save", e)
                         }
                         return@launch
@@ -467,7 +472,8 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         storageFacade.clearEmergencySaveSuspend()
                         Log.d(TAG, "Stale emergency save cleared after new game start, slot=$slot")
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.w(TAG, "Failed to clear stale emergency save: ${e.message}")
                     }
                 }
@@ -487,7 +493,8 @@ class SaveLoadViewModel @Inject constructor(
                         _isGameLoaded = true
                         gameStarted = true
                         Log.w(TAG, "startNewGame: Game loop started with partial data")
-                    } catch (loopEx: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (loopEx: Exception) {
                         Log.e(TAG, "startNewGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
                     }
                 } else {
@@ -499,10 +506,11 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (resetEx: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (resetEx: Exception) {
                     Log.e(TAG, "startNewGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
-                    try { stateStore.update { isSaving = false } } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
+                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
+                    try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -513,7 +521,8 @@ class SaveLoadViewModel @Inject constructor(
                 if (needSlotRefresh) {
                     try {
                         _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.w(TAG, "startNewGame: Failed to refresh save slots after completion: ${e.message}")
                     }
                 }
@@ -545,7 +554,8 @@ class SaveLoadViewModel @Inject constructor(
                     gameEngine.updateGameData { updatedGameData }
                     try {
                         _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.e(TAG, "Failed to refresh slots after synchronous save: ${e.message}", e)
                     }
                     Log.i(TAG, "performSynchronousSave SUCCESS for slot $slot")
@@ -572,7 +582,8 @@ class SaveLoadViewModel @Inject constructor(
                     false
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "performSynchronousSave ERROR: ${e.message}", e)
             showError("保存错误：${e.message}")
             false
@@ -617,7 +628,8 @@ class SaveLoadViewModel @Inject constructor(
                         val data = storageFacade.load(saveSlot.slot).getOrNull()
                         Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
                         data
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.e(TAG, "Error loading save data: ${e.message}", e)
                         null
                     }
@@ -693,7 +705,8 @@ class SaveLoadViewModel @Inject constructor(
                         preloadGameResources()
                         startGameLoop()
                         _isGameLoaded = true
-                    } catch (loopEx: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (loopEx: Exception) {
                         Log.e(TAG, "loadGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
                     }
                 }
@@ -701,9 +714,10 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (resetEx: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (resetEx: Exception) {
                     Log.e(TAG, "loadGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
+                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -752,7 +766,8 @@ class SaveLoadViewModel @Inject constructor(
                         val data = storageFacade.load(slot).getOrNull()
                         Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
                         data
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
                         Log.e(TAG, "Error loading save data: ${e.message}", e)
                         null
                     }
@@ -818,7 +833,8 @@ class SaveLoadViewModel @Inject constructor(
                         try {
                             storageFacade.clearEmergencySaveSuspend()
                             Log.d(TAG, "Stale emergency save cleared after successful load, slot=$slot")
-                        } catch (e: Exception) {
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
                             Log.w(TAG, "Failed to clear stale emergency save: ${e.message}")
                         }
                     }
@@ -842,7 +858,8 @@ class SaveLoadViewModel @Inject constructor(
                         _isGameLoaded = true
                         gameLoaded = true
                         Log.w(TAG, "loadGameFromSlot: Game loop started with partial data")
-                    } catch (loopEx: Exception) {
+                    } catch (e: CancellationException) { throw e }
+                      catch (loopEx: Exception) {
                         Log.e(TAG, "loadGameFromSlot: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
                     }
                 }
@@ -851,9 +868,10 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (resetEx: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (resetEx: Exception) {
                     Log.e(TAG, "loadGameFromSlot: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
+                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -922,7 +940,8 @@ class SaveLoadViewModel @Inject constructor(
                     if (saveResult != null && saveResult.isSuccess) {
                         try {
                             _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                        } catch (e: Exception) {
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
                             Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
                         }
                         showSuccess("游戏保存成功")
@@ -934,7 +953,8 @@ class SaveLoadViewModel @Inject constructor(
                                     storageFacade.emergencySaveSuspend(saveData)
                                 }
                                 Log.d(TAG, "Emergency save updated during manual save, slot=$slot")
-                            } catch (e: Exception) {
+                            } catch (e: CancellationException) { throw e }
+                              catch (e: Exception) {
                                 Log.w(TAG, "Failed to update emergency save during manual save: ${e.message}")
                             }
                         }
@@ -950,13 +970,13 @@ class SaveLoadViewModel @Inject constructor(
                         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
                         showError(errorMsg)
                         Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
-                        try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
+                        try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
                     storageFacade.setCurrentSlot(previousSlot)
                     showError("内存不足，保存失败。请关闭其他应用后重试。")
-                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
+                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
                 } catch (e: CancellationException) {
                     Log.w(TAG, "saveGame cancelled")
                     storageFacade.setCurrentSlot(previousSlot)
@@ -965,7 +985,7 @@ class SaveLoadViewModel @Inject constructor(
                     Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
                     storageFacade.setCurrentSlot(previousSlot)
                     showError("保存失败: ${e.message}")
-                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
+                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
                 } finally {
                     saveLock.set(false)
                     saveLockAcquireTime.set(0)
@@ -973,9 +993,10 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 try {
                     setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-                } catch (resetEx: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (resetEx: Exception) {
                     Log.e(TAG, "saveGame: Failed to reset saving state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isSaving = false } } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
+                    try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -1002,7 +1023,8 @@ class SaveLoadViewModel @Inject constructor(
         // 如果有异步操作修改了状态，快照可能为空
         val snapshot = try {
             gameEngine.getStateSnapshotSync()
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "pauseAndSaveForBackground: failed to get snapshot: ${e.message}")
             null
         }
@@ -1056,7 +1078,8 @@ class SaveLoadViewModel @Inject constructor(
                     gameEngineCore.clearActiveSaveJob()
                 }
             }.also { gameEngineCore.registerActiveSaveJob(it) }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
         }
     }
@@ -1194,7 +1217,8 @@ class SaveLoadViewModel @Inject constructor(
                     true -> {
                         try {
                             _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                        } catch (e: Exception) {
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
                             Log.e(TAG, "Failed to refresh slots after restart save: ${e.message}", e)
                         }
                         Log.i(TAG, "performRestartSave success for slot $slot")
@@ -1219,7 +1243,8 @@ class SaveLoadViewModel @Inject constructor(
                 Log.e(TAG, "performRestartSave OutOfMemoryError for slot $slot", e)
                 storageFacade.setCurrentSlot(previousSlot)
                 false
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 Log.e(TAG, "performRestartSave error for slot $slot", e)
                 storageFacade.setCurrentSlot(previousSlot)
                 false
@@ -1241,7 +1266,8 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 Log.e(TAG, "refreshSaveSlots failed", e)
             }
         }
@@ -1272,7 +1298,8 @@ class SaveLoadViewModel @Inject constructor(
                 snapshotToSave = snapshot
                 Log.d(TAG, "Captured game snapshot for exit save in SaveLoadViewModel")
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
         }
 
@@ -1340,7 +1367,8 @@ class SaveLoadViewModel @Inject constructor(
                 } else {
                     Log.w(TAG, "Exit save failed in SaveLoadViewModel, slot: $autoSaveSlot")
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 Log.e(TAG, "Exit save failed in SaveLoadViewModel: ${e.message}")
             }
         }

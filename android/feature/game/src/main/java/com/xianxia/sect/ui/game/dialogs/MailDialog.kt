@@ -377,7 +377,7 @@ private fun MailDetailPanel(
     }
 
     if (showDetail && detailAttachment != null) {
-        val attachment = detailAttachment!!
+        val attachment = checkNotNull(detailAttachment)
         ItemDetailDialog(
             item = MerchantItem(
                 id = attachment.itemId ?: "",

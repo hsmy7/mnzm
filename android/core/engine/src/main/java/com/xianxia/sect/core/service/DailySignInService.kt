@@ -74,6 +74,7 @@ class DailySignInService @Inject constructor(
     }
 
     fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState {
+        // 单次 Calendar.getInstance() 避免午夜跨越时多次调用不一致
         val calendar = Calendar.getInstance()
         val currentYear = calendar.get(Calendar.YEAR)
         val currentMonth = calendar.get(Calendar.MONTH)
@@ -81,7 +82,9 @@ class DailySignInService @Inject constructor(
 
         calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth)
         val targetDayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
-        val todayDayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        // 复用同一 calendar 实例计算今天的天序，避免二次 getInstance 可能跨越午夜
+        calendar.set(Calendar.DAY_OF_MONTH, today)
+        val todayDayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
 
         return when {
             dayOfMonth == today -> {

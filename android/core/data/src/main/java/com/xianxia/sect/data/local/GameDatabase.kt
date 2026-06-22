@@ -364,14 +364,18 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** 5.0.01: 新增 autoBuyList 列 — 自动购买列表 */
+        /** 5.0.01: 新增 autoBuyList + bloodRefinementBonusTotals 列 */
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE game_data ADD COLUMN autoBuyList TEXT " +
                     "NOT NULL DEFAULT '[]'"
                 )
-                Log.i(TAG, "Migration 4→5: added autoBuyList column to game_data")
+                db.execSQL(
+                    "ALTER TABLE game_data ADD COLUMN bloodRefinementBonusTotals TEXT " +
+                    "NOT NULL DEFAULT ''"
+                )
+                Log.i(TAG, "Migration 4→5: added autoBuyList, bloodRefinementBonusTotals columns")
             }
         }
         private val threadCounter = AtomicInteger(0)

@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -168,6 +169,8 @@ class StorageFacade @Inject constructor(
             try {
                 val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(StorageConstants.AUTO_SAVE_SLOT) }
                 Log.d(TAG, "Database integrity check passed (auto-save slot: ${metadata?.sectName ?: "empty"})")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Database integrity check FAILED -- database may have schema mismatch", e)
                 _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f,
@@ -184,6 +187,8 @@ class StorageFacade @Inject constructor(
 
             Log.i(TAG, "StorageFacade initialized successfully")
             SaveResult.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "StorageFacade initialization failed", e)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -229,6 +234,8 @@ class StorageFacade @Inject constructor(
                 _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Save failed")
                 result.toUnifiedResult().map { }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Save failed for slot $slot", e)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -255,6 +262,8 @@ class StorageFacade @Inject constructor(
                 _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Incremental save failed")
                 result.toUnifiedResult().map { }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Incremental save failed for slot $slot", e)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -281,6 +290,8 @@ class StorageFacade @Inject constructor(
             }
 
             result.toUnifiedResult()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Load failed for slot $slot", e)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -298,6 +309,8 @@ class StorageFacade @Inject constructor(
                 val result = save(slot, data)
                 result.isSuccess
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "saveSync failed for slot $slot", e)
             false
@@ -311,6 +324,8 @@ class StorageFacade @Inject constructor(
             withContext(Dispatchers.IO) {
                 save(slot, data)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "saveSyncWithResult failed for slot $slot", e)
             SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Save failed", e)
@@ -325,6 +340,8 @@ class StorageFacade @Inject constructor(
                 val result = load(slot)
                 result.getOrNull()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "loadSync failed for slot $slot", e)
             null
@@ -361,6 +378,8 @@ class StorageFacade @Inject constructor(
             withContext(Dispatchers.IO) {
                 engine.getSaveSlots()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getSaveSlots FAILED", e)
             throw RuntimeException("Failed to get save slots: ${e.message}", e)
@@ -370,6 +389,8 @@ class StorageFacade @Inject constructor(
     suspend fun getSaveSlotsSuspend(): List<SaveSlot> {
         return try {
             engine.getSaveSlots()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getSaveSlotsSuspend FAILED, returning empty list", e)
             emptyList()
@@ -390,6 +411,8 @@ class StorageFacade @Inject constructor(
     suspend fun hasEmergencySave(): Boolean {
         return try {
             engine.hasEmergencySave()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "hasEmergencySave check failed", e)
             false
@@ -403,6 +426,8 @@ class StorageFacade @Inject constructor(
             withContext(Dispatchers.IO) {
                 engine.loadEmergencySave()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "loadEmergencySave failed", e)
             null
@@ -425,6 +450,8 @@ class StorageFacade @Inject constructor(
             withContext(Dispatchers.IO) {
                 engine.clearEmergencySave()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "clearEmergencySave failed", e)
         }
@@ -446,6 +473,8 @@ class StorageFacade @Inject constructor(
                 val result = engine.emergencySave(data)
                 result.isSuccess
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "emergencySave failed", e)
             false
@@ -455,6 +484,8 @@ class StorageFacade @Inject constructor(
     suspend fun emergencySaveSuspend(data: SaveData): Boolean {
         return try {
             engine.emergencySave(data).isSuccess
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "emergencySave failed", e)
             false
@@ -470,6 +501,8 @@ class StorageFacade @Inject constructor(
             withContext(Dispatchers.IO) {
                 engine.hasData(slot)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "hasSave check failed for slot $slot", e)
             false
@@ -479,6 +512,8 @@ class StorageFacade @Inject constructor(
     suspend fun hasSaveSuspend(slot: Int): Boolean {
         return try {
             engine.hasData(slot)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "hasSave check failed for slot $slot", e)
             false
@@ -493,6 +528,8 @@ class StorageFacade @Inject constructor(
                 val result = engine.validateIntegrity(slot)
                 result.isFailure
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
             false
@@ -502,6 +539,8 @@ class StorageFacade @Inject constructor(
     suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
         return try {
             engine.validateIntegrity(slot).isFailure
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
             false
@@ -559,6 +598,8 @@ class StorageFacade @Inject constructor(
                         warnings.add("Slot $slot integrity check failed")
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 warnings.add("Slot $slot health check error: ${e.message}")
             }
@@ -591,6 +632,8 @@ class StorageFacade @Inject constructor(
                 integrityValid = integrity?.isSuccess ?: true,
                 warnings = if (integrity?.isFailure == true) listOf("Integrity check failed") else emptyList()
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             SlotHealthReport(slot, false, false, 0L, false, listOf("Health check error: ${e.message}"))
         }
@@ -613,6 +656,8 @@ class StorageFacade @Inject constructor(
                             } else 0L
                         } else 0L
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     0L
                 }
@@ -626,6 +671,8 @@ class StorageFacade @Inject constructor(
                 cacheBytes = 0L,
                 walBytes = 0L
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getStorageUsage failed", e)
             StorageUsage(0L, emptyMap(), 0L, 0L)
@@ -645,6 +692,8 @@ class StorageFacade @Inject constructor(
                             com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
                         } else 0L
                     } else 0L
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     0L
                 }
@@ -658,6 +707,8 @@ class StorageFacade @Inject constructor(
                 cacheBytes = 0L,
                 walBytes = 0L
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getStorageUsage failed", e)
             StorageUsage(0L, emptyMap(), 0L, 0L)

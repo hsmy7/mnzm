@@ -13,7 +13,7 @@ class ManageAllianceUseCase @Inject constructor(
         val message: String
     )
 
-    fun requestAlliance(sectId: String, envoyDiscipleId: String): AllianceResult {
+    suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): AllianceResult {
         val (success, message) = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
         return AllianceResult(success, message)
     }

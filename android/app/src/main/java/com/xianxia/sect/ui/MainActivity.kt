@@ -208,6 +208,8 @@ class MainActivity : ComponentActivity() {
                             kotlinx.coroutines.delay(500L * retryCount)
                         }
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     retryCount++
                     Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
@@ -242,6 +244,8 @@ class MainActivity : ComponentActivity() {
                     crashHandler.clearCrashState()
                     try {
                         storageFacade.clearEmergencySaveSuspend()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to clear emergency save for expired crash: ${e.message}")
                     }
@@ -319,6 +323,8 @@ class MainActivity : ComponentActivity() {
             val saveSlots = withContext(Dispatchers.IO) {
                 try {
                     storageFacade.getSaveSlotsSuspend()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "getSaveSlots failed, returning empty list", e)
                     emptyList()
@@ -396,6 +402,8 @@ class MainActivity : ComponentActivity() {
                     Log.i(TAG, "Emergency save metadata: sect=$emergencySectName, " +
                         "year=$emergencyYear, month=$emergencyMonth")
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load emergency save metadata: ${e.message}")
             }
@@ -503,6 +511,8 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.Main) {
                     ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: java.util.concurrent.TimeoutException) {
                 tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)

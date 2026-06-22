@@ -417,6 +417,8 @@ class XianxiaApplication : Application() {
                     Log.i("AppStartup", "Crash recovery: recovered slots=${report.recoveredSlots}")
                 }
                 recoveryManager.scheduleDeferredWarmup(applicationScopeProvider.scope)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Startup recovery failed", e)
             }

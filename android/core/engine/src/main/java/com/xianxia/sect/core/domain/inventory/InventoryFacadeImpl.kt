@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.mergeStackable
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -487,53 +488,47 @@ class InventoryFacadeImpl @Inject constructor(
                     }
                 }
                 "manual" -> {
-                    val stack = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                    val existing = manualStacks.all().find { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type }
-                    if (existing != null) {
-                        manualStacks.update(existing.id) { it.copy(quantity = it.quantity + stack.quantity) }
-                    } else {
-                        manualStacks.add(stack)
-                    }
+                    val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
+                    // 使用 mergeStackable 处理溢出，与其他类型保持一致。
+                    // 修复历史 bug：旧实现直接相加 quantity 不检查 maxStack，
+                    // 导致购买可堆叠功法时超出上限静默丢失。
+                    manualStacks = manualStacks.mergeStackable(
+                        item = m,
+                        matchPredicate = { it.name == m.name && it.rarity == m.rarity && it.type == m.type },
+                        maxStack = inventoryConfig.getMaxStackSize("manual")
+                    )
                 }
                 "pill" -> {
                     val p = MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
-                    val existing = pills.all().find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + p.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                        pills.update(existing.id) { it.copy(quantity = newQty) }
-                    } else {
-                        pills.add(p)
-                    }
+                    pills = pills.mergeStackable(
+                        item = p,
+                        matchPredicate = { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade },
+                        maxStack = inventoryConfig.getMaxStackSize("pill")
+                    )
                 }
                 "material" -> {
                     val m = MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
-                    val existing = materials.all().find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                        materials.update(existing.id) { it.copy(quantity = newQty) }
-                    } else {
-                        materials.add(m)
-                    }
+                    materials = materials.mergeStackable(
+                        item = m,
+                        matchPredicate = { it.name == m.name && it.rarity == m.rarity && it.category == m.category },
+                        maxStack = inventoryConfig.getMaxStackSize("material")
+                    )
                 }
                 "herb" -> {
                     val h = MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
-                    val existing = herbs.all().find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + h.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                        herbs.update(existing.id) { it.copy(quantity = newQty) }
-                    } else {
-                        herbs.add(h)
-                    }
+                    herbs = herbs.mergeStackable(
+                        item = h,
+                        matchPredicate = { it.name == h.name && it.rarity == h.rarity && it.category == h.category },
+                        maxStack = inventoryConfig.getMaxStackSize("herb")
+                    )
                 }
                 "seed" -> {
                     val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                    val existing = seeds.all().find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                        seeds.update(existing.id) { it.copy(quantity = newQty) }
-                    } else {
-                        seeds.add(s)
-                    }
+                    seeds = seeds.mergeStackable(
+                        item = s,
+                        matchPredicate = { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime },
+                        maxStack = inventoryConfig.getMaxStackSize("seed")
+                    )
                 }
             }
         }

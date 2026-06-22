@@ -534,7 +534,7 @@ fun PlantingDialog(
 
     if (showSeedDetail && detailSeed != null) {
         ItemDetailDialog(
-            item = detailSeed!!,
+            item = checkNotNull(detailSeed) { "detailSeed is null" },
             onDismiss = {
                 showSeedDetail = false
                 detailSeed = null

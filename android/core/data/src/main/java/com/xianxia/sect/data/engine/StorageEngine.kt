@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Immutable
 import androidx.room.withTransaction
 import java.io.File
@@ -174,6 +175,8 @@ class StorageEngine @Inject constructor(
                     val elapsed = System.currentTimeMillis() - startTime
                     stats.copy(timeMs = elapsed)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Save failed for slot $slot", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -219,6 +222,8 @@ class StorageEngine @Inject constructor(
                     _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
                     StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Load failed for slot $slot", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -284,6 +289,8 @@ class StorageEngine @Inject constructor(
 
                 Log.i(TAG, "Deleted all data for slot $slot (isAutoSave=$isAutoSave)")
                 StorageResult.success(Unit)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Delete failed for slot $slot", e)
                 StorageResult.failure(StorageError.DELETE_FAILED, e.message ?: "Delete failed", e)
@@ -296,6 +303,8 @@ class StorageEngine @Inject constructor(
 
         return try {
             database.gameDataDao().existsBySlot(slot) != null
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "hasData check failed for slot $slot", e)
             false
@@ -336,6 +345,8 @@ class StorageEngine @Inject constructor(
                         timeMs = elapsed,
                         wasIncremental = false
                     ))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Emergency save failed", e)
                     StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Emergency save failed", e)
@@ -397,6 +408,8 @@ class StorageEngine @Inject constructor(
                 fileSize = 0,
                 customName = meta.sectName
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "getSlotMetadata failed for slot $slot", e)
             null
@@ -409,6 +422,8 @@ class StorageEngine @Inject constructor(
                 getSlotMetadata(slot)
             }
             StorageResult.success(slots)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "listSlots failed", e)
             StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Failed to list slots")
@@ -426,6 +441,8 @@ class StorageEngine @Inject constructor(
                 ?: return StorageResult.failure(StorageError.SLOT_EMPTY, "No data found for slot $slot")
 
             storageIntegrity.validateIntegrity(slot, saveData)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Integrity validation failed for slot $slot", e)
             StorageResult.failure(StorageError.SLOT_CORRUPTED, e.message ?: "Integrity check failed")
@@ -437,6 +454,8 @@ class StorageEngine @Inject constructor(
 
         try {
             slots.add(querySingleSlot(StorageConstants.AUTO_SAVE_SLOT))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to query auto-save slot, using empty placeholder", e)
             slots.add(SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true))
@@ -445,6 +464,8 @@ class StorageEngine @Inject constructor(
         for (slot in 1..lockManager.getMaxSlots()) {
             try {
                 slots.add(querySingleSlot(slot))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to query slot $slot, using empty placeholder", e)
                 slots.add(SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true))
@@ -524,6 +545,8 @@ class StorageEngine @Inject constructor(
                     timeMs = elapsed,
                     wasIncremental = true
                 ))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Incremental save failed for slot $slot", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
@@ -538,6 +561,8 @@ class StorageEngine @Inject constructor(
             lockManager.isValidSlot(slot) && withContext(Dispatchers.IO) {
                 database.gameDataDao().existsBySlot(slot) != null
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             false
         }
@@ -547,6 +572,8 @@ class StorageEngine @Inject constructor(
         return try {
             val result = load(StorageConstants.EMERGENCY_SLOT)
             result.getOrNull()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load emergency save", e)
             null
@@ -557,6 +584,8 @@ class StorageEngine @Inject constructor(
         return try {
             val result = delete(StorageConstants.EMERGENCY_SLOT)
             result.isSuccess
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear emergency save", e)
             false
@@ -612,6 +641,8 @@ class StorageEngine @Inject constructor(
 
         try {
             database.performPostSaveCheckpoint()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Post-save checkpoint failed for slot $slot (non-fatal)", e)
         }
@@ -856,6 +887,8 @@ class StorageEngine @Inject constructor(
                 recordId = "game_data_$slot",
                 operation = ChangeLogOperation.UPDATE
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to log save change for slot $slot", e)
         }
@@ -865,6 +898,8 @@ class StorageEngine @Inject constructor(
         try {
             val gameDataKey = CacheKey.forGameData(slot)
             cache.getOrNull<SaveData>(gameDataKey)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load from cache for slot $slot", e)
             null
@@ -876,6 +911,8 @@ class StorageEngine @Inject constructor(
             database.withTransaction {
                 loadFromDatabaseInternal(slot)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load from database for slot $slot", e)
             null
@@ -1016,6 +1053,8 @@ class StorageEngine @Inject constructor(
     private suspend fun loadHeavyDataSafe(slot: Int): List<GameHeavyData> {
         val keys = try {
             database.gameHeavyDataDao().getLoadedKeys(slot)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load heavy data keys for slot $slot, skipping", e)
             return emptyList()
@@ -1026,10 +1065,14 @@ class StorageEngine @Inject constructor(
             try {
                 val row = database.gameHeavyDataDao().getByKey(slot, key)
                 if (row != null) result.add(row)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, will be regenerated on next save", e)
                 // 删除超大行，下次保存时会分块重写
-                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: Exception) {
+                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     Log.w(TAG, "Failed to delete oversized heavy data key '$key'", e)
                 }
             }
@@ -1144,6 +1187,8 @@ class StorageEngine @Inject constructor(
             } else {
                 SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "querySingleSlot FAILED for slot $slot -- database may be unreachable or schema is mismatched", e)
             throw RuntimeException("Failed to query save slot $slot: ${e.message}", e)

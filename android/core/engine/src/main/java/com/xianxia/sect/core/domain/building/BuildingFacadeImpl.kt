@@ -86,6 +86,27 @@ class BuildingFacadeImpl @Inject constructor(
         discipleName: String
     ) {
         gameEngineCore.launchInScope {
+            // 排他性校验：防止同一弟子被重复分配到多个生产槽位。
+            //
+            // 历史 bug：此方法（UI 实际调用路径）完全没有排他性检查，
+            // 弟子可被同时分配到多个炼丹炉/锻造坊。修复 #4 时补齐。
+            val allSlots = productionCoordinator.repository.getSlots()
+            val alreadyAssigned = isDiscipleAssignedToOtherSlot(
+                discipleId = discipleId,
+                slots = allSlots,
+                currentBuildingType = buildingType,
+                currentSlotIndex = slotIndex
+            )
+            if (alreadyAssigned) return@launchInScope
+
+            // 若目标槽位已有弟子，先将其恢复为空闲状态
+            val existingSlot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
+            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
+                if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                    updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+                }
+            }
+
             productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                 slot.copy(
                     assignedDiscipleId = discipleId,
@@ -309,9 +330,13 @@ class BuildingFacadeImpl @Inject constructor(
         when {
             name == "炼丹炉" || name == "锻造坊" -> {
                 val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
-                gameData.productionSlots.filter { it.buildingId == bid }
-                    .maxByOrNull { it.slotIndex }?.assignedDiscipleId
-                    ?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
+                // 按 buildingInstanceId 精确匹配，替代旧的 maxByOrNull { it.slotIndex }
+                // 修复多建筑同类型时移除错误槽位的问题
+                gameData.productionSlots
+                    .filter { it.buildingInstanceId == instanceId && it.buildingId == bid }
+                    .mapNotNull { it.assignedDiscipleId }
+                    .filter { it.isNotEmpty() }
+                    .forEach { ids.add(it) }
             }
             name.contains("住所") -> gameData.residenceSlots
                 .filter { it.buildingInstanceId == instanceId }
@@ -321,10 +346,12 @@ class BuildingFacadeImpl @Inject constructor(
                 .filter { it.buildingInstanceId == instanceId }
                 .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
                 .forEach { ids.add(it) }
-            name == "灵矿场" -> gameData.spiritMineSlots.takeLast(3)
+            name == "灵矿场" -> gameData.spiritMineSlots
+                .filter { it.buildingInstanceId == instanceId }
                 .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
                 .forEach { ids.add(it) }
-            name == "巡视楼" -> gameData.patrolSlots.takeLast(8)
+            name == "巡视楼" -> gameData.patrolSlots
+                .filter { it.buildingInstanceId == instanceId }
                 .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
                 .forEach { ids.add(it) }
             name == "血炼池" -> gameData.activeBloodRefinements[instanceId]
@@ -341,11 +368,23 @@ class BuildingFacadeImpl @Inject constructor(
             spiritStones = gameData.spiritStones + refund
         )
         when {
-            name == "灵矿场" && gd.spiritMineSlots.size >= 3 ->
-                gd = gd.copy(spiritMineSlots = gd.spiritMineSlots.dropLast(3))
-            name == "巡视楼" && gd.patrolSlots.size >= 8 ->
-                gd = gd.copy(patrolSlots = gd.patrolSlots.dropLast(8),
-                    patrolConfigs = gd.patrolConfigs.dropLast(1))
+            name == "灵矿场" ->
+                // 按 buildingInstanceId 精确移除，替代旧的 dropLast(3)
+                gd = gd.copy(spiritMineSlots = gd.spiritMineSlots.filter {
+                    it.buildingInstanceId != instanceId
+                })
+            name == "巡视楼" ->
+                // 按 buildingInstanceId 精确移除，替代旧的 dropLast(8) + patrolConfigs.dropLast(1)
+                gd = gd.copy(
+                    patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId != instanceId },
+                    patrolConfigs = gd.patrolConfigs.filterIndexed { idx, _ ->
+                        // patrolConfigs 与巡视楼按顺序一一对应，需找到该 instanceId 对应的索引
+                        val towerIdx = gameData.placedBuildings
+                            .filter { it.displayName == "巡视楼" }
+                            .indexOfFirst { it.instanceId == instanceId }
+                        idx != towerIdx
+                    }
+                )
             name == "灵田" ->
                 gd = gd.copy(spiritFieldPlants = gd.spiritFieldPlants.filter {
                     it.buildingInstanceId != instanceId })
@@ -357,10 +396,18 @@ class BuildingFacadeImpl @Inject constructor(
                     it.buildingInstanceId != instanceId })
             name == "炼丹炉" || name == "锻造坊" -> {
                 val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
-                val maxIdx = gd.productionSlots.filter { it.buildingId == bid }
-                    .maxOfOrNull { it.slotIndex } ?: -1
-                if (maxIdx >= 0) gd = gd.copy(productionSlots = gd.productionSlots.filter {
-                    !(it.buildingId == bid && it.slotIndex == maxIdx) })
+                // 按 buildingInstanceId 精确移除，替代旧的 maxOfOrNull { it.slotIndex }
+                gd = gd.copy(productionSlots = gd.productionSlots.filter {
+                    it.buildingInstanceId != instanceId
+                })
+                // 同步清理 Repository 中的槽位（ProductionSlot 已迁移到 Repository 管理）
+                gameEngineCore.launchInScope {
+                    productionCoordinator.repository.getSlotsByBuildingId(bid)
+                        .filter { it.buildingInstanceId == instanceId }
+                        .forEach { slot ->
+                            productionCoordinator.repository.removeSlot(slot.id)
+                        }
+                }
             }
             name == "血炼池" -> gd = gd.copy(
                 activeBloodRefinements = gd.activeBloodRefinements
@@ -395,5 +442,135 @@ class BuildingFacadeImpl @Inject constructor(
             quantity = actualYield
         )
         inventorySystem.addHerb(herbItem)
+    }
+
+    internal companion object {
+        /**
+         * 纯函数：从建筑槽位中收集指定建筑实例关联的弟子 ID。
+         *
+         * 提取为 companion object 静态方法以便单元测试。
+         * 替代旧的 `takeLast(3)` / `takeLast(8)` / `maxByOrNull { it.slotIndex }` 模式，
+         * 按 buildingInstanceId 精确匹配。
+         *
+         * @param displayName 建筑显示名（"灵矿场"/"巡视楼"/"炼丹炉"/"锻造坊" 等）
+         * @param instanceId 建筑实例 ID
+         * @param gameData 当前游戏状态
+         * @return 需释放的弟子 ID 集合
+         */
+        fun collectDiscipleIdsForBuildingRemoval(
+            displayName: String, instanceId: String, gameData: GameData
+        ): Set<String> {
+            val ids = mutableSetOf<String>()
+            when {
+                displayName == "炼丹炉" || displayName == "锻造坊" -> {
+                    val bid = if (displayName == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
+                    @Suppress("DEPRECATION")
+                    gameData.productionSlots
+                        .filter { it.buildingInstanceId == instanceId && it.buildingId == bid }
+                        .mapNotNull { it.assignedDiscipleId }
+                        .filter { it.isNotEmpty() }
+                        .forEach { ids.add(it) }
+                }
+                displayName.contains("住所") -> gameData.residenceSlots
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                    .forEach { ids.add(it) }
+                displayName == "仓库" -> gameData.warehouseGarrisons
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                    .forEach { ids.add(it) }
+                displayName == "灵矿场" -> gameData.spiritMineSlots
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                    .forEach { ids.add(it) }
+                displayName == "巡视楼" -> gameData.patrolSlots
+                    .filter { it.buildingInstanceId == instanceId }
+                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+                    .forEach { ids.add(it) }
+                displayName == "血炼池" -> gameData.activeBloodRefinements[instanceId]
+                    ?.discipleId?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
+            }
+            return ids
+        }
+
+        /**
+         * 纯函数：过滤掉指定建筑实例关联的槽位。
+         *
+         * 用于建筑移除时清理关联槽位，替代旧的 `dropLast(N)` / `maxOfOrNull { it.slotIndex }` 模式。
+         * 按 buildingInstanceId 精确匹配，不影响其他同类型建筑的槽位。
+         *
+         * @param displayName 建筑显示名
+         * @param instanceId 建筑实例 ID
+         * @param gameData 当前游戏状态
+         * @return 过滤后的 GameData（仅槽位字段变更）
+         */
+        fun filterBuildingSlots(
+            displayName: String, instanceId: String, gameData: GameData
+        ): GameData {
+            return when {
+                displayName == "灵矿场" -> gameData.copy(
+                    spiritMineSlots = gameData.spiritMineSlots.filter { it.buildingInstanceId != instanceId }
+                )
+                displayName == "巡视楼" -> {
+                    val towerIdx = gameData.placedBuildings
+                        .filter { it.displayName == "巡视楼" }
+                        .indexOfFirst { it.instanceId == instanceId }
+                    gameData.copy(
+                        patrolSlots = gameData.patrolSlots.filter { it.buildingInstanceId != instanceId },
+                        patrolConfigs = if (towerIdx >= 0) gameData.patrolConfigs.filterIndexed { idx, _ -> idx != towerIdx } else gameData.patrolConfigs
+                    )
+                }
+                displayName == "灵田" -> gameData.copy(
+                    spiritFieldPlants = gameData.spiritFieldPlants.filter { it.buildingInstanceId != instanceId }
+                )
+                displayName.contains("住所") -> gameData.copy(
+                    residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId != instanceId }
+                )
+                displayName == "仓库" -> gameData.copy(
+                    warehouseGarrisons = gameData.warehouseGarrisons.filter { it.buildingInstanceId != instanceId }
+                )
+                displayName == "炼丹炉" || displayName == "锻造坊" -> {
+                    @Suppress("DEPRECATION")
+                    gameData.copy(
+                        productionSlots = gameData.productionSlots.filter { it.buildingInstanceId != instanceId }
+                    )
+                }
+                displayName == "血炼池" -> gameData.copy(
+                    activeBloodRefinements = gameData.activeBloodRefinements
+                        .filterKeys { it != instanceId }
+                )
+                else -> gameData
+            }
+        }
+
+        /**
+         * 纯函数：检查弟子是否已分配到其他生产槽位。
+         *
+         * 用于 [assignDiscipleToBuilding] 和 [assignDiscipleToProductionSlot] 的排他性校验，
+         * 防止同一弟子被重复分配到多个建筑槽位。
+         *
+         * 历史 bug：旧实现使用 `it.buildingId != buildingId` 做排他判断，
+         * 但 `buildingId` 是类型标识（如 "alchemy"/"forge"），非实例标识。
+         * 多个同类型建筑实例共享同一 `buildingId`，导致排他检查失效，
+         * 弟子可被重复分配到多个同类型建筑实例。
+         *
+         * @param discipleId 待分配的弟子 ID
+         * @param slots 当前所有生产槽位快照
+         * @param currentBuildingType 当前目标建筑类型
+         * @param currentSlotIndex 当前目标槽位索引
+         * @return true 表示弟子已分配到其他槽位（应阻止分配）
+         */
+        fun isDiscipleAssignedToOtherSlot(
+            discipleId: String,
+            slots: List<ProductionSlot>,
+            currentBuildingType: BuildingType,
+            currentSlotIndex: Int
+        ): Boolean {
+            if (discipleId.isEmpty()) return false
+            return slots.any {
+                it.assignedDiscipleId == discipleId &&
+                    !(it.buildingType == currentBuildingType && it.slotIndex == currentSlotIndex)
+            }
+        }
     }
 }

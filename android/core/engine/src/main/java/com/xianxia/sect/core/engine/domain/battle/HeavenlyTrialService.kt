@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
+import com.xianxia.sect.core.model.HeavenlyTrialClearReward
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -23,6 +24,7 @@ import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.mergeStackable
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -287,10 +289,25 @@ class HeavenlyTrialService @Inject constructor(
         val reward = HEAVENLY_TRIAL_CLEAR_REWARDS.find { it.levelIndex == levelIndex }
             ?: return ClaimClearRewardResult.LevelNotCleared
 
-        var capacityError: String? = null
+        // 预校验容量：在 update 事务外做只读检查。
+        // 通过后才进入事务写入 claimedRewardLevels flag，避免"奖励未实际发放但 flag 已写入"
+        // 导致用户无法重领的历史 bug。
+        val capacityCheck = checkRewardCapacity(
+            reward = reward,
+            storageBags = stateStore.storageBagsSnapshot,
+            equipmentStacks = stateStore.equipmentStacksSnapshot,
+            manualStacks = stateStore.manualStacksSnapshot,
+            inventoryConfig = inventoryConfig
+        )
+        if (capacityCheck is RewardCapacityCheck.Failed) {
+            return ClaimClearRewardResult.CapacityInsufficient(capacityCheck.message)
+        }
+
         val generatedCards = mutableListOf<RewardCardItem>()
 
         stateStore.update {
+            // 追踪是否有物品因并发修改而跳过发放
+            var distributeFailed = false
             for (item in reward.items) {
                 when (item.itemType) {
                     "spiritStones" -> {
@@ -306,26 +323,21 @@ class HeavenlyTrialService @Inject constructor(
                         val qty = item.quantity.coerceAtLeast(1)
                         val rarity = item.rarity.coerceIn(1, 6)
                         val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                        val existing = storageBags.find { it.rarity == rarity }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("storageBag")
-                            if (existing.quantity >= maxStack) {
-                                capacityError = "储物袋已达堆叠上限，请清理背包后重试"
-                            } else {
-                                val newQty = (existing.quantity + qty).coerceAtMost(maxStack)
-                                storageBags = storageBags.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-                        } else {
-                            storageBags = storageBags + StorageBag(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = bagName,
-                                rarity = rarity,
-                                description = "${bagName}，可开启获得随机物品",
-                                quantity = qty
-                            )
-                        }
+                        val maxStack = inventoryConfig.getMaxStackSize("storageBag")
+                        val newBag = StorageBag(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = bagName,
+                            rarity = rarity,
+                            description = "${bagName}，可开启获得随机物品",
+                            quantity = qty
+                        )
+                        // 使用 mergeStackable 处理溢出：合并到同类堆叠，超过上限时新建堆叠，
+                        // 替代旧的 coerceAtMost 截断模式（避免数量静默丢失）。
+                        storageBags = storageBags.mergeStackable(
+                            item = newBag,
+                            matchPredicate = { it.rarity == rarity },
+                            maxStack = maxStack
+                        )
                         generatedCards.add(RewardCardItem(
                             itemName = bagName, itemType = "storageBag",
                             rarity = rarity, quantity = qty
@@ -336,27 +348,24 @@ class HeavenlyTrialService @Inject constructor(
                         val generated = mutableListOf<RewardCardItem>()
                         val minRarity = item.rarity
                         val maxRarity = item.rarity
+                        val maxStack = inventoryConfig.getMaxStackSize("pill")
                         repeat(qty) {
                             val pill = ItemDatabase.generateRandomPill(
                                 minRarity = minRarity, maxRarity = maxRarity
                             ).copy(
                                 id = java.util.UUID.randomUUID().toString(), quantity = 1
                             )
-                            val existing = pills.find {
-                                it.name == pill.name && it.rarity == pill.rarity &&
-                                    it.category == pill.category
-                            }
-                            if (existing != null) {
-                                val maxStack = inventoryConfig.getMaxStackSize("pill")
-                                if (existing.quantity < maxStack) {
-                                    val newQty = existing.quantity + 1
-                                    pills = pills.map {
-                                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                    }
-                                }
-                            } else {
-                                pills = pills + pill
-                            }
+                            // 使用 mergeStackable 处理溢出，替代旧的"达上限静默丢弃"模式。
+                            // 修复历史 bug：原实现仅当 existing.quantity < maxStack 才合并，
+                            // 否则静默丢弃且未设置 capacityError，导致奖励物品消失。
+                            pills = pills.mergeStackable(
+                                item = pill,
+                                matchPredicate = {
+                                    it.name == pill.name && it.rarity == pill.rarity &&
+                                        it.category == pill.category
+                                },
+                                maxStack = maxStack
+                            )
                             generated.add(RewardCardItem(
                                 itemName = pill.name, itemType = "pill",
                                 rarity = pill.rarity, quantity = 1
@@ -369,8 +378,13 @@ class HeavenlyTrialService @Inject constructor(
                         val targetRarity = item.rarity
                         val eligible = equipmentStacks
                             .filter { it.rarity == targetRarity }
+                        // 预校验已确保 eligible 非空；事务内再次校验防御并发修改
                         if (eligible.isEmpty()) {
-                            capacityError = "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}装备"
+                            // 理论不可达：预校验通过才进入此块。
+                            // 若并发修改导致池变空，标记发放失败，
+                            // 阻止 claimedRewardLevels 写入，用户可重领
+                            distributeFailed = true
+                            continue
                         } else {
                             val generated = mutableListOf<RewardCardItem>()
                             repeat(qty) {
@@ -406,7 +420,11 @@ class HeavenlyTrialService @Inject constructor(
                         val eligible = manualStacks
                             .filter { it.rarity == targetRarity }
                         if (eligible.isEmpty()) {
-                            capacityError = "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}功法"
+                            // 理论不可达：预校验通过才进入此块。
+                            // 若并发修改导致池变空，标记发放失败，
+                            // 阻止 claimedRewardLevels 写入，用户可重领
+                            distributeFailed = true
+                            continue
                         } else {
                             val generated = mutableListOf<RewardCardItem>()
                             repeat(qty) {
@@ -427,6 +445,11 @@ class HeavenlyTrialService @Inject constructor(
                 }
             }
 
+            // 若中途因并发修改导致物品跳过发放，抛异常触发事务回滚，
+            // 确保已写入的物品也被撤销，用户可完整重领。
+            if (distributeFailed) {
+                error("Claim reward aborted: item pool became empty during distribution for level $levelIndex")
+            }
             gameData = gameData.copy(
                 heavenlyTrialState = gameData.heavenlyTrialState.copy(
                     claimedRewardLevels = gameData.heavenlyTrialState.claimedRewardLevels + levelIndex
@@ -434,11 +457,7 @@ class HeavenlyTrialService @Inject constructor(
             )
         }
 
-        return if (capacityError != null) {
-            ClaimClearRewardResult.CapacityInsufficient(capacityError)
-        } else {
-            ClaimClearRewardResult.Success(generatedCards)
-        }
+        return ClaimClearRewardResult.Success(generatedCards)
     }
 
     private fun mergeCardsByName(cards: List<RewardCardItem>): List<RewardCardItem> {
@@ -446,6 +465,80 @@ class HeavenlyTrialService @Inject constructor(
             .map { (_, list) ->
                 list.first().copy(quantity = list.sumOf { it.quantity })
             }
+    }
+
+    // endregion
+
+    // region Reward capacity pre-check
+
+    /**
+     * 奖励容量预校验结果。
+     *
+     * - [Ok]：所有可堆叠物品有足够容量、可生成池非空，可进入事务写入
+     * - [Failed]：存在容量不足或池为空，应返回 [ClaimClearRewardResult.CapacityInsufficient]
+     */
+    internal sealed class RewardCapacityCheck {
+        data object Ok : RewardCapacityCheck()
+        data class Failed(val message: String) : RewardCapacityCheck()
+    }
+
+    /**
+     * 纯函数：在事务外预校验奖励发放的容量前置条件。
+     *
+     * 提取为 companion object 静态方法以便单元测试。
+     *
+     * 校验项：
+     * - storageBag：现有同类堆叠未达上限（达上限则用户应先清理背包）
+     * - randomEquipment：存在指定品阶的装备堆叠作为生成模板
+     * - randomManual：存在指定品阶的功法堆叠作为生成模板
+     *
+     * 不校验 randomPill：丹药生成是随机的，且 mergeStackable 会自动新建堆叠处理溢出，
+     * 不存在"无法发放"的前置失败条件。
+     *
+     * 不校验 spiritStones：Long 类型无上限。
+     */
+    internal companion object {
+        fun checkRewardCapacity(
+            reward: HeavenlyTrialClearReward,
+            storageBags: List<StorageBag>,
+            equipmentStacks: List<EquipmentStack>,
+            manualStacks: List<ManualStack>,
+            inventoryConfig: InventoryConfig
+        ): RewardCapacityCheck {
+            for (item in reward.items) {
+                when (item.itemType) {
+                    "storageBag" -> {
+                        val rarity = item.rarity.coerceIn(1, 6)
+                        val maxStack = inventoryConfig.getMaxStackSize("storageBag")
+                        val existing = storageBags.find { it.rarity == rarity }
+                        if (existing != null && existing.quantity >= maxStack) {
+                            return RewardCapacityCheck.Failed(
+                                "储物袋已达堆叠上限，请清理背包后重试"
+                            )
+                        }
+                    }
+                    "randomEquipment" -> {
+                        val targetRarity = item.rarity
+                        val eligible = equipmentStacks.filter { it.rarity == targetRarity }
+                        if (eligible.isEmpty()) {
+                            return RewardCapacityCheck.Failed(
+                                "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}装备"
+                            )
+                        }
+                    }
+                    "randomManual" -> {
+                        val targetRarity = item.rarity
+                        val eligible = manualStacks.filter { it.rarity == targetRarity }
+                        if (eligible.isEmpty()) {
+                            return RewardCapacityCheck.Failed(
+                                "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}功法"
+                            )
+                        }
+                    }
+                }
+            }
+            return RewardCapacityCheck.Ok
+        }
     }
 
     // endregion

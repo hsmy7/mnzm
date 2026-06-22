@@ -38,7 +38,17 @@ class CultivationCore @Inject constructor(
      * 计算弟子每旬修炼速度（1x 速度基准）。
      * calculateCultivationSpeed 已直接返回每旬值，无需再换算。
      */
-    fun calculateDiscipleCultivationPerPhase(disciple: Disciple, data: GameData, tables: DiscipleTables): Double {
+    /**
+     * @param manualInstanceMap 功法实例映射 (id → ManualInstance)，从调用方传入
+     *   以使用 shadow state 中的权威副本，而非直接读取 stateStore
+     *   （修复双状态访问 bug：旧实现在此函数内直接读 stateStore.manualInstances.value）
+     */
+    fun calculateDiscipleCultivationPerPhase(
+        disciple: Disciple,
+        data: GameData,
+        tables: DiscipleTables,
+        manualInstanceMap: Map<String, ManualInstance>
+    ): Double {
         val buildingBonus = calculateBuildingCultivationBonus(disciple, data)
         val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "outer")
         val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "inner")
@@ -47,8 +57,6 @@ class CultivationCore @Inject constructor(
         if (data.sectPolicies.cultivationSubsidy && disciple.realm > 5) {
             cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
         }
-
-        val manualInstanceMap = stateStore.manualInstances.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -479,7 +487,7 @@ class CultivationCore @Inject constructor(
 
         for (id in livingIds) {
             val disciple = tables.assemble(id)
-            val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
+            val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables, manualInstanceMap)
             val monthlyGain = cultivationPerPhase * 3  // 3旬/月
             val alreadyGained = focusedGains[disciple.id] ?: 0.0
             val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
@@ -568,15 +576,14 @@ class CultivationCore @Inject constructor(
         }
 
         val currentDisciple = tables.assemble(idInt)
+        val manualInstanceMap = state.manualInstances.associateBy { it.id }
 
-        val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
+        val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables, manualInstanceMap)
 
         tables.cultivations.update(idInt) { (it + cultivationPerPhase).coerceIn(0.0, currentDisciple.maxCultivation) }
 
         val accumGains = highFrequencyData.cultivationUpdates.toMutableMap()
         accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + cultivationPerPhase
-
-        val manualInstanceMap = state.manualInstances.associateBy { it.id }
         val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerPhase(currentDisciple.comprehension, libraryBonus)

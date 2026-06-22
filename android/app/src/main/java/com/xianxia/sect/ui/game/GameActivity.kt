@@ -225,6 +225,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         ) ?: throw Exception("ground decode failed")
                                         android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)
                                     }
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
                                 } catch (e: Exception) { null }
 
                                 val grassBmp = try {
@@ -232,6 +234,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                     android.graphics.BitmapFactory.decodeResource(
                                         resources, R.drawable.decoration_grass, opts
                                     )
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
                                 } catch (e: Exception) { null }
 
                                 // 来源: docs/huawei-performance-research.md §4.2 — LOW 级别跳过树木装饰
@@ -241,6 +245,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         android.graphics.BitmapFactory.decodeResource(
                                             resources, R.drawable.decoration_trees, opts
                                         )
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
                                     } catch (e: Exception) { null }
                                 } else null
 

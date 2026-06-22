@@ -98,51 +98,36 @@ class BloodRefiningViewModel @Inject constructor(
         val durationMonths = BeastMaterialDatabase.getTierDuration(material.tier)
 
         viewModelScope.launch {
-            // 1. 扣除灵石 + 记录进度
-            gameEngine.updateGameData { gameData ->
-                if (gameData.spiritStones < REQUIRED_SPIRIT_STONES) return@updateGameData gameData
+            // 构造 BloodRefinementProgress
+            val progress = BloodRefinementProgress(
+                discipleId = disciple.id,
+                discipleName = disciple.name,
+                materialId = material.id,
+                materialName = material.name,
+                startYear = 0,  // 将在引擎侧基于当前 gameData 填充
+                startMonth = 0,
+                durationMonths = durationMonths,
+                selectedStat = selectedStat,
+                bonusPercent = bonusPercent
+            )
 
-                val progress = BloodRefinementProgress(
-                    discipleId = disciple.id,
-                    discipleName = disciple.name,
-                    materialId = material.id,
-                    materialName = material.name,
-                    startYear = gameData.gameYear,
-                    startMonth = gameData.gameMonth,
-                    durationMonths = durationMonths,
-                    selectedStat = selectedStat,
-                    bonusPercent = bonusPercent
-                )
+            // 原子化操作：灵石扣除 + 材料消耗 + 进度写入 + 弟子状态更新
+            // 在单次 stateStore.update 事务中完成，失败时整体回滚
+            val success = gameEngine.startBloodRefinementAtomic(
+                materialName = material.name,
+                materialRarity = material.rarity,
+                materialCount = REQUIRED_MATERIAL_COUNT,
+                buildingInstanceId = buildingInstanceId,
+                requiredSpiritStones = REQUIRED_SPIRIT_STONES,
+                progress = progress
+            )
 
-                gameData.copy(
-                    spiritStones = gameData.spiritStones - REQUIRED_SPIRIT_STONES,
-                    activeBloodRefinements = gameData.activeBloodRefinements + (buildingInstanceId to progress)
-                )
-            }
-
-            // 2. 扣除材料（跨堆叠扣除，失败则回滚）
-            val consumed = gameEngine.consumeMaterialByName(material.name, material.rarity, REQUIRED_MATERIAL_COUNT)
-            if (!consumed) {
-                // 回滚：退还灵石 + 移除进度
-                gameEngine.updateGameData { gameData ->
-                    gameData.copy(
-                        spiritStones = gameData.spiritStones + REQUIRED_SPIRIT_STONES,
-                        activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
-                    )
-                }
-                showError("兽血材料不足，洗炼失败")
+            if (!success) {
+                showError("资源不足，洗炼失败")
                 return@launch
             }
 
-            // 3. 更新弟子状态
-            gameEngine.updateDisciple(disciple.id) { d ->
-                d.copy(
-                    status = DiscipleStatus.IDLE,
-                    statusData = mapOf("bloodRefining" to "true", "buildingId" to buildingInstanceId)
-                )
-            }
-
-            // 4. 更新UI状态
+            // 更新UI状态
             val updatedData = gameEngine.gameData.value
             val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
             if (savedProgress != null) {

@@ -19,9 +19,11 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.BattleCalculator
+import android.util.Log
 import kotlin.random.Random
 
 object AISectAttackManager {
+    private const val TAG = "AISectAttackManager"
 
     val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
     private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
@@ -871,7 +873,7 @@ object AISectAttackManager {
                             equipmentStacks.add(
                                 com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
                             )
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                     }
                 }
                 2 -> {
@@ -880,7 +882,7 @@ object AISectAttackManager {
                             manualStacks.add(
                                 com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
                             )
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                     }
                 }
                 3 -> {
@@ -888,14 +890,14 @@ object AISectAttackManager {
                         pills.add(
                             com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
                         )
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                 }
                 4 -> {
                     try {
                         materials.add(
                             com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
                         )
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                 }
                 5 -> {
                     try {
@@ -909,7 +911,7 @@ object AISectAttackManager {
                                 quantity = 1
                             )
                         )
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                 }
                 6 -> {
                     try {
@@ -924,7 +926,7 @@ object AISectAttackManager {
                                 quantity = 1
                             )
                         )
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
                 }
             }
         }

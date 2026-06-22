@@ -15,7 +15,7 @@ class DiplomacyFacadeImpl @Inject constructor(
     override fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult =
         diplomacyService.giftSpiritStones(sectId, tier)
 
-    override fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> =
+    override suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> =
         diplomacyService.requestAlliance(sectId, envoyDiscipleId)
 
     override fun dissolveAlliance(sectId: String): Pair<Boolean, String> =

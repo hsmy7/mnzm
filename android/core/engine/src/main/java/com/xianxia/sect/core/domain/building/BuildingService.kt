@@ -65,11 +65,21 @@ private val inventorySystem: InventorySystem,
             return
         }
 
-        // Prevent assigning same disciple to multiple building slots
+        // Prevent assigning same disciple to multiple building slots.
+        //
+        // 历史 bug：旧实现使用 `it.buildingId != buildingId` 做排他判断，
+        // 但 buildingId 是类型标识（如 "alchemy"/"forge"），非实例标识。
+        // 多个同类型建筑实例共享同一 buildingId，导致排他检查失效。
+        // 修复：改用 BuildingFacadeImpl.isDiscipleAssignedToOtherSlot 纯函数，
+        // 按 buildingType + slotIndex 排除当前槽位后检查弟子是否已分配到其他任意槽位。
         val allSlots = productionSlotRepository.getSlots()
-        val alreadyAssigned = allSlots.any {
-            it.buildingId != buildingId && it.assignedDiscipleId == discipleId
-        }
+        val currentBuildingType = ProductionSlot.resolveBuildingType(buildingId)
+        val alreadyAssigned = BuildingFacadeImpl.isDiscipleAssignedToOtherSlot(
+            discipleId = discipleId,
+            slots = allSlots,
+            currentBuildingType = currentBuildingType,
+            currentSlotIndex = slotIndex
+        )
         if (alreadyAssigned) return
 
         val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -130,7 +131,9 @@ private suspend fun GameEngine.tryRestoreFromHeavyData(slot: Int): Boolean {
             if (row != null) heavyRows.add(row)
         } catch (e: Exception) {
             DomainLog.w("GameEngine", "重型数据键 '$key' 过大无法加载，将在下次存档时重生", e)
-            try { heavyDataPort.deleteByKey(slot, key) } catch (_: Exception) {}
+            try { heavyDataPort.deleteByKey(slot, key) } catch (e: Exception) {
+                DomainLog.w("GameEngine", "清理损坏重型数据键 '$key' 失败", e)
+            }
         }
     }
     if (heavyRows.isEmpty()) {
@@ -618,8 +621,8 @@ fun GameEngine.validateAndFixSpiritMineData() {
         for (offset in 0 until 3) {
             val existing = data.spiritMineSlots.getOrNull(slotIdx + offset)
             val slot = if (existing != null) {
-                if (existing.discipleId.isNotEmpty() && (existing.discipleId !in discipleMap || discipleMap[existing.discipleId]?.discipleType != "outer")) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size) else existing.copy(index = rebuiltSlots.size)
-            } else SpiritMineSlot(index = rebuiltSlots.size, sectId = mine.sectId)
+                if (existing.discipleId.isNotEmpty() && (existing.discipleId !in discipleMap || discipleMap[existing.discipleId]?.discipleType != "outer")) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size, buildingInstanceId = mine.instanceId) else existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
+            } else SpiritMineSlot(index = rebuiltSlots.size, sectId = mine.sectId, buildingInstanceId = mine.instanceId)
             rebuiltSlots.add(slot)
         }
         slotIdx += 3
@@ -744,16 +747,35 @@ private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List<Disci
     if (numTowers == 0) return gameData to disciples
     val oldSlots = gameData.patrolSlots
     val expectedSize = numTowers * 8
-    if (oldSlots.size <= expectedSize) return gameData to disciples
+    if (oldSlots.size <= expectedSize) {
+        // 即使数量正确，也需回填 buildingInstanceId（旧存档可能为空）
+        val towers = gameData.placedBuildings.filter { it.displayName == "巡视楼" }
+        val needsBackfill = oldSlots.any { it.buildingInstanceId.isEmpty() }
+        if (!needsBackfill) return gameData to disciples
+        val backfilledSlots = mutableListOf<PatrolSlot>()
+        var globalIdx = 0
+        for (towerIdx in towers.indices) {
+            val tower = towers[towerIdx]
+            for (localIdx in 0 until 8) {
+                if (globalIdx < oldSlots.size) {
+                    backfilledSlots.add(oldSlots[globalIdx].copy(buildingInstanceId = tower.instanceId))
+                }
+                globalIdx++
+            }
+        }
+        return gameData.copy(patrolSlots = backfilledSlots) to disciples
+    }
     DomainLog.w("GameEngine", "迁移巡逻槽位: ${oldSlots.size}槽/${numTowers}塔 → ${expectedSize}槽")
     var updatedDisciples = disciples.toMutableList()
+    val towers = gameData.placedBuildings.filter { it.displayName == "巡视楼" }
     val newSlots = mutableListOf<PatrolSlot>()
     var newGlobalIndex = 0
     for (towerIdx in 0 until numTowers) {
+        val tower = towers[towerIdx]
         val oldStart = towerIdx * 10
         for (localIdx in 0 until 8) {
             val globalIdx = oldStart + localIdx
-            if (globalIdx < oldSlots.size) newSlots.add(oldSlots[globalIdx].copy(index = newGlobalIndex)) else newSlots.add(PatrolSlot(index = newGlobalIndex))
+            if (globalIdx < oldSlots.size) newSlots.add(oldSlots[globalIdx].copy(index = newGlobalIndex, buildingInstanceId = tower.instanceId)) else newSlots.add(PatrolSlot(index = newGlobalIndex, buildingInstanceId = tower.instanceId))
             newGlobalIndex++
         }
         for (discardLocalIdx in 8 until 10) {
@@ -810,5 +832,78 @@ fun GameEngine.releaseMemory(level: Int) {
                 if (!trimmed) DomainLog.d("GameEngine", "内存释放($levelName): 无需裁剪其他列表")
             }
         }
+    }
+
+}
+
+// ── 血炼原子操作 ────────────────────────────────────────────────────
+
+/**
+ * 原子化启动血炼：灵石扣除、材料消耗、进度写入、弟子状态更新
+ * 在同一 [stateStore.update] 事务中完成，失败时整体回滚。
+ *
+ * @return true 启动成功，false 资源不足（灵石或材料）
+ */
+suspend fun GameEngine.startBloodRefinementAtomic(
+    materialName: String,
+    materialRarity: Int,
+    materialCount: Int,
+    buildingInstanceId: String,
+    requiredSpiritStones: Long,
+    progress: BloodRefinementProgress
+): Boolean {
+    try {
+        stateStore.update {
+            // 1. 校验灵石
+            if (gameData.spiritStones < requiredSpiritStones) {
+                error("灵石不足: 需要 $requiredSpiritStones, 当前 ${gameData.spiritStones}")
+            }
+
+            // 2. 跨堆叠扣除材料（内联 consumeMaterialByName 逻辑）
+            var remaining = materialCount
+            val matching = materials.all().filter {
+                it.name == materialName && it.rarity == materialRarity && !it.isLocked
+            }
+            for (mat in matching) {
+                if (remaining <= 0) break
+                val take = minOf(remaining, mat.quantity)
+                val newQty = mat.quantity - take
+                if (newQty <= 0) {
+                    materials.remove(mat.id)
+                } else {
+                    materials.update(mat.id) { it.copy(quantity = newQty) }
+                }
+                remaining -= take
+            }
+            if (remaining > 0) {
+                error("兽血材料不足: 缺少 $remaining 份 $materialName")
+            }
+
+            // 3. 扣除灵石 + 写入进度（填充实际游戏时间）
+            val filledProgress = progress.copy(
+                startYear = gameData.gameYear,
+                startMonth = gameData.gameMonth
+            )
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones - requiredSpiritStones,
+                activeBloodRefinements = gameData.activeBloodRefinements + (buildingInstanceId to filledProgress)
+            )
+
+            // 4. 更新弟子状态
+            val dId = progress.discipleId.toIntOrNull()
+            if (dId != null && dId in discipleTables.ids) {
+                discipleTables.statuses[dId] = DiscipleStatus.IDLE
+                discipleTables.statusData[dId] = mapOf(
+                    "bloodRefining" to "true",
+                    "buildingId" to buildingInstanceId
+                )
+            }
+        }
+        return true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.e("GameEngine", "血炼原子启动失败: ${e.message}", e)
+        return false
     }
 }

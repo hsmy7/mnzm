@@ -162,7 +162,8 @@ class CultivationEventProcessor @Inject constructor(
         if (missingIds.isNotEmpty()) {
             val updatedRates = existingRates.toMutableMap()
             for (d in missingIds) {
-                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables)
+                val manualInstanceMap = state.manualInstances.associateBy { it.id }
+                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables, manualInstanceMap)
             }
             sharedState.cachedCultivationRates = updatedRates
         }
@@ -351,6 +352,7 @@ class CultivationEventProcessor @Inject constructor(
         checkGameOverCondition()
         processScoutInfoExpiryLazy(year, month)
         diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
+        processLawEnforcementMonthly()
         processTheftIfNeeded()
         processMissionRefreshIfDue(month)
         processCompletedMissionsLazy(year, month)
@@ -457,8 +459,6 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-
-        processTheftMonthly()
     }
 
     suspend fun processTheftMonthly() {
@@ -473,7 +473,8 @@ class CultivationEventProcessor @Inject constructor(
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
             DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
-            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS &&
+            (currentMonthValue - it.usage.lastTheftMonth) >= 12
         }
 
         val thiefIds = mutableSetOf<String>()
@@ -521,7 +522,10 @@ class CultivationEventProcessor @Inject constructor(
                         gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
                         discipleTables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
                             discipleTables.update(
-                                d.copy(equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount))
+                                d.copy(
+                                    equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount),
+                                    usage = d.usage.copy(lastTheftMonth = currentMonthValue)
+                                )
                             )
                         }
                     }

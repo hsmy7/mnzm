@@ -7,6 +7,7 @@ import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -72,7 +73,8 @@ class SectViewModel @Inject constructor(
                     it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
                 }
                 showSuccess(("副宗主任命成功"))
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError((e.message ?: "任命失败"))
             }
         }
@@ -86,12 +88,13 @@ class SectViewModel @Inject constructor(
                     it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = ""))
                 }
                 showSuccess(("副宗主已卸任"))
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError((e.message ?: "卸任失败"))
             }
         }
     }
-    
+
     fun assignElder(slotType: ElderSlotType, discipleId: String) =
         launchElderAction({ elderManagement.assignElder(slotType, discipleId) }, "任命失败")
     
@@ -181,12 +184,13 @@ class SectViewModel @Inject constructor(
                 )
                 gameEngine.updateGameDataAndSync { it.copy(elderSlots = updatedElderSlots) }
                 showSuccess(("储备弟子添加成功"))
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError((e.message ?: "添加失败"))
             }
         }
     }
-    
+
     fun removeReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
@@ -197,12 +201,13 @@ class SectViewModel @Inject constructor(
                 )
                 gameEngine.updateGameDataAndSync { it.copy(elderSlots = updatedElderSlots) }
                 showSuccess(("储备弟子已移除"))
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
                 showError((e.message ?: "移除失败"))
             }
         }
     }
-    
+
     fun toggleSpiritMineBoost(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
         viewModelScope.launch {

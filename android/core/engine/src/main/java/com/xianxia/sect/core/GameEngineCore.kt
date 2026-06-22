@@ -244,7 +244,8 @@ class GameEngineCore @Inject constructor(
                         android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY
                     )
                     DomainLog.d(TAG, "Game thread priority set via Process API: URGENT_DISPLAY")
-                } catch (e2: Exception) {
+                } catch (e: CancellationException) { throw e }
+                  catch (e2: Exception) {
                     DomainLog.w(TAG, "Cannot raise thread priority: ${e2.message}")
                 }
             }

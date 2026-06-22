@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.HasId
+import com.xianxia.sect.core.util.StackableItem
 
 /**
  * 轻量级实体存储容器：O(1) ID 查找 + List 兼容操作。
@@ -161,5 +162,41 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
         for (item in items) {
             index[item.id] = item
         }
+    }
+}
+
+/**
+ * 将可堆叠物品合并到 [EntityStore]，溢出时新建堆叠。
+ *
+ * 替代旧的 `coerceAtMost(maxStack)` 截断模式，避免物品数量静默丢失。
+ *
+ * 语义：
+ * - 存在同 [matchPredicate] 的堆叠且合并后不超过 [maxStack] → 合并到现有堆叠
+ * - 存在同类堆叠但合并后超过 [maxStack] → 现有堆叠填满至 [maxStack]，溢出部分新建堆叠
+ * - 不存在同类堆叠 → 直接添加为新堆叠
+ *
+ * @param item 待添加的物品
+ * @param matchPredicate 判断两个物品是否属于同一合并组（名称/品质/类型等）
+ * @param maxStack 单格最大堆叠数
+ * @return 合并后的 EntityStore（可能为原引用或新引用）
+ */
+inline fun <T> EntityStore<T>.mergeStackable(
+    item: T,
+    crossinline matchPredicate: (T) -> Boolean,
+    maxStack: Int
+): EntityStore<T> where T : HasId, T : StackableItem {
+    val existing = firstOrNull(matchPredicate)
+    return if (existing != null) {
+        val total = existing.quantity + item.quantity
+        if (total <= maxStack) {
+            update(existing.id) { (it as StackableItem).withQuantity(total) as T }
+            this
+        } else {
+            update(existing.id) { (it as StackableItem).withQuantity(maxStack) as T }
+            val overflow = (item as StackableItem).withQuantity(total - maxStack) as T
+            this + overflow
+        }
+    } else {
+        this + item
     }
 }

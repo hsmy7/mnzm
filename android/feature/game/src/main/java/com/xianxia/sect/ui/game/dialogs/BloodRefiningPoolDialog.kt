@@ -328,7 +328,7 @@ private fun MaterialSelectorDialog(
         }
 
         if (showDetail && detailMaterial != null) {
-            val mat = detailMaterial!!
+            val mat = checkNotNull(detailMaterial)
             ItemDetailDialog(
                 item = Material(
                     id = mat.id,

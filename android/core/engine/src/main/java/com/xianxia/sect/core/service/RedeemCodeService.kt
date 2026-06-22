@@ -235,8 +235,13 @@ class RedeemCodeService @Inject constructor(
 
     private fun verifyApkSignature(): Boolean {
         if (BuildConfig.APK_SIGNATURE_HASH.isEmpty()) {
-            DomainLog.w(TAG, "APK_SIGNATURE_HASH not configured, skipping signature verification")
-            return true
+            // Debug 构建允许跳过签名校验；Release 构建空 hash 拒绝（安全优先）
+            if (BuildConfig.DEBUG) {
+                DomainLog.w(TAG, "APK_SIGNATURE_HASH not configured, skipping (debug build)")
+                return true
+            }
+            DomainLog.w(TAG, "APK_SIGNATURE_HASH not configured, rejecting (release build)")
+            return false
         }
 
         return try {

@@ -186,6 +186,10 @@ class MailService @Inject constructor(
             val now = System.currentTimeMillis()
             if (mail.expireTime <= now) return ClaimResult.Expired
             if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
+            // 二次保护：若 Room DB 的 attachmentClaimed 未及时更新，
+            // GameData 中的 mailRecords 作为补偿防护防止重复领取
+            val snapshot = stateStore.gameData.value
+            if (snapshot.mailRecords.any { it.mailId == mailId }) return ClaimResult.AlreadyClaimed
 
             val attachments: List<MailAttachment> = try {
                 json.decodeFromString(mail.attachments)
@@ -229,7 +233,13 @@ class MailService @Inject constructor(
                 rewardCards = emptyList()
             }
 
-            mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
+            // Room DB 更新失败不影响领取结果（物品已安全入库 + mailRecord 已写入），
+            // 仅记录日志；mailRecords 二次保护防止重复领取
+            try {
+                mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "Failed to mark mail $mailId as claimed in DB: ${e.message}", e)
+            }
             refreshActiveMails(slotId)
             ClaimResult.Success(attachments, rewardCards)
         }

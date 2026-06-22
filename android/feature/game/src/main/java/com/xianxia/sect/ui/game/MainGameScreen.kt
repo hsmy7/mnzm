@@ -797,15 +797,16 @@ fun MainGameScreen(
                 onCancel = { movingBuilding = null }
             )
 
+            val building = checkNotNull(movingBuilding) { "DemolishButton rendered with null building" }
             DemolishButton(
-                building = movingBuilding!!,
+                building = building,
                 snappedGridX = movingSnappedGridX,
                 snappedGridY = movingSnappedGridY,
                 buildingSize = movingBuildingSize,
                 cameraState = cameraState,
                 tileSize = tileSize,
                 onDemolish = {
-                    viewModel.demolishBuilding(movingBuilding!!.instanceId)
+                    viewModel.demolishBuilding(building.instanceId)
                     movingBuilding = null
                 }
             )

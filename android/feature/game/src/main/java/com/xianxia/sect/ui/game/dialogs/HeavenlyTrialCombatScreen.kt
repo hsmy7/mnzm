@@ -389,54 +389,50 @@ fun HeavenlyTrialCombatScreen(
                             val targets = playerTeam.filter { !it.isDead }
                             if (targets.isEmpty()) null
                             else {
-                                val damages = targets.associate { p ->
+                                val results = targets.associate { p ->
                                     p.id to computeSkillDamage(
                                         enemy, p, skill,
                                         isDefending.contains(p.id)
                                     )
                                 }
-                                val crits = targets.associate {
-                                    it.id to (Random.nextDouble() < enemy.critRate)
-                                }
                                 AnimEvent.Aoe(AoeAnimationEvent(
                                     attackerId = enemy.id,
                                     targetIds = targets.map { it.id },
-                                    damages = damages,
-                                    crits = crits,
+                                    damages = results.mapValues { it.value.damage },
+                                    crits = results.mapValues { it.value.isCrit },
                                     isPhysical = skill.damageType == DamageType.PHYSICAL,
                                     skillName = skill.name
                                 ))
                             }
                         } else if (skill != null && target != null) {
-                            val dmg = computeSkillDamage(
+                            val result = computeSkillDamage(
                                 enemy, target, skill,
                                 isDefending.contains(target.id)
                             )
-                            val isCrit = Random.nextDouble() < enemy.critRate
                             AnimEvent.Single(AttackAnimationEvent(
                                 attackerId = enemy.id,
                                 targetId = target.id,
-                                damage = dmg,
-                                isCrit = isCrit,
+                                damage = result.damage,
+                                isCrit = result.isCrit,
                                 isPhysical = skill.damageType == DamageType.PHYSICAL,
                                 skillName = skill.name,
-                                isKill = target.hp - dmg <= 0
+                                isKill = target.hp - result.damage <= 0
                             ))
                         } else null
                     }
                     ActionType.NORMAL_ATTACK -> {
                         if (target != null) {
-                            val dmg = computeNormalAttackDamage(
+                            val result = computeNormalAttackDamage(
                                 enemy, target,
                                 isDefending.contains(target.id)
                             )
                             AnimEvent.Single(AttackAnimationEvent(
                                 attackerId = enemy.id,
                                 targetId = target.id,
-                                damage = dmg,
-                                isCrit = false,
+                                damage = result.damage,
+                                isCrit = result.isCrit,
                                 isPhysical = true,
-                                isKill = target.hp - dmg <= 0
+                                isKill = target.hp - result.damage <= 0
                             ))
                         } else null
                     }
@@ -813,22 +809,18 @@ fun HeavenlyTrialCombatScreen(
                                                         .filter { !it.isDead }
                                                     if (targets.isNotEmpty()) {
                                                         // AoE：一次飞行 + 全体同时受击
-                                                        val damages = targets.associate { t ->
+                                                        val results = targets.associate { t ->
                                                             t.id to computeSkillDamage(
                                                                 currentCombatant, t,
                                                                 skill, false
                                                             )
                                                         }
-                                                        val crits = targets.associate {
-                                                            it.id to (Random.nextDouble() <
-                                                                currentCombatant.critRate)
-                                                        }
                                                         playAoeAttackSequence(
                                                             AoeAnimationEvent(
                                                                 attackerId = currentCombatant.id,
                                                                 targetIds = targets.map { it.id },
-                                                                damages = damages,
-                                                                crits = crits,
+                                                                damages = results.mapValues { it.value.damage },
+                                                                crits = results.mapValues { it.value.isCrit },
                                                                 isPhysical = skill.damageType ==
                                                                     DamageType.PHYSICAL,
                                                                 skillName = skill.name
@@ -856,22 +848,20 @@ fun HeavenlyTrialCombatScreen(
                                                         .filter { !it.isDead }
                                                         .randomOrNull()
                                                     if (target != null) {
-                                                        val dmg = computeSkillDamage(
+                                                        val result = computeSkillDamage(
                                                             currentCombatant, target,
                                                             skill, false
                                                         )
-                                                        val isCrit = Random.nextDouble() <
-                                                            currentCombatant.critRate
                                                         playAttackSequence(
                                                             AttackAnimationEvent(
                                                                 attackerId = currentCombatant.id,
                                                                 targetId = target.id,
-                                                                damage = dmg,
-                                                                isCrit = isCrit,
+                                                                damage = result.damage,
+                                                                isCrit = result.isCrit,
                                                                 isPhysical = skill.damageType ==
                                                                     DamageType.PHYSICAL,
                                                                 skillName = skill.name,
-                                                                isKill = target.hp - dmg <= 0
+                                                                isKill = target.hp - result.damage <= 0
                                                             ),
                                                             cellPositions,
                                                             { currentAnimState },
@@ -974,7 +964,7 @@ fun HeavenlyTrialCombatScreen(
                                                 .filter { !it.isDead }
                                                 .randomOrNull()
                                             if (target != null) {
-                                                val dmg = computeNormalAttackDamage(
+                                                val result = computeNormalAttackDamage(
                                                     currentCombatant, target,
                                                     isDefending.contains(target.id)
                                                 )
@@ -982,10 +972,10 @@ fun HeavenlyTrialCombatScreen(
                                                     AttackAnimationEvent(
                                                         attackerId = currentCombatant.id,
                                                         targetId = target.id,
-                                                        damage = dmg,
-                                                        isCrit = false,
+                                                        damage = result.damage,
+                                                        isCrit = result.isCrit,
                                                         isPhysical = true,
-                                                        isKill = target.hp - dmg <= 0
+                                                        isKill = target.hp - result.damage <= 0
                                                     ),
                                                     cellPositions,
                                                     { currentAnimState },
@@ -1301,36 +1291,41 @@ private fun FloatingDamageNumber(
 
 // region Battle Logic
 
+/**
+ * 普通攻击伤害计算，委托给 BattleCalculator 确保与战斗系统一致。
+ * isDefending 减伤在 BattleCalculator 结果之上叠加（UI 特有机制）。
+ * 返回 DamageResult 以同步暴击/闪避判定，避免动画与实际伤害不一致。
+ */
 private fun computeNormalAttackDamage(
     attacker: Combatant, defender: Combatant, isDefending: Boolean
-): Int {
-    val baseAtk = attacker.effectivePhysicalAttack
-    val baseDef = defender.effectivePhysicalDefense
-    val rawDmg = baseAtk * 1.0 * (1.0 - baseDef / (baseDef + 500.0))
-    val variance = 0.9 + Random.nextDouble() * 0.2
-    val dmg = (rawDmg * variance).toInt().coerceAtLeast(1)
-    return if (isDefending) (dmg * 0.75).toInt() else dmg
+): BattleCalculator.DamageResult {
+    val result = BattleCalculator.calculateCombatantDamage(attacker, defender)
+    return if (isDefending && result.damage > 0) {
+        val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
+        result.copy(damage = reducedDmg)
+    } else result
 }
 
+/**
+ * 技能伤害计算，委托给 BattleCalculator 确保与战斗系统一致。
+ * isDefending 减伤在 BattleCalculator 结果之上叠加（UI 特有机制）。
+ * 返回 DamageResult 以同步暴击/闪避判定，避免动画与实际伤害不一致。
+ */
 private fun computeSkillDamage(
     attacker: Combatant, defender: Combatant,
     skill: com.xianxia.sect.core.model.CombatSkill, isDefending: Boolean
-): Int {
-    val baseAtk = if (skill.damageType == DamageType.PHYSICAL)
-        attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
-    val baseDef = if (skill.damageType == DamageType.PHYSICAL)
-        defender.effectivePhysicalDefense else defender.effectiveMagicDefense
-    val rawDmg = baseAtk * skill.damageMultiplier *
-        (1.0 - baseDef / (baseDef + 500.0))
-    val variance = 0.9 + Random.nextDouble() * 0.2
-    val dmg = (rawDmg * variance).toInt().coerceAtLeast(1)
-    return if (isDefending) (dmg * 0.75).toInt() else dmg
+): BattleCalculator.DamageResult {
+    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill)
+    return if (isDefending && result.damage > 0) {
+        val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
+        result.copy(damage = reducedDmg)
+    } else result
 }
 
 private fun applyNormalAttack(
     attacker: Combatant, defender: Combatant, isDefending: Boolean
 ): Combatant {
-    val finalDmg = computeNormalAttackDamage(attacker, defender, isDefending)
+    val finalDmg = computeNormalAttackDamage(attacker, defender, isDefending).damage
     return defender.copy(hp = (defender.hp - finalDmg).coerceAtLeast(0))
 }
 
@@ -1338,7 +1333,7 @@ private fun applySkillDamage(
     attacker: Combatant, defender: Combatant,
     skill: com.xianxia.sect.core.model.CombatSkill, isDefending: Boolean
 ): Combatant {
-    val finalDmg = computeSkillDamage(attacker, defender, skill, isDefending)
+    val finalDmg = computeSkillDamage(attacker, defender, skill, isDefending).damage
     return defender.copy(hp = (defender.hp - finalDmg).coerceAtLeast(0))
 }
 
