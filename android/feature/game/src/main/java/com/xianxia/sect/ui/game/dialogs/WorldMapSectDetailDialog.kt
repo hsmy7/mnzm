@@ -54,6 +54,7 @@ import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -85,36 +86,37 @@ internal fun WorldMapSectDetailDialog(
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
 
-    UnifiedGameDialog(onDismissRequest = onDismiss, title = sect.name, mode = DialogMode.Half, scrollableContent = false) {
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = "", mode = DialogMode.Half, scrollableContent = false) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+            ) {
+                val titleIconResId = com.xianxia.sect.ui.components.sectIconRes(sect.level)
+                if (titleIconResId != null) {
+                    Image(
+                        painter = painterResource(id = titleIconResId),
+                        contentDescription = sect.levelName,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Text(
+                    text = sect.name,
+                    fontSize = AppTypography.Title,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+
             // Tags that were in the header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (!sect.isPlayerSect) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(sect.level)
-                        if (sectIconResId != null) {
-                            Image(
-                                painter = painterResource(id = sectIconResId),
-                                contentDescription = sect.levelName,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Text(
-                            text = sect.levelName,
-                            fontSize = 10.sp,
-                            color = Color.Black,
-                            modifier = Modifier
-                                .background(GameColors.CardBackground, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
-                    }
-                }
                 if (sect.isPlayerSect) {
                     Text(
                         text = "本宗",
@@ -143,10 +145,28 @@ internal fun WorldMapSectDetailDialog(
             }
 
             if (!sect.isPlayerSect) {
+                val ownerSect = gameData?.worldMapSects?.find { it.id == sect.occupierSectId }
+                val affiliationName = if (sect.occupierSectId.isNotEmpty() && ownerSect != null) {
+                    ownerSect.name
+                } else {
+                    sect.name
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    Text(
+                        text = "所属势力:",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = affiliationName,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "关系:",
                         fontSize = 12.sp,
@@ -255,46 +275,40 @@ internal fun WorldMapSectDetailDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (!sect.isPlayerOccupied) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        GameButton(
-                            text = "探查",
-                            onClick = {
-                                interactionViewModel.openScoutDialog(sect.id)
-                            }
-                        )
-
-                        GameButton(
-                            text = if (hasGiftedThisYear) "已送礼" else "送礼",
-                            onClick = {
-                                if (hasGiftedThisYear) {
-                                    showGiftedMessage = true
-                                } else {
-                                    interactionViewModel.openGiftDialog(sect.id)
-                                    onDismiss()
-                                }
-                            }
-                        )
-
-                        GameButton(
-                            text = if (isAlly) "盟约" else "结盟",
-                            onClick = {
-                                interactionViewModel.openAllianceDialog(sect.id)
-                                onDismiss()
-                            },
-                            enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
-                        )
-                    }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         if (!sect.isPlayerOccupied) {
+                            GameButton(
+                                text = "探查",
+                                onClick = {
+                                    interactionViewModel.openScoutDialog(sect.id)
+                                }
+                            )
+
+                            GameButton(
+                                text = if (hasGiftedThisYear) "已送礼" else "送礼",
+                                onClick = {
+                                    if (hasGiftedThisYear) {
+                                        showGiftedMessage = true
+                                    } else {
+                                        interactionViewModel.openGiftDialog(sect.id)
+                                        onDismiss()
+                                    }
+                                }
+                            )
+
+                            GameButton(
+                                text = if (isAlly) "盟约" else "结盟",
+                                onClick = {
+                                    interactionViewModel.openAllianceDialog(sect.id)
+                                    onDismiss()
+                                },
+                                enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
+                            )
+
                             GameButton(
                                 text = "交易",
                                 onClick = {
@@ -302,13 +316,19 @@ internal fun WorldMapSectDetailDialog(
                                     onDismiss()
                                 }
                             )
-                        }
 
-                        if (!sect.isPlayerOccupied) {
                             GameButton(
                                 text = "进攻",
                                 onClick = {
                                     showAttackDialog = true
+                                }
+                            )
+                        } else {
+                            GameButton(
+                                text = "进入",
+                                onClick = {
+                                    viewModel.enterSect(sect.id)
+                                    viewModel.closeAllDialogs()
                                 }
                             )
                         }
@@ -316,14 +336,6 @@ internal fun WorldMapSectDetailDialog(
 
                     if (sect.isPlayerOccupied) {
                         HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-
-                        GameButton(
-                            text = "进入",
-                            onClick = {
-                                viewModel.enterSect(sect.id)
-                                viewModel.closeAllDialogs()
-                            }
-                        )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -376,13 +388,19 @@ internal fun WorldMapSectDetailDialog(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                GameButton(
-                    text = "进入",
-                    onClick = {
-                        viewModel.enterSect("")
-                        viewModel.closeAllDialogs()
-                    }
-                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GameButton(
+                        text = "进入",
+                        onClick = {
+                            viewModel.enterSect("")
+                            viewModel.closeAllDialogs()
+                        }
+                    )
+                }
             }
         }
     }
