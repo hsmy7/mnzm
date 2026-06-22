@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 5  // 5.0.01: 新增 autoBuyList 列 — 自动购买列表
+    version = 6  // v6: 新增 buildingInstanceId + bloodRefinementBonusTotals 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -364,18 +364,61 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v4→v5: 新增 autoBuyList + bloodRefinementBonusTotals 列 */
+        /** v4→v5: 新增 autoBuyList 列 */
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE game_data ADD COLUMN autoBuyList TEXT " +
                     "NOT NULL DEFAULT '[]'"
                 )
+                Log.i(TAG, "Migration 4→5: added autoBuyList column")
+            }
+        }
+
+        /** v5→v6: 新增 buildingInstanceId + bloodRefinementBonusTotals + usage_lastTheftMonth 列 */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // production_slots.buildingInstanceId — 任何旧版都没有
                 db.execSQL(
-                    "ALTER TABLE game_data ADD COLUMN bloodRefinementBonusTotals TEXT " +
-                    "NOT NULL DEFAULT '{}'"
+                    "ALTER TABLE production_slots ADD COLUMN buildingInstanceId TEXT " +
+                    "NOT NULL DEFAULT ''"
                 )
-                Log.i(TAG, "Migration 4→5: added autoBuyList, bloodRefinementBonusTotals columns")
+                // bloodRefinementBonusTotals — 可能已由错误的 MIGRATION_4_5 回填过
+                if (!columnExists(db, "game_data", "bloodRefinementBonusTotals")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN bloodRefinementBonusTotals TEXT " +
+                        "NOT NULL DEFAULT '{}'"
+                    )
+                }
+                // usage_lastTheftMonth — UsageTracking 新增字段，@Embedded 展开
+                if (!columnExists(db, "disciples", "usage_lastTheftMonth")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN usage_lastTheftMonth INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                Log.i(TAG, "Migration 5→6: added production_slots.buildingInstanceId, " +
+                    "game_data.bloodRefinementBonusTotals, " +
+                    "disciples.usage_lastTheftMonth columns")
+            }
+        }
+
+        /**
+         * 检查表中是否存在指定列。
+         * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
+         */
+        private fun columnExists(
+            db: SupportSQLiteDatabase,
+            table: String,
+            column: String
+        ): Boolean {
+            val cursor = db.query("PRAGMA table_info($table)")
+            return cursor.use {
+                while (it.moveToNext()) {
+                    if (it.getString(it.getColumnIndexOrThrow("name")) == column)
+                        return@use true
+                }
+                false
             }
         }
         private val threadCounter = AtomicInteger(0)
@@ -399,7 +442,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
