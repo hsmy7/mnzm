@@ -17,8 +17,7 @@
 - **修复：一次性丹药错误显示持续时间** — 部分立即生效的丹药（固定数值增加、治疗、复活、清除负面状态、延寿等）仍显示"持续 X 旬"。修正了 `getPillEffects` 及商人/储物袋丹药分支的 `isInstant` 判定逻辑，覆盖全部一次性效果字段
 - **修复：材料、灵草、种子描述缺失** — 物品详情效果列表中未展示 `description` 字段。现已在 `getMaterialEffects`/`getHerbEffects`/`getSeedEffects` 及对应商人/储物袋分支中追加描述显示
 - **修复：月结修炼双重计算** — 批量结算中 `alreadyGained` 被错误乘以 `batchMonths`，导致非焦点弟子月度修炼值多扣。修正公式为"月度增益 × 月数 − 已获增益"
-- **修复：不看弟子就不修炼（回归）** — `processPhaseTick` 每旬为非焦点弟子累加 `cultivationRate` 进 `cultivationUpdates`，月度结算时被 `alreadyGained` 减法完全抵消，导致非焦点弟子修炼进度始终为零。修复：移除无焦点弟子的旬级累加，结算后无条件重置高频数据
-- **修复：不看弟子就不修炼（二次回归）** — 前次修复仅处理了 `alreadyGained` 抵消问题，未解决更深层的根因：`processPhaseTick` 的表重建（`clear()` + `insert()`）从 `stateStore.disciples.value`（StateFlow 派生，可能滞后于 settlement 的 `swapFromShadow`）全量覆写所有弟子字段，包括 settlement 在 shadow 中写入的修炼值。修复：表重建前保存 `state.discipleTables`（权威数据源）的修炼值快照，重建后恢复。同步修复 `computeNonFocusedBatch` 热控分批中 `nonFocusedLastSettleMonth` 未更新的月份漂移问题
+- **修复：不看弟子就不修炼（根治）** — 根因是 `processPhaseTick` 的全量表重建（`clear()+insert()`）写入 90+ 字段，违反"单一写入者"原则覆写了 SettlementCoordinator 月度结算写入的修炼值/境界等字段。修复：消除全量重建，改为仅精准写回 processDiscipleTick 实际修改的 12 个字段（HP/MP/丹药/装备/功法），cultivations/realms/lifespans 等字段由月度结算独家管理。同步回退 v4.0.18 的 cultivationUpdates 累加移除和公式变更，恢复 v4.0.17 已验证的累加+对冲逻辑。保留 v4.0.18 执法系统和偷盗冷却。
 - **修复：战斗伤亡非原子写入** — `processBattleCasualties` 中 6 组写操作分散在多个事务外，中途崩溃导致弟子状态、装备、槽位不一致。重构为单次 `stateStore.update` 原子事务
 - **修复：商人购买功法溢出丢失** — `buyMerchantItem` 的 `manual` 分支未使用 `mergeStackable` 且无 `maxStack` 检查，购买可堆叠功法时超出上限部分静默丢失。改用 `mergeStackable` 与其他物品类型一致
 - **修复：存档加载无回滚保护** — `loadFromSnapshot` 中途失败时已写入的 15 个 Flow 值无法恢复。保存旧状态快照，失败时完整回滚所有已写入值

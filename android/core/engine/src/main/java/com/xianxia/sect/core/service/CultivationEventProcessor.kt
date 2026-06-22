@@ -162,8 +162,7 @@ class CultivationEventProcessor @Inject constructor(
         if (missingIds.isNotEmpty()) {
             val updatedRates = existingRates.toMutableMap()
             for (d in missingIds) {
-                val manualInstanceMap = state.manualInstances.associateBy { it.id }
-                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables, manualInstanceMap)
+                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables)
             }
             sharedState.cachedCultivationRates = updatedRates
         }
@@ -194,37 +193,38 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         val currentHfd = sharedState.highFrequencyData.value
-        // 修复回归 #1：不再为无焦点弟子累加修炼值到 cultivationUpdates。
-        // cultivationUpdates 仅用于追踪已实际写入 disciple.cultivation 的修炼量
-        //（通过 updateFocusedDisciple 对焦点弟子写入）。
-        // 非焦点弟子的修炼值在此处仅为"预估"，若累加进 cultivationUpdates，
-        // 月度结算时会被 calculateBatchCultivationGain 的 alreadyGained 减法抵消，
-        // 导致非焦点弟子修炼进度始终为零（"不看就不修炼" bug）。
+        val accumGains = currentHfd.cultivationUpdates.toMutableMap()
+        processedAlive.forEach { d ->
+            if (d.id != stateStore.focusedDiscipleId) {
+                val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
+                if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
+                    accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
+                }
+            }
+        }
         sharedState.highFrequencyData.value = currentHfd.copy(
+            cultivationUpdates = accumGains,
             focusedPhaseCount = currentHfd.focusedPhaseCount + 1
         )
 
-        // 修复回归 #2：表重建前保存修炼值快照。
-        // processDiscipleTick 仅修改 HP/MP、丹药效果、装备、功法，不修改修炼值。
-        // 但 rebuild 从 stateStore.disciples.value（StateFlow 派生，可能滞后于
-        // 月结 settlement 的 swapFromShadow）重建所有字段，会覆写 settlement 写入的修炼值。
-        // 解决：重建前从权威数据源 state.discipleTables 保存修炼值，重建后恢复。
-        val cultivationSnapshot = mutableMapOf<Int, Double>()
-        for (id in state.discipleTables.ids) {
-            cultivationSnapshot[id] = state.discipleTables.cultivations[id]
-        }
-
-        val aliveMap = processedAlive.associateBy { it.id }
-        val updatedDisciplesList = stateStore.disciples.value.map { if (it.isAlive) aliveMap[it.id] ?: it else it }
-        // 直接操作事务内状态 state（即外层 tick 持有的 reusableMutableState）。
-        // 绝不能调用 stateStore.update{}——advancePhase 处于 tick 的 update 块内，
-        // transactionMutex 不可重入，嵌套调用会死锁（核心修复前的根因）。
-        state.discipleTables.clear()
-        updatedDisciplesList.forEach { state.discipleTables.insert(it) }
-
-        // 恢复修炼值快照，保护 settlement 写入的修炼进度不被覆写
-        for ((id, cult) in cultivationSnapshot) {
-            state.discipleTables.cultivations[id] = cult
+        // 精准字段写回：仅写回 processDiscipleTick 实际修改的字段，
+        // 不执行全量 clear()+insert()。
+        // cultivations/realms/realmLayers/lifespans/loyalties 等字段
+        // 由 SettlementCoordinator 月度结算单独管理，phaseTick 不碰。
+        for (disciple in processedAlive) {
+            val id = disciple.id.toInt()
+            state.discipleTables.currentHps[id] = disciple.combat.currentHp
+            state.discipleTables.currentMps[id] = disciple.combat.currentMp
+            state.discipleTables.cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
+            state.discipleTables.cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
+            state.discipleTables.pillCultivationSpeedBonuses[id] = disciple.pillEffects.pillCultivationSpeedBonus
+            state.discipleTables.pillEffectDurations[id] = disciple.pillEffects.pillEffectDuration
+            state.discipleTables.storageBagItems[id] = disciple.equipment.storageBagItems
+            state.discipleTables.weaponIds[id] = disciple.equipment.weaponId
+            state.discipleTables.armorIds[id] = disciple.equipment.armorId
+            state.discipleTables.bootsIds[id] = disciple.equipment.bootsId
+            state.discipleTables.accessoryIds[id] = disciple.equipment.accessoryId
+            state.discipleTables.manualIds[id] = disciple.manualIds
         }
 
         cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
@@ -343,9 +343,17 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        // 直接写回事务内状态，不使用异步协程
-        tables.clear()
-        updatedDisciples.forEach { tables.insert(it) }
+        // 精准字段写回：仅写回自动装备/学习实际修改的字段，
+        // 不执行全量 clear()+insert()
+        for (disciple in updatedDisciples) {
+            val id = disciple.id.toInt()
+            tables.storageBagItems[id] = disciple.equipment.storageBagItems
+            tables.weaponIds[id] = disciple.equipment.weaponId
+            tables.armorIds[id] = disciple.equipment.armorId
+            tables.bootsIds[id] = disciple.equipment.bootsId
+            tables.accessoryIds[id] = disciple.equipment.accessoryId
+            tables.manualIds[id] = disciple.manualIds
+        }
         state.equipmentStacks.setItems(
             state.equipmentStacks.all().filter { it.id in bagEqIds } + eqStacks
         )
@@ -470,6 +478,8 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
+
+        processTheftMonthly()
     }
 
     suspend fun processTheftMonthly() {

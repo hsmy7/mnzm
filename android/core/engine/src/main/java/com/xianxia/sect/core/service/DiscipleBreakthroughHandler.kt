@@ -46,6 +46,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             var newCultivation = disciple.cultivation
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
+            var newLifespan = disciple.lifespan
             var newCurrentHp = disciple.combat.currentHp
             var newCurrentMp = disciple.combat.currentMp
             var newStorageItems = disciple.equipment.storageBagItems
@@ -102,6 +103,13 @@ class DiscipleBreakthroughHandler @Inject constructor(
                         newRealm--
                         newRealmLayer = 1
                     }
+                    newLifespan += cultivationCore.getLifespanGainForRealm(newRealm)
+
+                    val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0
+                    if (lifespanTalentBonus != 0.0) {
+                        val extraLifespan = (cultivationCore.getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
+                        newLifespan += extraLifespan
+                    }
                 } else {
                     newCultivation = 0.0
                     shouldContinue = false
@@ -119,8 +127,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
                 data.gameYear, data.gameMonth
             )
-            val manualInstanceMap = state.manualInstances.associateBy { it.id }
-            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables, manualInstanceMap)
+            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables)
             val remainingCultivation = if (newCultivation < disciple.maxCultivation) disciple.maxCultivation - newCultivation else 0.0
             val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
                 .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)
@@ -129,7 +136,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,
-                lifespan = disciple.lifespan,
+                lifespan = newLifespan,
                 combat = disciple.combat.copy(
                     currentHp = newCurrentHp,
                     currentMp = newCurrentMp
