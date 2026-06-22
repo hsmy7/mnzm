@@ -315,8 +315,9 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = victory, teamMembers = teamMembers, rewards = emptyList()))
     if (victory) {
         val allSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
-        val realmDistribution = allSectDisciples.groupingBy { it.realm }.eachCount()
-        val scoutInfo = SectScoutInfo(sectId = sectId, sectName = targetSect.name, scoutYear = data.gameYear, scoutMonth = data.gameMonth, discipleCount = allSectDisciples.size, maxRealm = allSectDisciples.minOfOrNull { it.realm } ?: 9, disciples = realmDistribution, isKnown = true, expiryYear = data.gameYear + 1, expiryMonth = data.gameMonth)
+        val aliveSectDisciples = allSectDisciples.filter { it.isAlive }
+        val realmDistribution = aliveSectDisciples.groupingBy { it.realm }.eachCount()
+        val scoutInfo = SectScoutInfo(sectId = sectId, sectName = targetSect.name, scoutYear = data.gameYear, scoutMonth = data.gameMonth, discipleCount = aliveSectDisciples.size, maxRealm = aliveSectDisciples.minOfOrNull { it.realm } ?: 9, disciples = realmDistribution, isKnown = true, expiryYear = data.gameYear + 1, expiryMonth = data.gameMonth)
         updateGameDataSync { val existingDetail = it.sectDetails[sectId] ?: SectDetail(sectId = sectId); it.copy(sectDetails = it.sectDetails + (sectId to existingDetail.copy(scoutInfo = scoutInfo))) }
     }
 }
