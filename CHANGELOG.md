@@ -6,6 +6,10 @@
 
 - **新增：弟子卡片显示年龄** — 所有使用统一弟子卡片（`PortraitDiscipleCard`）的界面（弟子列表、招募、选择器等）均在性别右侧显示弟子年龄，格式为“xx岁”。年龄文本由独立可测试的 `formatDiscipleAge` 格式化函数生成，避免硬编码字符串散落在多处 UI 代码中
 
+### 修复
+
+- **修复：建筑槽位详情按钮素材错误** — 所有建筑中用于说明槽位用途的 `ElderBonusInfoButton` 默认背景素材由通用按钮（`R.drawable.ui_button`）错误地使用了详情按钮的设计资源（`R.drawable.ui_detail_button`）。已将 `ui_detail_button.webp` 下沉到 `core:ui` 模块，并把组件默认值修正为 `R.drawable.ui_detail_button`，覆盖天枢殿、仓库、灵矿场、灵植阁、执法堂、问道塔/青云塔等各峰场景
+
 ## [4.0.17] - 2026-06-22（versionCode=4017）
 
 ### 修复

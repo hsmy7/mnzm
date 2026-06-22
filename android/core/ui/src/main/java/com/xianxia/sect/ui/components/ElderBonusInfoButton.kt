@@ -35,7 +35,7 @@ data class ElderBonusInfo(
 fun ElderBonusInfoButton(
     bonusInfo: ElderBonusInfo,
     modifier: Modifier = Modifier,
-    @DrawableRes detailButtonRes: Int = R.drawable.ui_button,
+    @DrawableRes detailButtonRes: Int = R.drawable.ui_detail_button,
     @DrawableRes backgroundRes: Int = R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button
 ) {
