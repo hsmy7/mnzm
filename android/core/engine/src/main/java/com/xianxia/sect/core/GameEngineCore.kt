@@ -345,13 +345,14 @@ class GameEngineCore @Inject constructor(
      * - 非守护线程（isDaemon=false）：荣耀 MagicOS 等 OEM 会挂起守护线程池
      *   中的线程，非守护线程可防止看门狗自身被冻结。
      * - 独立单线程执行器：与 Dispatchers.Default 线程池完全隔离。
-     * - 荣耀设备 3s 间隔（原 5s）：MagicOS 挂起恢复窗口更窄，更快检测。
+     * - 检查间隔由 [OemPowerProfileProvider.current] 数据驱动：
+     *   激进 OEM（Honor/vivo）3s，中等 OEM（Xiaomi/OPPO）4s，保守 OEM 5s。
      */
     private fun startWatchdog() {
         stopWatchdog()
         watchdogRecoveryAttempts = 0
-        val isHonor = Build.MANUFACTURER.lowercase().contains("honor")
-        val intervalMs = if (isHonor) 3000L else 5000L
+        // 看门狗间隔由 OemPowerProfile 数据驱动：激进 OEM（Honor/vivo）3s，保守 OEM 5s
+        val intervalMs = OemPowerProfileProvider.current.watchdogIntervalMs
         watchdogJob = CoroutineScope(WATCHDOG_DISPATCHER + SupervisorJob()).launch {
             var lastTickCount = _tickCount.value
             while (isActive) {
@@ -792,31 +793,37 @@ class GameEngineCore @Inject constructor(
     /**
      * 防挂起延迟：将等待时间拆分为微延迟 + 自旋/忙等。
      *
-     * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）检测线程"空闲"状态的
-     * 时间窗口约 50-100ms。将 delay 拆分为微间隔（远低于检测窗口）并
-     * 在间隔间保持 CPU 活跃状态，可有效防止 PowerGenie 将游戏线程标记为
-     * "空闲"并挂起。
+     * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）、荣耀 MagicOS、
+     * vivo/iQOO OriginOS、小米 MIUI 神隐模式、OPPO ColorOS 等 OEM
+     * 省电机制会检测线程"空闲"状态并将游戏线程挂起。
+     *
+     * 将 delay 拆分为微间隔（远低于检测窗口）并在间隔间保持 CPU 活跃状态，
+     * 可有效防止 OEM 将游戏线程标记为"空闲"并挂起。
+     *
+     * ## 参数来源
+     * busyInterval / busyDuration 由 [OemPowerProfileProvider.current] 提供，
+     * 数据驱动各厂商差异化配置：
+     * - 激进 OEM（Honor MagicOS / vivo OriginOS）：busyInterval=16, busyDuration=4ms
+     * - 中等 OEM（Xiaomi MIUI / OPPO ColorOS）：busyInterval=32, busyDuration=3ms
+     * - 保守 OEM（Samsung / 原生）：busyInterval=64, busyDuration=2ms
      *
      * API 33+：4ms 微延迟 + Thread.onSpinWait() 自旋提示
      * API < 33：2ms 微延迟 + 周期性忙等替代缺失的 onSpinWait。
-     *   荣耀 MagicOS 空闲检测窗口更窄（约 10-30ms），忙等间隔缩短至
-     *   每 16 周期（约 32ms），忙等时长增至 4ms，确保 CPU 持续活跃。
      *
-     * 成本：API 33+ 约 5% CPU；非荣耀 API < 33 略高；
-     *   荣耀 MagicOS 版约 8-10% CPU，但远优于游戏完全冻结。
+     * 成本：API 33+ 约 5% CPU；激进 OEM 约 8-10% CPU，但远优于游戏完全冻结。
      *
      * 参考：
-     * - donotkillmyapp.com/huawei — PowerGenie 机制分析
+     * - dontkillmyapp.com — 各厂商电源管理机制分析
      * - Kotlin Slack #coroutines: delay() 精度 >30ms 抖动
      *   (https://slack-chats.kotlinlang.org/t/26866719)
      */
     private suspend fun antiFreezeDelay(totalMs: Long) {
         val useSpinWait = Build.VERSION.SDK_INT >= 33
-        val isHonor = Build.MANUFACTURER.lowercase().contains("honor")
+        val profile = OemPowerProfileProvider.current
         val microInterval = if (useSpinWait) 4L else 2L
-        // 荣耀 MagicOS 空闲检测窗口 ~10-30ms，更激进地保持 CPU 活跃
-        val busyInterval = if (isHonor) 16L else 64L
-        val busyDuration = if (isHonor) 4L else 2L
+        // 数据驱动：激进 OEM 更频繁忙等以突破更窄的空闲检测窗口
+        val busyInterval = profile.antiFreezeBusyInterval
+        val busyDuration = profile.antiFreezeBusyDuration
         var remaining = totalMs
         var cycleCount = 0L
         while (remaining > 0 && currentCoroutineContext().isActive) {

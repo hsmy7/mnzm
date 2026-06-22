@@ -701,16 +701,21 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     // ── 电池优化引导 ──
 
-    /** 首次进入游戏时在华为/荣耀设备上引导用户关闭电池优化 */
+    /**
+     * 首次进入游戏时引导用户关闭电池优化。
+     *
+     * 由 [BatteryOptimizationHelper.shouldShowGuide] 数据驱动，
+     * 覆盖全部激进 OEM（华为/荣耀/vivo/iQOO/小米/OPPO）。
+     */
     private fun showBatteryOptimizationGuideIfNeeded() {
         val helper = com.xianxia.sect.core.util.BatteryOptimizationHelper
-        if (!helper.shouldShowHuaweiGuide(this)) return
+        if (!helper.shouldShowGuide(this)) return
 
         // 使用 SharedPreferences 记录是否已提示过，避免每次 resume 都弹
         val prefs = getSharedPreferences("battery_guide", MODE_PRIVATE)
-        if (prefs.getBoolean("huawei_guide_shown", false)) return
+        if (prefs.getBoolean("oem_guide_shown", false)) return
 
-        prefs.edit().putBoolean("huawei_guide_shown", true).apply()
+        prefs.edit().putBoolean("oem_guide_shown", true).apply()
 
         val guideText = helper.getGuideText(this)
         if (guideText.isEmpty()) return

@@ -34,6 +34,7 @@
 - **修复：兑换码签名校验** — `APK_SIGNATURE_HASH` 为空时返回 `true` 允许跳过校验。改为仅 Debug 构建允许跳过，Release 构建空 hash 拒绝
 - **修复：修炼计算双状态访问** — `calculateDiscipleCultivationPerPhase` 绕过传入的 shadow state 参数直接读 `stateStore.manualInstances`，与月结 shadow 隔离语义冲突。改为从调用方传入 `manualInstanceMap` 参数
 - **修复：招募费死配置清理** — `recruitCost` 字段在 `GameConfig`/`GameConfigData`/`game_config.json` 三处定义但 `recruitDisciple()` 从未消费，删除全部引用
+- **修复：iQOO/vivo 手机游玩时游戏时间不动** — 此前 `antiFreezeDelay`、`startWatchdog`、`BatteryOptimizationHelper` 仅对荣耀 MagicOS 调参，vivo/iQOO(OriginOS)、小米(MIUI)、OPPO(ColorOS) 等厂商走默认参数，游戏线程被 OEM 省电机制挂起后看门狗需 5 秒才发现，期间游戏时间停止。重构为数据驱动的厂商配置文件：新增 `OemPowerProfile`（core/engine）与 `ManufacturerProfile`（app）两张配置表，覆盖华为/荣耀/vivo/小米/OPPO/三星全厂商。vivo/iQOO 使用与荣耀同级激进参数（忙等间隔 16 周期、忙等时长 4ms、看门狗 3 秒），小米/OPPO 使用中等参数（32/3ms/4s）。`WakeLockManager`、`DeviceCompatibilityHelper`、`BatteryOptimizationHelper` 全部改为从 profile 读取参数，消除 `if (isHonor)` 硬编码分支。新增 vivo/小米/OPPO 电池优化引导文案与厂商自启动设置页跳转
 
 ### 变更
 

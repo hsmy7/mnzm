@@ -28,21 +28,24 @@ object DeviceCompatibilityHelper {
     }
 
     /**
-     * 华为设备专用：跳过 AndroidKeyStore StrongBox
+     * 是否跳过 AndroidKeyStore StrongBox。
+     * 由 [ManufacturerAdapter.profile.skipStrongBox] 数据驱动。
      */
-    fun shouldSkipStrongBox(): Boolean = isHuaweiOrHonor
+    fun shouldSkipStrongBox(): Boolean = ManufacturerAdapter.profile.skipStrongBox
 
     /**
-     * 华为设备专用：使用较低的目标堆利用率
-     * 华为固件常限制单进程堆上限为 256-384MB（而非标准 512MB）
+     * 目标堆利用率。
+     * 由 [ManufacturerAdapter.profile.targetHeapUtilization] 数据驱动。
+     * 华为/荣耀固件常限制单进程堆上限为 256-384MB（而非标准 512MB）。
      */
-    fun getTargetHeapUtilization(): Float = if (isHuaweiOrHonor) 0.65f else 0.75f
+    fun getTargetHeapUtilization(): Float = ManufacturerAdapter.profile.targetHeapUtilization
 
     /**
-     * 获取 TapTap SDK 初始化超时（毫秒）
-     * 华为 HarmonyOS 兼容层执行开销更高，需要更长超时
+     * 获取 TapTap SDK 初始化超时（毫秒）。
+     * 由 [ManufacturerAdapter.profile.tapTapInitTimeoutMs] 数据驱动。
+     * 华为 HarmonyOS 兼容层执行开销更高，需要更长超时。
      */
-    fun getTapTapInitTimeoutMs(): Long = if (isHuaweiOrHonor) 15_000L else 8_000L
+    fun getTapTapInitTimeoutMs(): Long = ManufacturerAdapter.profile.tapTapInitTimeoutMs
 
     fun logDeviceInfo() {
         Log.i(TAG, """
