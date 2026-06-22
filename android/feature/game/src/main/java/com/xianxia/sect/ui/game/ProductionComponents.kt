@@ -1,16 +1,13 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -19,33 +16,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.equipmentSpriteRes
-import com.xianxia.sect.ui.components.pillSpriteRes
-import com.xianxia.sect.ui.components.getRarityColor
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
-import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.theme.ButtonSizes
+import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.DiscipleSlot
-import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.theme.GameColors
 
 data class ProductionTheme(
     val buildingId: String,
@@ -362,63 +351,27 @@ fun ProductionSlotItem(
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (isWorking && productName != null) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .background(getRarityColor(productRarity)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val spriteRes = if (isPill) pillSpriteRes(productRarity)
-        else equipmentSpriteRes(productName)
-                        if (spriteRes != null) {
-                            Image(
-                                painter = painterResource(id = spriteRes),
-                                contentDescription = productName,
-                                modifier = Modifier.fillMaxSize().padding(3.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            Text(
-                                text = "敬请期待",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(2.dp)
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(14.dp)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = productName,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 2.dp)
-                        )
-                    }
-                }
-            } else {
+        if (isWorking && productName != null) {
+            UnifiedItemCard(
+                data = ItemCardData(
+                    name = productName,
+                    rarity = productRarity,
+                    quantity = 1,
+                    isPill = isPill
+                ),
+                showQuantity = false,
+                onClick = onClick
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                    .clickable { onClick() },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(text = "+", fontSize = 24.sp, color = Color.Black)
             }
         }

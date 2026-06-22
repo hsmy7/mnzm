@@ -798,6 +798,20 @@ private fun ListedItemCard(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        UnifiedItemCard(
+            data = ItemCardData(
+                id = item.id,
+                name = item.name,
+                rarity = item.rarity,
+                quantity = item.quantity,
+                isManual = item.type == "manual",
+                isPill = item.type == "pill",
+                isMaterial = item.type == "material"
+            ),
+            size = 40.dp,
+            showQuantity = false
+        )
+
         Text(
             text = item.name,
             fontSize = 11.sp,

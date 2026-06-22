@@ -11,9 +11,15 @@
 - **修复：探查 AI 宗门弟子分布改为快照显示** — 世界地图宗门详情中，探查后各境界弟子数量原本读取 `aiSectDisciples` 实时活着弟子并持续更新，且 `SectScoutInfo` 中保存的是含死亡弟子的全量分布，导致显示与探查情报语义不符。修复后：探查成功时保存当前活着弟子的境界分布快照；宗门详情始终显示该快照，不再随弟子死亡/突破实时变化；同时移除探查过期判断，一次探查永久有效，直到再次探查刷新
 - **修复：建筑槽位详情按钮素材错误** — 所有建筑中用于说明槽位用途的 `ElderBonusInfoButton` 默认背景素材由通用按钮（`R.drawable.ui_button`）错误地使用了详情按钮的设计资源（`R.drawable.ui_detail_button`）。已将 `ui_detail_button.webp` 下沉到 `core:ui` 模块，并把组件默认值修正为 `R.drawable.ui_detail_button`，覆盖天枢殿、仓库、灵矿场、灵植阁、执法堂、问道塔/青云塔等各峰场景
 
+### 变更
+
+- **变更：大乘最大寿命 3000→2500、渡劫最大寿命 5000→4000** — 其余境界最大寿命保持不变
+- **变更：移除境界突破额外增加寿命机制** — 删除 `CultivationCore.getLifespanGainForRealm` 和 `SettlementCoordinator` 中同名私有函数。玩家弟子和 AI 宗门弟子突破境界后寿命不再额外增长，突破仅改变境界不改变寿命值。`DiscipleBreakthroughHandler` 实时突破和 `SettlementCoordinator` 月结突破中的寿命增益逻辑已全部移除
+
 ### 优化
 
 - **优化：世界地图宗门信息界面布局调整** — 删除等级宗门文本，等级图标移至宗门名称左侧；关系左侧新增所属势力显示，被占领宗门显示占领者名称，未被占领显示自身名称；下方操作按钮改为根据屏幕宽度自动换行排列
+- **优化：物品卡片统一组件重构** — 所有显示物品卡片的界面全面改用 `UnifiedItemCard` 统一组件。新增 `size` 参数支持动态卡片尺寸适配不同场景。每日签到 `SignInDayCard`/`MilestoneRewardRow`、生产槽位 `ProductionSlotItem`、商人挂售 `ListedItemCard` 中的手写物品卡片均迁移至 `UnifiedItemCard`，保留各自特有的状态覆盖层和操作按钮。删除了未被任何代码引用的 `ItemCard`、`CompactItemCard`、`RarityBadge`、`StatBonus` 四个冗余组件
 
 ## [4.0.17] - 2026-06-22（versionCode=4017）
 

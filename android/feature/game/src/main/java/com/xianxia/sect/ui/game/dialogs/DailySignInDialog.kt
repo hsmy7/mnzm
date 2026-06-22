@@ -1,9 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -16,26 +14,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.DailySignInReward
 import com.xianxia.sect.core.model.MilestoneReward
 import com.xianxia.sect.core.model.SignInDayState
 import com.xianxia.sect.core.model.SignInState
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.LocalItemSpriteCache
+import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
-import com.xianxia.sect.core.model.RewardCardItem
-import com.xianxia.sect.ui.components.spiritStoneSpriteRes
-import com.xianxia.sect.ui.components.storageBagSpriteRes
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.registry.ItemDatabase
@@ -259,28 +251,16 @@ private fun SignInDayCard(
     modifier: Modifier = Modifier,
     onLongPress: (Any) -> Unit = {}
 ) {
-    val rarityColor = getRarityColor(reward.rarity)
-    val spriteRes = when (reward.type) {
-        "spiritStones" -> spiritStoneSpriteRes()
-        "storageBag" -> storageBagSpriteRes(reward.rarity)
-        "pill" -> com.xianxia.sect.ui.components.pillSpriteRes(reward.rarity)
-        "beastMaterial" -> com.xianxia.sect.ui.components.materialSpriteRes(reward.itemName)
-        else -> null  // randomMaterial / randomSeed / randomPill 使用 ? 文本代替精灵图
-    }
     val isRandomReward = reward.type in setOf("randomMaterial", "randomSeed", "randomPill", "randomHerb")
-
     val detailItem = buildDetailItem(reward.itemName, reward.quantity, reward.type, reward.rarity)
-
-    val nameLabelHeight = 14.dp
 
     val isTodayUnclaimed = state == SignInDayState.TODAY_UNCLAIMED
     val isClaimed = state == SignInDayState.TODAY_CLAIMED || state == SignInDayState.PAST_CLAIMED
     val isMissed = state == SignInDayState.MISSED
     val isOverlayState = isClaimed || isMissed
 
-    val borderWidth = if (isTodayUnclaimed) 3.dp else 2.dp
-    val borderColor = if (isTodayUnclaimed) GameColors.Gold else GameColors.Border
     val overlayTextColor = if (isOverlayState) Color.Black else Color.White
+    val nameLabelHeight = 14.dp
 
     Box(
         modifier = modifier
@@ -297,110 +277,71 @@ private fun SignInDayCard(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(6.dp))
-                .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
-        ) {
-            // 精灵图区域
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = reward.itemName,
+                rarity = reward.rarity,
+                quantity = reward.quantity,
+                isSpiritStone = reward.type == "spiritStones",
+                isBag = reward.type == "storageBag",
+                isPill = reward.type == "pill",
+                isMaterial = reward.type == "beastMaterial"
+            ),
+            size = cellHeight,
+            isSelected = isTodayUnclaimed,
+            selectedBorderColor = GameColors.Gold,
+            showQuantity = false
+        )
+
+        // 状态覆盖层（仅覆盖精灵图区域）
+        if (isClaimed || isMissed || isRandomReward) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(cellWidth)
-                    .background(if (isClaimed || isMissed) Color(0xFFF5F5F5) else rarityColor),
+                    .height(cellHeight - nameLabelHeight)
+                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                    .background(if (isOverlayState) Color(0xFFF5F5F5) else Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
-                if (isClaimed) {
+                if (isOverlayState || isRandomReward) {
                     Text(
-                        text = "已领",
-                        fontSize = 9.sp,
+                        text = when {
+                            isClaimed -> "已领"
+                            isMissed -> "未领"
+                            else -> "?"
+                        },
+                        fontSize = if (isRandomReward) 16.sp else 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
-                    )
-                } else if (isMissed) {
-                    Text(
-                        text = "未领",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.Error
-                    )
-                } else {
-                    // 显示精灵图（随机物品显示 ?）
-                    if (isRandomReward) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "?",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                        color = when {
+                            isClaimed -> Color(0xFF4CAF50)
+                            isMissed -> GameColors.Error
+                            else -> Color.White
                         }
-                    } else if (spriteRes != null) {
-                        val cachedBitmap = LocalItemSpriteCache.current[spriteRes]
-                        if (cachedBitmap != null) {
-                            Image(
-                                bitmap = cachedBitmap,
-                                contentDescription = reward.itemName,
-                                modifier = Modifier.fillMaxSize().padding(3.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = spriteRes),
-                                contentDescription = reward.itemName,
-                                modifier = Modifier.fillMaxSize().padding(3.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        }
-                    }
+                    )
                 }
-
-                // 日期数字（左上角，始终显示；已领/未领时用黑色保证可读性）
-                Text(
-                    text = "$dayOfMonth",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = overlayTextColor,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 3.dp, top = 2.dp)
-                )
-
-                // 数量（右下角，始终显示）
-                Text(
-                    text = "${reward.quantity}",
-                    fontSize = 8.sp,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 3.dp, bottom = 2.dp)
-                )
-            }
-
-            // 名称区域
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(nameLabelHeight)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = reward.itemName,
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 1.dp)
-                )
             }
         }
+
+        // 日期数字（左上角，始终显示；已领/未领时用黑色保证可读性）
+        Text(
+            text = "$dayOfMonth",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = overlayTextColor,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 3.dp, top = 2.dp)
+        )
+
+        // 数量（右下角，始终显示）
+        Text(
+            text = "${reward.quantity}",
+            fontSize = 8.sp,
+            color = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 3.dp, bottom = 2.dp)
+        )
     }
 }
 
@@ -452,19 +393,9 @@ private fun MilestoneRewardRow(
     dayLabelWidth: Dp,
     onLongPress: (Any) -> Unit
 ) {
-    val rarityColor = getRarityColor(milestone.rarity)
-    val spriteRes = when (milestone.type) {
-        "spiritStones" -> spiritStoneSpriteRes()
-        "storageBag" -> storageBagSpriteRes(milestone.rarity)
-        else -> null
-    }
-
     val detailItem = buildDetailItem(
         milestone.itemName, milestone.quantity, milestone.type, milestone.rarity
     )
-
-    val borderColor = if (isReached) GameColors.Gold else GameColors.Border
-    val borderWidth = if (isReached) 3.dp else 2.dp
     val nameLabelHeight = 14.dp
 
     Row(
@@ -503,77 +434,48 @@ private fun MilestoneRewardRow(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(6.dp))
-                    .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
-            ) {
-                // 精灵图区域
+            UnifiedItemCard(
+                data = ItemCardData(
+                    name = milestone.itemName,
+                    rarity = milestone.rarity,
+                    quantity = milestone.quantity,
+                    isSpiritStone = milestone.type == "spiritStones",
+                    isBag = milestone.type == "storageBag"
+                ),
+                size = cardHeight,
+                isSelected = isReached,
+                selectedBorderColor = GameColors.Gold,
+                showQuantity = false
+            )
+
+            // 已领覆盖层（仅覆盖精灵图区域）
+            if (isClaimed) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(cardSize)
-                        .background(if (isClaimed) Color(0xFFF5F5F5) else rarityColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isClaimed) {
-                        Text(
-                            text = "已领",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4CAF50)
-                        )
-                    } else if (spriteRes != null) {
-                        val cachedBitmap = LocalItemSpriteCache.current[spriteRes]
-                        if (cachedBitmap != null) {
-                            Image(
-                                bitmap = cachedBitmap,
-                                contentDescription = milestone.itemName,
-                                modifier = Modifier.fillMaxSize().padding(3.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = spriteRes),
-                                contentDescription = milestone.itemName,
-                                modifier = Modifier.fillMaxSize().padding(3.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        }
-                    }
-
-                    // 数量（右下角）
-                    Text(
-                        text = formatRewardQuantity(milestone.quantity),
-                        fontSize = 8.sp,
-                        color = Color.White,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 3.dp, bottom = 2.dp)
-                    )
-                }
-
-                // 名称区域
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(nameLabelHeight)
-                        .background(Color.White),
+                        .height(cardHeight - nameLabelHeight)
+                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        .background(Color(0xFFF5F5F5)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = milestone.itemName,
-                        fontSize = 7.sp,
+                        text = "已领",
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 1.dp)
+                        color = Color(0xFF4CAF50)
                     )
                 }
             }
+
+            // 数量（右下角）
+            Text(
+                text = formatRewardQuantity(milestone.quantity),
+                fontSize = 8.sp,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 3.dp, bottom = 2.dp)
+            )
         }
     }
 }
