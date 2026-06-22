@@ -71,6 +71,14 @@ object DiscipleAttrDefaults {
     val FontSize = 11.sp
 }
 
+/**
+ * 格式化弟子年龄显示文本。
+ *
+ * @param age 弟子年龄
+ * @return 用于 UI 显示的年龄文本，如 "18岁"
+ */
+fun formatDiscipleAge(age: Int): String = "${age}岁"
+
 @Composable
 fun DiscipleAttrText(
     name: String,
@@ -189,6 +197,11 @@ fun PortraitDiscipleCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(text = disciple.genderName, fontSize = 12.sp, color = Color.Black)
+                        Text(
+                            text = formatDiscipleAge(disciple.age),
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
                         if (disciple.isFollowed) FollowedTag()
                         if (isCurrent) {
                             Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
