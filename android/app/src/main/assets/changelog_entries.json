@@ -31,7 +31,9 @@
 			"修复：修炼计算双状态访问——calculateDiscipleCultivationPerPhase改为从调用方传入manualInstanceMap",
 			"修复：招募费死配置清理——删除GameConfig/GameConfigData/game_config.json三处recruitCost定义及测试引用",
 			"优化：代码质量全面清理——移除12处!!操作符、118处CancellationException重抛、7处空catch添加日志、BaseViewModel废弃StateFlow仅保留Channel",
-			"优化：血炼加成数据Room持久化——补充bloodRefinementBonusTotals的Migration 4→5 ALTER TABLE"
+			"优化：血炼加成数据Room持久化——补充bloodRefinementBonusTotals的Migration 4→5 ALTER TABLE",
+			"修复：弟子叛逃系统未激活——processLawEnforcementMonthly因未接入月度循环从未执行，低忠诚弟子不受叛逃影响、执法岗位形同虚设。现已接入每月事件循环，忠诚度低于30的弟子按概率叛逃，抓捕率受执法长老/弟子智力及增强治安政策影响",
+			"新增：弟子偷盗冷却限制——弟子成功偷盗灵石后12个月内不可再偷盗，冷却时间基于上次偷盗月份计算，偷盗被捕不触发冷却",
 		]
 	},
 	{
