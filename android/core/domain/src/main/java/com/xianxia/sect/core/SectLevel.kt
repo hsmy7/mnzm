@@ -64,4 +64,18 @@ object SectLevel {
         TOP -> 0     // 仙人 — 无上限
         else -> 6
     }
+
+    /**
+     * 根据宗门等级返回每年招募弟子数量的随机范围。
+     *
+     * @param level 宗门等级 0-3
+     * @return 招募数量范围（含两端）
+     */
+    fun recruitRange(level: Int): IntRange = when (level) {
+        SMALL  -> 0..5
+        MEDIUM -> 1..8
+        LARGE  -> 3..15
+        TOP    -> 6..20
+        else   -> 0..5
+    }
 }

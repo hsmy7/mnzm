@@ -6,6 +6,7 @@ import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameUtils
@@ -294,7 +295,14 @@ class MerchantAndRecruitService @Inject constructor(
     // ── 招募（原有） ──────────────────────────────────────────────────
 
     suspend fun refreshRecruitList(year: Int) {
-        val recruitCount = Random.nextInt(0, 7)
+        val playerSect = stateStore.gameData.value.worldMapSects
+            .find { it.isPlayerSect }
+        val recruitCount = if (playerSect != null) {
+            val range = SectLevel.recruitRange(playerSect.level)
+            Random.nextInt(range.first, range.last + 1)
+        } else {
+            Random.nextInt(0, 7)  // 兜底：找不到玩家宗门时保持旧逻辑
+        }
         val newRecruitDisciples = mutableListOf<Disciple>()
         val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
