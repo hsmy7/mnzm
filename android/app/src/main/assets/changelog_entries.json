@@ -3,7 +3,8 @@
 		"date": "2026-06-23",
 		"version": "4.0.20",
 		"changes": [
-			"修复：部分用户邮件领取按钮点击无反应——Room的attachmentClaimed与GameData.mailRecords不一致时按钮可见但领取被mailRecords二次保护拦截，UI不处理AlreadyClaimed导致按钮无反应。修复：claimAttachment检测不一致时自愈Room状态并刷新UI、claimAttachmentInternal补齐mailRecords防护防止一键已读重复发物、fetchOnlineMails重插已领取邮件时直接标记为已领、UI穷举处理所有ClaimResult类型"
+			"修复：部分用户邮件领取按钮点击无反应——Room的attachmentClaimed与GameData.mailRecords不一致时按钮可见但领取被mailRecords二次保护拦截，UI不处理AlreadyClaimed导致按钮无反应。修复：claimAttachment检测不一致时自愈Room状态并刷新UI、claimAttachmentInternal补齐mailRecords防护防止一键已读重复发物、fetchOnlineMails重插已领取邮件时直接标记为已领、UI穷举处理所有ClaimResult类型",
+			"修复：突破率详情弹窗信息不完整——弹窗仅展示正面加成项（如神魂加成+5%），不显示基础突破率、负面天赋（如灵脉紊乱-5%）和丧亲惩罚（亲属逝世-20%），底部亦无最终突破率汇总行。修复：弹窗始终显示基础突破率、天赋加成改为显示非零值（负数红色）、底部新增最终突破率汇总行、丧亲惩罚正确传入主显示值和弹窗"
 		]
 	},
 	{

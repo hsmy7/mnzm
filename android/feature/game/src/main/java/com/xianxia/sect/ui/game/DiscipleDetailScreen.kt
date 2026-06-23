@@ -101,6 +101,7 @@ fun DiscipleDetailDialog(
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val gameMonth = gameData?.gameMonth ?: 1
+    val gameYear = gameData?.gameYear ?: 1
     val gamePhase = gameData?.gamePhase ?: 0
     @Suppress("DEPRECATION")
     val gameSpeed = gameData?.gameSpeed ?: 1
@@ -174,6 +175,7 @@ fun DiscipleDetailDialog(
                                         placedBuildings = vmPlacedBuildings,
                                         viewModel = viewModel,
                                         gameMonth = gameMonth,
+                                        gameYear = gameYear,
                                         gamePhase = gamePhase,
                                         gameSpeed = gameSpeed
                                     )

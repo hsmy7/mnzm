@@ -126,10 +126,18 @@ fun BasicInfoSection(
     placedBuildings: List<GridBuildingData> = emptyList(),
     viewModel: GameViewModel? = null,
     gameMonth: Int = 1,
+    gameYear: Int = 1,
     gamePhase: Int = 0,
     gameSpeed: Int = 1
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
+    val griefBreakthroughPenalty = if (
+        (disciple.griefEndYear ?: 0) > gameYear
+    ) {
+        DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
+    } else {
+        0.0
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "基本信息",
@@ -183,7 +191,9 @@ fun BasicInfoSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
-            val breakthroughChance = disciple.getBreakthroughChance()
+            val breakthroughChance = disciple.getBreakthroughChance(
+                griefBreakthroughPenalty = griefBreakthroughPenalty
+            )
             val innerElderComp = elderSlots?.innerElder?.let { eid ->
                 discipleMap[eid]?.comprehension ?: 0
             } ?: 0
@@ -194,7 +204,8 @@ fun BasicInfoSection(
                 disciple,
                 innerElderComprehension = innerElderComp,
                 outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0,
-                adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
+                adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0,
+                griefBreakthroughPenalty = griefBreakthroughPenalty
             )
             var showBreakthroughDetail by remember { mutableStateOf(false) }
             val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
@@ -520,9 +531,10 @@ fun BreakthroughDetailDialog(
     onDismiss: () -> Unit
 ) {
     val items = buildList {
+        add("基础突破率" to detail.baseChance)
         if (detail.innerElderBonus > 0) add("内门执事加成" to detail.innerElderBonus)
         if (detail.outerElderBonus > 0) add("外门执事加成" to detail.outerElderBonus)
-        if (detail.talentBonus > 0) add("天赋加成" to detail.talentBonus)
+        if (detail.talentBonus != 0.0) add("天赋加成" to detail.talentBonus)
         if (detail.soulPowerBonus > 0) add("神魂加成" to detail.soulPowerBonus)
         if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
         if (detail.adBonus > 0) add("广告加成" to detail.adBonus)
@@ -584,10 +596,10 @@ fun BreakthroughDetailDialog(
                                         color = Color.Black
                                     )
                                     Text(
-                                        text = "+${GameUtils.formatPercent(value)}",
+                                        text = "${if (value >= 0) "+" else ""}${GameUtils.formatPercent(value)}",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF4CAF50)
+                                        color = if (value >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
                                     )
                                 }
                             }
@@ -596,6 +608,16 @@ fun BreakthroughDetailDialog(
                             }
                         }
                     }
+                    HorizontalDivider(
+                        color = Color(0xFFDDDDDD),
+                        thickness = 1.dp
+                    )
+                    Text(
+                        text = "最终突破率 ${GameUtils.formatPercent(detail.total)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
                 }
             }
         }
