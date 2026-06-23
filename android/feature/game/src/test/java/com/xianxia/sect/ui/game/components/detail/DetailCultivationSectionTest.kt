@@ -134,6 +134,12 @@ class DetailCultivationSectionTest {
             baseHp = baseHp,
             baseMp = baseMp
         )
-        return DiscipleAggregate(core = core, combatStats = combat)
+        return DiscipleAggregate(
+            core = core,
+            combatStats = combat,
+            equipment = null,
+            extended = null,
+            attributes = null
+        )
     }
 }

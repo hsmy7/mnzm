@@ -113,7 +113,7 @@ class BloodRefiningViewModel @Inject constructor(
 
             // 原子化操作：灵石扣除 + 材料消耗 + 进度写入 + 弟子状态更新
             // 在单次 stateStore.update 事务中完成，失败时整体回滚
-            val success = gameEngine.startBloodRefinementAtomic(
+            val result = gameEngine.startBloodRefinementAtomic(
                 materialName = material.name,
                 materialRarity = material.rarity,
                 materialCount = REQUIRED_MATERIAL_COUNT,
@@ -122,9 +122,14 @@ class BloodRefiningViewModel @Inject constructor(
                 progress = progress
             )
 
-            if (!success) {
-                showError("资源不足，洗炼失败")
-                return@launch
+            when (result) {
+                is BloodRefinementStartResult.Success -> { /* 继续 */ }
+                is BloodRefinementStartResult.InsufficientStones ->
+                    { showError("灵石不足，洗炼失败"); return@launch }
+                is BloodRefinementStartResult.InsufficientMaterials ->
+                    { showError("兽血材料不足，洗炼失败"); return@launch }
+                is BloodRefinementStartResult.Error ->
+                    { showError("资源不足，洗炼失败"); return@launch }
             }
 
             // 更新UI状态
