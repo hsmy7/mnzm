@@ -72,6 +72,7 @@ data class DiscipleAggregate(
     val pillSkillExpSpeedBonus: Double get() = combatStats?.pillSkillExpSpeedBonus ?: 0.0
     val pillNurtureSpeedBonus: Double get() = combatStats?.pillNurtureSpeedBonus ?: 0.0
     val activePillCategory: String get() = combatStats?.activePillCategory ?: ""
+    val activePillTypes: Set<String> get() = emptySet()
     val totalCultivation: Long get() = combatStats?.totalCultivation ?: 0
     val breakthroughCount: Int get() = combatStats?.breakthroughCount ?: 0
     val breakthroughFailCount: Int get() = combatStats?.breakthroughFailCount ?: 0
@@ -106,6 +107,8 @@ data class DiscipleAggregate(
     val griefEndYear: Int? get() = extended?.griefEndYear
     val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
     val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
+    val usedPermanentPillKeys: Set<String> get() = emptySet()
+    val usedExtendLifePillTypes: Set<String> get() = emptySet()
     val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false
     val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
     val autoLearnFromWarehouse: Boolean get() = extended?.autoLearnFromWarehouse ?: false
@@ -249,11 +252,14 @@ data class DiscipleAggregate(
                 pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
                 pillNurtureSpeedBonus = pillNurtureSpeedBonus,
                 pillEffectDuration = pillEffectDuration,
-                activePillCategory = activePillCategory
+                activePillCategory = activePillCategory,
+                activePillTypes = activePillTypes
             ),
             usage = UsageTracking(
                 usedFunctionalPillTypes = usedFunctionalPillTypes,
                 usedExtendLifePillIds = usedExtendLifePillIds,
+                usedPermanentPillKeys = usedPermanentPillKeys,
+                usedExtendLifePillTypes = usedExtendLifePillTypes,
                 recruitedMonth = recruitedMonth,
                 hasReviveEffect = hasReviveEffect,
                 hasClearAllEffect = hasClearAllEffect

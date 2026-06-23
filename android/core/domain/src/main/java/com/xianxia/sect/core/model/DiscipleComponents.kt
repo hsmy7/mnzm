@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
+import androidx.room.Ignore
 import kotlinx.serialization.Serializable
 
 /**
@@ -82,6 +83,11 @@ data class PillEffects(
     var pillSkillExpSpeedBonus: Double = 0.0,
     var pillNurtureSpeedBonus: Double = 0.0,
     var pillEffectDuration: Int = 0,
+    // 当前生效中的临时/持续丹药效果，按 pillType 记录
+    @Ignore
+    var activePillTypes: Set<String> = emptySet(),
+    // 旧字段，仅用于旧存档反序列化
+    @Deprecated("使用 activePillTypes 替代")
     var activePillCategory: String = ""
 )
 
@@ -163,6 +169,13 @@ data class SkillStats(
  */
 @Serializable
 data class UsageTracking(
+    // 永久属性丹已服用的去重 key："tier#effectField"
+    @Ignore
+    var usedPermanentPillKeys: Set<String> = emptySet(),
+    // 寿命丹按 pillType 去重（所有品阶共享）
+    @Ignore
+    var usedExtendLifePillTypes: Set<String> = emptySet(),
+    // 旧字段，仅用于旧存档反序列化和迁移
     var usedFunctionalPillTypes: List<String> = emptyList(),
     var usedExtendLifePillIds: List<String> = emptyList(),
     var recruitedMonth: Int = 0,

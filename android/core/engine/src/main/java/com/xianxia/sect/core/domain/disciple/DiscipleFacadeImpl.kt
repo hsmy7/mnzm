@@ -380,22 +380,22 @@ class DiscipleFacadeImpl @Inject constructor(
 
         if (effect.cultivationSpeedPercent > 0) {
             discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-            discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration * 30
+            // 以旬为单位，不再 *30
+            discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration
                 else discipleTables.cultivationSpeedDurations[id]
         }
 
         if (effect.extendLife > 0) {
             discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
-            val usedExtendLife = discipleTables.usedExtendLifePillIds[id]
-            if (!usedExtendLife.contains(pill.pillType)) {
-                discipleTables.usedExtendLifePillIds[id] = usedExtendLife + pill.pillType
+            val usedExtendLife = discipleTables.usedExtendLifePillTypes[id]
+            if (pill.pillType !in usedExtendLife) {
+                discipleTables.usedExtendLifePillTypes[id] = usedExtendLife + pill.pillType
             }
         }
 
-        if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
-            effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-            effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
-            effect.miningAdd > 0
+        if (DisciplePillManager.hasAnyBaseAttrAdd(
+                pillManager.pillToItemEffect(pill)
+            )
         ) {
             discipleTables.intelligences[id] = discipleTables.intelligences[id] + effect.intelligenceAdd
             discipleTables.charms[id] = discipleTables.charms[id] + effect.charmAdd
@@ -407,18 +407,20 @@ class DiscipleFacadeImpl @Inject constructor(
             discipleTables.teachings[id] = discipleTables.teachings[id] + effect.teachingAdd
             discipleTables.moralities[id] = discipleTables.moralities[id] + effect.moralityAdd
             discipleTables.minings[id] = discipleTables.minings[id] + effect.miningAdd
+
+            // 记录永久属性丹使用
+            val itemEffect = pillManager.pillToItemEffect(pill)
+            val keys = DisciplePillManager.buildUsedKeys(itemEffect, pill.rarity)
+            val usedKeys = discipleTables.usedPermanentPillKeys[id]
+            discipleTables.usedPermanentPillKeys[id] = usedKeys + keys
         }
 
-        if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-            val usedTypes = discipleTables.usedFunctionalPillTypes[id]
-            discipleTables.usedFunctionalPillTypes[id] = usedTypes + pill.pillType
-        }
+        val itemEffect = pillManager.pillToItemEffect(pill)
+        val rule = DisciplePillManager.classify(itemEffect)
 
-        if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
-            effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
-            effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
-            effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
-            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
+        if (DisciplePillManager.hasAnyBattleAttrAdd(itemEffect) ||
+            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
+            effect.nurtureSpeedPercent > 0
         ) {
             discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
             discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
@@ -432,14 +434,27 @@ class DiscipleFacadeImpl @Inject constructor(
             discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
             discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
             discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
-            discipleTables.pillEffectDurations[id] = if (effect.duration > 0) effect.duration * 30
-                else discipleTables.pillEffectDurations[id]
-            discipleTables.activePillCategories[id] = if (effect.cannotStack) pill.category.name
-                else discipleTables.activePillCategories[id]
+            // 以旬为单位，不再 *30
+            val currentDuration = discipleTables.pillEffectDurations[id]
+            discipleTables.pillEffectDurations[id] = if (effect.duration > 0)
+                maxOf(currentDuration, effect.duration)
+            else currentDuration
+
+            // 持续/临时效果记录 pillType
+            if (rule == PillRule.SUSTAINED_SPEED || rule == PillRule.TEMPORARY_BATTLE) {
+                val activeTypes = discipleTables.activePillTypes[id]
+                if (pill.pillType.isNotEmpty()) {
+                    discipleTables.activePillTypes[id] = activeTypes + pill.pillType
+                }
+            }
         }
 
         if (effect.healMaxHpPercent > 0) {
-            discipleTables.hpVariances[id] = 0
+            val rawHp = discipleTables.currentHps[id]
+            val maxHp = discipleTables.baseHps[id]
+            val currentHp = if (rawHp < 0) maxHp else rawHp
+            val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
+            discipleTables.currentHps[id] = (currentHp + healAmount).coerceAtMost(maxHp)
         }
 
         if (effect.clearAll) {
@@ -457,6 +472,7 @@ class DiscipleFacadeImpl @Inject constructor(
             discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
             discipleTables.pillNurtureSpeedBonuses[id] = 0.0
             discipleTables.activePillCategories[id] = ""
+            discipleTables.activePillTypes[id] = emptySet()
         }
     }
 
@@ -731,12 +747,24 @@ class DiscipleFacadeImpl @Inject constructor(
                 val discipleRealm = discipleTables.realms[id]
                 if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, pill.minRealm)) return@update
 
-                val activePillCategory = discipleTables.activePillCategories[id]
-                if (pill.effects.cannotStack && activePillCategory == pill.category.name) return@update
-
-                val usedFunctionalPillTypes = discipleTables.usedFunctionalPillTypes[id]
-                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-                    if (usedFunctionalPillTypes.contains(pill.pillType)) return@update
+                // 使用新分类规则检查
+                val itemEffect = pillManager.pillToItemEffect(pill)
+                val rule = DisciplePillManager.classify(itemEffect)
+                when (rule) {
+                    PillRule.PERMANENT_BASE_ATTR -> {
+                        val keys = DisciplePillManager.buildUsedKeys(itemEffect, pill.rarity)
+                        val usedKeys = discipleTables.usedPermanentPillKeys[id]
+                        if (keys.any { it in usedKeys }) return@update
+                    }
+                    PillRule.PERMANENT_LIFE -> {
+                        val usedTypes = discipleTables.usedExtendLifePillTypes[id]
+                        if (pill.pillType in usedTypes) return@update
+                    }
+                    PillRule.SUSTAINED_SPEED, PillRule.TEMPORARY_BATTLE -> {
+                        val activeTypes = discipleTables.activePillTypes[id]
+                        if (pill.pillType in activeTypes) return@update
+                    }
+                    else -> {} // INSTANT_CULTIVATION, BREAKTHROUGH 可重复
                 }
 
                 if (pill.quantity > 1) {

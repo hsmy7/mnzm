@@ -214,7 +214,8 @@ class CultivationCore @Inject constructor(
      */
     fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) {
         // 扣除已在焦点域旬结算中应用的部分，避免双计
-        val monthlyDecay = (30 - focusedPhaseCount * 10).coerceAtLeast(0)
+        // 每月 3 旬，duration 以旬为单位
+        val monthlyDecay = (3 - focusedPhaseCount).coerceAtLeast(0)
         if (monthlyDecay <= 0) return
 
         // 修炼速度加成衰减
@@ -247,6 +248,7 @@ class CultivationCore @Inject constructor(
                 tables.pillSkillExpSpeedBonuses[id] = 0.0
                 tables.pillNurtureSpeedBonuses[id] = 0.0
                 tables.activePillCategories[id] = ""
+                tables.activePillTypes[id] = emptySet()
                 tables.pillEffectDurations[id] = 0
             } else {
                 tables.pillEffectDurations[id] = newDuration
@@ -315,7 +317,9 @@ class CultivationCore @Inject constructor(
             if (newDuration <= 0) {
                 d = d.copy(pillEffects = PillEffects())
             } else {
-                d = d.copy(pillEffects = d.pillEffects.copy(pillEffectDuration = newDuration))
+                d = d.copy(pillEffects = d.pillEffects.copy(
+                    pillEffectDuration = newDuration
+                ))
             }
         }
 

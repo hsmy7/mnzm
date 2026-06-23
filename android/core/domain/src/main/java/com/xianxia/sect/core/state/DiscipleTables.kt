@@ -103,6 +103,7 @@ class DiscipleTables {
     val pillSkillExpSpeedBonuses = DoubleComponentTable()
     val pillNurtureSpeedBonuses = DoubleComponentTable()
     val activePillCategories = ComponentTable<String>()
+    val activePillTypes = ComponentTable<Set<String>>()
 
     // === 装备 ===
     val weaponIds = ComponentTable<String>()
@@ -149,6 +150,8 @@ class DiscipleTables {
     // === 使用追踪 ===
     val usedFunctionalPillTypes = ComponentTable<List<String>>()
     val usedExtendLifePillIds = ComponentTable<List<String>>()
+    val usedPermanentPillKeys = ComponentTable<Set<String>>()
+    val usedExtendLifePillTypes = ComponentTable<Set<String>>()
     val recruitedMonths = IntComponentTable()
     val hasReviveEffects = IntComponentTable()    // 0/1
     val hasClearAllEffects = IntComponentTable()  // 0/1
@@ -240,6 +243,7 @@ class DiscipleTables {
         pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
         pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
         activePillCategories[id] = p.activePillCategory
+        activePillTypes[id] = p.activePillTypes
 
         // 装备
         val e = disciple.equipment
@@ -282,6 +286,8 @@ class DiscipleTables {
         val u = disciple.usage
         usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
         usedExtendLifePillIds[id] = u.usedExtendLifePillIds
+        usedPermanentPillKeys[id] = u.usedPermanentPillKeys
+        usedExtendLifePillTypes[id] = u.usedExtendLifePillTypes
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
@@ -392,6 +398,8 @@ class DiscipleTables {
         val u = disciple.usage
         usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
         usedExtendLifePillIds[id] = u.usedExtendLifePillIds
+        usedPermanentPillKeys[id] = u.usedPermanentPillKeys
+        usedExtendLifePillTypes[id] = u.usedExtendLifePillTypes
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
@@ -468,7 +476,8 @@ class DiscipleTables {
                 pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
                 pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
                 pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
-                activePillCategory = activePillCategories.getOrNull(id) ?: ""
+                activePillCategory = activePillCategories.getOrNull(id) ?: "",
+                activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
             ),
             equipment = EquipmentSet(
                 weaponId = weaponIds.getOrNull(id) ?: "",
@@ -507,6 +516,8 @@ class DiscipleTables {
             usage = UsageTracking(
                 usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),
                 usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
+                usedPermanentPillKeys = usedPermanentPillKeys.getOrNull(id) ?: emptySet(),
+                usedExtendLifePillTypes = usedExtendLifePillTypes.getOrNull(id) ?: emptySet(),
                 recruitedMonth = recruitedMonths.getOrDefault(id, 0),
                 hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
                 hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
@@ -548,6 +559,7 @@ class DiscipleTables {
         pillCritRateBonuses.remove(id); pillCritEffectBonuses.remove(id)
         pillCultivationSpeedBonuses.remove(id); pillSkillExpSpeedBonuses.remove(id)
         pillNurtureSpeedBonuses.remove(id); activePillCategories.remove(id)
+        activePillTypes.remove(id)
         weaponIds.remove(id); armorIds.remove(id); bootsIds.remove(id); accessoryIds.remove(id)
         weaponNurtures.remove(id); armorNurtures.remove(id)
         bootsNurtures.remove(id); accessoryNurtures.remove(id)
@@ -564,6 +576,7 @@ class DiscipleTables {
         spiritPlantings.remove(id); minings.remove(id); teachings.remove(id)
         moralities.remove(id); salaryPaidCounts.remove(id); salaryMissedCounts.remove(id)
         usedFunctionalPillTypes.remove(id); usedExtendLifePillIds.remove(id)
+        usedPermanentPillKeys.remove(id); usedExtendLifePillTypes.remove(id)
         recruitedMonths.remove(id); hasReviveEffects.remove(id); hasClearAllEffects.remove(id)
         lastTheftMonths.remove(id)
     }
@@ -596,6 +609,7 @@ class DiscipleTables {
         pillCritRateBonuses.clear(); pillCritEffectBonuses.clear()
         pillCultivationSpeedBonuses.clear(); pillSkillExpSpeedBonuses.clear()
         pillNurtureSpeedBonuses.clear(); activePillCategories.clear()
+        activePillTypes.clear()
         weaponIds.clear(); armorIds.clear(); bootsIds.clear(); accessoryIds.clear()
         weaponNurtures.clear(); armorNurtures.clear()
         bootsNurtures.clear(); accessoryNurtures.clear()
@@ -612,6 +626,7 @@ class DiscipleTables {
         spiritPlantings.clear(); minings.clear(); teachings.clear()
         moralities.clear(); salaryPaidCounts.clear(); salaryMissedCounts.clear()
         usedFunctionalPillTypes.clear(); usedExtendLifePillIds.clear()
+        usedPermanentPillKeys.clear(); usedExtendLifePillTypes.clear()
         recruitedMonths.clear(); hasReviveEffects.clear(); hasClearAllEffects.clear()
         lastTheftMonths.clear()
     }
@@ -660,6 +675,7 @@ class DiscipleTables {
         pillCultivationSpeedBonuses.onWrite = cb
         pillSkillExpSpeedBonuses.onWrite = cb
         pillNurtureSpeedBonuses.onWrite = cb; activePillCategories.onWrite = cb
+        activePillTypes.onWrite = cb
         // 装备
         weaponIds.onWrite = cb; armorIds.onWrite = cb
         bootsIds.onWrite = cb; accessoryIds.onWrite = cb
@@ -686,7 +702,9 @@ class DiscipleTables {
         salaryPaidCounts.onWrite = cb; salaryMissedCounts.onWrite = cb
         // 使用记录
         usedFunctionalPillTypes.onWrite = cb
-        usedExtendLifePillIds.onWrite = cb; recruitedMonths.onWrite = cb
+        usedExtendLifePillIds.onWrite = cb
+        usedPermanentPillKeys.onWrite = cb
+        usedExtendLifePillTypes.onWrite = cb; recruitedMonths.onWrite = cb
         hasReviveEffects.onWrite = cb; hasClearAllEffects.onWrite = cb
         lastTheftMonths.onWrite = cb
     }
@@ -783,6 +801,7 @@ class DiscipleTables {
         copyRefTable(this.discipleTypes, copy.discipleTypes)
         copyRefTable(this.spiritRootTypes, copy.spiritRootTypes)
         copyRefTable(this.activePillCategories, copy.activePillCategories)
+        copyMutableTable(this.activePillTypes, copy.activePillTypes) { it.toSet() }
         copyRefTable(this.weaponIds, copy.weaponIds)
         copyRefTable(this.armorIds, copy.armorIds)
         copyRefTable(this.bootsIds, copy.bootsIds)
@@ -803,6 +822,8 @@ class DiscipleTables {
         copyMutableTable(this.storageBagItems, copy.storageBagItems) { it.toList() }
         copyMutableTable(this.usedFunctionalPillTypes, copy.usedFunctionalPillTypes) { it.toList() }
         copyMutableTable(this.usedExtendLifePillIds, copy.usedExtendLifePillIds) { it.toList() }
+        copyMutableTable(this.usedPermanentPillKeys, copy.usedPermanentPillKeys) { it.toSet() }
+        copyMutableTable(this.usedExtendLifePillTypes, copy.usedExtendLifePillTypes) { it.toSet() }
 
         // Nullable 表
         copyRefTable(this.partnerIds, copy.partnerIds)

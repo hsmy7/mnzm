@@ -436,6 +436,7 @@ data class StorageBagItem(
 @Keep
 @Serializable
 data class ItemEffect(
+    val tier: Int = 0,  // 丹药品阶，用于永久属性丹去重
     val cultivationSpeedPercent: Double = 0.0,
     val skillExpSpeedPercent: Double = 0.0,
     val nurtureSpeedPercent: Double = 0.0,

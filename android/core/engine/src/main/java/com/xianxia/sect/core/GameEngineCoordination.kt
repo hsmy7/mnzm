@@ -239,6 +239,7 @@ suspend fun GameEngine.loadData(
         materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
         teams = teams, battleLogs = battleLogs
     )
+    migratePillTrackingFields(stateStore)
     DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
     val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" }
     val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" }
@@ -741,6 +742,49 @@ private fun fixAlchemyForgeSlotCount(slots: List<ProductionSlot>, alchemyCount: 
 }
 
 // ── Private: Migration ──────────────────────────────────────────────
+
+/**
+ * 旧存档丹药追踪字段迁移。
+ * - usedFunctionalPillTypes (List<pillType>) → usedPermanentPillKeys (Set<"tier#field">)
+ *   旧数据只有 pillType 无品阶，保守处理：所有品阶(1..6)均标记已服用。
+ * - usedExtendLifePillIds (List<pillType>) → usedExtendLifePillTypes (Set<pillType>)
+ * - activePillCategory (String) → activePillTypes (Set<String>)
+ */
+private fun migratePillTrackingFields(stateStore: GameStateStore) {
+    val tables = stateStore.discipleTables
+    var migratedCount = 0
+    for (id in tables.ids) {
+        val oldFunctionalTypes = tables.usedFunctionalPillTypes.getOrNull(id) ?: emptyList()
+        val currentPermanentKeys = tables.usedPermanentPillKeys.getOrNull(id) ?: emptySet()
+
+        if (currentPermanentKeys.isEmpty() && oldFunctionalTypes.isNotEmpty()) {
+            tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
+                (1..6).map { tier -> "$tier#$pillType" }
+            }.toSet()
+            migratedCount++
+        }
+
+        val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
+        val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
+
+        if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
+            tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
+        }
+
+        val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
+        val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
+
+        if (currentActiveTypes.isEmpty() && oldActiveCategory.isNotEmpty()) {
+            tables.activePillTypes[id] = setOf(oldActiveCategory)
+        }
+    }
+    if (migratedCount > 0) {
+        com.xianxia.sect.core.util.DomainLog.i(
+            "GameEngine",
+            "丹药追踪字段迁移完成: $migratedCount 名弟子"
+        )
+    }
+}
 
 private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List<Disciple>): Pair<GameData, List<Disciple>> {
     val numTowers = gameData.placedBuildings.count { it.displayName == "巡视楼" }

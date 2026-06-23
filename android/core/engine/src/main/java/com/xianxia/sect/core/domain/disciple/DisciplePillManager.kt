@@ -6,13 +6,38 @@ import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 丹药分类规则。
+ * priority 决定自动服用时的排序优先级（值越大越优先）。
+ */
+enum class PillRule(val priority: Int) {
+    /** 永久基础属性丹：按 tier+effectField 终身限一次 */
+    PERMANENT_BASE_ATTR(4),
+    /** 延寿丹：按 pillType 终身限一次 */
+    PERMANENT_LIFE(4),
+    /** 永久战斗属性丹（预留，当前没有） */
+    PERMANENT_BATTLE(4),
+    /** 直接修为/功法/孕养丹：可重复服用 */
+    INSTANT_CULTIVATION(3),
+    /** 持续增益丹：按 pillType 不可叠加 */
+    SUSTAINED_SPEED(2),
+    /** 临时战斗属性丹：按 pillType 不可叠加 */
+    TEMPORARY_BATTLE(1),
+    /** 突破丹：可重复，失败可再吃 */
+    BREAKTHROUGH(0)
+}
+
 @Singleton
-class DisciplePillManager @Inject constructor() {
+class DisciplePillManager @Inject constructor(
+    private val pillEffectApplier: PillEffectApplier
+) {
 
     data class PillUseResult(
         val disciple: Disciple,
         val events: List<String>
     )
+
+    // ── 自动服用（主入口）──────────────────────────────────────────
 
     fun processAutoUsePills(
         disciple: Disciple,
@@ -29,9 +54,15 @@ class DisciplePillManager @Inject constructor() {
 
         var updatedDisciple = disciple
 
+        // 按规则优先级 > 品阶排序：永久 → 直接修为 → 持续/临时 → 突破
         val pillItems = disciple.equipment.storageBagItems
-            .filter { it.itemType == "pill" }
-            .sortedByDescending { it.rarity }
+            .filter { it.itemType == "pill" && it.effect != null }
+            .sortedWith(
+                compareByDescending<StorageBagItem> {
+                    classify(it.effect!!).priority
+                }
+                    .thenByDescending { it.rarity }
+            )
 
         if (pillItems.isEmpty()) {
             return PillUseResult(updatedDisciple, events)
@@ -41,7 +72,9 @@ class DisciplePillManager @Inject constructor() {
             val check = canUsePill(updatedDisciple, pillItem)
             if (!check.canUse) continue
 
-            updatedDisciple = applyPillEffect(updatedDisciple, pillItem)
+            updatedDisciple = pillEffectApplier.applyToDisciple(
+                updatedDisciple, pillItem
+            )
 
             updatedDisciple = updatedDisciple.copy(
                 equipment = updatedDisciple.equipment.copy(
@@ -59,6 +92,8 @@ class DisciplePillManager @Inject constructor() {
         return PillUseResult(updatedDisciple, events)
     }
 
+    // ── 服用资格检查 ──────────────────────────────────────────────
+
     data class PillUseCheck(
         val canUse: Boolean,
         val reason: String = ""
@@ -71,141 +106,34 @@ class DisciplePillManager @Inject constructor() {
             return PillUseCheck(false, "境界不足")
         }
 
-        if (effect.cannotStack && effect.pillCategory.isNotEmpty()) {
-            if (disciple.pillEffects.activePillCategory == effect.pillCategory) {
-                return PillUseCheck(false, "同类型丹药生效中")
+        return when (classify(effect)) {
+            PillRule.PERMANENT_BASE_ATTR -> {
+                val usedKeys = buildUsedKeys(effect, effect.tier)
+                if (usedKeys.any { it in disciple.usage.usedPermanentPillKeys })
+                    PillUseCheck(false, "已服用过同类属性丹药")
+                else PillUseCheck(true)
             }
-        }
-
-        if (effect.pillCategory == PillCategory.FUNCTIONAL.name && effect.pillType.isNotEmpty()) {
-            if (disciple.usage.usedFunctionalPillTypes.contains(effect.pillType)) {
-                return PillUseCheck(false, "已使用过同类功能丹药")
+            PillRule.PERMANENT_LIFE -> {
+                if (effect.pillType in disciple.usage.usedExtendLifePillTypes)
+                    PillUseCheck(false, "已服用过同类延寿丹药")
+                else PillUseCheck(true)
             }
-        }
-
-        if (effect.extendLife > 0 && effect.pillType.isNotEmpty()) {
-            if (disciple.usage.usedExtendLifePillIds.contains(effect.pillType)) {
-                return PillUseCheck(false, "已使用过同类延寿丹药")
+            PillRule.SUSTAINED_SPEED, PillRule.TEMPORARY_BATTLE -> {
+                if (effect.pillType in disciple.pillEffects.activePillTypes)
+                    PillUseCheck(false, "同类型丹药效果生效中")
+                else PillUseCheck(true)
             }
+            PillRule.INSTANT_CULTIVATION,
+            PillRule.BREAKTHROUGH,
+            PillRule.PERMANENT_BATTLE -> PillUseCheck(true)
         }
-
-        return PillUseCheck(true)
     }
 
-    private fun applyPillEffect(disciple: Disciple, pillItem: StorageBagItem): Disciple {
-        val effect = pillItem.effect ?: return disciple
-        var updated = disciple
-
-        if (effect.cultivationAdd > 0) {
-            updated = updated.copy(cultivation = (updated.cultivation + effect.cultivationAdd).coerceIn(0.0, updated.maxCultivation))
-        }
-
-        if (effect.skillExpAdd > 0) {
-            val updatedMasteries = updated.manualMasteries.mapValues { (_, v) ->
-                (v + effect.skillExpAdd).coerceAtMost(10000)
-            }
-            updated = updated.copy(manualMasteries = updatedMasteries)
-        }
-
-        if (effect.cultivationSpeedPercent > 0) {
-            updated = updated.copy(
-                cultivationSpeedBonus = effect.cultivationSpeedPercent,
-                cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updated.cultivationSpeedDuration
-            )
-        }
-
-        if (effect.extendLife > 0) {
-            updated = updated.copy(lifespan = updated.lifespan + effect.extendLife)
-            if (effect.pillType.isNotEmpty() && !updated.usage.usedExtendLifePillIds.contains(effect.pillType)) {
-                updated = updated.copy(
-                    usage = updated.usage.copy(
-                        usedExtendLifePillIds = updated.usage.usedExtendLifePillIds + effect.pillType
-                    )
-                )
-            }
-        }
-
-        if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
-            effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-            effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
-            effect.miningAdd > 0
-        ) {
-            updated = updated.copy(
-                skills = updated.skills.copy(
-                    intelligence = (updated.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
-                    charm = (updated.skills.charm + effect.charmAdd).coerceAtLeast(0),
-                    loyalty = (updated.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
-                    comprehension = (updated.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
-                    artifactRefining = (updated.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
-                    pillRefining = (updated.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
-                    spiritPlanting = (updated.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
-                    teaching = (updated.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
-                    morality = (updated.skills.morality + effect.moralityAdd).coerceAtLeast(0),
-                    mining = (updated.skills.mining + effect.miningAdd).coerceAtLeast(0)
-                )
-            )
-        }
-
-        if (effect.pillCategory == PillCategory.FUNCTIONAL.name && effect.pillType.isNotEmpty()) {
-            updated = updated.copy(
-                usage = updated.usage.copy(
-                    usedFunctionalPillTypes = updated.usage.usedFunctionalPillTypes + effect.pillType
-                )
-            )
-        }
-
-        if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
-            effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
-            effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
-            effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
-            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
-        ) {
-            val newEffects = updated.pillEffects.copy(
-                pillPhysicalAttackBonus = effect.physicalAttackAdd,
-                pillMagicAttackBonus = effect.magicAttackAdd,
-                pillPhysicalDefenseBonus = effect.physicalDefenseAdd,
-                pillMagicDefenseBonus = effect.magicDefenseAdd,
-                pillHpBonus = effect.hpAdd,
-                pillMpBonus = effect.mpAdd,
-                pillSpeedBonus = effect.speedAdd,
-                pillCritRateBonus = effect.critRateAdd,
-                pillCritEffectBonus = effect.critEffectAdd,
-                pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
-                pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
-                pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updated.pillEffects.pillEffectDuration,
-                activePillCategory = if (effect.cannotStack) effect.pillCategory else updated.pillEffects.activePillCategory
-            )
-            updated = updated.copy(pillEffects = newEffects)
-        }
-
-        if (effect.healMaxHpPercent > 0) {
-            val maxHp = updated.maxHp
-            val rawCurrentHp = updated.combat.currentHp
-            val currentHp = if (rawCurrentHp < 0) maxHp else rawCurrentHp
-            val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
-            val newHp = (currentHp + healAmount).coerceAtMost(maxHp)
-            updated = updated.copy(combat = updated.combat.copy(currentHp = newHp))
-        }
-
-        if (effect.mpRecoverMaxMpPercent > 0) {
-            val maxMp = updated.maxMp
-            val rawCurrentMp = updated.combat.currentMp
-            val currentMp = if (rawCurrentMp < 0) maxMp else rawCurrentMp
-            val recoverAmount = (maxMp * effect.mpRecoverMaxMpPercent).toInt().coerceAtLeast(1)
-            val newMp = (currentMp + recoverAmount).coerceAtMost(maxMp)
-            updated = updated.copy(combat = updated.combat.copy(currentMp = newMp))
-        }
-
-        if (effect.clearAll) {
-            updated = updated.copy(pillEffects = PillEffects())
-        }
-
-        return updated
-    }
+    // ── Pill → ItemEffect 转换 ──────────────────────────────────────
 
     fun pillToItemEffect(pill: Pill): ItemEffect {
         return ItemEffect(
+            tier = pill.rarity,  // rarity 直接映射为品阶
             cultivationSpeedPercent = pill.effects.cultivationSpeedPercent,
             skillExpSpeedPercent = pill.effects.skillExpSpeedPercent,
             nurtureSpeedPercent = pill.effects.nurtureSpeedPercent,
@@ -245,5 +173,69 @@ class DisciplePillManager @Inject constructor() {
             pillCategory = pill.category.name,
             pillType = pill.pillType
         )
+    }
+
+    // ── 公开辅助函数 ──────────────────────────────────────────────
+
+    companion object {
+        /**
+         * 根据丹药效果分类到对应规则。
+         */
+        fun classify(effect: ItemEffect): PillRule = when (effect.pillType) {
+            "extendLife" -> PillRule.PERMANENT_LIFE
+            "cultivationAdd", "skillExpAdd", "nurtureAdd" ->
+                PillRule.INSTANT_CULTIVATION
+            "cultivationSpeed", "skillExpSpeed", "nurtureSpeed" ->
+                PillRule.SUSTAINED_SPEED
+            "breakthrough" -> PillRule.BREAKTHROUGH
+            else -> {
+                if (hasAnyBaseAttrAdd(effect)) PillRule.PERMANENT_BASE_ATTR
+                else if (hasAnyBattleAttrAdd(effect)) PillRule.TEMPORARY_BATTLE
+                else throw IllegalStateException(
+                    "未定义规则的丹药：pillType=${effect.pillType}, " +
+                        "pillCategory=${effect.pillCategory}"
+                )
+            }
+        }
+
+        /**
+         * 是否有任何基础属性（非战斗）加成。
+         */
+        fun hasAnyBaseAttrAdd(effect: ItemEffect): Boolean {
+            return effect.intelligenceAdd > 0 || effect.charmAdd > 0 ||
+                effect.loyaltyAdd > 0 || effect.comprehensionAdd > 0 ||
+                effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
+                effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 ||
+                effect.moralityAdd > 0 || effect.miningAdd > 0
+        }
+
+        /**
+         * 是否有任何战斗属性加成（含速度、暴击等）。
+         */
+        fun hasAnyBattleAttrAdd(effect: ItemEffect): Boolean {
+            return effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
+                effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
+                effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
+                effect.critRateAdd > 0 || effect.critEffectAdd > 0
+        }
+
+        /**
+         * 根据 ItemEffect 中所有非零基础属性字段生成去重 key 集合。
+         * key 格式："tier#fieldName"，如 "1#intelligence"。
+         */
+        fun buildUsedKeys(effect: ItemEffect, tier: Int): Set<String> {
+            val fields = mutableListOf<String>()
+            if (effect.intelligenceAdd > 0) fields += "intelligence"
+            if (effect.charmAdd > 0) fields += "charm"
+            if (effect.loyaltyAdd > 0) fields += "loyalty"
+            if (effect.comprehensionAdd > 0) fields += "comprehension"
+            if (effect.artifactRefiningAdd > 0) fields += "artifactRefining"
+            if (effect.pillRefiningAdd > 0) fields += "pillRefining"
+            if (effect.spiritPlantingAdd > 0) fields += "spiritPlanting"
+            if (effect.teachingAdd > 0) fields += "teaching"
+            if (effect.moralityAdd > 0) fields += "morality"
+            if (effect.miningAdd > 0) fields += "mining"
+            return fields.map { "$tier#$it" }.toSet()
+        }
     }
 }
