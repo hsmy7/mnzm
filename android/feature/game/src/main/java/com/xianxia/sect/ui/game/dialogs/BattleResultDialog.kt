@@ -41,9 +41,16 @@ internal fun BattleResultDialog(
     onDismiss: () -> Unit
 ) {
     val resultColor = if (resultData.victory) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val title = if (resultData.victory) "战斗胜利" else "战斗失败"
+    val title = if (resultData.isBeastDefense) {
+        if (resultData.victory) "防守胜利" else "防守失败"
+    } else {
+        if (resultData.victory) "战斗胜利" else "战斗失败"
+    }
     var showDetail by remember { mutableStateOf(false) }
     var detailReward by remember { mutableStateOf<BattleRewardItem?>(null) }
+
+    // 阵亡弟子
+    val deadMembers = resultData.teamMembers.filter { !it.isAlive }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -100,6 +107,95 @@ internal fun BattleResultDialog(
                                     Spacer(
                                         Modifier.width(52.dp).height(88.dp)
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 被掠夺物品（防守失败时可见）
+                if (resultData.lootedItems.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "被掠夺物品",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF44336)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    item {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(resultData.lootedItems, key = { it.itemId }) { loot ->
+                                UnifiedItemCard(
+                                    data = ItemCardData(
+                                        id = loot.itemId,
+                                        name = loot.name,
+                                        rarity = loot.rarity,
+                                        quantity = loot.quantity,
+                                        type = loot.type,
+                                        isPill = loot.type == "pill",
+                                        isManual = loot.type == "manual",
+                                        isMaterial = loot.type == "material",
+                                        isSpiritStone = loot.type == "spiritStones"
+                                    ),
+                                    onLongPress = {
+                                        detailReward = loot
+                                        showDetail = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 阵亡弟子（防守场景正下方显示）
+                if (deadMembers.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "阵亡弟子",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    item {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            deadMembers.chunked(4).forEach { row ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        8.dp,
+                                        Alignment.CenterHorizontally
+                                    )
+                                ) {
+                                    row.forEach { member ->
+                                        BattleParticipantSlot(
+                                            name = member.name,
+                                            realmName = member.realmName,
+                                            hp = 0,
+                                            maxHp = member.maxHp,
+                                            isAlive = false,
+                                            portraitRes = member.portraitRes
+                                        )
+                                    }
+                                    repeat(4 - row.size) {
+                                        Spacer(
+                                            Modifier.width(52.dp).height(88.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -165,17 +261,24 @@ internal fun BattleResultDialog(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GameButton(
-                    text = "战斗详情",
-                    onClick = {
-                        battleLog?.let { onViewDetail(it) }
-                    }
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                GameButton(
-                    text = "确定",
-                    onClick = onConfirm
-                )
+                if (resultData.isBeastDefense) {
+                    GameButton(
+                        text = "知道了",
+                        onClick = onConfirm
+                    )
+                } else {
+                    GameButton(
+                        text = "战斗详情",
+                        onClick = {
+                            battleLog?.let { onViewDetail(it) }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    GameButton(
+                        text = "确定",
+                        onClick = onConfirm
+                    )
+                }
             }
         }
     }

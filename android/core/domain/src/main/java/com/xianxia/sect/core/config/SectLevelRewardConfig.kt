@@ -128,7 +128,7 @@ object SectLevelRewardConfig {
                     UpgradeConditionDef.hasDiscipleRealmAtMost(4)
                 ),
                 UpgradeConditionDef(
-                    "至少占领了一座小型宗门",
+                    "至少占领了一座小型及以上宗门",
                     UpgradeConditionDef.hasOccupiedSectOfLevel(SectLevel.SMALL)
                 )
             )
@@ -138,7 +138,7 @@ object SectLevelRewardConfig {
                     UpgradeConditionDef.hasDiscipleRealmAtMost(2)
                 ),
                 UpgradeConditionDef(
-                    "至少占领了一座中型宗门",
+                    "至少占领了一座中型及以上宗门",
                     UpgradeConditionDef.hasOccupiedSectOfLevel(SectLevel.MEDIUM)
                 )
             )
@@ -182,7 +182,7 @@ class UpgradeConditionDef(
         fun hasDiscipleRealmAtMost(maxRealm: Int): (Int, List<Int>) -> Boolean =
             { highestRealm, _ -> highestRealm <= maxRealm }
 
-        fun hasOccupiedSectOfLevel(level: Int): (Int, List<Int>) -> Boolean =
-            { _, occupiedLevels -> level in occupiedLevels }
+        fun hasOccupiedSectOfLevel(minLevel: Int): (Int, List<Int>) -> Boolean =
+            { _, occupiedLevels -> occupiedLevels.any { it >= minLevel } }
     }
 }

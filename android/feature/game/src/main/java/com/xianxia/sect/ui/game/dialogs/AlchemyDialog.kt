@@ -33,6 +33,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.SmallScreenDialog
 import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
@@ -480,12 +481,11 @@ private fun PillDetailDialog(
         return if (min != max) "+${minPct}%~+${maxPct}%" else "+${minPct}%"
     }
 
-    UnifiedGameDialog(
+    SmallScreenDialog(
         onDismissRequest = onDismiss,
-        title = recipe.name,
-        mode = DialogMode.Half
+        title = recipe.name
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(

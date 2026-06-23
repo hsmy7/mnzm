@@ -269,7 +269,8 @@ class ExplorationService @Inject constructor(
                     victory = false,
                     teamMembers = emptyList(),
                     rewards = emptyList(),
-                    lootedItems = loot.toRewardItems()
+                    lootedItems = loot.toRewardItems(),
+                    isBeastDefense = true
                 ))
             }
             discipleTables.clear()
@@ -485,7 +486,8 @@ class ExplorationService @Inject constructor(
                 victory = result.victory,
                 teamMembers = teamMems,
                 rewards = allRewards,
-                lootedItems = looted
+                lootedItems = looted,
+                isBeastDefense = true
             ))
         }
 

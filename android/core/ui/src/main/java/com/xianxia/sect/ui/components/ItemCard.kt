@@ -61,7 +61,9 @@ fun UnifiedItemCard(
     onClick: () -> Unit = {},
     onLongPress: (() -> Unit)? = null,
     overlayButtonText: String? = null,
-    onOverlayButtonClick: (() -> Unit)? = null
+    onOverlayButtonClick: (() -> Unit)? = null,
+    showPlaceholderText: Boolean = true,
+    nameFontSize: androidx.compose.ui.unit.TextUnit = 9.sp
 ) {
     val rarityColor = getRarityColor(data.rarity)
     val spriteRes = when {
@@ -119,7 +121,7 @@ fun UnifiedItemCard(
                             contentScale = ContentScale.Fit
                         )
                     }
-                } else {
+                } else if (showPlaceholderText) {
                     Text(
                         text = "敬请期待",
                         fontSize = 9.sp,

@@ -318,6 +318,7 @@ fun ProductionSlotItem(
     productRarity: Int = 1,
     totalDuration: Int = 1,
     isPill: Boolean = false,
+    isHerb: Boolean = false,
     successRate: Double = 0.0,
     gamePhase: Int = 0,
     onCancel: (() -> Unit)? = null,
@@ -357,7 +358,8 @@ fun ProductionSlotItem(
                     name = productName,
                     rarity = productRarity,
                     quantity = 1,
-                    isPill = isPill
+                    isPill = isPill,
+                    isHerb = isHerb
                 ),
                 showQuantity = false,
                 onClick = onClick

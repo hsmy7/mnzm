@@ -20,12 +20,14 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.AutoBuyCatalogItem
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 // ── 筛选枚举 ────────────────────────────────────────────────────────
@@ -58,6 +60,7 @@ fun AutoBuyDialog(
     }
     var deleteMode by remember { mutableStateOf(false) }
     var showItemSelectDialog by remember { mutableStateOf(false) }
+    var detailItem by remember { mutableStateOf<MerchantItem?>(null) }
     val selectedForDeletion = remember { mutableStateMapOf<String, AutoBuyEntry>() }
 
     // 退出删除模式时清除选中
@@ -140,6 +143,16 @@ fun AutoBuyDialog(
                                         selectedForDeletion[key] = entry
                                     }
                                 }
+                            },
+                            onLongPress = {
+                                detailItem = MerchantItem(
+                                    id = entry.itemName,
+                                    name = entry.itemName,
+                                    type = entry.itemType,
+                                    rarity = entry.rarity,
+                                    quantity = 0,
+                                    price = 0L
+                                )
                             }
                         )
                     }
@@ -172,6 +185,14 @@ fun AutoBuyDialog(
                 showItemSelectDialog = false
             },
             onDismiss = { showItemSelectDialog = false }
+        )
+    }
+
+    // 物品详情弹窗（长按触发）
+    detailItem?.let { item ->
+        ItemDetailDialog(
+            item = item,
+            onDismiss = { detailItem = null }
         )
     }
 }
@@ -228,6 +249,7 @@ fun AutoBuyItemSelectDialog(
 ) {
     val catalogItems = remember { viewModel.getAllAutoBuyableItems() }
     var selectedFilter by remember { mutableStateOf(AutoBuyFilter.ALL) }
+    var detailItem by remember { mutableStateOf<MerchantItem?>(null) }
     val selectedItems = remember { mutableStateMapOf<String, AutoBuyEntry>() }
 
     // 已在自动购买列表中的物品 key 集合
@@ -322,6 +344,16 @@ fun AutoBuyItemSelectDialog(
                                         rarity = item.rarity
                                     )
                                 }
+                            },
+                            onLongPress = {
+                                detailItem = MerchantItem(
+                                    id = item.name,
+                                    name = item.name,
+                                    type = item.type,
+                                    rarity = item.rarity,
+                                    quantity = 0,
+                                    price = 0L
+                                )
                             }
                         )
                     }
@@ -357,6 +389,14 @@ fun AutoBuyItemSelectDialog(
                     }
                 }
             }
+        }
+
+        // 物品详情弹窗（长按触发）
+        detailItem?.let { item ->
+            ItemDetailDialog(
+                item = item,
+                onDismiss = { detailItem = null }
+            )
         }
     }
 }

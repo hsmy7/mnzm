@@ -30,6 +30,7 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.fallbackToTier1
 import com.xianxia.sect.ui.game.building.BuildingDef
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -262,13 +263,14 @@ fun SectMapCanvas(
                     ) ?: continue
                     val herbId = HerbDatabase.getHerbIdFromSeedId(plant.seedId)
                         ?: continue
-                    // 无种子图片的植物不显示
-                    if (SpriteResRegistry.seedSprites[herbId] == null) continue
+                    // 无种子图片的植物不显示（含 tier2-6 回退）
+                    val displayHerbId = if (SpriteResRegistry.seedSprites[herbId] != null) herbId
+                        else fallbackToTier1(herbId) ?: continue
 
                     val cropBmpKey = when (stage) {
-                        GrowthStage.SEED -> "seed_$herbId"
-                        GrowthStage.GROWING -> "growing_$herbId"
-                        GrowthStage.MATURE -> "herb_$herbId"
+                        GrowthStage.SEED -> "seed_$displayHerbId"
+                        GrowthStage.GROWING -> "growing_$displayHerbId"
+                        GrowthStage.MATURE -> "herb_$displayHerbId"
                     }
                     val cropBmp = cropBitmaps[cropBmpKey] ?: continue
 

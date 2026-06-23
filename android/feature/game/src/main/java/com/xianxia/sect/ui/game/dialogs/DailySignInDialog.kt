@@ -62,53 +62,53 @@ fun DailySignInPanel(
         ) {
             val totalWidth = maxWidth
             val totalHeight = maxHeight
-            val minCellSpacing = 4.dp
-            val calendarHPadding = 16.dp       // 8dp * 2
-            val dividerWidth = 1.dp
-            val panelHPadding = 12.dp           // 6dp * 2
-            val dayLabelWidth = 38.dp           // "28天" 12sp 金色文字宽度
-            val cardGap = 4.dp                  // 标签与卡片间距
-            val nameLabelHeight = 14.dp
-            val panelVerticalPadding = 16.dp    // 8dp * 2
-            val rowVerticalPadding = 4.dp       // 每行 2dp * 2
 
-            // 基于高度计算：4 行里程碑均匀分布在可用高度中
-            val usableHeight = totalHeight - panelVerticalPadding
-            val cardSizeFromHeight = ((usableHeight - rowVerticalPadding * 4) / 4
-                - nameLabelHeight).coerceAtLeast(24.dp)
+            // 固定常量
+            val nameLabelHeight = 14.dp          // 名称栏高度
+            val calendarHPadding = 16.dp         // 日历左右内边距 (8+8)
+            val dividerWidth = 1.dp              // 分隔线宽度
+            val panelHPadding = 12.dp            // 里程碑左右内边距 (6+6)
+            val dayLabelWidth = 38.dp            // "28天" 标签宽度
+            val labelToCardGap = 6.dp            // 标签与卡片间距
 
-            // 基于宽度计算（使用最小间距）：7 格日历 + 1 格里程碑
-            val widthOverheadMin = minCellSpacing * 6 + calendarHPadding +
-                dividerWidth + panelHPadding + dayLabelWidth + cardGap
-            val cardSizeFromWidth = ((totalWidth - widthOverheadMin) / 8).coerceAtLeast(24.dp)
+            // 动态计算：卡片大小 + 间距，填满屏幕宽度
+            // 8 个卡片 + 6 个间距，间距 = 卡片宽 × 12%
+            val spacingRatio = 0.12f
+            val fixedWidthOverhead = calendarHPadding + dividerWidth +
+                panelHPadding + dayLabelWidth + labelToCardGap
+            val availableWidth = totalWidth - fixedWidthOverhead
 
-            // 取两者较小值，保证高度和宽度都能容纳
-            val cellWidth = minOf(cardSizeFromWidth, cardSizeFromHeight)
-            val cellHeight = cellWidth + nameLabelHeight
+            // 第一次：宽度优先计算
+            var cardWidth = (availableWidth / (8 + 6 * spacingRatio))
+                .coerceAtLeast(24.dp)
+            var cardSpacing = (cardWidth * spacingRatio)
+                .coerceIn(4.dp, 14.dp)
 
-            // 间距常量（与 cellWidth 无关的部分）
-            val fixedOverhead = calendarHPadding + dividerWidth +
-                panelHPadding + dayLabelWidth + cardGap
-
-            // 最小间距下的内容总宽度
-            val minContentWidth = cellWidth * 8 + minCellSpacing * 6 + fixedOverhead
-
-            // 左右空白最多占 20%（内容占 ≥80%），多余空间用于增大卡片间距
-            val targetContentWidth =
-                (totalWidth * 0.8f).coerceIn(minContentWidth, totalWidth)
-            val adjustedCellSpacing = if (minContentWidth < targetContentWidth) {
-                val extraWidth = targetContentWidth - minContentWidth
-                minCellSpacing + extraWidth / 6
-            } else {
-                minCellSpacing
+            if (cardSpacing != cardWidth * spacingRatio) {
+                cardWidth = ((availableWidth - cardSpacing * 6) / 8)
+                    .coerceAtLeast(24.dp)
             }
 
-            // 各部分宽度（使用调整后的间距）
-            val calendarContentWidth = cellWidth * 7 + adjustedCellSpacing * 6
-            val calendarColumnWidth = calendarContentWidth + calendarHPadding
-            val milestonePanelWidth = dayLabelWidth + cardGap + cellWidth + panelHPadding
+            // 高度约束：4 行里程碑必须完整显示
+            // SpaceEvenly 至少需要 4*行高 + 少量间隙
+            val panelRowPadding = 4.dp
+            val minGapPerRow = 2.dp  // SpaceEvenly 最小间隙
+            val maxCardHeight = (totalHeight - panelRowPadding * 4 - minGapPerRow * 5) / 4
+            val maxCardWidthFromHeight = (maxCardHeight - nameLabelHeight)
+                .coerceAtLeast(24.dp)
+            if (cardWidth > maxCardWidthFromHeight) {
+                cardWidth = maxCardWidthFromHeight
+                cardSpacing = (cardWidth * spacingRatio).coerceIn(4.dp, 14.dp)
+            }
+            val cardHeight = cardWidth + nameLabelHeight
 
-            // 居中显示，留出左右空白
+            // 各部分宽度
+            val calendarContentWidth = cardWidth * 7 + cardSpacing * 6
+            val calendarColumnWidth = calendarContentWidth + calendarHPadding
+            val milestonePanelWidth = panelHPadding + dayLabelWidth +
+                labelToCardGap + cardWidth
+
+            // 居中显示
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -127,9 +127,9 @@ fun DailySignInPanel(
                             getRewardForWeekday = viewModel::getRewardForWeekday,
                             getDayState = viewModel::getDayState,
                             getWeekdayForDay = viewModel::getWeekdayForDay,
-                            cellWidth = cellWidth,
-                            cellHeight = cellHeight,
-                            cellSpacing = adjustedCellSpacing,
+                            cellWidth = cardWidth,
+                            cellHeight = cardHeight,
+                            cellSpacing = cardSpacing,
                             onLongPress = { item -> detailItem = item }
                         )
                     }
@@ -147,9 +147,9 @@ fun DailySignInPanel(
                         milestones = viewModel.milestoneRewards,
                         claimedDaysCount = claimedDaysCount,
                         claimedMilestones = claimedMilestones,
-                        cardSize = cellWidth,
-                        cardHeight = cellHeight,
-                        labelSpacing = cardGap,
+                        cardSize = cardWidth,
+                        cardHeight = cardHeight,
+                        labelSpacing = labelToCardGap,
                         dayLabelWidth = dayLabelWidth,
                         onLongPress = { item -> detailItem = item }
                     )
@@ -260,7 +260,10 @@ private fun SignInDayCard(
     val isOverlayState = isClaimed || isMissed
 
     val overlayTextColor = if (isOverlayState) Color.Black else Color.White
+    // 卡片是正方形 (size = cellHeight)，精灵图区域 = 全高 - 名称栏
+    val spriteWidth = cellHeight              // 卡片实际宽度
     val nameLabelHeight = 14.dp
+    val spriteHeight = cellHeight - nameLabelHeight
 
     Box(
         modifier = modifier
@@ -279,7 +282,7 @@ private fun SignInDayCard(
     ) {
         UnifiedItemCard(
             data = ItemCardData(
-                name = reward.itemName,
+                name = if (isRandomReward) reward.itemName.removePrefix("随机") else reward.itemName,
                 rarity = reward.rarity,
                 quantity = reward.quantity,
                 isSpiritStone = reward.type == "spiritStones",
@@ -290,15 +293,17 @@ private fun SignInDayCard(
             size = cellHeight,
             isSelected = isTodayUnclaimed,
             selectedBorderColor = GameColors.Gold,
-            showQuantity = false
+            showQuantity = true,
+            showPlaceholderText = !isRandomReward
         )
 
-        // 状态覆盖层（仅覆盖精灵图区域）
+        // 状态覆盖层（尺寸与卡片精灵图一致，随卡片缩放）
         if (isClaimed || isMissed || isRandomReward) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(cellHeight - nameLabelHeight)
+                    .width(spriteWidth)
+                    .height(spriteHeight)
+                    .align(Alignment.TopCenter)
                     .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                     .background(if (isOverlayState) Color(0xFFF5F5F5) else Color.Transparent),
                 contentAlignment = Alignment.Center
@@ -310,7 +315,7 @@ private fun SignInDayCard(
                             isMissed -> "未领"
                             else -> "?"
                         },
-                        fontSize = if (isRandomReward) 16.sp else 9.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = when {
                             isClaimed -> Color(0xFF4CAF50)
@@ -331,16 +336,6 @@ private fun SignInDayCard(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 3.dp, top = 2.dp)
-        )
-
-        // 数量（右下角，始终显示）
-        Text(
-            text = "${reward.quantity}",
-            fontSize = 8.sp,
-            color = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 3.dp, bottom = 2.dp)
         )
     }
 }
@@ -396,7 +391,9 @@ private fun MilestoneRewardRow(
     val detailItem = buildDetailItem(
         milestone.itemName, milestone.quantity, milestone.type, milestone.rarity
     )
+    val spriteWidth = cardHeight               // 卡片实际宽度（正方形）
     val nameLabelHeight = 14.dp
+    val spriteHeight = cardHeight - nameLabelHeight
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -445,37 +442,28 @@ private fun MilestoneRewardRow(
                 size = cardHeight,
                 isSelected = isReached,
                 selectedBorderColor = GameColors.Gold,
-                showQuantity = false
+                showQuantity = true
             )
 
-            // 已领覆盖层（仅覆盖精灵图区域）
+            // 已领覆盖层（仅覆盖精灵图区域，扣除边框）
             if (isClaimed) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(cardHeight - nameLabelHeight)
+                        .height(spriteHeight)
+                        .align(Alignment.TopCenter)
                         .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                         .background(Color(0xFFF5F5F5)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "已领",
-                        fontSize = 9.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF4CAF50)
                     )
                 }
             }
-
-            // 数量（右下角）
-            Text(
-                text = formatRewardQuantity(milestone.quantity),
-                fontSize = 8.sp,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 3.dp, bottom = 2.dp)
-            )
         }
     }
 }

@@ -74,6 +74,19 @@ fun materialSpriteRes(name: String): Int? {
 }
 
 /**
+ * 将 tier2-6 的 herb/seed ID 回退到 tier1 等价物。
+ * 例如 spiritGrass10 → spiritGrass1  （(10-1) % 3 + 1 = 1）
+ * 例如 spiritFlower5 → spiritFlower2 （(5-1) % 3 + 1 = 2）
+ */
+fun fallbackToTier1(herbId: String): String? {
+    val digits = herbId.takeLastWhile { it.isDigit() }
+    if (digits.isEmpty()) return null
+    val num = digits.toIntOrNull() ?: return null
+    val tier1Num = ((num - 1) % 3) + 1
+    return herbId.dropLast(digits.length) + tier1Num
+}
+
+/**
  * 通过草药中文名查找草药精灵图资源ID。
  * 例如 "聚灵草" → R.drawable.herb_spiritgrass1
  */
@@ -81,6 +94,7 @@ fun herbSpriteRes(name: String): Int? {
     val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(name)
         ?: return null
     return SpriteResRegistry.herbSprites[herb.id]
+        ?: SpriteResRegistry.herbSprites[fallbackToTier1(herb.id) ?: return null]
 }
 
 /**
@@ -93,13 +107,16 @@ fun seedSpriteRes(seedName: String): Int? {
     val herbId = com.xianxia.sect.core.registry.HerbDatabase.getHerbIdFromSeedId(seed.id)
         ?: return null
     return SpriteResRegistry.seedSprites[herbId]
+        ?: SpriteResRegistry.seedSprites[fallbackToTier1(herbId) ?: return null]
 }
 
 /**
  * 通过 herbId 直接查找成长期精灵图资源ID（地图渲染用）。
  */
-fun growingSpriteRes(herbId: String): Int? =
-    SpriteResRegistry.growingSprites[herbId]
+fun growingSpriteRes(herbId: String): Int? {
+    return SpriteResRegistry.growingSprites[herbId]
+        ?: SpriteResRegistry.growingSprites[fallbackToTier1(herbId) ?: return null]
+}
 
 fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }
 
