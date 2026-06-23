@@ -1,4 +1,4 @@
-package com.xianxia.sect.core
+package com.xianxia.sect.data
 
 import android.content.Context
 import kotlinx.serialization.Serializable

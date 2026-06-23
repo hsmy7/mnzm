@@ -825,11 +825,21 @@ fun GameEngine.releaseMemory(level: Int) {
 
 // ── 血炼原子操作 ────────────────────────────────────────────────────
 
+/** 血炼启动结果 */
+sealed interface BloodRefinementStartResult {
+    data object Success : BloodRefinementStartResult
+    data class InsufficientStones(
+        val required: Long, val current: Long
+    ) : BloodRefinementStartResult
+    data class InsufficientMaterials(
+        val materialName: String, val missing: Int
+    ) : BloodRefinementStartResult
+    data class Error(val message: String) : BloodRefinementStartResult
+}
+
 /**
  * 原子化启动血炼：灵石扣除、材料消耗、进度写入、弟子状态更新
  * 在同一 [stateStore.update] 事务中完成，失败时整体回滚。
- *
- * @return true 启动成功，false 资源不足（灵石或材料）
  */
 suspend fun GameEngine.startBloodRefinementAtomic(
     materialName: String,
@@ -838,59 +848,68 @@ suspend fun GameEngine.startBloodRefinementAtomic(
     buildingInstanceId: String,
     requiredSpiritStones: Long,
     progress: BloodRefinementProgress
-): Boolean {
+): BloodRefinementStartResult {
     try {
         stateStore.update {
-            // 1. 校验灵石
-            if (gameData.spiritStones < requiredSpiritStones) {
-                error("灵石不足: 需要 $requiredSpiritStones, 当前 ${gameData.spiritStones}")
-            }
-
-            // 2. 跨堆叠扣除材料（内联 consumeMaterialByName 逻辑）
-            var remaining = materialCount
-            val matching = materials.all().filter {
-                it.name == materialName && it.rarity == materialRarity && !it.isLocked
-            }
-            for (mat in matching) {
-                if (remaining <= 0) break
-                val take = minOf(remaining, mat.quantity)
-                val newQty = mat.quantity - take
-                if (newQty <= 0) {
-                    materials.remove(mat.id)
-                } else {
-                    materials.update(mat.id) { it.copy(quantity = newQty) }
-                }
-                remaining -= take
-            }
-            if (remaining > 0) {
-                error("兽血材料不足: 缺少 $remaining 份 $materialName")
-            }
-
-            // 3. 扣除灵石 + 写入进度（填充实际游戏时间）
-            val filledProgress = progress.copy(
-                startYear = gameData.gameYear,
-                startMonth = gameData.gameMonth
-            )
-            gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - requiredSpiritStones,
-                activeBloodRefinements = gameData.activeBloodRefinements + (buildingInstanceId to filledProgress)
-            )
-
-            // 4. 更新弟子状态
-            val dId = progress.discipleId.toIntOrNull()
-            if (dId != null && dId in discipleTables.ids) {
-                discipleTables.statuses[dId] = DiscipleStatus.IDLE
-                discipleTables.statusData[dId] = mapOf(
-                    "bloodRefining" to "true",
-                    "buildingId" to buildingInstanceId
-                )
-            }
+            checkStones(requiredSpiritStones)
+            consumeMaterial(materialName, materialRarity, materialCount)
+            commitBloodRefinement(buildingInstanceId, requiredSpiritStones, progress)
         }
-        return true
+        return BloodRefinementStartResult.Success
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         DomainLog.e("GameEngine", "血炼原子启动失败: ${e.message}", e)
-        return false
+        return BloodRefinementStartResult.Error(e.message ?: "未知错误")
+    }
+}
+
+/** 校验灵石是否足够 */
+private fun MutableGameState.checkStones(required: Long) {
+    if (gameData.spiritStones < required) {
+        error("灵石不足: 需要 $required, 当前 ${gameData.spiritStones}")
+    }
+}
+
+/** 跨堆叠扣除材料 */
+private fun MutableGameState.consumeMaterial(
+    name: String, rarity: Int, count: Int
+) {
+    var remaining = count
+    val matching = materials.all().filter {
+        it.name == name && it.rarity == rarity && !it.isLocked
+    }
+    for (mat in matching) {
+        if (remaining <= 0) break
+        val take = minOf(remaining, mat.quantity)
+        val newQty = mat.quantity - take
+        if (newQty <= 0) materials.remove(mat.id)
+        else materials.update(mat.id) { it.copy(quantity = newQty) }
+        remaining -= take
+    }
+    if (remaining > 0) error("兽血材料不足: 缺少 $remaining 份 $name")
+}
+
+/** 扣除灵石并写入血炼进度 */
+private fun MutableGameState.commitBloodRefinement(
+    buildingInstanceId: String,
+    requiredSpiritStones: Long,
+    progress: BloodRefinementProgress
+) {
+    val filledProgress = progress.copy(
+        startYear = gameData.gameYear, startMonth = gameData.gameMonth
+    )
+    gameData = gameData.copy(
+        spiritStones = gameData.spiritStones - requiredSpiritStones,
+        activeBloodRefinements = gameData.activeBloodRefinements +
+            (buildingInstanceId to filledProgress)
+    )
+    val dId = progress.discipleId.toIntOrNull()
+    if (dId != null && dId in discipleTables.ids) {
+        discipleTables.statuses[dId] = DiscipleStatus.IDLE
+        discipleTables.statusData[dId] = mapOf(
+            "bloodRefining" to "true",
+            "buildingId" to buildingInstanceId
+        )
     }
 }

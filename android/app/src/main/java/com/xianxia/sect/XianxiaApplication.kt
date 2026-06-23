@@ -15,7 +15,7 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
-import com.xianxia.sect.core.ChangelogData
+import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter

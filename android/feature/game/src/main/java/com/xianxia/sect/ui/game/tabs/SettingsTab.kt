@@ -52,7 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.core.ChangelogData
+import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.RedeemResult

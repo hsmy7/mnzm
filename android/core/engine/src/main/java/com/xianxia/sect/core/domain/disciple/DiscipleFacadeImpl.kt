@@ -744,28 +744,15 @@ class DiscipleFacadeImpl @Inject constructor(
                 val id = discipleId.toIntOrNull() ?: return@update
                 if (!discipleTables.ids.contains(id)) return@update
 
-                val discipleRealm = discipleTables.realms[id]
-                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, pill.minRealm)) return@update
-
-                // 使用新分类规则检查
+                // 委托 pillManager 统一检查资格
+                val disciple = discipleTables.assemble(id)
                 val itemEffect = pillManager.pillToItemEffect(pill)
-                val rule = DisciplePillManager.classify(itemEffect)
-                when (rule) {
-                    PillRule.PERMANENT_BASE_ATTR -> {
-                        val keys = DisciplePillManager.buildUsedKeys(itemEffect, pill.rarity)
-                        val usedKeys = discipleTables.usedPermanentPillKeys[id]
-                        if (keys.any { it in usedKeys }) return@update
-                    }
-                    PillRule.PERMANENT_LIFE -> {
-                        val usedTypes = discipleTables.usedExtendLifePillTypes[id]
-                        if (pill.pillType in usedTypes) return@update
-                    }
-                    PillRule.SUSTAINED_SPEED, PillRule.TEMPORARY_BATTLE -> {
-                        val activeTypes = discipleTables.activePillTypes[id]
-                        if (pill.pillType in activeTypes) return@update
-                    }
-                    else -> {} // INSTANT_CULTIVATION, BREAKTHROUGH 可重复
-                }
+                val bagItem = StorageBagItem(
+                    itemId = pillId, itemType = "pill",
+                    name = pill.name, rarity = pill.rarity, quantity = 1,
+                    effect = itemEffect
+                )
+                if (!pillManager.canUsePill(disciple, bagItem).canUse) return@update
 
                 if (pill.quantity > 1) {
                     pills.update(pillId) { it.copy(quantity = it.quantity - 1) }
