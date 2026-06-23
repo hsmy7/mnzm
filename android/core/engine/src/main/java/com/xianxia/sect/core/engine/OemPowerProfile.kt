@@ -98,11 +98,14 @@ object OemPowerProfileProvider {
             watchdogIntervalMs = 4000L,
         ),
         OemManufacturer.OPPO to OemPowerProfile(
-            // OPPO ColorOS 后台冻结策略中等激进
+            // OPPO ColorOS 14/15 空闲检测窗口 ~15-30ms，需更激进的忙等。
+            // 占空比 4ms/32ms=12.5%，与 Honor MagicOS 同级。
+            // Reno12 实测时间停止，根因为 32/3（4.7% 占空比）不足以突破
+            // ColorOS 空闲检测。来源：dontkillmyapp.com/oppo
             manufacturer = OemManufacturer.OPPO,
-            antiFreezeBusyInterval = 32L,
-            antiFreezeBusyDuration = 3L,
-            watchdogIntervalMs = 4000L,
+            antiFreezeBusyInterval = 16L,
+            antiFreezeBusyDuration = 4L,
+            watchdogIntervalMs = 3000L,
         ),
         OemManufacturer.SAMSUNG to OemPowerProfile(
             // 三星最接近原生 Android，保守参数

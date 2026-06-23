@@ -806,9 +806,9 @@ class GameEngineCore @Inject constructor(
      * ## 参数来源
      * busyInterval / busyDuration 由 [OemPowerProfileProvider.current] 提供，
      * 数据驱动各厂商差异化配置：
-     * - Honor MagicOS：busyInterval=16, busyDuration=4ms（占空比 12.5%）
      * - vivo/iQOO OriginOS 5：busyInterval=12, busyDuration=4ms（占空比 16.7%）
-     * - 中等 OEM（Xiaomi MIUI / OPPO ColorOS）：busyInterval=32, busyDuration=3ms
+     * - Honor MagicOS / OPPO ColorOS：busyInterval=16, busyDuration=4ms（占空比 12.5%）
+     * - 中等 OEM（Xiaomi MIUI）：busyInterval=32, busyDuration=3ms
      * - 保守 OEM（Samsung / 原生）：busyInterval=64, busyDuration=2ms
      *
      * 成本：保守 OEM 约 6-7% CPU；vivo 约 14% 单核 CPU（游戏线程），
