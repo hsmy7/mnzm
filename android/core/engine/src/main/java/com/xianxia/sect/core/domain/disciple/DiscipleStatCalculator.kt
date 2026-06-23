@@ -388,6 +388,9 @@ object DiscipleStatCalculator {
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
+        // 寿命将尽对修炼速度的影响
+        totalBonus -= calculateLifespanCultivationPenalty(disciple.age, disciple.lifespan)
+
         return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
@@ -455,6 +458,9 @@ object DiscipleStatCalculator {
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
+        // 寿命将尽对修炼速度的影响
+        totalBonus -= calculateLifespanCultivationPenalty(aggregate.age, aggregate.lifespan)
+
         return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
@@ -482,7 +488,11 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus
+            + pillBonus + talentBreakthroughBonus + soulPowerBonus
+            + adBonus - griefBreakthroughPenalty
+            - calculateLifespanBreakthroughPenalty(disciple.age, disciple.lifespan)
+
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -510,7 +520,10 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus
+            + talentBreakthroughBonus + soulPowerBonus + adBonus
+            - griefBreakthroughPenalty
+            - calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -527,6 +540,7 @@ object DiscipleStatCalculator {
         val pillBonus: Double,
         val adBonus: Double,
         val griefPenalty: Double,
+        val lifespanPenalty: Double,
         val total: Double
     )
 
@@ -538,14 +552,16 @@ object DiscipleStatCalculator {
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0
     ): BreakthroughBonusDetail {
-        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
         val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0
         val talentEffects = getTalentEffects(aggregate)
         val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty
+        val lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
+        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus
+            + talentBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty - lifespanPenalty
         return BreakthroughBonusDetail(
             baseChance = baseChance,
             innerElderBonus = innerElderBonus,
@@ -555,6 +571,7 @@ object DiscipleStatCalculator {
             pillBonus = pillBonus,
             adBonus = adBonus,
             griefPenalty = griefBreakthroughPenalty,
+            lifespanPenalty = lifespanPenalty,
             total = total.coerceIn(0.0, 1.0)
         )
     }
@@ -829,6 +846,48 @@ object DiscipleStatCalculator {
      * 亲人逝世对突破率的惩罚比例：降低20%
      */
     const val GRIEF_BREAKTHROUGH_CHANCE_PENALTY = 0.20
+
+    // ==================== 寿命将尽惩罚 ====================
+
+    /** 寿命惩罚阈值：剩余寿命低于此比例时触发 */
+    private const val LIFESPAN_PENALTY_THRESHOLD = 0.20
+    /** 每低于阈值1个百分点降低5%修炼速度 */
+    private const val LIFESPAN_CULTIVATION_PENALTY_PER_PCT = 0.05
+    /** 每低于阈值1个百分点降低2%突破率 */
+    private const val LIFESPAN_BREAKTHROUGH_PENALTY_PER_PCT = 0.02
+
+    /**
+     * 计算剩余寿命百分比（0.0~1.0）
+     * lifespan <= 0 时返回 1.0（无惩罚，避免除零）
+     */
+    fun calculateLifespanRemainingPercent(age: Int, lifespan: Int): Double {
+        if (lifespan <= 0) return 1.0
+        return ((lifespan - age).coerceAtLeast(0)).toDouble() / lifespan
+    }
+
+    /**
+     * 计算寿命将尽对修炼速度的惩罚值
+     * 剩余寿命低于20%时，每少1个百分点降低5%修炼速度
+     * @return 惩罚值（非负数），可直接从 totalBonus 中扣除
+     */
+    fun calculateLifespanCultivationPenalty(age: Int, lifespan: Int): Double {
+        val remaining = calculateLifespanRemainingPercent(age, lifespan)
+        if (remaining >= LIFESPAN_PENALTY_THRESHOLD) return 0.0
+        val deficitPercent = (LIFESPAN_PENALTY_THRESHOLD - remaining) * 100
+        return deficitPercent * LIFESPAN_CULTIVATION_PENALTY_PER_PCT
+    }
+
+    /**
+     * 计算寿命将尽对突破率的惩罚值
+     * 剩余寿命低于20%时，每少1个百分点降低2%突破率
+     * @return 惩罚值（非负数），可直接从 totalBonus 中扣除
+     */
+    fun calculateLifespanBreakthroughPenalty(age: Int, lifespan: Int): Double {
+        val remaining = calculateLifespanRemainingPercent(age, lifespan)
+        if (remaining >= LIFESPAN_PENALTY_THRESHOLD) return 0.0
+        val deficitPercent = (LIFESPAN_PENALTY_THRESHOLD - remaining) * 100
+        return deficitPercent * LIFESPAN_BREAKTHROUGH_PENALTY_PER_PCT
+    }
 
     /**
      * 判断弟子是否处于丧亲悲痛期

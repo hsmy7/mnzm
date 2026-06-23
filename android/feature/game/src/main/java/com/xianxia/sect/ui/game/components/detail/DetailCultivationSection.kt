@@ -527,6 +527,7 @@ fun BreakthroughDetailDialog(
         if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
         if (detail.adBonus > 0) add("广告加成" to detail.adBonus)
         if (detail.griefPenalty > 0) add("丧亲减益" to -detail.griefPenalty)
+        if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
     }
 
     Dialog(onDismissRequest = onDismiss) {

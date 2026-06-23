@@ -273,11 +273,12 @@ class DiscipleStatCalculatorTest {
 
     @Test
     fun `getBreakthroughChance - 神魂加成增加突破率`() {
-        val disciple = createDisciple(realm = 3, realmLayer = 1)
-        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        val boostedDisciple = disciple.copy(soulPower = 50)
-        val boostedChance = DiscipleStatCalculator.getBreakthroughChance(boostedDisciple)
-        assertEquals(baseChance + 0.02, boostedChance, 0.001)
+        // 神魂加成公式：每20点神魂+1%，最高5%
+        assertEquals(0.0, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(0), 0.001)
+        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(20), 0.001)
+        assertEquals(0.02, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(200), 0.001)
     }
 
     @Test
@@ -534,5 +535,66 @@ class DiscipleStatCalculatorTest {
         val equippedStats = DiscipleStatCalculator.getStatsWithEquipment(disciple, emptyMap())
         assertEquals(baseStats.physicalAttack, equippedStats.physicalAttack)
         assertEquals(baseStats.physicalDefense, equippedStats.physicalDefense)
+    }
+
+    // ==================== 寿命惩罚测试 ====================
+
+    @Test
+    fun `calculateLifespanRemainingPercent - 正常情况返回正确比例`() {
+        val result = DiscipleStatCalculator.calculateLifespanRemainingPercent(age = 40, lifespan = 80)
+        assertEquals(0.5, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanRemainingPercent - 寿命为0返回1无惩罚`() {
+        val result = DiscipleStatCalculator.calculateLifespanRemainingPercent(age = 0, lifespan = 0)
+        assertEquals(1.0, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanRemainingPercent - 已死亡age大于lifespan返回0`() {
+        val result = DiscipleStatCalculator.calculateLifespanRemainingPercent(age = 100, lifespan = 80)
+        assertEquals(0.0, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanCultivationPenalty - 高于阈值返回0`() {
+        // 剩余50%，高于20%阈值
+        val result = DiscipleStatCalculator.calculateLifespanCultivationPenalty(age = 40, lifespan = 80)
+        assertEquals(0.0, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanCultivationPenalty - 正好在阈值返回0`() {
+        // 剩余20%，等于阈值
+        val result = DiscipleStatCalculator.calculateLifespanCultivationPenalty(age = 64, lifespan = 80)
+        assertEquals(0.0, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanCultivationPenalty - 15%剩余返回0点25`() {
+        // 剩余15%，低于阈值5个百分点，5*0.05=0.25
+        val result = DiscipleStatCalculator.calculateLifespanCultivationPenalty(age = 68, lifespan = 80)
+        assertEquals(0.25, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanCultivationPenalty - 0%剩余返回1点0`() {
+        // 剩余0%，低于阈值20个百分点，20*0.05=1.0
+        val result = DiscipleStatCalculator.calculateLifespanCultivationPenalty(age = 80, lifespan = 80)
+        assertEquals(1.0, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanBreakthroughPenalty - 10%剩余返回0点20`() {
+        // 剩余10%，低于阈值10个百分点，10*0.02=0.20
+        val result = DiscipleStatCalculator.calculateLifespanBreakthroughPenalty(age = 72, lifespan = 80)
+        assertEquals(0.20, result, 0.0001)
+    }
+
+    @Test
+    fun `calculateLifespanBreakthroughPenalty - 高于阈值返回0`() {
+        val result = DiscipleStatCalculator.calculateLifespanBreakthroughPenalty(age = 16, lifespan = 80)
+        assertEquals(0.0, result, 0.0001)
     }
 }
