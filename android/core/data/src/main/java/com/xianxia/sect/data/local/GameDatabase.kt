@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 6  // v6: 新增 buildingInstanceId + bloodRefinementBonusTotals 列
+    version = 7  // v7: 新增 AI宗门进攻系统6列 (aiSectPersonalities, suzerainSectId 等)
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -403,6 +403,54 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // AI宗门攻击个性映射
+                if (!columnExists(db, "game_data", "aiSectPersonalities")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN aiSectPersonalities TEXT " +
+                        "NOT NULL DEFAULT ''"
+                    )
+                }
+                // 附庸关系（"" = 独立）
+                if (!columnExists(db, "game_data", "suzerainSectId")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN suzerainSectId TEXT " +
+                        "NOT NULL DEFAULT ''"
+                    )
+                }
+                // 上年灵石收入
+                if (!columnExists(db, "game_data", "lastYearSpiritStoneIncome")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN lastYearSpiritStoneIncome INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                // 活跃攻击预警
+                if (!columnExists(db, "game_data", "activeAttackWarnings")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN activeAttackWarnings TEXT " +
+                        "NOT NULL DEFAULT ''"
+                    )
+                }
+                // 已展示预警阶段
+                if (!columnExists(db, "game_data", "shownWarningStageIds")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN shownWarningStageIds TEXT " +
+                        "NOT NULL DEFAULT ''"
+                    )
+                }
+                // AI宗门攻击冷却
+                if (!columnExists(db, "game_data", "sectAttackCooldowns")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN sectAttackCooldowns TEXT " +
+                        "NOT NULL DEFAULT ''"
+                    )
+                }
+                Log.i(TAG, "Migration 6→7: added AI attack system columns to game_data")
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
@@ -442,7 +490,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

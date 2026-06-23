@@ -97,18 +97,21 @@ class DiscipleBreakthroughHandler @Inject constructor(
                 val success = tryBreakthrough(disciple, pillBonus, state)
                 if (success) {
                     newCultivation = 0.0
+                    val oldRealm = newRealm
                     if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
                         newRealmLayer++
                     } else {
                         newRealm--
                         newRealmLayer = 1
                     }
-                    newLifespan += cultivationCore.getLifespanGainForRealm(newRealm)
+                    if (newRealm != oldRealm) {
+                        newLifespan += cultivationCore.getLifespanGainForRealm(newRealm)
 
-                    val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0
-                    if (lifespanTalentBonus != 0.0) {
-                        val extraLifespan = (cultivationCore.getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
-                        newLifespan += extraLifespan
+                        val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0
+                        if (lifespanTalentBonus != 0.0) {
+                            val extraLifespan = (cultivationCore.getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
+                            newLifespan += extraLifespan
+                        }
                     }
                 } else {
                     newCultivation = 0.0

@@ -166,6 +166,28 @@ fun GameOverlayHost(
         )
     }
 
+    // AI宗门进攻预警弹窗
+    val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
+    val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
+    val gdForWarning by viewModel.gameDataUi.collectAsStateWithLifecycle()
+
+    AttackWarningDialogs(
+        warnings = attackWarnings,
+        shownStageIds = shownWarningStageIds,
+        currentSpiritStones = gdForWarning.spiritStones,
+        onAppease = { warning ->
+            viewModel.resolveAttackWarningAppease(warning.attackerSectId)
+        },
+        onBecomeVassal = { warning ->
+            viewModel.resolveAttackWarningVassal(warning.attackerSectId)
+        },
+        onDismissWarning = { warning ->
+            viewModel.markWarningStageShown(
+                "${warning.warningId}:${warning.stage.name}"
+            )
+        }
+    )
+
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
     if (currentDialogRoute != DialogRoute.None) {

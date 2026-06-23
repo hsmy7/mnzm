@@ -55,6 +55,12 @@ object ProtobufConverters {
         MapSerializer(Int.serializer(), Boolean.serializer())
     private val intSetSerializer: KSerializer<Set<Int>> =
         SetSerializer(Int.serializer())
+    private val stringSetSerializer: KSerializer<Set<String>> =
+        SetSerializer(String.serializer())
+    private val attackWarningListSerializer: KSerializer<List<AttackWarning>> =
+        ListSerializer(AttackWarning.serializer())
+    private val aiSectPersonalityMapSerializer: KSerializer<Map<String, AISectPersonality>> =
+        MapSerializer(String.serializer(), AISectPersonality.serializer())
 
     // LZ4 BLOB 压缩（写入前压缩，读出时解压）
     private const val LZ4_COMPRESSION_THRESHOLD = 1024
@@ -569,4 +575,36 @@ object ProtobufConverters {
             return default()
         }
     }
+
+    // ==================== v4.0.20: AI宗门进攻系统新增类型 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAttackWarningList(value: List<AttackWarning>): String =
+        encodeToBase64(attackWarningListSerializer, value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAttackWarningList(value: String): List<AttackWarning> =
+        decodeFromBase64(attackWarningListSerializer, value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAISectPersonalityMap(value: Map<String, AISectPersonality>): String =
+        encodeToBase64(aiSectPersonalityMapSerializer, value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAISectPersonalityMap(value: String): Map<String, AISectPersonality> =
+        decodeFromBase64(aiSectPersonalityMapSerializer, value) { emptyMap() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromStringSet(value: Set<String>): String =
+        encodeToBase64(stringSetSerializer, value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toStringSet(value: String): Set<String> =
+        decodeFromBase64(stringSetSerializer, value) { emptySet() }
 }

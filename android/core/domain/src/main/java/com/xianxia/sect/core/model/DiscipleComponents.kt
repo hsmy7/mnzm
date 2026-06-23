@@ -69,6 +69,7 @@ data class CombatAttributes(
  */
 @Keep
 @Serializable
+@Immutable
 data class PillEffects(
     var pillPhysicalAttackBonus: Int = 0,
     var pillMagicAttackBonus: Int = 0,
@@ -168,6 +169,7 @@ data class SkillStats(
  * 包含丹药使用记录、招募时间、功能标记等，共5个字段
  */
 @Serializable
+@Immutable
 data class UsageTracking(
     // 永久属性丹已服用的去重 key："tier#effectField"
     @Ignore

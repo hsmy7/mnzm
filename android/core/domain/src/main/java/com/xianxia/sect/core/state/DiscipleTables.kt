@@ -362,6 +362,7 @@ class DiscipleTables {
         pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
         pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
         activePillCategories[id] = p.activePillCategory
+        activePillTypes[id] = p.activePillTypes
 
         val e = disciple.equipment
         weaponIds[id] = e.weaponId; armorIds[id] = e.armorId

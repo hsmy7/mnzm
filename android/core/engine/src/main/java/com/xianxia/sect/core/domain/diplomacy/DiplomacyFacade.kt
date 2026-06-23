@@ -3,7 +3,7 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 import com.xianxia.sect.core.model.MerchantItem
 
 interface DiplomacyFacade {
-    fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult
+    fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): DiplomacyService.GiftResult
     suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String>
     fun dissolveAlliance(sectId: String): Pair<Boolean, String>
     fun getRejectProbability(sectLevel: Int, rarity: Int): Int

@@ -72,6 +72,8 @@ data class DiscipleAggregate(
     val pillSkillExpSpeedBonus: Double get() = combatStats?.pillSkillExpSpeedBonus ?: 0.0
     val pillNurtureSpeedBonus: Double get() = combatStats?.pillNurtureSpeedBonus ?: 0.0
     val activePillCategory: String get() = combatStats?.activePillCategory ?: ""
+    // activePillTypes 为 @Ignore 字段，不在 DiscipleCombatStats Room 实体中。
+    // Aggregate 路径无法访问此跨实体字段，需要时请通过 Disciple StateFlow 获取。
     val activePillTypes: Set<String> get() = emptySet()
     val totalCultivation: Long get() = combatStats?.totalCultivation ?: 0
     val breakthroughCount: Int get() = combatStats?.breakthroughCount ?: 0
@@ -107,6 +109,8 @@ data class DiscipleAggregate(
     val griefEndYear: Int? get() = extended?.griefEndYear
     val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
     val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
+    // usedPermanentPillKeys / usedExtendLifePillTypes 为 @Ignore 字段，
+    // 不在 DiscipleExtended Room 实体中。需要时请通过 Disciple StateFlow 获取。
     val usedPermanentPillKeys: Set<String> get() = emptySet()
     val usedExtendLifePillTypes: Set<String> get() = emptySet()
     val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false

@@ -696,17 +696,22 @@ class SettlementCoordinator @Inject constructor(
             if (success) {
                 var newRealm = d.realm
                 var newRealmLayer = d.realmLayer
+                val oldRealm = newRealm
                 if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
                     newRealmLayer++
                 } else {
                     newRealm--
                     newRealmLayer = 1
                 }
-                val lifespanGain = getLifespanGainForRealm(newRealm)
-                val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(d.talentIds)["lifespan"] ?: 0.0
-                val extraLifespan = if (lifespanTalentBonus != 0.0) {
-                    (getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
-                } else 0
+                var lifespanGain = 0
+                var extraLifespan = 0
+                if (newRealm != oldRealm) {
+                    lifespanGain = getLifespanGainForRealm(newRealm)
+                    val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(d.talentIds)["lifespan"] ?: 0.0
+                    if (lifespanTalentBonus != 0.0) {
+                        extraLifespan = (getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
+                    }
+                }
 
                 d = d.copy(
                     cultivation = 0.0,

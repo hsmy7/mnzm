@@ -377,8 +377,7 @@ fun BasicInfoSection(
             disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
         }
 
-        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp,
-            gameMonth = gameMonth, gamePhase = gamePhase, gameSpeed = gameSpeed)
+        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp, gameSpeed = gameSpeed)
     }
 }
 
@@ -387,8 +386,6 @@ fun HpMpBars(
     disciple: DiscipleAggregate,
     maxHpOverride: Int? = null,
     maxMpOverride: Int? = null,
-    gameMonth: Int = 1,
-    gamePhase: Int = 0,
     gameSpeed: Int = 1
 ) {
     val maxHp = maxHpOverride ?: disciple.maxHp
@@ -400,11 +397,6 @@ fun HpMpBars(
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
-    // 旬切换检测 — 气血/灵力每旬动画一次
-    val currentPhaseKey = "$gameMonth-$gamePhase"
-    var lastHpPhaseKey by remember { mutableStateOf(currentPhaseKey) }
-    var lastMpPhaseKey by remember { mutableStateOf(currentPhaseKey) }
-
     // 动画状态
     val animatedHpProgress = remember { Animatable(hpFraction) }
     val animatedMpProgress = remember { Animatable(mpFraction) }
@@ -412,29 +404,25 @@ fun HpMpBars(
         (com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / gameSpeed).toInt()
     } else 300
 
-    // 气血动画：每旬更新
-    LaunchedEffect(currentPhaseKey) {
-        if (currentPhaseKey != lastHpPhaseKey && gameSpeed > 0) {
-            lastHpPhaseKey = currentPhaseKey
-            val target = hpFraction
-            if (target < animatedHpProgress.value - 0.5f) {
+    // 气血动画：随hpFraction实时更新
+    LaunchedEffect(hpFraction) {
+        if (gameSpeed > 0) {
+            if (hpFraction < animatedHpProgress.value - 0.5f) {
                 // 骤降超过50%，瞬间同步（濒死/受重伤）
-                animatedHpProgress.snapTo(target)
+                animatedHpProgress.snapTo(hpFraction)
             } else {
-                animatedHpProgress.animateTo(target, tween(phaseDurationMs))
+                animatedHpProgress.animateTo(hpFraction, tween(phaseDurationMs))
             }
         }
     }
 
-    // 灵力动画：每旬更新
-    LaunchedEffect(currentPhaseKey) {
-        if (currentPhaseKey != lastMpPhaseKey && gameSpeed > 0) {
-            lastMpPhaseKey = currentPhaseKey
-            val target = mpFraction
-            if (target < animatedMpProgress.value - 0.5f) {
-                animatedMpProgress.snapTo(target)
+    // 灵力动画：随mpFraction实时更新
+    LaunchedEffect(mpFraction) {
+        if (gameSpeed > 0) {
+            if (mpFraction < animatedMpProgress.value - 0.5f) {
+                animatedMpProgress.snapTo(mpFraction)
             } else {
-                animatedMpProgress.animateTo(target, tween(phaseDurationMs))
+                animatedMpProgress.animateTo(mpFraction, tween(phaseDurationMs))
             }
         }
     }

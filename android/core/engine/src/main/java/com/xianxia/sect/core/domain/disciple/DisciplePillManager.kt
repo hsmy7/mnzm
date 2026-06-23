@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +28,7 @@ enum class PillRule(val priority: Int) {
     BREAKTHROUGH(0)
 }
 
+@GameService("DisciplePillManager")
 @Singleton
 class DisciplePillManager @Inject constructor(
     private val pillEffectApplier: PillEffectApplier
@@ -59,7 +61,10 @@ class DisciplePillManager @Inject constructor(
             .filter { it.itemType == "pill" && it.effect != null }
             .sortedWith(
                 compareByDescending<StorageBagItem> {
-                    classify(it.effect!!).priority
+                    val effect = checkNotNull(it.effect) {
+                        "Effect was null for pill ${it.name}"
+                    }
+                    classify(effect).priority
                 }
                     .thenByDescending { it.rarity }
             )

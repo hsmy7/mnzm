@@ -382,7 +382,31 @@ data class GameData(
     // 每日签到状态
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @ColumnInfo(name = "sign_in_state_json", defaultValue = "{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}")
-    var signInState: SignInState = SignInState()
+    var signInState: SignInState = SignInState(),
+
+    // AI宗门攻击个性映射（sectId → personality）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var aiSectPersonalities: Map<String, AISectPersonality> = emptyMap(),
+
+    // 附庸关系：玩家主宗的宗门ID，"" 表示独立宗门
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var suzerainSectId: String = "",
+
+    // 上一年灵石总收入（用于附庸年贡计算）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var lastYearSpiritStoneIncome: Long = 0L,
+
+    // 活跃的攻击预警列表
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var activeAttackWarnings: List<AttackWarning> = emptyList(),
+
+    // 已向玩家展示过的预警阶段（"warningId:DENUNCIATION" / "warningId:WAR_DECLARATION"）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var shownWarningStageIds: List<String> = emptyList(),
+
+    // AI宗门攻击冷却追踪（sectId → 下次可攻击的游戏绝对月份）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var sectAttackCooldowns: Map<String, Int> = emptyMap()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

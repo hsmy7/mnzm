@@ -10,6 +10,7 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -249,17 +250,63 @@ object AISectAttackManager {
     }
 
 
-    fun decidePlayerAttack(gameData: GameData): AIAttackResult? {
-        if (gameData.isPlayerProtected) return null
+    /**
+     * AI决定攻击玩家的结果——不再是立即执行战斗，
+     * 而是返回【是否应生成预警】或【是否应跳过】。
+     *
+     * 预警生成后进入谴责→战书二级生命周期，
+     * 到期后才执行实际战斗。
+     */
+    sealed interface PlayerAttackDecision {
+        /** 不攻击（保护期/附庸/冷却/好感度>0 等） */
+        data object Skip : PlayerAttackDecision
+        /** 生成预警，进入谴责阶段 */
+        data class GenerateWarning(
+            val attackerSectId: String,
+            val attackerSectName: String
+        ) : PlayerAttackDecision
+    }
+
+    /**
+     * 决定AI宗门是否应攻击玩家。
+     *
+     * 检查顺序：保护期 → 附庸关系 → 已有预警 → 个性冷却 →
+     * 好感度 → 联盟 → 个性宣战概率。
+     */
+    fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision {
+        if (gameData.isPlayerProtected) return PlayerAttackDecision.Skip
+
+        val playerSect = gameData.worldMapSects.find { it.isPlayerSect }
+            ?: return PlayerAttackDecision.Skip
+        val playerSectId = playerSect.id
+        val nowMonth = gameData.gameYear * 12 + gameData.gameMonth
 
         val aiDisciplesMap = gameData.aiSectDisciples
-        val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
-        val playerSectId = playerSect.id
 
         for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
-            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            // ---- 附庸关系：主宗不攻击附庸 ----
+            if (gameData.suzerainSectId == attacker.id) continue
 
+            // ---- 该宗门已有活跃预警 → 跳过 ----
+            if (gameData.activeAttackWarnings.any {
+                it.attackerSectId == attacker.id
+            }) continue
+
+            // ---- 冷却期检查 ----
+            val cooldownUntil = gameData.sectAttackCooldowns[attacker.id]
+            if (cooldownUntil != null && nowMonth < cooldownUntil) continue
+
+            // ---- 个性参数获取 ----
+            val personality = gameData.aiSectPersonalities[attacker.id]
+                ?: AISectPersonality.BALANCED
+            val denounceInterval = AISectPersonality.randomDenounceInterval(personality)
+
+            // ---- 最低弟子数 ----
+            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
+            val aliveAttackers = attackerDisciples.filter { it.isAlive }
+            if (aliveAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
+
+            // ---- 好感度 ----
             val relation = gameData.sectRelations.find {
                 (it.sectId1 == attacker.id && it.sectId2 == playerSectId) ||
                 (it.sectId1 == playerSectId && it.sectId2 == attacker.id)
@@ -267,35 +314,70 @@ object AISectAttackManager {
             val favor = relation?.favor ?: 0
             if (favor > 0) continue
 
-            if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
+            // ---- 联盟 ----
+            if (attacker.allianceId.isNotEmpty() &&
+                playerSect.allianceId == attacker.allianceId) continue
 
-            val selectedAttackers = attackerDisciples.filter { it.isAlive }
-                .sortedByDescending { it.realm }
-                .take(TEAM_SIZE)
-            if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            // ---- 战力比门槛（按个性） ----
+            val attackerPower = calculatePowerScore(aliveAttackers)
+            val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
+            val defenderPower = calculatePowerScore(
+                defenderDisciples.filter { it.isAlive }
+            )
+            if (defenderPower > 0 &&
+                attackerPower < defenderPower * personality.powerRatioThreshold
+            ) continue
 
-            // Execute battle immediately — garrison from player's home sect
-            val defenderDisciples = gameData.aiSectDisciples[playerSectId] ?: emptyList()
-            if (defenderDisciples.isEmpty()) continue
+            // ---- 宣战概率（按个性） ----
+            if (Random.nextDouble() > personality.warProbability) continue
 
-            val battleResult = executeSectBattle(selectedAttackers, playerSect, defenderDisciples)
-
-            val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
-
-            return AIAttackResult(
+            // 通过所有检查 → 生成谴责预警
+            return PlayerAttackDecision.GenerateWarning(
                 attackerSectId = attacker.id,
-                defenderSectId = playerSectId,
-                attackerSectName = attacker.name,
-                defenderSectName = playerSect.name,
-                winner = battleResult.winner,
-                deadAttackerIds = battleResult.deadAttackerIds,
-                deadDefenderIds = battleResult.deadDefenderIds,
-                canOccupy = battleResult.canOccupy,
-                survivingAttackers = survivingAttackers
+                attackerSectName = attacker.name
             )
         }
 
-        return null
+        return PlayerAttackDecision.Skip
+    }
+
+    /**
+     * 执行AI宗门对玩家的实际战斗（预警到期后调用）。
+     * 保留原有立即战斗逻辑供预警到期时使用。
+     */
+    fun executePlayerAttack(gameData: GameData, attackerSectId: String): AIAttackResult? {
+        val aiDisciplesMap = gameData.aiSectDisciples
+        val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
+        val playerSectId = playerSect.id
+        val attacker = gameData.worldMapSects.find { it.id == attackerSectId } ?: return null
+
+        val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
+        val selectedAttackers = attackerDisciples.filter { it.isAlive }
+            .sortedByDescending { it.realm }
+            .take(TEAM_SIZE)
+        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
+
+        val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
+        if (defenderDisciples.isEmpty()) return null
+
+        val battleResult = executeSectBattle(
+            selectedAttackers, playerSect, defenderDisciples
+        )
+        val survivingAttackers = selectedAttackers.filter {
+            it.id !in battleResult.deadAttackerIds
+        }
+
+        return AIAttackResult(
+            attackerSectId = attacker.id,
+            defenderSectId = playerSectId,
+            attackerSectName = attacker.name,
+            defenderSectName = playerSect.name,
+            winner = battleResult.winner,
+            deadAttackerIds = battleResult.deadAttackerIds,
+            deadDefenderIds = battleResult.deadDefenderIds,
+            canOccupy = battleResult.canOccupy,
+            survivingAttackers = survivingAttackers
+        )
     }
 
     fun findSectsWithNoTargets(gameData: GameData): Set<String> {

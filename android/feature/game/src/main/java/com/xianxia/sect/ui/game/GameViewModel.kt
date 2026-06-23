@@ -188,6 +188,43 @@ class GameViewModel @Inject constructor(
         gameEngine.clearPendingBeastAttacks()
     }
 
+    // AI宗门进攻预警
+    val attackWarnings: StateFlow<List<AttackWarning>> = gameEngine.gameData
+        .map { it.activeAttackWarnings }
+        .distinctUntilChanged()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    val shownWarningStageIds: StateFlow<List<String>> = gameEngine.gameData
+        .map { it.shownWarningStageIds }
+        .distinctUntilChanged()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    fun resolveAttackWarningAppease(sectId: String) {
+        viewModelScope.launch {
+            gameEngine.appeaseAttackingSect(sectId)
+        }
+    }
+
+    fun resolveAttackWarningVassal(sectId: String) {
+        viewModelScope.launch {
+            gameEngine.becomeVassalOfAttacker(sectId)
+        }
+    }
+
+    fun markWarningStageShown(stageKey: String) {
+        viewModelScope.launch {
+            gameEngine.markWarningStageShown(stageKey)
+        }
+    }
+
     fun enqueueBattleRewardCards() {
         val cards = gameEngine.pendingBattleRewardCards.value
         if (cards.isNotEmpty()) {

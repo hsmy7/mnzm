@@ -419,64 +419,7 @@ fun GameEngine.currentActiveSectId(): String = stateStore.gameDataSnapshot.activ
 // ── Cross-domain: Use pill ──────────────────────────────────────────
 
 fun GameEngine.usePill(discipleId: String, pillId: String) {
-    gameEngineCore.launchInScope {
-        var errorMsg: String? = null; var successMsg: String? = null
-        stateStore.update {
-            val pill = pills.get(pillId) ?: return@update
-            if (pill.quantity <= 0) return@update
-            val id = discipleId.toInt()
-            if (id !in discipleTables.ids) return@update
-            val disciple = discipleTables.assemble(id)
-            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, pill.minRealm)) { errorMsg = "弟子${disciple.name}境界不足，无法使用${pill.name}（需要${GameConfig.Realm.getName(pill.minRealm)}及以上）"; return@update }
-            if (pill.effects.cannotStack && disciple.pillEffects.activePillCategory == pill.category.name) { errorMsg = "弟子${disciple.name}已有同类型丹药生效中，无法使用${pill.name}"; return@update }
-            if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
-                if (disciple.usage.usedFunctionalPillTypes.contains(pill.pillType)) { errorMsg = "弟子${disciple.name}已使用过${pill.name}，同类功能丹药每人只能使用一次"; return@update }
-            }
-            val newQty = pill.quantity - 1
-            if (newQty <= 0) pills.remove(pillId) else pills.update(pillId) { it.copy(quantity = newQty) }
-            var updatedDisciple = disciple
-            val effect = pill.effects
-            if (effect.cultivationAdd > 0) updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
-            if (effect.skillExpAdd > 0) updatedDisciple = updatedDisciple.copy(manualMasteries = updatedDisciple.manualMasteries.mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) })
-            if (effect.cultivationSpeedPercent > 0) updatedDisciple = updatedDisciple.copy(cultivationSpeedBonus = effect.cultivationSpeedPercent, cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.cultivationSpeedDuration)
-            if (effect.extendLife > 0) {
-                updatedDisciple = updatedDisciple.copy(lifespan = updatedDisciple.lifespan + effect.extendLife)
-                if (!updatedDisciple.usage.usedExtendLifePillIds.contains(pill.pillType)) updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedExtendLifePillIds = updatedDisciple.usage.usedExtendLifePillIds + pill.pillType))
-            }
-            if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 || effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 || effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 || effect.miningAdd > 0) {
-                updatedDisciple = updatedDisciple.copy(skills = updatedDisciple.skills.copy(
-                    intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceAtLeast(0),
-                    charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceAtLeast(0),
-                    loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
-                    comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceAtLeast(0),
-                    artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceAtLeast(0),
-                    pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceAtLeast(0),
-                    spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceAtLeast(0),
-                    teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
-                    morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceAtLeast(0),
-                    mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceAtLeast(0)
-                ))
-            }
-            if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedFunctionalPillTypes = updatedDisciple.usage.usedFunctionalPillTypes + pill.pillType))
-            if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 || effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 || effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 || effect.critRateAdd > 0 || effect.critEffectAdd > 0 || effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0) {
-                updatedDisciple = updatedDisciple.copy(pillEffects = updatedDisciple.pillEffects.copy(
-                    pillPhysicalAttackBonus = effect.physicalAttackAdd, pillMagicAttackBonus = effect.magicAttackAdd,
-                    pillPhysicalDefenseBonus = effect.physicalDefenseAdd, pillMagicDefenseBonus = effect.magicDefenseAdd,
-                    pillHpBonus = effect.hpAdd, pillMpBonus = effect.mpAdd, pillSpeedBonus = effect.speedAdd,
-                    pillCritRateBonus = effect.critRateAdd, pillCritEffectBonus = effect.critEffectAdd,
-                    pillCultivationSpeedBonus = effect.cultivationSpeedPercent, pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
-                    pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                    pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
-                    activePillCategory = if (effect.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
-                ))
-            }
-            if (effect.healMaxHpPercent > 0) updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
-            if (effect.clearAll) updatedDisciple = updatedDisciple.copy(pillEffects = PillEffects())
-            discipleTables.remove(id)
-            discipleTables.insert(updatedDisciple)
-            successMsg = "弟子${disciple.name}使用了${pill.name}"
-        }
-    }
+    giveItemToDisciple(discipleId, pillId, "pill")
 }
 
 // ── Cross-domain: Manual operations ─────────────────────────────────

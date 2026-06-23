@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
+import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -36,7 +37,8 @@ class CaveExplorationProcessor @Inject constructor(
     private val eventProcessor: CultivationEventProcessor,
     private val analyticsTracker: AnalyticsTracker,
     private val sectWarehouseManager: SectWarehouseManager,
-    private val thermalMonitor: ThermalMonitor
+    private val thermalMonitor: ThermalMonitor,
+    private val attackWarningService: AttackWarningService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -660,17 +662,72 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
+    /**
+     * 确保所有AI宗门都有个性分配（旧存档兼容 + 懒初始化）。
+     */
+    private fun ensureAISectPersonalities() {
+        val data = stateStore.gameData.value
+        val sects = data.worldMapSects.filter { !it.isPlayerSect }
+        val existing = data.aiSectPersonalities
+        var needsUpdate = false
+        val updated = existing.toMutableMap()
+
+        for (sect in sects) {
+            if (sect.id !in updated) {
+                updated[sect.id] = AISectPersonality.random()
+                needsUpdate = true
+            }
+        }
+
+        if (needsUpdate) {
+            scopeProvider.scope.launch {
+                stateStore.update {
+                    gameData = gameData.copy(aiSectPersonalities = updated)
+                }
+            }
+        }
+    }
+
     fun processAISectAttackDecisions() {
+        ensureAISectPersonalities()
+
         val data = stateStore.gameData.value
 
+        // AI vs AI 攻击（不变）
         val aiResults = AISectAttackManager.decideAttacks(data)
         for (result in aiResults) {
             applyAIAttackResult(result)
         }
 
-        val playerAttack = AISectAttackManager.decidePlayerAttack(data)
-        if (playerAttack != null) {
-            applyPlayerDefenseResult(playerAttack)
+        // ---- AI攻击玩家：预警生命周期管理 ----
+
+        // 1. 推进预警阶段（谴责 → 战书）
+        val newlyAdvanced = attackWarningService.advanceWarningsIfNeeded()
+
+        // 2. 检查到期预警 → 执行实际战斗
+        val expiredWarnings = attackWarningService.checkExpiredWarnings()
+        for (expired in expiredWarnings) {
+            val result = AISectAttackManager.executePlayerAttack(
+                stateStore.gameData.value, expired.attackerSectId
+            )
+            if (result != null) {
+                applyPlayerDefenseResult(result)
+            }
+        }
+
+        // 3. 决定新的攻击 → 生成谴责预警
+        val decision = AISectAttackManager.decidePlayerAttack(data)
+        when (decision) {
+            is AISectAttackManager.PlayerAttackDecision.GenerateWarning -> {
+                val warning = attackWarningService.createDenunciationWarning(
+                    attackerSectId = decision.attackerSectId,
+                    attackerSectName = decision.attackerSectName
+                )
+                attackWarningService.addWarning(warning)
+            }
+            is AISectAttackManager.PlayerAttackDecision.Skip -> {
+                // 无事发生
+            }
         }
     }
 

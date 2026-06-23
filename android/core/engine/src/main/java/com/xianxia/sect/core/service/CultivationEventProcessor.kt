@@ -27,6 +27,7 @@ import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,7 +53,8 @@ class CultivationEventProcessor @Inject constructor(
     private val diplomacyEventProcessor: DiplomacyEventProcessor,
     private val equipmentManager: DiscipleEquipmentManager,
     private val manualManager: DiscipleManualManager,
-    private val autoBuyService: AutoBuyService
+    private val autoBuyService: AutoBuyService,
+    private val vassalService: VassalService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -381,6 +383,8 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun processYearlyEvents(year: Int) {
+        // 附庸年贡（每年一月扣除上年灵石收入的50%）
+        vassalService.processYearlyTribute()
         discipleLifecycleProcessor.processDiscipleAging(year)
         caveExplorationProcessor.get().processSectDisciplesAging(year)
         discipleLifecycleProcessor.processYearlyAging(year)

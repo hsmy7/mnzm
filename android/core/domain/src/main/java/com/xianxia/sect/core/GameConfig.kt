@@ -529,7 +529,21 @@ object GameConfig {
     object PlayerProtection {
         const val PROTECTION_YEARS = 100
     }
-    
+
+    /** AI宗门智能进攻配置 */
+    object AIAttack {
+        /** 谴责→正式进攻间隔（月） */
+        const val DENUNCIATION_BEFORE_ATTACK_MONTHS = 6
+        /** 战书→正式进攻间隔（月） */
+        const val WAR_WARNING_BEFORE_ATTACK_MONTHS = 3
+        /** 缓和关系薄礼灵石数量 */
+        const val APPEASE_GIFT_SPIRIT_STONES = 20_000L
+        /** 附庸年贡比例（上年灵石收入的百分比） */
+        const val VASSAL_TRIBUTE_RATIO = 0.5
+        /** 附庸年贡最低灵石 */
+        const val VASSAL_TRIBUTE_MIN = 1L
+    }
+
     object Performance {
         const val MAX_TICK_SAMPLES = 100
         const val MAX_BATCH_SAMPLES = 100

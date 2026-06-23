@@ -64,9 +64,10 @@ class DiplomacyService @Inject constructor(
      *
      * @param sectId 目标宗门ID
      * @param tier 送礼档位
+     * @param bypassYearLimit 是否绕过每年一次送礼限制（用于缓和关系等紧急外交场合）
      * @return 送礼结果
      */
-    fun giftSpiritStones(sectId: String, tier: Int): GiftResult {
+    fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult {
         val data = stateStore.gameData.value
         val currentYear = data.gameYear
 
@@ -89,8 +90,8 @@ class DiplomacyService @Inject constructor(
             )
         }
 
-        // 检查每年一次限制
-        if (data.sectDetails[sect.id]?.lastGiftYear ?: 0 == currentYear) {
+        // 检查每年一次限制（缓和关系可绕过）
+        if (!bypassYearLimit && (data.sectDetails[sect.id]?.lastGiftYear ?: 0) == currentYear) {
             return GiftResult(
                 success = false,
                 rejected = false,
@@ -166,7 +167,10 @@ class DiplomacyService @Inject constructor(
         val newFavor = (currentFavor + favorIncrease).coerceAtMost(100)
 
         val updatedDetails = data.sectDetails.toMutableMap()
-        updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(lastGiftYear = currentYear)
+        // 缓和关系绕过年度限制时不更新 lastGiftYear
+        if (!bypassYearLimit) {
+            updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(lastGiftYear = currentYear)
+        }
 
         val updatedRelations = if (playerSect != null) {
             updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, currentYear)
