@@ -125,6 +125,10 @@ class MailService @Inject constructor(
                 val stableId = "online_${mailData.remoteId}"
                 if (mailRepo.getById(stableId) == null) {
                     val now = System.currentTimeMillis()
+                    // 若 mailRecords 已有领取记录（如"删除已读"后月度重拉），
+                    // 新实体直接标记为已领，避免 Room 与 mailRecords 不一致
+                    val alreadyClaimed = stateStore.gameData.value
+                        .mailRecords.any { it.mailId == stableId }
                     val entity = MailEntity(
                         id = stableId,
                         slotId = slotId,
@@ -136,6 +140,8 @@ class MailService @Inject constructor(
                         sendTime = mailData.sendTime,
                         expireTime = mailData.expireTime.coerceAtLeast(now + EXPIRE_MS),
                         hasAttachment = mailData.attachments.isNotEmpty(),
+                        attachmentClaimed = alreadyClaimed,
+                        isRead = alreadyClaimed,
                         attachments = json.encodeToString(serializer<List<MailAttachment>>(), mailData.attachments),
                         remoteMailId = mailData.remoteId
                     )
@@ -187,9 +193,22 @@ class MailService @Inject constructor(
             if (mail.expireTime <= now) return ClaimResult.Expired
             if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
             // 二次保护：若 Room DB 的 attachmentClaimed 未及时更新，
-            // GameData 中的 mailRecords 作为补偿防护防止重复领取
+            // GameData 中的 mailRecords 作为补偿防护防止重复领取。
+            // 若 mailRecords 已有记录而 Room 未同步，主动自愈 Room 状态
+            // 并刷新 UI，使领取按钮自然消失。
             val snapshot = stateStore.gameData.value
-            if (snapshot.mailRecords.any { it.mailId == mailId }) return ClaimResult.AlreadyClaimed
+            if (snapshot.mailRecords.any { it.mailId == mailId }) {
+                try {
+                    mailRepo.update(mail.copy(
+                        attachmentClaimed = true, isRead = true
+                    ))
+                    refreshActiveMails(slotId)
+                } catch (e: Exception) {
+                    DomainLog.e(TAG,
+                        "Heal Room state failed for mail $mailId: ${e.message}", e)
+                }
+                return ClaimResult.AlreadyClaimed
+            }
 
             val attachments: List<MailAttachment> = try {
                 json.decodeFromString(mail.attachments)
@@ -285,6 +304,12 @@ class MailService @Inject constructor(
     private suspend fun claimAttachmentInternal(mail: MailEntity, slotId: Int, now: Long): ClaimResult {
         if (mail.expireTime <= now) return ClaimResult.Expired
         if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
+        // 二次保护：与 claimAttachment 一致，防止 Room 与 mailRecords
+        // 不一致时通过"一键已读"重复发放物品
+        val snapshot = stateStore.gameData.value
+        if (snapshot.mailRecords.any { it.mailId == mail.id }) {
+            return ClaimResult.AlreadyClaimed
+        }
 
         val attachments: List<MailAttachment> = try {
             json.decodeFromString(mail.attachments)

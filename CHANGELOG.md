@@ -21,6 +21,12 @@
 - **修复：iQOO 15 游戏时间不动** — 防冻结延迟（antiFreezeDelay）中 API 33+ 分支的 `else if` 导致 OEM 忙等循环永不执行。iQOO 15 的 OriginOS 5 空闲检测窗口更窄（~10-20ms），游戏线程被判定为空闲并挂起，看门狗 3 次恢复后永久放弃。修复：统一忙等循环在全 API 级别生效，vivo/iQOO 忙等参数收紧（busyInterval 16→12），看门狗恢复次数 3→5，游戏线程忙等占空比控制在 16.7% 不会明显发热
 - **修复：招募弟子不修炼（根治）** — 月度结算缓存（SettlementCache）跨月复用时指纹未包含弟子增删信息，新招募弟子因不在旧缓存的 clean/dirty 集合中被月度修炼结算跳过，修为永不增长。修复：指纹新增存活弟子 ID 哈希字段，弟子增删时指纹必然变化触发缓存重建，确保所有弟子均获得月度修炼结算
 
+## [4.0.20] - 2026-06-23（versionCode=4020）
+
+### 修复
+
+- **修复：部分用户邮件领取按钮点击无反应** — Room 的 `attachmentClaimed` 与 `GameData.mailRecords` 不一致时，按钮可见但领取被 `mailRecords` 二次保护拦截返回 `AlreadyClaimed`，UI 不处理此结果导致按钮无反应。修复：`claimAttachment` 检测到不一致时自愈 Room 状态并刷新 UI；`claimAttachmentInternal` 补齐 `mailRecords` 防护防止"一键已读"重复发物；`fetchOnlineMails` 重插已领取邮件时直接标记为已领；UI 穷举处理所有 `ClaimResult` 类型
+
 ## [4.0.18] - 2026-06-22（versionCode=4018）
 
 ### 新增

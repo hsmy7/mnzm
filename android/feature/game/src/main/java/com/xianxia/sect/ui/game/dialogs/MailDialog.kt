@@ -172,11 +172,26 @@ fun MailDialog(
                                 mail = selectedMail,
                                 onClaim = {
                                     viewModel.claimMailAttachment(selectedMail.id) { result ->
-                                        if (result is ClaimResult.CapacityInsufficient) {
-                                            capacityWarning = result.message
-                                        }
-                                        if (result is ClaimResult.DistributeFailed) {
-                                            capacityWarning = result.message
+                                        when (result) {
+                                            is ClaimResult.Success -> {
+                                                // 奖励卡片通过 mailRewardCards / LaunchedEffect 流程处理
+                                            }
+                                            is ClaimResult.AlreadyClaimed -> {
+                                                // claimAttachment 已自愈 Room 状态并刷新列表，
+                                                // 按钮会因 attachmentClaimed 变 true 而自然消失
+                                            }
+                                            is ClaimResult.CapacityInsufficient -> {
+                                                capacityWarning = result.message
+                                            }
+                                            is ClaimResult.DistributeFailed -> {
+                                                capacityWarning = result.message
+                                            }
+                                            is ClaimResult.Expired -> {
+                                                capacityWarning = "该邮件已过期"
+                                            }
+                                            is ClaimResult.MailNotFound -> {
+                                                capacityWarning = "邮件不存在"
+                                            }
                                         }
                                     }
                                 }
