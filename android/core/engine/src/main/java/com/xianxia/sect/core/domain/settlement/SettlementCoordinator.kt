@@ -77,6 +77,8 @@ class SettlementCoordinator @Inject constructor(
     private fun resetOnError() {
         shadowState = null
         currentCache = null
+        reusableCache = null
+        lastFingerprint = null
         scheduler.reset()
     }
 
@@ -231,6 +233,8 @@ class SettlementCoordinator @Inject constructor(
     fun cancelPendingWork() {
         shadowState = null
         currentCache = null
+        reusableCache = null
+        lastFingerprint = null
         scheduler.reset()
     }
 
@@ -970,6 +974,11 @@ class SettlementCoordinator @Inject constructor(
 
     private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
         val data = shadow.gameData
+        // 计算存活弟子ID哈希：确保弟子增删时指纹变化，触发缓存重建。
+        // 仅做 ID 哈希（不做全量速率重算），增量成本 O(n) 极低。
+        val discipleIdsHash = shadow.discipleTables.ids
+            .filter { shadow.discipleTables.isAlive[it] == 1 }
+            .hashCode()
         return CultivationRateFingerprint(
             residenceLayout = data.residenceSlots.hashCode() * 31 + data.placedBuildings.hashCode(),
             elderAssignments = data.elderSlots.hashCode(),
@@ -977,7 +986,8 @@ class SettlementCoordinator @Inject constructor(
                 + data.elderSlots.preachingMasters.hashCode() * 31
                 + data.elderSlots.qingyunPreachingElder.hashCode() * 31
                 + data.elderSlots.qingyunPreachingMasters.hashCode()),
-            policyFlags = data.sectPolicies.hashCode()
+            policyFlags = data.sectPolicies.hashCode(),
+            aliveDiscipleIdsHash = discipleIdsHash
         )
     }
 }

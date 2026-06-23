@@ -18,7 +18,8 @@ data class CultivationRateFingerprint(
     val residenceLayout: Int,
     val elderAssignments: Int,
     val preachingAssignments: Int,
-    val policyFlags: Int
+    val policyFlags: Int,
+    val aliveDiscipleIdsHash: Int
 )
 
 class SettlementCache(state: MutableGameState) {

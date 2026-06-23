@@ -8,8 +8,8 @@ class EnumsTest {
     // ---- ElderSlotType ----
 
     @Test
-    fun elderSlotType_hasNineValues() {
-        assertEquals(9, ElderSlotType.entries.size)
+    fun elderSlotType_hasTenValues() {
+        assertEquals(10, ElderSlotType.entries.size)
     }
 
     @Test
@@ -23,6 +23,7 @@ class EnumsTest {
             ElderSlotType.PREACHING,
             ElderSlotType.LAW_ENFORCEMENT,
             ElderSlotType.INNER_ELDER,
+            ElderSlotType.RECRUITING,
             ElderSlotType.CLOUD_PREACHING
         )
         assertArrayEquals(expected, ElderSlotType.entries.toTypedArray())
@@ -38,6 +39,7 @@ class EnumsTest {
         assertEquals("preachingElder", ElderSlotType.PREACHING.key)
         assertEquals("lawEnforcementElder", ElderSlotType.LAW_ENFORCEMENT.key)
         assertEquals("innerElder", ElderSlotType.INNER_ELDER.key)
+        assertEquals("recruitingElder", ElderSlotType.RECRUITING.key)
         assertEquals("qingyunPreachingElder", ElderSlotType.CLOUD_PREACHING.key)
     }
 
