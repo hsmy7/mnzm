@@ -185,7 +185,7 @@ class GameEngineCore @Inject constructor(
     private var watchdogRecoveryAttempts = 0
 
     /** 看门狗最大恢复尝试次数 */
-    private val maxWatchdogRecoveries = 3
+    private val maxWatchdogRecoveries = 5
 
     fun initialize() {
         if (isInitialized) {
@@ -791,26 +791,28 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * 防挂起延迟：将等待时间拆分为微延迟 + 自旋/忙等。
+     * 防挂起延迟：将等待时间拆分为微延迟 + 忙等循环。
      *
      * 华为 EMUI/HarmonyOS 的 PowerGenie（省电精灵）、荣耀 MagicOS、
      * vivo/iQOO OriginOS、小米 MIUI 神隐模式、OPPO ColorOS 等 OEM
      * 省电机制会检测线程"空闲"状态并将游戏线程挂起。
      *
-     * 将 delay 拆分为微间隔（远低于检测窗口）并在间隔间保持 CPU 活跃状态，
-     * 可有效防止 OEM 将游戏线程标记为"空闲"并挂起。
+     * 将 delay 拆分为 2ms 微间隔（远低于所有 OEM 的空闲检测窗口），
+     * 并按 [OemPowerProfile] 配置周期性执行忙等循环，以 [SystemClock.elapsedRealtime]
+     * 轮询保持线程 RUNNABLE，打破 OEM 空闲检测。
+     *
+     * API 33+：忙等循环内额外调用 [Thread.onSpinWait] 作为 CPU 优化提示。
      *
      * ## 参数来源
      * busyInterval / busyDuration 由 [OemPowerProfileProvider.current] 提供，
      * 数据驱动各厂商差异化配置：
-     * - 激进 OEM（Honor MagicOS / vivo OriginOS）：busyInterval=16, busyDuration=4ms
+     * - Honor MagicOS：busyInterval=16, busyDuration=4ms（占空比 12.5%）
+     * - vivo/iQOO OriginOS 5：busyInterval=12, busyDuration=4ms（占空比 16.7%）
      * - 中等 OEM（Xiaomi MIUI / OPPO ColorOS）：busyInterval=32, busyDuration=3ms
      * - 保守 OEM（Samsung / 原生）：busyInterval=64, busyDuration=2ms
      *
-     * API 33+：4ms 微延迟 + Thread.onSpinWait() 自旋提示
-     * API < 33：2ms 微延迟 + 周期性忙等替代缺失的 onSpinWait。
-     *
-     * 成本：API 33+ 约 5% CPU；激进 OEM 约 8-10% CPU，但远优于游戏完全冻结。
+     * 成本：保守 OEM 约 6-7% CPU；vivo 约 14% 单核 CPU（游戏线程），
+     * 远优于游戏线程被 OEM 挂起导致时间完全冻结。
      *
      * 参考：
      * - dontkillmyapp.com — 各厂商电源管理机制分析
@@ -818,9 +820,8 @@ class GameEngineCore @Inject constructor(
      *   (https://slack-chats.kotlinlang.org/t/26866719)
      */
     private suspend fun antiFreezeDelay(totalMs: Long) {
-        val useSpinWait = Build.VERSION.SDK_INT >= 33
         val profile = OemPowerProfileProvider.current
-        val microInterval = if (useSpinWait) 4L else 2L
+        val microInterval = 2L
         // 数据驱动：激进 OEM 更频繁忙等以突破更窄的空闲检测窗口
         val busyInterval = profile.antiFreezeBusyInterval
         val busyDuration = profile.antiFreezeBusyDuration
@@ -831,16 +832,13 @@ class GameEngineCore @Inject constructor(
             delay(step)
             remaining -= step
             cycleCount++
-            if (remaining > 0) {
-                if (useSpinWait) {
-                    // 自旋提示：告知 CPU 我们在忙等，保持线程 RUNNABLE
-                    Thread.onSpinWait()
-                } else if (cycleCount % busyInterval == 0L) {
-                    // 忙等补偿：周期性保持线程 RUNNABLE 打破 OEM 空闲检测。
-                    // SystemClock.elapsedRealtime() 轮询模拟 spin-wait。
-                    val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
-                    while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
-                        // 忙等 — 线程保持 RUNNABLE，不会被 OEM 判定为空闲
+            if (remaining > 0 && cycleCount % busyInterval == 0L) {
+                // 忙等循环：周期性保持线程 RUNNABLE 打破 OEM 空闲检测。
+                // API 33+：忙等循环内调用 Thread.onSpinWait() 作为 CPU 优化提示。
+                val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
+                while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        Thread.onSpinWait()
                     }
                 }
             }

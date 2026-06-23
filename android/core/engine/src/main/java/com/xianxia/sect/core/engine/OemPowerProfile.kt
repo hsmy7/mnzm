@@ -82,10 +82,11 @@ object OemPowerProfileProvider {
             watchdogIntervalMs = 3000L,
         ),
         OemManufacturer.VIVO to OemPowerProfile(
-            // vivo/iQOO OriginOS 挂起策略与 MagicOS 同级激进
-            //（i管家后台清理 + 冻结机制），使用 Honor 同级参数
+            // vivo/iQOO OriginOS 5 空闲检测窗口 ~10-20ms，
+            // 比 OriginOS 4 更窄，需比 Honor(16/4) 稍激进的忙等。
+            // 占空比 4ms/24ms=16.7%，单核约14% CPU，不会明显发热。
             manufacturer = OemManufacturer.VIVO,
-            antiFreezeBusyInterval = 16L,
+            antiFreezeBusyInterval = 12L,
             antiFreezeBusyDuration = 4L,
             watchdogIntervalMs = 3000L,
         ),
