@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DailySignInReward
 import com.xianxia.sect.core.model.MilestoneReward
@@ -63,63 +65,105 @@ fun DailySignInPanel(
             val totalWidth = maxWidth
             val totalHeight = maxHeight
 
-            // 固定常量
-            val nameLabelHeight = 14.dp          // 名称栏高度
-            val calendarHPadding = 16.dp         // 日历左右内边距 (8+8)
-            val dividerWidth = 1.dp              // 分隔线宽度
-            val panelHPadding = 12.dp            // 里程碑左右内边距 (6+6)
-            val dayLabelWidth = 38.dp            // "28天" 标签宽度
-            val labelToCardGap = 6.dp            // 标签与卡片间距
-
-            // 动态计算：卡片大小 + 间距，填满屏幕宽度
-            // 8 个卡片 + 6 个间距，间距 = 卡片宽 × 12%
+            // ========== 布局常量与卡片尺寸计算 ==========
+            val nameH = 14.dp
+            val vPad = 8.dp
+            val divW = 1.dp
             val spacingRatio = 0.12f
-            val fixedWidthOverhead = calendarHPadding + dividerWidth +
-                panelHPadding + dayLabelWidth + labelToCardGap
-            val availableWidth = totalWidth - fixedWidthOverhead
+            val calWeight = 0.8f
+            val milWeight = 0.2f
+            val calHPad = 4.dp   // 日历水平内边距（每侧）
+            val milPadH = 6.dp   // 里程碑水平内边距
 
-            // 第一次：宽度优先计算
-            var cardWidth = (availableWidth / (8 + 6 * spacingRatio))
-                .coerceAtLeast(24.dp)
-            var cardSpacing = (cardWidth * spacingRatio)
-                .coerceIn(4.dp, 14.dp)
+            // 各区可用宽度
+            val calSectionW = (totalWidth - divW) * calWeight
+            val milSectionW = (totalWidth - divW) * milWeight
 
-            if (cardSpacing != cardWidth * spacingRatio) {
-                cardWidth = ((availableWidth - cardSpacing * 6) / 8)
-                    .coerceAtLeast(24.dp)
+            // === 第1步：高度约束求最小卡片 ===
+            // 4行卡片 + 3条间隙 + 垂直内边距 = totalHeight
+            var cardW = (
+                (totalHeight - nameH * 4f - vPad) / (4f + 3f * spacingRatio)
+            ).coerceAtLeast(24.dp)
+            var gap = (cardW * spacingRatio).coerceIn(4.dp, 14.dp)
+
+            // === 第2步：尝试放大卡片撑满日历80%区域 ===
+            // 若当前卡片太窄导致日历左右边距过大，在高度允许时放大
+            val calGridW_target = cardW * 7f + gap * 6f
+            if (calGridW_target + calHPad * 2f < calSectionW) {
+                // 按宽度反算更大的卡片
+                val widerW = (calSectionW - calHPad * 2f) / (7f + 6f * spacingRatio)
+                val widerGap = (widerW * spacingRatio).coerceIn(4.dp, 14.dp)
+                val widerTotalH = (widerW + nameH) * 4f + widerGap * 3f + vPad
+                if (widerTotalH <= totalHeight && widerW > cardW) {
+                    cardW = widerW
+                    gap = widerGap
+                }
             }
 
-            // 高度约束：4 行里程碑必须完整显示
-            // SpaceEvenly 至少需要 4*行高 + 少量间隙
-            val panelRowPadding = 4.dp
-            val minGapPerRow = 2.dp  // SpaceEvenly 最小间隙
-            val maxCardHeight = (totalHeight - panelRowPadding * 4 - minGapPerRow * 5) / 4
-            val maxCardWidthFromHeight = (maxCardHeight - nameLabelHeight)
-                .coerceAtLeast(24.dp)
-            if (cardWidth > maxCardWidthFromHeight) {
-                cardWidth = maxCardWidthFromHeight
-                cardSpacing = (cardWidth * spacingRatio).coerceIn(4.dp, 14.dp)
+            // === 第3步：宽度约束——日历不能超出80%区域 ===
+            val calGridW = cardW * 7f + gap * 6f
+            if (calGridW + calHPad * 2f > calSectionW) {
+                cardW = (
+                    (calSectionW - calHPad * 2f - gap * 6f) / 7f
+                ).coerceAtLeast(24.dp)
+                gap = (cardW * spacingRatio).coerceIn(4.dp, 14.dp)
+                if (gap != cardW * spacingRatio) {
+                    cardW = (
+                        (calSectionW - calHPad * 2f - gap * 6f) / 7f
+                    ).coerceAtLeast(24.dp)
+                }
             }
-            val cardHeight = cardWidth + nameLabelHeight
 
-            // 各部分宽度
-            val calendarContentWidth = cardWidth * 7 + cardSpacing * 6
-            val calendarColumnWidth = calendarContentWidth + calendarHPadding
-            val milestonePanelWidth = panelHPadding + dayLabelWidth +
-                labelToCardGap + cardWidth
+            // === 第4步：宽度约束——里程碑不能超出20%区域 ===
+            val milContentW = 38.dp + 6.dp + cardW
+            if (milContentW + milPadH * 2f > milSectionW) {
+                cardW = (
+                    milSectionW - milPadH * 2f - 38.dp - 6.dp
+                ).coerceAtLeast(24.dp)
+                gap = (cardW * spacingRatio).coerceIn(4.dp, 14.dp)
+                val calGridW2 = cardW * 7f + gap * 6f
+                if (calGridW2 + calHPad * 2f > calSectionW) {
+                    cardW = (
+                        (calSectionW - calHPad * 2f - gap * 6f) / 7f
+                    ).coerceAtLeast(24.dp)
+                }
+            }
 
-            // 居中显示
+            val cardH = cardW + nameH
+            val totalRowH = cardH * 4f + gap * 3f + vPad
+
+            // ========== 名称字体大小（按5字最长名称动态计算） ==========
+            val density = LocalDensity.current
+            val nameFontSize = remember(cardW) {
+                val avail = (cardW - 8.dp) / 5f
+                with(density) { avail.coerceIn(7.dp, 12.dp).toSp() }
+            }
+
+            // 日历网格内容宽度（不含外层padding）
+            val calGridContentW = cardW * 7f + gap * 6f
+
+            // ========== 布局：日历80% + 分隔线 + 里程碑20% ==========
+            // 两部分各自独立居中，各有自己的左右等距
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Row {
-                    // 日历网格
+                Row(
+                    modifier = Modifier.height(totalRowH)
+                ) {
+                // 日历区域（80%宽度，内容独立居中 → 左右等距）
+                Box(
+                    modifier = Modifier
+                        .weight(calWeight)
+                        .height(totalRowH),
+                    contentAlignment = Alignment.Center
+                ) {
                     Column(
                         modifier = Modifier
-                            .width(calendarColumnWidth)
+                            .width(calGridContentW + calHPad * 2f)
+                            .height(totalRowH)
                             .verticalScroll(rememberScrollState())
-                            .padding(8.dp)
+                            .padding(horizontal = calHPad, vertical = vPad / 2f)
                     ) {
                         SignInCalendarGrid(
                             signInState = signInState,
@@ -127,33 +171,44 @@ fun DailySignInPanel(
                             getRewardForWeekday = viewModel::getRewardForWeekday,
                             getDayState = viewModel::getDayState,
                             getWeekdayForDay = viewModel::getWeekdayForDay,
-                            cellWidth = cardWidth,
-                            cellHeight = cardHeight,
-                            cellSpacing = cardSpacing,
+                            cellWidth = cardW,
+                            cellHeight = cardH,
+                            cellSpacing = gap,
+                            nameFontSize = nameFontSize,
                             onLongPress = { item -> detailItem = item }
                         )
                     }
+                }
 
-                    // 分隔线
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(dividerWidth)
-                            .background(GameColors.Divider)
-                    )
+                // 分隔线
+                Box(
+                    modifier = Modifier
+                        .height(totalRowH)
+                        .width(divW)
+                        .background(GameColors.Divider)
+                )
 
-                    // 里程碑奖励面板
+                // 里程碑区域（20%宽度，内容独立居中 → 左右等距）
+                Box(
+                    modifier = Modifier
+                        .weight(milWeight)
+                        .height(totalRowH),
+                    contentAlignment = Alignment.Center
+                ) {
                     SignInMilestoneRewardsPanel(
                         milestones = viewModel.milestoneRewards,
                         claimedDaysCount = claimedDaysCount,
                         claimedMilestones = claimedMilestones,
-                        cardSize = cardWidth,
-                        cardHeight = cardHeight,
-                        labelSpacing = labelToCardGap,
-                        dayLabelWidth = dayLabelWidth,
+                        cardSize = cardW,
+                        cardHeight = cardH,
+                        cardSpacing = gap,
+                        labelSpacing = 6.dp,
+                        dayLabelWidth = 38.dp,
+                        nameFontSize = nameFontSize,
                         onLongPress = { item -> detailItem = item }
                     )
                 }
+            }
             }
         }
 
@@ -203,6 +258,7 @@ private fun SignInCalendarGrid(
     cellWidth: Dp,
     cellHeight: Dp,
     cellSpacing: Dp,
+    nameFontSize: TextUnit,
     onLongPress: (Any) -> Unit
 ) {
     val days = (1..daysInMonth).toList()
@@ -226,6 +282,7 @@ private fun SignInCalendarGrid(
                         state = dayState,
                         cellWidth = cellWidth,
                         cellHeight = cellHeight,
+                        nameFontSize = nameFontSize,
                         onLongPress = { item ->
                             onLongPress(item)
                         }
@@ -248,6 +305,7 @@ private fun SignInDayCard(
     state: SignInDayState,
     cellWidth: Dp,
     cellHeight: Dp,
+    nameFontSize: TextUnit,
     modifier: Modifier = Modifier,
     onLongPress: (Any) -> Unit = {}
 ) {
@@ -294,17 +352,23 @@ private fun SignInDayCard(
             isSelected = isTodayUnclaimed,
             selectedBorderColor = GameColors.Gold,
             showQuantity = true,
-            showPlaceholderText = !isRandomReward
+            showPlaceholderText = !isRandomReward,
+            nameFontSize = nameFontSize
         )
 
-        // 状态覆盖层（尺寸与卡片精灵图一致，随卡片缩放）
+        // 状态覆盖层（仅覆盖精灵图，不覆盖边框）
         if (isClaimed || isMissed || isRandomReward) {
+            val borderW = if (isTodayUnclaimed) 3.dp else 2.dp
             Box(
                 modifier = Modifier
-                    .width(spriteWidth)
-                    .height(spriteHeight)
+                    .width(spriteWidth - borderW * 2f)
+                    .height(spriteHeight - borderW)
                     .align(Alignment.TopCenter)
-                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                    .offset(y = borderW)
+                    .clip(RoundedCornerShape(
+                        topStart = (6.dp - borderW).coerceAtLeast(0.dp),
+                        topEnd = (6.dp - borderW).coerceAtLeast(0.dp)
+                    ))
                     .background(if (isOverlayState) Color(0xFFF5F5F5) else Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
@@ -340,7 +404,7 @@ private fun SignInDayCard(
     }
 }
 
-/** 签到里程碑奖励面板（日历右侧，占满高度均匀分布） */
+/** 签到里程碑奖励面板（日历右侧，4行1列，间距一致） */
 @Composable
 private fun SignInMilestoneRewardsPanel(
     milestones: List<MilestoneReward>,
@@ -348,29 +412,36 @@ private fun SignInMilestoneRewardsPanel(
     claimedMilestones: List<Int>,
     cardSize: Dp,
     cardHeight: Dp,
+    cardSpacing: Dp,
     labelSpacing: Dp,
     dayLabelWidth: Dp,
+    nameFontSize: TextUnit,
     onLongPress: (Any) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.SpaceEvenly
+            .padding(horizontal = 6.dp),
+        verticalArrangement = Arrangement.Center
     ) {
-        milestones.forEach { milestone ->
-            val isClaimed = milestone.day in claimedMilestones
-            val isReached = claimedDaysCount >= milestone.day && !isClaimed
-            MilestoneRewardRow(
-                milestone = milestone,
-                isClaimed = isClaimed,
-                isReached = isReached,
-                cardSize = cardSize,
-                cardHeight = cardHeight,
-                labelSpacing = labelSpacing,
-                dayLabelWidth = dayLabelWidth,
-                onLongPress = onLongPress
-            )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(cardSpacing)
+        ) {
+            milestones.forEach { milestone ->
+                val isClaimed = milestone.day in claimedMilestones
+                val isReached = claimedDaysCount >= milestone.day && !isClaimed
+                MilestoneRewardRow(
+                    milestone = milestone,
+                    isClaimed = isClaimed,
+                    isReached = isReached,
+                    cardSize = cardSize,
+                    cardHeight = cardHeight,
+                    labelSpacing = labelSpacing,
+                    dayLabelWidth = dayLabelWidth,
+                    nameFontSize = nameFontSize,
+                    onLongPress = onLongPress
+                )
+            }
         }
     }
 }
@@ -386,6 +457,7 @@ private fun MilestoneRewardRow(
     cardHeight: Dp,
     labelSpacing: Dp,
     dayLabelWidth: Dp,
+    nameFontSize: TextUnit,
     onLongPress: (Any) -> Unit
 ) {
     val detailItem = buildDetailItem(
@@ -396,8 +468,7 @@ private fun MilestoneRewardRow(
     val spriteHeight = cardHeight - nameLabelHeight
 
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 2.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // 金色天数标签（固定宽度保证卡片对齐）
         Box(
@@ -442,17 +513,23 @@ private fun MilestoneRewardRow(
                 size = cardHeight,
                 isSelected = isReached,
                 selectedBorderColor = GameColors.Gold,
-                showQuantity = true
+                showQuantity = true,
+                nameFontSize = nameFontSize
             )
 
-            // 已领覆盖层（仅覆盖精灵图区域，扣除边框）
+            // 已领覆盖层（仅覆盖精灵图，不覆盖边框）
             if (isClaimed) {
+                val borderW = if (isReached) 3.dp else 2.dp
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(spriteHeight)
+                        .width(spriteWidth - borderW * 2f)
+                        .height(spriteHeight - borderW)
                         .align(Alignment.TopCenter)
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        .offset(y = borderW)
+                        .clip(RoundedCornerShape(
+                            topStart = (6.dp - borderW).coerceAtLeast(0.dp),
+                            topEnd = (6.dp - borderW).coerceAtLeast(0.dp)
+                        ))
                         .background(Color(0xFFF5F5F5)),
                     contentAlignment = Alignment.Center
                 ) {

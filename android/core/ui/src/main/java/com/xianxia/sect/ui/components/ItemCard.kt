@@ -176,11 +176,10 @@ fun UnifiedItemCard(
             ) {
                 Text(
                     text = data.name,
-                    fontSize = 9.sp,
+                    fontSize = nameFontSize,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 2.dp)
                 )
