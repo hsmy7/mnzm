@@ -1,11 +1,11 @@
-package com.xianxia.sect.core.domain.battle
+package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.AttackWarning
 import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
-import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.data.GameStateRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -19,11 +19,11 @@ class AttackWarningServiceTest {
 
     private lateinit var service: AttackWarningService
     private lateinit var stateStore: GameStateStore
-    private lateinit var scopeProvider: CoroutineScopeProvider
+    private lateinit var scopeProvider: ApplicationScopeProvider
 
     @Before
     fun setUp() {
-        scopeProvider = CoroutineScopeProvider()
+        scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
         service = AttackWarningService(stateStore, scopeProvider)
         runBlocking { stateStore.reset() }

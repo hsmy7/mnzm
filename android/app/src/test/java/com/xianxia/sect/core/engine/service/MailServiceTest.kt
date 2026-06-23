@@ -9,6 +9,7 @@ import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.data.GameStateRepository
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,7 @@ class MailServiceTest {
     private lateinit var stateStore: GameStateStore
     private lateinit var inventoryConfig: InventoryConfig
     private lateinit var httpClient: HttpClientProvider
-    private lateinit var scopeProvider: CoroutineScopeProvider
+    private lateinit var scopeProvider: ApplicationScopeProvider
 
     // 测试常量
     private val testSlotId = 1
@@ -74,7 +75,7 @@ class MailServiceTest {
 
     @Before
     fun setUp() {
-        scopeProvider = CoroutineScopeProvider()
+        scopeProvider = ApplicationScopeProvider()
         mailRepo = mock(MailRepository::class.java)
         inventoryConfig = mock(InventoryConfig::class.java)
         httpClient = mock(HttpClientProvider::class.java)

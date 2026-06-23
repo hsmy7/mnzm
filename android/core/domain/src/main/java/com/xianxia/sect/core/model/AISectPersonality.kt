@@ -65,10 +65,14 @@ enum class AISectPersonality(
             weightedPool[Random.nextInt(weightedPool.size)]
 
         /** 获取随机的谴责间隔（月数） */
-        fun randomDenounceInterval(personality: AISectPersonality): Int =
-            Random.nextInt(
+        fun randomDenounceInterval(personality: AISectPersonality): Int {
+            val max = personality.denounceIntervalMax
+            // Int.MAX_VALUE + 1 会溢出，对这种极端值直接返回一个大数
+            if (max == Int.MAX_VALUE) return Int.MAX_VALUE
+            return Random.nextInt(
                 personality.denounceIntervalMin,
-                personality.denounceIntervalMax + 1
+                max + 1
             )
+        }
     }
 }

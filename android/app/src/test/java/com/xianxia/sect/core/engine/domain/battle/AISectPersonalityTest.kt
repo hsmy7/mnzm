@@ -1,4 +1,4 @@
-package com.xianxia.sect.core.domain.battle
+package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.model.AISectPersonality
 import org.junit.Assert.*
