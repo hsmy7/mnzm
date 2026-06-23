@@ -15,6 +15,7 @@ object DisciplePositionHelper {
         if (elderSlots.preachingElder == discipleId) return "问道塔传道长老"
         if (elderSlots.lawEnforcementElder == discipleId) return "执法长老"
         if (elderSlots.innerElder == discipleId) return "内门执事"
+        if (elderSlots.recruitingElder == discipleId) return "纳徒长老"
         if (elderSlots.qingyunPreachingElder == discipleId) return "青云塔传道长老"
 
         if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "问道塔传道师"

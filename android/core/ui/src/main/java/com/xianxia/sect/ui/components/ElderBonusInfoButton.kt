@@ -283,6 +283,13 @@ object ElderBonusInfoProvider {
         bonusFormula = "采矿属性以70为基准，每高1点增加2%个人产出。\n低于70时无加成效果。\n每名矿工独立计算后再取平均值加成。\n基础产出：160灵石/人/月。"
     )
 
+    fun getRecruitingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "纳徒长老",
+        requiredAttribute = "魅力",
+        effectDescription = "提升每年待招募弟子的刷新数量上限",
+        bonusFormula = "魅力以80为基准，每高4点增加1名弟子刷新上限。\n魅力低于80时无加成效果。\n增加的是刷新上限，不直接增加弟子数量。"
+    )
+
     fun getWarehouseGarrisonInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "驻守弟子",
         requiredAttribute = "战斗",

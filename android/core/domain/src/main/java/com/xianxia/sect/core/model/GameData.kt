@@ -594,6 +594,7 @@ data class ElderSlots(
     val lawEnforcementDisciples: List<DirectDiscipleSlot> = emptyList(),
     val lawEnforcementReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
     val innerElder: String = "",
+    val recruitingElder: String = "",
     val qingyunPreachingElder: String = "",
     val qingyunPreachingMasters: List<DirectDiscipleSlot> = emptyList(),
     val herbGardenDisciples: List<DirectDiscipleSlot> = emptyList(),
@@ -610,7 +611,7 @@ data class ElderSlots(
         val allElderIds = listOf(
             herbGardenElder, alchemyElder, forgeElder,
             outerElder, preachingElder, lawEnforcementElder,
-            innerElder, qingyunPreachingElder
+            innerElder, recruitingElder, qingyunPreachingElder
         )
         if (allElderIds.contains(discipleId)) return true
         

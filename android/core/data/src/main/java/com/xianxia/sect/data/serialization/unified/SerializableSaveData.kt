@@ -678,6 +678,7 @@ data class SerializableElderSlots(
     @ProtoNumber(10) val lawEnforcementDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(11) val lawEnforcementReserveDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(12) val innerElder: String = "",
+    @ProtoNumber(23) val recruitingElder: String = "",
     @ProtoNumber(13) val qingyunPreachingElder: String = "",
     @ProtoNumber(14) val qingyunPreachingMasters: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(15) val herbGardenDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),

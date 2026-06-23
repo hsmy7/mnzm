@@ -55,6 +55,10 @@ class MerchantAndRecruitService @Inject constructor(
             2 to 0.40,
             1 to 0.40
         )
+
+        /** 计算纳徒长老魅力带来的招募上限加成。
+         *  魅力以80为基准，每高4点+1上限，不足0返回0 */
+        fun calcRecruitBonusCap(charm: Int): Int = maxOf(0, (charm - 80) / 4)
     }
 
     // ── 商人 ──────────────────────────────────────────────────────────
@@ -292,14 +296,24 @@ class MerchantAndRecruitService @Inject constructor(
         ) }
     }
 
-    // ── 招募（原有） ──────────────────────────────────────────────────
+    // ── 招募 ──────────────────────────────────────────────────────────
+
+    /** 计算纳徒长老魅力带来的当前招募上限加成 */
+    private fun calcRecruitBonusCap(): Int {
+        val recruitingElderId = stateStore.gameData.value.elderSlots.recruitingElder
+        if (recruitingElderId.isEmpty()) return 0
+        val elderCharm = stateStore.disciples.value
+            .find { it.id == recruitingElderId }?.charm ?: return 0
+        return Companion.calcRecruitBonusCap(elderCharm)
+    }
 
     suspend fun refreshRecruitList(year: Int) {
         val playerSect = stateStore.gameData.value.worldMapSects
             .find { it.isPlayerSect }
         val recruitCount = if (playerSect != null) {
             val range = SectLevel.recruitRange(playerSect.level)
-            Random.nextInt(range.first, range.last + 1)
+            val bonusCap = calcRecruitBonusCap()
+            Random.nextInt(range.first, range.last + 1 + bonusCap)
         } else {
             Random.nextInt(0, 7)  // 兜底：找不到玩家宗门时保持旧逻辑
         }

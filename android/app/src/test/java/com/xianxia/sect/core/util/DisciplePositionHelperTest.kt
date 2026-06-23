@@ -96,6 +96,14 @@ class DisciplePositionHelperTest {
     }
 
     @Test
+    fun getDisciplePosition_recruitingElder_returns纳徒长老() {
+        val gameData = buildGameData(
+            elderSlots = ElderSlots(recruitingElder = "d18")
+        )
+        assertEquals("纳徒长老", DisciplePositionHelper.getDisciplePosition("d18", gameData))
+    }
+
+    @Test
     fun getDisciplePosition_preachingMaster_returns问道塔传道师() {
         val gameData = buildGameData(
             elderSlots = ElderSlots(preachingMasters = listOf(discipleSlot("d10")))

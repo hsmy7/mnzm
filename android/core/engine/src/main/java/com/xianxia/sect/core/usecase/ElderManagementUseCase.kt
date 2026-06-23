@@ -42,6 +42,7 @@ class ElderManagementUseCase @Inject constructor(
             preachingElder,
             lawEnforcementElder,
             innerElder,
+            recruitingElder,
             qingyunPreachingElder
         ).filter { !it.isNullOrBlank() }
     }
@@ -119,6 +120,9 @@ class ElderManagementUseCase @Inject constructor(
             ElderSlotType.INNER_ELDER -> elderSlots.copy(
                 innerElder = discipleId
             )
+            ElderSlotType.RECRUITING -> elderSlots.copy(
+                recruitingElder = discipleId
+            )
             ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
                 qingyunPreachingElder = discipleId,
                 qingyunPreachingMasters = emptyList()
@@ -165,6 +169,9 @@ class ElderManagementUseCase @Inject constructor(
             )
             ElderSlotType.INNER_ELDER -> elderSlots.copy(
                 innerElder = ""
+            )
+            ElderSlotType.RECRUITING -> elderSlots.copy(
+                recruitingElder = ""
             )
             ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
                 qingyunPreachingElder = "",

@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfo
+import com.xianxia.sect.ui.components.ElderBonusInfoButton
+import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -59,6 +61,7 @@ fun TianshuHallDialog(
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
     var showForgeElderSelectDialog by remember { mutableStateOf(false) }
     var showHerbGardenElderSelectDialog by remember { mutableStateOf(false) }
+    var showRecruitingElderSelectDialog by remember { mutableStateOf(false) }
     var showSectAffairsDialog by remember { mutableStateOf(false) }
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
 
@@ -68,6 +71,8 @@ fun TianshuHallDialog(
     val forgeElder = discipleMap[forgeElderId]
     val herbGardenElderId = elderSlots?.herbGardenElder
     val herbGardenElder = discipleMap[herbGardenElderId]
+    val recruitingElderId = elderSlots?.recruitingElder
+    val recruitingElder = discipleMap[recruitingElderId]
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -98,6 +103,38 @@ fun TianshuHallDialog(
                             onEmptySlotClick = { showViceSectMasterSelectDialog = true },
                             onDismiss = { productionViewModel.removeViceSectMaster() },
                             onSwap = { showViceSectMasterSelectDialog = true }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 纳徒长老
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "纳徒长老",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            ElderBonusInfoButton(
+                                bonusInfo = ElderBonusInfoProvider.getRecruitingElderInfo()
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        DiscipleSlot(
+                            disciple = recruitingElder,
+                            showActions = true,
+                            onSlotClick = { recruitingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+                            onEmptySlotClick = { showRecruitingElderSelectDialog = true },
+                            onDismiss = { productionViewModel.removeElder(ElderSlotType.RECRUITING) },
+                            onSwap = { showRecruitingElderSelectDialog = true }
                         )
                     }
 
@@ -239,6 +276,49 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.HERB_GARDEN, discipleId)
                 showHerbGardenElderSelectDialog = false
+            }
+        )
+    }
+
+    if (showRecruitingElderSelectDialog) {
+        val recruitingTheme = remember {
+            ProductionTheme(
+                buildingId = "recruiting",
+                displayName = "天枢殿",
+                elderTitle = "纳徒长老",
+                elderBonusInfo = ElderBonusInfoProvider.getRecruitingElderInfo(),
+                coreAttributeName = "魅力",
+                coreAttributeColor = Color(0xFFFF69B4),
+                defaultBorderColor = Color(0xFFFF69B4),
+                workingStatusColor = Color(0xFFFF1493),
+                selectedHighlightColor = Color(0xFFFFD700),
+                reserveButtonBackgroundColor = GameColors.ButtonBackground,
+                reserveButtonTextColor = Color.Black,
+                slotLabelPrefix = "",
+                selectionDialogTitle = "",
+                startProductionText = "",
+                elderSelectionTitle = "选择纳徒长老",
+                recommendAttributeText = "魅力",
+                getCoreAttributeValue = { it.charm },
+                getElderId = { it.recruitingElder },
+                getDirectDisciples = { emptyList() },
+                elderSortComparator = compareByDescending<DiscipleAggregate> { it.charm }
+                    .thenBy { it.realm }
+                    .thenByDescending { it.realmLayer },
+                directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                    .thenByDescending { it.realmLayer }
+            )
+        }
+
+        ProductionElderSelectionDialog(
+            theme = recruitingTheme,
+            disciples = disciples.filter { it.isEligibleForInnerPosition },
+            currentElderId = recruitingElderId,
+            elderSlots = elderSlots ?: ElderSlots(),
+            onDismiss = { showRecruitingElderSelectDialog = false },
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.RECRUITING, discipleId)
+                showRecruitingElderSelectDialog = false
             }
         )
     }

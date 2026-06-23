@@ -337,6 +337,7 @@ class GameDataTest {
         assertEquals("", slots.lawEnforcementElder)
         assertTrue(slots.lawEnforcementDisciples.isEmpty())
         assertEquals("", slots.innerElder)
+        assertEquals("", slots.recruitingElder)
     }
 
     @Test
@@ -364,6 +365,13 @@ class GameDataTest {
             alchemyDisciples = listOf(DirectDiscipleSlot(discipleId = "d1", discipleName = "弟子1"))
         )
         assertTrue(slots.isDiscipleInAnyPosition("d1"))
+    }
+
+    @Test
+    fun elderSlots_isDiscipleInAnyPosition_recruitingElder() {
+        val slots = ElderSlots(recruitingElder = "d99")
+        assertTrue(slots.isDiscipleInAnyPosition("d99"))
+        assertFalse(slots.isDiscipleInAnyPosition("d1"))
     }
 
     // ==================== DirectDiscipleSlot ====================

@@ -9,6 +9,7 @@ enum class ElderSlotType {
     PREACHING,
     LAW_ENFORCEMENT,
     INNER_ELDER,
+    RECRUITING,
     CLOUD_PREACHING;
 
     val key: String get() = when (this) {
@@ -20,6 +21,7 @@ enum class ElderSlotType {
         PREACHING -> "preachingElder"
         LAW_ENFORCEMENT -> "lawEnforcementElder"
         INNER_ELDER -> "innerElder"
+        RECRUITING -> "recruitingElder"
         CLOUD_PREACHING -> "qingyunPreachingElder"
     }
 }
