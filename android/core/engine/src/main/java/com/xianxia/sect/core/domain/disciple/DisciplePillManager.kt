@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import android.util.Log
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.annotation.GameService
@@ -183,6 +184,9 @@ class DisciplePillManager @Inject constructor(
     // ── 公开辅助函数 ──────────────────────────────────────────────
 
     companion object {
+
+        private const val TAG = "DisciplePillManager"
+
         /**
          * 根据丹药效果分类到对应规则。
          */
@@ -196,10 +200,13 @@ class DisciplePillManager @Inject constructor(
             else -> {
                 if (hasAnyBaseAttrAdd(effect)) PillRule.PERMANENT_BASE_ATTR
                 else if (hasAnyBattleAttrAdd(effect)) PillRule.TEMPORARY_BATTLE
-                else throw IllegalStateException(
-                    "未定义规则的丹药：pillType=${effect.pillType}, " +
-                        "pillCategory=${effect.pillCategory}"
-                )
+                else if (hasAnyHealingEffect(effect)) PillRule.INSTANT_CULTIVATION
+                else {
+                    Log.w(TAG, "未分类丹药，默认降级为可重复服用: " +
+                        "pillType=${effect.pillType}, " +
+                        "pillCategory=${effect.pillCategory}")
+                    PillRule.INSTANT_CULTIVATION
+                }
             }
         }
 
@@ -222,6 +229,15 @@ class DisciplePillManager @Inject constructor(
                 effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
                 effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
                 effect.critRateAdd > 0 || effect.critEffectAdd > 0
+        }
+
+        /**
+         * 是否有治疗/复活/清除效果（含回血、回蓝）。
+         */
+        fun hasAnyHealingEffect(effect: ItemEffect): Boolean {
+            return effect.healMaxHpPercent > 0.0 ||
+                effect.mpRecoverMaxMpPercent > 0.0 ||
+                effect.revive || effect.clearAll
         }
 
         /**

@@ -52,7 +52,8 @@ internal class ItemConverter {
             category = pill.category.name,
             grade = pill.grade.name,
             minRealm = pill.minRealm,
-            isLocked = pill.isLocked
+            isLocked = pill.isLocked,
+            pillType = pill.pillType
         )
     }
 
@@ -108,7 +109,8 @@ internal class ItemConverter {
             grade = safeEnumValueOf(data.grade, com.xianxia.sect.core.model.PillGrade.MEDIUM, "grade", "Pill"),
             description = data.description,
             quantity = data.quantity,
-            isLocked = data.isLocked
+            isLocked = data.isLocked,
+            pillType = data.pillType
         )
     }
 

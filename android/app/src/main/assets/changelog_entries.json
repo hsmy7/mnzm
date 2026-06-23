@@ -1,5 +1,13 @@
 [
 	{
+		"date": "2026-06-24",
+		"version": "4.0.21",
+		"changes": [
+			"修复：部分丹药导致游戏崩溃（#4022）——存档反序列化、炼药产出、行商购买等路径中创建的丹药缺少pillType字段，自动服用系统的丹药分类引擎（classify）在无法识别丹药类型时抛出IllegalStateException（未定义规则的丹药）。根因修复：所有Pill()直接构造调用补全pillType/category参数；SerializablePill新增pillType序列化字段确保读档不丢失；classify()增加兜底降级逻辑，效果属性全空时默认归为可重复服用类、不崩溃",
+			"修复：TapTap SDK在游戏时长追踪阶段触发SIGILL崩溃（#4018）——TapDBManager.startGameDurationTracking内部GameDurationService.Builder在部分设备上触发SIGILL非法指令错误（ILL_ILLOPC），原catch(Exception)无法捕获Error子类。修复：升级为catch(CancellationException)+catch(Throwable)全面捕获所有异常类型，确保TapTap SDK内部sandbox hook兼容性问题不影响游戏正常运行"
+		]
+	},
+	{
 		"date": "2026-06-23",
 		"version": "4.0.20",
 		"changes": [

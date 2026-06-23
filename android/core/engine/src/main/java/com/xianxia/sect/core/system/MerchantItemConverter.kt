@@ -132,6 +132,7 @@ class MerchantItemConverter @Inject constructor() {
                 description = template.description,
                 category = template.category,
                 grade = grade,
+                pillType = template.pillType,
                 effects = PillEffect(
                     breakthroughChance = template.breakthroughChance,
                     targetRealm = template.targetRealm,

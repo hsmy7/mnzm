@@ -100,6 +100,7 @@ class ProductionProcessor @Inject constructor(
                             name = slot.outputItemName,
                             rarity = slot.outputItemRarity,
                             grade = grade,
+                            category = PillCategory.CULTIVATION,
                             description = "通过炼丹炉炼制而成",
                             minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
                             quantity = 1

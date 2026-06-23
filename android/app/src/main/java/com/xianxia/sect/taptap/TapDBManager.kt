@@ -6,6 +6,7 @@ import com.taptap.sdk.core.TapTapEvent
 import com.taptap.sdk.core.TapTapPurchasedEvent
 import com.taptap.sdk.db.TapDB
 import com.taptap.sdk.db.biz.gameplay.GameDurationService
+import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 
 object TapDBManager {
@@ -25,8 +26,10 @@ object TapDBManager {
         try {
             gameDurationService = GameDurationService.Builder(app).build()
             Log.d(TAG, "Game duration tracking started")
-        } catch (e: Exception) {
-            Log.e(TAG, "startGameDurationTracking failed: ${e.message}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "startGameDurationTracking failed: ${e.message}", e)
         }
     }
 
@@ -34,8 +37,10 @@ object TapDBManager {
         try {
             gameDurationService = null
             Log.d(TAG, "Game duration tracking stopped")
-        } catch (e: Exception) {
-            Log.e(TAG, "stopGameDurationTracking failed: ${e.message}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "stopGameDurationTracking failed: ${e.message}", e)
         }
     }
 

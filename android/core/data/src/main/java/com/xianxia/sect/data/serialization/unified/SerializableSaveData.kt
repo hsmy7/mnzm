@@ -258,7 +258,8 @@ data class SerializablePill(
     @ProtoNumber(11) val grade: String = "MEDIUM",
     @ProtoNumber(12) val minRealm: Int = 9,
     @ProtoNumber(13) val isLocked: Boolean = false,
-    @ProtoNumber(14) val effects: SerializablePillEffect = SerializablePillEffect()
+    @ProtoNumber(14) val effects: SerializablePillEffect = SerializablePillEffect(),
+    @ProtoNumber(15) val pillType: String = ""
 )
 
 @Serializable

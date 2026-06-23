@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.21] - 2026-06-24（versionCode=4021）
+
+### 修复
+
+- **修复：部分丹药导致游戏崩溃（#4022）** — 存档反序列化、炼药产出、行商购买等路径中创建的丹药缺少 `pillType` 字段，自动服用系统的丹药分类引擎（classify）在无法识别丹药类型时抛出 `IllegalStateException`（未定义规则的丹药）。根因修复：所有 `Pill()` 直接构造调用的路径（ProductionProcessor、BuildingService×2、MerchantItemConverter）补全 `pillType`/`category` 参数；`SerializablePill` 新增 `pillType` 序列化字段确保读档不丢失；`classify()` 增加兜底降级逻辑：效果属性全空时默认归为可重复服用类、不崩溃
+- **修复：TapTap SDK 在游戏时长追踪阶段触发 SIGILL 崩溃（#4018）** — `TapDBManager.startGameDurationTracking` 内部 `GameDurationService.Builder` 在部分设备上触发 `SIGILL` 非法指令错误（ILL_ILLOPC），原 `catch(Exception)` 无法捕获 `Error` 子类。修复：升级为 `catch(CancellationException)` + `catch(Throwable)` 全面捕获所有异常类型，确保 TapTap SDK 内部 sandbox hook 兼容性问题不影响游戏正常运行
+
 ## [4.0.19] - 2026-06-23（versionCode=4019）
 
 ### 新增

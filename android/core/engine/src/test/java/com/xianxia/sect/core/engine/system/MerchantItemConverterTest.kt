@@ -85,7 +85,20 @@ class MerchantItemConverterTest {
         assertEquals(knownRecipe.rarity, result.rarity)
     }
 
-    // 7. toPill with unknown name generates random pill
+    // 7. toPill with known name sets pillType from recipe
+    @Test
+    fun toPill_withKnownName_setsPillTypeFromRecipe() {
+        val knownRecipe = PillRecipeDatabase.getAllRecipes().first()
+        val item = MerchantItem(
+            name = knownRecipe.name,
+            type = "pill",
+            rarity = knownRecipe.rarity
+        )
+        val result = MerchantItemConverter.toPill(item)
+        assertEquals(knownRecipe.pillType, result.pillType)
+    }
+
+    // 8. toPill with unknown name generates random pill
     @Test
     fun toPill_withUnknownName_generatesRandomPill() {
         val item = MerchantItem(name = "不存在的丹药xyz", type = "pill", rarity = 2)
