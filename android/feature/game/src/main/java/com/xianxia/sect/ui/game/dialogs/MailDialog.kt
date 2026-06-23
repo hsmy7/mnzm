@@ -362,7 +362,9 @@ private fun MailDetailPanel(
                                     type = attachment.type,
                                     isSpiritStone = attachment.type == "spiritStones",
                                     isPill = attachment.type == "pill",
-                                    isMaterial = attachment.type in listOf("material", "herb", "seed", "beastMaterial"),
+                                    isHerb = attachment.type == "herb",
+                                    isSeed = attachment.type == "seed",
+                                    isMaterial = attachment.type in listOf("material", "beastMaterial"),
                                     isBag = attachment.type == "storageBag"
                                 ),
                                 showQuantity = true,

@@ -228,6 +228,8 @@ fun MerchantDialog(
                                             grade = item.grade,
                                             isManual = item.type == "manual",
                                             isPill = item.type == "pill",
+                                            isHerb = item.type == "herb",
+                                            isSeed = item.type == "seed",
                                             isMaterial = item.type == "material"
                                         ),
                                         isSelected = selectedItem?.id == item.id,
@@ -339,6 +341,8 @@ fun MerchantDialog(
                                                     grade = item.grade,
                                                     isManual = item.type == "manual",
                                                     isPill = item.type == "pill",
+                                                    isHerb = item.type == "herb",
+                                                    isSeed = item.type == "seed",
                                                     isMaterial = item.type == "material"
                                                 ),
                                                 isSelected = false,
@@ -1128,6 +1132,8 @@ private fun <T> InventorySelectGrid(
                         grade = grade,
                         isManual = item is ManualStack,
                         isPill = item is Pill,
+                        isHerb = item is Herb,
+                        isSeed = item is Seed,
                         isMaterial = item is Material
                     ),
                     isSelected = isSelected,
@@ -1287,6 +1293,8 @@ private fun AllItemsSelectGrid(
                         grade = grade,
                         isManual = item is ManualStack,
                         isPill = item is Pill,
+                        isHerb = item is Herb,
+                        isSeed = item is Seed,
                         isMaterial = item is Material
                     ),
                     isSelected = isSelected,

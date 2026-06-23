@@ -154,6 +154,8 @@ private fun ClearRewardRow(
                             quantity = item.quantity,
                             type = item.itemType,
                             isSpiritStone = item.itemType == "spiritStones",
+                            isHerb = item.itemType == "herb",
+                            isSeed = item.itemType == "seed",
                             isBag = item.itemType == "storageBag"
                         )
                         UnifiedItemCard(

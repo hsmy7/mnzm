@@ -82,6 +82,7 @@ fun fallbackToTier1(herbId: String): String? {
     val digits = herbId.takeLastWhile { it.isDigit() }
     if (digits.isEmpty()) return null
     val num = digits.toIntOrNull() ?: return null
+    if (num > 6) return null  // Tier 3+ 无专属精灵图，不回退，返回 null → UI 显示"敬请期待"
     val tier1Num = ((num - 1) % 3) + 1
     return herbId.dropLast(digits.length) + tier1Num
 }

@@ -186,6 +186,8 @@ fun SectTradeDialog(
                                     isLocked = !canBuyThisItem,
                                     isManual = item.type == "manual",
                                     isPill = item.type == "pill",
+                                    isHerb = item.type == "herb",
+                                    isSeed = item.type == "seed",
                                     isMaterial = item.type == "material"
                                 ),
                                 isSelected = selectedItem?.id == item.id,
