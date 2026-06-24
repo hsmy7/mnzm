@@ -72,6 +72,7 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
@@ -829,7 +830,10 @@ fun MainGameScreen(
                         gameYear = gameData?.gameYear ?: 1,
                         gameMonth = gameData?.gameMonth ?: 1,
                         gamePhase = gameData?.gamePhase ?: 0,
-                        spiritStones = gameData?.spiritStones ?: 0L,
+                        lowStones = gameData?.spiritStones ?: 0L,
+                        midStones = gameData?.midGradeSpiritStones ?: 0L,
+                        highStones = gameData?.highGradeSpiritStones ?: 0L,
+                        totalStones = gameData?.totalSpiritStonesSellValue() ?: 0L,
                         discipleCount = aliveDisciples.value.size,
                         combatPower = sectCombatPower,
                         sectLevel = currentSectLevel,
@@ -945,7 +949,10 @@ private fun SectInfoCard(
     gameYear: Int,
     gameMonth: Int,
     gamePhase: Int,
-    spiritStones: Long,
+    lowStones: Long,
+    midStones: Long,
+    highStones: Long,
+    totalStones: Long,
     discipleCount: Int,
     combatPower: Long,
     sectLevel: Int = SectLevel.MEDIUM,
@@ -1015,7 +1022,7 @@ private fun SectInfoCard(
                 )
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}",
@@ -1028,8 +1035,13 @@ private fun SectInfoCard(
                     color = Color.Black
                 )
                 Text(
-                    text = "灵石 $spiritStones",
+                    text = "灵石 ${GameUtils.formatNumber(totalStones)}",
                     fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = "下:$lowStones 中:$midStones 上:$highStones",
+                    fontSize = 10.sp,
                     color = Color.Black
                 )
             }

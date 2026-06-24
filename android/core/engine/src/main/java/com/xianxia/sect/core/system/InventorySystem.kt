@@ -7,9 +7,11 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.StackKey
 import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.util.StackableItem
@@ -24,6 +26,8 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SpiritStoneExchange
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
@@ -1340,38 +1344,191 @@ class InventorySystem @Inject constructor(
         return currentStones >= required
     }
 
-    fun deductSpiritStones(amount: Long): Long {
+    /** 按下品灵石结算：判断余额是否足够 */
+    fun canAfford(amount: Long): Boolean = canAfford(amount, SpiritStoneGrade.LOW)
+
+    /** 按指定品阶判断余额是否足够 */
+    fun canAfford(amount: Long, grade: SpiritStoneGrade): Boolean {
+        val ts = stateStore.currentTransactionMutableState()
+        val current = ts?.gameData?.spiritStoneCount(grade) ?: stateStore.gameData.value.spiritStoneCount(grade)
+        return current >= amount
+    }
+
+    /** 按品阶获取当前灵石数量 */
+    fun getSpiritStones(grade: SpiritStoneGrade): Long {
+        val ts = stateStore.currentTransactionMutableState()
+        return ts?.gameData?.spiritStoneCount(grade) ?: stateStore.gameData.value.spiritStoneCount(grade)
+    }
+
+    fun deductSpiritStones(amount: Long): Long = deductSpiritStones(amount, SpiritStoneGrade.LOW)
+
+    fun deductSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
+        if (amount <= 0) return getSpiritStones(grade)
         var result = 0L
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            val newAmount = (ts.gameData.spiritStones - amount).coerceAtLeast(0L)
-            ts.gameData = ts.gameData.copy(spiritStones = newAmount)
+            result = applyDeductSpiritStones(ts, amount, grade)
+        } else {
+            scope.launch {
+                stateStore.update {
+                    result = applyDeductSpiritStones(this, amount, grade)
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * 在事务中执行灵石扣除。当扣除下品灵石余额不足时，
+     * 根据 [GameData.autoSellMidGradeForPurchase] /
+     * [GameData.autoSellHighGradeForPurchase] 设置自动按售卖价
+     * 卖出中品/上品灵石补足差额。
+     */
+    private fun applyDeductSpiritStones(
+        ts: MutableGameState,
+        amount: Long,
+        grade: SpiritStoneGrade
+    ): Long {
+        val gd = ts.gameData
+        val current = gd.spiritStoneCount(grade)
+        val newAmount: Long
+
+        // 下品扣除 + 余额不足 → 检查自动补差价
+        if (grade == SpiritStoneGrade.LOW && current < amount) {
+            val shortfall = amount - current
+            var supplemented = 0L
+
+            // 1) 自动售卖中品补差价
+            if (gd.autoSellMidGradeForPurchase && supplemented < shortfall) {
+                val stillNeed = shortfall - supplemented
+                val midCount = gd.midGradeSpiritStones
+                if (midCount > 0) {
+                    val midLowEquiv = SpiritStoneExchange.EFFECTIVE_RATIO
+                    // 需要卖出多少中品（向上取整）
+                    val sellMidCount =
+                        (stillNeed + midLowEquiv - 1) / midLowEquiv
+                    val actualSellMid =
+                        sellMidCount.coerceAtMost(midCount)
+                    val gainedLow =
+                        SpiritStoneExchange.toLowGrade(actualSellMid, SpiritStoneGrade.MID)
+                    ts.gameData = ts.gameData.copy(
+                        midGradeSpiritStones = gd.midGradeSpiritStones - actualSellMid,
+                        spiritStones = gd.spiritStones + gainedLow
+                    )
+                    supplemented += gainedLow
+                }
+            }
+
+            // 2) 自动售卖上品补差价
+            if (gd.autoSellHighGradeForPurchase && supplemented < shortfall) {
+                val stillNeed = shortfall - supplemented
+                val highCount = ts.gameData.highGradeSpiritStones
+                if (highCount > 0) {
+                    val highLowEquiv =
+                        SpiritStoneExchange.EFFECTIVE_RATIO *
+                        SpiritStoneExchange.EFFECTIVE_RATIO
+                    val sellHighCount =
+                        (stillNeed + highLowEquiv - 1) / highLowEquiv
+                    val actualSellHigh =
+                        sellHighCount.coerceAtMost(highCount)
+                    val gainedLow =
+                        SpiritStoneExchange.toLowGrade(actualSellHigh, SpiritStoneGrade.HIGH)
+                    ts.gameData = ts.gameData.copy(
+                        highGradeSpiritStones =
+                            ts.gameData.highGradeSpiritStones - actualSellHigh,
+                        spiritStones = ts.gameData.spiritStones + gainedLow
+                    )
+                    supplemented += gainedLow
+                }
+            }
+
+            newAmount = (ts.gameData.spiritStones - amount).coerceAtLeast(0L)
+        } else {
+            newAmount = (current - amount).coerceAtLeast(0L)
+        }
+
+        ts.gameData = ts.gameData.copy(
+            spiritStones = if (grade == SpiritStoneGrade.LOW) newAmount
+                else ts.gameData.spiritStones,
+            midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) newAmount
+                else ts.gameData.midGradeSpiritStones,
+            highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) newAmount
+                else ts.gameData.highGradeSpiritStones
+        )
+        return newAmount
+    }
+
+    fun addSpiritStones(amount: Long): Long = addSpiritStones(amount, SpiritStoneGrade.LOW)
+
+    fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
+        if (amount <= 0) return getSpiritStones(grade)
+        var result = 0L
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            val current = ts.gameData.spiritStoneCount(grade)
+            val newAmount = current + amount
+            ts.gameData = ts.gameData.copy(
+                spiritStones = if (grade == SpiritStoneGrade.LOW) newAmount else ts.gameData.spiritStones,
+                midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) newAmount else ts.gameData.midGradeSpiritStones,
+                highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) newAmount else ts.gameData.highGradeSpiritStones
+            )
             result = newAmount
         } else {
             scope.launch { stateStore.update {
-                val newAmount = (gameData.spiritStones - amount).coerceAtLeast(0L)
-                gameData = gameData.copy(spiritStones = newAmount)
+                val current = gameData.spiritStoneCount(grade)
+                val newAmount = current + amount
+                gameData = gameData.copy(
+                    spiritStones = if (grade == SpiritStoneGrade.LOW) newAmount else gameData.spiritStones,
+                    midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) newAmount else gameData.midGradeSpiritStones,
+                    highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) newAmount else gameData.highGradeSpiritStones
+                )
                 result = newAmount
             } }
         }
         return result
     }
 
-    fun addSpiritStones(amount: Long): Long {
-        var result = 0L
+    /**
+     * 兑换灵石：source 转 target，数量不足时返回 false 且不做任何修改。
+     * 兑换结果按汇率取整，无法兑换的部分（remaining）以 source 品阶保留。
+     */
+    fun exchangeSpiritStones(quantity: Long, source: SpiritStoneGrade, target: SpiritStoneGrade): Boolean {
+        if (quantity <= 0 || source == target) return false
+        if (!canAfford(quantity, source)) return false
+
+        val (converted, remaining) = SpiritStoneExchange.exchange(quantity, source, target)
+        if (converted <= 0) return false
+
         val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            val newAmount = ts.gameData.spiritStones + amount
-            ts.gameData = ts.gameData.copy(spiritStones = newAmount)
-            result = newAmount
-        } else {
-            scope.launch { stateStore.update {
-                val newAmount = gameData.spiritStones + amount
-                gameData = gameData.copy(spiritStones = newAmount)
-                result = newAmount
-            } }
+        val apply = { gd: GameData ->
+            val newLow = when {
+                source == SpiritStoneGrade.LOW -> gd.spiritStones - quantity + remaining
+                target == SpiritStoneGrade.LOW -> gd.spiritStones + converted
+                else -> gd.spiritStones
+            }
+            val newMid = when {
+                source == SpiritStoneGrade.MID -> gd.midGradeSpiritStones - quantity + remaining
+                target == SpiritStoneGrade.MID -> gd.midGradeSpiritStones + converted
+                else -> gd.midGradeSpiritStones
+            }
+            val newHigh = when {
+                source == SpiritStoneGrade.HIGH -> gd.highGradeSpiritStones - quantity + remaining
+                target == SpiritStoneGrade.HIGH -> gd.highGradeSpiritStones + converted
+                else -> gd.highGradeSpiritStones
+            }
+            gd.copy(
+                spiritStones = newLow,
+                midGradeSpiritStones = newMid,
+                highGradeSpiritStones = newHigh
+            )
         }
-        return result
+
+        if (ts != null) {
+            ts.gameData = apply(ts.gameData)
+        } else {
+            scope.launch { stateStore.update { gameData = apply(gameData) } }
+        }
+        return true
     }
 
     fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack =

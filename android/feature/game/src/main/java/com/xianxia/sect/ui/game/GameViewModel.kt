@@ -801,6 +801,22 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun setAutoSellMidGradeForPurchase(enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData {
+                it.copy(autoSellMidGradeForPurchase = enabled)
+            }
+        }
+    }
+
+    fun setAutoSellHighGradeForPurchase(enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData {
+                it.copy(autoSellHighGradeForPurchase = enabled)
+            }
+        }
+    }
+
     fun setActiveTab(tab: String) {
         gameEngine.setActiveTab(tab)
     }

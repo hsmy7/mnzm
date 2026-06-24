@@ -82,8 +82,16 @@ data class GameData(
     var gameSpeed: Int = 1,
 
     // 资源
+    // spiritStones 固定表示下品灵石；中品、上品灵石使用新增字段
+    @ColumnInfo(name = "spiritStones")
     @SettlementStrategy(Strategy.DELTA)
     var spiritStones: Long = 1000,
+    @ColumnInfo(name = "midGradeSpiritStones")
+    @SettlementStrategy(Strategy.DELTA)
+    var midGradeSpiritStones: Long = 0,
+    @ColumnInfo(name = "highGradeSpiritStones")
+    @SettlementStrategy(Strategy.DELTA)
+    var highGradeSpiritStones: Long = 0,
     @SettlementStrategy(Strategy.USE_SHADOW)
     var spiritHerbs: Int = 0,
     @SettlementStrategy(Strategy.USE_SHADOW)
@@ -339,6 +347,14 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolBattleResultPopup: Boolean = false,
 
+    // 灵石自动补差价：消费时下品不足则自动售卖中品补足
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var autoSellMidGradeForPurchase: Boolean = false,
+
+    // 灵石自动补差价：消费时下品不足则自动售卖上品补足
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var autoSellHighGradeForPurchase: Boolean = false,
+
     // 弟子管理：突破自动使用仓库丹药
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var breakthroughAutoPillFocused: Boolean = false,
@@ -409,6 +425,19 @@ data class GameData(
     var sectAttackCooldowns: Map<String, Int> = emptyMap()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
+
+    /** 按品阶获取灵石数量 */
+    fun spiritStoneCount(grade: SpiritStoneGrade): Long = when (grade) {
+        SpiritStoneGrade.LOW -> spiritStones
+        SpiritStoneGrade.MID -> midGradeSpiritStones
+        SpiritStoneGrade.HIGH -> highGradeSpiritStones
+    }
+
+    /** 按售卖价折算的总灵石价值（下品等价） */
+    fun totalSpiritStonesSellValue(): Long =
+        SpiritStoneExchange.totalSellValue(
+            spiritStones, midGradeSpiritStones, highGradeSpiritStones
+        )
 
     val isPlayerProtected: Boolean get() {
         if (!playerProtectionEnabled) return false
@@ -717,7 +746,7 @@ data class SpiritFieldPlant(
 data class MerchantItem(
     val id: String = "",
     val name: String = "",
-    val type: String = "", // equipment, manual, pill, material, seed
+    val type: String = "", // equipment, manual, pill, material, seed, spiritStone
     val itemId: String = "",
     val rarity: Int = 1,
     val price: Long = 0L,
@@ -859,7 +888,9 @@ data class SectDetail(
 @Serializable
 data class SectWarehouse(
     val items: List<WarehouseItem> = emptyList(),
-    val spiritStones: Long = 0
+    val spiritStones: Long = 0,
+    val midGradeSpiritStones: Long = 0,
+    val highGradeSpiritStones: Long = 0
 )
 
 @Keep

@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 7  // v7: 新增 AI宗门进攻系统6列 (aiSectPersonalities, suzerainSectId 等)
+    version = 9  // v9: 新增灵石自动补差价开关字段
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -448,6 +448,44 @@ abstract class GameDatabase : RoomDatabase() {
                     )
                 }
                 Log.i(TAG, "Migration 6→7: added AI attack system columns to game_data")
+        }
+        }
+
+        /** v7→v8: 新增中品/上品灵石列 */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "midGradeSpiritStones")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN midGradeSpiritStones INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                if (!columnExists(db, "game_data", "highGradeSpiritStones")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN highGradeSpiritStones INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                Log.i(TAG, "Migration 7→8: added midGradeSpiritStones and highGradeSpiritStones columns")
+            }
+        }
+
+        /** v8→v9: 新增灵石自动补差价开关字段 */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "autoSellMidGradeForPurchase")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN autoSellMidGradeForPurchase INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                if (!columnExists(db, "game_data", "autoSellHighGradeForPurchase")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN autoSellHighGradeForPurchase INTEGER " +
+                        "NOT NULL DEFAULT 0"
+                    )
+                }
+                Log.i(TAG, "Migration 8→9: added autoSellMidGradeForPurchase and autoSellHighGradeForPurchase columns")
             }
         }
 
@@ -490,7 +528,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

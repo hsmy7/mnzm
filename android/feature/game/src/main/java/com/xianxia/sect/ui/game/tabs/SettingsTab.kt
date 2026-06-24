@@ -485,6 +485,56 @@ internal fun SettingsTab(
                             )
                         }
                     }
+                    Column {
+                        Text(
+                            text = "灵石补差价设置",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Text(
+                                text = "自动售卖中品灵石补差价",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CircularCheckbox(
+                                checked = gameData.autoSellMidGradeForPurchase,
+                                onToggle = {
+                                    viewModel.setAutoSellMidGradeForPurchase(
+                                        !gameData.autoSellMidGradeForPurchase
+                                    )
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Text(
+                                text = "自动售卖上品灵石补差价",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CircularCheckbox(
+                                checked = gameData.autoSellHighGradeForPurchase,
+                                onToggle = {
+                                    viewModel.setAutoSellHighGradeForPurchase(
+                                        !gameData.autoSellHighGradeForPurchase
+                                    )
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
