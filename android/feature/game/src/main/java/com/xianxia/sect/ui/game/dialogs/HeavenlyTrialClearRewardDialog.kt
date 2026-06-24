@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -153,10 +154,10 @@ private fun ClearRewardRow(
                             rarity = item.rarity,
                             quantity = item.quantity,
                             type = item.itemType,
-                            isSpiritStone = item.itemType == "spiritStones",
                             isHerb = item.itemType == "herb",
                             isSeed = item.itemType == "seed",
-                            isBag = item.itemType == "storageBag"
+                            isBag = item.itemType == "storageBag",
+                            spiritStoneGrade = if (item.itemType == "spiritStones") SpiritStoneGrade.LOW else null
                         )
                         UnifiedItemCard(
                             data = cardData,

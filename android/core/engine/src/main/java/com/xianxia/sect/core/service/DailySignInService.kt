@@ -25,7 +25,7 @@ class DailySignInService @Inject constructor(
         private const val TAG = "DailySignInService"
 
         val WEEKLY_REWARDS = listOf(
-            DailySignInReward(weekday = 1, itemName = "灵石", quantity = 10000, type = "spiritStones", rarity = 1),
+            DailySignInReward(weekday = 1, itemName = "下品灵石", quantity = 10000, type = "spiritStones", rarity = 1),
             DailySignInReward(weekday = 2, itemName = "凡品材料", quantity = 20, type = "randomMaterial", rarity = 1),
             DailySignInReward(weekday = 3, itemName = "凡品储物袋", quantity = 1, type = "storageBag", rarity = 1),
             DailySignInReward(weekday = 4, itemName = "凡品种子", quantity = 20, type = "randomSeed", rarity = 1),
@@ -36,9 +36,9 @@ class DailySignInService @Inject constructor(
 
         /** 累计签到里程碑奖励 */
         val MILESTONE_REWARDS = listOf(
-            MilestoneReward(day = 7, itemName = "灵石", quantity = 50000, type = "spiritStones", rarity = 1),
+            MilestoneReward(day = 7, itemName = "下品灵石", quantity = 50000, type = "spiritStones", rarity = 1),
             MilestoneReward(day = 14, itemName = "灵品储物袋", quantity = 1, type = "storageBag", rarity = 2),
-            MilestoneReward(day = 21, itemName = "灵石", quantity = 100000, type = "spiritStones", rarity = 1),
+            MilestoneReward(day = 21, itemName = "下品灵石", quantity = 100000, type = "spiritStones", rarity = 1),
             MilestoneReward(day = 28, itemName = "宝品储物袋", quantity = 1, type = "storageBag", rarity = 3)
         )
     }
@@ -211,13 +211,13 @@ class DailySignInService @Inject constructor(
                 "spiritStones" -> {
                     val maxSpiritStones = Int.MAX_VALUE
                     if (gameData.spiritStones + reward.quantity > maxSpiritStones) {
-                        capacityError = "灵石已达上限，无法签到领取"
+                        capacityError = "下品灵石已达上限，无法签到领取"
                     } else {
                         gameData = gameData.copy(
                             spiritStones = gameData.spiritStones + reward.quantity
                         )
                         generatedCards.add(RewardCardItem(
-                            itemName = "灵石", itemType = "spiritStones",
+                            itemName = "下品灵石", itemType = "spiritStones",
                             rarity = 1, quantity = reward.quantity
                         ))
                     }

@@ -5,6 +5,9 @@
 ### 修复
 
 - **修复：游玩时弟子批量消失（数十名同时消失直至个位数）** — `CultivationSettlement` 的 `processSalaryYearly`/`settleSalaryOnBreakthrough`/`processResidenceLoyalty` 与 `DiscipleLifecycleProcessor` 的 `processGriefExpiry`/`processReflectionRelease` 在入口捕获快照后通过 `scope.launch` 异步执行 `clear()+insert(陈旧快照)`，与月度结算的 `createSettlementShadow().deepCopy()` 并发，导致 shadow 捕获到空 ids，`swapFromShadow` 整体覆盖活表 → 全体弟子瞬间消失。修复：上述 5 个函数改为 `suspend`，在 `stateStore.update` 事务内直接读取最新 `discipleTables` 并同步操作，消除异步覆盖竞态。新增 `CultivationSettlementConcurrencyTest`（11 个回归测试）覆盖正常路径、边界条件与并发安全性
+- **修复：天道试炼通关奖励灵石不显示精灵图** — `HeavenlyTrialClearRewardDialog` 构造 `ItemCardData` 时漏设 `spiritStoneGrade`，精灵图选择逻辑落到 `equipmentSpriteRes("灵石")` 分支返回 null，卡片显示"敬请期待"占位。修复：参照 `RewardDisplayDialog` 写法补上 `spiritStoneGrade = if (itemType == "spiritStones") SpiritStoneGrade.LOW else null`
+- **修复：天道试炼挑战对象信息区不可滚动导致功法被裁剪** — `HeavenlyTrialBattleDialog` 的 `EnemyInfoDetail` 为纯 `Column` 无滚动容器，功法数量较多时底部被裁剪无法查看。修复：`Column` 添加 `.verticalScroll(rememberScrollState())`，信息区可纵向滚动
+- **修复：每日签到灵石描述未标注品阶** — `DailySignInService` 中 5 处"灵石"硬编码文本（3 处奖励定义、1 处容量错误提示、1 处奖励卡片 itemName）统一改为"下品灵石"，与实际奖励品阶一致
 
 ### 调整
 

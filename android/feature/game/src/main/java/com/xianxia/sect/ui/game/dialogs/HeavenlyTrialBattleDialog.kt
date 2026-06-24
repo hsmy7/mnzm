@@ -234,7 +234,7 @@ fun HeavenlyTrialBattleDialog(
 private fun EnemyInfoDetail(enemy: Combatant) {
     var detailTarget by remember { mutableStateOf<Any?>(null) }
 
-    Column(modifier = Modifier.padding(8.dp)) {
+    Column(modifier = Modifier.padding(8.dp).verticalScroll(rememberScrollState())) {
         // 基本信息
         Text(enemy.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
         Spacer(Modifier.height(2.dp))
