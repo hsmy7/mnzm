@@ -43,7 +43,10 @@ object AISectAttackManager {
         val deadAttackerIds: List<String>,
         val deadDefenderIds: List<String>,
         val canOccupy: Boolean,
-        val survivingAttackers: List<Disciple>
+        val survivingAttackers: List<Disciple>,
+        /** 防守方幸存者 HP/MP（用于玩家宗门被攻时回写弟子状态） */
+        val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
+        val defenderSurvivorMpMap: Map<String, Int> = emptyMap()
     )
 
     fun decideAttacks(gameData: GameData): List<AIAttackResult> {
@@ -343,9 +346,14 @@ object AISectAttackManager {
 
     /**
      * 执行AI宗门对玩家的实际战斗（预警到期后调用）。
-     * 保留原有立即战斗逻辑供预警到期时使用。
+     *
+     * @param playerDefenseTeam 玩家方出战弟子（已转换为 Combatant，使用真实装备/功法）
      */
-    fun executePlayerAttack(gameData: GameData, attackerSectId: String): AIAttackResult? {
+    fun executePlayerAttack(
+        gameData: GameData,
+        attackerSectId: String,
+        playerDefenseTeam: List<Combatant>
+    ): AIAttackResult? {
         val aiDisciplesMap = gameData.aiSectDisciples
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
         val playerSectId = playerSect.id
@@ -357,11 +365,8 @@ object AISectAttackManager {
             .take(TEAM_SIZE)
         if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
 
-        val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
-        if (defenderDisciples.isEmpty()) return null
-
-        val battleResult = executeSectBattle(
-            selectedAttackers, playerSect, defenderDisciples
+        val battleResult = executePlayerSectBattle(
+            selectedAttackers, playerDefenseTeam
         )
         val survivingAttackers = selectedAttackers.filter {
             it.id !in battleResult.deadAttackerIds
@@ -376,7 +381,9 @@ object AISectAttackManager {
             deadAttackerIds = battleResult.deadAttackerIds,
             deadDefenderIds = battleResult.deadDefenderIds,
             canOccupy = battleResult.canOccupy,
-            survivingAttackers = survivingAttackers
+            survivingAttackers = survivingAttackers,
+            defenderSurvivorHpMap = battleResult.survivorHpMap,
+            defenderSurvivorMpMap = battleResult.survivorMpMap
         )
     }
 
@@ -551,23 +558,24 @@ object AISectAttackManager {
 
     fun executePlayerSectBattle(
         attackers: List<Disciple>,
-        playerDefenseTeam: List<Disciple>
+        playerDefenseTeam: List<Combatant>
     ): AIBattleResult {
         val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
-        val combatDefenders = playerDefenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
+        val combatDefenders = playerDefenseTeam
+            .filter { it.side == CombatantSide.DEFENDER }
+            .take(TEAM_SIZE)
 
         val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
         val deadAttackerIds = attackers
             .filter { disciple ->
-                result.attackers.find { it.id == disciple.id }?.isDead == true
+                result.attackers.find { it.id == disciple.id } == null
             }
             .map { it.id }
 
-        val deadDefenderIds = playerDefenseTeam
-            .filter { disciple ->
-                result.defenders.find { it.id == disciple.id }?.isDead == true
-            }
+        val survivorDefenderIds = result.defenders.map { it.id }.toSet()
+        val deadDefenderIds = combatDefenders
+            .filter { it.id !in survivorDefenderIds }
             .map { it.id }
 
         val survivorHpMap = result.defenders.associate { it.id to it.hp }

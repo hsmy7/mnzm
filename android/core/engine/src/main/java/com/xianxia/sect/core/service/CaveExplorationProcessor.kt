@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
@@ -51,6 +52,14 @@ class CaveExplorationProcessor @Inject constructor(
         private const val THERMAL_EMERGENCY_BATCH = 12
         private const val THERMAL_REDUCE_BATCH = 6
         private const val THERMAL_NORMAL_BATCH = 1
+
+        /**
+         * 不可参与宗门防守的弟子状态：外出任务、探索洞府/妖兽/世界节点等。
+         */
+        private val SECT_DEFENSE_EXCLUDED_STATUSES = setOf(
+            DiscipleStatus.ON_MISSION,
+            DiscipleStatus.IN_TEAM
+        )
     }
 
     // ── 洞府探索 ──────────────────────────────────────────────────────
@@ -707,8 +716,27 @@ class CaveExplorationProcessor @Inject constructor(
         // 2. 检查到期预警 → 执行实际战斗
         val expiredWarnings = attackWarningService.checkExpiredWarnings()
         for (expired in expiredWarnings) {
+            val allPlayerDisciples = stateStore.discipleTables.assembleAll()
+            val selectedDefenders = allPlayerDisciples
+                .filter { it.isAlive && it.status !in SECT_DEFENSE_EXCLUDED_STATUSES }
+                .sortedByDescending { it.realm }
+                .take(AISectAttackManager.TEAM_SIZE)
+
+            val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
+            val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
+            val profMap = data.manualProficiencies.mapValues { (_, list) ->
+                list.associateBy { it.manualId }
+            }
+            val playerDefenseTeam = selectedDefenders.map { d ->
+                battleSystem.convertDiscipleToCombatant(
+                    d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
+                )
+            }
+
             val result = AISectAttackManager.executePlayerAttack(
-                stateStore.gameData.value, expired.attackerSectId
+                stateStore.gameData.value,
+                expired.attackerSectId,
+                playerDefenseTeam
             )
             if (result != null) {
                 applyPlayerDefenseResult(result)
@@ -814,7 +842,22 @@ class CaveExplorationProcessor @Inject constructor(
                 }
 
                 newDisciples = newDisciples.map { d ->
-                    if (d.id in result.deadDefenderIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
+                    if (d.id in result.deadDefenderIds) {
+                        d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                    } else {
+                        val hp = result.defenderSurvivorHpMap[d.id]
+                        val mp = result.defenderSurvivorMpMap[d.id]
+                        if (hp != null && mp != null) {
+                            d.copy(
+                                combat = d.combat.copy(
+                                    currentHp = hp.coerceIn(0, d.maxHp),
+                                    currentMp = mp.coerceIn(0, d.maxMp)
+                                )
+                            )
+                        } else {
+                            d
+                        }
+                    }
                 }
 
                 discipleTables.clear()
@@ -823,13 +866,29 @@ class CaveExplorationProcessor @Inject constructor(
                 val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
                 val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
 
+                val playerSectId = currentGameData.worldMapSects.find { it.isPlayerSect }?.id ?: return@update
+
                 var updatedData = gameData.copy(
                     aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
                         this[result.attackerSectId] = updatedAttackerDisciples
+                    },
+                    worldMapSects = gameData.worldMapSects.map { sect ->
+                        if (sect.id == playerSectId) {
+                            sect.copy(
+                                garrisonSlots = sect.garrisonSlots.map { slot ->
+                                    if (slot.discipleId in result.deadDefenderIds) {
+                                        GarrisonSlot(index = slot.index)
+                                    } else {
+                                        slot
+                                    }
+                                }
+                            )
+                        } else {
+                            sect
+                        }
                     }
                 )
 
-                val playerSectId = updatedData.worldMapSects.find { it.isPlayerSect }?.id ?: return@update
                 val updatedRelations = updatedData.sectRelations.map { relation ->
                     val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == playerSectId) ||
                             (relation.sectId1 == playerSectId && relation.sectId2 == result.attackerSectId)

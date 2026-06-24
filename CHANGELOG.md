@@ -6,6 +6,8 @@
 
 - **修复：部分丹药导致游戏崩溃（#4022）** — 存档反序列化、炼药产出、行商购买等路径中创建的丹药缺少 `pillType` 字段，自动服用系统的丹药分类引擎（classify）在无法识别丹药类型时抛出 `IllegalStateException`（未定义规则的丹药）。根因修复：所有 `Pill()` 直接构造调用的路径（ProductionProcessor、BuildingService×2、MerchantItemConverter）补全 `pillType`/`category` 参数；`SerializablePill` 新增 `pillType` 序列化字段确保读档不丢失；`classify()` 增加兜底降级逻辑：效果属性全空时默认归为可重复服用类、不崩溃
 - **修复：TapTap SDK 在游戏时长追踪阶段触发 SIGILL 崩溃（#4018）** — `TapDBManager.startGameDurationTracking` 内部 `GameDurationService.Builder` 在部分设备上触发 `SIGILL` 非法指令错误（ILL_ILLOPC），原 `catch(Exception)` 无法捕获 `Error` 子类。修复：升级为 `catch(CancellationException)` + `catch(Throwable)` 全面捕获所有异常类型，确保 TapTap SDK 内部 sandbox hook 兼容性问题不影响游戏正常运行
+- **修复：AI 宗门进攻玩家宗门时玩家弟子无法出战** — `AISectAttackManager.executePlayerAttack` 原先从 `aiSectDisciples[playerSectId]` 读取玩家弟子，但该 Map 只保存 AI 宗门弟子，导致玩家方实际无人参战、战斗被跳过。修复：在 `CaveExplorationProcessor` 中直接从 `discipleTables` 选取玩家高境界存活弟子，排除 `ON_MISSION`（外出任务）和 `IN_TEAM`（探索洞府/妖兽/世界节点）状态，按境界降序取前 10 名作为防守方参战。
+- **修复：AI 攻玩家战斗使用玩家真实装备/功法** — 原先复用 AI 弟子转换逻辑会随机生成装备/功法覆盖玩家配置。修复：使用 `BattleSystem.convertDiscipleToCombatant` 基于 `stateStore` 中的真实装备、功法实例及熟练度生成战斗单位，战后回写存活弟子的当前 HP/MP，并清理阵亡弟子的驻军槽位。
 
 ## [4.0.19] - 2026-06-23（versionCode=4019）
 
