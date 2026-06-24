@@ -31,20 +31,19 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     // ── 弟子老化/死亡 ──────────────────────────────────────────────────
 
-    fun processGriefExpiry(currentYear: Int) {
-        val currentList = stateStore.disciples.value
-        val updated = currentList.map { disciple ->
-            val griefEnd = disciple.social.griefEndYear
-            if (griefEnd != null && currentYear >= griefEnd) {
-                disciple.copy(social = disciple.social.copy(griefEndYear = null))
-            } else {
-                disciple
+    suspend fun processGriefExpiry(currentYear: Int) {
+        stateStore.update {
+            val updated = discipleTables.assembleAll().map { disciple ->
+                val griefEnd = disciple.social.griefEndYear
+                if (griefEnd != null && currentYear >= griefEnd) {
+                    disciple.copy(social = disciple.social.copy(griefEndYear = null))
+                } else {
+                    disciple
+                }
             }
-        }
-        scope.launch { stateStore.update {
             discipleTables.clear()
             updated.forEach { discipleTables.insert(it) }
-        } }
+        }
     }
 
     suspend fun processDiscipleAging(currentYear: Int) {
@@ -161,31 +160,30 @@ class DiscipleLifecycleProcessor @Inject constructor(
         // 当前版本：年度老化效果尚未实现，保留为扩展点。
     }
 
-    fun processReflectionRelease(year: Int) {
-        val currentList = stateStore.disciples.value
-        val reflectingDisciples = currentList.filter { it.status == DiscipleStatus.REFLECTING && it.isAlive }
-        if (reflectingDisciples.isEmpty()) return
+    suspend fun processReflectionRelease(year: Int) {
+        stateStore.update {
+            val currentList = discipleTables.assembleAll()
+            val reflectingDisciples = currentList.filter { it.status == DiscipleStatus.REFLECTING && it.isAlive }
+            if (reflectingDisciples.isEmpty()) return@update
 
-        val updatedDisciples = currentList.map { disciple ->
-            if (disciple.status != DiscipleStatus.REFLECTING || !disciple.isAlive) return@map disciple
+            val updatedDisciples = currentList.map { disciple ->
+                if (disciple.status != DiscipleStatus.REFLECTING || !disciple.isAlive) return@map disciple
 
-            val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: return@map disciple
-            if (year < endYear) return@map disciple
+                val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: return@map disciple
+                if (year < endYear) return@map disciple
 
-            disciple.copy(
-                status = DiscipleStatus.IDLE,
-                statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
-                skills = disciple.skills.copy(
-                    morality = disciple.skills.morality + 5,
-                    loyalty = disciple.skills.loyalty + 5
+                disciple.copy(
+                    status = DiscipleStatus.IDLE,
+                    statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
+                    skills = disciple.skills.copy(
+                        morality = disciple.skills.morality + 5,
+                        loyalty = disciple.skills.loyalty + 5
+                    )
                 )
-            )
-        }
-
-        scope.launch { stateStore.update {
+            }
             discipleTables.clear()
             updatedDisciples.forEach { discipleTables.insert(it) }
-        } }
+        }
     }
 
     // ── 辅助方法 ──────────────────────────────────────────────────────

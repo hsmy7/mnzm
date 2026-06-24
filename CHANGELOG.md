@@ -1,5 +1,23 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.23] - 2026-06-25（versionCode=4023）
+
+### 修复
+
+- **修复：游玩时弟子批量消失（数十名同时消失直至个位数）** — `CultivationSettlement` 的 `processSalaryYearly`/`settleSalaryOnBreakthrough`/`processResidenceLoyalty` 与 `DiscipleLifecycleProcessor` 的 `processGriefExpiry`/`processReflectionRelease` 在入口捕获快照后通过 `scope.launch` 异步执行 `clear()+insert(陈旧快照)`，与月度结算的 `createSettlementShadow().deepCopy()` 并发，导致 shadow 捕获到空 ids，`swapFromShadow` 整体覆盖活表 → 全体弟子瞬间消失。修复：上述 5 个函数改为 `suspend`，在 `stateStore.update` 事务内直接读取最新 `discipleTables` 并同步操作，消除异步覆盖竞态。新增 `CultivationSettlementConcurrencyTest`（11 个回归测试）覆盖正常路径、边界条件与并发安全性
+
+### 调整
+
+- **调整：灵石兑换汇率改为售卖价** — 中品/上品灵石兑换按下品等价80%（一键售卖价）折算，1中品↔8,000下品、1上品↔8,000中品↔6,400万下品
+
+### 优化
+
+- **优化：宗门信息卡片显示总灵石数量** — 顶栏灵石按售卖价汇总显示总下品等价，中品/上品明细以较小字体显示
+
+### 新增
+
+- **新增：灵石自动补差价设置** — 设置界面新增「自动售卖中品灵石补差价」和「自动售卖上品灵石补差价」勾选框（默认不勾选），勾选后消费下品灵石不足时自动按售卖价卖出中品/上品补足差额
+
 ## [4.0.22] - 2026-06-24（versionCode=4022）
 
 ### 修复

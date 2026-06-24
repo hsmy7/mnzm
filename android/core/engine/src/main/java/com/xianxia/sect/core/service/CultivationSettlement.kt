@@ -60,129 +60,125 @@ class CultivationSettlement @Inject constructor(
     internal var diplomacyEventsThisMonth = 0
     internal var diplomacyEventsMonth = 0
 
-    fun processSalaryYearly(year: Int) {
-        val data = stateStore.gameData.value
-        val salaryConfig = data.yearlySalary
-        val enabledConfig = data.yearlySalaryEnabled
+    suspend fun processSalaryYearly(year: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        var totalCost = 0L
-        var anyChanged = false
 
-        val disciplesSnapshot = stateStore.disciples.value
-        val updatedDisciples = disciplesSnapshot.map { disciple ->
-            if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
-            val lastYear = lastSalaryYear[disciple.id] ?: (year - 1)
-            if (lastYear >= year) return@map disciple
-            val elapsedYears = year - lastYear
-            val yearlySalary = (salaryConfig[disciple.realm] ?: 0).toLong() * elapsedYears
-            if (yearlySalary <= 0) return@map disciple
-            if (disciple.skills.loyalty >= maxLoyalty) return@map disciple
+        stateStore.update {
+            val data = gameData
+            val salaryConfig = data.yearlySalary
+            val enabledConfig = data.yearlySalaryEnabled
+            var totalCost = 0L
+            var anyChanged = false
 
-            if (data.spiritStones >= totalCost + yearlySalary) {
-                totalCost += yearlySalary
-                anyChanged = true
-                disciple.copy(
-                    equipment = disciple.equipment.copy(
-                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + yearlySalary
-                    ),
-                    skills = disciple.skills.copy(
-                        salaryPaidCount = disciple.skills.salaryPaidCount + elapsedYears,
-                        loyalty = (disciple.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+            val currentDisciples = discipleTables.assembleAll()
+            val updatedDisciples = currentDisciples.map { disciple ->
+                if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
+                val lastYear = lastSalaryYear[disciple.id] ?: (year - 1)
+                if (lastYear >= year) return@map disciple
+                val elapsedYears = year - lastYear
+                val yearlySalary = (salaryConfig[disciple.realm] ?: 0).toLong() * elapsedYears
+                if (yearlySalary <= 0) return@map disciple
+                if (disciple.skills.loyalty >= maxLoyalty) return@map disciple
+
+                if (data.spiritStones >= totalCost + yearlySalary) {
+                    totalCost += yearlySalary
+                    anyChanged = true
+                    disciple.copy(
+                        equipment = disciple.equipment.copy(
+                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + yearlySalary
+                        ),
+                        skills = disciple.skills.copy(
+                            salaryPaidCount = disciple.skills.salaryPaidCount + elapsedYears,
+                            loyalty = (disciple.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                        )
                     )
-                )
+                } else {
+                    anyChanged = true
+                    disciple.copy(
+                        skills = disciple.skills.copy(
+                            salaryMissedCount = disciple.skills.salaryMissedCount + elapsedYears,
+                            loyalty = (disciple.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                        )
+                    )
+                }
+            }
+
+            if (anyChanged) {
+                gameData = data.copy(spiritStones = data.spiritStones - totalCost)
+                discipleTables.clear()
+                updatedDisciples.forEach { discipleTables.insert(it) }
+                updatedDisciples.filter { it.isAlive && enabledConfig[it.realm] == true }.forEach {
+                    lastSalaryYear[it.id] = year
+                }
+            }
+        }
+    }
+
+    suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+
+        stateStore.update {
+            val data = gameData
+            val enabledConfig = data.yearlySalaryEnabled
+            val currentDisciples = discipleTables.assembleAll()
+            val disciple = currentDisciples.find { it.id == discipleId && it.isAlive } ?: return@update
+            if (enabledConfig[disciple.realm] != true) return@update
+
+            val lastYear = lastSalaryYear[discipleId] ?: (currentYear - 1)
+            if (lastYear >= currentYear) return@update
+
+            val salaryConfig = data.yearlySalary
+            if (disciple.skills.loyalty >= maxLoyalty) {
+                lastSalaryYear[discipleId] = currentYear
+                return@update
+            }
+
+            val elapsedYears = currentYear - lastYear
+            val accumulated = (salaryConfig[disciple.realm] ?: 0).toLong() * elapsedYears
+            if (accumulated <= 0) return@update
+
+            val updatedDisciples = if (data.spiritStones >= accumulated) {
+                gameData = data.copy(spiritStones = data.spiritStones - accumulated)
+                currentDisciples.map {
+                    if (it.id == discipleId) it.copy(
+                        equipment = it.equipment.copy(
+                            storageBagSpiritStones = it.equipment.storageBagSpiritStones + accumulated
+                        ),
+                        skills = it.skills.copy(
+                            salaryPaidCount = it.skills.salaryPaidCount + elapsedYears,
+                            loyalty = (it.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
+                        )
+                    ) else it
+                }
             } else {
-                anyChanged = true
-                disciple.copy(
-                    skills = disciple.skills.copy(
-                        salaryMissedCount = disciple.skills.salaryMissedCount + elapsedYears,
-                        loyalty = (disciple.skills.loyalty - elapsedYears).coerceAtLeast(0)
-                    )
-                )
+                currentDisciples.map {
+                    if (it.id == discipleId) it.copy(
+                        skills = it.skills.copy(
+                            salaryMissedCount = it.skills.salaryMissedCount + elapsedYears,
+                            loyalty = (it.skills.loyalty - elapsedYears).coerceAtLeast(0)
+                        )
+                    ) else it
+                }
             }
-        }
-
-        if (anyChanged) {
-            val finalData = data.copy(spiritStones = data.spiritStones - totalCost)
-            scope.launch { stateStore.update {
-                gameData = finalData
-                discipleTables.clear()
-                updatedDisciples.forEach { discipleTables.insert(it) }
-            } }
-            updatedDisciples.filter { it.isAlive && enabledConfig[it.realm] == true }.forEach {
-                lastSalaryYear[it.id] = year
-            }
-        }
-    }
-
-    fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
-        val disciplesSnapshot = stateStore.disciples.value
-        val disciple = disciplesSnapshot.find { it.id == discipleId && it.isAlive } ?: return
-        val data = stateStore.gameData.value
-        val enabledConfig = data.yearlySalaryEnabled
-        if (enabledConfig[disciple.realm] != true) return
-
-        val lastYear = lastSalaryYear[discipleId] ?: (currentYear - 1)
-        if (lastYear >= currentYear) return
-
-        val salaryConfig = data.yearlySalary
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        if (disciple.skills.loyalty >= maxLoyalty) {
-            lastSalaryYear[discipleId] = currentYear
-            return
-        }
-
-        val elapsedYears = currentYear - lastYear
-        val accumulated = (salaryConfig[disciple.realm] ?: 0).toLong() * elapsedYears
-        if (accumulated <= 0) return
-
-        if (data.spiritStones >= accumulated) {
-            val updatedDisciples = disciplesSnapshot.map {
-                if (it.id == discipleId) it.copy(
-                    equipment = it.equipment.copy(
-                        storageBagSpiritStones = it.equipment.storageBagSpiritStones + accumulated
-                    ),
-                    skills = it.skills.copy(
-                        salaryPaidCount = it.skills.salaryPaidCount + elapsedYears,
-                        loyalty = (it.skills.loyalty + elapsedYears).coerceAtMost(maxLoyalty)
-                    )
-                ) else it
-            }
-            val finalData = data.copy(spiritStones = data.spiritStones - accumulated)
-            scope.launch { stateStore.update {
-                gameData = finalData
-                discipleTables.clear()
-                updatedDisciples.forEach { discipleTables.insert(it) }
-            } }
-        } else {
-            val updatedDisciples = disciplesSnapshot.map {
-                if (it.id == discipleId) it.copy(
-                    skills = it.skills.copy(
-                        salaryMissedCount = it.skills.salaryMissedCount + elapsedYears,
-                        loyalty = (it.skills.loyalty - elapsedYears).coerceAtLeast(0)
-                    )
-                ) else it
-            }
-            scope.launch { stateStore.update {
-                discipleTables.clear()
-                updatedDisciples.forEach { discipleTables.insert(it) }
-            } }
-        }
-        lastSalaryYear[discipleId] = currentYear
-    }
-
-    fun processResidenceLoyalty() {
-        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val data = stateStore.gameData.value
-        val residentIds = data.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
-        val updatedDisciples = stateStore.disciples.value.map { d ->
-            if (d.id in residentIds && d.skills.loyalty < maxLoyalty) {
-                d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty)))
-            } else d
-        }
-        scope.launch { stateStore.update {
             discipleTables.clear()
             updatedDisciples.forEach { discipleTables.insert(it) }
-        } }
+            lastSalaryYear[discipleId] = currentYear
+        }
+    }
+
+    suspend fun processResidenceLoyalty() {
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+        stateStore.update {
+            val data = gameData
+            val residentIds = data.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
+            val updatedDisciples = discipleTables.assembleAll().map { d ->
+                if (d.id in residentIds && d.skills.loyalty < maxLoyalty) {
+                    d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty)))
+                } else d
+            }
+            discipleTables.clear()
+            updatedDisciples.forEach { discipleTables.insert(it) }
+        }
     }
 
     /**

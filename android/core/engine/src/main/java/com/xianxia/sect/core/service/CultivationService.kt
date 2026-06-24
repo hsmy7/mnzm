@@ -106,15 +106,15 @@ class CultivationService @Inject constructor(
         _highFrequencyData.value = newHfd
     }
 
-    fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
+    suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         cultivationSettlement.settleSalaryOnBreakthrough(discipleId, currentYear)
     }
 
-    internal fun processSalaryYearly(year: Int) {
+    suspend fun processSalaryYearly(year: Int) {
         cultivationSettlement.processSalaryYearly(year)
     }
 
-    internal fun processResidenceLoyalty() {
+    suspend fun processResidenceLoyalty() {
         cultivationSettlement.processResidenceLoyalty()
     }
 
