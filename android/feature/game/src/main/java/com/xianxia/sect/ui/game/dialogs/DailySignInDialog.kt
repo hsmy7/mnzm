@@ -362,7 +362,7 @@ private fun SignInDayCard(
             Box(
                 modifier = Modifier
                     .width(spriteWidth - borderW * 2f)
-                    .height(spriteHeight - borderW)
+                    .height(spriteHeight - borderW * 2f)
                     .align(Alignment.TopCenter)
                     .offset(y = borderW)
                     .clip(RoundedCornerShape(
@@ -523,7 +523,7 @@ private fun MilestoneRewardRow(
                 Box(
                     modifier = Modifier
                         .width(spriteWidth - borderW * 2f)
-                        .height(spriteHeight - borderW)
+                        .height(spriteHeight - borderW * 2f)
                         .align(Alignment.TopCenter)
                         .offset(y = borderW)
                         .clip(RoundedCornerShape(
