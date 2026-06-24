@@ -33,66 +33,6 @@ class CombatService @Inject constructor(
      */
     fun getBattleLogs(): StateFlow<List<BattleLog>> = stateStore.battleLogs
 
-    // ==================== 战斗执行 ====================
-
-    /**
-     * Execute cave exploration battle against AI team
-     */
-    fun executeCaveAIBattle(
-        playerDisciples: List<Disciple>,
-        aiTeam: AICaveTeam
-    ): BattleSystemResult {
-        // 战斗前兜底：先结算参战弟子气血灵力恢复
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) cultivationService.recoverHpMpForBattleParticipants(ts, playerDisciples.map { it.id })
-        val data = stateStore.gameData.value
-
-        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
-        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
-        val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
-
-        val battle = CaveExplorationSystem.createAIBattle(
-            playerDisciples = playerDisciples,
-            playerEquipmentMap = equipmentMap,
-            playerManualMap = manualMap,
-            playerManualProficiencies = allProficiencies,
-            aiTeam = aiTeam
-        )
-
-        return battleSystem.executeBattle(battle)
-    }
-
-    /**
-     * Execute cave guardian battle
-     */
-    fun executeCaveGuardianBattle(
-        playerDisciples: List<Disciple>,
-        cave: CultivatorCave
-    ): BattleSystemResult {
-        // 战斗前兜底：先结算参战弟子气血灵力恢复
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) cultivationService.recoverHpMpForBattleParticipants(ts, playerDisciples.map { it.id })
-        val data = stateStore.gameData.value
-
-        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
-        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
-        val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
-
-        val battle = CaveExplorationSystem.createGuardianBattle(
-            playerDisciples = playerDisciples,
-            playerEquipmentMap = equipmentMap,
-            playerManualMap = manualMap,
-            playerManualProficiencies = allProficiencies,
-            cave = cave
-        )
-
-        return battleSystem.executeBattle(battle)
-    }
-
     // ==================== 战斗结果处理 ====================
 
     /**

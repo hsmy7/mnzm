@@ -59,23 +59,38 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         )
     }
     val teamMembers = attackers.map { d -> BattleLogMember(id = d.id, name = d.name, realm = d.realm, realmName = d.realmName, hp = battleResult.survivorHpMap[d.id] ?: 0, maxHp = d.maxHp, mp = battleResult.survivorMpMap[d.id] ?: 0, maxMp = d.maxMp, isAlive = d.id !in deadPlayerIds, portraitRes = d.portraitRes) }
-    val enemyMembers = defenderDisciples.map { d -> BattleLogEnemy(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes) }
+    val enemyMembers = defenderDisciples.map { d -> BattleLogEnemy(name = "${targetSect.name}弟子", realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes) }
     val winResult = when (battleResult.winner) { AIBattleWinner.ATTACKER -> BattleResult.WIN; AIBattleWinner.DEFENDER -> BattleResult.LOSE; AIBattleWinner.DRAW -> BattleResult.DRAW }
-    val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SECT_WAR, attackerName = "玩家队伍", defenderName = targetSect.name, result = winResult, teamMembers = teamMembers, enemies = enemyMembers, turns = battleResult.turns, teamCasualties = deadPlayerIds.size, details = when (battleResult.winner) { AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) "攻占了${targetSect.name}" else "击溃了${targetSect.name}的守军"; AIBattleWinner.DEFENDER -> "进攻${targetSect.name}失败"; AIBattleWinner.DRAW -> "与${targetSect.name}打成平手" })
+
+    // 预计算战利品（用于日志 drops 显示）
+    var warRewards: WarRewards? = null
+    if (battleResult.winner == AIBattleWinner.ATTACKER) {
+        val rewardCount = if (battleResult.canOccupy) (80..130).random() else (20..60).random()
+        warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+    }
+    val drops = mutableListOf<String>()
+    warRewards?.let { wr ->
+        if (wr.spiritStones > 0) drops.add("灵石 ×${wr.spiritStones}")
+        wr.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.herbs.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.seeds.forEach { drops.add("${it.name} ×${it.quantity}") }
+    }
+
+    val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SECT_WAR, attackerName = "玩家队伍", defenderName = targetSect.name, result = winResult, teamMembers = teamMembers, enemies = enemyMembers, rounds = battleResult.rounds, turns = battleResult.turns, teamCasualties = deadPlayerIds.size, drops = drops, details = when (battleResult.winner) { AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) "攻占了${targetSect.name}" else "击溃了${targetSect.name}的守军"; AIBattleWinner.DEFENDER -> "进攻${targetSect.name}失败"; AIBattleWinner.DRAW -> "与${targetSect.name}打成平手" })
     val existingLogs = stateStore.battleLogsSnapshot
     val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     stateStore.update { battleLogs = updatedLogs }
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
         val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
         stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables.isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }
-        val warRewards: WarRewards
         if (battleResult.canOccupy) {
             val survivors = attackers.filter { it.id !in deadPlayerIds }
             val garrisonSlots = targetSect.garrisonSlots.mapIndexed { index, _ ->
                 if (index < survivors.size) { val d = survivors[index]; GarrisonSlot(index = index, discipleId = d.id, discipleName = d.name, discipleRealm = d.realmName, discipleSpiritRootColor = d.spiritRoot.countColor, portraitRes = d.portraitRes) } else GarrisonSlot(index = index)
             }
-            val rewardCount = (80..130).random()
-            warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
             val capturedDisciples = data.aiSectDisciples[sectId]?.filter { it.isAlive } ?: emptyList()
             stateStore.update {
                 gameData = gameData.copy(
@@ -83,22 +98,20 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                     recruitList = gameData.recruitList.toList() + capturedDisciples,
                     aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() }
                 )
-                addSpiritStones(warRewards.spiritStones)
+                addSpiritStones(warRewards!!.spiritStones)
                 warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
                 warRewards.pills.forEach { inventorySystem.addPill(it) }; warRewards.materials.forEach { inventorySystem.addMaterial(it) }
                 warRewards.herbs.forEach { inventorySystem.addHerb(it) }; warRewards.seeds.forEach { inventorySystem.addSeed(it) }
             }
         } else {
-            val rewardCount = (20..60).random()
-            warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
             stateStore.update {
-                addSpiritStones(warRewards.spiritStones)
+                addSpiritStones(warRewards!!.spiritStones)
                 warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
                 warRewards.pills.forEach { inventorySystem.addPill(it) }; warRewards.materials.forEach { inventorySystem.addMaterial(it) }
                 warRewards.herbs.forEach { inventorySystem.addHerb(it) }; warRewards.seeds.forEach { inventorySystem.addSeed(it) }
             }
         }
-        stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(warRewards)))
+        stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(warRewards!!)))
         stateStore.setPendingBattleRewardCards(buildBattleRewardCards(warRewards))
     } else {
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = false, teamMembers = teamMembers, rewards = emptyList()))
@@ -305,7 +318,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     val scoutDeadIds = stateStore.discipleTables.ids.filter { it.toString() in scoutDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
     if (scoutDeadIds.isNotEmpty()) combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)
     val teamMembers = result.battle.team.map { m -> BattleLogMember(id = m.id, name = m.name, realm = m.realm, realmName = m.realmName, hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp, isAlive = !m.isDead, portraitRes = m.portraitRes) }
-    val enemies = aiCombatants.map { b -> BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }
+    val enemies = aiCombatants.map { b -> BattleLogEnemy(name = "${targetSect.name}弟子", realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }
     val rounds = result.log.rounds.map { r -> BattleLogRound(roundNumber = r.roundNumber, actions = r.actions.map { a -> BattleLogAction(type = a.type, attacker = a.attacker, attackerType = a.attackerType, target = a.target, damage = a.damage, damageType = a.damageType, isCrit = a.isCrit, isKill = a.isKill, message = a.message) }) }
     val victory = result.victory
     val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SCOUT, attackerName = "探查队伍", defenderName = targetSect.name, result = if (victory) BattleResult.WIN else BattleResult.LOSE, teamMembers = teamMembers, enemies = enemies, rounds = rounds, turns = result.turnCount, teamCasualties = teamMembers.size - survivorIds.size, beastsDefeated = if (victory) aiCombatants.count { result.battle.beasts.any { b -> b.id == it.id && b.isDead } } else 0, details = if (victory) "成功探查了${targetSect.name}" else "探查${targetSect.name}失败")

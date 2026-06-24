@@ -58,6 +58,7 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
@@ -80,6 +81,20 @@ private fun resolveBeastImageRes(enemyName: String): Int? {
     return if (idx >= 0) beastDrawables.getOrNull(idx) else null
 }
 
+/**
+ * 推断战斗日志的具体战斗名称。
+ * PVE 被妖兽战和任务战复用，需结合 details 区分。
+ */
+private fun resolveBattleTypeName(log: BattleLog): String = when (log.type) {
+    BattleType.SECT_WAR ->
+        if (log.attackerName == "玩家队伍") "宗门战" else "宗门防守战"
+    BattleType.SCOUT -> "探查战"
+    BattleType.CAVE_EXPLORATION -> "洞府战"
+    BattleType.PVE ->
+        if (log.details.contains("任务")) "任务战" else "妖兽战"
+    BattleType.PVP -> "PVP战斗"
+}
+
 @Composable
 internal fun BattleLogItem(
     log: BattleLog,
@@ -90,13 +105,13 @@ internal fun BattleLogItem(
         BattleResult.LOSE -> Color(0xFFF44336)
         BattleResult.DRAW -> Color(0xFFFF9800)
     }
-    
+
     val resultText = when (log.result) {
         BattleResult.WIN -> "胜利"
         BattleResult.LOSE -> "失败"
         BattleResult.DRAW -> "平局"
     }
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -114,7 +129,7 @@ internal fun BattleLogItem(
         ) {
             Column {
                 Text(
-                    text = "第${log.year}年${log.month}月",
+                    text = "${resolveBattleTypeName(log)} · 第${log.year}年${log.month}月",
                     fontSize = 11.sp,
                     color = Color.Black
                 )
@@ -124,7 +139,7 @@ internal fun BattleLogItem(
                     color = Color.Black
                 )
             }
-            
+
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
@@ -244,7 +259,12 @@ internal fun BattleLogDetailDialog(
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "敌方妖兽",
+                            text = when (log.type) {
+                                BattleType.PVE -> "敌方妖兽"
+                                BattleType.SECT_WAR, BattleType.SCOUT -> "敌方宗门弟子"
+                                BattleType.CAVE_EXPLORATION -> "敌方守护兽"
+                                else -> "敌方"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
@@ -275,6 +295,29 @@ internal fun BattleLogDetailDialog(
                             }
                             repeat(4 - rowEnemies.size) {
                                 Spacer(modifier = Modifier.width(52.dp).height(84.dp))
+                            }
+                        }
+                    }
+
+                    // 战利品/被掠夺物品（敌方槽位区域下方）
+                    if (log.drops.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (log.result == BattleResult.LOSE) "被掠夺物品" else "战利品",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            log.drops.forEach { drop ->
+                                Text(
+                                    text = "· $drop",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF555555)
+                                )
                             }
                         }
                     }
@@ -447,7 +490,7 @@ internal fun BattleLogListItem(
         BattleResult.DRAW -> "平局"
     }
 
-    val typeText = log.type.displayName
+    val typeText = resolveBattleTypeName(log)
 
     Card(
         modifier = Modifier

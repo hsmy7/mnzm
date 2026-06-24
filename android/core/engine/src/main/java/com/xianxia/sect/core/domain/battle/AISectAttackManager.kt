@@ -11,6 +11,10 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.AISectPersonality
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -46,7 +50,13 @@ object AISectAttackManager {
         val survivingAttackers: List<Disciple>,
         /** 防守方幸存者 HP/MP（用于玩家宗门被攻时回写弟子状态） */
         val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
-        val defenderSurvivorMpMap: Map<String, Int> = emptyMap()
+        val defenderSurvivorMpMap: Map<String, Int> = emptyMap(),
+        /** 战斗回合明细（用于写入 battleLogs） */
+        val rounds: List<BattleLogRound> = emptyList(),
+        /** 我方弟子快照（战斗终态，用于日志展示） */
+        val teamMembers: List<BattleLogMember> = emptyList(),
+        /** 敌方快照（战斗终态，用于日志展示） */
+        val enemies: List<BattleLogEnemy> = emptyList()
     )
 
     fun decideAttacks(gameData: GameData): List<AIAttackResult> {
@@ -170,7 +180,8 @@ object AISectAttackManager {
             canOccupy = canOccupy,
             turns = result.turns,
             survivorHpMap = survivorHpMap,
-            survivorMpMap = survivorMpMap
+            survivorMpMap = survivorMpMap,
+            rounds = result.rounds
         )
     }
 
@@ -383,7 +394,8 @@ object AISectAttackManager {
             canOccupy = battleResult.canOccupy,
             survivingAttackers = survivingAttackers,
             defenderSurvivorHpMap = battleResult.survivorHpMap,
-            defenderSurvivorMpMap = battleResult.survivorMpMap
+            defenderSurvivorMpMap = battleResult.survivorMpMap,
+            rounds = battleResult.rounds
         )
     }
 
@@ -588,7 +600,8 @@ object AISectAttackManager {
             canOccupy = result.winner == AIBattleWinner.ATTACKER,
             turns = result.turns,
             survivorHpMap = survivorHpMap,
-            survivorMpMap = survivorMpMap
+            survivorMpMap = survivorMpMap,
+            rounds = result.rounds
         )
     }
 
@@ -596,7 +609,8 @@ object AISectAttackManager {
         val attackers: List<Combatant>,
         val defenders: List<Combatant>,
         val winner: AIBattleWinner,
-        val turns: Int
+        val turns: Int,
+        val rounds: List<BattleLogRound> = emptyList()
     )
 
     private fun executeUnifiedAIBattle(
@@ -606,8 +620,10 @@ object AISectAttackManager {
         var currentAttackers = attackers.toMutableList()
         var currentDefenders = defenders.toMutableList()
         var turn = 0
+        val rounds = mutableListOf<BattleLogRound>()
 
         while (turn < GameConfig.AI.MAX_BATTLE_TURNS) {
+            val roundActions = mutableListOf<BattleLogAction>()
             val allCombatants = (currentAttackers + currentDefenders)
                 .filter { !it.isDead }
                 .sortedByDescending { it.effectiveSpeed }
@@ -639,15 +655,15 @@ object AISectAttackManager {
                 val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
 
                 if (availableSkill != null && isSupportSkill) {
-                    executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap)
+                    executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)
                 } else if (availableSkill != null && isAoeSkill) {
-                    executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap)
+                    executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
                 } else if (availableSkill != null) {
                     val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap)
+                    executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
                 } else {
                     val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap)
+                    executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
                 }
 
                 currentAttackers = currentAttackers.filter { !it.isDead }.toMutableList()
@@ -656,6 +672,7 @@ object AISectAttackManager {
 
             processDotEffects(currentAttackers, currentDefenders)
 
+            rounds.add(BattleLogRound(roundNumber = turn + 1, actions = roundActions.toList()))
             turn++
 
             if (currentAttackers.isEmpty() || currentDefenders.isEmpty()) break
@@ -671,7 +688,8 @@ object AISectAttackManager {
             attackers = currentAttackers,
             defenders = currentDefenders,
             winner = winner,
-            turns = turn
+            turns = turn,
+            rounds = rounds
         )
     }
 
@@ -681,7 +699,8 @@ object AISectAttackManager {
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
         alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
     ) {
         if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
             val targetIdx = enemiesIndexMap[target.id]
@@ -692,6 +711,12 @@ object AISectAttackManager {
             if (combatantIdx != null && combatantIdx < allies.size) {
                 allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
             }
+            roundActions.add(BattleLogAction(
+                type = "normal", attacker = attacker.name,
+                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+                target = target.name, damage = target.maxHp,
+                isKill = true, message = "${attacker.name} 境界压制斩杀 ${target.name}"
+            ))
             return
         }
 
@@ -702,6 +727,12 @@ object AISectAttackManager {
             if (combatantIdx != null && combatantIdx < allies.size) {
                 allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
             }
+            roundActions.add(BattleLogAction(
+                type = "normal", attacker = attacker.name,
+                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+                target = target.name, damage = 0,
+                message = "${target.name} 闪避了 ${attacker.name} 的攻击"
+            ))
             return
         }
 
@@ -715,6 +746,12 @@ object AISectAttackManager {
         if (combatantIdx != null && combatantIdx < allies.size) {
             allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(attacker)
         }
+        roundActions.add(BattleLogAction(
+            type = "normal", attacker = attacker.name,
+            attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+            target = target.name, damage = result.damage,
+            isCrit = result.isCrit, isKill = newHp == 0
+        ))
     }
 
     private fun executeSingleAttackAction(
@@ -724,7 +761,8 @@ object AISectAttackManager {
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
         alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
     ) {
         if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
             val targetIdx = enemiesIndexMap[target.id]
@@ -735,6 +773,12 @@ object AISectAttackManager {
             if (combatantIdx != null && combatantIdx < allies.size) {
                 allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
             }
+            roundActions.add(BattleLogAction(
+                type = "skill", attacker = attacker.name,
+                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+                target = target.name, damage = target.maxHp, skillName = skill.name,
+                isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
+            ))
             return
         }
 
@@ -745,6 +789,12 @@ object AISectAttackManager {
             if (combatantIdx != null && combatantIdx < allies.size) {
                 allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
             }
+            roundActions.add(BattleLogAction(
+                type = "skill", attacker = attacker.name,
+                attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+                target = target.name, damage = 0, skillName = skill.name,
+                message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
+            ))
             return
         }
 
@@ -766,6 +816,12 @@ object AISectAttackManager {
         if (combatantIdx != null && combatantIdx < allies.size) {
             allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
         }
+        roundActions.add(BattleLogAction(
+            type = "skill", attacker = attacker.name,
+            attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender",
+            target = target.name, damage = result.damage, skillName = skill.name,
+            isCrit = result.isCrit, isKill = newHp == 0
+        ))
     }
 
     private fun executeAoeAttackAction(
@@ -775,8 +831,10 @@ object AISectAttackManager {
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
         alliesIndexMap: Map<String, Int>,
-        enemiesIndexMap: Map<String, Int>
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
     ) {
+        val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
         for (target in targets) {
             if (target.isDead) continue
 
@@ -785,12 +843,24 @@ object AISectAttackManager {
                 if (targetIdx != null && targetIdx < enemies.size) {
                     enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
                 }
+                roundActions.add(BattleLogAction(
+                    type = "skill", attacker = attacker.name, attackerType = attackerType,
+                    target = target.name, damage = target.maxHp, skillName = skill.name,
+                    isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
+                ))
                 continue
             }
 
             val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill)
 
-            if (result.isDodged) continue
+            if (result.isDodged) {
+                roundActions.add(BattleLogAction(
+                    type = "skill", attacker = attacker.name, attackerType = attackerType,
+                    target = target.name, damage = 0, skillName = skill.name,
+                    message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
+                ))
+                continue
+            }
 
             val newHp = maxOf(0, target.hp - result.damage)
             val targetIdx = enemiesIndexMap[target.id]
@@ -805,6 +875,11 @@ object AISectAttackManager {
 
                 enemies[targetIdx] = updatedTarget
             }
+            roundActions.add(BattleLogAction(
+                type = "skill", attacker = attacker.name, attackerType = attackerType,
+                target = target.name, damage = result.damage, skillName = skill.name,
+                isCrit = result.isCrit, isKill = newHp == 0
+            ))
         }
 
         val combatantIdx = alliesIndexMap[attacker.id]
@@ -818,7 +893,8 @@ object AISectAttackManager {
         allies: List<Combatant>,
         skill: CombatSkill,
         alliesList: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>
+        alliesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
     ) {
         val supportResult = BattleCalculator.executeSupportSkill(caster, allies, skill)
 
@@ -846,6 +922,16 @@ object AISectAttackManager {
         if (combatantIdx != null && combatantIdx < alliesList.size) {
             alliesList[combatantIdx] = BattleCalculator.updateCombatantCooldowns(caster, skill)
         }
+        roundActions.add(BattleLogAction(
+            type = "support", attacker = caster.name,
+            attackerType = if (caster.side == CombatantSide.ATTACKER) "attacker" else "defender",
+            target = allies.joinToString("、") { it.name }, damage = supportResult.healAmount,
+            skillName = skill.name,
+            message = "${caster.name} 施展 ${skill.name}" +
+                if (supportResult.healAmount > 0) "，恢复 ${supportResult.healedIds.size} 名友方 ${supportResult.healAmount}"
+                else if (supportResult.teamBuffs.isNotEmpty()) "，强化 ${supportResult.teamBuffs.size} 名友方"
+                else ""
+        ))
     }
 
     private fun processDotEffects(attackers: MutableList<Combatant>, defenders: MutableList<Combatant>) {
@@ -1044,7 +1130,10 @@ data class AIBattleResult(
     val canOccupy: Boolean,
     val turns: Int = 0,
     val survivorHpMap: Map<String, Int> = emptyMap(),
-    val survivorMpMap: Map<String, Int> = emptyMap()
+    val survivorMpMap: Map<String, Int> = emptyMap(),
+    val rounds: List<BattleLogRound> = emptyList(),
+    val teamMembers: List<BattleLogMember> = emptyList(),
+    val enemies: List<BattleLogEnemy> = emptyList()
 )
 
 data class PlayerLootLossResult(

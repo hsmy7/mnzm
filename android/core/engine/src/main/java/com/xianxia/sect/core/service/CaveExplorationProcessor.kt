@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
+import com.xianxia.sect.core.engine.domain.battle.PlayerLootLossResult
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
@@ -403,7 +404,7 @@ class CaveExplorationProcessor @Inject constructor(
             },
             enemies = battleResult.log.enemies.map { enemy ->
                 BattleLogEnemy(
-                    id = enemy.id, name = enemy.name,
+                    id = enemy.id, name = "守护兽",
                     realm = enemy.realm, realmName = enemy.realmName,
                     realmLayer = enemy.realmLayer,
                     hp = enemy.hp, maxHp = enemy.maxHp,
@@ -867,6 +868,7 @@ class CaveExplorationProcessor @Inject constructor(
                 val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
 
                 val playerSectId = currentGameData.worldMapSects.find { it.isPlayerSect }?.id ?: return@update
+                val playerSectName = currentGameData.worldMapSects.find { it.isPlayerSect }?.name ?: "玩家宗门"
 
                 var updatedData = gameData.copy(
                     aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
@@ -900,9 +902,10 @@ class CaveExplorationProcessor @Inject constructor(
                 }
                 updatedData = updatedData.copy(sectRelations = updatedRelations)
 
+                var lootResult: PlayerLootLossResult? = null
                 if (result.winner == AIBattleWinner.ATTACKER) {
                     val playerDetail = updatedData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
-                    val lootResult = sectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
+                    lootResult = sectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
                     val updatedWarehouse = sectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
                     updatedData = updatedData.copy(
                         sectDetails = updatedData.sectDetails.toMutableMap().apply {
@@ -910,6 +913,57 @@ class CaveExplorationProcessor @Inject constructor(
                         }
                     )
                 }
+
+                // 写入战斗日志（玩家方视角）
+                val participantIds = result.deadDefenderIds.toSet() + result.defenderSurvivorHpMap.keys
+                val teamMembers = newDisciples
+                    .filter { it.id in participantIds }
+                    .map { d ->
+                        BattleLogMember(
+                            id = d.id, name = d.name, realm = d.realm, realmName = d.realmName,
+                            hp = result.defenderSurvivorHpMap[d.id] ?: 0, maxHp = d.maxHp,
+                            mp = result.defenderSurvivorMpMap[d.id] ?: 0, maxMp = d.maxMp,
+                            isAlive = d.id !in result.deadDefenderIds, portraitRes = d.portraitRes
+                        )
+                    }
+                val enemies = attackerDisciples.map { d ->
+                    BattleLogEnemy(
+                        id = d.id, name = "${result.attackerSectName}弟子", realm = d.realm,
+                        realmName = d.realmName, hp = 0, maxHp = d.maxHp,
+                        isAlive = d.id !in result.deadAttackerIds, portraitRes = d.portraitRes
+                    )
+                }
+                val drops = mutableListOf<String>()
+                lootResult?.let { lr ->
+                    if (lr.lostSpiritStones > 0) drops.add("灵石 ×${lr.lostSpiritStones}")
+                    lr.lostMaterials.forEach { (key, qty) ->
+                        // key 格式: itemId:itemType:rarity:itemName
+                        val itemName = key.substringAfterLast(':')
+                        drops.add("$itemName ×$qty")
+                    }
+                }
+                val battleResult = when (result.winner) {
+                    AIBattleWinner.ATTACKER -> BattleResult.LOSE
+                    AIBattleWinner.DEFENDER -> BattleResult.WIN
+                    AIBattleWinner.DRAW -> BattleResult.DRAW
+                }
+                recordPlayerBattle(
+                    year = currentGameData.gameYear,
+                    month = currentGameData.gameMonth,
+                    type = BattleType.SECT_WAR,
+                    attackerName = result.attackerSectName,
+                    defenderName = playerSectName,
+                    result = battleResult,
+                    teamMembers = teamMembers,
+                    enemies = enemies,
+                    rounds = result.rounds,
+                    turns = result.rounds.size,
+                    details = "${result.attackerSectName} 进犯${playerSectName}，" +
+                        if (result.winner == AIBattleWinner.ATTACKER) "防守失利"
+                        else if (result.winner == AIBattleWinner.DEFENDER) "防守成功"
+                        else "不分胜负",
+                    drops = drops
+                )
 
                 gameData = updatedData
             }

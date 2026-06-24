@@ -1,4 +1,4 @@
-[
+﻿[
 	{
 		"date": "2026-06-25",
 		"version": "4.0.23",
@@ -6,7 +6,12 @@
 			"修复：游玩时弟子批量消失（数十名同时消失直至个位数）——CultivationSettlement的processSalaryYearly/settleSalaryOnBreakthrough/processResidenceLoyalty与DiscipleLifecycleProcessor的processGriefExpiry/processReflectionRelease在入口捕获快照后通过scope.launch异步执行clear()+insert(陈旧快照)，与月度结算的createSettlementShadow().deepCopy()并发，导致shadow捕获到空ids，swapFromShadow整体覆盖活表导致全体弟子瞬间消失。修复：上述5个函数改为suspend，在stateStore.update事务内直接读取最新discipleTables并同步操作，消除异步覆盖竞态。新增CultivationSettlementConcurrencyTest（11个回归测试）覆盖正常路径、边界条件与并发安全性",
 			"调整：灵石兑换汇率改为售卖价——中品/上品灵石兑换按下品等价80%（一键售卖价）折算，1中品↔8,000下品、1上品↔8,000中品↔6,400万下品",
 			"优化：宗门信息卡片显示总灵石数量——顶栏灵石按售卖价汇总显示总下品等价，中品/上品明细以较小字体显示",
-			"新增：灵石自动补差价设置——设置界面新增「自动售卖中品灵石补差价」和「自动售卖上品灵石补差价」勾选框（默认不勾选），勾选后消费下品灵石不足时自动按售卖价卖出中品/上品补足差额"
+			"新增：灵石自动补差价设置——设置界面新增「自动售卖中品灵石补差价」和「自动售卖上品灵石补差价」勾选框（默认不勾选），勾选后消费下品灵石不足时自动按售卖价卖出中品/上品补足差额",
+			"新增：战斗日志统一记录玩家参与的全部战斗——AI宗门进攻玩家宗门（宗门防守战）和任务战斗此前无日志，现全部补写。AI战斗结果（AIBattleResult/AIAttackResult/UnifiedAIBattleResult）扩展rounds字段携带完整回合明细，攻击宗门日志同步补齐rounds和战利品。新增recordPlayerBattle统一写入入口，所有玩家战斗调用统一函数避免遗漏",
+			"优化：战斗日志敌人描述区分战斗来源——此前所有敌方统一显示为「妖兽」，现按战斗类型区分：妖兽战显示「妖兽」、宗门战显示「xx宗弟子」、任务战显示「敌人」、洞府战显示「守护兽」",
+			"优化：战斗日志列表显示具体战斗名称——日志列表项标题由PVE/PVP改为具体战斗名称（妖兽战/任务战/宗门战/宗门防守战/探查战/洞府战），PVE被妖兽战和任务战复用时按details字段区分",
+			"新增：战斗日志战利品/被掠夺物品显示——战斗详情弹窗敌方槽位区域下方新增战利品列表，胜利时显示获得的物品/灵石，失败时显示被掠夺的物品/灵石",
+			"清理：CombatService遗留无调用方法——删除executeCaveAIBattle/executeCaveGuardianBattle两个无调用者的遗留方法"
 		]
 	},
 	{

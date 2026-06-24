@@ -616,7 +616,7 @@ fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
                 val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
                 val proficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
                 val result = MissionSystem.processMissionCompletion(activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem)
-                applyMissionResult(result)
+                applyMissionResult(result, activeMission, data.gameYear, data.gameMonth, aliveDisciples)
             }
             for (did in activeMission.discipleIds) {
                 val disciple = stateStore.disciplesSnapshot.find { it.id == did }
@@ -634,12 +634,76 @@ fun GameEngine.processMonthlyMissionRefresh() {
     updateGameDataSync { it.copy(availableMissions = result.cleanedMissions) }
 }
 
-private fun GameEngine.applyMissionResult(result: MissionSystem.MissionResult) {
+private fun GameEngine.applyMissionResult(
+    result: MissionSystem.MissionResult,
+    activeMission: ActiveMission,
+    year: Int,
+    month: Int,
+    aliveDisciples: List<Disciple>
+) {
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
     result.materials.forEach { inventorySystem.addMaterial(it) }
     result.pills.forEach { inventorySystem.addPill(it) }
     result.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
     result.manualStacks.forEach { inventorySystem.addManualStack(it) }
+
+    // 有战斗则写入战斗日志
+    if (result.combatTriggered && result.battleResult != null) {
+        val bsr = result.battleResult
+        val logData = bsr.log
+        val teamMembers = logData.teamMembers.map { m ->
+            BattleLogMember(
+                id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+                hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+                isAlive = m.isAlive, portraitRes = m.portraitRes
+            )
+        }
+        val enemies = logData.enemies.map { e ->
+            BattleLogEnemy(
+                id = e.id, name = "敌人", realm = e.realm, realmName = e.realmName,
+                hp = e.hp, maxHp = e.maxHp, isAlive = e.isAlive, portraitRes = e.portraitRes
+            )
+        }
+        val rounds = logData.rounds.map { r ->
+            BattleLogRound(
+                roundNumber = r.roundNumber,
+                actions = r.actions.map { a ->
+                    BattleLogAction(
+                        type = a.type, attacker = a.attacker, attackerType = a.attackerType,
+                        target = a.target, damage = a.damage, damageType = a.damageType,
+                        isCrit = a.isCrit, isKill = a.isKill, message = a.message,
+                        skillName = a.skillName
+                    )
+                }
+            )
+        }
+        val drops = mutableListOf<String>()
+        if (result.spiritStones > 0) drops.add("灵石 ×${result.spiritStones}")
+        result.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
+        result.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
+        result.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+        result.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+
+        gameEngineCore.launchInScope {
+            stateStore.update {
+                recordPlayerBattle(
+                    year = year,
+                    month = month,
+                    type = BattleType.PVE,
+                    attackerName = "玩家队伍",
+                    defenderName = activeMission.missionName,
+                    result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
+                    teamMembers = teamMembers,
+                    enemies = enemies,
+                    rounds = rounds,
+                    turns = bsr.turnCount,
+                    details = "执行任务「${activeMission.missionName}」，" +
+                        if (result.victory) "战斗胜利" else "战斗失利",
+                    drops = drops
+                )
+            }
+        }
+    }
 }
 
 // ── Service delegates ───────────────────────────────────────────────
