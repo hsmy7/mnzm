@@ -489,7 +489,9 @@ class BattleAITest {
             val action = BattleAI.decideAction(
                 unit, listOf(unit), listOf(enemy), Random(seed)
             )
-            if (action.actionType == BattleAI.AIActionType.SKILL_ATTACK_SINGLE) {
+            if (action.actionType ==
+                BattleAI.AIActionType.SKILL_ATTACK_SINGLE
+            ) {
                 assertEquals("定身", action.skill?.name)
                 assertEquals("enemy", action.target?.id)
                 foundControl = true
@@ -503,7 +505,7 @@ class BattleAITest {
     }
 
     @Test
-    fun `unit with only stun falls back to normal attack when control fails`() {
+    fun `stun only unit falls back to normal attack when control fails`() {
         val stun = stunSkill()
         val unit = combatant(
             id = "stunner", hp = 800, maxHp = 1000,

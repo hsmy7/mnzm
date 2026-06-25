@@ -39,7 +39,8 @@ fun HeavenlyTrialBattleResultDialog(
         ) {
             Spacer(Modifier.weight(1f))
             Text(
-                "用时 %02d分%02d秒  总回合 %d".format(minutes, seconds, totalRounds),
+                "用时 %02d分%02d秒  总回合 %d"
+                    .format(minutes, seconds, totalRounds),
                 fontSize = 14.sp,
                 color = Color.Black
             )
