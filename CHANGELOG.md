@@ -20,8 +20,12 @@
 - **修复：每日签到灵石描述未标注品阶** — `DailySignInService` 中 5 处"灵石"硬编码文本（3 处奖励定义、1 处容量错误提示、1 处奖励卡片 itemName）统一改为"下品灵石"，与实际奖励品阶一致
 - **修复：弟子在列表界面不修炼（空闲挂机无成长）** — 空闲模式（30秒无操作）下 DISCIPLES 域切至 BACKGROUND，配合手机发热触发热控批量结算（`batchMonths` > 1），`SettlementCoordinator` 修炼公式将 HFD 累积值（`alreadyGained`）从**每个月**的修炼值中扣除而非从**总额**扣除，导致非焦点弟子修为大量损失。修复：修炼公式改为 `(monthlyGain × batchMonths − alreadyGained) ≥ 0 + alreadyGained`（从总额扣一次）；突破检查移除对 `BREAKTHROUGH` dirtyFlag 的依赖，直接判断 `cultivation ≥ maxCultivation && fullHpMp`；`SettlementCache` 每次月结从头构建、不再跨月复用；HFD 统一在 `onSettlementComplete` 中重置。新增 `SettlementCoordinatorCultivationTest`（10 个测试）覆盖公式修正、batchMonths 分批、已获修为不损失、突破前提等核心路径
 - **修复：非焦点弟子修为反复归零永远卡在练气一层** — `SettlementCoordinator` 月度结算中，修炼值写入组件表后调用 `processBreakthroughForDisciple` 时传入的是从组件表组装的旧 `disciple` 对象（cultivation 未被更新），函数内部守卫条件 `d.cultivation < d.maxCultivation` 用旧值判定立即跳过突破循环，随后 `writeDiscipleToTables` 将旧修为 0.0 覆盖掉刚写入的正确值 → 每月修炼到满值后立刻回滚，弟子永远困在练气一层。修复：`processBreakthroughForDisciple` 内部从 `shadow.discipleTables` 重新读取当前修为，确保突破条件判定使用最新值。新增回归测试覆盖突破跳过→回滚的临界路径
+- **修复：天道试炼试炼弟子伤害仅1点** — BattleAI 的技能分类逻辑将 damageMultiplier=0 但 skillType=ATTACK 的控制技能（如定身诀）错误归入 attackSkills，AI 在攻击决策阶段选中此类技能后技能倍率为0，经 BattleCalculator 计算最终伤害钳制到1。修复：以 damageMultiplier>0 为 attackSkills 唯一分类依据（不再看 skillType），控制技能改用 usableSkills 全集查找，0伤害技能不会被用作攻击；无伤害技能时自动回退普通攻击。新增 4 个 BattleAI 回归测试
+- **修复：天道试炼玩家弟子非满状态出战** — HeavenlyTrialViewModel.startCombat() 转换弟子为 Combatant 时使用弟子当前 HP/MP（可能因之前的战斗或活动不满），导致进入试炼时状态不完整。修复：BattleSystem.convertDiscipleToCombatant() 新增 fullHeal 参数，天道试炼调用时传入 true，确保出战弟子满血满蓝
 
-### 调整
+### 优化
+
+- **优化：战斗界面增加回合数显示** — HeavenlyTrialCombatScreen 战斗界面上方中央显示「第x回」，战斗结算弹窗耗时旁显示「总回合 x」
 
 - **调整：灵石兑换汇率改为售卖价** — 中品/上品灵石兑换按下品等价80%（一键售卖价）折算，1中品↔8,000下品、1上品↔8,000中品↔6,400万下品
 

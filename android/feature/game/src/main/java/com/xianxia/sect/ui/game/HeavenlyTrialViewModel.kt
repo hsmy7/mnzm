@@ -89,7 +89,10 @@ class HeavenlyTrialViewModel @Inject constructor(
             }
         val playerStats = disciples.map { d ->
             val disciple = d.toDisciple()
-            battleSystem.convertDiscipleToCombatant(disciple, equipMap, manualMap, allProficiencies)
+            battleSystem.convertDiscipleToCombatant(
+                disciple, equipMap, manualMap, allProficiencies,
+                fullHeal = true
+            )
         }
         playerCombatants = playerStats
         enemyCombatants = enemies

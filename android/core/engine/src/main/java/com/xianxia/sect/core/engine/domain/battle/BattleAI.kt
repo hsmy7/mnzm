@@ -113,10 +113,10 @@ object BattleAI {
         }
 
         val attackSkills = usableSkills.filter {
-            it.skillType == SkillType.ATTACK || it.damageMultiplier > 0
+            it.damageMultiplier > 0
         }
         val supportSkills = usableSkills.filter {
-            it.skillType != SkillType.ATTACK && it.damageMultiplier <= 0
+            it.damageMultiplier <= 0
         }
 
         // ---- Tier 2: 保命 (HP < 25%) ----
@@ -156,9 +156,9 @@ object BattleAI {
         }
 
         // ---- Tier 6: 控制 (高威胁未受控敌人) ----
-        if (random.nextDouble() < PROB_CONTROL && attackSkills.isNotEmpty()) {
+        if (random.nextDouble() < PROB_CONTROL) {
             val ccAction = findControlAction(
-                unit, aliveEnemies, attackSkills
+                unit, aliveEnemies, usableSkills
             )
             if (ccAction != null) return ccAction
         }
@@ -461,9 +461,9 @@ object BattleAI {
     private fun findControlAction(
         unit: Combatant,
         enemies: List<Combatant>,
-        attackSkills: List<CombatSkill>
+        skills: List<CombatSkill>
     ): AIAction? {
-        val ccSkills = attackSkills.filter { skill ->
+        val ccSkills = skills.filter { skill ->
             skill.buffType in listOf(
                 BuffType.STUN, BuffType.FREEZE,
                 BuffType.SILENCE, BuffType.TAUNT

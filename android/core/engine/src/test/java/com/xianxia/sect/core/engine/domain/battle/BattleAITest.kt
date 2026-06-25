@@ -108,6 +108,23 @@ class BattleAITest {
         isAoe = isAoe
     )
 
+    private fun stunSkill(
+        name: String = "定身",
+        mpCost: Int = 20,
+        cooldown: Int = 5
+    ) = CombatSkill(
+        name = name,
+        skillType = SkillType.ATTACK,
+        damageType = DamageType.PHYSICAL,
+        damageMultiplier = 0.0,
+        mpCost = mpCost,
+        cooldown = cooldown,
+        buffType = BuffType.STUN,
+        buffValue = 1.0,
+        buffDuration = 1,
+        targetScope = "enemy"
+    )
+
     private fun stunBuff() = CombatBuff(
         type = BuffType.STUN, value = 1.0,
         remainingDuration = 1
@@ -451,5 +468,115 @@ class BattleAITest {
             caster, listOf(caster), skill
         )
         assertNull(target)
+    }
+
+    // ---- 零伤害攻击技能回归测试 ----
+
+    @Test
+    fun `unit with only stun skill uses control action`() {
+        val stun = stunSkill()
+        val unit = combatant(
+            id = "stunner", hp = 800, maxHp = 1000,
+            skills = listOf(stun)
+        )
+        val enemy = combatant(
+            id = "enemy", hp = 800, maxHp = 1000,
+            side = CombatantSide.ATTACKER, buffs = emptyList()
+        )
+        // 找能命中 60% 控制概率的种子
+        var foundControl = false
+        for (seed in 1..100) {
+            val action = BattleAI.decideAction(
+                unit, listOf(unit), listOf(enemy), Random(seed)
+            )
+            if (action.actionType == BattleAI.AIActionType.SKILL_ATTACK_SINGLE) {
+                assertEquals("定身", action.skill?.name)
+                assertEquals("enemy", action.target?.id)
+                foundControl = true
+                break
+            }
+        }
+        assertTrue(
+            "至少有一个种子会使眩晕技能被用作控制",
+            foundControl
+        )
+    }
+
+    @Test
+    fun `unit with only stun falls back to normal attack when control fails`() {
+        val stun = stunSkill()
+        val unit = combatant(
+            id = "stunner", hp = 800, maxHp = 1000,
+            skills = listOf(stun)
+        )
+        var foundNormalAttack = false
+        for (seed in 1..50) {
+            val action = BattleAI.decideAction(
+                unit, listOf(unit),
+                listOf(combatant("e1", side = CombatantSide.ATTACKER)),
+                Random(seed)
+            )
+            if (action.actionType == BattleAI.AIActionType.NORMAL_ATTACK) {
+                foundNormalAttack = true
+                assertNull(action.skill)
+                break
+            }
+        }
+        assertTrue(
+            "至少有一个种子会使 AI 回退到普通攻击",
+            foundNormalAttack
+        )
+    }
+
+    @Test
+    fun `stun not used as attack when mixed with damage skills`() {
+        val stun = stunSkill()
+        val damage = attackSkill("斩击", dmgMult = 1.5, mpCost = 30)
+        val unit = combatant(
+            id = "hybrid", hp = 800, maxHp = 1000,
+            skills = listOf(damage, stun)
+        )
+        val action = BattleAI.decideAction(
+            unit, listOf(unit),
+            listOf(combatant("e1", side = CombatantSide.ATTACKER)),
+            fixedRandom
+        )
+        // 如果使用技能攻击，必须是伤害技能（不是眩晕）
+        if (action.actionType == BattleAI.AIActionType.SKILL_ATTACK_SINGLE) {
+            assertTrue(
+                "攻击技能应该造成伤害",
+                (action.skill?.damageMultiplier ?: 0.0) > 0.0
+            )
+        }
+    }
+
+    @Test
+    fun `zero damage non-control skills fall back to normal attack`() {
+        val zeroDmg = CombatSkill(
+            name = "零伤", skillType = SkillType.ATTACK,
+            damageType = DamageType.PHYSICAL,
+            damageMultiplier = 0.0, mpCost = 10, cooldown = 1,
+            targetScope = "enemy"
+        )
+        val unit = combatant(
+            id = "weak", hp = 800, maxHp = 1000,
+            skills = listOf(zeroDmg)
+        )
+        var foundNormalAttack = false
+        for (seed in 1..50) {
+            val action = BattleAI.decideAction(
+                unit, listOf(unit),
+                listOf(combatant("e1", side = CombatantSide.ATTACKER)),
+                Random(seed)
+            )
+            if (action.actionType == BattleAI.AIActionType.NORMAL_ATTACK) {
+                foundNormalAttack = true
+                break
+            }
+        }
+        assertTrue(
+            "零伤害非控制技能应回退到普通攻击",
+            foundNormalAttack
+        )
     }
 }

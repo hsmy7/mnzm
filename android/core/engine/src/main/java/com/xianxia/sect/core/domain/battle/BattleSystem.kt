@@ -62,7 +62,8 @@ class BattleSystem @Inject constructor() {
         equipmentMap: Map<String, EquipmentInstance>,
         manualMap: Map<String, ManualInstance>,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        side: CombatantSide = CombatantSide.DEFENDER
+        side: CombatantSide = CombatantSide.DEFENDER,
+        fullHeal: Boolean = false
     ): Combatant {
         val discipleProficiencies = manualProficiencies[disciple.id] ?: emptyMap()
         val stats = disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
@@ -80,8 +81,12 @@ class BattleSystem @Inject constructor() {
             ).toCombatSkill(manualName = manual.name)
         }
 
-        val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
-        val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
+        val effectiveHp = if (fullHeal) stats.maxHp
+            else if (disciple.combat.currentHp < 0) stats.maxHp
+            else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+        val effectiveMp = if (fullHeal) stats.maxMp
+            else if (disciple.combat.currentMp < 0) stats.maxMp
+            else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
 
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"

@@ -268,6 +268,7 @@ fun HeavenlyTrialCombatScreen(
     var enemyTeam by remember { mutableStateOf(viewModel.enemyCombatants) }
     var isDefending by remember { mutableStateOf(mutableSetOf<String>()) }
     var showExitConfirm by remember { mutableStateOf(false) }
+    var currentRound by remember { mutableStateOf(1) }
     val battleStartTime = remember { System.currentTimeMillis() }
 
     // Animation state
@@ -508,6 +509,7 @@ fun HeavenlyTrialCombatScreen(
             isDefending = mutableSetOf()
             currentPlayerIdx = 0
             isAnimating = false
+            currentRound++
             if (playerTeam.any { !it.isDead }) {
                 phase = BattlePhase.PLAYER_TURN
             }
@@ -660,6 +662,16 @@ fun HeavenlyTrialCombatScreen(
                 }
             }
         }
+
+        // 回合数显示
+        Text(
+            text = "第${currentRound}回",
+            color = Color.Black,
+            fontSize = 16.sp,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 12.dp)
+        )
 
         // 右上角关闭按钮（必须在网格之后，确保 z-order 在最上层）
         CloseButton(
@@ -1016,6 +1028,7 @@ fun HeavenlyTrialCombatScreen(
             HeavenlyTrialBattleResultDialog(
                 won = viewModel.resultWon,
                 durationSeconds = viewModel.resultDuration,
+                totalRounds = currentRound,
                 onDismiss = {
                     viewModel.dismissResult()
                     onFinished(viewModel.resultWon)

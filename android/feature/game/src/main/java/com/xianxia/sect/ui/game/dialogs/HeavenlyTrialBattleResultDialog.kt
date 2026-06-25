@@ -19,6 +19,7 @@ import com.xianxia.sect.ui.theme.GameColors
 fun HeavenlyTrialBattleResultDialog(
     won: Boolean,
     durationSeconds: Long,
+    totalRounds: Int,
     onDismiss: () -> Unit
 ) {
     val minutes = durationSeconds / 60
@@ -38,7 +39,7 @@ fun HeavenlyTrialBattleResultDialog(
         ) {
             Spacer(Modifier.weight(1f))
             Text(
-                "用时 %02d分%02d秒".format(minutes, seconds),
+                "用时 %02d分%02d秒  总回合 %d".format(minutes, seconds, totalRounds),
                 fontSize = 14.sp,
                 color = Color.Black
             )
