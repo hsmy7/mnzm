@@ -8,9 +8,9 @@ plugins {
     alias(libs.plugins.protobuf)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.detekt)
-    // 待华为 AGC 凭证就绪后启用
+    // 决策：保留。AGConnect Crash 在 CrashHandler.kt/XianxiaApplication.kt 已预留集成点，待凭证就绪后启用。
     // id 'com.huawei.agconnect'
-    // TODO: 取消注释并提供 google-services.json → id 'com.google.gms.google-services'
+    // 决策：保留。与下方 Firebase 依赖配套，待 google-services.json 就绪后启用。
     // id 'com.google.gms.google-services'
 }
 
@@ -134,21 +134,6 @@ android {
     }
 }
 
-// Workaround: Kotlin/Hilt duplicates library classes (StackableItem from
-// :core:domain) into app classpath. Strip before dexing (debug) or R8 (release).
-tasks.matching { it.name == 'dexBuilderDebug' || it.name == 'minifyReleaseWithR8' }.configureEach {
-    doFirst {
-        file("$buildDir/tmp/kotlin-classes").eachFileRecurse { f ->
-            if (f.name.startsWith('StackableItem') && f.name.endsWith('.class'))
-                f.delete()
-        }
-        file("$buildDir/intermediates/classes").eachFileRecurse { f ->
-            if (f.name.startsWith('StackableItem') && f.name.endsWith('.class'))
-                f.delete()
-        }
-    }
-}
-
 dependencies {
     implementation project(':core:domain')
     implementation project(':core:data')
@@ -225,7 +210,7 @@ dependencies {
     implementation libs.bugly.crashreport
     implementation libs.bugly.nativecrashreport
 
-    // Firebase — TODO: 取消注释 + 提供 google-services.json + 取消注释 google-services plugin
+    // 决策：保留。libs.versions.toml 已固定 Firebase 版本，待 google-services.json 就绪后启用。
     // implementation platform(libs.firebase.bom)
     // implementation libs.firebase.config
     // implementation libs.firebase.analytics

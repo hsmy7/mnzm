@@ -43,7 +43,15 @@ dependencies {
     compileOnly libs.compose.runtime
     compileOnly libs.compose.ui.graphics
 
-    // Room 注解（@Entity, @ColumnInfo 等）— room-common 仅含注解，无 Android 框架依赖
+    // 架构决策：domain 层保留 Room 注解作为持久化元数据
+    // 理由：domain 层 22 个实体类同时承担领域模型与持久化实体双重职责，
+    //       data 层 @Database 直接引用这些类型作为表实体。
+    //       引入 DTO 层需新建 32 个 DTO 类 + 32 套双向映射 + 修改 400+ Dao 方法签名，
+    //       样板代码量大且 Disciple 的 6 个 @Embedded 映射极易出错。
+    //       经评估，保留现状的收益高于 DTO 层引入成本。
+    // 约束：Room 注解使用范围不得扩大（由 DomainDependencyTest 守护），
+    //       仅限 @Entity/@ColumnInfo/@PrimaryKey/@Embedded/@Ignore/@Index/@ForeignKey，
+    //       不得引入 Room 运行时依赖（room-runtime/room-ktx）。
     implementation libs.room.common
 
     testImplementation libs.junit

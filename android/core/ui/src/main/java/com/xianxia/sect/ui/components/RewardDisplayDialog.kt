@@ -58,7 +58,7 @@ fun RewardCardItem.toItemCardData(): ItemCardData = ItemCardData(
     isHerb = itemType == "herb",
     isMaterial = itemType in listOf("material", "beastMaterial"),
     isSeed = itemType == "seed",
-    isSpiritStone = itemType == "spiritStones",
+    spiritStoneGrade = if (itemType == "spiritStones") com.xianxia.sect.core.model.SpiritStoneGrade.LOW else null,
     isBag = itemType == "storageBag",
     isManual = itemType == "manual"
 )

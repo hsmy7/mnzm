@@ -96,6 +96,11 @@ class GameViewModel @Inject constructor(
 
     private val _dialogOpenTrigger = MutableSharedFlow<Unit>(replay = 0)
 
+    /**
+     * 打开指定路由的对话框，并通知引擎当前激活的对话框。
+     *
+     * @param route 目标对话框路由
+     */
     fun navigateToDialog(route: DialogRoute) {
         _currentDialogRoute.value = route
         gameEngine.setActiveDialog(route.toString())
@@ -109,11 +114,13 @@ class GameViewModel @Inject constructor(
         gameEngine.notifyUserInteraction()
     }
 
+    /** 关闭当前对话框，将路由重置为 [DialogRoute.None] 并清空引擎侧激活状态 */
     fun dismissDialog() {
         _currentDialogRoute.value = DialogRoute.None
         gameEngine.setActiveDialog(null)
     }
 
+    /** 通知引擎有用户交互（与 [onUserInteraction] 等价，保留以兼容旧调用点） */
     fun notifyUserInteraction() {
         gameEngine.notifyUserInteraction()
     }
@@ -132,58 +139,95 @@ class GameViewModel @Inject constructor(
      */
     fun closeCurrentDialog() = navigation.closeCurrentDialog()
 
+    /** 关闭所有对话框，委托给 [NavigationDelegate] */
     fun closeAllDialogs() = navigation.closeAllDialogs()
 
+    /** 打开灵矿场对话框，委托给 [NavigationDelegate] */
     fun openSpiritMineDialog(mineIndex: Int = 0) = navigation.openSpiritMineDialog(mineIndex)
 
+    /** 打开灵田对话框，委托给 [NavigationDelegate] */
     fun openHerbGardenDialog() = navigation.openHerbGardenDialog()
 
+    /** 打开炼丹房对话框，委托给 [NavigationDelegate] */
     fun openAlchemyDialog(buildingIndex: Int = 0) = navigation.openAlchemyDialog(buildingIndex)
 
+    /** 打开炼器坊对话框，委托给 [NavigationDelegate] */
     fun openForgeDialog(buildingIndex: Int = 0) = navigation.openForgeDialog(buildingIndex)
 
+    /** 打开藏经阁对话框，委托给 [NavigationDelegate] */
     fun openLibraryDialog() = navigation.openLibraryDialog()
 
+    /** 打开问道峰对话框，委托给 [NavigationDelegate] */
     fun openWenDaoPeakDialog() = navigation.openWenDaoPeakDialog()
 
+    /** 打开青云峰对话框，委托给 [NavigationDelegate] */
     fun openQingyunPeakDialog() = navigation.openQingyunPeakDialog()
 
+    /** 打开天枢殿对话框，委托给 [NavigationDelegate] */
     fun openTianshuHallDialog() = navigation.openTianshuHallDialog()
 
+    /** 打开执法堂对话框，委托给 [NavigationDelegate] */
     fun openLawEnforcementHallDialog() = navigation.openLawEnforcementHallDialog()
 
+    /** 打开任务堂对话框，委托给 [NavigationDelegate] */
     fun openMissionHallDialog() = navigation.openMissionHallDialog()
 
+    /** 打开思过崖对话框，委托给 [NavigationDelegate] */
     fun openReflectionCliffDialog() = navigation.openReflectionCliffDialog()
 
+    /** 打开巡视楼对话框，委托给 [NavigationDelegate] */
     fun openPatrolTowerDialog(buildingInstanceId: String = "") = navigation.openPatrolTowerDialog(buildingInstanceId.ifEmpty { "" })
 
+    /** 打开血炼池对话框，委托给 [NavigationDelegate] */
     fun openBloodRefiningPoolDialog(buildingInstanceId: String = "") = navigation.openBloodRefiningPoolDialog(buildingInstanceId.ifEmpty { "" })
 
+    /** 打开世界地图对话框，委托给 [NavigationDelegate] */
     fun openWorldMapDialog() = navigation.openWorldMapDialog()
 
+    /** 打开招募弟子对话框，委托给 [NavigationDelegate] */
     fun openRecruitDialog() = navigation.openRecruitDialog()
 
+    /** 打开坊市对话框，委托给 [NavigationDelegate] */
     fun openMerchantDialog() = navigation.openMerchantDialog()
 
+    /** 打开外交对话框，委托给 [NavigationDelegate] */
     fun openDiplomacyDialog() = navigation.openDiplomacyDialog()
 
+    /**
+     * 攻击世界关卡，委托给 [NavigationDelegate]
+     *
+     * @param levelId 关卡 ID
+     * @param discipleIds 参战弟子 ID 列表（元素可为 null 表示空位）
+     */
     fun attackWorldLevel(levelId: String, discipleIds: List<String?>) = navigation.attackWorldLevel(levelId, discipleIds)
 
+    /** 打开战斗记录对话框，委托给 [NavigationDelegate] */
     fun openBattleLogDialog() = navigation.openBattleLogDialog()
 
+    /** 关闭战斗结果展示，委托给 [NavigationDelegate] */
     fun dismissBattleResult() = navigation.dismissBattleResult()
 
+    /**
+     * 处理兽袭事件 — 选择进贡物资以平息该兽袭。
+     *
+     * @param beastLevelId 兽袭关卡 ID
+     */
     fun resolveBeastAttackPayTribute(beastLevelId: String) {
         gameEngine.resolveBeastAttackPayTribute(beastLevelId)
     }
 
+    /**
+     * 处理兽袭事件 — 选择战斗抵抗。
+     *
+     * @param beastLevelId 兽袭关卡 ID
+     */
     fun resolveBeastAttackFight(beastLevelId: String) {
         viewModelScope.launch {
             gameEngine.resolveBeastAttackFight(beastLevelId)
         }
     }
 
+    /** 清空所有待处理的兽袭事件 */
     fun clearPendingBeastAttacks() {
         gameEngine.clearPendingBeastAttacks()
     }
@@ -207,24 +251,40 @@ class GameViewModel @Inject constructor(
             emptyList()
         )
 
+    /**
+     * 处理 AI 宗门进攻预警 — 选择安抚（支付资源）以避免进攻。
+     *
+     * @param sectId 进攻方宗门 ID
+     */
     fun resolveAttackWarningAppease(sectId: String) {
         viewModelScope.launch {
             gameEngine.appeaseAttackingSect(sectId)
         }
     }
 
+    /**
+     * 处理 AI 宗门进攻预警 — 选择成为附庸以避免进攻。
+     *
+     * @param sectId 进攻方宗门 ID
+     */
     fun resolveAttackWarningVassal(sectId: String) {
         viewModelScope.launch {
             gameEngine.becomeVassalOfAttacker(sectId)
         }
     }
 
+    /**
+     * 标记某预警阶段已展示过，避免重复弹出。
+     *
+     * @param stageKey 预警阶段标识
+     */
     fun markWarningStageShown(stageKey: String) {
         viewModelScope.launch {
             gameEngine.markWarningStageShown(stageKey)
         }
     }
 
+    /** 将待处理的战斗奖励卡片入队签到服务，触发飞出动画 */
     fun enqueueBattleRewardCards() {
         val cards = gameEngine.pendingBattleRewardCards.value
         if (cards.isNotEmpty()) {
@@ -233,6 +293,15 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 在网格上放置建筑，扣除灵石并初始化对应的产出/居住/种植槽位。
+     *
+     * @param name 建筑显示名（用于查找配置）
+     * @param gridX 网格 X 坐标
+     * @param gridY 网格 Y 坐标
+     * @param width 网格宽度（已废弃，实际尺寸由配置决定）
+     * @param height 网格高度（已废弃，实际尺寸由配置决定）
+     */
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         viewModelScope.launch {
             val config = buildingConfigService.getBuildingConfigByDisplayName(name)
@@ -334,18 +403,42 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 查询建筑放置所需灵石。
+     *
+     * @param displayName 建筑显示名
+     * @return 灵石消耗；查无配置时返回默认值 1000
+     */
     fun getBuildingCost(displayName: String): Long {
         return buildingConfigService.getBuildingConfigByDisplayName(displayName)?.cost ?: 1000L
     }
 
+    /**
+     * 查询建筑网格尺寸。
+     *
+     * @param displayName 建筑显示名
+     * @return (宽, 高) 的网格单元数
+     */
     fun getBuildingGridSize(displayName: String): Pair<Int, Int> {
         return buildingConfigService.getBuildingGridSize(displayName)
     }
 
+    /**
+     * 移动已放置的建筑到新坐标。
+     *
+     * @param instanceId 建筑实例 ID
+     * @param newGridX 新网格 X 坐标
+     * @param newGridY 新网格 Y 坐标
+     */
     fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
         viewModelScope.launch { buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY) }
     }
 
+    /**
+     * 拆除建筑，返还一半造价并提示。
+     *
+     * @param instanceId 建筑实例 ID
+     */
     fun demolishBuilding(instanceId: String) {
         viewModelScope.launch {
             val snapshot = gameEngine.gameDataSnapshot
@@ -580,18 +673,42 @@ class GameViewModel @Inject constructor(
 
     val realtimeCultivation: StateFlow<Map<String, Double>> get() = gameEngine.realtimeCultivation
 
+    /**
+     * 判断弟子是否已分配到某个职位。
+     *
+     * @param discipleId 弟子 ID
+     * @return true 表示已分配职位
+     */
     fun hasDisciplePosition(discipleId: String): Boolean {
         return disciplePositionQuery.hasDisciplePosition(discipleId)
     }
 
+    /**
+     * 获取弟子的职位描述。
+     *
+     * @param discipleId 弟子 ID
+     * @return 职位描述；未分配时返回 null
+     */
     fun getDisciplePosition(discipleId: String): String? {
         return disciplePositionQuery.getDisciplePosition(discipleId)
     }
 
+    /**
+     * 判断弟子是否为预备弟子（无职位）。
+     *
+     * @param discipleId 弟子 ID
+     * @return true 表示是预备弟子
+     */
     fun isReserveDisciple(discipleId: String): Boolean {
         return disciplePositionQuery.isReserveDisciple(discipleId)
     }
 
+    /**
+     * 判断弟子当前职位是否为工作状态。
+     *
+     * @param discipleId 弟子 ID
+     * @return true 表示职位处于工作状态
+     */
     fun isPositionWorkStatus(discipleId: String): Boolean {
         return disciplePositionQuery.isPositionWorkStatus(discipleId)
     }
@@ -602,11 +719,21 @@ class GameViewModel @Inject constructor(
     private val _overlayOrder = mutableStateListOf<TopOverlay>()
     val overlayOrder: List<TopOverlay> get() = _overlayOrder
 
+    /**
+     * 将 overlay 推入栈顶（若已存在则先移除再添加），使其渲染在最顶层。
+     *
+     * @param overlay 要置顶的 overlay 类型
+     */
     fun pushOverlay(overlay: TopOverlay) {
         _overlayOrder.remove(overlay)
         _overlayOrder.add(overlay)
     }
 
+    /**
+     * 从 overlay 列表中移除指定 overlay。
+     *
+     * @param overlay 要移除的 overlay 类型
+     */
     fun popOverlay(overlay: TopOverlay) {
         _overlayOrder.remove(overlay)
     }
@@ -615,18 +742,29 @@ class GameViewModel @Inject constructor(
     private val _detailDisciple = MutableStateFlow<DiscipleDetailRequest?>(null)
     val detailDisciple: StateFlow<DiscipleDetailRequest?> = _detailDisciple.asStateFlow()
 
+    /**
+     * 显示弟子详情全屏覆盖，并设置引擎聚焦弟子。
+     *
+     * @param request 弟子详情请求，包含目标弟子及全量弟子列表
+     */
     fun showDiscipleDetail(request: DiscipleDetailRequest) {
         _detailDisciple.value = request
         gameEngine.setFocusedDiscipleId(request.disciple.id)
         pushOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
+    /** 关闭弟子详情覆盖，并清空引擎聚焦弟子 */
     fun dismissDiscipleDetail() {
         _detailDisciple.value = null
         gameEngine.setFocusedDiscipleId(null)
         popOverlay(TopOverlay.DISCIPLE_DETAIL)
     }
 
+    /**
+     * 在弟子详情覆盖中切换当前展示的弟子。
+     *
+     * @param disciple 目标弟子聚合数据
+     */
     fun navigateDiscipleDetail(disciple: DiscipleAggregate) {
         val current = _detailDisciple.value ?: return
         val target = current.allDisciples.find { it.id == disciple.id } ?: disciple
@@ -690,69 +828,192 @@ class GameViewModel @Inject constructor(
     private val _notifications = MutableStateFlow<List<String>>(emptyList())
     val notifications: StateFlow<List<String>> = _notifications.asStateFlow()
 
-    // 建筑详情对话框 (带参数)
+    /**
+     * 打开建筑详情对话框（带参数）。
+     *
+     * @param buildingId 建筑实例 ID
+     */
     fun openBuildingDetailDialog(buildingId: String) {
         _selectedBuildingId.value = buildingId
     }
 
+    /** 招募弟子（无参重载），委托给 [DiscipleDelegate] */
     fun recruitDisciple() = disciple.recruitDisciple()
 
+    /**
+     * 将弟子分配到指定建筑的槽位，委托给 [DiscipleDelegate]
+     *
+     * @param buildingId 建筑实例 ID
+     * @param slotIndex 槽位序号
+     * @param discipleId 弟子 ID
+     */
     fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) = disciple.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
 
+    /**
+     * 从可招募列表中招募指定弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     */
     fun recruitDiscipleFromList(discipleId: String) = disciple.recruitDiscipleFromList(discipleId)
 
+    /**
+     * 驱逐弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     */
     fun expelDisciple(discipleId: String) = disciple.expelDisciple(discipleId)
 
+    /** 清空弟子侧待处理通知 */
     fun clearNotification() {
         discipleFacade.clearPendingNotification()
     }
 
+    /**
+     * 清空奖励卡片队列。
+     *
+     * @param count 清除数量，默认全部
+     */
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) {
         gameEngine.clearRewardCardQueue(count)
     }
 
+    /**
+     * 进入指定宗门（世界地图）。
+     *
+     * @param sectId 宗门 ID
+     */
     fun enterSect(sectId: String) {
         viewModelScope.launch { gameEngine.enterSect(sectId) }
     }
 
+    /**
+     * 驱逐行窃弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     */
     fun expelTheftDisciple(discipleId: String) = disciple.expelTheftDisciple(discipleId)
 
+    /**
+     * 关押行窃弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param currentYear 当前游戏年份
+     */
     fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = viewModelScope.launch { disciple.imprisonTheftDisciple(discipleId, currentYear) }
 
+    /**
+     * 释放关押的行窃弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @return 释放结果状态码
+     */
     suspend fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
 
+    /** 忠诚度对话框关闭时的回调，委托给 [DiscipleDelegate] */
     fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 
+    /**
+     * 切换弟子跟随状态，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     */
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
 
+    /**
+     * 应用广告突破加成，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param bonus 加成系数
+     */
     fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) = disciple.applyAdBreakthroughBonus(discipleId, bonus)
 
+    /**
+     * 修改弟子类型，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param newType 新类型标识
+     */
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)
 
+    /**
+     * 切换弟子自动从仓库装备的开关，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param enabled 是否启用
+     */
     fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoEquipFromWarehouse(discipleId, enabled)
 
+    /**
+     * 切换弟子自动从仓库学习功法的开关，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param enabled 是否启用
+     */
     fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoLearnFromWarehouse(discipleId, enabled)
 
+    /**
+     * 向弟子发放奖励物品，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param items 奖励物品列表
+     */
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) = disciple.rewardItemsToDisciple(discipleId, items)
 
+    /** 一次性招募所有可招募弟子，委托给 [DiscipleDelegate] */
     fun recruitAllDisciples() = disciple.recruitAllDisciples()
 
+    /**
+     * 从可招募列表中拒绝指定弟子，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     */
     fun rejectDiscipleFromList(discipleId: String) = disciple.rejectDiscipleFromList(discipleId)
 
+    /**
+     * 设置自动招募弟子的境界过滤，委托给 [DiscipleDelegate]
+     *
+     * @param filter 允许招募的境界集合
+     */
     fun setAutoRecruitFilter(filter: Set<Int>) = disciple.setAutoRecruitFilter(filter)
 
+    /**
+     * 设置禁止结为道侣的灵根数集合。
+     *
+     * @param counts 禁止的灵根数集合
+     */
     fun setDaoCompanionBannedRootCounts(counts: Set<Int>) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(daoCompanionBannedRootCounts = counts) }
         }
     }
 
+    /**
+     * 设置道侣结成是否需要玩家同意。
+     *
+     * @param required true 表示需要玩家同意
+     */
     fun setDaoCompanionConsentRequired(required: Boolean) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(daoCompanionConsentRequired = required) }
         }
     }
 
+    /**
+     * 批量设置各生产建筑的自动分配策略（聚焦/灵根过滤/境界阈值）。
+     *
+     * @param mineFocused 灵矿是否聚焦
+     * @param mineRootCounts 灵矿允许的灵根数
+     * @param mineThreshold 灵矿境界阈值
+     * @param plantFocused 灵田是否聚焦
+     * @param plantRootCounts 灵田允许的灵根数
+     * @param plantThreshold 灵田境界阈值
+     * @param alchemyFocused 炼丹是否聚焦
+     * @param alchemyRootCounts 炼丹允许的灵根数
+     * @param alchemyThreshold 炼丹境界阈值
+     * @param forgeFocused 炼器是否聚焦
+     * @param forgeRootCounts 炼器允许的灵根数
+     * @param forgeThreshold 炼器境界阈值
+     */
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
         plantFocused: Boolean, plantRootCounts: List<Int>, plantThreshold: Int,
@@ -777,30 +1038,58 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 设置突破时自动使用丹药的策略。
+     *
+     * @param focused 是否聚焦
+     * @param rootCounts 允许自动使用丹药的灵根数集合
+     */
     fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(breakthroughAutoPillFocused = focused, breakthroughAutoPillRootCounts = rootCounts) }
         }
     }
 
+    /**
+     * 设置自动从仓库装备的策略。
+     *
+     * @param focused 是否聚焦
+     * @param rootCounts 允许自动装备的灵根数集合
+     */
     fun setAutoEquipSettings(focused: Boolean, rootCounts: Set<Int>) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(autoEquipFromWarehouseFocused = focused, autoEquipFromWarehouseRootCounts = rootCounts) }
         }
     }
 
+    /**
+     * 设置自动从仓库学习功法的策略。
+     *
+     * @param focused 是否聚焦
+     * @param rootCounts 允许自动学习的灵根数集合
+     */
     fun setAutoLearnSettings(focused: Boolean, rootCounts: Set<Int>) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(autoLearnFromWarehouseFocused = focused, autoLearnFromWarehouseRootCounts = rootCounts) }
         }
     }
 
+    /**
+     * 设置巡视战斗结果弹窗开关。
+     *
+     * @param enabled 是否弹窗
+     */
     fun setPatrolBattleResultPopup(enabled: Boolean) {
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) }
         }
     }
 
+    /**
+     * 设置购买时自动出售中品物品的开关。
+     *
+     * @param enabled 是否启用
+     */
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) {
         viewModelScope.launch {
             gameEngine.updateGameData {
@@ -809,6 +1098,11 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 设置购买时自动出售上品物品的开关。
+     *
+     * @param enabled 是否启用
+     */
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) {
         viewModelScope.launch {
             gameEngine.updateGameData {
@@ -817,10 +1111,21 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 设置当前激活的界面 Tab。
+     *
+     * @param tab Tab 标识
+     */
     fun setActiveTab(tab: String) {
         gameEngine.setActiveTab(tab)
     }
 
+    /**
+     * 同意两名弟子结为道侣，并清空待处理通知。
+     *
+     * @param maleId 男方弟子 ID
+     * @param femaleId 女方弟子 ID
+     */
     fun approveMarriage(maleId: String, femaleId: String) {
         viewModelScope.launch {
             discipleFacade.approveMarriage(maleId, femaleId)
@@ -828,26 +1133,80 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** 拒绝当前道侣申请，仅清空待处理通知 */
     fun rejectMarriage() {
         discipleFacade.clearPendingNotification()
     }
 
+    /**
+     * 为弟子装备指定装备，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param equipmentId 装备实例 ID
+     */
     fun equipItem(discipleId: String, equipmentId: String) = disciple.equipItem(discipleId, equipmentId)
 
+    /**
+     * 按槽位卸下弟子装备，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param slot 装备槽位
+     */
     fun unequipItem(discipleId: String, slot: EquipmentSlot) = disciple.unequipItem(discipleId, slot)
 
+    /**
+     * 按装备 ID 卸下弟子装备，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param equipmentId 装备实例 ID
+     */
     fun unequipItem(discipleId: String, equipmentId: String) = disciple.unequipItem(discipleId, equipmentId)
 
+    /**
+     * 遗忘弟子已学功法，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param instanceId 功法实例 ID
+     */
     fun forgetManual(discipleId: String, instanceId: String) = disciple.forgetManual(discipleId, instanceId)
 
+    /**
+     * 替换弟子功法（旧实例换新堆叠），委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param oldInstanceId 旧功法实例 ID
+     * @param newStackId 新功法堆叠 ID
+     */
     fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) = disciple.replaceManual(discipleId, oldInstanceId, newStackId)
 
+    /**
+     * 学习功法，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param stackId 功法堆叠 ID
+     */
     fun learnManual(discipleId: String, stackId: String) = disciple.learnManual(discipleId, stackId)
 
+    /**
+     * 从坊市购买物品，委托给 [InventoryDelegate]
+     *
+     * @param itemId 物品 ID
+     * @param quantity 购买数量
+     */
     fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
 
+    /**
+     * 将物品挂到坊市出售，委托给 [InventoryDelegate]
+     *
+     * @param items (物品 ID, 数量) 列表
+     */
     fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)
 
+    /**
+     * 从坊市下架玩家挂售的物品，委托给 [InventoryDelegate]
+     *
+     * @param itemId 物品 ID
+     */
     fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
 
     private var pendingBagCards: List<RewardCardItem> = emptyList()
@@ -855,6 +1214,12 @@ class GameViewModel @Inject constructor(
     private val _bagRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     val bagRewardCards: StateFlow<List<RewardCardItem>> = _bagRewardCards.asStateFlow()
 
+    /**
+     * 打开一个储物袋，返回奖励列表并缓存奖励卡片。
+     *
+     * @param bagId 储物袋 ID
+     * @return 奖励物品列表
+     */
     suspend fun openStorageBag(bagId: String): List<BattleRewardItem> {
         val (rewards, cards) = gameEngine.openStorageBag(bagId)
         pendingBagCards = cards
@@ -862,6 +1227,12 @@ class GameViewModel @Inject constructor(
         return rewards
     }
 
+    /**
+     * 打开指定储物袋的全部数量，聚合奖励与卡片。
+     *
+     * @param bagId 储物袋 ID
+     * @return 全部奖励物品列表
+     */
     suspend fun openAllStorageBags(bagId: String): List<BattleRewardItem> {
         val bag = storageBags.value.find { it.id == bagId } ?: return emptyList()
         val totalQty = bag.quantity
@@ -877,6 +1248,7 @@ class GameViewModel @Inject constructor(
         return allRewards
     }
 
+    /** 将缓存的储物袋奖励卡片入队签到服务，触发飞出动画 */
     fun enqueueBagRewardCards() {
         if (pendingBagCards.isNotEmpty()) {
             dailySignInService.enqueueSignInCards(pendingBagCards)
@@ -885,8 +1257,19 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 招募指定弟子（带聚合数据重载），委托给 [DiscipleDelegate]
+     *
+     * @param disciple 弟子聚合数据
+     */
     fun recruitDisciple(disciple: DiscipleAggregate) = this@GameViewModel.disciple.recruitDisciple(disciple)
 
+    /**
+     * 在指定槽位种植种子。
+     *
+     * @param slotIndex 槽位序号
+     * @param seed 种子
+     */
     fun plantSeed(slotIndex: Int, seed: com.xianxia.sect.core.model.Seed) {
         viewModelScope.launch {
             try {
@@ -898,15 +1281,40 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 在指定灵田种植种子，委托给 [PlantingDelegate]
+     *
+     * @param buildingInstanceId 灵田建筑实例 ID
+     * @param seedId 种子 ID
+     * @param sectId 宗门 ID
+     */
     fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) =
         planting.plantOnSpiritField(buildingInstanceId, seedId, sectId)
 
+    /**
+     * 在多个灵田上批量种植同一种子，委托给 [PlantingDelegate]
+     *
+     * @param instanceIds 灵田建筑实例 ID 列表
+     * @param seedId 种子 ID
+     * @param sectId 宗门 ID
+     */
     fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) =
         planting.plantOnSpiritFields(instanceIds, seedId, sectId)
 
+    /**
+     * 移除灵田上的作物，委托给 [PlantingDelegate]
+     *
+     * @param buildingInstanceId 灵田建筑实例 ID
+     */
     fun removePlantFromSpiritField(buildingInstanceId: String) =
         planting.removePlantFromSpiritField(buildingInstanceId)
 
+    /**
+     * 设置指定境界的年薪俸禄。
+     *
+     * @param realm 境界
+     * @param amount 年薪数额
+     */
     fun setYearlySalary(realm: Int, amount: Int) {
         viewModelScope.launch {
             val data = gameEngine.gameData.value
@@ -916,46 +1324,142 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 启用/禁用指定境界的年薪发放。
+     *
+     * @param realm 境界
+     * @param enabled 是否启用
+     */
     fun setYearlySalaryEnabled(realm: Int, enabled: Boolean) {
         viewModelScope.launch {
             discipleFacade.updateYearlySalaryEnabled(realm, enabled)
         }
     }
 
+    /**
+     * 让弟子服用指定丹药（按 ID），委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param pillId 丹药 ID
+     */
     fun usePill(discipleId: String, pillId: String) = disciple.usePill(discipleId, pillId)
 
+    /**
+     * 让弟子服用指定丹药（按对象），委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param pill 丹药对象
+     */
     fun usePill(discipleId: String, pill: Pill) = disciple.usePill(discipleId, pill)
 
+    /**
+     * 没收弟子储物袋中的物品，委托给 [DiscipleDelegate]
+     *
+     * @param discipleId 弟子 ID
+     * @param item 储物袋物品
+     */
     fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) = disciple.confiscateStorageBagItem(discipleId, item)
 
+    /**
+     * 按 ID 查询弟子聚合数据，委托给 [DiscipleDelegate]
+     *
+     * @param id 弟子 ID
+     * @return 弟子聚合数据；不存在时返回 null
+     */
     fun getDiscipleById(id: String): DiscipleAggregate? = disciple.getDiscipleById(id)
 
+    /**
+     * 按 ID 查询功法实例（已废弃，使用 [getManualInstanceById]）。
+     *
+     * @param id 功法实例 ID
+     * @return 功法实例；不存在时返回 null
+     */
     @Suppress("DEPRECATION")
     fun getManualById(id: String): ManualInstance? = inventory.getManualById(id)
 
+    /**
+     * 按 ID 查询功法实例，委托给 [InventoryDelegate]
+     *
+     * @param id 功法实例 ID
+     * @return 功法实例；不存在时返回 null
+     */
     fun getManualInstanceById(id: String): ManualInstance? = inventory.getManualInstanceById(id)
 
+    /**
+     * 按 ID 查询装备实例，委托给 [InventoryDelegate]
+     *
+     * @param id 装备实例 ID
+     * @return 装备实例；不存在时返回 null
+     */
     fun getEquipmentInstanceById(id: String): EquipmentInstance? = inventory.getEquipmentInstanceById(id)
 
+    /**
+     * 切换物品锁定状态，委托给 [InventoryDelegate]
+     *
+     * @param itemId 物品 ID
+     * @param itemType 物品类型
+     */
     fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
 
+    /**
+     * 向坊市出售物品，委托给 [InventoryDelegate]
+     *
+     * @param itemId 物品 ID
+     * @param quantity 出售数量
+     */
     fun sellToMerchant(itemId: String, quantity: Int) = inventory.sellToMerchant(itemId, quantity)
 
+    /**
+     * 通用出售物品，委托给 [InventoryDelegate]
+     *
+     * @param itemId 物品 ID
+     * @param itemType 物品类型
+     * @param quantity 出售数量
+     */
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
 
     // ── 自动购买 ────────────────────────────────────────────────────
 
+    /**
+     * 批量添加自动购买条目，委托给 [InventoryDelegate]
+     *
+     * @param entries 自动购买条目列表
+     */
     fun addAutoBuyEntries(entries: List<AutoBuyEntry>) = inventory.addAutoBuyEntries(entries)
 
+    /**
+     * 批量移除自动购买条目，委托给 [InventoryDelegate]
+     *
+     * @param entries 自动购买条目列表
+     */
     fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) = inventory.removeAutoBuyEntries(entries)
 
+    /**
+     * 获取所有可自动购买的物品目录，委托给 [InventoryDelegate]
+     *
+     * @return 可自动购买物品列表
+     */
     fun getAllAutoBuyableItems(): List<AutoBuyCatalogItem> = inventory.getAllAutoBuyableItems()
 
+    /**
+     * 消耗血炼材料（按名称、品质、数量）。
+     *
+     * @param name 材料名称
+     * @param rarity 材料品质
+     * @param quantity 消耗数量
+     */
     fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {
         viewModelScope.launch {
             gameEngine.consumeMaterialByName(name, rarity, quantity)
         }
     }
+
+    /**
+     * 按品质与类型批量出售物品（自动跳过锁定物品）。
+     *
+     * @param selectedRarities 选中的品质集合
+     * @param selectedTypes 选中的物品类型集合（如 "EQUIPMENT"、"PILL"）
+     */
     fun bulkSellItems(
         selectedRarities: Set<Int>,
         selectedTypes: Set<String>
@@ -1043,12 +1547,36 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 按 ID 查询装备实例，委托给 [InventoryDelegate]
+     *
+     * @param id 装备实例 ID
+     * @return 装备实例；不存在时返回 null
+     */
     fun getEquipmentById(id: String): EquipmentInstance? = inventory.getEquipmentById(id)
 
+    /**
+     * 按 ID 查询丹药，委托给 [InventoryDelegate]
+     *
+     * @param id 丹药 ID
+     * @return 丹药；不存在时返回 null
+     */
     fun getPillById(id: String): Pill? = inventory.getPillById(id)
 
+    /**
+     * 按 ID 查询材料，委托给 [InventoryDelegate]
+     *
+     * @param id 材料 ID
+     * @return 材料；不存在时返回 null
+     */
     fun getMaterialById(id: String): Material? = inventory.getMaterialById(id)
 
+    /**
+     * 开始任务，派遣指定弟子组队执行。
+     *
+     * @param mission 任务对象
+     * @param selectedDisciples 参与弟子列表
+     */
     fun startMission(mission: com.xianxia.sect.core.model.Mission, selectedDisciples: List<DiscipleAggregate>) {
         viewModelScope.launch {
             try {
@@ -1090,6 +1618,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** 打开年薪配置对话框，委托给 [NavigationDelegate] */
     fun openSalaryConfigDialog() = navigation.openSalaryConfigDialog()
 
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
@@ -1097,6 +1626,7 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, false)
 
+    /** 打开游戏结束对话框，委托给 [NavigationDelegate] */
     fun openGameOverDialog() = navigation.openGameOverDialog()
 
     private val _showRedeemCodeDialog = MutableStateFlow(false)
@@ -1105,16 +1635,23 @@ class GameViewModel @Inject constructor(
     private val _redeemResult = MutableStateFlow<RedeemResult?>(null)
     val redeemResult: StateFlow<RedeemResult?> = _redeemResult.asStateFlow()
 
+    /** 打开兑换码对话框，并清空之前的兑换结果 */
     fun openRedeemCodeDialog() {
         _showRedeemCodeDialog.value = true
         _redeemResult.value = null
     }
 
+    /** 关闭兑换码对话框，并清空兑换结果 */
     fun closeRedeemCodeDialog() {
         _showRedeemCodeDialog.value = false
         _redeemResult.value = null
     }
 
+    /**
+     * 兑换兑换码，结果写入 [_redeemResult] 并提示。
+     *
+     * @param code 兑换码字符串
+     */
     fun redeemCode(code: String) {
         viewModelScope.launch {
             try {
@@ -1139,6 +1676,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** 清空兑换结果状态 */
     fun clearRedeemResult() {
         _redeemResult.value = null
     }
@@ -1149,6 +1687,11 @@ class GameViewModel @Inject constructor(
 
     val mailUnreadCount: StateFlow<Int> get() = mailService.unreadCount
 
+    /**
+     * 将指定邮件标记为已读。
+     *
+     * @param mailId 邮件 ID
+     */
     fun markMailAsRead(mailId: String) {
         viewModelScope.launch {
             mailService.markAsRead(mailId)
@@ -1159,6 +1702,12 @@ class GameViewModel @Inject constructor(
     val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()
     private val mailCardQueueMutex = Mutex()
 
+    /**
+     * 领取邮件附件，奖励卡片写入 [_mailRewardCards]。
+     *
+     * @param mailId 邮件 ID
+     * @param onResult 结果回调，默认空实现
+     */
     fun claimMailAttachment(mailId: String, onResult: (com.xianxia.sect.core.engine.service.ClaimResult) -> Unit = {}) {
         viewModelScope.launch {
             val result = mailService.claimAttachment(mailId, currentSlotId)
@@ -1169,6 +1718,10 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 将当前存档所有邮件标记为已读，奖励卡片写入 [_mailRewardCards]。
+     * 跳过项会通过 [showError] 提示首个跳过原因。
+     */
     fun markAllMailsAsRead() {
         viewModelScope.launch {
             val result = mailService.markAllAsRead(currentSlotId)
@@ -1181,6 +1734,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** 将缓存的邮件奖励卡片入队签到服务（加锁保护并发） */
     fun enqueueMailRewardCards() {
         viewModelScope.launch {
             mailCardQueueMutex.withLock {
@@ -1193,6 +1747,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** 删除当前存档所有已读且已领取附件的邮件 */
     fun deleteAllReadAndClaimedMails() {
         viewModelScope.launch {
             mailService.deleteAllReadAndClaimed(currentSlotId)
@@ -1244,21 +1799,50 @@ class GameViewModel @Inject constructor(
 
     val milestoneRewards: List<MilestoneReward> = dailySignInService.getMilestoneRewards()
 
+    /**
+     * 查询指定星期几对应的签到奖励。
+     *
+     * @param weekday 星期几（0-6）
+     * @return 当日签到奖励
+     */
     fun getRewardForWeekday(weekday: Int): DailySignInReward = dailySignInService.getRewardForWeekday(weekday)
 
+    /**
+     * 查询某日在当前签到状态下的展示状态。
+     *
+     * @param dayOfMonth 月内日期
+     * @param signInState 当前签到状态
+     * @return 该日的展示状态
+     */
     fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState = dailySignInService.getDayState(dayOfMonth, signInState)
 
+    /**
+     * 获取当前月份的天数。
+     *
+     * @return 当月天数
+     */
     fun getDaysInMonth(): Int = dailySignInService.getDaysInMonth()
 
+    /**
+     * 查询某日对应的星期几。
+     *
+     * @param dayOfMonth 月内日期
+     * @return 星期几（0-6）
+     */
     fun getWeekdayForDay(dayOfMonth: Int): Int = dailySignInService.getWeekdayForDay(dayOfMonth)
 
     private val _signInCapacityWarning = MutableStateFlow<String?>(null)
     val signInCapacityWarning: StateFlow<String?> = _signInCapacityWarning.asStateFlow()
 
+    /** 关闭签到容量不足警告 */
     fun dismissCapacityWarning() {
         _signInCapacityWarning.value = null
     }
 
+    /**
+     * 领取每日签到奖励。
+     * 成功时将奖励卡片入队；容量不足时写入 [_signInCapacityWarning]。
+     */
     fun claimDailySignIn() {
         viewModelScope.launch {
             val result = dailySignInService.claimDailySignIn()
@@ -1288,6 +1872,13 @@ class GameViewModel @Inject constructor(
 
     // region Residence
 
+    /**
+     * 将弟子分配到指定住所槽位（先从其他槽位移除该弟子）。
+     *
+     * @param buildingInstanceId 住所建筑实例 ID
+     * @param slotIndex 槽位序号
+     * @param discipleId 弟子 ID
+     */
     fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
             val discipleName = gameEngine.getDiscipleAggregate(discipleId)?.name ?: ""
@@ -1317,6 +1908,12 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 从指定住所槽位移除弟子。
+     *
+     * @param buildingInstanceId 住所建筑实例 ID
+     * @param slotIndex 槽位序号
+     */
     fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
         viewModelScope.launch {
             gameEngine.updateGameData { data ->
@@ -1331,12 +1928,23 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 判断指定住所是否可升级（仅"单人住所"可升级）。
+     *
+     * @param buildingInstanceId 住所建筑实例 ID
+     * @return true 表示可升级
+     */
     fun canUpgradeResidence(buildingInstanceId: String): Boolean {
         val data = gameEngine.gameData.value ?: return false
         val building = data.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return false
         return building.displayName == "单人住所"
     }
 
+    /**
+     * 将"单人住所"升级为"中级单人住所"，消耗 50000 灵石。
+     *
+     * @param buildingInstanceId 住所建筑实例 ID
+     */
     fun upgradeSingleResidence(buildingInstanceId: String) {
         viewModelScope.launch {
             gameEngine.updateGameData { data ->

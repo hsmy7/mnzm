@@ -19,6 +19,93 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 单旬 tick 时间与倍率参数。
+ *
+ * @property year 当前游戏年
+ * @property month 当前游戏月
+ * @property phase 当前游戏旬
+ * @property multiplier HP/MP 恢复倍率
+ * @property decay 持续效果衰减旬数
+ */
+data class TickTimeContext(
+    val year: Int,
+    val month: Int,
+    val phase: Int,
+    val multiplier: Double,
+    val decay: Int
+)
+
+/**
+ * 单旬 tick 装备领域参数。
+ *
+ * @property instanceMap 装备实例映射（id → EquipmentInstance）
+ * @property stacks 装备堆叠列表
+ * @property maxStack 装备堆叠数量上限
+ */
+data class TickEquipContext(
+    val instanceMap: Map<String, EquipmentInstance>,
+    val stacks: List<EquipmentStack>,
+    val maxStack: Int
+)
+
+/**
+ * 单旬 tick 功法领域参数。
+ *
+ * @property instanceMap 功法实例映射（id → ManualInstance）
+ * @property proficienciesMap 弟子功法熟练度映射（discipleId → proficiencyList）
+ * @property stacks 功法堆叠列表
+ * @property maxStack 功法堆叠数量上限
+ */
+data class TickManualContext(
+    val instanceMap: Map<String, ManualInstance>,
+    val proficienciesMap: Map<String, List<ManualProficiencyData>>,
+    val stacks: List<ManualStack>,
+    val maxStack: Int
+)
+
+/**
+ * 单旬 tick 跨弟子共享状态。
+ *
+ * 在批量 tick 循环中仅读取一次，所有弟子共享同一份引用，
+ * 避免每个弟子独立获取 [HighFrequencyData] 等高开销对象。
+ *
+ * @property focusedDiscipleId 当前焦点弟子 ID（可空）
+ * @property cachedCultivationRates 缓存的修炼速率映射
+ * @property highFrequencyData 高频更新数据
+ * @property autoEquipDirty 自动装备脏标记集合
+ * @property autoLearnDirty 自动学习脏标记集合
+ */
+data class TickSharedContext(
+    val focusedDiscipleId: String?,
+    val cachedCultivationRates: Map<String, Double>,
+    val highFrequencyData: HighFrequencyData,
+    val autoEquipDirty: java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>,
+    val autoLearnDirty: java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>
+)
+
+/**
+ * [CultivationCore.processDiscipleTick] 的参数集合。
+ *
+ * 将原 19 个独立参数按领域分组为嵌套上下文对象，
+ * 满足编码规范 §3.4（类构造参数 ≤7）。
+ *
+ * @property disciple 待处理的弟子
+ * @property time 游戏时间与倍率参数
+ * @property equip 装备领域参数
+ * @property manual 功法领域参数
+ * @property shared 跨弟子共享状态
+ * @property acc 单旬累积器，用于收集装备/功法变更
+ */
+data class DiscipleTickParams(
+    val disciple: Disciple,
+    val time: TickTimeContext,
+    val equip: TickEquipContext,
+    val manual: TickManualContext,
+    val shared: TickSharedContext,
+    val acc: PhaseTickAccumulator
+)
+
 @Singleton
 @GameService("CultivationCore")
 class CultivationCore @Inject constructor(
@@ -110,6 +197,21 @@ class CultivationCore @Inject constructor(
         )
     }
 
+    /**
+     * 计算弟子住所建筑对修炼速度的加成系数。
+     *
+     * 根据弟子所居住建筑的 displayName 返回对应加成系数：
+     * - 1.40：中级单人住所（中级品质，单人专属，加成最高）
+     * - 1.20：单人住所（普通品质，单人专属）
+     * - 1.10：多人住所（普通品质，多人共享，加成最低）
+     * - 1.0：无建筑或未识别建筑（无加成）
+     *
+     * 上述数值为建筑品质/类型对应的修炼速度乘数，品质越高、专属度越强则系数越大。
+     *
+     * @param disciple 待计算的弟子
+     * @param data 当前游戏数据，用于查询住所槽位与已放置建筑
+     * @return 修炼速度加成系数，无建筑时返回 1.0
+     */
     private fun calculateBuildingCultivationBonus(disciple: Disciple, data: GameData): Double {
         val slot = data.residenceSlots.firstOrNull { it.discipleId == disciple.id } ?: return 1.0
         val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
@@ -121,12 +223,29 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 判断弟子当前 HP 与 MP 是否均已达到上限。
+     *
+     * 当 currentHp/currentMp 为负数时视为满值（用于标记特殊状态）。
+     *
+     * @param disciple 待判断的弟子
+     * @return true 表示 HP 与 MP 均已满；false 表示未满
+     */
     fun isDiscipleFullHpMp(disciple: Disciple): Boolean {
         val hp = if (disciple.combat.currentHp < 0) disciple.maxHp else disciple.combat.currentHp
         val mp = if (disciple.combat.currentMp < 0) disciple.maxMp else disciple.combat.currentMp
         return hp >= disciple.maxHp && mp >= disciple.maxMp
     }
 
+    /**
+     * 判断指定 ID 弟子当前 HP 与 MP 是否均已达到上限（基于 Tables 查询）。
+     *
+     * 当 currentHps/currentMps 为负数时视为满值（用于标记特殊状态）。
+     *
+     * @param id 弟子 ID
+     * @param tables 弟子数据表，提供当前与基础 HP/MP
+     * @return true 表示 HP 与 MP 均已满；false 表示未满
+     */
     fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean {
         val curHp = tables.currentHps[id]
         val curMp = tables.currentMps[id]
@@ -135,6 +254,15 @@ class CultivationCore @Inject constructor(
         return hp >= tables.baseHps[id] && mp >= tables.baseMps[id]
     }
 
+    /**
+     * 根据境界等级返回对应的寿命增益。
+     *
+     * 境界越低（凡人/练气）寿命增益越大，境界越高（渡劫/飞升）增益越小：
+     * realm 0 -> 10000，realm 8 -> 50；未知境界返回 0。
+     *
+     * @param realm 境界等级（0-8）
+     * @return 该境界对应的寿命增益值；未知境界返回 0
+     */
     fun getLifespanGainForRealm(realm: Int): Int {
         return when (realm) {
             8 -> 50
@@ -150,6 +278,14 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 为所有存活弟子恢复 HP 与 MP。
+     *
+     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × phaseMultiplier（每旬 ×10），
+     * 至少恢复 1 点，且不超过上限。currentHp/currentMp 均为负数的弟子被视为特殊状态跳过恢复。
+     *
+     * @param state 可变游戏状态，包含弟子数据表与装备/功法实例
+     */
     fun recoverHpMpForAllDisciples(state: MutableGameState) {
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
@@ -256,6 +392,16 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 为参与战斗的指定弟子恢复 HP 与 MP。
+     *
+     * 仅处理 discipleIds 列表中存活的弟子，已满 HP/MP 的弟子跳过。
+     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × phaseMultiplier（每旬 ×10），
+     * 至少恢复 1 点，且不超过上限。
+     *
+     * @param state 可变游戏状态
+     * @param discipleIds 参与战斗的弟子 ID 字符串列表
+     */
     fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
@@ -284,27 +430,26 @@ class CultivationCore @Inject constructor(
         }
     }
 
-    fun processDiscipleTick(
-        disciple: Disciple,
-        year: Int, month: Int, phase: Int,
-        equipmentMap: Map<String, EquipmentInstance>,
-        manualMap: Map<String, ManualInstance>,
-        proficienciesMap: Map<String, List<ManualProficiencyData>>,
-        multiplier: Double, decay: Int,
-        equipmentStacksList: List<EquipmentStack>,
-        manualStacksList: List<ManualStack>,
-        maxEquipStack: Int, maxManualStack: Int,
-        acc: PhaseTickAccumulator,
-        focusedDiscipleId: String?,
-        cachedCultivationRates: Map<String, Double>,
-        highFrequencyData: HighFrequencyData,
-        autoEquipDirty: java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>,
-        autoLearnDirty: java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>
-    ): Disciple {
-        var d = disciple
+    /**
+     * 处理单个弟子的单旬 tick：持续效果衰减、HP/MP 恢复、自动用丹、自动装备、自动学功法。
+     *
+     * 步骤：
+     * 1. 衰减修炼速度加成与丹药效果持续时间（按 [params.time.decay] 旬数）
+     * 2. 恢复 HP/MP（按 [params.time.multiplier] 倍率）
+     * 3. 自动使用丹药（pillManager）
+     * 4. 自动装备背包中的装备（equipmentManager）
+     * 5. 自动学习背包中的功法（manualManager）
+     *
+     * 装备/功法实例与堆叠的增删改通过 [params.acc] 累积，由 applyAccumulator 统一应用。
+     *
+     * @param params 单旬 tick 所需的全部参数，详见 [DiscipleTickParams]
+     * @return 处理完成后的弟子对象
+     */
+    fun processDiscipleTick(params: DiscipleTickParams): Disciple {
+        var d = params.disciple
 
         if (d.cultivationSpeedDuration > 0) {
-            val newDuration = d.cultivationSpeedDuration - decay
+            val newDuration = d.cultivationSpeedDuration - params.time.decay
             if (newDuration <= 0) {
                 d = d.copy(cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 0)
             } else {
@@ -313,7 +458,7 @@ class CultivationCore @Inject constructor(
         }
 
         if (d.pillEffects.pillEffectDuration > 0) {
-            val newDuration = d.pillEffects.pillEffectDuration - decay
+            val newDuration = d.pillEffects.pillEffectDuration - params.time.decay
             if (newDuration <= 0) {
                 d = d.copy(pillEffects = PillEffects())
             } else {
@@ -323,16 +468,21 @@ class CultivationCore @Inject constructor(
             }
         }
 
-        val discipleProficiencies = proficienciesMap.getOrDefault(d.id, emptyList())
+        val discipleProficiencies = params.manual.proficienciesMap
+            .getOrDefault(d.id, emptyList())
             .associateBy { it.manualId }
-        val finalStats = DiscipleStatCalculator.getFinalStats(d, equipmentMap, manualMap, discipleProficiencies)
+        val finalStats = DiscipleStatCalculator.getFinalStats(
+            d, params.equip.instanceMap, params.manual.instanceMap, discipleProficiencies
+        )
         val maxHp = finalStats.maxHp
         val maxMp = finalStats.maxMp
         val curHp = d.combat.currentHp
         val curMp = d.combat.currentMp
 
-        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * params.time.multiplier)
+            .toInt().coerceAtLeast(1)
+        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * params.time.multiplier)
+            .toInt().coerceAtLeast(1)
 
         val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
         val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
@@ -342,72 +492,100 @@ class CultivationCore @Inject constructor(
         }
 
         val pillResult = pillManager.processAutoUsePills(
-            disciple = d, gameYear = year, gameMonth = month, gamePhase = phase
+            disciple = d,
+            gameYear = params.time.year,
+            gameMonth = params.time.month,
+            gamePhase = params.time.phase
         )
         if (pillResult.disciple != d) {
             d = pillResult.disciple
         }
 
         val hasEquipmentInBag = d.equipment.storageBagItems.any { it.itemType == "equipment" }
-        val needEquipCheck = hasEquipmentInBag || d.id in autoEquipDirty
+        val needEquipCheck = hasEquipmentInBag || d.id in params.shared.autoEquipDirty
         val equipResult = if (needEquipCheck) {
             equipmentManager.processAutoEquip(
-                disciple = d, equipmentStacks = equipmentStacksList,
-                equipmentInstances = equipmentMap,
-                gameYear = year, gameMonth = month, gamePhase = phase,
-                maxStack = maxEquipStack
+                disciple = d,
+                equipmentStacks = params.equip.stacks,
+                equipmentInstances = params.equip.instanceMap,
+                gameYear = params.time.year,
+                gameMonth = params.time.month,
+                gamePhase = params.time.phase,
+                maxStack = params.equip.maxStack
             )
         } else null
         if (equipResult != null && equipResult.newInstances.isNotEmpty()) {
             d = equipResult.disciple
-            acc.equipInstancesToAdd.addAll(equipResult.newInstances)
-            equipResult.replacedInstances.forEach { acc.equipInstanceIdsToRemove.add(it.id) }
+            params.acc.equipInstancesToAdd.addAll(equipResult.newInstances)
+            equipResult.replacedInstances.forEach { params.acc.equipInstanceIdsToRemove.add(it.id) }
             equipResult.stackUpdates.forEach { update ->
                 if (update.isDeletion) {
-                    acc.equipStackDeletions.add(update.stackId)
+                    params.acc.equipStackDeletions.add(update.stackId)
                 } else {
-                    acc.equipStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
+                    params.acc.equipStackQuantityDeltas.merge(
+                        update.stackId, update.newQuantity
+                    ) { _, new -> new }
                 }
             }
             equipResult.replacedEquipmentStacks.forEach { replacedStack ->
-                acc.equipStackAdditions.add(replacedStack)
+                params.acc.equipStackAdditions.add(replacedStack)
             }
         }
 
         val hasManualInBag = d.equipment.storageBagItems.any { it.itemType == "manual" }
-        val needLearnCheck = hasManualInBag || d.id in autoLearnDirty
+        val needLearnCheck = hasManualInBag || d.id in params.shared.autoLearnDirty
         val manualResult = if (needLearnCheck) {
             manualManager.processAutoLearn(
-                disciple = d, manualStacks = manualStacksList,
-                manualInstances = manualMap,
-                gameYear = year, gameMonth = month, gamePhase = phase,
-                maxStack = maxManualStack
+                disciple = d,
+                manualStacks = params.manual.stacks,
+                manualInstances = params.manual.instanceMap,
+                gameYear = params.time.year,
+                gameMonth = params.time.month,
+                gamePhase = params.time.phase,
+                maxStack = params.manual.maxStack
             )
         } else null
         if (manualResult != null && manualResult.newInstance != null) {
             d = manualResult.disciple
-            manualResult.newInstance?.let { acc.manualInstancesToAdd.add(it) }
+            manualResult.newInstance?.let { params.acc.manualInstancesToAdd.add(it) }
             manualResult.replacedInstance?.let { replaced ->
-                acc.manualInstanceIdsToRemove.add(replaced.id)
-                acc.profRemovals.getOrPut(d.id) { mutableSetOf() }.add(replaced.id)
+                params.acc.manualInstanceIdsToRemove.add(replaced.id)
+                params.acc.profRemovals.getOrPut(d.id) { mutableSetOf() }.add(replaced.id)
             }
             manualResult.stackUpdate?.let { update ->
                 if (update.isDeletion) {
-                    acc.manualStackDeletions.add(update.stackId)
+                    params.acc.manualStackDeletions.add(update.stackId)
                 } else {
-                    acc.manualStackQuantityDeltas.merge(update.stackId, update.newQuantity) { _, new -> new }
+                    params.acc.manualStackQuantityDeltas.merge(
+                        update.stackId, update.newQuantity
+                    ) { _, new -> new }
                 }
             }
             manualResult.replacedManualStack?.let { replacedStack ->
-                acc.manualStackAdditions.add(replacedStack)
+                params.acc.manualStackAdditions.add(replacedStack)
             }
         }
 
-        autoEquipDirty.remove(d.id)
-        autoLearnDirty.remove(d.id)
+        params.shared.autoEquipDirty.remove(d.id)
+        params.shared.autoLearnDirty.remove(d.id)
         return d
     }
 
+    /**
+     * 将单旬累积器中的装备/功法变更应用到游戏状态。
+     *
+     * 处理内容：
+     * - 装备实例的增删（equipInstancesToAdd/equipInstanceIdsToRemove）
+     * - 装备堆叠的删除、数量更新、新增（受 maxEquipStack 上限约束）
+     * - 功法实例的增删（manualInstancesToAdd/manualInstanceIdsToRemove）
+     * - 被替换功法对应的熟练度清理（profRemovals）
+     * - 功法堆叠的删除、数量更新、新增（受 maxManualStack 上限约束）
+     *
+     * @param acc 单旬累积器
+     * @param state 可变游戏状态
+     * @param maxEquipStack 装备堆叠数量上限
+     * @param maxManualStack 功法堆叠数量上限
+     */
     fun applyAccumulator(acc: PhaseTickAccumulator, state: MutableGameState, maxEquipStack: Int, maxManualStack: Int) {
         if (acc.equipInstancesToAdd.isNotEmpty() || acc.equipInstanceIdsToRemove.isNotEmpty()) {
             state.equipmentInstances = state.equipmentInstances
@@ -467,6 +645,16 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 月度修炼结算：为所有存活弟子结算本月修炼、功法熟练度与装备温养进度。
+     *
+     * 月度增量 = 每旬增量 × 3（3 旬/月），并扣除焦点域已通过高频更新应用的部分，避免双计。
+     * 结算完成后清空 highFrequencyData 中的累积增量。
+     *
+     * @param state 可变游戏状态
+     * @param highFrequencyData 高频更新数据，包含已应用的修炼/熟练度/温养增量
+     * @return 重置累积增量后的 highFrequencyData
+     */
     fun updateMonthlyCultivation(state: MutableGameState, highFrequencyData: HighFrequencyData): HighFrequencyData {
         val data = state.gameData
         val tables = state.discipleTables
@@ -560,6 +748,19 @@ class CultivationCore @Inject constructor(
         )
     }
 
+    /**
+     * 焦点弟子高频实时更新：修炼推进、突破检测、功法熟练度与装备温养。
+     *
+     * 当弟子修炼值满且 HP/MP 均满时触发实时突破处理。
+     * 每次调用推进一个 phase 的修炼与熟练度，并将增量累积到 highFrequencyData，
+     * 供月度结算时扣除，避免双计。
+     *
+     * @param discipleId 焦点弟子 ID 字符串
+     * @param state 可变游戏状态
+     * @param highFrequencyData 高频更新数据
+     * @param breakthroughHandler 突破处理器
+     * @return 更新后的 highFrequencyData
+     */
     fun updateFocusedDisciple(discipleId: String, state: MutableGameState, highFrequencyData: HighFrequencyData, breakthroughHandler: DiscipleBreakthroughHandler): HighFrequencyData {
         val data = state.gameData
         val tables = state.discipleTables

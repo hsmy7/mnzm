@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.ui.theme.GameColors
 
 val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
@@ -42,7 +43,7 @@ data class ItemCardData(
     val isManual: Boolean = false,
     val isPill: Boolean = false,
     val isMaterial: Boolean = false,
-    val isSpiritStone: Boolean = false,
+    val spiritStoneGrade: SpiritStoneGrade? = null,
     val isBag: Boolean = false,
     val isHerb: Boolean = false,
     val isSeed: Boolean = false
@@ -67,7 +68,7 @@ fun UnifiedItemCard(
 ) {
     val rarityColor = getRarityColor(data.rarity)
     val spriteRes = when {
-        data.isSpiritStone -> spiritStoneSpriteRes()
+        data.spiritStoneGrade != null -> spiritStoneSpriteRes(data.spiritStoneGrade)
         data.isBag -> storageBagSpriteRes(data.rarity)
         data.isManual -> manualSpriteRes(data.rarity)
         data.isPill -> pillSpriteRes(data.rarity)

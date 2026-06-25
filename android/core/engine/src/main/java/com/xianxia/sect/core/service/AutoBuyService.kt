@@ -171,6 +171,7 @@ class AutoBuyService @Inject constructor(
                 inventorySystem.canAddSeed(
                     s.name, s.rarity, s.growTime)
             }
+            "spiritstone" -> true
             else -> false
         }
 
@@ -275,6 +276,16 @@ class AutoBuyService @Inject constructor(
                     }
                 } else {
                     seeds.add(s)
+                }
+            }
+            "spiritstone" -> {
+                when (item.name) {
+                    "中品灵石" -> gameData = gameData.copy(
+                        midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+                    )
+                    "上品灵石" -> gameData = gameData.copy(
+                        highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+                    )
                 }
             }
         }

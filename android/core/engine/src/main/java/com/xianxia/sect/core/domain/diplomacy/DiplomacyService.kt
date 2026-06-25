@@ -536,7 +536,7 @@ class DiplomacyService @Inject constructor(
 
         while (items.size < itemCount && attempts < maxAttempts) {
             attempts++
-            val type = listOf("equipment", "manual", "pill", "material", "herb", "seed").random(random)
+            val type = listOf("equipment", "manual", "pill", "material", "herb", "seed", "spiritStone").random(random)
             val rarity = selectRarityByMerchantProbabilities(random)
 
             fun calcStock(t: String, r: Int): Int {
@@ -665,6 +665,27 @@ class DiplomacyService @Inject constructor(
                         obtainedMonth = 1
                     )
                 }
+                "spiritStone" -> {
+                    val isHigh = rarity >= 5
+                    val name = if (isHigh) "上品灵石" else "中品灵石"
+                    val itemRarity = if (isHigh) 5 else 3
+                    val basePrice = if (isHigh) {
+                        SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
+                    } else {
+                        SpiritStoneExchange.RATIO
+                    }
+                    MerchantItem(
+                        id = UUID.randomUUID().toString(),
+                        name = name,
+                        type = "spiritStone",
+                        itemId = UUID.randomUUID().toString(),
+                        rarity = itemRarity,
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity).coerceAtMost(3),
+                        obtainedYear = year,
+                        obtainedMonth = 1
+                    )
+                }
                 else -> continue
             }
 
@@ -754,6 +775,7 @@ class DiplomacyService @Inject constructor(
                 val t = HerbDatabase.getSeedByName(item.name)
                 inventorySystem.canAddSeed(item.name, item.rarity, t?.growTime ?: 12)
             }
+            "spiritstone" -> true
             else -> false
         }
         if (!capacityOk) {
@@ -870,6 +892,14 @@ class DiplomacyService @Inject constructor(
                 } else {
                     seeds = seeds + s
                 }
+            }
+            "spiritstone" -> {
+                val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return
+                gameData = gameData.copy(
+                    spiritStones = if (grade == SpiritStoneGrade.LOW) gameData.spiritStones + actualQuantity else gameData.spiritStones,
+                    midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) gameData.midGradeSpiritStones + actualQuantity else gameData.midGradeSpiritStones,
+                    highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) gameData.highGradeSpiritStones + actualQuantity else gameData.highGradeSpiritStones
+                )
             }
         }
     }

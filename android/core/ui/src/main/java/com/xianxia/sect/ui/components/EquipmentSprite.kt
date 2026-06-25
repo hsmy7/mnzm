@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.components
 
 import androidx.annotation.DrawableRes
+import com.xianxia.sect.core.model.SpiritStoneGrade
 
 /**
  * Registry for sprite drawable resource IDs.
@@ -14,7 +15,7 @@ object SpriteResRegistry {
         private set
     var pillSprites: Map<Int, Int> = emptyMap()
         private set
-    @DrawableRes var spiritStoneRes: Int = 0
+    var spiritStoneSprites: Map<SpiritStoneGrade, Int> = emptyMap()
         private set
     var materialSprites: Map<String, Int> = emptyMap()
         private set
@@ -35,7 +36,7 @@ object SpriteResRegistry {
         equipmentSprites: Map<String, Int>,
         manualSprites: Map<Int, Int>,
         pillSprites: Map<Int, Int>,
-        @DrawableRes spiritStoneRes: Int,
+        spiritStoneSprites: Map<SpiritStoneGrade, Int>,
         materialSprites: Map<String, Int>,
         storageBagSprites: Map<Int, Int>,
         sectIconSprites: Map<Int, Int>,
@@ -47,7 +48,7 @@ object SpriteResRegistry {
         this.equipmentSprites = equipmentSprites
         this.manualSprites = manualSprites
         this.pillSprites = pillSprites
-        this.spiritStoneRes = spiritStoneRes
+        this.spiritStoneSprites = spiritStoneSprites
         this.materialSprites = materialSprites
         this.storageBagSprites = storageBagSprites
         this.sectIconSprites = sectIconSprites
@@ -64,7 +65,8 @@ fun manualSpriteRes(rarity: Int): Int? = SpriteResRegistry.manualSprites[rarity]
 
 fun pillSpriteRes(rarity: Int): Int? = SpriteResRegistry.pillSprites[rarity]
 
-fun spiritStoneSpriteRes(): Int? = SpriteResRegistry.spiritStoneRes.takeIf { it != 0 }
+fun spiritStoneSpriteRes(grade: SpiritStoneGrade = SpiritStoneGrade.LOW): Int? =
+    SpriteResRegistry.spiritStoneSprites[grade]?.takeIf { it != 0 }
 
 fun materialSpriteRes(name: String): Int? {
     val baseName = name.removePrefix("凡").removePrefix("灵")
@@ -145,7 +147,14 @@ fun getRewardSprite(itemType: String, itemName: String, rarity: Int): Int? {
         "herb" -> herbSpriteRes(itemName) ?: pillSpriteRes(rarity)
         "seed" -> seedSpriteRes(itemName)
             ?: SpriteResRegistry.materialSprites.values.firstOrNull()
-        "spiritStones" -> spiritStoneSpriteRes()
+        "spiritStones" -> {
+            val grade = when {
+                itemName.contains("上品") -> SpiritStoneGrade.HIGH
+                itemName.contains("中品") -> SpiritStoneGrade.MID
+                else -> SpiritStoneGrade.LOW
+            }
+            spiritStoneSpriteRes(grade)
+        }
         "storageBag" -> storageBagSpriteRes(rarity)
         "beastMaterial" -> materialSpriteRes(itemName)
             ?: SpriteResRegistry.materialSprites.values.firstOrNull()

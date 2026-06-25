@@ -60,6 +60,10 @@ class SettlementCoordinator @Inject constructor(
     @Volatile
     private var currentCache: SettlementCache? = null
 
+    // 修炼速率指纹缓存：仅在结构变化时重建 SettlementCache
+    private var lastFingerprint: CultivationRateFingerprint? = null
+    private var reusableCache: SettlementCache? = null
+
     // 非焦点域热控分批：记录上次结算的绝对月份和当前批次数
     private var nonFocusedLastSettleMonth: Int = 0
     private var nonFocusedBatchMonths: Int = 1
@@ -103,6 +107,8 @@ class SettlementCoordinator @Inject constructor(
     private fun resetOnError() {
         shadowState = null
         currentCache = null
+        reusableCache = null
+        lastFingerprint = null
         scheduler.reset()
     }
 
@@ -126,12 +132,25 @@ class SettlementCoordinator @Inject constructor(
         )
         computeNonFocusedBatch(currentAbsMonth)
 
-        timer.start()
-        val cachePhase = Phase_BuildCache { state ->
-            val cache = SettlementCache(state)
-            currentCache = cache
-            metricsBuilder.cacheBuildMs = timer.stop()
-            cache
+        // 修炼速率指纹缓存：修炼速率仅依赖于建筑布局/长老分配/宗门政策/弟子集合
+        // 等结构因素，不依赖弟子当前修炼值。指纹匹配时跳过 Cache 重建节省性能。
+        val fingerprint = computeFingerprint(shadow)
+        val cachePhase: Phase_BuildCache?
+
+        if (fingerprint == lastFingerprint && reusableCache != null) {
+            currentCache = reusableCache
+            cachePhase = null
+            metricsBuilder.cacheBuildMs = 0f
+        } else {
+            timer.start()
+            cachePhase = Phase_BuildCache { state ->
+                val cache = SettlementCache(state)
+                currentCache = cache
+                reusableCache = cache
+                lastFingerprint = fingerprint
+                metricsBuilder.cacheBuildMs = timer.stop()
+                cache
+            }
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -181,12 +200,24 @@ class SettlementCoordinator @Inject constructor(
         )
         computeNonFocusedBatch(currentAbsMonth)
 
-        timer.start()
-        val cachePhase = Phase_BuildCache { state ->
-            val cache = SettlementCache(state)
-            currentCache = cache
-            metricsBuilder.cacheBuildMs = timer.stop()
-            cache
+        // 修炼速率指纹缓存（与 scheduleMonthly 一致）
+        val fingerprint = computeFingerprint(shadow)
+        val cachePhase: Phase_BuildCache?
+
+        if (fingerprint == lastFingerprint && reusableCache != null) {
+            currentCache = reusableCache
+            cachePhase = null
+            metricsBuilder.cacheBuildMs = 0f
+        } else {
+            timer.start()
+            cachePhase = Phase_BuildCache { state ->
+                val cache = SettlementCache(state)
+                currentCache = cache
+                reusableCache = cache
+                lastFingerprint = fingerprint
+                metricsBuilder.cacheBuildMs = timer.stop()
+                cache
+            }
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -269,6 +300,8 @@ class SettlementCoordinator @Inject constructor(
     fun cancelPendingWork() {
         shadowState = null
         currentCache = null
+        reusableCache = null
+        lastFingerprint = null
         scheduler.reset()
     }
 
@@ -497,8 +530,10 @@ class SettlementCoordinator @Inject constructor(
                     cultivationService.applyMonthlyDurationDecay(tables, id, 0)
                 }
 
-                // 突破检查
-                val needsBreakthrough = newCultivation >= disciple.maxCultivation &&
+                // 突破检查：仅修为 ≥80% 时检查完整条件
+                val nearMaxCult = newCultivation >= disciple.maxCultivation * 0.8
+                val needsBreakthrough = nearMaxCult &&
+                    newCultivation >= disciple.maxCultivation &&
                     isDiscipleFullHpMp(disciple)
                 var dAfterBreakthrough: Disciple? = null
                 if (needsBreakthrough) {
@@ -593,9 +628,11 @@ class SettlementCoordinator @Inject constructor(
                 }
             }
 
-            // 突破检查（与 clean batch 一致，不依赖 BREAKTHROUGH dirtyFlag）
+            // 突破检查：仅修为 ≥80% 时检查完整条件（低于80%不可能突破，跳过以节省性能）
             val currentCult = tables.cultivations[id]
-            val needsBreakthrough = currentCult >= disciple.maxCultivation &&
+            val nearMaxCultivation = currentCult >= disciple.maxCultivation * 0.8
+            val needsBreakthrough = nearMaxCultivation &&
+                currentCult >= disciple.maxCultivation &&
                 isDiscipleFullHpMp(disciple)
 
             val effectiveBatch = if (batchMonths > 0) batchMonths else 1
@@ -1107,6 +1144,56 @@ class SettlementCoordinator @Inject constructor(
             // 未达批次阈值，跳过修炼结算，等累积满阈值后一次性批量处理
             0
         }
+    }
+
+    /**
+     * 计算修炼速率缓存指纹 — 检测影响修炼速率计算的变化。
+     *
+     * 检测以下变化（任一变化即触发缓存重建）：
+     * - 住所布局、长老分配、宗门政策（结构性因素）
+     * - 弟子境界分布（境界变化 → 修炼速率变化）
+     * - 存活弟子集合（弟子增删）
+     * - 丹药效果/修炼加速/丧亲状态（持续效果开始或结束 → 速率变化）
+     * - 功法装备状态（功法熟练度/装备温养 → 速率变化）
+     *
+     * 不依赖弟子当前修炼值等逐旬变化的动态属性。
+     * 所有哈希均通过 DiscipleTables 组件列直接计算，无需 assemble()。
+     * 指纹比较为纯 Int 比较 O(1)，计算为 O(n) 仅做 hashCode()，~100弟子 <<1ms。
+     */
+    private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
+        val data = shadow.gameData
+        val tables = shadow.discipleTables
+        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        val discipleIdsHash = aliveIds.hashCode()
+        val realmHash = aliveIds.map { tables.realms[it] }.hashCode()
+        // 逐弟子哈希（丹药/丧亲/功法）：通过组件列直接读取，无需 assemble()
+        // 装备变更由 EQUIPMENT dirty flag 单独跟踪，不在指纹中检测
+        val perDiscipleHash = aliveIds.map { id ->
+            var h = 1
+            h = 31 * h + tables.cultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
+            h = 31 * h + tables.cultivationSpeedDurations.getOrDefault(id, 0)
+            h = 31 * h + tables.pillEffectDurations.getOrDefault(id, 0)
+            h = 31 * h + tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
+            h = 31 * h + (tables.griefEndYears.getOrNull(id)?.hashCode() ?: 0)
+            // 功法变化（ComponentTable 需 getOrNull 避免 NoSuchElementException）
+            h = 31 * h + (tables.manualIds.getOrNull(id)?.hashCode() ?: 0)
+            h
+        }.hashCode()
+        return CultivationRateFingerprint(
+            residenceLayout = data.residenceSlots.hashCode() * 31 +
+                data.placedBuildings.hashCode(),
+            elderAssignments = data.elderSlots.hashCode(),
+            preachingAssignments = (
+                data.elderSlots.preachingElder.hashCode() * 31 +
+                data.elderSlots.preachingMasters.hashCode() * 31 +
+                data.elderSlots.qingyunPreachingElder.hashCode() * 31 +
+                data.elderSlots.qingyunPreachingMasters.hashCode()
+            ),
+            policyFlags = data.sectPolicies.hashCode(),
+            aliveDiscipleIdsHash = discipleIdsHash,
+            realmHash = realmHash,
+            perDiscipleHash = perDiscipleHash
+        )
     }
 
     companion object {

@@ -163,11 +163,6 @@ class GameMonitorManager @Inject constructor(
 
     fun getMemoryMonitor(): MemoryMonitor = memoryMonitor
 
-    @Deprecated("Use getUnifiedPerformanceMonitor() instead", ReplaceWith("getUnifiedPerformanceMonitor()"))
-    fun getPerformanceMonitor(): Nothing = throw UnsupportedOperationException(
-        "PerformanceMonitor is deprecated. Use getUnifiedPerformanceMonitor() instead."
-    )
-
     fun getGCOptimizer(): GCOptimizer = gcOptimizer
 
     fun getUnifiedPerformanceMonitor(): UnifiedPerformanceMonitor = unifiedPerformanceMonitor

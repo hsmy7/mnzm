@@ -46,6 +46,7 @@ junit = "4.13.2"
 mockito = "5.14.2"
 mockito-inline = "5.2.0"
 mockito-kotlin = "5.4.0"
+mockk = "1.13.13"
 robolectric = "4.13"
 kotlin-reflect = "2.2.20"
 test-ext-junit = "1.1.5"
@@ -153,6 +154,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-inline = { group = "org.mockito", name = "mockito-inline", version.ref = "mockito-inline" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin-reflect" }
 konsist-test = { group = "com.lemonappdev", name = "konsist", version.ref = "konsist" }

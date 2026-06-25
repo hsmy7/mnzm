@@ -23,6 +23,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
@@ -154,38 +155,28 @@ internal fun BulkSellDialog(
                         fontSize = 12.sp,
                         color = Color.Black
                     )
-                    rarityOptions.chunked(4).forEach { rowOptions ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowOptions.forEach { (rarity, name) ->
-                                val isSelected = selectedRarities.contains(rarity)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                        .clickable {
-                                            selectedRarities = if (isSelected) {
-                                                selectedRarities - rarity
-                                            } else {
-                                                selectedRarities + rarity
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) Color.White else Color.Black
-                                    )
+                    GridRow(items = rarityOptions) { (rarity, name) ->
+                        val isSelected = selectedRarities.contains(rarity)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
+                                .clickable {
+                                    selectedRarities = if (isSelected) {
+                                        selectedRarities - rarity
+                                    } else {
+                                        selectedRarities + rarity
+                                    }
                                 }
-                            }
-                            repeat(4 - rowOptions.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = name,
+                                fontSize = 11.sp,
+                                color = if (isSelected) Color.White else Color.Black
+                            )
                         }
                     }
                 }
@@ -201,38 +192,28 @@ internal fun BulkSellDialog(
                         fontSize = 12.sp,
                         color = Color.Black
                     )
-                    typeOptions.chunked(4).forEach { rowOptions ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowOptions.forEach { (type, name) ->
-                                val isSelected = selectedTypes.contains(type)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                        .clickable {
-                                            selectedTypes = if (isSelected) {
-                                                selectedTypes - type
-                                            } else {
-                                                selectedTypes + type
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) Color.White else Color.Black
-                                    )
+                    GridRow(items = typeOptions) { (type, name) ->
+                        val isSelected = selectedTypes.contains(type)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
+                                .clickable {
+                                    selectedTypes = if (isSelected) {
+                                        selectedTypes - type
+                                    } else {
+                                        selectedTypes + type
+                                    }
                                 }
-                            }
-                            repeat(4 - rowOptions.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = name,
+                                fontSize = 11.sp,
+                                color = if (isSelected) Color.White else Color.Black
+                            )
                         }
                     }
                 }

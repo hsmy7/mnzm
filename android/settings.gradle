@@ -23,7 +23,7 @@ dependencyResolutionManagement {
 }
 
 // ============================================================
-// Remote Build Cache (团队场景启用)
+// 决策：保留。Remote Build Cache 待 CI 缓存服务器就绪后启用（当前为占位配置）。
 // 信任梯度: 开发者只读 → Pre-merge CI 只读 → Post-merge CI 推送
 // ============================================================
 // buildCache {

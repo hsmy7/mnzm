@@ -1484,13 +1484,12 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - **BUILDINGS Tab**: `ProductionSubsystem.onPhaseTick` 每 200ms 检测生产槽位完成 + 触发自动锻造/自动炼丹
 - **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前正常恢复（`CombatService`，满状态跳过）
 
-### 修炼惰性结算 (v3.2.16)
+### 修炼月度结算 (v3.2.16 / v4.0.11)
 
-- `SettlementCache.farFromCompletionIds`：距突破 >2 月的弟子跳过月度结算
-- 距突破 ≤2 月自动进入窗口，逐月推进
+- 所有存活弟子每月强制结算修炼值，不再按距突破远近跳过（原 `farFromCompletionIds` 逻辑已移除）
 - 修炼速度变化 → 脏标记 → 强制下一次结算 → 重算 `completionMonth`
-- 突破被动触发：仅 `cultivation >= maxCultivation` 时判定
-- Cache 增量重建 (v3.2.22)：`CultivationRateFingerprint` 检测住所/长老/传功/政策变化，未变化时复用 `SettlementCache`
+- 突破被动触发：`cultivation >= maxCultivation` 且满血满蓝时判定，clean/dirty 批次均会检查
+- Cache 增量重建 (v3.2.22/v4.0.21)：`CultivationRateFingerprint` 检测住所/长老/传功/政策/弟子列表变化，未变化时复用 `SettlementCache`
 
 ### 其他性能改进
 

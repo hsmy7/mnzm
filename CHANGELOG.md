@@ -27,6 +27,7 @@
 ### 优化
 
 - **优化：宗门信息卡片显示总灵石数量** — 顶栏灵石按售卖价汇总显示总下品等价，中品/上品明细以较小字体显示
+- **优化：代码质量全面清理** — 修炼速率指纹扩展至7个维度（住所/长老/传道/政策/弟子增删/境界分布/逐弟子丹药丧亲功法状态），突破检查添加80%修为前置阈值，SettlementCache 5次弟子组装合并为1次共享，DiscipleTickParams 19参数按领域分组为6上下文对象，看门狗添加连续失败降级模式+日志节流防止OEM永久挂起时频繁重启，ThermalMonitor缓存StateFlow消除每tick binder IPC。清理StorageFacade 10处无调用@Deprecated方法、GameEngineCore死代码。CLAUDE.md 4处200ms→100ms与实际tick间隔一致。GridRow泛型网格Composable消除MaterialSection/PillSection/WarehouseBulkSellDialog重复布局代码。新增120个单元测试（CultivationCore 48 + SettlementCoordinator 54 + GameViewModel 30）覆盖修炼计算/月度结算/突破检测/热控分批等核心路径，5个架构守护测试+5个指纹测试
 
 ### 新增
 

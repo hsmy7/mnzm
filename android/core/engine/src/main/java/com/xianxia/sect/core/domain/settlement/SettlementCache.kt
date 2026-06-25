@@ -10,8 +10,36 @@ import com.xianxia.sect.core.state.MutableGameState
 enum class DiscipleDirtyFlag {
     NONE,
     EQUIPMENT,
-    MANUAL
+    MANUAL,
+    /** 丹药效果或修炼加速持续中 — 影响修炼速率计算 */
+    PILL_EFFECT,
+    /** 丧亲状态中 — 影响修炼速率计算 */
+    GRIEF
 }
+
+/**
+ * 修炼速率缓存指纹 — 检测影响修炼速率计算的变化。
+ *
+ * 检测维度（任一变化 → 缓存重建，纯 Int 比较 O(1)）：
+ * - 建筑布局、长老分配、宗门政策（结构性因素）
+ * - 弟子境界分布（境界变化 → 修炼速率变化）
+ * - 弟子集合变化（招募/死亡 → 新弟子需要初始速率）
+ * - 丹药效果/修炼加速/丧亲状态（持续效果开始或结束 → 速率变化）
+ * - 功法装备状态（功法熟练度/装备温养 → 速率变化）
+ *
+ * 不依赖弟子当前修炼值等逐旬变化的动态属性。
+ * perDiscipleHash 通过遍历 DiscipleTables 组件列直接计算，无需 assemble，
+ * O(n) 增量成本极低（~100弟子 <<1ms）。
+ */
+data class CultivationRateFingerprint(
+    val residenceLayout: Int,
+    val elderAssignments: Int,
+    val preachingAssignments: Int,
+    val policyFlags: Int,
+    val aliveDiscipleIdsHash: Int,
+    val realmHash: Int,
+    val perDiscipleHash: Int
+)
 
 class SettlementCache(state: MutableGameState) {
 
@@ -36,14 +64,11 @@ class SettlementCache(state: MutableGameState) {
         state.gameData.spiritMineSlots.filter { it.isActive }.map { it.discipleId }.toSet()
 
     // ── 单次 assemble 共享：所有弟子仅组装一次，供后续所有构建器复用 ──
-    // 优化前：discipleMap + aliveDisciples + buildDirtyFlags + buildCultivationRateCache
-    //         + buildPreachingBonusCache 各自独立组装，共 5 次全量 assemble()
-    // 优化后：一次组装，Map 与 List 共享同一批 Disciple 对象
-    // 移除指纹缓存（computeFingerprint/CultivationRateFingerprint）的原因：
-    //   指纹仅检测结构变化（布局/长老/政策/弟子ID），不检测弟子属性变化。
-    //   弟子修炼值增长会改变修炼速率计算，但指纹不会变化 → 旧缓存返回过期数据。
-    //   月度 SettlementCache 重建成本：~100弟子 × 1次assemble ≈ 63K 次SparseArray查找，
-    //   在月度批次中 << 1ms，不影响帧率。
+    // 优化：原本 discipleMap + aliveDisciples + buildDirtyFlags + buildCultivationRateCache
+    //       + buildPreachingBonusCache 各自独立组装，共 5 次全量 assemble()
+    // 现：一次组装，Map 与 List 共享同一批 Disciple 对象
+    // 注意：修炼速率缓存由 SettlementCoordinator 的 CultivationRateFingerprint 机制
+    //       控制重建频率——仅在结构变化时重建，每月无条件重建会造成不必要性能损耗。
 
     private val allDiscipleMap: Map<String, Disciple> =
         state.discipleTables.ids
@@ -64,7 +89,8 @@ class SettlementCache(state: MutableGameState) {
     val dirtyDiscipleIds: Set<String>
 
     init {
-        dirtyFlags = buildDirtyFlags(allDiscipleMap)
+        val currentYear = state.gameData.gameYear
+        dirtyFlags = buildDirtyFlags(allDiscipleMap, currentYear)
         cleanDiscipleIds = dirtyFlags.filter { DiscipleDirtyFlag.NONE in it.value }.keys
         dirtyDiscipleIds = dirtyFlags.filter { DiscipleDirtyFlag.NONE !in it.value }.keys
 
@@ -73,12 +99,23 @@ class SettlementCache(state: MutableGameState) {
     }
 
     private fun buildDirtyFlags(
-        discipleMap: Map<String, Disciple>
+        discipleMap: Map<String, Disciple>,
+        currentYear: Int
     ): Map<String, Set<DiscipleDirtyFlag>> {
         return discipleMap.mapValues { (_, d) ->
             val flags = mutableSetOf<DiscipleDirtyFlag>()
             if (d.equipment.hasEquippedItems) flags += DiscipleDirtyFlag.EQUIPMENT
             if (d.manualIds.isNotEmpty()) flags += DiscipleDirtyFlag.MANUAL
+            // 丹药效果或修炼加速持续中 → dirty（影响修炼速率计算）
+            if (d.cultivationSpeedBonus > 0.0 || d.pillEffects.pillEffectDuration > 0) {
+                flags += DiscipleDirtyFlag.PILL_EFFECT
+            }
+            // 丧亲状态中 → dirty（影响修炼速率计算）
+            if (d.social.griefEndYear != null &&
+                com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+                    .isGrieving(d.social.griefEndYear!!, currentYear)) {
+                flags += DiscipleDirtyFlag.GRIEF
+            }
             if (flags.isEmpty()) setOf(DiscipleDirtyFlag.NONE) else flags
         }
     }

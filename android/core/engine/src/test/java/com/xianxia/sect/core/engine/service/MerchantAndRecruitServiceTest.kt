@@ -1,7 +1,13 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+import com.xianxia.sect.core.model.SpiritStoneExchange
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.util.CoroutineScopeProvider
 import org.junit.Assert.*
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class MerchantAndRecruitServiceTest {
 
@@ -41,5 +47,28 @@ class MerchantAndRecruitServiceTest {
         assertEquals(1, MerchantAndRecruitService.calcRecruitBonusCap(84))
         // (87-80)/4 = 1.75 → 1
         assertEquals(1, MerchantAndRecruitService.calcRecruitBonusCap(87))
+    }
+
+    // ==================== buildMerchantItemPools ====================
+
+    @Test
+    fun `buildMerchantItemPools - contains mid and high grade spirit stones`() {
+        val service = MerchantAndRecruitService(
+            mock(GameStateStore::class.java),
+            mock(CoroutineScopeProvider::class.java),
+            mock(DiscipleFactory::class.java)
+        )
+        val pools = service.buildMerchantItemPools()
+
+        val midEntry = pools.poolByRarity[3]?.find { it.name == "中品灵石" && it.type == "spiritStone" }
+        val highEntry = pools.poolByRarity[5]?.find { it.name == "上品灵石" && it.type == "spiritStone" }
+
+        assertNotNull("中品灵石应加入稀有度 3 池", midEntry)
+        assertNotNull("上品灵石应加入稀有度 5 池", highEntry)
+
+        assertEquals(SpiritStoneExchange.RATIO, pools.priceMap["中品灵石"])
+        assertEquals(SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO, pools.priceMap["上品灵石"])
+        assertEquals(3, pools.rarityMap["中品灵石"])
+        assertEquals(5, pools.rarityMap["上品灵石"])
     }
 }

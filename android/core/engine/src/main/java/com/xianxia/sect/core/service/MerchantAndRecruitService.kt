@@ -147,6 +147,15 @@ class MerchantAndRecruitService @Inject constructor(
             pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
+        // 中品/上品灵石加入旅行商人与收购池（价格按下品结算）
+        pools.poolByRarity.getOrPut(3) { mutableListOf() }.add(PoolEntry("中品灵石", "spiritStone"))
+        pools.rarityMap["中品灵石"] = 3
+        pools.priceMap["中品灵石"] = SpiritStoneExchange.RATIO
+
+        pools.poolByRarity.getOrPut(5) { mutableListOf() }.add(PoolEntry("上品灵石", "spiritStone"))
+        pools.rarityMap["上品灵石"] = 5
+        pools.priceMap["上品灵石"] = SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
+
         return pools
     }
 

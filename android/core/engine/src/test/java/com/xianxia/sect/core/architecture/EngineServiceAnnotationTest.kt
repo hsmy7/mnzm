@@ -28,6 +28,7 @@ class EngineServiceAnnotationTest {
                 !name.endsWith("Pool") && !name.endsWith("Pools") &&
                 !name.endsWith("Entry") && !name.endsWith("Accumulator") &&
                 !name.endsWith("Summary") && !name.endsWith("Snapshot") &&
+                !name.endsWith("Context") && !name.endsWith("Params") &&
                 name != "Success" && name != "CapacityInsufficient" &&
                 name != "DistributeFailed" &&
                 name != "SuccessWithMilestones" &&

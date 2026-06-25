@@ -2,7 +2,6 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
-import androidx.annotation.WorkerThread
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
@@ -299,55 +298,6 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    // ==================== 同步存取方法 ====================
-
-    @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
-    @WorkerThread
-    suspend fun saveSync(slot: Int, data: SaveData): Boolean {
-        return try {
-            withContext(Dispatchers.IO) {
-                val result = save(slot, data)
-                result.isSuccess
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "saveSync failed for slot $slot", e)
-            false
-        }
-    }
-
-    @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
-    @WorkerThread
-    suspend fun saveSyncWithResult(slot: Int, data: SaveData): SaveResult<Unit> {
-        return try {
-            withContext(Dispatchers.IO) {
-                save(slot, data)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "saveSyncWithResult failed for slot $slot", e)
-            SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Save failed", e)
-        }
-    }
-
-    @Deprecated("Use the suspend load() instead", ReplaceWith("load(slot)"))
-    @WorkerThread
-    suspend fun loadSync(slot: Int): SaveData? {
-        return try {
-            withContext(Dispatchers.IO) {
-                val result = load(slot)
-                result.getOrNull()
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "loadSync failed for slot $slot", e)
-            null
-        }
-    }
-
     // ==================== 删除方法 ====================
 
     suspend fun delete(slot: Int): SaveResult<Unit> {
@@ -370,21 +320,6 @@ class StorageFacade @Inject constructor(
     }
 
     // ==================== 槽位管理方法 ====================
-
-    @Deprecated("Use the suspend getSaveSlotsSuspend() instead", ReplaceWith("getSaveSlotsSuspend()"))
-    @WorkerThread
-    suspend fun getSaveSlots(): List<SaveSlot> {
-        return try {
-            withContext(Dispatchers.IO) {
-                engine.getSaveSlots()
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlots FAILED", e)
-            throw RuntimeException("Failed to get save slots: ${e.message}", e)
-        }
-    }
 
     suspend fun getSaveSlotsSuspend(): List<SaveSlot> {
         return try {
@@ -419,21 +354,6 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend loadEmergencySaveSuspend() instead", ReplaceWith("loadEmergencySaveSuspend()"))
-    @WorkerThread
-    suspend fun loadEmergencySave(): SaveData? {
-        return try {
-            withContext(Dispatchers.IO) {
-                engine.loadEmergencySave()
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "loadEmergencySave failed", e)
-            null
-        }
-    }
-
     suspend fun loadEmergencySaveSuspend(): SaveData? {
         return try {
             engine.loadEmergencySave()
@@ -445,20 +365,6 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend clearEmergencySaveSuspend() instead", ReplaceWith("clearEmergencySaveSuspend()"))
-    @WorkerThread
-    suspend fun clearEmergencySave() {
-        try {
-            withContext(Dispatchers.IO) {
-                engine.clearEmergencySave()
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "clearEmergencySave failed", e)
-        }
-    }
-
     suspend fun clearEmergencySaveSuspend() {
         try {
             engine.clearEmergencySave()
@@ -466,22 +372,6 @@ class StorageFacade @Inject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "clearEmergencySave failed", e)
-        }
-    }
-
-    @Deprecated("Use the suspend emergencySaveSuspend() instead", ReplaceWith("emergencySaveSuspend(data)"))
-    @WorkerThread
-    suspend fun emergencySave(data: SaveData): Boolean {
-        return try {
-            withContext(Dispatchers.IO) {
-                val result = engine.emergencySave(data)
-                result.isSuccess
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "emergencySave failed", e)
-            false
         }
     }
 
@@ -498,21 +388,6 @@ class StorageFacade @Inject constructor(
 
     // ==================== 数据检查方法 ====================
 
-    @Deprecated("Use the suspend hasSaveSuspend() instead", ReplaceWith("hasSaveSuspend(slot)"))
-    @WorkerThread
-    suspend fun hasSave(slot: Int): Boolean {
-        return try {
-            withContext(Dispatchers.IO) {
-                engine.hasData(slot)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "hasSave check failed for slot $slot", e)
-            false
-        }
-    }
-
     suspend fun hasSaveSuspend(slot: Int): Boolean {
         return try {
             engine.hasData(slot)
@@ -520,22 +395,6 @@ class StorageFacade @Inject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "hasSave check failed for slot $slot", e)
-            false
-        }
-    }
-
-    @Deprecated("Use the suspend isSaveCorruptedSuspend() instead", ReplaceWith("isSaveCorruptedSuspend(slot)"))
-    @WorkerThread
-    suspend fun isSaveCorrupted(slot: Int): Boolean {
-        return try {
-            withContext(Dispatchers.IO) {
-                val result = engine.validateIntegrity(slot)
-                result.isFailure
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
             false
         }
     }
@@ -640,46 +499,6 @@ class StorageFacade @Inject constructor(
             throw e
         } catch (e: Exception) {
             SlotHealthReport(slot, false, false, 0L, false, listOf("Health check error: ${e.message}"))
-        }
-    }
-
-    @Deprecated("Use the suspend getStorageUsageSuspend() instead", ReplaceWith("getStorageUsageSuspend()"))
-    @WorkerThread
-    suspend fun getStorageUsage(): StorageUsage {
-        return try {
-            val slotBytes = mutableMapOf<Int, Long>()
-            var totalBytes = 0L
-
-            for (slot in 0..lockManager.getMaxSlots()) {
-                val size = try {
-                    withContext(Dispatchers.IO) {
-                        if (engine.hasData(slot)) {
-                            val data = engine.load(slot).getOrNull()
-                            if (data != null) {
-                                com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
-                            } else 0L
-                        } else 0L
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    0L
-                }
-                slotBytes[slot] = size
-                totalBytes += size
-            }
-
-            StorageUsage(
-                totalBytes = totalBytes,
-                slotBytes = slotBytes,
-                cacheBytes = 0L,
-                walBytes = 0L
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "getStorageUsage failed", e)
-            StorageUsage(0L, emptyMap(), 0L, 0L)
         }
     }
 

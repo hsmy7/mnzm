@@ -68,7 +68,7 @@ Tests live in `android/app/src/test/`. They use JUnit 4, Mockito, Robolectric, a
 │   - Dialogs managed by DialogStateManager        │
 ├──────────────────────────────────────────────────┤
 │ Layer 1: GameEngineCore + GameEngine             │
-│   - EngineCore: game loop (200ms tick)           │
+│   - EngineCore: game loop (100ms tick)           │
 │   - Engine: business logic (cultivation, battle, │
 │     production, diplomacy, exploration, etc.)    │
 │   - Writes to GameStateStore._state MutableFlow  │
@@ -88,7 +88,7 @@ User Action (Compose UI)
 ```
 
 - **GameEngine** is the single entry point for all state mutations from the UI layer. ViewModels never write to `GameStateStore` directly.
-- **GameEngineCore** runs on a 200ms tick via `SystemManager`, driving autonomous systems (TimeSystem, BuildingSubsystem, etc.) that also write to `GameStateStore`.
+- **GameEngineCore** runs on a 100ms tick via `SystemManager`, driving autonomous systems (TimeSystem, BuildingSubsystem, etc.) that also write to `GameStateStore`.
 - **GameStateStore** is the single source of truth — one `MutableStateFlow<UnifiedGameState>` containing all game state. Individual `StateFlow` projections are derived via `.map {}`.
 
 ### Key Source Directories
@@ -96,7 +96,7 @@ User Action (Compose UI)
 **Core — Game logic, state, and static data**
 | Directory | Purpose |
 |-----------|---------|
-| `core/engine/` | Game loop (200ms tick), services, systems, production, scheduling |
+| `core/engine/` | Game loop (100ms tick), services, systems, production, scheduling |
 | `core/engine/service/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
 | `core/engine/system/` | ECS-like systems: Inventory, Building, Time, SystemManager |
 | `core/model/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, etc. |
@@ -130,7 +130,7 @@ User Action (Compose UI)
 
 ### Key Classes
 
-- **`GameEngineCore`** — Game loop controller. `start()`/`stop()`/`tick()` at 200ms intervals. Delegates to `SystemManager` which runs registered systems (TimeSystem, BuildingSubsystem, etc.) in priority order.
+- **`GameEngineCore`** — Game loop controller. `start()`/`stop()`/`tick()` at 100ms intervals. Delegates to `SystemManager` which runs registered systems (TimeSystem, BuildingSubsystem, etc.) in priority order.
 - **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
 - **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
 - **`GameViewModel`** — Primary ViewModel (Hilt). Bridges UI to engine. Owns `DialogStateManager`.

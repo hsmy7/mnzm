@@ -25,6 +25,7 @@ import com.xianxia.sect.core.model.DailySignInReward
 import com.xianxia.sect.core.model.MilestoneReward
 import com.xianxia.sect.core.model.SignInDayState
 import com.xianxia.sect.core.model.SignInState
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -343,7 +344,7 @@ private fun SignInDayCard(
                 name = if (isRandomReward) reward.itemName.removePrefix("随机") else reward.itemName,
                 rarity = reward.rarity,
                 quantity = reward.quantity,
-                isSpiritStone = reward.type == "spiritStones",
+                spiritStoneGrade = if (reward.type == "spiritStones") SpiritStoneGrade.LOW else null,
                 isBag = reward.type == "storageBag",
                 isPill = reward.type == "pill",
                 isMaterial = reward.type == "beastMaterial"
@@ -507,7 +508,7 @@ private fun MilestoneRewardRow(
                     name = milestone.itemName,
                     rarity = milestone.rarity,
                     quantity = milestone.quantity,
-                    isSpiritStone = milestone.type == "spiritStones",
+                    spiritStoneGrade = if (milestone.type == "spiritStones") SpiritStoneGrade.LOW else null,
                     isBag = milestone.type == "storageBag"
                 ),
                 size = cardHeight,
@@ -562,7 +563,7 @@ private fun buildDetailItem(
     rarity: Int
 ): Any? {
     return when (type) {
-        "spiritStones" -> SpiritStoneInfo(quantity.toLong())
+        "spiritStones" -> SpiritStoneInfo(SpiritStoneGrade.LOW, quantity.toLong())
         "storageBag" -> StorageBag(
             id = "",
             name = itemName,

@@ -85,4 +85,8 @@ dependencies {
     testImplementation libs.coroutines.test
     testImplementation libs.kotlin.reflect
     testImplementation libs.konsist.test
+    testImplementation libs.mockito.core
+    // DiscipleTables 底层使用 android.util.SparseIntArray/SparseArray，
+    // 需要 Robolectric 提供真实实现（与 core:domain 模块测试一致）
+    testImplementation libs.robolectric
 }

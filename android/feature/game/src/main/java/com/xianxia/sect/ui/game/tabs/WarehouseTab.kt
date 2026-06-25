@@ -31,6 +31,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.RewardDisplayDialog
@@ -70,7 +71,7 @@ internal enum class WarehouseFilter(val displayName: String) {
     MATERIAL("材料")
 }
 
-data class SpiritStoneInfo(val quantity: Long)
+data class SpiritStoneInfo(val grade: SpiritStoneGrade, val quantity: Long)
 
 @Composable
 internal fun WarehouseTab(
@@ -89,16 +90,20 @@ internal fun WarehouseTab(
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
     val spiritStoneCards = remember(gameData) {
-        val total = gameData.spiritStones
         val cards = mutableListOf<Pair<String, SpiritStoneInfo>>()
-        var remaining = total
-        var index = 0
-        while (remaining > 0) {
-            val qty = minOf(remaining, 1_000_000L)
-            cards.add("spirit_stone_$index" to SpiritStoneInfo(qty))
-            remaining -= qty
-            index++
+        fun addCard(grade: SpiritStoneGrade, total: Long) {
+            var remaining = total
+            var index = 0
+            while (remaining > 0) {
+                val qty = minOf(remaining, 1_000_000L)
+                cards.add("spirit_stone_${grade.name.lowercase()}_$index" to SpiritStoneInfo(grade, qty))
+                remaining -= qty
+                index++
+            }
         }
+        addCard(SpiritStoneGrade.LOW, gameData.spiritStones)
+        addCard(SpiritStoneGrade.MID, gameData.midGradeSpiritStones)
+        addCard(SpiritStoneGrade.HIGH, gameData.highGradeSpiritStones)
         cards
     }
 
@@ -147,7 +152,11 @@ internal fun WarehouseTab(
         sortedSeeds.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         sortedBags.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         spiritStoneCards.forEach { (id, info) ->
-            items.add(0, WarehouseItemData(id, "灵石", 1, info))
+            items.add(0, WarehouseItemData(id, info.grade.displayName, when (info.grade) {
+                SpiritStoneGrade.LOW -> 1
+                SpiritStoneGrade.MID -> 3
+                SpiritStoneGrade.HIGH -> 5
+            }, info))
         }
         items.sortedWith(compareByDescending<WarehouseItemData> { it.rarity }.thenBy { it.name })
     }
@@ -186,7 +195,11 @@ internal fun WarehouseTab(
                 sortedMaterials.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
                 sortedBags.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
                 spiritStoneCards.forEach { (id, info) ->
-                    items.add(0, WarehouseItemData(id, "灵石", 1, info))
+                    items.add(0, WarehouseItemData(id, info.grade.displayName, when (info.grade) {
+                        SpiritStoneGrade.LOW -> 1
+                        SpiritStoneGrade.MID -> 3
+                        SpiritStoneGrade.HIGH -> 5
+                    }, info))
                 }
                 items
             }
@@ -289,7 +302,7 @@ internal fun WarehouseTab(
                                             isMaterial = warehouseItem.item is Material,
                                             isHerb = warehouseItem.item is Herb,
                                             isSeed = warehouseItem.item is Seed,
-                                            isSpiritStone = warehouseItem.item is SpiritStoneInfo,
+                                            spiritStoneGrade = (warehouseItem.item as? SpiritStoneInfo)?.grade,
                                             isBag = warehouseItem.item is StorageBag
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,

@@ -113,43 +113,6 @@ class CryptoModule @Inject constructor(
     fun importKeyRecoveryToken(context: Context, token: String): Boolean =
         SecureKeyManager.importKeyRecoveryToken(token, context)
 
-    @Deprecated("Use StorageEngine.validateIntegrity() instead — this method cannot verify Merkle root without database access", ReplaceWith("storageEngine.validateIntegrity(slot)"))
-    fun validateIntegrity(slot: Int): IntegrityReport {
-        return try {
-            val key = getOrCreateKey(context)
-            val keyIntegrityValid = SecureKeyManager.verifyKeyIntegrity(context)
-
-            val keyHash = MessageDigest.getInstance("SHA-256")
-                .digest(key)
-                .joinToString("") { "%02x".format(it) }
-
-            val errors = mutableListOf<String>()
-            if (!keyIntegrityValid) {
-                errors.add("Key integrity verification failed")
-            }
-
-            IntegrityReport(
-                isValid = keyIntegrityValid && errors.isEmpty(),
-                dataHash = keyHash,
-                merkleRoot = "",
-                signatureValid = keyIntegrityValid,
-                hashValid = keyIntegrityValid,
-                merkleValid = false,
-                errors = errors
-            )
-        } catch (e: Exception) {
-            IntegrityReport(
-                isValid = false,
-                dataHash = "",
-                merkleRoot = "",
-                signatureValid = false,
-                hashValid = false,
-                merkleValid = false,
-                errors = listOf("Integrity validation failed: ${e.message}")
-            )
-        }
-    }
-
     private fun constantTimeEquals(a: String, b: String): Boolean {
         if (a.length != b.length) return false
         var result = 0

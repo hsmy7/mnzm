@@ -34,6 +34,7 @@ import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -360,7 +361,7 @@ private fun MailDetailPanel(
                                     rarity = attachment.rarity,
                                     quantity = attachment.quantity,
                                     type = attachment.type,
-                                    isSpiritStone = attachment.type == "spiritStones",
+                                    spiritStoneGrade = if (attachment.type == "spiritStones") SpiritStoneGrade.LOW else null,
                                     isPill = attachment.type == "pill",
                                     isHerb = attachment.type == "herb",
                                     isSeed = attachment.type == "seed",

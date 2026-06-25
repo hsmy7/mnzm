@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.DialogMode
@@ -141,7 +142,7 @@ internal fun BattleResultDialog(
                                         isPill = loot.type == "pill",
                                         isManual = loot.type == "manual",
                                         isMaterial = loot.type == "material",
-                                        isSpiritStone = loot.type == "spiritStones"
+                                        spiritStoneGrade = if (loot.type == "spiritStones") SpiritStoneGrade.LOW else null
                                     ),
                                     onLongPress = {
                                         detailReward = loot
@@ -230,7 +231,7 @@ internal fun BattleResultDialog(
                                         isPill = reward.type == "pill",
                                         isManual = reward.type == "manual",
                                         isMaterial = reward.type == "material",
-                                        isSpiritStone = reward.type == "spiritStones"
+                                        spiritStoneGrade = if (reward.type == "spiritStones") SpiritStoneGrade.LOW else null
                                     ),
                                     onLongPress = {
                                         detailReward = reward

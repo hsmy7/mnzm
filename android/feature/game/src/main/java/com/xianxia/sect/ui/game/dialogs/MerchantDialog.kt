@@ -105,8 +105,8 @@ fun MerchantDialog(
         scrollableContent = false,
         headerActions = {
             Text(
-                text = "灵石: ${gameData?.spiritStones ?: 0}",
-                fontSize = 13.sp,
+                text = "下品:${gameData?.spiritStones ?: 0} 中品:${gameData?.midGradeSpiritStones ?: 0} 上品:${gameData?.highGradeSpiritStones ?: 0}",
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
                 modifier = Modifier.padding(end = 8.dp)

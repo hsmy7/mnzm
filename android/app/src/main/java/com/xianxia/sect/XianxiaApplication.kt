@@ -247,7 +247,11 @@ class XianxiaApplication : Application() {
                 5 to R.drawable.pill_di,
                 6 to R.drawable.pill_tian
             ),
-            spiritStoneRes = R.drawable.spirit_stone,
+            spiritStoneSprites = mapOf(
+                com.xianxia.sect.core.model.SpiritStoneGrade.LOW to R.drawable.spirit_stone_low,
+                com.xianxia.sect.core.model.SpiritStoneGrade.MID to R.drawable.spirit_stone_mid,
+                com.xianxia.sect.core.model.SpiritStoneGrade.HIGH to R.drawable.spirit_stone_high
+            ),
             materialSprites = mapOf(
                 "虎皮" to R.drawable.tiger_hide,
                 "虎血" to R.drawable.tiger_blood,

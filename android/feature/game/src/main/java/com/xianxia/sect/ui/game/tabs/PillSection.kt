@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 
@@ -25,27 +26,17 @@ internal fun SellablePillSection(
         color = Color.Black,
         modifier = modifier.padding(top = 4.dp)
     )
-    items.chunked(4).forEach { rowItems ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            rowItems.forEach { item ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = item.quantity,
-                        grade = item.grade.displayName,
-                        isPill = true
-                    ),
-                    modifier = Modifier.weight(1f),
-                    onLongPress = { onItemLongPress(item) }
-                )
-            }
-            repeat(4 - rowItems.size) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
+    GridRow(items = items) { item ->
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = item.name,
+                rarity = item.rarity,
+                quantity = item.quantity,
+                grade = item.grade.displayName,
+                isPill = true
+            ),
+            modifier = Modifier.weight(1f),
+            onLongPress = { onItemLongPress(item) }
+        )
     }
 }

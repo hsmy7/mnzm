@@ -465,6 +465,7 @@ class InventoryFacadeImpl @Inject constructor(
                 val s = MerchantItemConverter.toSeed(merchantItem)
                 if (!inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)) return
             }
+            "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
         }
 
         stateStore.update {
@@ -530,6 +531,16 @@ class InventoryFacadeImpl @Inject constructor(
                         maxStack = inventoryConfig.getMaxStackSize("seed")
                     )
                 }
+                "spiritstone" -> {
+                    when (merchantItem.name) {
+                        "中品灵石" -> gameData = gameData.copy(
+                            midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+                        )
+                        "上品灵石" -> gameData = gameData.copy(
+                            highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+                        )
+                    }
+                }
             }
         }
 
@@ -586,6 +597,16 @@ class InventoryFacadeImpl @Inject constructor(
                         { it.name == acquisitionItem.name && it.rarity == acquisitionItem.rarity && !it.isLocked },
                         { it.quantity }, { s, q -> s.copy(quantity = q) }, remaining))
                 }
+                "spiritstone" -> {
+                    when (acquisitionItem.name) {
+                        "中品灵石" -> gameData = gameData.copy(
+                            midGradeSpiritStones = (gameData.midGradeSpiritStones - actualQuantity).coerceAtLeast(0L)
+                        )
+                        "上品灵石" -> gameData = gameData.copy(
+                            highGradeSpiritStones = (gameData.highGradeSpiritStones - actualQuantity).coerceAtLeast(0L)
+                        )
+                    }
+                }
             }
 
             val totalPrice = acquisitionItem.price * actualQuantity
@@ -605,6 +626,10 @@ class InventoryFacadeImpl @Inject constructor(
         "material" -> materials.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
         "herb" -> herbs.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
         "seed" -> seeds.value.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+        "spiritstone" -> {
+            val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return 0
+            stateStore.gameData.value.spiritStoneCount(grade).toInt().coerceAtLeast(0)
+        }
         else -> 0
     }
 

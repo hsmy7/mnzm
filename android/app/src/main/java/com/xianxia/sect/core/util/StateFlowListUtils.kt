@@ -262,15 +262,6 @@ object StateFlowListUtils {
     }
 }
 
-interface StackableItem {
-    val id: String
-    val name: String
-    val rarity: Int
-    val quantity: Int
-    val isLocked: Boolean
-    fun withQuantity(newQuantity: Int): StackableItem
-}
-
 object StackableItemUtils {
 
     private val stackableMutex = Mutex()

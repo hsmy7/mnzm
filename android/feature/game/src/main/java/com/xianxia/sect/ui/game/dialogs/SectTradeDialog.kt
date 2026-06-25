@@ -141,7 +141,7 @@ fun SectTradeDialog(
                 }
 
                 Text(
-                    text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
+                    text = "下品:${GameUtils.formatNumber(gameData?.spiritStones ?: 0)} 中品:${GameUtils.formatNumber(gameData?.midGradeSpiritStones ?: 0)} 上品:${GameUtils.formatNumber(gameData?.highGradeSpiritStones ?: 0)}",
                     fontSize = 11.sp,
                     color = GameColors.TextSecondary,
                     modifier = Modifier.padding(horizontal = 12.dp)

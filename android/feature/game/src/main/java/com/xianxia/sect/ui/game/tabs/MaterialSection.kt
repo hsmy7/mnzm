@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 
@@ -27,27 +28,17 @@ internal fun SellableMaterialSection(
         color = Color.Black,
         modifier = modifier.padding(top = 4.dp)
     )
-    items.chunked(4).forEach { rowItems ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            rowItems.forEach { item ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = item.quantity,
-                        isMaterial = true
-                    ),
-                    modifier = Modifier.weight(1f),
-                    onLongPress = { onItemLongPress(item) }
-                )
-            }
-            repeat(4 - rowItems.size) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
+    GridRow(items = items) { item ->
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = item.name,
+                rarity = item.rarity,
+                quantity = item.quantity,
+                isMaterial = true
+            ),
+            modifier = Modifier.weight(1f),
+            onLongPress = { onItemLongPress(item) }
+        )
     }
 }
 
@@ -64,27 +55,17 @@ internal fun SellableHerbSection(
         color = Color.Black,
         modifier = modifier.padding(top = 4.dp)
     )
-    items.chunked(4).forEach { rowItems ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            rowItems.forEach { item ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = item.quantity,
-                        isHerb = true
-                    ),
-                    modifier = Modifier.weight(1f),
-                    onLongPress = { onItemLongPress(item) }
-                )
-            }
-            repeat(4 - rowItems.size) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
+    GridRow(items = items) { item ->
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = item.name,
+                rarity = item.rarity,
+                quantity = item.quantity,
+                isHerb = true
+            ),
+            modifier = Modifier.weight(1f),
+            onLongPress = { onItemLongPress(item) }
+        )
     }
 }
 
@@ -101,26 +82,16 @@ internal fun SellableSeedSection(
         color = Color.Black,
         modifier = modifier.padding(top = 4.dp)
     )
-    items.chunked(4).forEach { rowItems ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            rowItems.forEach { item ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = item.quantity,
-                        isSeed = true
-                    ),
-                    modifier = Modifier.weight(1f),
-                    onLongPress = { onItemLongPress(item) }
-                )
-            }
-            repeat(4 - rowItems.size) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
+    GridRow(items = items) { item ->
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = item.name,
+                rarity = item.rarity,
+                quantity = item.quantity,
+                isSeed = true
+            ),
+            modifier = Modifier.weight(1f),
+            onLongPress = { onItemLongPress(item) }
+        )
     }
 }

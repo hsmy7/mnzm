@@ -42,6 +42,10 @@ class ThermalMonitor @Inject constructor(
 
     private var hintSession: Any? = null  // PerformanceHintManager.Session on API 31+
 
+    /** 上一次设置的目标持续时间，用于避免重复调用 updateTargetWorkDuration */
+    @Volatile
+    private var lastTargetDurationNanos: Long = 0L
+
     private val _thermalState = MutableStateFlow(ThermalState.NORMAL)
     /** 当前热状态，以 StateFlow 形式暴露，供 UI 层收集 */
     val thermalState: StateFlow<ThermalState> = _thermalState.asStateFlow()
@@ -65,17 +69,20 @@ class ThermalMonitor @Inject constructor(
             0  // THERMAL_STATUS_NONE not available on API < 29
         }
 
-    /** 是否应降低非关键计算负载 (MODERATE 及以上) */
+    /** 是否应降低非关键计算负载 (MODERATE 及以上)。
+     *  使用 _thermalState 缓存（每 2s 轮询更新），避免热路径上每 tick 触发 binder 调用。 */
     override fun shouldReduceWorkload(): Boolean =
-        currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
+        _thermalState.value >= ThermalState.MODERATE
 
-    /** 是否应紧急保存并暂停 (SEVERE 及以上) */
+    /** 是否应紧急保存并暂停 (SEVERE 及以上)。
+     *  使用 _thermalState 缓存，理由同 [shouldReduceWorkload]。 */
     override fun shouldEmergencySave(): Boolean =
-        currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
+        _thermalState.value >= ThermalState.SEVERE
 
-    /** 是否处于轻度过热状态 (LIGHT) */
+    /** 是否处于轻度过热状态 (LIGHT)。
+     *  使用 _thermalState 缓存，理由同 [shouldReduceWorkload]。 */
     fun isLightThrottle(): Boolean =
-        currentThermalStatus == PowerManager.THERMAL_STATUS_LIGHT
+        _thermalState.value == ThermalState.LIGHT
 
     private fun mapStatusToState(status: Int): ThermalState = when {
         status >= PowerManager.THERMAL_STATUS_EMERGENCY -> ThermalState.EMERGENCY
@@ -96,6 +103,7 @@ class ThermalMonitor @Inject constructor(
                     intArrayOf(android.os.Process.myTid()),
                     targetDurationNanos
                 )
+                lastTargetDurationNanos = targetDurationNanos
             } catch (e: Exception) {
                 // Performance Hint API 不可用，静默忽略
             }
@@ -119,8 +127,11 @@ class ThermalMonitor @Inject constructor(
     /**
      * 更新目标持续时间。
      * 在热状态变化时调整。
+     * 仅当目标值变化时才实际调用 hintSession，避免每 tick 重复设置相同值。
      */
     fun updateTargetDuration(targetDurationNanos: Long) {
+        if (targetDurationNanos == lastTargetDurationNanos) return
+        lastTargetDurationNanos = targetDurationNanos
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             try {
                 (hintSession as? PerformanceHintManager.Session)?.updateTargetWorkDuration(targetDurationNanos)
@@ -142,6 +153,7 @@ class ThermalMonitor @Inject constructor(
                 // 静默忽略
             }
             hintSession = null
+            lastTargetDurationNanos = 0L
         }
     }
 }
