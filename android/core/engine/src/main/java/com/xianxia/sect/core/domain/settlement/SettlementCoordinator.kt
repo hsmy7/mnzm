@@ -1166,7 +1166,7 @@ class SettlementCoordinator @Inject constructor(
         val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
         val discipleIdsHash = aliveIds.hashCode()
         val realmHash = aliveIds.map { tables.realms[it] }.hashCode()
-        // 逐弟子哈希（丹药/丧亲/功法）：通过组件列直接读取，无需 assemble()
+        // 逐弟子哈希（丹药/丧亲/功法/寿命衰减）：通过组件列直接读取，无需 assemble()
         // 装备变更由 EQUIPMENT dirty flag 单独跟踪，不在指纹中检测
         val perDiscipleHash = aliveIds.map { id ->
             var h = 1
@@ -1175,8 +1175,15 @@ class SettlementCoordinator @Inject constructor(
             h = 31 * h + tables.pillEffectDurations.getOrDefault(id, 0)
             h = 31 * h + tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
             h = 31 * h + (tables.griefEndYears.getOrNull(id)?.hashCode() ?: 0)
-            // 功法变化（ComponentTable 需 getOrNull 避免 NoSuchElementException）
             h = 31 * h + (tables.manualIds.getOrNull(id)?.hashCode() ?: 0)
+            // 寿命衰减检测：剩余寿命<20%时修炼速度降低（每少1%降5%），
+            // 年龄每年+1、突破时寿命变化，取剩余%整数值捕获所有变化
+            val lifespan = tables.lifespans.getOrDefault(id, 0)
+            val age = tables.ages.getOrDefault(id, 0)
+            val remainingPct = if (lifespan > 0) {
+                ((lifespan - age) * 100 / lifespan).coerceIn(0, 100)
+            } else 100
+            h = 31 * h + remainingPct
             h
         }.hashCode()
         return CultivationRateFingerprint(
