@@ -344,7 +344,8 @@ fun PeakDiscipleSelectionDialog(
     currentDiscipleId: String?,
     requirementText: String,
     onSelect: (DiscipleAggregate) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    defaultSortAttribute: String? = null
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -353,22 +354,20 @@ fun PeakDiscipleSelectionDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
 
-    val realmCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.realm }.eachCount()
+    val baseDisciples = remember(disciples) {
+        disciples.filter { it.realmLayer > 0 }
     }
 
-    val spiritRootCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
+    val realmCounts = remember(baseDisciples) {
+        baseDisciples.groupingBy { it.realm }.eachCount()
     }
 
-    val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.sortedWith(
-            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
-        )
+    val spiritRootCounts = remember(baseDisciples) {
+        baseDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
+    val filteredDisciples = remember(baseDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, defaultSortAttribute) {
+        baseDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, defaultSortAttribute)
     }
 
     UnifiedGameDialog(

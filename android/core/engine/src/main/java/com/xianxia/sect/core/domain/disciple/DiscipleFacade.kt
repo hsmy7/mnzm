@@ -22,6 +22,7 @@ interface DiscipleFacade {
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
     suspend fun expelDisciple(discipleId: String): DomainResult<Unit>
+    suspend fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
     suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
     suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
     suspend fun releaseTheftDisciple(discipleId: String): Int

@@ -106,7 +106,8 @@ fun WenDaoPeakDialog(
                 productionViewModel.assignElder(ElderSlotType.OUTER_ELDER, disciple.id)
                 showOuterElderSelection = false
             },
-            onDismiss = { showOuterElderSelection = false }
+            onDismiss = { showOuterElderSelection = false },
+            defaultSortAttribute = "comprehension"
         )
     }
 
@@ -120,7 +121,8 @@ fun WenDaoPeakDialog(
                 productionViewModel.assignElder(ElderSlotType.PREACHING, disciple.id)
                 showPreachingElderSelection = false
             },
-            onDismiss = { showPreachingElderSelection = false }
+            onDismiss = { showPreachingElderSelection = false },
+            defaultSortAttribute = "teaching"
         )
     }
 
@@ -135,7 +137,8 @@ fun WenDaoPeakDialog(
                 productionViewModel.assignDirectDisciple("preaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
-            onDismiss = { showPreachingMasterSelection = null }
+            onDismiss = { showPreachingMasterSelection = null },
+            defaultSortAttribute = "teaching"
         )
     }
 

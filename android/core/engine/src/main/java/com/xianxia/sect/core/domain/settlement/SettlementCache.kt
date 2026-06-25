@@ -157,6 +157,14 @@ class SettlementCache(state: MutableGameState) {
             cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
         }
 
+        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
+        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
+            val master = allDisciples[mid]
+            if (master != null && master.isAlive) {
+                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(disciple.realm, master.realm)
+            } else 0.0
+        } ?: 0.0
+
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
         val perSecond = DiscipleStatCalculator.calculateCultivationSpeed(
@@ -166,7 +174,8 @@ class SettlementCache(state: MutableGameState) {
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
         // calculateCultivationSpeed 已直接返回每旬值，无需再换算
         return perSecond

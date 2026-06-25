@@ -151,6 +151,15 @@ class CultivationCore @Inject constructor(
         }
         val parentCultivationBonus = DiscipleStatCalculator.calculateParentCultivationBonus(parent1, parent2)
 
+        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
+        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
+            val midInt = mid.toIntOrNull() ?: return@let 0.0
+            if (tables.names.contains(midInt) && tables.isAlive[midInt] == 1) {
+                val masterRealm = tables.realms[midInt]
+                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(disciple.realm, masterRealm)
+            } else 0.0
+        } ?: 0.0
+
         val griefPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
             DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
         } else {
@@ -166,7 +175,8 @@ class CultivationCore @Inject constructor(
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             parentCultivationBonus = parentCultivationBonus,
-            griefCultivationSpeedPenalty = griefPenalty
+            griefCultivationSpeedPenalty = griefPenalty,
+            masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
         // calculateCultivationSpeed 已直接返回每旬值，无需再换算
         return perSecond

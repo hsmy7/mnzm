@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
@@ -511,7 +512,7 @@ private fun PillDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = materialName, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
-                            Text(text = "${herb?.quantity ?: 0}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
+                            Text(text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
                         }
                     }
                 }

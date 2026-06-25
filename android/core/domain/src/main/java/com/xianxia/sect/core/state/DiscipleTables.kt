@@ -132,6 +132,7 @@ class DiscipleTables {
     val lastChildYears = IntComponentTable()
     val childBirthMonths = ComponentTable<Int?>()    // nullable
     val griefEndYears = ComponentTable<Int?>()
+    val masterIds = ComponentTable<String?>()        // 师父弟子ID（师徒关系）
 
     // === 技能属性 ===
     val intelligences = IntComponentTable()
@@ -272,6 +273,7 @@ class DiscipleTables {
         lastChildYears[id] = s.lastChildYear
         s.childBirthMonth?.let { childBirthMonths[id] = it }
         s.griefEndYear?.let { griefEndYears[id] = it }
+        s.masterId?.let { masterIds[id] = it }
 
         // 技能
         val sk = disciple.skills
@@ -387,6 +389,7 @@ class DiscipleTables {
         lastChildYears[id] = s.lastChildYear
         s.childBirthMonth?.let { childBirthMonths[id] = it }
         s.griefEndYear?.let { griefEndYears[id] = it }
+        masterIds[id] = s.masterId
 
         val sk = disciple.skills
         intelligences[id] = sk.intelligence; charms[id] = sk.charm
@@ -501,7 +504,8 @@ class DiscipleTables {
                 parentId2 = parentId2s.getOrNull(id),
                 lastChildYear = lastChildYears.getOrDefault(id, 0),
                 childBirthMonth = childBirthMonths.getOrNull(id),
-                griefEndYear = griefEndYears.getOrNull(id)
+                griefEndYear = griefEndYears.getOrNull(id),
+                masterId = masterIds.getOrNull(id)
             ),
             skills = SkillStats(
                 intelligence = intelligences.getOrDefault(id, 0), charm = charms.getOrDefault(id, 0),
@@ -572,6 +576,7 @@ class DiscipleTables {
         partnerIds.remove(id); partnerSectIds.remove(id)
         parentId1s.remove(id); parentId2s.remove(id)
         lastChildYears.remove(id); childBirthMonths.remove(id); griefEndYears.remove(id)
+        masterIds.remove(id)
         intelligences.remove(id); charms.remove(id); loyalties.remove(id)
         comprehensions.remove(id); artifactRefinings.remove(id); pillRefinings.remove(id)
         spiritPlantings.remove(id); minings.remove(id); teachings.remove(id)
@@ -622,6 +627,7 @@ class DiscipleTables {
         partnerIds.clear(); partnerSectIds.clear()
         parentId1s.clear(); parentId2s.clear()
         lastChildYears.clear(); childBirthMonths.clear(); griefEndYears.clear()
+        masterIds.clear()
         intelligences.clear(); charms.clear(); loyalties.clear()
         comprehensions.clear(); artifactRefinings.clear(); pillRefinings.clear()
         spiritPlantings.clear(); minings.clear(); teachings.clear()
@@ -695,6 +701,7 @@ class DiscipleTables {
         parentId1s.onWrite = cb; parentId2s.onWrite = cb
         lastChildYears.onWrite = cb; childBirthMonths.onWrite = cb
         griefEndYears.onWrite = cb
+        masterIds.onWrite = cb
         // 技能
         intelligences.onWrite = cb; charms.onWrite = cb; loyalties.onWrite = cb
         comprehensions.onWrite = cb; artifactRefinings.onWrite = cb
@@ -833,6 +840,7 @@ class DiscipleTables {
         copyRefTable(this.parentId2s, copy.parentId2s)
         copyRefTable(this.childBirthMonths, copy.childBirthMonths)
         copyRefTable(this.griefEndYears, copy.griefEndYears)
+        copyRefTable(this.masterIds, copy.masterIds)
 
         return copy
     }

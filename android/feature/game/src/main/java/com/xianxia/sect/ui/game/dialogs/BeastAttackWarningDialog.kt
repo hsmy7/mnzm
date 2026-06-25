@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.PendingBeastAttack
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -75,7 +76,7 @@ internal fun BeastAttackWarningDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 GameButton(
-                    text = "上交宝物\n(${tributeAmount / 10000}万灵石)",
+                    text = "上交宝物\n(${GameUtils.formatNumber(tributeAmount)}灵石)",
                     onClick = onPayTribute,
                     enabled = canPay,
                     modifier = Modifier

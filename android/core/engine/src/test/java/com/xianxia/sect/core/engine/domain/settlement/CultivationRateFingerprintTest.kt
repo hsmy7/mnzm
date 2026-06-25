@@ -48,10 +48,11 @@ class CultivationRateFingerprintTest {
 
     @Test
     fun `fingerprints differ when pill effect or grief state changes`() {
-        // 丹药效果开始/结束/丧亲状态变化 → perDiscipleHash 不同
+        // 丹药效果开始/结束、丧亲状态变化、师徒关系建立/解除、
+        // 师父大境界突破 → perDiscipleHash 不同
         val before = fp(perDiscipleHash = 100)
         val after = fp(perDiscipleHash = 200)
-        assertNotEquals("丹药/丧亲/功法状态变化时指纹必须不同", before, after)
+        assertNotEquals("丹药/丧亲/师徒/功法状态变化时指纹必须不同", before, after)
     }
 
     @Test

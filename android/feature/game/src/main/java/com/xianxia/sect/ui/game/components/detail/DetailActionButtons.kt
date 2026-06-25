@@ -117,6 +117,14 @@ fun RelationsDialog(
         }
     }
 
+    val master = remember(disciple.masterId, allDisciples) {
+        disciple.masterId?.let { id -> discipleMap[id] }
+    }
+
+    val apprentices = remember(disciple.id, allDisciples) {
+        allDisciples.filter { it.masterId == disciple.id }
+    }
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "关系",
@@ -163,7 +171,21 @@ fun RelationsDialog(
                     }
                 }
 
-                if (parent1 == null && parent2 == null && partner == null && children.isEmpty() && siblings.isEmpty()) {
+                if (master != null) {
+                    RelationCategory("师父") {
+                        RelationItem("师父", master)
+                    }
+                }
+
+                if (apprentices.isNotEmpty()) {
+                    RelationCategory("徒弟") {
+                        apprentices.forEach { apprentice ->
+                            RelationItem("徒弟", apprentice)
+                        }
+                    }
+                }
+
+                if (parent1 == null && parent2 == null && partner == null && children.isEmpty() && siblings.isEmpty() && master == null && apprentices.isEmpty()) {
                     Text(
                         text = "无关系",
                         fontSize = 12.sp,

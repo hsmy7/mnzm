@@ -125,7 +125,7 @@ fun ItemDetailDialog(
             name = "灵石"
             rarity = 1
             description = "修仙界的通用货币，可用于购买物品、建造建筑、发放薪酬等"
-            effects = listOf("数量: ${item.quantity.toLong()}")
+            effects = listOf("数量: ${GameUtils.formatNumber(item.quantity)}")
         }
         is StorageBag -> {
             name = item.name

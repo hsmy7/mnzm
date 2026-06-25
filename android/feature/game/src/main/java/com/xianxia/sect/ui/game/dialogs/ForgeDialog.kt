@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
@@ -470,7 +471,7 @@ private fun EquipmentDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = material?.name ?: materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
-                            Text(text = "${material?.quantity ?: 0}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
+                            Text(text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
                         }
                     }
                 }

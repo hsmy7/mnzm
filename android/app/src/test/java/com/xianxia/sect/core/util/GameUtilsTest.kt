@@ -237,15 +237,63 @@ class GameUtilsTest {
     }
 
     @Test
-    fun formatNumber_10000_containsWan() {
-        val result = GameUtils.formatNumber(10000)
-        assertTrue("Expected 万 in result: $result", result.contains("万"))
+    fun formatNumber_9999_returns9999() {
+        assertEquals("9999", GameUtils.formatNumber(9999L))
     }
 
     @Test
-    fun formatNumber_1Billion_containsYi() {
-        val result = GameUtils.formatNumber(1_000_000_000)
-        assertTrue("Expected 亿 in result: $result", result.contains("亿"))
+    fun formatNumber_10000_returns1wan() {
+        assertEquals("1万", GameUtils.formatNumber(10000L))
+    }
+
+    @Test
+    fun formatNumber_10001_returns1wan() {
+        assertEquals("1万", GameUtils.formatNumber(10001L))
+    }
+
+    @Test
+    fun formatNumber_10999_returns1wan() {
+        assertEquals("1万", GameUtils.formatNumber(10999L))
+    }
+
+    @Test
+    fun formatNumber_11999_returns1_1wan() {
+        assertEquals("1.1万", GameUtils.formatNumber(11999L))
+    }
+
+    @Test
+    fun formatNumber_19999_returns1_9wan() {
+        assertEquals("1.9万", GameUtils.formatNumber(19999L))
+    }
+
+    @Test
+    fun formatNumber_19000_returns1_9wan() {
+        assertEquals("1.9万", GameUtils.formatNumber(19000L))
+    }
+
+    @Test
+    fun formatNumber_99999_returns9_9wan() {
+        assertEquals("9.9万", GameUtils.formatNumber(99999L))
+    }
+
+    @Test
+    fun formatNumber_int_overload() {
+        assertEquals("1万", GameUtils.formatNumber(10001))
+    }
+
+    @Test
+    fun formatNumber_1Billion_returns1yi() {
+        assertEquals("1亿", GameUtils.formatNumber(1_000_000_000L))
+    }
+
+    @Test
+    fun formatNumber_1_0000_0001_returns1yi() {
+        assertEquals("1亿", GameUtils.formatNumber(1_0000_0001L))
+    }
+
+    @Test
+    fun formatNumber_1_9999_9999_returns1_9yi() {
+        assertEquals("1.9亿", GameUtils.formatNumber(1_9999_9999L))
     }
 
     // ============================================================

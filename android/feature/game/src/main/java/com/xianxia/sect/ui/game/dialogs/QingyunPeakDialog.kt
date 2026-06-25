@@ -106,7 +106,8 @@ fun QingyunPeakDialog(
                 productionViewModel.assignElder(ElderSlotType.INNER_ELDER, disciple.id)
                 showInnerElderSelection = false
             },
-            onDismiss = { showInnerElderSelection = false }
+            onDismiss = { showInnerElderSelection = false },
+            defaultSortAttribute = "comprehension"
         )
     }
 
@@ -120,7 +121,8 @@ fun QingyunPeakDialog(
                 productionViewModel.assignElder(ElderSlotType.CLOUD_PREACHING, disciple.id)
                 showPreachingElderSelection = false
             },
-            onDismiss = { showPreachingElderSelection = false }
+            onDismiss = { showPreachingElderSelection = false },
+            defaultSortAttribute = "teaching"
         )
     }
 
@@ -135,7 +137,8 @@ fun QingyunPeakDialog(
                 productionViewModel.assignDirectDisciple("qingyunPreaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
-            onDismiss = { showPreachingMasterSelection = null }
+            onDismiss = { showPreachingMasterSelection = null },
+            defaultSortAttribute = "teaching"
         )
     }
 

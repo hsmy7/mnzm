@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import com.xianxia.sect.core.util.GameUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -445,7 +446,7 @@ private fun ClaimedAttachmentCard(attachment: MailAttachment) {
                 )
                 // 数量角标（与 UnifiedItemCard 一致：右下角白字）
                 Text(
-                    text = "${attachment.quantity}",
+                    text = GameUtils.formatNumber(attachment.quantity),
                     fontSize = 8.sp,
                     color = Color.White,
                     modifier = Modifier

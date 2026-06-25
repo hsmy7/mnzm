@@ -162,19 +162,14 @@ val SPIRIT_MINE_THEME = ProductionTheme(
     selectionDialogTitle = "",
     startProductionText = "",
     elderSelectionTitle = "选择执事",
-    recommendAttributeText = "采矿",
+    recommendAttributeText = "道德",
     getCoreAttributeValue = { it.mining },
     getElderId = { it.spiritMineDeaconDisciples.firstOrNull()?.discipleId ?: "" },
     getDirectDisciples = { emptyList() },
-    elderSortComparator = compareByDescending<DiscipleAggregate> { it.mining }
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.morality }
         .thenBy { it.realm }
         .thenByDescending { it.realmLayer },
     directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
-)
-
-private val REALM_FILTERS = listOf(
-    0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体", 4 to "炼虚",
-    5 to "化神", 6 to "元婴", 7 to "金丹", 8 to "筑基", 9 to "炼气"
 )
 
 @Composable
@@ -450,7 +445,7 @@ fun ProductionElderSelectionDialog(
                 selectedSpiritRootFilter = selectedSpiritRootFilter,
                 selectedAttributeSort = selectedAttributeSort,
                 selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTERS,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
                 realmCounts = realmCounts,
                 spiritRootExpanded = spiritRootExpanded,
                 attributeExpanded = attributeExpanded,
@@ -562,7 +557,7 @@ fun ProductionDirectDiscipleSelectionDialog(
                 selectedSpiritRootFilter = selectedSpiritRootFilter,
                 selectedAttributeSort = selectedAttributeSort,
                 selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTERS,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
                 realmCounts = realmCounts,
                 spiritRootExpanded = spiritRootExpanded,
                 attributeExpanded = attributeExpanded,

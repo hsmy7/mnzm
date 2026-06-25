@@ -336,7 +336,8 @@ object DiscipleStatCalculator {
         preachingMastersBonus: Double = 0.0,
         cultivationSubsidyBonus: Double = 0.0,
         parentCultivationBonus: Double = 0.0,
-        griefCultivationSpeedPenalty: Double = 0.0
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
     ): Double {
         val rootCount = disciple.spiritRoot.types.size.coerceAtLeast(1)
         val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(disciple.realm) / rootCount.toDouble()
@@ -385,6 +386,9 @@ object DiscipleStatCalculator {
         // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
         totalBonus += parentCultivationBonus
 
+        // 师徒加成：师父大境界差每级 +5% 修炼速度
+        totalBonus += masterDiscipleBonus
+
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
@@ -404,7 +408,8 @@ object DiscipleStatCalculator {
         preachingMastersBonus: Double = 0.0,
         cultivationSubsidyBonus: Double = 0.0,
         parentCultivationBonus: Double = 0.0,
-        griefCultivationSpeedPenalty: Double = 0.0
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
     ): Double {
         val rootCount = aggregate.spiritRoot.types.size.coerceAtLeast(1)
         val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(aggregate.realm) / rootCount.toDouble()
@@ -455,6 +460,9 @@ object DiscipleStatCalculator {
         // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
         totalBonus += parentCultivationBonus
 
+        // 师徒加成：师父大境界差每级 +5% 修炼速度
+        totalBonus += masterDiscipleBonus
+
         // 亲人逝世对修炼速度的影响
         totalBonus -= griefCultivationSpeedPenalty
 
@@ -470,7 +478,8 @@ object DiscipleStatCalculator {
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
-        griefBreakthroughPenalty: Double = 0.0
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
     ): Double {
         if (disciple.realm < 0) return 0.0
 
@@ -488,10 +497,15 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus
-            + pillBonus + talentBreakthroughBonus + soulPowerBonus
-            + adBonus - griefBreakthroughPenalty
-            - calculateLifespanBreakthroughPenalty(disciple.age, disciple.lifespan)
+        val totalBonus = innerElderBonus +
+            outerElderComprehensionBonus +
+            pillBonus +
+            talentBreakthroughBonus +
+            soulPowerBonus +
+            adBonus +
+            masterDiscipleBonus -
+            griefBreakthroughPenalty -
+            calculateLifespanBreakthroughPenalty(disciple.age, disciple.lifespan)
 
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
@@ -502,7 +516,8 @@ object DiscipleStatCalculator {
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
-        griefBreakthroughPenalty: Double = 0.0
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
 
@@ -520,10 +535,15 @@ object DiscipleStatCalculator {
 
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus
-            + talentBreakthroughBonus + soulPowerBonus + adBonus
-            - griefBreakthroughPenalty
-            - calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
+        val totalBonus = innerElderBonus +
+            outerElderComprehensionBonus +
+            pillBonus +
+            talentBreakthroughBonus +
+            soulPowerBonus +
+            adBonus +
+            masterDiscipleBonus -
+            griefBreakthroughPenalty -
+            calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -539,6 +559,7 @@ object DiscipleStatCalculator {
         val soulPowerBonus: Double,
         val pillBonus: Double,
         val adBonus: Double,
+        val masterDiscipleBonus: Double,
         val griefPenalty: Double,
         val lifespanPenalty: Double,
         val total: Double
@@ -550,9 +571,10 @@ object DiscipleStatCalculator {
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
-        griefBreakthroughPenalty: Double = 0.0
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
     ): BreakthroughBonusDetail {
-        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
         val innerElderBonus = if (innerElderComprehension >= 80) ((innerElderComprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0
@@ -561,7 +583,8 @@ object DiscipleStatCalculator {
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
         val lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
         val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus
-            + talentBonus + soulPowerBonus + adBonus - griefBreakthroughPenalty - lifespanPenalty
+            + talentBonus + soulPowerBonus + adBonus + masterDiscipleBonus
+            - griefBreakthroughPenalty - lifespanPenalty
         return BreakthroughBonusDetail(
             baseChance = baseChance,
             innerElderBonus = innerElderBonus,
@@ -570,6 +593,7 @@ object DiscipleStatCalculator {
             soulPowerBonus = soulPowerBonus,
             pillBonus = pillBonus,
             adBonus = adBonus,
+            masterDiscipleBonus = masterDiscipleBonus,
             griefPenalty = griefBreakthroughPenalty,
             lifespanPenalty = lifespanPenalty,
             total = total.coerceIn(0.0, 1.0)
@@ -846,6 +870,38 @@ object DiscipleStatCalculator {
      * 亲人逝世对突破率的惩罚比例：降低20%
      */
     const val GRIEF_BREAKTHROUGH_CHANCE_PENALTY = 0.20
+
+    // ==================== 师徒加成 ====================
+
+    /** 每位师父最多可收徒弟数 */
+    const val MAX_APPRENTICES_PER_MASTER = 5
+
+    /** 师徒大境界差每级提供的修炼速度加成：5% */
+    const val MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP = 0.05
+
+    /** 师徒大境界差每级提供的突破率加成：3% */
+    const val MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP = 0.03
+
+    /**
+     * 计算师父与徒弟之间的大境界差。
+     * 境界 Int 值越小境界越高（练气=9, 筑基=8, 金丹=7...）。
+     * "隔整境界才算"：金丹师父(7)+练气徒弟(9) 中间隔筑基(8) 一个大境界 → gap=1。
+     * 同境界 / 徒弟境界 ≥ 师父境界时 gap=0。
+     */
+    fun getMasterDiscipleRealmGap(discipleRealm: Int, masterRealm: Int): Int =
+        (discipleRealm - masterRealm - 1).coerceAtLeast(0)
+
+    /**
+     * 计算徒弟从师父处获得的修炼速度加成（已乘以 gap）。
+     */
+    fun getMasterDiscipleCultivationBonus(discipleRealm: Int, masterRealm: Int): Double =
+        getMasterDiscipleRealmGap(discipleRealm, masterRealm) * MASTER_DISCIPLE_CULTIVATION_BONUS_PER_GAP
+
+    /**
+     * 计算徒弟从师父处获得的突破率加成（已乘以 gap）。
+     */
+    fun getMasterDiscipleBreakthroughBonus(discipleRealm: Int, masterRealm: Int): Double =
+        getMasterDiscipleRealmGap(discipleRealm, masterRealm) * MASTER_DISCIPLE_BREAKTHROUGH_BONUS_PER_GAP
 
     // ==================== 寿命将尽惩罚 ====================
 

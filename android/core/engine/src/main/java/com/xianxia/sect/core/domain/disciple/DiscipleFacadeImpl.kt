@@ -91,6 +91,8 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override suspend fun expelDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
+    override suspend fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleService.apprenticeToMaster(discipleId, masterId)
+
     override suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
     override suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {

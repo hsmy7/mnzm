@@ -6,9 +6,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.ui.game.applyFilters
 
-class DiscipleFilterState {
+/**
+ * 统一筛选状态。算法委托给 [applyFilters]，与手写状态场景保持一致。
+ *
+ * [defaultSortAttribute] 用于"无任何筛选"时的推荐属性回退排序；
+ * 由调用方在构造时传入（例如炼丹场景传 "pillRefining"）。
+ */
+class DiscipleFilterState(defaultSortAttribute: String? = null) {
     var realmFilter by mutableStateOf<Set<Int>>(emptySet())
     var spiritRootFilter by mutableStateOf<Set<Int>>(emptySet())
     var attributeSort by mutableStateOf<String?>(null)
@@ -16,18 +22,10 @@ class DiscipleFilterState {
     var spiritRootExpanded by mutableStateOf(false)
     var attributeExpanded by mutableStateOf(false)
 
+    private val defaultAttr: String? = defaultSortAttribute
+
     val filtered: (List<DiscipleAggregate>) -> List<DiscipleAggregate> = { disciples ->
-        var result = disciples
-        if (realmFilter.isNotEmpty()) {
-            result = result.filter { it.realm in realmFilter }
-        }
-        if (spiritRootFilter.isNotEmpty()) {
-            result = result.filter { it.spiritRoot.types.size in spiritRootFilter }
-        }
-        if (attributeSort != null) {
-            result = result.sortedByFollowAttributeAndRealm(attributeSort)
-        }
-        result
+        disciples.applyFilters(realmFilter, spiritRootFilter, attributeSort, defaultAttr)
     }
 
     fun realmCounts(disciples: List<DiscipleAggregate>): Map<Int, Int> =
@@ -38,6 +36,6 @@ class DiscipleFilterState {
 }
 
 @Composable
-fun rememberDiscipleFilterState(): DiscipleFilterState {
-    return remember { DiscipleFilterState() }
+fun rememberDiscipleFilterState(defaultSortAttribute: String? = null): DiscipleFilterState {
+    return remember(defaultSortAttribute) { DiscipleFilterState(defaultSortAttribute) }
 }

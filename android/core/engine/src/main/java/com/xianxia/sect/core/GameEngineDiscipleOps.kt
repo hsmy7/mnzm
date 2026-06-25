@@ -12,6 +12,7 @@ fun GameEngine.syncAllDiscipleStatuses() = discipleFacade.syncAllDiscipleStatuse
 suspend fun GameEngine.resetAllDisciplesStatus() = discipleFacade.resetAllDisciplesStatus()
 fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
 suspend fun GameEngine.expelDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelDisciple(discipleId)
+suspend fun GameEngine.apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleFacade.apprenticeToMaster(discipleId, masterId)
 suspend fun GameEngine.expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelTheftDisciple(discipleId)
 suspend fun GameEngine.imprisonTheftDisciple(discipleId: String, currentYear: Int) = discipleFacade.imprisonTheftDisciple(discipleId, currentYear)
 suspend fun GameEngine.releaseTheftDisciple(discipleId: String): Int = discipleFacade.releaseTheftDisciple(discipleId)

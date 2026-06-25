@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -485,9 +486,9 @@ private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
     val parts = mutableListOf<String>()
     if (rewards.spiritStones > 0 || rewards.spiritStonesMax > 0) {
         if (rewards.spiritStonesMax > 0) {
-            parts.add("${rewards.spiritStones}~${rewards.spiritStonesMax}灵石")
+            parts.add("${GameUtils.formatNumber(rewards.spiritStones)}~${GameUtils.formatNumber(rewards.spiritStonesMax)}灵石")
         } else {
-            parts.add("${rewards.spiritStones}灵石")
+            parts.add("${GameUtils.formatNumber(rewards.spiritStones)}灵石")
         }
     }
     if (rewards.materialCountMin > 0) {

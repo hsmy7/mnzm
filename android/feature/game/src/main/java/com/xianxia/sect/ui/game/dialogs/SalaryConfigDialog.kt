@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -103,7 +104,7 @@ private fun SalaryRealmCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "$salary 灵石",
+                    text = "${GameUtils.formatNumber(salary)} 灵石",
                     fontSize = 12.sp,
                     color = Color.Black
                 )

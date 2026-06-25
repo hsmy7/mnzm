@@ -98,6 +98,18 @@ class DiscipleLifecycleProcessor @Inject constructor(
             }
         }
 
+        // 师徒关系因一方死亡而解绑：师父死亡 → 清除所有徒弟的 masterId 指向。
+        // 徒弟死亡无需额外清理（师父的徒弟数按存活弟子统计，自然剔除死者；
+        // 死者的 masterId 随死亡失效）。
+        val deadId = disciple.id
+        griefUpdated.indices.forEach { i ->
+            if (griefUpdated[i].social.masterId == deadId) {
+                griefUpdated[i] = griefUpdated[i].copy(
+                    social = griefUpdated[i].social.copy(masterId = null)
+                )
+            }
+        }
+
         stateStore.update {
             discipleTables.clear()
             griefUpdated.forEach { discipleTables.insert(it) }

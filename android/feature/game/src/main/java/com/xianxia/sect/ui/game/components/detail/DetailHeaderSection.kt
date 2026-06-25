@@ -37,6 +37,7 @@ fun DetailRightPanel(
     onShowRelations: () -> Unit,
     onShowStorageBag: () -> Unit,
     onShowExpelConfirm: () -> Unit,
+    onShowApprentice: () -> Unit,
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
     viewModel: GameViewModel?
 ) {
@@ -121,6 +122,14 @@ fun DetailRightPanel(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
                     .clickable { dismissDropdown(); onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
+            // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
+            val hasMaster = disciple.masterId != null
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                    .background(if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63))
+                    .clickable(enabled = !hasMaster) { dismissDropdown(); onShowApprentice() }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
         }
         Spacer(modifier = Modifier.height(8.dp))
         // prev/next navigation at bottom

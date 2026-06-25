@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 9  // v9: 新增灵石自动补差价开关字段
+    version = 10  // v10: 弟子社交新增 masterId（师徒关系）
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)

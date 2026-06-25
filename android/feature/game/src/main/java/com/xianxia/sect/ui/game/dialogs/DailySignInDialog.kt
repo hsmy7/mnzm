@@ -546,15 +546,6 @@ private fun MilestoneRewardRow(
     }
 }
 
-/** 大数值奖励格式化（如 50000 → "5万"） */
-private fun formatRewardQuantity(quantity: Int): String {
-    return when {
-        quantity >= 10000 && quantity % 10000 == 0 -> "${quantity / 10000}万"
-        quantity >= 1000 && quantity % 1000 == 0 -> "${quantity / 1000}千"
-        else -> "$quantity"
-    }
-}
-
 /** 将签到奖励转换为 ItemDetailDialog 可显示的物品类型 */
 private fun buildDetailItem(
     itemName: String,

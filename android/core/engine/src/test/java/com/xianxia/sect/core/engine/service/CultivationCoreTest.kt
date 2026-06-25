@@ -91,38 +91,38 @@ class CultivationCoreTest {
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
                 cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationSpeed(
                 disciple, manuals, manualProficiencies, buildingBonus, additionalBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
             )
             override fun calculateCultivationSpeed(
                 aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
                 additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
                 cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
-                griefCultivationSpeedPenalty: Double
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.calculateCultivationSpeed(
                 aggregate, manuals, manualProficiencies, buildingBonus, additionalBonus,
                 preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
-                parentCultivationBonus, griefCultivationSpeedPenalty
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 disciple: Disciple, innerElderComprehension: Int,
                 outerElderComprehensionBonus: Double, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double
+                adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 disciple, innerElderComprehension, outerElderComprehensionBonus,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate, innerElderComprehension: Int,
                 outerElderComprehensionBonus: Double, pillBonus: Double,
-                adBonus: Double, griefBreakthroughPenalty: Double
+                adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
                 aggregate, innerElderComprehension, outerElderComprehensionBonus,
-                pillBonus, adBonus, griefBreakthroughPenalty
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
             )
         }
 

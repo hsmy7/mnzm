@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.dialogs.shared
+package com.xianxia.sect.ui.game.components.detail
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -9,49 +9,56 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.dialogs.shared.rememberDiscipleFilterState
 
-data class DiscipleSelectorConfig(
-    val title: String,
-    val emptyMessage: String = "没有符合条件的弟子",
-    val headerColor: Color? = null,
-    /**
-     * 无任何筛选时的推荐排序属性 key（如 "pillRefining"）。
-     * 传 null 表示无推荐属性，按"已关注优先 → 境界高低"排。
-     */
-    val defaultSortAttribute: String? = null,
-    /**
-     * 当前已选中弟子的 id，用于高亮显示（如执事替换场景）。
-     */
-    val currentId: String? = null
-)
-
+/**
+ * 拜师选择界面：半屏 + 筛选栏 + 弟子卡片网格。
+ *
+ * 候选过滤：存活 + 非自己 + 徒弟数未满（< 5）。
+ * 点击卡片不立即确认，回调 [onMasterSelected] 交由父级弹确认框。
+ */
 @Composable
-fun DiscipleSelectorDialog(
-    config: DiscipleSelectorConfig,
-    disciples: List<DiscipleAggregate>,
+fun MasterApprenticeSelectDialog(
+    currentDisciple: DiscipleAggregate,
+    allDisciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit,
-    onConfirm: (List<DiscipleAggregate>) -> Unit
+    onMasterSelected: (DiscipleAggregate) -> Unit
 ) {
-    val filterState = rememberDiscipleFilterState(config.defaultSortAttribute)
-    val realmCounts = remember(disciples) { filterState.realmCounts(disciples) }
-    val spiritRootCounts = remember(disciples) { filterState.spiritRootCounts(disciples) }
+    // 候选：存活 + 非自己 + 徒弟数 < 5
+    val candidates = remember(currentDisciple.id, allDisciples) {
+        allDisciples.filter { other ->
+            other.isAlive &&
+                other.id != currentDisciple.id &&
+                countApprentices(other.id, allDisciples) < MAX_APPRENTICES_PER_MASTER
+        }
+    }
 
-    val filtered = remember(disciples, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
-        filterState.filtered(disciples)
+    val filterState = rememberDiscipleFilterState()
+    val realmCounts = remember(candidates) { filterState.realmCounts(candidates) }
+    val spiritRootCounts = remember(candidates) { filterState.spiritRootCounts(candidates) }
+
+    val filtered = remember(candidates, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
+        filterState.filtered(candidates)
+    }
+
+    val realmFilterOptions = remember {
+        listOf(
+            1 to "炼气", 2 to "筑基", 3 to "金丹", 4 to "元婴",
+            5 to "化神", 6 to "合体", 7 to "大乘", 8 to "渡劫"
+        )
     }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = config.title,
+        title = "选择师父",
         mode = DialogMode.Half,
         scrollableContent = false,
         headerContent = {
@@ -59,7 +66,7 @@ fun DiscipleSelectorDialog(
                 selectedSpiritRootFilter = filterState.spiritRootFilter,
                 selectedAttributeSort = filterState.attributeSort,
                 selectedRealmFilter = filterState.realmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmFilterOptions = realmFilterOptions,
                 realmCounts = realmCounts,
                 spiritRootExpanded = filterState.spiritRootExpanded,
                 attributeExpanded = filterState.attributeExpanded,
@@ -82,7 +89,7 @@ fun DiscipleSelectorDialog(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = config.emptyMessage, fontSize = 14.sp, color = Color.Black)
+                    Text(text = "没有可拜师的弟子", fontSize = 14.sp, color = Color.Black)
                 }
             } else {
                 LazyVerticalGrid(
@@ -91,13 +98,12 @@ fun DiscipleSelectorDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(filtered, key = { it.id }) { disciple ->
+                    items(filtered, key = { it.id }) { master ->
                         PortraitDiscipleCard(
-                            disciple = disciple,
-                            isCurrent = disciple.id == config.currentId,
+                            disciple = master,
                             isSelected = false,
                             onClick = {
-                                onConfirm(listOf(disciple))
+                                onMasterSelected(master)
                                 onDismiss()
                             }
                         )
@@ -107,3 +113,10 @@ fun DiscipleSelectorDialog(
         }
     }
 }
+
+/** 统计某弟子当前存活的徒弟数量 */
+private fun countApprentices(masterId: String, allDisciples: List<DiscipleAggregate>): Int =
+    allDisciples.count { it.isAlive && it.masterId == masterId }
+
+private val MAX_APPRENTICES_PER_MASTER
+    get() = DiscipleStatCalculator.MAX_APPRENTICES_PER_MASTER

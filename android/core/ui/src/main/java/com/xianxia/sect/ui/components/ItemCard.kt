@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 
 val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
@@ -158,7 +159,7 @@ fun UnifiedItemCard(
 
                 if (showQuantity) {
                     Text(
-                        text = "${data.quantity}",
+                        text = GameUtils.formatNumber(data.quantity),
                         fontSize = 8.sp,
                         color = Color.White,
                         modifier = Modifier

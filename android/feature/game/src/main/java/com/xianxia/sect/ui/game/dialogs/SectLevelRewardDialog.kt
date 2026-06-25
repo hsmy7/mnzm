@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.SectLevelRewardConfig
 import com.xianxia.sect.core.model.RewardCardItem
@@ -152,7 +153,7 @@ private fun RandomRewardCard(card: RewardCardItem) {
                 )
                 // 数量（右下角）
                 Text(
-                    text = "${card.quantity}",
+                    text = GameUtils.formatNumber(card.quantity),
                     fontSize = 8.sp,
                     color = Color.White,
                     modifier = Modifier

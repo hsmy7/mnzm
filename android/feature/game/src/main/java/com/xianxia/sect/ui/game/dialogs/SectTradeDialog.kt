@@ -181,7 +181,7 @@ fun SectTradeDialog(
                                     description = item.description,
                                     rarity = item.rarity,
                                     quantity = item.quantity,
-                                    additionalInfo = "${adjustedPrice}灵石",
+                                    additionalInfo = "${GameUtils.formatNumber(adjustedPrice)}灵石",
                                     grade = item.grade,
                                     isLocked = !canBuyThisItem,
                                     isManual = item.type == "manual",
@@ -242,7 +242,7 @@ fun SectTradeDialog(
                                         color = GameColors.TextPrimary
                                     )
                                     Text(
-                                        text = "单价: $adjustedPrice 灵石",
+                                        text = "单价: ${GameUtils.formatNumber(adjustedPrice)} 灵石",
                                         fontSize = 10.sp,
                                         color = GameColors.TextSecondary
                                     )
@@ -299,7 +299,7 @@ fun SectTradeDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "总价: $totalPrice 灵石",
+                                    text = "总价: ${GameUtils.formatNumber(totalPrice)} 灵石",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (canAfford) GameColors.GoldDark else Color.Red

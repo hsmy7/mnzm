@@ -1039,8 +1039,11 @@ private fun SectInfoCard(
                     fontSize = 12.sp,
                     color = Color.Black
                 )
+                val lowText = GameUtils.formatNumber(lowStones)
+                val midText = GameUtils.formatNumber(midStones)
+                val highText = GameUtils.formatNumber(highStones)
                 Text(
-                    text = "下:$lowStones 中:$midStones 上:$highStones",
+                    text = "下:$lowText 中:$midText 上:$highText",
                     fontSize = 10.sp,
                     color = Color.Black
                 )

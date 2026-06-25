@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -104,8 +105,12 @@ fun MerchantDialog(
         mode = DialogMode.Full,
         scrollableContent = false,
         headerActions = {
+            val data = gameData
+            val low = GameUtils.formatNumber(data?.spiritStones ?: 0)
+            val mid = GameUtils.formatNumber(data?.midGradeSpiritStones ?: 0)
+            val high = GameUtils.formatNumber(data?.highGradeSpiritStones ?: 0)
             Text(
-                text = "下品:${gameData?.spiritStones ?: 0} 中品:${gameData?.midGradeSpiritStones ?: 0} 上品:${gameData?.highGradeSpiritStones ?: 0}",
+                text = "下品:$low 中品:$mid 上品:$high",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
@@ -224,7 +229,7 @@ fun MerchantDialog(
                                             name = item.name,
                                             rarity = item.rarity,
                                             quantity = item.quantity,
-                                            additionalInfo = "${item.price}灵石",
+                                            additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
                                             grade = item.grade,
                                             isManual = item.type == "manual",
                                             isPill = item.type == "pill",
@@ -337,7 +342,7 @@ fun MerchantDialog(
                                                     name = item.name,
                                                     rarity = item.rarity,
                                                     quantity = item.quantity,
-                                                    additionalInfo = "${item.price}灵石",
+                                                    additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
                                                     grade = item.grade,
                                                     isManual = item.type == "manual",
                                                     isPill = item.type == "pill",
@@ -360,7 +365,7 @@ fun MerchantDialog(
                                         }
                                         // 收购数量
                                         Text(
-                                            text = "${item.quantity}",
+                                            text = GameUtils.formatNumber(item.quantity),
                                             fontSize = 11.sp,
                                             color = Color.Black,
                                             modifier = Modifier.weight(1f),
@@ -368,7 +373,7 @@ fun MerchantDialog(
                                         )
                                         // 收购价格
                                         Text(
-                                            text = "${item.price}",
+                                            text = GameUtils.formatNumber(item.price),
                                             fontSize = 11.sp,
                                             color = GameColors.GoldDark,
                                             modifier = Modifier.weight(1f),
@@ -478,7 +483,7 @@ private fun PurchasePanel(
                         color = GameColors.TextPrimary
                     )
                     Text(
-                        text = "单价: ${item.price} 灵石",
+                        text = "单价: ${GameUtils.formatNumber(item.price)} 灵石",
                         fontSize = 10.sp,
                         color = GameColors.TextSecondary
                     )
@@ -535,7 +540,7 @@ private fun PurchasePanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "总价: $totalPrice 灵石",
+                    text = "总价: ${GameUtils.formatNumber(totalPrice)} 灵石",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (canAfford) GameColors.GoldDark else Color.Red
@@ -584,9 +589,9 @@ private fun AcquisitionSellConfirmDialog(
                 fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Text(text = "仓库拥有: $warehouseQuantity 个", color = Color.Black, fontSize = 12.sp)
-            Text(text = "商人收购: 最多 ${item.quantity} 个", color = Color.Black, fontSize = 12.sp)
-            Text(text = "最大可售: $maxSellable 个", color = Color.Black, fontSize = 12.sp)
+            Text(text = "仓库拥有: ${GameUtils.formatNumber(warehouseQuantity)} 个", color = Color.Black, fontSize = 12.sp)
+            Text(text = "商人收购: 最多 ${GameUtils.formatNumber(item.quantity)} 个", color = Color.Black, fontSize = 12.sp)
+            Text(text = "最大可售: ${GameUtils.formatNumber(maxSellable)} 个", color = Color.Black, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -624,7 +629,7 @@ private fun AcquisitionSellConfirmDialog(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "总价: $totalPrice 灵石",
+                text = "总价: ${GameUtils.formatNumber(totalPrice)} 灵石",
                 color = GameColors.GoldDark,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
@@ -826,7 +831,7 @@ private fun ListedItemCard(
         )
 
         Text(
-            text = "${item.quantity}",
+            text = GameUtils.formatNumber(item.quantity),
             fontSize = 11.sp,
             color = GameColors.TextPrimary,
             modifier = Modifier.width(60.dp),
@@ -834,7 +839,7 @@ private fun ListedItemCard(
         )
 
         Text(
-            text = "${item.price}",
+            text = GameUtils.formatNumber(item.price),
             fontSize = 11.sp,
             color = GameColors.GoldDark,
             modifier = Modifier.width(60.dp),

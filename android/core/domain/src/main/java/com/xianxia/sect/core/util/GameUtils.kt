@@ -58,12 +58,34 @@ object GameUtils {
         return realmIndex.coerceAtMost(teamMaxRealm)
     }
 
+    /**
+     * 将数值格式化为带单位的短字符串（floor 向下取整，只少不多）。
+     *
+     * - >= 1_000_000_000 使用"亿"单位
+     * - >= 10_000 使用"万"单位
+     * - 小数位为 0 时省略小数（如 1万 而非 1.0万）
+     *
+     * 示例：10001 → "1万"，11999 → "1.1万"，19999 → "1.9万"
+     *
+     * @param value 待格式化的数值
+     * @return 格式化后的字符串
+     */
     fun formatNumber(value: Long): String {
         return when {
-            value >= 1_000_000_000 -> String.format(Locale.getDefault(), "%.1f亿", value / 1_000_000_000.0)
-            value >= 10_000 -> String.format(Locale.getDefault(), "%.1f万", value / 10_000.0)
+            value >= 1_000_000_000L -> formatWithUnit(value, 1_000_000_000L, "亿")
+            value >= 10_000L -> formatWithUnit(value, 10_000L, "万")
             else -> value.toString()
         }
+    }
+
+    /** [formatNumber] 的 Int 重载，委托给 Long 版本。 */
+    fun formatNumber(value: Int): String = formatNumber(value.toLong())
+
+    private fun formatWithUnit(value: Long, unit: Long, unitName: String): String {
+        val intPart = value / unit
+        val remainder = value % unit
+        val decPart = (remainder * 10L) / unit
+        return if (decPart == 0L) "$intPart$unitName" else "$intPart.$decPart$unitName"
     }
 
     fun formatPercent(value: Double): String {

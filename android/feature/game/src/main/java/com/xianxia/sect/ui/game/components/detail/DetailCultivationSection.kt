@@ -138,6 +138,12 @@ fun BasicInfoSection(
     } else {
         0.0
     }
+    val masterDiscipleBonus = disciple.masterId?.let { mid ->
+        val master = discipleMap[mid]
+        if (master != null && master.isAlive)
+            DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, master.realm)
+        else 0.0
+    } ?: 0.0
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "基本信息",
@@ -192,7 +198,8 @@ fun BasicInfoSection(
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
             val breakthroughChance = disciple.getBreakthroughChance(
-                griefBreakthroughPenalty = griefBreakthroughPenalty
+                griefBreakthroughPenalty = griefBreakthroughPenalty,
+                masterDiscipleBonus = masterDiscipleBonus
             )
             val innerElderComp = elderSlots?.innerElder?.let { eid ->
                 discipleMap[eid]?.comprehension ?: 0
@@ -205,6 +212,7 @@ fun BasicInfoSection(
                 innerElderComprehension = innerElderComp,
                 outerElderComprehensionBonus = if (outerElderComp >= 80) ((outerElderComp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01 else 0.0,
                 adBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0,
+                masterDiscipleBonus = masterDiscipleBonus,
                 griefBreakthroughPenalty = griefBreakthroughPenalty
             )
             var showBreakthroughDetail by remember { mutableStateOf(false) }
@@ -526,6 +534,7 @@ fun BreakthroughDetailDialog(
         if (detail.soulPowerBonus > 0) add("神魂加成" to detail.soulPowerBonus)
         if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
         if (detail.adBonus > 0) add("广告加成" to detail.adBonus)
+        if (detail.masterDiscipleBonus > 0) add("师徒加成" to detail.masterDiscipleBonus)
         if (detail.griefPenalty > 0) add("丧亲减益" to -detail.griefPenalty)
         if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
     }

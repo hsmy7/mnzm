@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import com.xianxia.sect.core.util.GameUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -71,7 +72,7 @@ fun RewardDialog(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (reward.quantity > 1) "${reward.name} ×${reward.quantity}"
+                        text = if (reward.quantity > 1) "${reward.name} ×${GameUtils.formatNumber(reward.quantity)}"
                                else reward.name,
                         fontSize = 11.sp,
                         color = Color.Black,

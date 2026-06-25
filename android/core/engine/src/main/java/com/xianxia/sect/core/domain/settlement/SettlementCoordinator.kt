@@ -940,12 +940,21 @@ class SettlementCoordinator @Inject constructor(
             0.0
         }
 
+        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供突破率加成
+        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
+            val master = allDisciples[mid]
+            if (master != null && master.isAlive) {
+                DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, master.realm)
+            } else 0.0
+        } ?: 0.0
+
         return DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehensionBonus = outerElderComprehensionBonus,
             pillBonus = pillBonus,
-            griefBreakthroughPenalty = griefBreakthroughPenalty
+            griefBreakthroughPenalty = griefBreakthroughPenalty,
+            masterDiscipleBonus = masterDiscipleBonus
         )
     }
 
@@ -1191,6 +1200,12 @@ class SettlementCoordinator @Inject constructor(
                 ((lifespan - age) * 100 / lifespan).coerceIn(0, 100)
             } else 100
             h = 31 * h + remainingPct
+            // 师徒关系：masterId 变化（拜师/解绑）或师父大境界突破（masterRealm 变化）
+            // 都会改变徒弟的修炼速度加成，必须触发重算
+            val masterIdStr = tables.masterIds.getOrNull(id)
+            h = 31 * h + (masterIdStr?.hashCode() ?: 0)
+            val masterIdInt = masterIdStr?.toIntOrNull()
+            h = 31 * h + (masterIdInt?.let { tables.realms.getOrDefault(it, 9) } ?: 9)
             h
         }.hashCode()
         return CultivationRateFingerprint(

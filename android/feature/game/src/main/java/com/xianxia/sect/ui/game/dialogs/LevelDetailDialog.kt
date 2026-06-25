@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import com.xianxia.sect.core.util.GameUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -162,7 +163,7 @@ fun LevelDetailDialog(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "数量：${level.count}",
+                        text = "数量：${GameUtils.formatNumber(level.count)}",
                         fontSize = 12.sp,
                         color = Color.Black
                     )

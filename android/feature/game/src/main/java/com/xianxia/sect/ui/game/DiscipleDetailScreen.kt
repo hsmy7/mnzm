@@ -91,6 +91,9 @@ fun DiscipleDetailDialog(
     var showRelationsDialog by remember { mutableStateOf(false) }
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
+    var showApprenticeSelectDialog by remember { mutableStateOf(false) }
+    var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
+    var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
@@ -229,6 +232,7 @@ fun DiscipleDetailDialog(
                         onShowRelations = { showRelationsDialog = true },
                         onShowStorageBag = { showStorageBagDialog = true },
                         onShowExpelConfirm = { showExpelConfirmDialog = true },
+                        onShowApprentice = { showApprenticeSelectDialog = true },
                         onNavigateToDisciple = onNavigateToDisciple,
                         viewModel = viewModel
                     )
@@ -274,6 +278,36 @@ fun DiscipleDetailDialog(
             dismissLabel = "取消",
             onDismiss = { showExpelConfirmDialog = false }
         )
+    }
+
+    if (showApprenticeSelectDialog) {
+        MasterApprenticeSelectDialog(
+            currentDisciple = disciple,
+            allDisciples = allDisciples,
+            onDismiss = { showApprenticeSelectDialog = false },
+            onMasterSelected = { master ->
+                selectedMaster = master
+                showApprenticeConfirmDialog = true
+            }
+        )
+    }
+
+    selectedMaster?.let { master ->
+        if (showApprenticeConfirmDialog) {
+            StandardPromptDialog(
+                onDismissRequest = { showApprenticeConfirmDialog = false },
+                title = "拜师确认",
+                text = "确认让 ${disciple.name}（${disciple.realmName}）拜 ${master.name}（${master.realmName}）为师？",
+                confirmLabel = "确认",
+                onConfirm = {
+                    viewModel?.apprenticeToMaster(disciple.id, master.id)
+                    showApprenticeConfirmDialog = false
+                    selectedMaster = null
+                },
+                dismissLabel = "取消",
+                onDismiss = { showApprenticeConfirmDialog = false }
+            )
+        }
     }
 
     showEquipmentSelection?.let { slotType ->

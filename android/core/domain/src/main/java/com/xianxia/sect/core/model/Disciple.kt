@@ -268,8 +268,8 @@ data class Disciple(
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
 
-    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0): Double =
-        DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehensionBonus, pillBonus, adBonus, griefBreakthroughPenalty)
+    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double =
+        DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehensionBonus, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
 
     // ==================== 转换方法（用于迁移到 DiscipleAggregate）====================
 

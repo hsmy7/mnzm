@@ -22,6 +22,11 @@ class DiscipleDelegate(
         scope.launch { gameEngine.expelDisciple(discipleId) }
     }
 
+    /** 拜师：将 discipleId 设为 masterId 的徒弟 */
+    fun apprenticeToMaster(discipleId: String, masterId: String) {
+        scope.launch { gameEngine.apprenticeToMaster(discipleId, masterId) }
+    }
+
     fun toggleFollowDisciple(discipleId: String) {
         scope.launch {
             gameEngine.updateDisciple(discipleId) { disciple ->

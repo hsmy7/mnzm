@@ -863,6 +863,9 @@ class GameViewModel @Inject constructor(
      */
     fun expelDisciple(discipleId: String) = disciple.expelDisciple(discipleId)
 
+    /** 拜师：将 discipleId 设为 masterId 的徒弟，委托给 [DiscipleDelegate] */
+    fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
+
     /** 清空弟子侧待处理通知 */
     fun clearNotification() {
         discipleFacade.clearPendingNotification()

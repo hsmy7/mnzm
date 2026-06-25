@@ -22,6 +22,7 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.HalfScreenDialog
@@ -328,7 +329,7 @@ internal fun BulkSellDialog(
                 color = Color.Black
             )
             Text(
-                text = "获得灵石: $totalValue（原价80%）",
+                text = "获得灵石: ${GameUtils.formatNumber(totalValue)}（原价80%）",
                 fontSize = 12.sp,
                 color = Color.Black
             )

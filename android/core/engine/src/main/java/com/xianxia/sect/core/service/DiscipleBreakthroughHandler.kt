@@ -192,13 +192,23 @@ class DiscipleBreakthroughHandler @Inject constructor(
             0.0
         }
 
+        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供突破率加成
+        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
+            val midInt = mid.toIntOrNull() ?: return@let 0.0
+            if (tables.ids.contains(midInt) && tables.isAlive[midInt] == 1) {
+                val masterRealm = tables.realms[midInt]
+                DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, masterRealm)
+            } else 0.0
+        } ?: 0.0
+
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
             outerElderComprehensionBonus = outerElderComprehensionBonus,
             pillBonus = pillBonus,
             adBonus = adBonus,
-            griefBreakthroughPenalty = griefBreakthroughPenalty
+            griefBreakthroughPenalty = griefBreakthroughPenalty,
+            masterDiscipleBonus = masterDiscipleBonus
         )
         return Random.nextDouble() < chance
     }

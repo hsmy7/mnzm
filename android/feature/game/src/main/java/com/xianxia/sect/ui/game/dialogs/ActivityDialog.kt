@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import com.xianxia.sect.core.util.GameUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -307,7 +308,7 @@ private fun ActivityDetailPanel(activity: ActivityDef) {
                 Spacer(modifier = Modifier.height(4.dp))
                 activity.rewardPreview.forEach { reward ->
                     Text(
-                        "${reward.name} x${reward.quantity}",
+                        "${reward.name} x${GameUtils.formatNumber(reward.quantity)}",
                         fontSize = 10.sp,
                         color = Color.Black
                     )
