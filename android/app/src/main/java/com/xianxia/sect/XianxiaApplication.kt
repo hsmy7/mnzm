@@ -26,6 +26,7 @@ import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
 import com.tencent.bugly.crashreport.CrashReport
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
@@ -141,11 +142,15 @@ class XianxiaApplication : Application() {
                 }
             })
             Log.i(TAG, "MMKV initialized with ReLinker fallback")
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
             try {
                 MMKV.initialize(this)
-            } catch (e2: Exception) {
+            } catch (e2: CancellationException) {
+                throw e2
+            } catch (e2: Throwable) {
                 Log.e(TAG, "MMKV default initialization also failed", e2)
             }
         }

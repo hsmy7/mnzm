@@ -15,6 +15,13 @@
 - **优化：物品/灵石数量显示改为万/亿单位 floor 格式化** — 当数量超过 5 位数（≥10000）时自动转为「万」单位显示，≥1 亿转为「亿」单位，采用向下取整（floor，只少不多）保留 1 位小数，小数位为 0 时省略小数。例如 10001 显示为「1万」、10999 显示为「1万」、11999 显示为「1.1万」、19999 显示为「1.9万」。统一覆盖灵石数量、物品卡片数量、商店价格、任务奖励、邮件附件、战斗战利品等全部数量显示场景。核心函数 `GameUtils.formatNumber` 由四舍五入改为整数运算 floor，新增 `Int` 重载，删除 `DailySignInDialog` 中的死代码 `formatRewardQuantity`
 - **统一弟子筛选栏** — 消除两套并行筛选实现（手写状态与 DiscipleFilterState），排序和过滤算法统一收敛到 `applyFilters`；境界筛选选项常量统一基于 `GameConfig.Realm` 权威定义（0-9 共 10 项，修复旧 B 套定义不一致 bug）；灵矿场执事推荐属性由「采矿」修正为「道德」；灵矿场执事选择界面从 107 行私有组件重构为复用统一 `DiscipleSelectorDialog`。新增 17 个筛选排序单元测试
 
+### 修复
+
+- **数字格式化亿单位阈值错误** — `formatNumber` 使用西式十亿（1_000_000_000）作为「亿」触发阈值，导致 1~10 亿间数值错误显示为「XXXXX万」（如 199,999,999 显示为「19999.9万」而非「1.9亿」）。修正为中式一亿（1_0000_0000 = 1 亿），10 亿现在正确显示为「10亿」
+- **数据库迁移缺失** — 师徒系统新增 `DiscipleExtended.masterId` 列，版本号从 9 升到 10 但未提供 `MIGRATION_9_10`，Room 找不到迁移时触发 `fallbackToDestructiveMigration()` 导致所有本地存档被清空。补充 `ALTER TABLE disciples_extended ADD COLUMN masterId TEXT` 迁移
+- **MMKV 原生库加载异常捕获不完整** — `XianxiaApplication.onCreate()` 中 MMKV 初始化的 `catch (e: Exception)` 无法捕获 `UnsatisfiedLinkError`（Error 子类，不受 Exception 管辖），导致测试环境和部分设备启动崩溃。修正为 `catch (e: Throwable)` 并保留 `CancellationException` 重抛守卫
+- **补充测试依赖** — 新增 `androidx.test:core` 依赖，修复 `AlarmWatchdogReceiverTest` 和 `GameNotificationHelperTest` 编译时 Unresolved reference 错误
+
 ## [4.0.23] - 2026-06-25（versionCode=4023）
 
 ### 根治

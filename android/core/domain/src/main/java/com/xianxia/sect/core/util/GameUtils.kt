@@ -72,7 +72,7 @@ object GameUtils {
      */
     fun formatNumber(value: Long): String {
         return when {
-            value >= 1_000_000_000L -> formatWithUnit(value, 1_000_000_000L, "亿")
+            value >= 1_0000_0000L -> formatWithUnit(value, 1_0000_0000L, "亿")
             value >= 10_000L -> formatWithUnit(value, 10_000L, "万")
             else -> value.toString()
         }

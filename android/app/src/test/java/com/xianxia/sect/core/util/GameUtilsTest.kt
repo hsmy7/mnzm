@@ -282,8 +282,8 @@ class GameUtilsTest {
     }
 
     @Test
-    fun formatNumber_1Billion_returns1yi() {
-        assertEquals("1亿", GameUtils.formatNumber(1_000_000_000L))
+    fun formatNumber_1Billion_returns10yi() {
+        assertEquals("10亿", GameUtils.formatNumber(1_000_000_000L))
     }
 
     @Test

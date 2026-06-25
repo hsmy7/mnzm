@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.util
 
+import android.app.Application
 import android.app.Notification
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
@@ -19,7 +20,7 @@ import org.robolectric.annotation.Config
  * - PendingIntent 使用安全标志
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
+@Config(sdk = [34], manifest = Config.NONE, application = Application::class)
 class GameNotificationHelperTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
