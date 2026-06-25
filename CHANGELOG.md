@@ -8,6 +8,7 @@
 - **修复：天道试炼通关奖励灵石不显示精灵图** — `HeavenlyTrialClearRewardDialog` 构造 `ItemCardData` 时漏设 `spiritStoneGrade`，精灵图选择逻辑落到 `equipmentSpriteRes("灵石")` 分支返回 null，卡片显示"敬请期待"占位。修复：参照 `RewardDisplayDialog` 写法补上 `spiritStoneGrade = if (itemType == "spiritStones") SpiritStoneGrade.LOW else null`
 - **修复：天道试炼挑战对象信息区不可滚动导致功法被裁剪** — `HeavenlyTrialBattleDialog` 的 `EnemyInfoDetail` 为纯 `Column` 无滚动容器，功法数量较多时底部被裁剪无法查看。修复：`Column` 添加 `.verticalScroll(rememberScrollState())`，信息区可纵向滚动
 - **修复：每日签到灵石描述未标注品阶** — `DailySignInService` 中 5 处"灵石"硬编码文本（3 处奖励定义、1 处容量错误提示、1 处奖励卡片 itemName）统一改为"下品灵石"，与实际奖励品阶一致
+- **修复：弟子在列表界面不修炼（空闲挂机无成长）** — 空闲模式（30秒无操作）下 DISCIPLES 域切至 BACKGROUND，配合手机发热触发热控批量结算（`batchMonths` > 1），`SettlementCoordinator` 修炼公式将 HFD 累积值（`alreadyGained`）从**每个月**的修炼值中扣除而非从**总额**扣除，导致非焦点弟子修为大量损失。修复：修炼公式改为 `(monthlyGain × batchMonths − alreadyGained) ≥ 0 + alreadyGained`（从总额扣一次）；突破检查移除对 `BREAKTHROUGH` dirtyFlag 的依赖，直接判断 `cultivation ≥ maxCultivation && fullHpMp`；`SettlementCache` 每次月结从头构建、不再跨月复用；HFD 统一在 `onSettlementComplete` 中重置。新增 `SettlementCoordinatorCultivationTest`（10 个测试）覆盖公式修正、batchMonths 分批、已获修为不损失、突破前提等核心路径
 
 ### 调整
 

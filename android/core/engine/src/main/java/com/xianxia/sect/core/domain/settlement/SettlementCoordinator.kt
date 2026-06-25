@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.production.EconomySubsystem
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
@@ -24,6 +25,21 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 
+/**
+ * 月度结算协调器：负责编排一次月度/年度结算的全流程阶段调度。
+ *
+ * 主要职责：
+ * - 接收 shadow 状态，构建 [SettlementCache]，按阶段调度 [SettlementScheduler]
+ * - 焦点弟子即时结算（每 100ms tick 推进修炼值，月度结算时合并差额）
+ * - 非焦点弟子分批结算（clean / dirty 两类批次）
+ * - 生产、世界事件、年度老化等阶段串联
+ * - 非焦点域热控分批：根据 [ThermalMonitor] 决定非焦点弟子结算间隔
+ *
+ * 关键约束（项目硬约束）：
+ * - 突破检查直接验证 `cultivation >= maxCultivation && full health/mana`，不依赖 BREAKTHROUGH dirtyFlag
+ * - HFD（HighFrequencyData）必须在每次月度结算后重置
+ * - SettlementCache 必须每月从零重建
+ */
 @Singleton
 class SettlementCoordinator @Inject constructor(
     private val cultivationService: CultivationService,
@@ -44,18 +60,28 @@ class SettlementCoordinator @Inject constructor(
     @Volatile
     private var currentCache: SettlementCache? = null
 
-    private var lastFingerprint: CultivationRateFingerprint? = null
-
     // 非焦点域热控分批：记录上次结算的绝对月份和当前批次数
     private var nonFocusedLastSettleMonth: Int = 0
     private var nonFocusedBatchMonths: Int = 1
-    private var reusableCache: SettlementCache? = null
 
+    /**
+     * 是否仍有未完成的结算阶段待执行。
+     */
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
 
     private val timer = SettlementTimer()
     private var metricsBuilder = SettlementMetricsBuilder()
 
+    /**
+     * 执行一次结算步骤（一帧）。
+     *
+     * 由外部驱动循环按帧调用，将单步委托给 [SettlementScheduler.executeStep]。
+     * 当 scheduler 报告当前批次已完成时，触发 [onSettlementComplete] 收尾。
+     *
+     * 若执行过程抛出非取消异常，会重置协调器状态以避免脏状态残留。
+     *
+     * @return true 表示当前调度批次已全部完成（可进入下一轮调度）；false 表示仍有后续步骤。
+     */
     suspend fun executeStep(): Boolean {
         val shadow = shadowState ?: return true
 
@@ -77,11 +103,19 @@ class SettlementCoordinator @Inject constructor(
     private fun resetOnError() {
         shadowState = null
         currentCache = null
-        reusableCache = null
-        lastFingerprint = null
         scheduler.reset()
     }
 
+    /**
+     * 调度一次月度结算。
+     *
+     * 设置 shadow 状态、重置 metrics、按热控策略计算非焦点域分批月数，
+     * 然后依次注册以下阶段到 [SettlementScheduler]：
+     * BuildCache → FocusedDisciple → CleanDiscipleBatch → DirtyDiscipleBatch
+     * → Production → WorldEvents。
+     *
+     * @param shadow 本次结算使用的可变游戏状态（shadow）
+     */
     fun scheduleMonthly(shadow: MutableGameState) {
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
@@ -92,23 +126,12 @@ class SettlementCoordinator @Inject constructor(
         )
         computeNonFocusedBatch(currentAbsMonth)
 
-        val fingerprint = computeFingerprint(shadow)
-        val cachePhase: Phase_BuildCache?
-
-        if (fingerprint == lastFingerprint && reusableCache != null) {
-            currentCache = reusableCache
-            cachePhase = null
-            metricsBuilder.cacheBuildMs = 0f
-        } else {
-            timer.start()
-            cachePhase = Phase_BuildCache { state ->
-                val cache = SettlementCache(state)
-                currentCache = cache
-                reusableCache = cache
-                lastFingerprint = fingerprint
-                metricsBuilder.cacheBuildMs = timer.stop()
-                cache
-            }
+        timer.start()
+        val cachePhase = Phase_BuildCache { state ->
+            val cache = SettlementCache(state)
+            currentCache = cache
+            metricsBuilder.cacheBuildMs = timer.stop()
+            cache
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -140,6 +163,14 @@ class SettlementCoordinator @Inject constructor(
         )
     }
 
+    /**
+     * 调度一次年度结算。
+     *
+     * 与 [scheduleMonthly] 类似，但额外追加年度专属阶段：
+     * AgingAndDeath、RecruitRefresh、AISectYearly、AllianceExpiry。
+     *
+     * @param shadow 本次结算使用的可变游戏状态（shadow）
+     */
     fun scheduleYearly(shadow: MutableGameState) {
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
@@ -150,23 +181,12 @@ class SettlementCoordinator @Inject constructor(
         )
         computeNonFocusedBatch(currentAbsMonth)
 
-        val fingerprint = computeFingerprint(shadow)
-        val cachePhase: Phase_BuildCache?
-
-        if (fingerprint == lastFingerprint && reusableCache != null) {
-            currentCache = reusableCache
-            cachePhase = null
-            metricsBuilder.cacheBuildMs = 0f
-        } else {
-            timer.start()
-            cachePhase = Phase_BuildCache { state ->
-                val cache = SettlementCache(state)
-                currentCache = cache
-                reusableCache = cache
-                lastFingerprint = fingerprint
-                metricsBuilder.cacheBuildMs = timer.stop()
-                cache
-            }
+        timer.start()
+        val cachePhase = Phase_BuildCache { state ->
+            val cache = SettlementCache(state)
+            currentCache = cache
+            metricsBuilder.cacheBuildMs = timer.stop()
+            cache
         }
 
         val focusedPhase = Phase_FocusedDisciple(
@@ -206,6 +226,15 @@ class SettlementCoordinator @Inject constructor(
         )
     }
 
+    /**
+     * 结算完成后的收尾流程。
+     *
+     * 1. 将 shadow 状态原子换入 [GameStateStore]；
+     * 2. 将当月修炼速率缓存同步给 [CultivationService]，供焦点域 100ms tick 推进修炼值；
+     * 3. 重置 HFD（HighFrequencyData）—— 满足"每次月度结算后必须重置"硬约束；
+     * 4. 构建并记录 [SettlementMetrics]；
+     * 5. 清空 shadowState / currentCache 并重置 scheduler。
+     */
     suspend fun onSettlementComplete() {
         val shadow = shadowState ?: return
         timer.start()
@@ -216,6 +245,8 @@ class SettlementCoordinator @Inject constructor(
         currentCache?.let { cache ->
             cultivationService.cachedCultivationRates = cache.cultivationRateCache
         }
+
+        cultivationService.resetHighFrequencyData()
 
         val metrics = metricsBuilder.build(
             monthYear = shadow.gameData.gameYear to shadow.gameData.gameMonth,
@@ -230,14 +261,44 @@ class SettlementCoordinator @Inject constructor(
         scheduler.reset()
     }
 
+    /**
+     * 取消所有待执行的结算工作。
+     *
+     * 丢弃当前 shadow 与 cache，并重置 scheduler。已写入 shadow 的中间状态不会被回滚到 store。
+     */
     fun cancelPendingWork() {
         shadowState = null
         currentCache = null
-        reusableCache = null
-        lastFingerprint = null
         scheduler.reset()
     }
 
+    /**
+     * 焦点弟子即时结算（每 100ms tick 已推进修炼值的月度合并）。
+     *
+     * 焦点弟子由 [CultivationService] 在高频 tick（约 100ms）中持续推进修炼、HP/MP 恢复、
+     * 持续效果衰减等。本方法在月度结算时合并 HFD 中已结算的部分与月度总额的差额，
+     * 避免重复结算。
+     *
+     * 步骤：
+     * 1. 读取焦点弟子 ID，校验存活；
+     * 2. 修炼值：月度总额 = rate × 3旬，扣除 HFD 已推进部分（alreadyGained），写入组件表；
+     * 3. HP/MP 月度恢复：扣除焦点域已处理旬数（[hfd.focusedPhaseCount]）；
+     * 4. 持续效果月度衰减：同样扣除焦点域已处理旬数；
+     * 5. 突破检查：当 `cultivation >= maxCultivation && full health/mana` 时触发，
+     *    不依赖 BREAKTHROUGH dirtyFlag（项目硬约束）；
+     *    突破成功将溢出修为带入新境界；
+     * 6. 重新组装弟子，计算功法熟练度、装备温养、忠诚度（居住加成）增量；
+     * 7. 写入下一次修炼完成时间。
+     *
+     * 关键约束：
+     * - 突破条件为 `cultivation >= maxCultivation && isDiscipleFullHpMp(disciple)`，
+     *   不依赖 BREAKTHROUGH flag；
+     * - HFD 必须在每次月度结算后由 [onSettlementComplete] 重置；
+     * - SettlementCache 必须每月从零重建。
+     *
+     * @param shadow 本次结算使用的可变游戏状态
+     * @param cache 当月构建的结算缓存（修炼速率、弟子映射等）
+     */
     private suspend fun processFocusedDiscipleImmediate(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
         val focusedId = stateStore.focusedDiscipleId ?: run {
@@ -253,13 +314,40 @@ class SettlementCoordinator @Inject constructor(
 
         val disciple = tables.assemble(focusedIdInt)
         val data = shadow.gameData
+
+        // HFD 快照在月结期间只读不写（仅在 onSettlementComplete 中重置），
+        // 缓存一次避免 5 个子方法各自调用 getHighFrequencyData().value
+        val hfd = cultivationService.getHighFrequencyData().value
+
+        val (newCultivation, overflow) = mergeFocusedCultivation(disciple, cache, tables, focusedIdInt, hfd)
+        recoverFocusedHpMp(tables, focusedIdInt, hfd)
+        applyFocusedDurationDecay(tables, focusedIdInt, hfd)
+        checkFocusedBreakthrough(disciple, newCultivation, overflow, shadow, cache, tables, focusedIdInt)
+
+        // 重新组装以获取最新状态（突破可能已改变）
+        val discipleAfterBreakthrough = tables.assemble(focusedIdInt)
+        updateFocusedProficiency(discipleAfterBreakthrough, data, cache, shadow, tables, focusedIdInt, hfd)
+
+        metricsBuilder.focusedDiscipleMs = timer.stop()
+    }
+
+    /**
+     * 修炼值合并：月度总额 = rate × 3旬，扣除 HFD 已推进部分（alreadyGained），写入组件表。
+     *
+     * @param hfd 月结期间缓存的 HFD 快照（只读）
+     * @return (newCultivation, overflow) — 突破检查需要这两个值
+     */
+    private fun mergeFocusedCultivation(
+        disciple: Disciple,
+        cache: SettlementCache,
+        tables: DiscipleTables,
+        focusedIdInt: Int,
+        hfd: HighFrequencyData
+    ): Pair<Double, Double> {
         val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
         val monthlyGain = rate * 3  // 3旬/月
 
-        val focusedGains = cultivationService.getHighFrequencyData().value.cultivationUpdates
-        val focusedProfGains = cultivationService.getHighFrequencyData().value.proficiencyUpdates
-        val focusedNurtureGains = cultivationService.getHighFrequencyData().value.nurtureUpdates
-
+        val focusedGains = hfd.cultivationUpdates
         val alreadyGained = focusedGains[disciple.id] ?: 0.0
         val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
 
@@ -269,14 +357,41 @@ class SettlementCoordinator @Inject constructor(
         val newCultivation = rawCultivation.coerceAtMost(disciple.maxCultivation)
         tables.cultivations[focusedIdInt] = newCultivation
 
-        // 月度 HP/MP 恢复（扣除焦点域已处理旬数）
-        val hfd = cultivationService.getHighFrequencyData().value
+        return Pair(newCultivation, overflow)
+    }
+
+    /**
+     * 月度 HP/MP 恢复（扣除焦点域已处理旬数 [hfd.focusedPhaseCount]）。
+     *
+     * @param hfd 月结期间缓存的 HFD 快照（只读）
+     */
+    private fun recoverFocusedHpMp(tables: DiscipleTables, focusedIdInt: Int, hfd: HighFrequencyData) {
         cultivationService.recoverMonthlyHpMp(tables, focusedIdInt, hfd.focusedPhaseCount)
+    }
 
-        // 月度持续效果衰减（扣除焦点域已处理旬数）
+    /**
+     * 月度持续效果衰减（扣除焦点域已处理旬数 [hfd.focusedPhaseCount]）。
+     *
+     * @param hfd 月结期间缓存的 HFD 快照（只读）
+     */
+    private fun applyFocusedDurationDecay(tables: DiscipleTables, focusedIdInt: Int, hfd: HighFrequencyData) {
         cultivationService.applyMonthlyDurationDecay(tables, focusedIdInt, hfd.focusedPhaseCount)
+    }
 
-        // 突破检查
+    /**
+     * 突破检查：当 `cultivation >= maxCultivation && full health/mana` 时触发，
+     * 不依赖 BREAKTHROUGH dirtyFlag（项目硬约束）。
+     * 突破成功将溢出修为带入新境界。
+     */
+    private fun checkFocusedBreakthrough(
+        disciple: Disciple,
+        newCultivation: Double,
+        overflow: Double,
+        shadow: MutableGameState,
+        cache: SettlementCache,
+        tables: DiscipleTables,
+        focusedIdInt: Int
+    ) {
         if (newCultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
             val updatedDisciple = processBreakthroughForDisciple(disciple, shadow, cache)
             writeDiscipleToTables(updatedDisciple, tables)
@@ -286,14 +401,31 @@ class SettlementCoordinator @Inject constructor(
                     overflow.coerceAtMost(updatedDisciple.maxCultivation)
             }
         }
+    }
 
-        // 重新组装以获取最新状态（突破可能已改变）
-        val discipleAfterBreakthrough = tables.assemble(focusedIdInt)
-        val profUpdates = calculateProficiencyGains(discipleAfterBreakthrough, data, cache, focusedProfGains[disciple.id] ?: emptyMap())
-        val nurtureUpdates = calculateNurtureGains(discipleAfterBreakthrough, shadow, cache, focusedNurtureGains[disciple.id] ?: emptyMap())
+    /**
+     * 熟练度/温养/忠诚度增量：重新计算功法熟练度、装备温养、忠诚度（居住加成），
+     * 并写入下一次修炼完成时间。
+     *
+     * @param hfd 月结期间缓存的 HFD 快照（只读）
+     */
+    private fun updateFocusedProficiency(
+        disciple: Disciple,
+        data: com.xianxia.sect.core.model.GameData,
+        cache: SettlementCache,
+        shadow: MutableGameState,
+        tables: DiscipleTables,
+        focusedIdInt: Int,
+        hfd: HighFrequencyData
+    ) {
+        val focusedProfGains = hfd.proficiencyUpdates
+        val focusedNurtureGains = hfd.nurtureUpdates
+
+        val profUpdates = calculateProficiencyGains(disciple, data, cache, focusedProfGains[disciple.id] ?: emptyMap())
+        val nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, focusedNurtureGains[disciple.id] ?: emptyMap())
 
         // 忠诚度（居住加成）
-        val loyaltyDelta = calculateLoyaltyDelta(discipleAfterBreakthrough, cache)
+        val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
         if (loyaltyDelta != 0) {
             tables.loyalties[focusedIdInt] = (tables.loyalties[focusedIdInt] + loyaltyDelta).coerceAtLeast(0)
         }
@@ -301,13 +433,10 @@ class SettlementCoordinator @Inject constructor(
         // 结算后计算下一次完成时间
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val cultivationRate = cache.cultivationRateCache[disciple.id] ?: 0.0
-        writeCultivationCompletionToTables(discipleAfterBreakthrough, tables, currentAbsoluteMonth, cultivationRate)
+        writeCultivationCompletionToTables(disciple, tables, currentAbsoluteMonth, cultivationRate)
 
         applyNurtureUpdates(shadow, nurtureUpdates)
         applyProficiencyUpdates(shadow, profUpdates)
-
-        cultivationService.resetHighFrequencyData()
-        metricsBuilder.focusedDiscipleMs = timer.stop()
     }
 
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
@@ -340,11 +469,13 @@ class SettlementCoordinator @Inject constructor(
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
 
             if (batchMonths > 0) {
-                // 非焦点域热控分批：每月修炼值 × 批次数，扣除焦点域已获增益
+                // 非焦点域热控分批：修炼总值 = 月修炼值 × 批次数
+                // alreadyGained 应从总额扣除一次，而非从每月扣除
                 val monthlyGain = rate * 3
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
-                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val totalMonthlyGain = monthlyGain * batchMonths
+                val netTotalGain = (totalMonthlyGain - alreadyGained).coerceAtLeast(0.0)
+                val totalGain = netTotalGain + alreadyGained
                 val rawCultivation = disciple.cultivation + totalGain
                 val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
                     Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
@@ -431,11 +562,13 @@ class SettlementCoordinator @Inject constructor(
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
 
             if (batchMonths > 0) {
-                // 每月修炼值 = rate × 3旬 × batchMonths，扣除焦点域已获增益
+                // 修炼总值 = 月修炼值 × 批次数
+                // alreadyGained 应从总额扣除一次，而非从每月扣除
                 val monthlyGain = rate * 3
                 val alreadyGained = focusedGains[disciple.id] ?: 0.0
-                val netMonthlyGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netMonthlyGain * batchMonths + alreadyGained
+                val totalMonthlyGain = monthlyGain * batchMonths
+                val netTotalGain = (totalMonthlyGain - alreadyGained).coerceAtLeast(0.0)
+                val totalGain = netTotalGain + alreadyGained
                 val rawCultivation = disciple.cultivation + totalGain
                 val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
                     Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
@@ -456,10 +589,10 @@ class SettlementCoordinator @Inject constructor(
                 }
             }
 
-            // 突破检查（batchMonths == 0 时也可触发，因为装备/功法变更可能改变状态）
+            // 突破检查（与 clean batch 一致，不依赖 BREAKTHROUGH dirtyFlag）
             val currentCult = tables.cultivations[id]
-            val needsBreakthrough = DiscipleDirtyFlag.BREAKTHROUGH in (cache.dirtyFlags[disciple.id] ?: emptySet()) &&
-                currentCult >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)
+            val needsBreakthrough = currentCult >= disciple.maxCultivation &&
+                isDiscipleFullHpMp(disciple)
 
             val effectiveBatch = if (batchMonths > 0) batchMonths else 1
             var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
@@ -975,25 +1108,6 @@ class SettlementCoordinator @Inject constructor(
     companion object {
         private const val TAG = "SettlementCoordinator"
         private const val MAX_DIRTY_BATCH_SIZE = 100
-    }
-
-    private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
-        val data = shadow.gameData
-        // 计算存活弟子ID哈希：确保弟子增删时指纹变化，触发缓存重建。
-        // 仅做 ID 哈希（不做全量速率重算），增量成本 O(n) 极低。
-        val discipleIdsHash = shadow.discipleTables.ids
-            .filter { shadow.discipleTables.isAlive[it] == 1 }
-            .hashCode()
-        return CultivationRateFingerprint(
-            residenceLayout = data.residenceSlots.hashCode() * 31 + data.placedBuildings.hashCode(),
-            elderAssignments = data.elderSlots.hashCode(),
-            preachingAssignments = (data.elderSlots.preachingElder.hashCode() * 31
-                + data.elderSlots.preachingMasters.hashCode() * 31
-                + data.elderSlots.qingyunPreachingElder.hashCode() * 31
-                + data.elderSlots.qingyunPreachingMasters.hashCode()),
-            policyFlags = data.sectPolicies.hashCode(),
-            aliveDiscipleIdsHash = discipleIdsHash
-        )
     }
 }
 

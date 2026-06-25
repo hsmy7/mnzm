@@ -11,7 +11,8 @@
 			"优化：战斗日志敌人描述区分战斗来源——此前所有敌方统一显示为「妖兽」，现按战斗类型区分：妖兽战显示「妖兽」、宗门战显示「xx宗弟子」、任务战显示「敌人」、洞府战显示「守护兽」",
 			"优化：战斗日志列表显示具体战斗名称——日志列表项标题由PVE/PVP改为具体战斗名称（妖兽战/任务战/宗门战/宗门防守战/探查战/洞府战），PVE被妖兽战和任务战复用时按details字段区分",
 			"新增：战斗日志战利品/被掠夺物品显示——战斗详情弹窗敌方槽位区域下方新增战利品列表，胜利时显示获得的物品/灵石，失败时显示被掠夺的物品/灵石",
-			"清理：CombatService遗留无调用方法——删除executeCaveAIBattle/executeCaveGuardianBattle两个无调用者的遗留方法"
+			"清理：CombatService遗留无调用方法——删除executeCaveAIBattle/executeCaveGuardianBattle两个无调用者的遗留方法",
+				"修复：弟子在列表界面不修炼（空闲挂机无成长）——空闲模式下DISCIPLES域切至BACKGROUND，配合热控批量结算（batchMonths>1）时SettlementCoordinator修炼公式将alreadyGained从每月而非总额扣除，导致非焦点弟子修为大量损失。修复：公式改为从总额扣一次、突破检查移除BREAKTHROUGH dirtyFlag依赖直接判断cultivation≥maxCultivation、SettlementCache每月重建不再跨月复用、HFD统一在onSettlementComplete重置。新增10个单元测试覆盖公式修正、batchMonths分批、已获修为不损失等路径"
 		]
 	},
 	{

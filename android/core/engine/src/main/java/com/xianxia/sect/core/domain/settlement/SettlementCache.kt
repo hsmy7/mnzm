@@ -9,20 +9,13 @@ import com.xianxia.sect.core.state.MutableGameState
 
 enum class DiscipleDirtyFlag {
     NONE,
-    BREAKTHROUGH,
     EQUIPMENT,
     MANUAL
 }
 
-data class CultivationRateFingerprint(
-    val residenceLayout: Int,
-    val elderAssignments: Int,
-    val preachingAssignments: Int,
-    val policyFlags: Int,
-    val aliveDiscipleIdsHash: Int
-)
-
 class SettlementCache(state: MutableGameState) {
+
+    // ── 轻量映射：O(n) 小集合，直接计算 ──
 
     val equipmentInstanceMap: Map<String, EquipmentInstance> =
         state.equipmentInstances.associateBy { it.id }
@@ -39,87 +32,71 @@ class SettlementCache(state: MutableGameState) {
     val realmConfigCache: Map<Int, GameConfig.RealmConfig> =
         (0..9).associateWith { GameConfig.Realm.get(it) }
 
-    val cultivationRateCache: Map<String, Double>
-
     val spiritMineDiscipleIds: Set<String> =
         state.gameData.spiritMineSlots.filter { it.isActive }.map { it.discipleId }.toSet()
+
+    // ── 单次 assemble 共享：所有弟子仅组装一次，供后续所有构建器复用 ──
+    // 优化前：discipleMap + aliveDisciples + buildDirtyFlags + buildCultivationRateCache
+    //         + buildPreachingBonusCache 各自独立组装，共 5 次全量 assemble()
+    // 优化后：一次组装，Map 与 List 共享同一批 Disciple 对象
+    // 移除指纹缓存（computeFingerprint/CultivationRateFingerprint）的原因：
+    //   指纹仅检测结构变化（布局/长老/政策/弟子ID），不检测弟子属性变化。
+    //   弟子修炼值增长会改变修炼速率计算，但指纹不会变化 → 旧缓存返回过期数据。
+    //   月度 SettlementCache 重建成本：~100弟子 × 1次assemble ≈ 63K 次SparseArray查找，
+    //   在月度批次中 << 1ms，不影响帧率。
+
+    private val allDiscipleMap: Map<String, Disciple> =
+        state.discipleTables.ids
+            .filter { state.discipleTables.isAlive[it] == 1 }
+            .associate { it.toString() to state.discipleTables.assemble(it) }
+
+    val discipleMap: Map<String, Disciple> = allDiscipleMap
+
+    val aliveDisciples: List<Disciple> = allDiscipleMap.values.toList()
+
+    val cultivationRateCache: Map<String, Double>
 
     val preachingBonusCache: Map<String, Pair<Double, Double>>
 
     val dirtyFlags: Map<String, Set<DiscipleDirtyFlag>>
 
-    val discipleMap: Map<String, Disciple> =
-        state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
-            .associate { it.toString() to state.discipleTables.assemble(it) }
-
-    val aliveDisciples: List<Disciple> =
-        state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
-            .map { state.discipleTables.assemble(it) }
-
     val cleanDiscipleIds: Set<String>
     val dirtyDiscipleIds: Set<String>
 
-    /**
-     * 距离突破超过 2 个月的弟子 — 本月跳过结算。
-     * 仅当 remainingCultivation / (rate * monthSeconds) > 2 时才跳过。
-     * 焦点域强制结算，不受此限制。
-     */
-    val farFromCompletionIds: Set<String>
-
     init {
-        dirtyFlags = buildDirtyFlags(state)
+        dirtyFlags = buildDirtyFlags(allDiscipleMap)
         cleanDiscipleIds = dirtyFlags.filter { DiscipleDirtyFlag.NONE in it.value }.keys
         dirtyDiscipleIds = dirtyFlags.filter { DiscipleDirtyFlag.NONE !in it.value }.keys
 
-        cultivationRateCache = buildCultivationRateCache(state)
-        preachingBonusCache = buildPreachingBonusCache(state)
-        farFromCompletionIds = computeFarFromCompletion(state, cultivationRateCache)
+        cultivationRateCache = buildCultivationRateCache(state, allDiscipleMap)
+        preachingBonusCache = buildPreachingBonusCache(state, allDiscipleMap)
     }
 
-    /**
-     * 计算距离突破超过 2 个月的弟子集合。
-     * remaining / (rate * 3) > 2 → 跳过本月结算，等快满时再月结。
-     * rate 为每旬修炼值，每月 3 旬。
-     */
-    private fun computeFarFromCompletion(
-        state: MutableGameState,
-        rateCache: Map<String, Double>
-    ): Set<String> {
-        return state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }.mapNotNull { id ->
-            val d = state.discipleTables.assemble(id)
-            val rate = rateCache[d.id] ?: return@mapNotNull null
-            val remaining = d.maxCultivation - d.cultivation
-            if (remaining <= 0) return@mapNotNull null  // 已满，必须结算
-            val monthsToFull = if (rate > 0) remaining / (rate * 3) else 999.0
-            if (monthsToFull > 2.0) d.id else null
-        }.toSet()
-    }
-
-    private fun buildDirtyFlags(state: MutableGameState): Map<String, Set<DiscipleDirtyFlag>> {
-        return state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }.associate { id ->
-            val d = state.discipleTables.assemble(id)
+    private fun buildDirtyFlags(
+        discipleMap: Map<String, Disciple>
+    ): Map<String, Set<DiscipleDirtyFlag>> {
+        return discipleMap.mapValues { (_, d) ->
             val flags = mutableSetOf<DiscipleDirtyFlag>()
-            if (d.cultivation >= d.maxCultivation * 0.8) flags += DiscipleDirtyFlag.BREAKTHROUGH
             if (d.equipment.hasEquippedItems) flags += DiscipleDirtyFlag.EQUIPMENT
             if (d.manualIds.isNotEmpty()) flags += DiscipleDirtyFlag.MANUAL
-            d.id to (if (flags.isEmpty()) setOf(DiscipleDirtyFlag.NONE) else flags)
+            if (flags.isEmpty()) setOf(DiscipleDirtyFlag.NONE) else flags
         }
     }
 
-    private fun buildCultivationRateCache(state: MutableGameState): Map<String, Double> {
+    private fun buildCultivationRateCache(
+        state: MutableGameState,
+        allDiscipleMap: Map<String, Disciple>
+    ): Map<String, Double> {
         val data = state.gameData
-        val allDisciples = state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
-            .associate { it.toString() to state.discipleTables.assemble(it) }
         val manualInstanceMapLocal = manualInstanceMap
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
 
-        return allDisciples.values.associate { disciple ->
-            val rate = calculateCultivationRate(
-                disciple, data, allDisciples, manualInstanceMapLocal, allProficiencies
+        return allDiscipleMap.mapValues { (_, disciple) ->
+            calculateCultivationRate(
+                disciple, data, allDiscipleMap, manualInstanceMapLocal, allProficiencies
             )
-            disciple.id to rate
         }
     }
 
@@ -198,18 +175,19 @@ class SettlementCache(state: MutableGameState) {
         )
     }
 
-    private fun buildPreachingBonusCache(state: MutableGameState): Map<String, Pair<Double, Double>> {
+    private fun buildPreachingBonusCache(
+        state: MutableGameState,
+        allDiscipleMap: Map<String, Disciple>
+    ): Map<String, Pair<Double, Double>> {
         val data = state.gameData
-        val allDisciples = state.discipleTables.ids.filter { state.discipleTables.isAlive[it] == 1 }
-            .associate { it.toString() to state.discipleTables.assemble(it) }
-        return allDisciples.values.associate { disciple ->
+        return allDiscipleMap.mapValues { (_, disciple) ->
             val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(
-                disciple, data, allDisciples, "outer"
+                disciple, data, allDiscipleMap, "outer"
             )
             val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(
-                disciple, data, allDisciples, "inner"
+                disciple, data, allDiscipleMap, "inner"
             )
-            disciple.id to (wenDaoElderBonus + qingyunElderBonus to wenDaoMastersBonus + qingyunMastersBonus)
+            wenDaoElderBonus + qingyunElderBonus to wenDaoMastersBonus + qingyunMastersBonus
         }
     }
 }

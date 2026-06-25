@@ -130,6 +130,8 @@ class CultivationEventProcessor @Inject constructor(
     private suspend fun safelyRun(name: String, block: suspend () -> Unit) {
         try {
             block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             DomainLog.e(TAG, "Error in $name", e)
         }
@@ -171,19 +173,43 @@ class CultivationEventProcessor @Inject constructor(
 
         val acc = PhaseTickAccumulator()
 
+        // 循环常量：构造一次，所有弟子共享（避免每迭代分配 5 个上下文对象）
+        val tickTime = TickTimeContext(
+            year = year, month = month, phase = phase,
+            multiplier = multiplier, decay = decay
+        )
+        val tickEquip = TickEquipContext(
+            instanceMap = equipmentMap,
+            stacks = equipmentStacksList,
+            maxStack = maxEquipStack
+        )
+        val tickManual = TickManualContext(
+            instanceMap = manualMap,
+            proficienciesMap = proficienciesMap,
+            stacks = manualStacksList,
+            maxStack = maxManualStack
+        )
+        val tickShared = TickSharedContext(
+            focusedDiscipleId = stateStore.focusedDiscipleId,
+            cachedCultivationRates = sharedState.cachedCultivationRates,
+            highFrequencyData = sharedState.highFrequencyData.value,
+            autoEquipDirty = sharedState.autoEquipDirty,
+            autoLearnDirty = sharedState.autoLearnDirty
+        )
+
         val batchSize = 50
         val processedAlive = mutableListOf<Disciple>()
         for ((index, disciple) in aliveDisciples.withIndex()) {
             processedAlive.add(
                 cultivationCore.processDiscipleTick(
-                    disciple, year, month, phase, equipmentMap, manualMap, proficienciesMap,
-                    multiplier, decay, equipmentStacksList, manualStacksList, maxEquipStack, maxManualStack,
-                    acc,
-                    stateStore.focusedDiscipleId,
-                    sharedState.cachedCultivationRates,
-                    sharedState.highFrequencyData.value,
-                    sharedState.autoEquipDirty,
-                    sharedState.autoLearnDirty
+                    DiscipleTickParams(
+                        disciple = disciple,
+                        time = tickTime,
+                        equip = tickEquip,
+                        manual = tickManual,
+                        shared = tickShared,
+                        acc = acc
+                    )
                 )
             )
             if ((index + 1) % batchSize == 0) {
