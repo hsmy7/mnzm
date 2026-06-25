@@ -3,6 +3,7 @@
 		"date": "2026-06-25",
 		"version": "4.0.23",
 		"changes": [
+			"根治：华为/荣耀/vivo/iQOO/OPPO手机游戏时间停止不动——四层防御架构根治OEM省电策略冻结：①Foreground Service提升进程优先级+WakeLock，Activity与游戏循环解耦；②GameTimeClock.tick()基于单调时钟真实时间差补算，冻结恢复后不丢时间；③AlarmManager精确闹钟每15秒链式调度兜底唤醒；④看门狗无限重试+指数退避(3s→6s→12s→24s→30s上限)。旧有antiFreezeDelay/OemPowerProfile/BatteryOptimizationHelper保留与新架构互补。新增GameForegroundService/GameNotificationHelper/AlarmWatchdogReceiver组件及34个单元测试",
 			"修复：游玩时弟子批量消失（数十名同时消失直至个位数）——CultivationSettlement的processSalaryYearly/settleSalaryOnBreakthrough/processResidenceLoyalty与DiscipleLifecycleProcessor的processGriefExpiry/processReflectionRelease在入口捕获快照后通过scope.launch异步执行clear()+insert(陈旧快照)，与月度结算的createSettlementShadow().deepCopy()并发，导致shadow捕获到空ids，swapFromShadow整体覆盖活表导致全体弟子瞬间消失。修复：上述5个函数改为suspend，在stateStore.update事务内直接读取最新discipleTables并同步操作，消除异步覆盖竞态。新增CultivationSettlementConcurrencyTest（11个回归测试）覆盖正常路径、边界条件与并发安全性",
 			"调整：灵石兑换汇率改为售卖价——中品/上品灵石兑换按下品等价80%（一键售卖价）折算，1中品↔8,000下品、1上品↔8,000中品↔6,400万下品",
 			"优化：宗门信息卡片显示总灵石数量——顶栏灵石按售卖价汇总显示总下品等价，中品/上品明细以较小字体显示",

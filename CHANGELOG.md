@@ -2,6 +2,16 @@
 
 ## [4.0.23] - 2026-06-25（versionCode=4023）
 
+### 根治
+
+- **华为/荣耀/vivo/iQOO/OPPO 等手机游戏时间停止不动（四层防御根治）** — 原架构「Activity + 协程delay() + WAKE_LOCK」存在三个致命问题：① OEM 前台冻结（华为 PowerGenie/荣耀 MagicOS/vivo OriginOS/OPPO ColorOS 在前台也会挂起协程）；② 看门狗与游戏循环在同一冻结范围无法自救，且 5 次重试上限后放弃；③ consumeDeadTime() 丢弃真实时间差、恢复后不补算。修复方案采用四层防御架构：
+  - **第一层 — Foreground Service**：游戏循环迁移至前台服务（`GameForegroundService`），持有 `PARTIAL_WAKE_LOCK`，提升进程优先级规避 OEM 前台冻结。Activity 生命周期与游戏循环完全解耦，切后台游戏时间持续推进
+  - **第二层 — 真实时间补偿**：`GameTimeClock.tick()` 基于 `SystemClock.elapsedRealtime()` 单调时钟计算真实时间差（`MAX_CATCHUP_MS=30s` 上限防跳变），即使协程被冻结恢复后自动补算丢失的游戏时间
+  - **第三层 — AlarmManager 精确闹钟兜底**：`AlarmWatchdogReceiver` 每 15 秒通过 `setExactAndAllowWhileIdle()` 链式调度精确闹钟，检测 tickCount 停滞时启动 Service 唤醒游戏循环。Android 12+ 首次进入游戏引导用户授予精确闹钟权限
+  - **第四层 — 看门狗增强**：移除 5 次重试上限改为无限重试，指数退避间隔从厂商基础值（3~5s）逐次翻倍至 30s 上限，成功后重置。看门狗运行在独立非守护线程上，防止被 OEM 一起冻结
+  - 旧有的 `antiFreezeDelay()` 微延迟忙等机制、`OemPowerProfile` 厂商差异化参数、`BatteryOptimizationHelper` 电池优化引导保留不变，与新架构层层互补
+  - 新增 `GameForegroundService`、`GameNotificationHelper`、`AlarmWatchdogReceiver` 三个组件，`GameActivity` 生命周期解耦，`GameEngineCore` 看门狗增强（`computeWatchdogBackoff` 指数退避）。新增 `GameTimeClockTest` 冻结补偿测试（2）、`GameEngineCoreWatchdogTest` 退避算法测试（11）、`GameNotificationHelperTest` 通知构建测试（11）、`AlarmWatchdogReceiverTest` 闹钟调度测试（10）
+
 ### 修复
 
 - **修复：游玩时弟子批量消失（数十名同时消失直至个位数）** — `CultivationSettlement` 的 `processSalaryYearly`/`settleSalaryOnBreakthrough`/`processResidenceLoyalty` 与 `DiscipleLifecycleProcessor` 的 `processGriefExpiry`/`processReflectionRelease` 在入口捕获快照后通过 `scope.launch` 异步执行 `clear()+insert(陈旧快照)`，与月度结算的 `createSettlementShadow().deepCopy()` 并发，导致 shadow 捕获到空 ids，`swapFromShadow` 整体覆盖活表 → 全体弟子瞬间消失。修复：上述 5 个函数改为 `suspend`，在 `stateStore.update` 事务内直接读取最新 `discipleTables` 并同步操作，消除异步覆盖竞态。新增 `CultivationSettlementConcurrencyTest`（11 个回归测试）覆盖正常路径、边界条件与并发安全性

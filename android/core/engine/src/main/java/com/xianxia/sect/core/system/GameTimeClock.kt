@@ -132,6 +132,16 @@ class GameTimeClock @Inject constructor() {
         accumulatedGameMs = maxOf(0L, accumulatedGameMs - msPerPhase)
     }
 
+    /**
+     * 仅测试用：直接设置 lastWallMs 以模拟时间流逝。
+     *
+     * 生产代码不应调用此方法 — lastWallMs 由 [tick] / [start] /
+     * [setSpeed] / [consumeDeadTime] 自动维护。
+     */
+    internal fun setLastWallMsForTest(ms: Long) {
+        lastWallMs = ms
+    }
+
     // ── 类型 ──
 
     data class TickResult(

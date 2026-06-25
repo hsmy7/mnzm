@@ -73,7 +73,6 @@ class GameEngineCore @Inject constructor(
         private const val TICK_WARNING_THRESHOLD_MS = 100f
         private const val STUCK_STATE_TIMEOUT_MS = 10_000L  // 从30s降至10s，更快恢复
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
-        private const val IDLE_TICK_INTERVAL_MS = 2000L
         private const val IDLE_DETECTION_MS = 30_000L
         private const val NON_FOCUS_TICK_INTERVAL = 30_000L
         private const val TICK_TIME_BUDGET_MS = 50L
@@ -100,10 +99,36 @@ class GameEngineCore @Inject constructor(
 
         private val WATCHDOG_DISPATCHER = Executors.newSingleThreadExecutor(watchdogThreadFactory)
             .asCoroutineDispatcher()
+
+        /** 看门狗指数退避上限（毫秒） */
+        internal const val WATCHDOG_MAX_BACKOFF_MS = 30_000L
+
+        /**
+         * 计算看门狗指数退避的下一个间隔。
+         *
+         * 规则：
+         * - tick 有推进（已恢复）→ 重置为 [baseIntervalMs]
+         * - tick 停滞 → 当前间隔翻倍，上限 [WATCHDOG_MAX_BACKOFF_MS]
+         *
+         * @param currentBackoffMs 当前退避间隔
+         * @param baseIntervalMs 初始间隔（由 OemPowerProfile 驱动）
+         * @param hasRecovered 本次检查 tick 是否有推进
+         * @return 下一次检查的等待间隔
+         */
+        internal fun computeWatchdogBackoff(
+            currentBackoffMs: Long,
+            baseIntervalMs: Long,
+            hasRecovered: Boolean
+        ): Long {
+            return if (hasRecovered) {
+                baseIntervalMs
+            } else {
+                (currentBackoffMs * 2).coerceAtMost(WATCHDOG_MAX_BACKOFF_MS)
+            }
+        }
     }
 
     private var currentTickInterval = TICK_INTERVAL_MS
-    private var consecutiveOverruns = 0
 
     // 焦点分频：各域上次执行时间戳
     private val domainLastTickTime = java.util.concurrent.ConcurrentHashMap<FocusDomain, Long>()
@@ -148,7 +173,6 @@ class GameEngineCore @Inject constructor(
     private val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
     
-    private var lastTickTime = System.currentTimeMillis()
     private var lastFrameTime = System.currentTimeMillis()
     private var frameCount = 0
     private var fpsAccumulator = 0f
@@ -181,11 +205,11 @@ class GameEngineCore @Inject constructor(
     /** 独立看门狗 Job — 运行在 Dispatchers.Default 上，监控游戏线程是否卡死 */
     private var watchdogJob: Job? = null
 
-    /** 看门狗恢复尝试次数 */
+    /** 看门狗恢复尝试次数（跨重启累计，仅在 tick 推进时重置） */
     private var watchdogRecoveryAttempts = 0
 
-    /** 看门狗最大恢复尝试次数 */
-    private val maxWatchdogRecoveries = 5
+    /** 看门狗连续失败次数达到此阈值后使用更长间隔，避免 OEM 永久挂起时频繁重启 */
+    private val watchdogDegradedThreshold = 10
 
     fun initialize() {
         if (isInitialized) {
@@ -262,7 +286,6 @@ class GameEngineCore @Inject constructor(
                 lastFrameTime = currentTime
 
                 val elapsed = currentTime - startTime
-                val isIdle = (System.currentTimeMillis() - lastUserInteractionTime) > IDLE_DETECTION_MS
                 val effectiveInterval = when {
                     thermalMonitor.shouldEmergencySave() -> 500L
                     thermalMonitor.shouldReduceWorkload() -> 200L
@@ -350,31 +373,53 @@ class GameEngineCore @Inject constructor(
      */
     private fun startWatchdog() {
         stopWatchdog()
-        watchdogRecoveryAttempts = 0
-        // 看门狗间隔由 OemPowerProfile 数据驱动：激进 OEM（Honor/vivo）3s，保守 OEM 5s
-        val intervalMs = OemPowerProfileProvider.current.watchdogIntervalMs
+        // 跨重启累计恢复尝试次数（仅在 tick 推进时清零，不在重启时重置）
+        // 连续失败超过阈值时进入降级模式，使用更长间隔减少频繁重启
+        val baseIntervalMs = OemPowerProfileProvider.current.watchdogIntervalMs
+        val degradedMode = watchdogRecoveryAttempts >= watchdogDegradedThreshold
+        val effectiveBaseMs = if (degradedMode) {
+            (baseIntervalMs * 4).coerceAtLeast(30_000L)  // 降级模式：至少 30s 间隔
+        } else {
+            baseIntervalMs
+        }
+        if (degradedMode && watchdogRecoveryAttempts == watchdogDegradedThreshold) {
+            DomainLog.w(TAG,
+                "Watchdog: entering degraded mode after $watchdogRecoveryAttempts " +
+                "consecutive failures — increasing check interval to ${effectiveBaseMs / 1000}s")
+        }
         watchdogJob = CoroutineScope(WATCHDOG_DISPATCHER + SupervisorJob()).launch {
             var lastTickCount = _tickCount.value
+            // 当前退避间隔：失败后翻倍递增（如 3s→6s→12s→24s→30s 上限），成功后重置为初始间隔
+            var currentBackoffMs = effectiveBaseMs
             while (isActive) {
-                delay(intervalMs)
+                delay(currentBackoffMs)
                 val currentTickCount = _tickCount.value
                 val loopActive = gameLoopJob?.isActive == true
                 if (currentTickCount == lastTickCount && loopActive) {
                     watchdogRecoveryAttempts++
-                    DomainLog.w(TAG,
-                        "Watchdog: no tick progress in ${intervalMs / 1000}s " +
-                        "(attempt $watchdogRecoveryAttempts/$maxWatchdogRecoveries)")
-                    if (watchdogRecoveryAttempts <= maxWatchdogRecoveries) {
-                        // 尝试恢复：重启游戏循环
-                        restartGameLoopInternal()
-                    } else {
-                        DomainLog.e(TAG,
-                            "Watchdog: max recovery attempts ($maxWatchdogRecoveries) reached. " +
-                            "Giving up. Game thread may be permanently suspended by OEM.")
+                    // 日志节流：达到最大退避后每 10 次记录一次，避免 OEM 永久挂起时刷屏
+                    val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
+                    val shouldLog = !atMaxBackoff ||
+                        watchdogRecoveryAttempts % 10 == 0
+                    if (shouldLog) {
+                        DomainLog.w(TAG,
+                            "Watchdog: no tick progress in ${currentBackoffMs / 1000}s " +
+                            "(attempt $watchdogRecoveryAttempts" +
+                            if (degradedMode) ", degraded" else "" +
+                            ")")
                     }
+                    // 尝试恢复：重启游戏循环（无限重试，指数退避 + 降级模式防止资源浪费）
+                    restartGameLoopInternal()
+                    // 指数退避：间隔翻倍，上限 30s
+                    currentBackoffMs = computeWatchdogBackoff(
+                        currentBackoffMs, effectiveBaseMs, hasRecovered = false
+                    )
                 } else if (currentTickCount != lastTickCount) {
-                    // tick 有推进，重置计数器
+                    // tick 有推进，重置计数器和退避间隔
                     watchdogRecoveryAttempts = 0
+                    currentBackoffMs = computeWatchdogBackoff(
+                        currentBackoffMs, baseIntervalMs, hasRecovered = true
+                    )
                 }
                 lastTickCount = currentTickCount
             }
@@ -384,6 +429,15 @@ class GameEngineCore @Inject constructor(
     /**
      * 内部重启游戏循环（不改变 paused 等外部状态）。
      * 在看门狗检测到卡死时调用。
+     *
+     * ## 看门狗自重启调用链
+     * 本方法从 [startWatchdog] 的看门狗协程内调用，会触发以下链式调用：
+     * `restartGameLoopInternal()` → [startGameLoop]() → [startWatchdog]()
+     * → [stopWatchdog]() 取消当前看门狗 Job。
+     *
+     * 由于 Kotlin 协程取消是协作式的（仅在挂起点生效），当前看门狗协程
+     * 在本方法返回后才会在下一个 `delay()` 处响应取消，因此重启流程
+     * 可以完整执行完毕，不会出现"取消导致重启半途中断"的问题。
      */
     private fun restartGameLoopInternal() {
         DomainLog.w(TAG, "Watchdog: restarting game loop")
@@ -593,8 +647,6 @@ class GameEngineCore @Inject constructor(
         } else {
             thermalMonitor.updateTargetDuration(100_000_000L)  // 100ms target
         }
-
-        val activeDomains = getActiveDomains()
 
         _tickCount.value++
 
@@ -845,12 +897,6 @@ class GameEngineCore @Inject constructor(
         }
     }
 
-    // 保留旧方法名作为兼容性委托
-    @Deprecated("Use antiFreezeDelay instead", ReplaceWith("antiFreezeDelay(totalMs)"))
-    private suspend fun pollWithShortDelay(totalMs: Long) {
-        antiFreezeDelay(totalMs)
-    }
-    
     fun createSnapshot(): GameStateSnapshot {
         val currentData = stateStore.gameData.value
         return GameStateSnapshot(

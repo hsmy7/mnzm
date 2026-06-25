@@ -166,18 +166,34 @@ class GameTimeClockTest {
         assertEquals(2000L, clock.remainingPhaseMs)
     }
 
+    // 16. 协程冻结 20s 后恢复 tick() → 游戏时间被补算（20s × speed）
+    //     场景：OEM 省电策略冻结协程 20s，恢复后 tick() 基于 now - lastWallMs 补算
+    @Test
+    fun freeze20s_compensatesFully() {
+        // 2x 速度：20s 真实时间 × 2 = 40s 游戏时间 = 40000ms / 1000(msPerPhase@2x) = 40 旬
+        // 20000ms < MAX_CATCHUP_MS(30000)，不被截断，全额补算
+        clock.setSpeed(2)
+        clock.start()  // 重置 accumulator，避免 setSpeed 期间的杂散累积
+        val result = simulateTick(20_000L)
+        assertEquals(40, result.phasesToAdvance)
+    }
+
+    // 17. 协程冻结 60s → 被 MAX_CATCHUP_MS(30s) 截断
+    //     场景：长时间冻结恢复，单次 delta 被安全上限截断防止时间爆炸
+    @Test
+    fun freeze60s_cappedTo30s() {
+        // 1x 速度：60s 真实时间被截断为 30s = 30000ms / 2000(msPerPhase@1x) = 15 旬
+        val result = simulateTick(60_000L)
+        assertEquals(15, result.phasesToAdvance)
+    }
+
     // ── 辅助方法 ──
 
     /**
-     * 模拟一次 tick：直接操作内部状态来模拟时间流逝。
-     * 因为 GameTimeClock 使用 System.currentTimeMillis()，
-     * 测试中通过反射设置 lastWallMs 来模拟时间差。
+     * 模拟一次 tick：通过 setLastWallMsForTest 回拨时钟来模拟时间流逝。
      */
     private fun simulateTick(elapsedMs: Long, isSettlementPending: Boolean = false): GameTimeClock.TickResult {
-        // 通过反射设置 lastWallMs 来模拟时间流逝
-        val field = GameTimeClock::class.java.getDeclaredField("lastWallMs")
-        field.isAccessible = true
-        field.setLong(clock, SystemClock.elapsedRealtime() - elapsedMs)
+        clock.setLastWallMsForTest(SystemClock.elapsedRealtime() - elapsedMs)
         return clock.tick(isSettlementPending)
     }
 }

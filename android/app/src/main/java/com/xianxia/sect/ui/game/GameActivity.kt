@@ -1,9 +1,16 @@
 package com.xianxia.sect.ui.game
 
+import android.app.AlarmManager
 import android.content.ComponentCallbacks2
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,6 +30,7 @@ import com.xianxia.sect.R
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
@@ -119,9 +127,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     lateinit var crashHandler: CrashHandler
 
     @Inject
-    lateinit var gameEngineCore: GameEngineCore
-
-    @Inject
     lateinit var backgroundTaskScheduler: com.xianxia.sect.core.util.BackgroundTaskScheduler
 
     @Inject
@@ -129,6 +134,25 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     @Inject
     lateinit var wakeLockManager: com.xianxia.sect.core.util.WakeLockManager
+
+    // ── GameForegroundService 绑定 ──
+    // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
+    private var gameService: GameForegroundService? = null
+    private var gameEngineCore: GameEngineCore? = null
+    private var isServiceBound = false
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as GameForegroundService.GameEngineBinder
+            gameService = binder.getService()
+            gameEngineCore = binder.getGameEngineCore()
+            onGameServiceBound()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            gameService = null
+            gameEngineCore = null
+        }
+    }
 
     // GPU 分级检测 — 在 Activity 级别缓存，供地图预渲染使用
     // 来源: docs/device-adaptation-plan.md §5 Step 5 — 优先使用 GameManager API
@@ -149,8 +173,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         setupCrashHandler()
 
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
-
-        gameEngineCore.initialize()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
@@ -487,15 +509,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onPause() {
         super.onPause()
         frameMetricsMonitor.stopMonitoring(window)
-        try {
-            gameEngineCore.pauseForBackground()
-            Log.d(TAG, "onPause: game engine paused for background")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error pausing game engine in onPause", e)
-        }
-        // 释放 WakeLock：游戏循环停止后再释放，
-        // 确保 stopGameLoop 和清理操作在 CPU 保护下完成
-        wakeLockManager.release()
+        // 游戏循环继续运行（由 GameForegroundService 持有），不再调用 pauseForBackground
+        // WakeLock 由 Service 持有，Activity 不再管理 release
     }
 
     override fun onStop() {
@@ -517,15 +532,27 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
         backgroundTaskScheduler.resume()
         Log.d(TAG, "onResume: background tasks resumed")
-        // 获取 WakeLock：保持 CPU 活跃，防止 OEM 省电策略挂起游戏线程
-        wakeLockManager.acquire()
+        // 启动并绑定 GameForegroundService：游戏循环控制权已迁移到 Service
+        // WakeLock 由 Service 持有，Activity 不再管理 acquire/release
+        val startIntent = Intent(this, GameForegroundService::class.java).apply {
+            action = GameForegroundService.ACTION_START
+        }
+        startService(startIntent)
+        // 仅在未绑定时绑定，避免 onResume 多次调用导致重复 bind
+        if (!isServiceBound) {
+            bindService(
+                Intent(this, GameForegroundService::class.java),
+                serviceConnection,
+                Context.BIND_AUTO_CREATE
+            )
+            isServiceBound = true
+        }
         // 通知系统退出加载状态 → 恢复正常游戏性能调度
         notifyGameLoadingState(false)
-        if (gameEngineCore.wasPausedByBackground) {
-            gameEngineCore.resumeFromBackground()
-        }
         // 华为/荣耀设备：首次进入游戏时引导用户关闭电池优化
         showBatteryOptimizationGuideIfNeeded()
+        // Android 12+：引导用户授予精确闹钟权限（AlarmWatchdogReceiver 兜底依赖）
+        requestExactAlarmPermissionIfNeeded()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -545,12 +572,36 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
     }
 
+    /**
+     * GameForegroundService 绑定完成回调。
+     *
+     * Service 绑定后 gameEngineCore 已就绪，可在此执行依赖引擎实例的 UI 状态恢复。
+     * 游戏循环的启动/暂停由 Service 通过 ACTION_START/ACTION_RESUME 处理，Activity 不直接调用。
+     */
+    private fun onGameServiceBound() {
+        Log.d(TAG, "onGameServiceBound: GameForegroundService bound, gameEngineCore available")
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
         frameMetricsMonitor.stopMonitoring(window)
         SecureKeyManager.recoveryCallback = null
         (application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)
+        // 解除与 GameForegroundService 的绑定
+        if (isServiceBound) {
+            try {
+                unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Log.w(TAG, "unbindService failed: ${e.message}")
+            }
+            isServiceBound = false
+        }
+        // 用户主动退出（isFinishing=true）时停止 Service，释放游戏循环与 WakeLock
+        // 配置变更等非主动退出场景不停止 Service，保持游戏在后台运行
+        if (isFinishing) {
+            stopService(Intent(this, GameForegroundService::class.java))
+        }
         // 注意：不在此处调用 gameEngineCore.shutdown()
         // shutdown 会取消协程作用域和释放系统，可能干扰 ViewModel.onCleared() 中的保存操作。
         // GameEngineCore 是 @Singleton，其生命周期绑定到应用进程，由 Application 统一管理。
@@ -729,6 +780,40 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             ).show()
             // 直接请求电池优化豁免
             helper.requestExemption(this@GameActivity)
+        }
+    }
+
+    // ── 精确闹钟权限引导 ──
+
+    /**
+     * 引导用户授予 SCHEDULE_EXACT_ALARM 权限（Android 12+）。
+     *
+     * AlarmWatchdogReceiver 依赖 [AlarmManager.setExactAndAllowWhileIdle] 在
+     * OEM 省电策略冻结游戏循环时兜底唤醒。Android 12+ 默认不授予该权限，
+     * 需引导用户到系统设置授权。
+     *
+     * 使用 SharedPreferences 记录是否已询问过，避免每次 onResume 都跳转。
+     */
+    private fun requestExactAlarmPermissionIfNeeded() {
+        // 仅 Android 12+ (API 31, S) 需要请求精确闹钟权限
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        if (alarmManager.canScheduleExactAlarms()) return
+
+        // 使用独立 SharedPreferences 记录是否已询问过精确闹钟权限
+        val prefs = getSharedPreferences("exact_alarm_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("exact_alarm_prompted", false)) return
+
+        prefs.edit().putBoolean("exact_alarm_prompted", true).apply()
+
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                .setData(Uri.parse("package:$packageName"))
+            startActivity(intent)
+            Log.d(TAG, "Requesting SCHEDULE_EXACT_ALARM permission")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to request exact alarm permission: ${e.message}")
         }
     }
 }
