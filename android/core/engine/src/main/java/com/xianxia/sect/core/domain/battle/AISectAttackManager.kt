@@ -35,6 +35,16 @@ object AISectAttackManager {
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
 
     /**
+     * 玩家占领宗门的驻军防御信息。
+     * @param disciples 驻军弟子列表（用于战力评估和 canOccupy 判断）
+     * @param combatants 已转换为 Combatant 的战斗单元（用于实际战斗）
+     */
+    data class PlayerOccupiedDefenseInfo(
+        val disciples: List<Disciple>,
+        val combatants: List<Combatant>
+    )
+
+    /**
      * Result of an AI attack decision with immediate execution.
      * The caller applies these changes to game state.
      */
@@ -59,7 +69,10 @@ object AISectAttackManager {
         val enemies: List<BattleLogEnemy> = emptyList()
     )
 
-    fun decideAttacks(gameData: GameData): List<AIAttackResult> {
+    fun decideAttacks(
+        gameData: GameData,
+        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo> = emptyMap()
+    ): List<AIAttackResult> {
         val results = mutableListOf<AIAttackResult>()
         val aiDisciplesMap = gameData.aiSectDisciples
 
@@ -76,22 +89,41 @@ object AISectAttackManager {
 
             for (defender in allTargets) {
                 if (results.any { it.defenderSectId == defender.id || it.attackerSectId == attacker.id }) continue
-                if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
+                if (!checkAttackConditions(
+                        attacker, defender, gameData, aiDisciplesMap,
+                        playerGarrisonMap = playerOccupiedDefendersMap
+                            .mapValues { it.value.disciples }
+                    )) continue
 
                 // Build attack team
                 val selectedAttackers = availableAttackers
-                    .sortedByDescending { it.realm }
+                    .sortedBy { it.realm }
                     .take(TEAM_SIZE)
                 if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
                 // Get defenders: garrison first, then sect disciples
-                val defenderSect = gameData.worldMapSects.find { it.id == defender.id }
-                val isAiOccupied = defenderSect?.occupierSectId?.isNotEmpty() == true && defenderSect.occupierSectId != attacker.id
-                val garrisonDisciples = if (isAiOccupied && defenderSect != null) {
-                    val occupierDisciples = aiDisciplesMap[defenderSect.occupierSectId] ?: emptyList()
-                    defenderSect.garrisonSlots
-                        .filter { it.discipleId.isNotEmpty() }
-                        .mapNotNull { slot -> occupierDisciples.find { d -> d.id == slot.discipleId && d.isAlive } }
+                val defenderSect = gameData.worldMapSects.find {
+                    it.id == defender.id
+                }
+                val isAiOccupied = defenderSect?.occupierSectId
+                    ?.isNotEmpty() == true &&
+                    defenderSect.occupierSectId != attacker.id
+                val isPlayerOccupied = defenderSect?.isPlayerOccupied == true
+                val garrisonDisciples = if (isAiOccupied) {
+                    if (isPlayerOccupied) {
+                        playerOccupiedDefendersMap[defender.id]
+                            ?.disciples ?: emptyList()
+                    } else {
+                        val occupierDisciples = aiDisciplesMap[
+                            defenderSect.occupierSectId] ?: emptyList()
+                        defenderSect.garrisonSlots
+                            .filter { it.discipleId.isNotEmpty() }
+                            .mapNotNull { slot ->
+                                occupierDisciples.find { d ->
+                                    d.id == slot.discipleId && d.isAlive
+                                }
+                            }
+                    }
                 } else {
                     emptyList()
                 }
@@ -100,20 +132,37 @@ object AISectAttackManager {
                 val defenderDisciples = if (garrisonDisciples.isNotEmpty()) {
                     garrisonDisciples
                 } else {
-                    defenderPool.filter { it.isAlive }.sortedByDescending { it.realm }.take(TEAM_SIZE)
+                    defenderPool.filter { it.isAlive }
+                        .sortedBy { it.realm }.take(TEAM_SIZE)
                 }
 
                 if (defenderDisciples.isEmpty()) continue
 
                 // Full defender pool for occupation check
                 val allDefenderPool = if (garrisonDisciples.isNotEmpty()) {
-                    aiDisciplesMap[defenderSect?.occupierSectId ?: ""] ?: emptyList()
+                    if (isPlayerOccupied) {
+                        garrisonDisciples
+                    } else {
+                        aiDisciplesMap[
+                            defenderSect?.occupierSectId ?: ""]
+                            ?: emptyList()
+                    }
                 } else {
                     defenderPool
                 }
 
                 // Execute battle immediately
-                val battleResult = executeSectBattle(selectedAttackers, defenderSect ?: defender, defenderDisciples, allDefenderPool)
+                val battleResult = if (isPlayerOccupied &&
+                    garrisonDisciples.isNotEmpty()) {
+                    val garrisonCombatants = playerOccupiedDefendersMap[
+                        defender.id]?.combatants ?: emptyList()
+                    executePlayerSectBattle(
+                        selectedAttackers, garrisonCombatants)
+                } else {
+                    executeSectBattle(selectedAttackers,
+                        defenderSect ?: defender,
+                        defenderDisciples, allDefenderPool)
+                }
 
                 val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
 
@@ -189,11 +238,13 @@ object AISectAttackManager {
         attacker: WorldSect,
         defender: WorldSect,
         gameData: GameData,
-        aiDisciplesMap: Map<String, List<Disciple>> = emptyMap()
+        aiDisciplesMap: Map<String, List<Disciple>> = emptyMap(),
+        playerGarrisonMap: Map<String, List<Disciple>> = emptyMap()
     ): Boolean {
         if (attacker.id == defender.id) return false
 
-        val attackerDisciples = (aiDisciplesMap[attacker.id] ?: emptyList()).filter { it.isAlive }
+        val attackerDisciples = (aiDisciplesMap[attacker.id] ?: emptyList())
+            .filter { it.isAlive }
         if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return false
 
         val relation = gameData.sectRelations.find {
@@ -203,10 +254,15 @@ object AISectAttackManager {
         val favor = relation?.favor ?: 0
         if (favor > 0) return false
 
-        if (attacker.allianceId.isNotEmpty() && attacker.allianceId == defender.allianceId) return false
+        if (attacker.allianceId.isNotEmpty() &&
+            attacker.allianceId == defender.allianceId) return false
 
         val attackerPower = calculatePowerScore(attackerDisciples)
-        val defenderDisciples = (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
+        val defenderDisciples = if (defender.isPlayerOccupied) {
+            playerGarrisonMap[defender.id] ?: emptyList()
+        } else {
+            (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
+        }
         val defenderPower = calculatePowerScore(defenderDisciples)
         if (attackerPower < defenderPower * POWER_RATIO_THRESHOLD) return false
 
@@ -249,7 +305,7 @@ object AISectAttackManager {
     ): List<Disciple> {
         val availableDisciples = attackerDisciples
             .filter { it.isAlive && it.id !in existingBusyIds }
-            .sortedByDescending { it.realm }
+            .sortedBy { it.realm }
 
         if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return emptyList()
 
@@ -372,7 +428,7 @@ object AISectAttackManager {
 
         val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
         val selectedAttackers = attackerDisciples.filter { it.isAlive }
-            .sortedByDescending { it.realm }
+            .sortedBy { it.realm }
             .take(TEAM_SIZE)
         if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
 
