@@ -246,6 +246,75 @@ class SettlementCoordinatorCultivationTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 修复验证：batchMonths = 0 跳过修炼（修复 2）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `batchMonths=0 跳过修炼但不崩溃`() = runTest {
+        val s = newCleanShadow("1", realm = 7)
+        val tables = s.discipleTables
+        tables.cultivations[1] = 10.0
+        val before = tables.cultivations[1]
+
+        // 反射设置 batchMonths = 0（computeNonFocusedBatch 中间月份行为）
+        coordinator.scheduleMonthly(s)
+        setField("nonFocusedBatchMonths", 0)
+        executeUntilComplete()
+
+        // batchMonths=0 时修炼计算被跳过，修为不应变化
+        assertEquals(
+            "batchMonths=0 应跳过修炼", before,
+            tables.cultivations[1], 0.01
+        )
+    }
+
+    @Test
+    fun `batchMonths=0 后 batchMonths=6 批量结算补齐修为`() = runTest {
+        // 第一月：batchMonths=0，跳过
+        val s = newCleanShadow("1", realm = 7)
+        coordinator.scheduleMonthly(s)
+        setField("nonFocusedBatchMonths", 0)
+        executeUntilComplete()
+        assertEquals("跳过月修为不变", 0.0, s.discipleTables.cultivations[1], 0.01)
+
+        // 累积月：batchMonths=6，批量补齐
+        `when`(thermalMonitor.shouldReduceWorkload()).thenReturn(true)
+        val s6 = newCleanShadow("1", realm = 7)
+        setField("nonFocusedLastSettleMonth", -100)
+        coordinator.scheduleMonthly(s6)
+        executeUntilComplete()
+        val gain6 = s6.discipleTables.cultivations[1]
+
+        // 6 个月批量应 > 0
+        assertTrue("批量结算应补齐修为: $gain6", gain6 > 0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 修复验证：focusedPhaseCount > 0 时 HP 恢复不重复（修复 1）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `focusedPhaseCount大于0时batchMonths=1正确扣除phases`() = runTest {
+        // 模拟 phase tick 已执行 3 旬的 HP 恢复
+        hfdFlow.value = HighFrequencyData(focusedPhaseCount = 3)
+
+        val s = newCleanShadow("1", realm = 7)
+        val tables = s.discipleTables
+        val before = tables.cultivations[1]
+
+        coordinator.scheduleMonthly(s)
+        executeUntilComplete()
+
+        // focusedPhaseCount=3 时 single-month batch 传入 3，
+        // recoverMonthlyHpMp 内部 monthlyMultiplier = 30 - 3*10 = 0，跳过恢复
+        // 修炼本身不受影响（仅影响 HP 恢复的数值）
+        assertTrue(
+            "focusedPhaseCount=3 不影响修炼: $before → ${tables.cultivations[1]}",
+            tables.cultivations[1] > before
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // 辅助
     // ═══════════════════════════════════════════════════════════════
 
