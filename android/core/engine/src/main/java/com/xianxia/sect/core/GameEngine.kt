@@ -87,6 +87,12 @@ class GameEngine @Inject constructor(
     internal val saveFacade: SaveFacade,
     internal val worldMapStatePort: WorldMapStatePort
 ) {
+    init {
+        // 注入任务完成检测回调到 GameEngineCore，
+        // 确保空闲期间任务完成也能被每月结算及时检测
+        gameEngineCore.missionCheck = { checkAndProcessCompletedMissions() }
+    }
+
     companion object { private const val TAG = "GameEngine" }
 
     @Volatile internal var heavyDataLoaded = false

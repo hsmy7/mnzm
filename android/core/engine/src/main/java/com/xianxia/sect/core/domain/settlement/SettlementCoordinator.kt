@@ -484,15 +484,17 @@ class SettlementCoordinator @Inject constructor(
                 }
                 tables.cultivations[id] = newCultivation
 
-                // 月度 HP/MP 恢复 × 批次（扣除焦点域已处理旬数）
-                val phaseCountForBatch = if (batchMonths == 1) focusedPhaseCount else 0
-                repeat(batchMonths) {
-                    cultivationService.recoverMonthlyHpMp(tables, id, phaseCountForBatch)
+                // 月度 HP/MP 恢复：首月扣除 phase tick 已处理部分，
+                // 剩余批次月全额处理（历史月份无 phase tick 可扣）
+                cultivationService.recoverMonthlyHpMp(tables, id, focusedPhaseCount)
+                repeat(batchMonths - 1) {
+                    cultivationService.recoverMonthlyHpMp(tables, id, 0)
                 }
 
-                // 月度持续效果衰减 × 批次（扣除焦点域已处理旬数）
-                repeat(batchMonths) {
-                    cultivationService.applyMonthlyDurationDecay(tables, id, phaseCountForBatch)
+                // 月度持续效果衰减：同上，首月扣除，剩余月全额
+                cultivationService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
+                repeat(batchMonths - 1) {
+                    cultivationService.applyMonthlyDurationDecay(tables, id, 0)
                 }
 
                 // 突破检查
@@ -577,15 +579,17 @@ class SettlementCoordinator @Inject constructor(
                 }
                 tables.cultivations[id] = newCultivation
 
-                // 月度 HP/MP 恢复 × 批次（扣除焦点域已处理旬数）
-                val phaseCountForBatch = if (batchMonths == 1) focusedPhaseCount else 0
-                repeat(batchMonths) {
-                    cultivationService.recoverMonthlyHpMp(tables, id, phaseCountForBatch)
+                // 月度 HP/MP 恢复：首月扣除 phase tick 已处理部分，
+                // 剩余批次月全额处理（历史月份无 phase tick 可扣）
+                cultivationService.recoverMonthlyHpMp(tables, id, focusedPhaseCount)
+                repeat(batchMonths - 1) {
+                    cultivationService.recoverMonthlyHpMp(tables, id, 0)
                 }
 
-                // 月度持续效果衰减 × 批次（扣除焦点域已处理旬数）
-                repeat(batchMonths) {
-                    cultivationService.applyMonthlyDurationDecay(tables, id, phaseCountForBatch)
+                // 月度持续效果衰减：同上，首月扣除，剩余月全额
+                cultivationService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
+                repeat(batchMonths - 1) {
+                    cultivationService.applyMonthlyDurationDecay(tables, id, 0)
                 }
             }
 
@@ -1100,8 +1104,8 @@ class SettlementCoordinator @Inject constructor(
             nonFocusedLastSettleMonth = currentAbsoluteMonth
             monthsSince
         } else {
-            // 未达批次阈值，但最少处理1个月（永不跳过修炼）
-            1
+            // 未达批次阈值，跳过修炼结算，等累积满阈值后一次性批量处理
+            0
         }
     }
 

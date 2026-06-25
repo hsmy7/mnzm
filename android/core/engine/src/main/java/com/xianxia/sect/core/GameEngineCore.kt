@@ -65,6 +65,13 @@ class GameEngineCore @Inject constructor(
     private val lazyEvaluationDispatcher: LazyEvaluationDispatcher,
     private val gameClock: GameTimeClock
 ) {
+
+    /**
+     * 任务完成检测回调，由 GameEngine 在构造后注入。
+     * 每月结算时被调用，确保空闲期间任务完成也能被及时检测。
+     */
+    @Volatile
+    internal var missionCheck: (suspend () -> Unit)? = null
     
     companion object {
         private const val TAG = "GameEngineCore"
@@ -719,6 +726,8 @@ class GameEngineCore @Inject constructor(
         }
         if (monthChanged) {
             cultivationService.processMonthlyEvents()
+            // 月变时检测已完成的任务（空闲期间也不会漏检）
+            missionCheck?.invoke()
         }
         if (yearChanged) {
             val shadow = stateStore.createSettlementShadow()
