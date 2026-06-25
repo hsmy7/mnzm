@@ -19,6 +19,7 @@
 - **修复：天道试炼挑战对象信息区不可滚动导致功法被裁剪** — `HeavenlyTrialBattleDialog` 的 `EnemyInfoDetail` 为纯 `Column` 无滚动容器，功法数量较多时底部被裁剪无法查看。修复：`Column` 添加 `.verticalScroll(rememberScrollState())`，信息区可纵向滚动
 - **修复：每日签到灵石描述未标注品阶** — `DailySignInService` 中 5 处"灵石"硬编码文本（3 处奖励定义、1 处容量错误提示、1 处奖励卡片 itemName）统一改为"下品灵石"，与实际奖励品阶一致
 - **修复：弟子在列表界面不修炼（空闲挂机无成长）** — 空闲模式（30秒无操作）下 DISCIPLES 域切至 BACKGROUND，配合手机发热触发热控批量结算（`batchMonths` > 1），`SettlementCoordinator` 修炼公式将 HFD 累积值（`alreadyGained`）从**每个月**的修炼值中扣除而非从**总额**扣除，导致非焦点弟子修为大量损失。修复：修炼公式改为 `(monthlyGain × batchMonths − alreadyGained) ≥ 0 + alreadyGained`（从总额扣一次）；突破检查移除对 `BREAKTHROUGH` dirtyFlag 的依赖，直接判断 `cultivation ≥ maxCultivation && fullHpMp`；`SettlementCache` 每次月结从头构建、不再跨月复用；HFD 统一在 `onSettlementComplete` 中重置。新增 `SettlementCoordinatorCultivationTest`（10 个测试）覆盖公式修正、batchMonths 分批、已获修为不损失、突破前提等核心路径
+- **修复：非焦点弟子修为反复归零永远卡在练气一层** — `SettlementCoordinator` 月度结算中，修炼值写入组件表后调用 `processBreakthroughForDisciple` 时传入的是从组件表组装的旧 `disciple` 对象（cultivation 未被更新），函数内部守卫条件 `d.cultivation < d.maxCultivation` 用旧值判定立即跳过突破循环，随后 `writeDiscipleToTables` 将旧修为 0.0 覆盖掉刚写入的正确值 → 每月修炼到满值后立刻回滚，弟子永远困在练气一层。修复：`processBreakthroughForDisciple` 内部从 `shadow.discipleTables` 重新读取当前修为，确保突破条件判定使用最新值。新增回归测试覆盖突破跳过→回滚的临界路径
 
 ### 调整
 

@@ -315,6 +315,69 @@ class SettlementCoordinatorCultivationTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 4. 回归测试：突破检查使用当前修为，不因旧disciple对象回滚
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 验证月度结算中非焦点弟子突破不会被跳过（核心回归测试）。
+     *
+     * 根因：processBreakthroughForDisciple 收到的是 assemble 时的旧 disciple 对象，
+     * 其 cultivation 未被更新，导致 `d.cultivation < d.maxCultivation` 判定为 true、
+     * 突破循环直接 break，最终 writeDiscipleToTables 将旧修为回滚覆盖新值。
+     *
+     * 修复后：函数内部从 tables.cultivations[id] 读取当前修为，确保突破条件判定正确。
+     *
+     * 断言逻辑（不依赖 Random 的确定性验证）：
+     * - 修为 > 0 且未回滚 → 修炼正确累积 ✅
+     * - 修为归零 且 境界变化 → 突破成功 ✅
+     * - 修为归零 且 境界不变 且 HP 改变 → 突破失败但已正确尝试 ✅
+     * - 修为归零 且 境界不变 且 HP 不变 → 突破被跳过（BUG 回归）❌
+     */
+    @Test
+    fun `非焦点弟子修为满后突破不被旧cultivation回滚`() = runTest {
+        // 练气1层 单灵根：maxCultivation=50，每旬速率≈50，1个月填满
+        val s = newCleanShadow("1", realm = 9, layer = 1)
+        val tables = s.discipleTables
+        val realmBefore = tables.realms[1]
+        val layerBefore = tables.realmLayers[1]
+        val hpBefore = tables.currentHps[1]
+
+        coordinator.scheduleMonthly(s)
+        executeUntilComplete()
+
+        val cultivationAfter = tables.cultivations[1]
+        val realmAfter = tables.realms[1]
+        val layerAfter = tables.realmLayers[1]
+        val hpAfter = tables.currentHps[1]
+
+        if (cultivationAfter > 0.0) {
+            // 修为正确累积，未被回滚 → 通过
+            return@runTest
+        }
+
+        if (cultivationAfter == 0.0 &&
+            (realmAfter != realmBefore || layerAfter != layerBefore)
+        ) {
+            // 突破成功，修为归零是正常行为 → 通过
+            return@runTest
+        }
+
+        if (cultivationAfter == 0.0 &&
+            realmAfter == realmBefore &&
+            layerAfter == layerBefore
+        ) {
+            // 修为归零但境界未变 → 两种情况：
+            // (a) 突破正确尝试但随机失败（HP 会被降至 1）
+            // (b) 突破被旧 cultivation 跳过（HP 不变）
+            assertTrue(
+                "修为归零但境界不变，若突破被正确尝试则HP应改变。" +
+                "HP未变($hpBefore→$hpAfter)说明突破被跳过 → BUG回归",
+                hpAfter > hpBefore || hpAfter < 0
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // 辅助
     // ═══════════════════════════════════════════════════════════════
 

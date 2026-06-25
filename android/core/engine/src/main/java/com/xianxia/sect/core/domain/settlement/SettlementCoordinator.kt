@@ -829,7 +829,14 @@ class SettlementCoordinator @Inject constructor(
         shadow: MutableGameState,
         cache: SettlementCache
     ): Disciple {
-        var d = disciple
+        // 从组件表读取当前修为，避免调用方传入的 disciple
+        // 对象中修为值为旧值（写入 tables.cultivations[id] 后
+        // 未更新 disciple 即传入，导致守卫条件误判跳过突破，
+        // writeDiscipleToTables 回滚修为）
+        val tables = shadow.discipleTables
+        var d = disciple.copy(
+            cultivation = tables.cultivations[disciple.id.toInt()]
+        )
         var shouldContinue = true
 
         while (shouldContinue && d.realm > 0) {
