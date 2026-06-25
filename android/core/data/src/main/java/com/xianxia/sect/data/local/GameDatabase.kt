@@ -489,15 +489,24 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v9→v10: disciples_extended 新增 masterId 列（师徒关系） */
+        /** v9→v10: 师徒系统新增 masterId 字段（两处同时补充） */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. disciples 表：SocialData 通过 @Embedded(prefix="social_") 嵌入，
+                //    新增 masterId 映射为 social_masterId 列
+                if (!columnExists(db, "disciples", "social_masterId")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN social_masterId TEXT"
+                    )
+                }
+                // 2. disciples_extended 表：直接字段 masterId
                 if (!columnExists(db, "disciples_extended", "masterId")) {
                     db.execSQL(
                         "ALTER TABLE disciples_extended ADD COLUMN masterId TEXT"
                     )
                 }
-                Log.i(TAG, "Migration 9→10: added masterId column to disciples_extended")
+                Log.i(TAG, "Migration 9→10: added social_masterId (disciples) " +
+                    "and masterId (disciples_extended)")
             }
         }
 
