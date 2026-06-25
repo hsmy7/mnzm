@@ -23,15 +23,9 @@ data class DiscipleSelectorConfig(
     val title: String,
     val emptyMessage: String = "没有符合条件的弟子",
     val headerColor: Color? = null,
-    /**
-     * 无任何筛选时的推荐排序属性 key（如 "pillRefining"）。
-     * 传 null 表示无推荐属性，按"已关注优先 → 境界高低"排。
-     */
     val defaultSortAttribute: String? = null,
-    /**
-     * 当前已选中弟子的 id，用于高亮显示（如执事替换场景）。
-     */
-    val currentId: String? = null
+    val currentId: String? = null,
+    val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null
 )
 
 @Composable
@@ -96,6 +90,7 @@ fun DiscipleSelectorDialog(
                             disciple = disciple,
                             isCurrent = disciple.id == config.currentId,
                             isSelected = false,
+                            extraAttributes = config.extraAttributesProvider?.invoke(disciple) ?: emptyList(),
                             onClick = {
                                 onConfirm(listOf(disciple))
                                 onDismiss()

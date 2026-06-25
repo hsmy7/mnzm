@@ -38,7 +38,7 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 
 data class PeakElderSlotConfig(
     val title: String,

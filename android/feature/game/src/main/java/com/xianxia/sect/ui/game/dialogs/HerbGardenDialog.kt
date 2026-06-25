@@ -35,7 +35,6 @@ import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag

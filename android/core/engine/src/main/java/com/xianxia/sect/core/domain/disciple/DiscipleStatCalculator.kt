@@ -582,9 +582,11 @@ object DiscipleStatCalculator {
         val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
         val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
         val lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
-        val total = baseChance + innerElderBonus + outerElderComprehensionBonus + pillBonus
-            + talentBonus + soulPowerBonus + adBonus + masterDiscipleBonus
-            - griefBreakthroughPenalty - lifespanPenalty
+        val positive = baseChance + innerElderBonus +
+                outerElderComprehensionBonus + pillBonus + talentBonus +
+                soulPowerBonus + adBonus + masterDiscipleBonus
+        val penalties = griefBreakthroughPenalty + lifespanPenalty
+        val total = positive - penalties
         return BreakthroughBonusDetail(
             baseChance = baseChance,
             innerElderBonus = innerElderBonus,

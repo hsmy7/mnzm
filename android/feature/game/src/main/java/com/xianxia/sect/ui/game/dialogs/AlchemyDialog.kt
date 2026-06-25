@@ -310,7 +310,7 @@ private fun AlchemyReserveDiscipleDialogWrapper(
 
     if (showAddDialog) {
         DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼丹）"),
+            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼丹）", defaultSortAttribute = "pillRefining"),
             disciples = alchemyViewModel.getAvailableDisciplesForAlchemyReserve(),
             onDismiss = { showAddDialog = false },
             onConfirm = { selected ->

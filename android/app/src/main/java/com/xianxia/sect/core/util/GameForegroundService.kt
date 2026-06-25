@@ -1,11 +1,14 @@
 package com.xianxia.sect.core.util
 
+import android.Manifest
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.xianxia.sect.core.engine.GameEngineCore
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -144,7 +147,12 @@ class GameForegroundService : Service() {
      */
     private fun updateNotification(paused: Boolean) {
         val notification = gameNotificationHelper.buildForegroundNotification(this, paused)
-        NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+        if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+        }
     }
 
     /**

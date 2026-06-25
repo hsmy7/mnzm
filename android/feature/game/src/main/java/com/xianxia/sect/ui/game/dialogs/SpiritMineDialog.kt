@@ -38,8 +38,6 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.GameViewModel
@@ -47,8 +45,6 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
-import com.xianxia.sect.ui.game.getSpiritRootCount
-import com.xianxia.sect.ui.game.applyFilters
 
 @Composable
 fun SpiritMineDialog(
@@ -204,7 +200,7 @@ fun SpiritMineDialog(
 
         if (isSwapping) {
             DiscipleSelectorDialog(
-                config = DiscipleSelectorConfig(title = "选择替换弟子"),
+                config = DiscipleSelectorConfig(title = "选择替换弟子", defaultSortAttribute = "mining"),
                 disciples = availableDisciples,
                 onDismiss = { showDiscipleSelection = false; swappingSlotIndex = null },
                 onConfirm = { selected ->
@@ -222,7 +218,7 @@ fun SpiritMineDialog(
             )
         } else {
             DiscipleSelectorDialog(
-                config = DiscipleSelectorConfig(title = "选择采矿弟子"),
+                config = DiscipleSelectorConfig(title = "选择采矿弟子", defaultSortAttribute = "mining"),
                 disciples = availableDisciples,
                 onDismiss = { showDiscipleSelection = false },
                 onConfirm = { selected ->
@@ -235,11 +231,18 @@ fun SpiritMineDialog(
 
     showDeaconSelection?.let { slotIndex ->
         val currentDeaconId = deaconDisciples.getOrNull(slotIndex)?.discipleId
-        SpiritMineDeaconSelectionDialog(
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(
+                title = "选择执事",
+                defaultSortAttribute = "morality",
+                currentId = currentDeaconId,
+                extraAttributesProvider = { listOf("道德" to it.morality) }
+            ),
             disciples = spiritMineViewModel.getAvailableDisciplesForSpiritMineDeacon(),
-            currentDeaconId = currentDeaconId,
-            onSelect = { disciple ->
-                spiritMineViewModel.assignSpiritMineDeacon(slotIndex, disciple.id)
+            onConfirm = { selected ->
+                if (selected.isNotEmpty()) {
+                    spiritMineViewModel.assignSpiritMineDeacon(slotIndex, selected.first().id)
+                }
                 showDeaconSelection = null
             },
             onDismiss = { showDeaconSelection = null }
@@ -365,109 +368,6 @@ private fun SpiritMineSlotItem(
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )
-    }
-}
-
-@Composable
-private fun SpiritMineDeaconSelectionDialog(
-    disciples: List<DiscipleAggregate>,
-    currentDeaconId: String?,
-    onSelect: (DiscipleAggregate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-
-    val realmCounts = remember(disciples) {
-        disciples.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.sortedWith(
-            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
-        )
-    }
-
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择执事（内门弟子）",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
-                realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
-            )
-        }
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (disciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无可用内门弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            val isCurrent = disciple.id == currentDeaconId
-                            PortraitDiscipleCard(
-                                disciple = disciple,
-                                isCurrent = isCurrent,
-                                extraAttributes = listOf("道德" to disciple.morality),
-                                onClick = { onSelect(disciple) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

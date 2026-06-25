@@ -502,7 +502,7 @@ private fun ReserveDiscipleListDialog(
             }
         }
         DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "内门弟子"),
+            config = DiscipleSelectorConfig(title = "内门弟子", defaultSortAttribute = "intelligence"),
             disciples = rawDisciples,
             onDismiss = { showAddDiscipleDialog = false },
             onConfirm = { selected ->

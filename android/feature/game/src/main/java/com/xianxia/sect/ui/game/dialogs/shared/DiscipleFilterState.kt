@@ -8,12 +8,6 @@ import androidx.compose.runtime.setValue
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.ui.game.applyFilters
 
-/**
- * 统一筛选状态。算法委托给 [applyFilters]，与手写状态场景保持一致。
- *
- * [defaultSortAttribute] 用于"无任何筛选"时的推荐属性回退排序；
- * 由调用方在构造时传入（例如炼丹场景传 "pillRefining"）。
- */
 class DiscipleFilterState(defaultSortAttribute: String? = null) {
     var realmFilter by mutableStateOf<Set<Int>>(emptySet())
     var spiritRootFilter by mutableStateOf<Set<Int>>(emptySet())

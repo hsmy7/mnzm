@@ -38,7 +38,7 @@ import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.getSpiritRootCount
-import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable

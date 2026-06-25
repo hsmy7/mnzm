@@ -285,7 +285,7 @@ fun ForgeDialog(
 
     if (showAddReserveDialog) {
         DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼器）"),
+            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼器）", defaultSortAttribute = "artifactRefining"),
             disciples = forgeViewModel.getAvailableDisciplesForForgeReserve(),
             onDismiss = { showAddReserveDialog = false },
             onConfirm = { selected ->

@@ -62,7 +62,6 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -76,6 +75,7 @@ import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.DropdownFilterButton
 import com.xianxia.sect.ui.game.components.FilterChip
@@ -85,18 +85,6 @@ import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.theme.GameColors
 
 // 其他Tab的占位实现
-internal val REALM_FILTER_OPTIONS = listOf(
-    0 to "仙人",
-    1 to "渡劫",
-    2 to "大乘",
-    3 to "合体",
-    4 to "炼虚",
-    5 to "化神",
-    6 to "元婴",
-    7 to "金丹",
-    8 to "筑基",
-    9 to "炼气"
-)
 @Composable
 internal fun DisciplesTab(
     gameData: GameData?,
