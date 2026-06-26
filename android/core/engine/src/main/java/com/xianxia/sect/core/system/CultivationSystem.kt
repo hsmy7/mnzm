@@ -17,6 +17,7 @@ class CultivationTickSystem @Inject constructor(
 
     override suspend fun onPhaseTick(state: MutableGameState) {
         cultivationService.advancePhase(state)
+        cultivationService.recoverHpMpForAllDisciples(state)
     }
 
     override suspend fun onMonthTick(state: MutableGameState) {

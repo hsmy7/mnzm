@@ -122,14 +122,25 @@ class IdleModeSettlementTest {
     }
 
     @Test
-    fun `resolveDomainsFromView - non-focus dialogs produce empty idle`() {
-        // 非焦点域界面（外交/世界地图等）：活跃模式也只有 ALWAYS
-        for (dialog in listOf("Diplomacy", "WorldMap", "TianshuHall", "Mail")) {
+    fun `resolveDomainsFromView - idle mode domain resolution`() {
+        // 视角驱动：当前界面所在域即为焦点域
+        // 焦点域界面（外交/世界地图）→ 对应域
+        for ((dialog, expectedDomain) in listOf(
+            "Diplomacy" to FocusDomain.DIPLOMACY,
+            "WorldMap" to FocusDomain.WORLD_MAP
+        )) {
+            val active = com.xianxia.sect.core.engine.resolveDomainsFromView(
+                tab = null, dialog = dialog, focusedDiscipleId = null
+            )
+            assertEquals("$dialog should include its domain",
+                setOf(FocusDomain.ALWAYS, expectedDomain), active)
+        }
+        // 仅 ALWAYS 界面（天枢殿/邮件）→ 仅 ALWAYS + BACKGROUND
+        for (dialog in listOf("TianshuHall", "Mail")) {
             val active = com.xianxia.sect.core.engine.resolveDomainsFromView(
                 tab = null, dialog = dialog, focusedDiscipleId = null
             )
             val idle = active.toMutableSet().apply {
-                remove(FocusDomain.DISCIPLES)
                 add(FocusDomain.BACKGROUND)
             }
             assertEquals("$dialog idle: ALWAYS+BACKGROUND only",
@@ -138,8 +149,8 @@ class IdleModeSettlementTest {
     }
 
     @Test
-    fun `resolveDomainsFromView - never leaks WORLD_MAP or DIPLOMACY`() {
-        // WORLD_MAP/DIPLOMACY 已降为非焦点域，在任何界面都不应出现
+    fun `resolveDomainsFromView - WORLD_MAP and DIPLOMACY only from their dialogs`() {
+        // WORLD_MAP/DIPLOMACY 仅在对应界面激活，不应在其他界面出现
         for ((tab, dialog) in listOf(
             null to "Alchemy", "OVERVIEW" to null, "DISCIPLES" to null,
             null to "MissionHall", null to "BloodRefiningPool"

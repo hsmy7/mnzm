@@ -1508,21 +1508,35 @@ class SettlementCoordinator @Inject constructor(
             }
         }
 
-        // 2. 装备孕养 ≥80%：nurtureProgress 达到阈值
-        // nurtureLevel 越高需要的 nurtureProgress 越多，以 nurtureLevel >= 5 为 80%
+        // 2. 装备孕养：当前等级内进度 ≥80%
         for (eq in shadow.equipmentInstances) {
-            if (eq.isEquipped && eq.nurtureLevel >= 5) {
+            if (eq.isEquipped &&
+                EquipmentNurtureSystem.getNurtureProgressPercent(eq) >= 80
+            ) {
                 realtime.add("nurture:${eq.id}")
             }
         }
 
-        // 3. 功法熟练度 ≥80%
-        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY
+        // 3. 功法熟练度：当前境界到下一境界的进度 ≥80%
+        val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
+        val maxOrdinal =
+            ManualProficiencySystem.MasteryLevel.values().size
         for ((dId, profList) in data.manualProficiencies) {
             for (prof in profList) {
-                if (prof.maxProficiency > 0 &&
-                    prof.proficiency / prof.maxProficiency >= 0.8
-                ) {
+                val currentLv =
+                    ManualProficiencySystem.MasteryLevel
+                        .fromLevel(prof.masteryLevel)
+                val nextOrdinal = prof.masteryLevel + 1
+                if (nextOrdinal >= maxOrdinal) continue
+                val current = thresholds[currentLv] ?: 0.0
+                val nextLv =
+                    ManualProficiencySystem.MasteryLevel
+                        .fromLevel(nextOrdinal)
+                val next = thresholds[nextLv] ?: 0.0
+                val range = next - current
+                val progressInLevel =
+                    (prof.proficiency - current) / range
+                if (range > 0 && progressInLevel >= 0.8) {
                     realtime.add("proficiency:$dId:${prof.manualId}")
                 }
             }

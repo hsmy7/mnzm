@@ -7,9 +7,9 @@ import org.junit.Test
 /**
  * 焦点域判定映射测试 — 覆盖所有 Tab/Dialog/焦点弟子的组合。
  *
- * 判定标准：界面是否显示生产信息（灵石/境界/生产进度条等）。
+ * 判定标准：视角驱动 — 当前界面所在域即为焦点域。
  * - 焦点域 → 对应 FocusDomain 加入 activeDomains，100ms 高频结算
- * - 非焦点域 → 仅 ALWAYS，30 秒批量结算
+ * - 非当前视角的域 → 仅 ALWAYS，30 秒批量结算
  */
 class DomainMappingTest {
 
@@ -178,18 +178,26 @@ class DomainMappingTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 对话框 — 非焦点域（仅 ALWAYS）
+    // 对话框 — 焦点域：世界地图
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog Diplomacy — 仅 ALWAYS（好感度非生产信息）`() {
-        assertDomains(resolve(dialog = "Diplomacy"))
+    fun `dialog WorldMap — WORLD_MAP（地图标记、探索状态）`() {
+        assertDomains(resolve(dialog = "WorldMap"), FocusDomain.WORLD_MAP)
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 对话框 — 焦点域：外交
+    // ═══════════════════════════════════════════════════════════════
+
     @Test
-    fun `dialog WorldMap — 仅 ALWAYS（地图无生产信息）`() {
-        assertDomains(resolve(dialog = "WorldMap"))
+    fun `dialog Diplomacy — DIPLOMACY（好感度、关系变化）`() {
+        assertDomains(resolve(dialog = "Diplomacy"), FocusDomain.DIPLOMACY)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 对话框 — 仅 ALWAYS（无实时变化数据）
+    // ═══════════════════════════════════════════════════════════════
 
     @Test
     fun `dialog Mail — 仅 ALWAYS（一次性领取）`() {
@@ -295,19 +303,19 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `组合：SETTINGS tab + Diplomacy dialog — 仅 ALWAYS`() {
+    fun `组合：SETTINGS tab + Diplomacy dialog — DIPLOMACY`() {
         val domains = resolve(tab = "SETTINGS", dialog = "Diplomacy")
-        assertDomains(domains)
+        assertDomains(domains, FocusDomain.DIPLOMACY)
     }
 
     @Test
-    fun `组合：非焦点 tab + 非焦点 dialog + 焦点弟子 — 仅 DISCIPLES`() {
+    fun `组合：SETTINGS tab + Diplomacy dialog + 焦点弟子 — DISCIPLES + DIPLOMACY`() {
         val domains = resolve(
             tab = "SETTINGS",
             dialog = "Diplomacy",
             focusedDiscipleId = "99"
         )
-        assertDomains(domains, FocusDomain.DISCIPLES)
+        assertDomains(domains, FocusDomain.DISCIPLES, FocusDomain.DIPLOMACY)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -324,13 +332,13 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `6 焦点域 dialog 全部正确映射`() {
-        // 有 6 类焦点域 dialog（含复合域）
+    fun `焦点域 dialog 全部正确映射`() {
         val focusDialogs = listOf(
             "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
             "Warehouse", "Merchant", "SectTrade",
             "MissionHall",
-            "BloodRefiningPool"
+            "BloodRefiningPool",
+            "WorldMap", "Diplomacy"
         )
         for (d in focusDialogs) {
             val domains = resolve(dialog = d)
@@ -342,9 +350,9 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `14 非焦点域 dialog 仅含 ALWAYS`() {
+    fun `仅 ALWAYS 的 dialog 正确映射`() {
         val nonFocusDialogs = listOf(
-            "Diplomacy", "WorldMap", "Mail", "Activity",
+            "Mail", "Activity",
             "TianshuHall", "SectLevelDetail",
             "PatrolTower", "Recruit", "Residence", "Library",
             "WenDaoPeak", "QingyunPeak",

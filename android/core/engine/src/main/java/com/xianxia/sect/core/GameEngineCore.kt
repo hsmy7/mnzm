@@ -686,10 +686,6 @@ class GameEngineCore @Inject constructor(
                                 currentPhase = phase1Based,
                                 lazyEvaluationDispatcher = lazyEvaluationDispatcher
                             )
-                            if (shouldExecuteDomain(FocusDomain.DISCIPLES, activeDomainsPerPhase)) {
-                                cultivationService.recoverHpMpForAllDisciples(this)
-                                markDomainExecuted(FocusDomain.DISCIPLES)
-                            }
                         }
 
                         if (this.gameData.gameMonth != prevMonth) monthChanged = true
@@ -1068,11 +1064,11 @@ class GameEngineCore @Inject constructor(
 }
 
 /**
- * 焦点域判定纯函数 — 根据 Tab/Dialog/焦点弟子计算应激活的域集合。
+ * 焦点域判定纯函数 — 视角驱动，根据 Tab/Dialog/焦点弟子计算应激活的域集合。
  *
- * 判定标准：界面是否显示生产信息（灵石/境界/生产进度条等）。
+ * 判定标准：当前界面所在域即为焦点域，其余为非焦点域。
  * - 焦点域 → 加入 activeDomains，100ms 高频结算
- * - 非焦点域 → 不加入，30 秒批量结算
+ * - 非当前视角的域 → 不加入，30 秒批量结算
  *
  * 这是唯一映射入口，[GameEngineCore] 和测试共用。
  *
@@ -1132,8 +1128,14 @@ internal fun resolveDomainsFromView(
             domains.add(FocusDomain.BUILDINGS)
         }
 
-        // ── 非焦点域：以下界面不显示生产信息，不添加任何域 ──
-        // "Diplomacy", "WorldMap", "Mail", "Activity"
+        // 焦点域：世界地图（地图标记/探索状态）
+        "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
+
+        // 焦点域：外交（好感度/关系变化）
+        "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
+
+        // ── 仅 ALWAYS：以下界面无实时变化数据，不添加额外域 ──
+        // "Mail", "Activity"
         // "TianshuHall", "SectLevelDetail"
         // "PatrolTower", "Recruit", "Residence", "Library"
         // "WenDaoPeak", "QingyunPeak"

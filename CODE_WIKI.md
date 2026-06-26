@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-11 (v4.0.01 — 模块化依赖根治 + 架构文档同步)
+> 最后更新：2026-06-26 (结算管线双模式文档化 + 统一批量结算 ADR)
 
 ## 目录
 
@@ -877,20 +877,55 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ## 结算管线 — SettlementCoordinator
 
-### 架构
+### 当前架构：双模式（活跃 + 空闲）
+
+游戏引擎根据用户交互间隔在两种结算路径间切换：
 
 ```
 tickInternal()
-  → monthChanged?
-    → stateStore.createSettlementShadow()  // 浅拷贝：仅结算修改字段（gameData/disciples/equipmentInstances/pills/manualInstances）
-    → settlementCoordinator.scheduleMonthly(shadow)  // 调度结算阶段
-      → computeFingerprint() → 命中? → 跳过 Cache Build（Dirty Flag 增量重建）
-  → executeStep()  // 每 tick 执行结算（前 3 帧 12ms 激进预算，之后 1.5ms 保守预算）
-    → 完成? → onSettlementComplete() [suspend]
-      → swapFromShadow() [suspend, 在 stateStore.update { } 内]
-        → 结算 shadow 仅同步修改字段，跳过未拷贝字段
-        → mergeGameData() + mergeDiscipleAfterSettlement() → 写回主状态
+  ├── 活跃模式（用户 30s 内有交互）
+  │     → monthChanged?
+  │       → scheduleMonthly(shadow)     // 分阶段结算，Scheduler 驱动
+  │         → executeStep() 每 tick 一帧
+  │           → onSettlementComplete() → swapFromShadow()
+  │     → yearChanged?
+  │       → scheduleYearly(shadow)      // 同上 + 年度阶段
+  │     → 热控? → accumulateBatch (ACTIVE_NON_FOCUS)  // 仅设备过热时
+  │
+  └── 空闲模式（用户 30s 无交互）
+        → 始终 accumulateBatch(IDLE)    // 所有域累积
+          → 双指纹检测 → 变化? → 微结算
+          → 30s 墙壁时钟 → 全量结算 + swap
+        → onUserInteraction → exitBatchMode → 切回活跃
 ```
+
+**双轨制（两模式共享）**：
+
+| 轨道 | 频率 | 判定条件 |
+|------|------|---------|
+| **实时轨** | 100ms tick | 焦点域（当前 Tab/Dialog）+ 实时轨槽位（进度 ≥80%） |
+| **批量轨** | 活跃按月 / 空闲 30s | 既非焦点域也无 ≥80% 槽位的其余全部内容 |
+
+**实时轨准入条件（`classifySlotsProgress`，9 类系统）**：
+
+| 系统 | 槽位标识 | ≥80% 判定 |
+|------|---------|----------|
+| 弟子修炼 | `cultivation:<id>` | cultivation / maxCultivation ≥ 0.8 |
+| 装备温养 | `nurture:<eqId>` | nurtureLevel ≥ 5 |
+| 功法熟练度 | `proficiency:<dId>:<manualId>` | proficiency / maxProficiency ≥ 0.8 |
+| 血炼 | `bloodRefinement:<buildingId>` | 已过月数 / durationMonths ≥ 0.8 |
+| 灵田种植 | `spiritField:<instanceId>` | 已过月数 / growTime ≥ 0.8 |
+| 任务 | `mission:<id>` | 已过月数 / duration ≥ 0.8 |
+| 炼丹/炼器 | `production:<slotId>` | getProgressPercent ≥ 80 |
+| 思过 | `reflection:<id>` | 已过年数 / totalDuration ≥ 0.8 |
+| 灵矿采矿 | （不入实时轨） | 持续收入型，无"完成"概念 |
+
+**双指纹检测**（任一变化触发微结算）：
+
+| 指纹 | 检测内容 | 文件 |
+|------|---------|------|
+| `CultivationRateFingerprint` | 住所布局、长老分配、政策、弟子境界、丹药/丧亲/功法、寿命衰减、师徒关系 | `SettlementCoordinator.kt:1266` |
+| `ProductionRateFingerprint` | 灵矿槽位、灵植阁、炼丹/炼器分配、血炼进程、任务、思过、建筑等级、生产政策 | `ProductionRateFingerprint.kt:58` |
 
 ### 优化项 (v3.2.22)
 
@@ -902,7 +937,7 @@ tickInternal()
 | 时间预算动态调整 | 激进 12ms（3 帧）+ 保守 1.5ms | 月结帧数 12-65→1-3 |
 | 生产并行化 | 炼丹/锻造并行（herbs/materials 无冲突），矿场/分配串行 | 生产阶段减 20-30% |
 
-### 结算阶段（按月）
+### 活跃模式结算阶段（`scheduleMonthly`/`scheduleYearly`）
 
 | 阶段 | 职责 |
 |------|------|
@@ -913,15 +948,65 @@ tickInternal()
 | `Phase_Production` | 生产系统月结算（炼丹/锻造并行，其余串行） |
 | `Phase_WorldEvents` | 世界事件（探索、外交、生育等） |
 
+### 空闲模式微结算（`accumulateBatch` 路径）
+
+| 方法 | 职责 |
+|------|------|
+| `cultivationMicroSettle` | 用旧缓存速率结算 N 旬修炼值 + HP/MP 恢复 + 持续效果衰减 + 突破检查，直接操作 DiscipleTables |
+| `productionMicroSettle` | 逐月推进 `productionSubsystem.onMonthTick` + 经济/血炼/探索/邮件/生育/道侣 |
+
 ### 异常恢复 (v3.1.98)
 
 - `executeStep()` 包裹 try-catch，异常时调用 `resetOnError()` 清空 `shadowState`/`currentCache`/`scheduler`
 - `shadowState` / `currentCache` 标记 `@Volatile` 防止 UI 线程 `cancelPendingWork()` 并发问题
 - 结算异常 → 状态重置 → 下个 tick 正常继续 → 下个月重新结算（不丢数据，只推迟）
 
-### forceCompleteSettlement()
+---
 
-当月变/年变时若仍有 pending 结算，循环执行 `executeStep()` 直到完成。调度器内部管理激进/保守预算切换。
+### 计划：统一批量结算模式（ADR）
+
+> 详见 [docs/adr/unified-batch-settlement.md](../../docs/adr/unified-batch-settlement.md)
+
+**目标**：移除活跃/空闲双模式，统一为"实时轨/焦点域 100ms tick + 批量轨 30s 结算"的单一模式。
+
+**核心变更**：
+
+```
+统一后的 tickInternal()
+  → 暂停/加载/保存检查（不变）
+  → gameClock.tick(isSettlementPending = false)  // 始终 false
+  → for each phase:
+      → systemManager.onPhaseTickWithDomainFilter(activeDomains)
+      → HP/MP 恢复（焦点域）
+  → 月变/年变事件（不变，直接触发不通过结算）
+  → accumulateBatch(phasesToAdd, monthChanged, yearChanged, ...)  // 始终调用
+      → FullSettled? → 重建批量窗口
+  → 巡逻结果（不变）
+```
+
+**删除项**：
+
+| 删除 | 所在文件 | 原因 |
+|------|---------|------|
+| `BatchMode` 枚举 | `SettlementCoordinator.kt` | IDLE/ACTIVE_NON_FOCUS 不再区分 |
+| `resolveThermalBatchSize()` | `SettlementCoordinator.kt` | 热控批次大小不再需要 |
+| `fullIdleSettle()` | `SettlementCoordinator.kt` | 死代码（从未被调用） |
+| `doIdleFullSettle()` | `GameEngineCore.kt` | 死代码（从未被调用） |
+| `isInIdleState` | `GameEngineCore.kt` | 无空闲状态 |
+| `lastUserInteractionTime` | `GameEngineCore.kt` | 无空闲检测 |
+| `pendingReturnFromIdleSettle` | `GameEngineCore.kt` | 无空闲退出等待 |
+| `enterIdleMode()` | `GameEngineCore.kt` | 无空闲模式 |
+| `cleanupIdleState()` | `GameEngineCore.kt` | 无空闲清理 |
+| `forceCompleteSettlement()` | `GameEngineCore.kt` | 无强制完成（批量累积不产生 pending） |
+| `IDLE_DETECTION_MS` | `GameEngineCore.kt` | 无空闲检测 |
+
+**保留项**：
+
+| 保留 | 原因 |
+|------|------|
+| `scheduleMonthly` / `scheduleYearly` | 公开 API，保留以备后用；SettlementScheduler 及阶段类不变 |
+| `FocusDomain.BACKGROUND` | 枚举值保留，系统仍使用 |
+| `onUserInteraction` 回调链路 | UI 层用它重置批量时钟（避免交互时触发不必要的全量结算） |
 
 ---
 
@@ -1508,6 +1593,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
+| P1 | **统一批量结算模式** — 移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md) | 简化 ~150 行 tickInternal、消除模式切换 bug、清理热控分批死代码 | 方案已评审，待实施 |
 | P2 | MainGameScreen 继续拆分（尚余 1311 行） | 可维护性 | 待实施 |
 | P2 | SaveLoadViewModel 继续拆分（尚余 1437 行，协调器复杂度高） | 可维护性 | 待实施 |
 | P3 | 核心引擎层测试覆盖率从 ~5% 提升至 60% | 回归拦截 | 待实施 |

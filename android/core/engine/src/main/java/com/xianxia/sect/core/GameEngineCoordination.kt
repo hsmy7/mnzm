@@ -62,9 +62,9 @@ private fun domainForTab(tab: String): FocusDomain = when (tab) {
 /**
  * Dialog → catchUp 域映射。
  *
- * 判定标准：界面是否显示生产信息（灵石/境界/生产进度等）。
+ * 视角驱动：当前界面所在域即为焦点域。
  * 焦点域 → 对应 FocusDomain 强制追赶结算；
- * 非焦点域 → [FocusDomain.ALWAYS]（安全 no-op，兼顾 onUserInteraction）。
+ * 无实时数据界面 → [FocusDomain.ALWAYS]（安全 no-op，兼顾 onUserInteraction）。
  */
 private fun domainForDialog(dialogName: String): FocusDomain = when (dialogName) {
     // ── 焦点域：生产建筑（显示进度/产出） ──
@@ -80,12 +80,18 @@ private fun domainForDialog(dialogName: String): FocusDomain = when (dialogName)
     // 焦点域：血炼池（显示血炼进度）
     "BloodRefiningPool" -> FocusDomain.BUILDINGS
 
+    // 焦点域：世界地图（地图标记/探索状态）
+    "WorldMap" -> FocusDomain.WORLD_MAP
+
+    // 焦点域：外交（好感度/关系变化）
+    "Diplomacy" -> FocusDomain.DIPLOMACY
+
     // Tab 入口
     "Disciples" -> FocusDomain.DISCIPLES
     "Buildings" -> FocusDomain.BUILDINGS
 
-    // ── 非焦点域：不显示生产信息，统一 ALWAYS ──
-    // "Diplomacy", "WorldMap", "Mail", "Activity",
+    // ── 仅 ALWAYS：无实时变化数据 ──
+    // "Mail", "Activity",
     // "PatrolTower", "Recruit", "Residence", "Library",
     // "WenDaoPeak", "QingyunPeak",
     // "LawEnforcementHall", "ReflectionCliff", "BattleLog",

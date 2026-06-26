@@ -387,19 +387,17 @@ stateStore.swapFromShadow(shadow)
 - 新增生产系统（如灵兽养殖等）→ `ProductionRateFingerprint` 新增字段 + `compute` 方法
 - 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
 
-指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）和 `ProductionRateFingerprint.kt`（生产指纹）中。两套指纹同时作用于空闲模式和活跃模式，改动一次两模式自动生效。
+指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）和 `ProductionRateFingerprint.kt`（生产指纹）中。两套指纹同时作用于实时轨和批量轨，改动一次两轨自动生效。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 
-**6.7 🔴 新增/改动界面必须重新评估焦点域分类** — 焦点域判定标准为「当前界面是否显示生产信息（灵石/境界/修炼进度/生产进度条等）」：
+**6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动：**当前界面所在域即为焦点域（100ms 高频实时结算），其他域自动为非焦点域（30 秒批量结算）**。不再预先将界面分类为「焦点域界面」和「非焦点域界面」。
 
-- **焦点域** → 100ms 高频 tick 实时结算（`DISCIPLES`/`BUILDINGS`/`WAREHOUSE`/`EXPLORATION`）
-- **非焦点域** → 30 秒批量结算
+新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新以下三处：
 
-新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新以下两处：
+1. `FocusDomain.kt` — 更新枚举 KDoc 中的「界面→域映射」表格
+2. `GameEngineCore.resolveDomainsFromView()` — 根据新 Tab/Dialog 判定激活对应域
+3. `GameEngineCoordination.kt` 中的 `domainForDialog()` — 切换界面时的追赶结算映射
 
-1. `FocusDomain.kt` — 更新枚举 KDoc 中的「界面归属」表格
-2. `GameEngineCore.resolveDomainsFromView()` — 根据新的 Tab/Dialog 判定是否激活对应域
-
-界面展示内容变化（如原本不显示灵石的面板新增了灵石展示）意味着焦点域分类可能改变，必须重新评估。判定原则：**只要玩家能看到任何随时间变化的数值（进度条、倒计时、数量增减），该域就应该是焦点域**。
+判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面只映射 ALWAYS。**
 
 **7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
 
