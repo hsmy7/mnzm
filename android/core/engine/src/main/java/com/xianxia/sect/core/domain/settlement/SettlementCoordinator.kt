@@ -68,6 +68,10 @@ class SettlementCoordinator @Inject constructor(
     private var nonFocusedLastSettleMonth: Int = 0
     private var nonFocusedBatchMonths: Int = 1
 
+    // 空闲批量结算标记：空闲模式下不使用月度结算调度器，
+    // scheduleMonthly/scheduleYearly 不会被调用，
+    // computeNonFocusedBatch 自然也不会走到，无需额外标记。
+
     /**
      * 是否仍有未完成的结算阶段待执行。
      */
@@ -1091,6 +1095,245 @@ class SettlementCoordinator @Inject constructor(
             realmHash = realmHash,
             perDiscipleHash = perDiscipleHash
         )
+    }
+
+    // ── 空闲模式：双指纹 + 80% 分类 + 微结算 ──────────────────────
+
+    /**
+     * 计算修炼速率指纹，复用 [computeFingerprint] 逻辑。
+     */
+    fun computeCultivationFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
+        return computeFingerprint(shadow)
+    }
+
+    /**
+     * 计算生产系统指纹，委托给 [ProductionRateFingerprint.compute]。
+     */
+    fun computeProductionFingerprint(shadow: MutableGameState): ProductionRateFingerprint {
+        return ProductionRateFingerprint.compute(shadow)
+    }
+
+    /**
+     * 空闲修炼微结算：用旧缓存中的速率结算 [phases] 旬的修炼值。
+     *
+     * 直接操作 shadow 中的 DiscipleTables，不经过 Scheduler。
+     * 处理内容：修炼值累加、HP/MP 恢复、持续效果衰减、突破检查。
+     *
+     * @param shadow 空闲期间持有的可变游戏状态
+     * @param cache 变化前的修炼速率缓存（旧速率）
+     * @param phases 本累积段内的旬数
+     */
+    fun cultivationMicroSettle(
+        shadow: MutableGameState,
+        cache: SettlementCache,
+        phases: Int
+    ) {
+        if (phases <= 0) return
+        val tables = shadow.discipleTables
+
+        for (dId in cache.aliveDisciples) {
+            val id = dId.id.toInt()
+            if (tables.isAlive[id] != 1) continue
+
+            // 修炼值：旧速率 × 旬数
+            val rate = cache.cultivationRateCache[dId.id] ?: 0.0
+            if (rate > 0.0) {
+                val gain = rate * phases
+                val rawCult = tables.cultivations[id] + gain
+                val maxCult = dId.maxCultivation
+                tables.cultivations[id] = rawCult.coerceAtMost(maxCult)
+
+                // 突破检查
+                if (rawCult >= maxCult &&
+                    tables.currentHps[id] >= dId.maxHp &&
+                    tables.currentMps[id] >= dId.maxMp
+                ) {
+                    val updated = processBreakthroughForDisciple(dId, shadow, cache)
+                    writeDiscipleToTables(updated, tables)
+                }
+            }
+
+            // HP/MP 恢复
+            cultivationService.recoverMonthlyHpMp(tables, id, 0)
+            repeat(phases / 3) { cultivationService.recoverMonthlyHpMp(tables, id, 0) }
+
+            // 持续效果衰减
+            cultivationService.applyMonthlyDurationDecay(tables, id, 0)
+            repeat(phases / 3) { cultivationService.applyMonthlyDurationDecay(tables, id, 0) }
+
+            // 忠诚度
+            val loyaltyDelta = calculateLoyaltyDelta(dId, cache)
+            if (loyaltyDelta != 0) {
+                val totalLoyaltyDelta = loyaltyDelta * (phases / 3).coerceAtLeast(1)
+                tables.loyalties[id] = (tables.loyalties[id] + totalLoyaltyDelta).coerceAtLeast(0)
+            }
+        }
+    }
+
+    /**
+     * 空闲生产微结算：逐月推进生产系统和世界事件。
+     *
+     * 直接操作 shadow，处理 [months] 个月的生产/经济/邮件/子嗣等。
+     *
+     * @param shadow 空闲期间持有的可变游戏状态
+     * @param months 需结算的月份数
+     */
+    suspend fun productionMicroSettle(shadow: MutableGameState, months: Int) {
+        if (months <= 0) return
+        repeat(months) {
+            processProduction(shadow)
+            processWorldEvents(shadow)
+        }
+    }
+
+    /**
+     * 空闲全量结算：修炼末段 + 生产末段 + swap。
+     *
+     * 在 30s 墙壁时钟到期或退出空闲时调用。
+     *
+     * @param shadow 空闲期间持有的可变游戏状态
+     * @param cache 当前修炼速率缓存
+     * @param phases 末段累积旬数
+     * @param months 末段累积月数
+     * @param hasYearlyChange 是否发生过年变
+     */
+    suspend fun fullIdleSettle(
+        shadow: MutableGameState,
+        cache: SettlementCache,
+        phases: Int,
+        months: Int,
+        hasYearlyChange: Boolean
+    ) {
+        // 1. 修炼末段
+        cultivationMicroSettle(shadow, cache, phases)
+
+        // 2. 生产末段
+        productionMicroSettle(shadow, months)
+
+        // 3. 年度事件
+        if (hasYearlyChange) {
+            processAgingAndDeath(shadow)
+        }
+
+        // 4. 原子写入
+        stateStore.swapFromShadow(shadow)
+
+        // 5. 同步修炼速率缓存
+        cultivationService.cachedCultivationRates = cache.cultivationRateCache
+
+        // 6. 重置 HFD
+        if (months > 0 || phases > 0) {
+            cultivationService.resetHighFrequencyData()
+        }
+
+        shadowState = null
+        currentCache = null
+        scheduler.reset()
+    }
+
+    /**
+     * 80% 进度分类：扫描全部槽位，返回应进入实时轨的集合。
+     *
+     * 覆盖 9 类有完成周期的系统（不含采矿——持续收入型）。
+     *
+     * @return 实时轨槽位标识集合（格式："type:id"）
+     */
+    fun classifySlotsProgress(shadow: MutableGameState): Set<String> {
+        val realtime = mutableSetOf<String>()
+        val data = shadow.gameData
+        val tables = shadow.discipleTables
+        val currentYear = data.gameYear
+        val currentMonth = data.gameMonth
+
+        // 1. 弟子修炼 ≥80%：组装弟子获取 maxCultivation
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val disciple = tables.assemble(id)
+            val maxCult = disciple.maxCultivation
+            if (maxCult > 0.0 && disciple.cultivation / maxCult >= 0.8) {
+                realtime.add("cultivation:$id")
+            }
+        }
+
+        // 2. 装备孕养 ≥80%：nurtureProgress 达到阈值
+        // nurtureLevel 越高需要的 nurtureProgress 越多，以 nurtureLevel >= 5 为 80%
+        for (eq in shadow.equipmentInstances) {
+            if (eq.isEquipped && eq.nurtureLevel >= 5) {
+                realtime.add("nurture:${eq.id}")
+            }
+        }
+
+        // 3. 功法熟练度 ≥80%
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY
+        for ((dId, profList) in data.manualProficiencies) {
+            for (prof in profList) {
+                if (prof.maxProficiency > 0 &&
+                    prof.proficiency / prof.maxProficiency >= 0.8
+                ) {
+                    realtime.add("proficiency:$dId:${prof.manualId}")
+                }
+            }
+        }
+
+        // 4. 血炼 ≥80%
+        for ((buildingId, progress) in data.activeBloodRefinements) {
+            if (progress.durationMonths > 0) {
+                val elapsed = (currentYear - progress.startYear) * 12 +
+                    (currentMonth - progress.startMonth)
+                if (elapsed.toDouble() / progress.durationMonths >= 0.8) {
+                    realtime.add("bloodRefinement:$buildingId")
+                }
+            }
+        }
+
+        // 5. 种植（灵田） ≥80%
+        for (plant in data.spiritFieldPlants) {
+            if (plant.growTime > 0 && plant.seedId.isNotEmpty()) {
+                val elapsed = (currentYear - plant.plantYear) * 12 +
+                    (currentMonth - plant.plantMonth)
+                if (elapsed.toDouble() / plant.growTime >= 0.8) {
+                    realtime.add("spiritField:${plant.buildingInstanceId}")
+                }
+            }
+        }
+
+        // 6. 任务 ≥80%
+        for (mission in data.activeMissions) {
+            if (mission.duration > 0) {
+                val elapsed = (currentYear - mission.startYear) * 12 +
+                    (currentMonth - mission.startMonth)
+                if (elapsed.toDouble() / mission.duration >= 0.8) {
+                    realtime.add("mission:${mission.id}")
+                }
+            }
+        }
+
+        // 7. 炼丹/炼器 ≥80%
+        for (slot in data.productionSlots) {
+            val progressPct = slot.getProgressPercent(currentYear, currentMonth)
+            if (progressPct >= 80) {
+                realtime.add("production:${slot.id}")
+            }
+        }
+
+        // 8. 思过 ≥80%
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            if (tables.statuses[id] == DiscipleStatus.REFLECTING) {
+                val statusData = tables.statusData[id] ?: continue
+                val startYear = statusData["reflectionStartYear"]?.toIntOrNull() ?: continue
+                val endYear = statusData["reflectionEndYear"]?.toIntOrNull() ?: continue
+                val totalDuration = endYear - startYear
+                if (totalDuration > 0) {
+                    val elapsed = currentYear - startYear
+                    if (elapsed.toDouble() / totalDuration >= 0.8) {
+                        realtime.add("reflection:$id")
+                    }
+                }
+            }
+        }
+
+        return realtime
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -178,6 +179,74 @@ class CultivationService @Inject constructor(
 
     fun resetHighFrequencyData() {
         _highFrequencyData.value = HighFrequencyData()
+    }
+
+    // ── 空闲模式专用方法 ────────────────────────────────────────────
+
+    /**
+     * 空闲期间焦点弟子轻量 HFD 累积。
+     *
+     * 仅更新焦点弟子一人的修炼值/功法熟练度/装备孕养，
+     * 不遍历全体弟子。委托给 [CultivationCore.updateFocusedDisciple]。
+     *
+     * @param focusedId 焦点弟子 ID
+     * @param state 可变游戏状态
+     */
+    fun updateFocusedDiscipleLightweight(focusedId: String, state: MutableGameState) {
+        val hfd = _highFrequencyData.value
+        val newHfd = cultivationCore.updateFocusedDisciple(
+            focusedId, state, hfd, breakthroughHandler
+        )
+        _highFrequencyData.value = newHfd
+    }
+
+    /**
+     * 空闲期间战斗中弟子 HP/MP 轻量恢复。
+     *
+     * 仅恢复正在战斗中的弟子的 HP/MP（通过 DiscipleTables 直接操作），
+     * 不组装完整 Disciple 对象，适用于空闲期间高频调用。
+     *
+     * @param state 可变游戏状态
+     */
+    fun recoverHpMpForCombatDisciples(state: MutableGameState) {
+        val tables = state.discipleTables
+        val data = state.gameData
+        // 收集所有在战斗队或驻防中的弟子 ID
+        val combatIds = mutableSetOf<Int>()
+        for (team in data.battleTeams) {
+            for (slot in team.slots) {
+                if (slot.discipleId.isNotEmpty()) {
+                    slot.discipleId.toIntOrNull()?.let { combatIds.add(it) }
+                }
+            }
+        }
+        // 驻防弟子
+        for (garrison in data.warehouseGarrisons) {
+            garrison.discipleId.toIntOrNull()?.let { combatIds.add(it) }
+        }
+        if (combatIds.isEmpty()) return
+
+        val multiplier = 10.0  // phaseMultiplier
+        val recoveryRate = GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE
+        for (id in combatIds) {
+            if (tables.isAlive[id] != 1) continue
+            val curHp = tables.currentHps[id]
+            val curMp = tables.currentMps[id]
+            if (curHp < 0 && curMp < 0) continue
+
+            val baseHp = tables.baseHps[id]
+            val baseMp = tables.baseMps[id]
+            val hpRecovery = (baseHp * recoveryRate * multiplier).toInt().coerceAtLeast(1)
+            val mpRecovery = (baseMp * recoveryRate * multiplier).toInt().coerceAtLeast(1)
+
+            val newHp = if (curHp < 0) curHp
+                else (curHp + hpRecovery).coerceAtMost(baseHp)
+            val newMp = if (curMp < 0) curMp
+                else (curMp + mpRecovery).coerceAtMost(baseMp)
+
+            if (newHp != curHp) tables.currentHps[id] = newHp
+            if (newMp != curMp) tables.currentMps[id] = newMp
+        }
     }
 
     fun qualifiesForSectAutoPublic(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {

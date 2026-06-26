@@ -7,6 +7,9 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.settlement.SettlementCoordinator
+import com.xianxia.sect.core.engine.domain.settlement.SettlementCache
+import com.xianxia.sect.core.engine.domain.settlement.CultivationRateFingerprint
+import com.xianxia.sect.core.engine.domain.settlement.ProductionRateFingerprint
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.FocusDomain
@@ -154,6 +157,27 @@ class GameEngineCore @Inject constructor(
 
     @Volatile
     private var isInIdleState = false
+
+    // ── 空闲批量结算跟踪 ──
+    // 上次空闲结算的墙壁时钟时间
+    @Volatile
+    private var lastIdleSettleWallMs: Long = 0L
+    // 空闲期间累积的旬数/月数
+    private var idleAccumulatedPhases: Int = 0
+    private var idleAccumulatedMonths: Int = 0
+    // 空闲期间是否发生过年变
+    private var idleHasYearlyChange: Boolean = false
+    // 空闲影子 + 当前缓存
+    private var idleShadow: MutableGameState? = null
+    private var idleCache: SettlementCache? = null
+    // 双指纹（上次结算时的快照）
+    private var idleLastCultFingerprint: CultivationRateFingerprint? = null
+    private var idleLastProdFingerprint: ProductionRateFingerprint? = null
+    // 实时轨槽位集合
+    private var idleRealtimeSlots: Set<String> = emptySet()
+    // 退出空闲时的待处理标记
+    @Volatile
+    private var pendingReturnFromIdleSettle: Boolean = false
 
     // 后台停止时保存状态
     @Volatile
@@ -486,6 +510,11 @@ class GameEngineCore @Inject constructor(
             wasRunningBeforeBackground = false
         }
         settlementCoordinator.cancelPendingWork()
+        // 清理空闲状态（后台不保持影子）
+        if (isInIdleState) {
+            isInIdleState = false
+            cleanupIdleState()
+        }
         engineScope.launch {
             cultivationService.resetHighFrequencyData()
         }
@@ -512,10 +541,16 @@ class GameEngineCore @Inject constructor(
     /** UI 层调用：记录用户交互时间，唤醒空闲状态 */
     fun onUserInteraction() {
         lastUserInteractionTime = System.currentTimeMillis()
-        // 空闲恢复：恢复之前的焦点域
-        if (isInIdleState && previousFocusDomain != null) {
+        if (isInIdleState) {
             isInIdleState = false
             previousFocusDomain = null
+            // 有空闲累积 → 标记需要立即结算
+            if (idleAccumulatedPhases > 0 || idleAccumulatedMonths > 0) {
+                pendingReturnFromIdleSettle = true
+            } else {
+                // 无累积直接清理
+                cleanupIdleState()
+            }
         }
     }
 
@@ -534,6 +569,7 @@ class GameEngineCore @Inject constructor(
         if (idleTimeMs > IDLE_DETECTION_MS) {
             if (!isInIdleState) {
                 isInIdleState = true
+                enterIdleMode()
             }
             return setOf(FocusDomain.ALWAYS, FocusDomain.BACKGROUND)
         }
@@ -696,6 +732,15 @@ class GameEngineCore @Inject constructor(
                                 cultivationService.recoverHpMpForAllDisciples(this)
                                 markDomainExecuted(FocusDomain.DISCIPLES)
                             }
+                            // 空闲期间焦点弟子轻量更新
+                            if (isInIdleState) {
+                                val focusedId = stateStore.focusedDiscipleId
+                                if (focusedId != null) {
+                                    cultivationService.updateFocusedDiscipleLightweight(
+                                        focusedId, this
+                                    )
+                                }
+                            }
                         }
 
                         if (this.gameData.gameMonth != prevMonth) monthChanged = true
@@ -715,33 +760,121 @@ class GameEngineCore @Inject constructor(
             }
         }
 
-        // 月变/年变 → 调度结算
-        if (settlementCoordinator.hasPendingWork && (monthChanged || yearChanged)) {
-            forceCompleteSettlement()
-        }
-        // 年变/月变 → 在创建结算影子前，先将年度/月度事件应用到真实游戏状态
-        // （内部方法使用 stateStore.update{}，不能在 shadow transaction 中调用）
-        if (yearChanged) {
-            cultivationService.processYearlyEvents()
-        }
-        if (monthChanged) {
-            cultivationService.processMonthlyEvents()
-            // 月变时检测已完成的任务（空闲期间也不会漏检）
-            missionCheck?.invoke()
-        }
-        if (yearChanged) {
-            val shadow = stateStore.createSettlementShadow()
-            settlementCoordinator.scheduleYearly(shadow)
-        } else if (monthChanged) {
-            val shadow = stateStore.createSettlementShadow()
-            settlementCoordinator.scheduleMonthly(shadow)
-        }
-        if (settlementCoordinator.hasPendingWork) {
-            val completed = settlementCoordinator.executeStep()
-            if (completed) settlementCoordinator.onSettlementComplete()
+        // ── 月变/年变后处理 ──
+        if (isInIdleState) {
+            // ═══════════ 空闲模式 ═══════════
+            // Step 1: 运行 real state 事件（必须在 shadow 之前）
+            if (yearChanged) {
+                cultivationService.processYearlyEvents()
+                idleHasYearlyChange = true
+            }
+            if (monthChanged) {
+                cultivationService.processMonthlyEvents()
+                missionCheck?.invoke()
+            }
+
+            // Step 2: 实时轨生产系统每月推进
+            // （进入空闲时已分类，此处处理月变时的实时轨推进）
+            if (monthChanged && idleShadow != null && idleRealtimeSlots.isNotEmpty()) {
+                val shadow = idleShadow ?: return
+                settlementCoordinator.productionMicroSettle(
+                    shadow, months = 1  // 仅推进有月变的月份
+                )
+            }
+
+            // Step 3: 累积旬数和月数
+            idleAccumulatedPhases += tickResult.phasesToAdvance
+            if (monthChanged) idleAccumulatedMonths++
+
+            // Step 4: 先完成待处理的结算（如有）
+            if (settlementCoordinator.hasPendingWork &&
+                (monthChanged || yearChanged)
+            ) {
+                forceCompleteSettlement()
+            }
+
+            // Step 5: 双指纹检测 — 变化时微结算
+            val shadow = idleShadow
+            val cache = idleCache
+            if (shadow != null && cache != null && idleAccumulatedPhases > 0) {
+                val newCultFp = settlementCoordinator.computeCultivationFingerprint(shadow)
+                val newProdFp = settlementCoordinator.computeProductionFingerprint(shadow)
+
+                val cultChanged = newCultFp != idleLastCultFingerprint
+                val prodChanged = newProdFp != idleLastProdFingerprint
+
+                if (cultChanged || prodChanged) {
+                    // 微结算：旧速率 × 累积旬数/月数
+                    settlementCoordinator.cultivationMicroSettle(
+                        shadow, cache, idleAccumulatedPhases
+                    )
+                    if (idleAccumulatedMonths > 0) {
+                        settlementCoordinator.productionMicroSettle(
+                            shadow, idleAccumulatedMonths
+                        )
+                    }
+
+                    // 重建缓存 + 更新指纹
+                    idleCache = SettlementCache(shadow)
+                    idleLastCultFingerprint = newCultFp
+                    idleLastProdFingerprint = newProdFp
+
+                    // 重新分类 80% 实时轨
+                    idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(shadow)
+
+                    // 重置累加器
+                    idleAccumulatedPhases = 0
+                    idleAccumulatedMonths = 0
+                    idleHasYearlyChange = false
+                }
+            }
+
+            // Step 6: 30s 墙壁时钟触发全量结算
+            val now = System.currentTimeMillis()
+            if (now - lastIdleSettleWallMs >= IDLE_DETECTION_MS &&
+                (idleAccumulatedPhases > 0 || idleAccumulatedMonths > 0)
+            ) {
+                doIdleFullSettle()
+            }
+
+            // Step 7: 退出空闲时的待处理结算
+            if (pendingReturnFromIdleSettle) {
+                pendingReturnFromIdleSettle = false
+                doIdleFullSettle()
+                // 清理空闲状态，切回活跃模式
+                cleanupIdleState()
+            }
+
+            // 活跃模式下，空闲结算如有待处理步骤，在此执行
+            // （空闲全量结算不经过 scheduler，无需 executeStep）
+        } else {
+            // ═══════════ 活跃模式（现有逻辑） ═══════════
+            if (settlementCoordinator.hasPendingWork &&
+                (monthChanged || yearChanged)
+            ) {
+                forceCompleteSettlement()
+            }
+            if (yearChanged) {
+                cultivationService.processYearlyEvents()
+            }
+            if (monthChanged) {
+                cultivationService.processMonthlyEvents()
+                missionCheck?.invoke()
+            }
+            if (yearChanged) {
+                val shadow = stateStore.createSettlementShadow()
+                settlementCoordinator.scheduleYearly(shadow)
+            } else if (monthChanged) {
+                val shadow = stateStore.createSettlementShadow()
+                settlementCoordinator.scheduleMonthly(shadow)
+            }
+            if (settlementCoordinator.hasPendingWork) {
+                val completed = settlementCoordinator.executeStep()
+                if (completed) settlementCoordinator.onSettlementComplete()
+            }
         }
 
-        // 巡逻结果
+        // 巡逻结果（空闲/活跃共同）
         val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
@@ -761,6 +894,61 @@ class GameEngineCore @Inject constructor(
         } finally {
             isForceCompleting = false
         }
+    }
+
+    // ── 空闲批量结算辅助方法 ──
+
+    /** 空闲全量结算：修炼末段 + 生产末段 + swap */
+    private suspend fun doIdleFullSettle() {
+        val shadow = idleShadow ?: return
+        val cache = idleCache ?: return
+        if (idleAccumulatedPhases <= 0 && idleAccumulatedMonths <= 0) return
+
+        settlementCoordinator.fullIdleSettle(
+            shadow, cache,
+            idleAccumulatedPhases, idleAccumulatedMonths,
+            idleHasYearlyChange
+        )
+
+        // 重置累加器 + 时间
+        idleAccumulatedPhases = 0
+        idleAccumulatedMonths = 0
+        idleHasYearlyChange = false
+        lastIdleSettleWallMs = System.currentTimeMillis()
+
+        // 重建影子 + 缓存为新窗口准备
+        val newShadow = stateStore.createSettlementShadow()
+        idleShadow = newShadow
+        idleCache = SettlementCache(newShadow)
+        idleLastCultFingerprint = settlementCoordinator.computeCultivationFingerprint(newShadow)
+        idleLastProdFingerprint = settlementCoordinator.computeProductionFingerprint(newShadow)
+        idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(newShadow)
+    }
+
+    /** 进入空闲模式时初始化 */
+    private fun enterIdleMode() {
+        val newShadow = stateStore.createSettlementShadow()
+        idleShadow = newShadow
+        idleCache = SettlementCache(newShadow)
+        idleLastCultFingerprint = settlementCoordinator.computeCultivationFingerprint(newShadow)
+        idleLastProdFingerprint = settlementCoordinator.computeProductionFingerprint(newShadow)
+        idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(newShadow)
+        idleAccumulatedPhases = 0
+        idleAccumulatedMonths = 0
+        idleHasYearlyChange = false
+        lastIdleSettleWallMs = System.currentTimeMillis()
+    }
+
+    /** 清理空闲状态（退出空闲时调用） */
+    private fun cleanupIdleState() {
+        idleShadow = null
+        idleCache = null
+        idleLastCultFingerprint = null
+        idleLastProdFingerprint = null
+        idleRealtimeSlots = emptySet()
+        idleAccumulatedPhases = 0
+        idleAccumulatedMonths = 0
+        idleHasYearlyChange = false
     }
 
     /**
