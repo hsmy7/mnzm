@@ -542,13 +542,12 @@ class GameEngineCore @Inject constructor(
     fun onUserInteraction() {
         lastUserInteractionTime = System.currentTimeMillis()
         if (isInIdleState) {
-            isInIdleState = false
             previousFocusDomain = null
-            // 有空闲累积 → 标记需要立即结算
+            // 有空闲累积 → 标记需要结算，isInIdleState 由 tick 在 settle 后自己关闭
             if (idleAccumulatedPhases > 0 || idleAccumulatedMonths > 0) {
                 pendingReturnFromIdleSettle = true
             } else {
-                // 无累积直接清理
+                isInIdleState = false
                 cleanupIdleState()
             }
         }
@@ -816,7 +815,7 @@ class GameEngineCore @Inject constructor(
             if (pendingReturnFromIdleSettle) {
                 pendingReturnFromIdleSettle = false
                 doIdleFullSettle()
-                // 清理空闲状态，切回活跃模式
+                isInIdleState = false
                 cleanupIdleState()
             }
 
