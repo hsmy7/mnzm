@@ -158,23 +158,6 @@ class GameEngineCore @Inject constructor(
     @Volatile
     private var isInIdleState = false
 
-    // ── 空闲批量结算跟踪 ──
-    // 上次空闲结算的墙壁时钟时间
-    @Volatile
-    private var lastIdleSettleWallMs: Long = 0L
-    // 空闲期间累积的旬数/月数
-    private var idleAccumulatedPhases: Int = 0
-    private var idleAccumulatedMonths: Int = 0
-    // 空闲期间是否发生过年变
-    private var idleHasYearlyChange: Boolean = false
-    // 空闲影子 + 当前缓存
-    private var idleShadow: MutableGameState? = null
-    private var idleCache: SettlementCache? = null
-    // 双指纹（上次结算时的快照）
-    private var idleLastCultFingerprint: CultivationRateFingerprint? = null
-    private var idleLastProdFingerprint: ProductionRateFingerprint? = null
-    // 实时轨槽位集合
-    private var idleRealtimeSlots: Set<String> = emptySet()
     // 退出空闲时的待处理标记
     @Volatile
     private var pendingReturnFromIdleSettle: Boolean = false
@@ -543,8 +526,8 @@ class GameEngineCore @Inject constructor(
         lastUserInteractionTime = System.currentTimeMillis()
         if (isInIdleState) {
             previousFocusDomain = null
-            // 有空闲累积 → 标记需要结算，isInIdleState 由 tick 在 settle 后自己关闭
-            if (idleAccumulatedPhases > 0 || idleAccumulatedMonths > 0) {
+            // 有空闲累积 → 标记需要结算，isInIdleState 由 tick 在 settle 后关闭
+            if (settlementCoordinator.isInBatchMode) {
                 pendingReturnFromIdleSettle = true
             } else {
                 isInIdleState = false
@@ -572,7 +555,7 @@ class GameEngineCore @Inject constructor(
             stateStore.focusedDiscipleId
         )
 
-    /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点） */
+    /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点 + 实时轨） */
     private fun getActiveDomains(): Set<FocusDomain> {
         val idleTimeMs = System.currentTimeMillis() - lastUserInteractionTime
         if (idleTimeMs > IDLE_DETECTION_MS) {
@@ -580,15 +563,17 @@ class GameEngineCore @Inject constructor(
                 isInIdleState = true
                 enterIdleMode()
             }
-            // 空闲模式：复用同一映射，过滤 DISCIPLES + 加上 BACKGROUND。
-            // DISCIPLES 域每旬遍历全体弟子太耗电，空闲期间焦点弟子的修炼/
-            // 突破/孕养/熟练度已有 updateFocusedDiscipleLightweight 轻量处理。
+            // 空闲模式：过滤 DISCIPLES + 加上 BACKGROUND + 合并实时轨域
             val domains = computeDomainsFromView().toMutableSet()
             domains.remove(FocusDomain.DISCIPLES)
             domains.add(FocusDomain.BACKGROUND)
+            domains.addAll(settlementCoordinator.batchRealtimeDomains)
             return domains
         }
-        return computeDomainsFromView()
+        // 活跃模式：合并热控分批期间的实时轨域
+        val domains = computeDomainsFromView().toMutableSet()
+        domains.addAll(settlementCoordinator.batchRealtimeDomains)
+        return domains
     }
 
     /** 判断某个域在本 tick 是否应执行 */
@@ -737,92 +722,52 @@ class GameEngineCore @Inject constructor(
         // ── 月变/年变后处理 ──
         if (isInIdleState) {
             // ═══════════ 空闲模式 ═══════════
-            // Step 1: 运行 real state 事件（必须在 shadow 之前）
             if (yearChanged) {
                 cultivationService.processYearlyEvents()
-                idleHasYearlyChange = true
             }
             if (monthChanged) {
                 cultivationService.processMonthlyEvents()
                 missionCheck?.invoke()
             }
 
-            // Step 2: 累积旬数和月数
-            // 注意：实时轨不单独做月度生产结算，统一走 30s 批量，
-            // 避免同一月份被结算两次。实时轨的作用是通过域活跃
-            // 让 onPhaseTick 检测完成/自动重启，入口数据由批量负责。
-            idleAccumulatedPhases += tickResult.phasesToAdvance
-            if (monthChanged) idleAccumulatedMonths++
-
-            // Step 3: 先完成待处理的结算（如有）
+            // 先完成待处理的结算（如有）
             if (settlementCoordinator.hasPendingWork &&
                 (monthChanged || yearChanged)
             ) {
                 forceCompleteSettlement()
             }
 
-            // Step 5: 双指纹检测 — 变化时微结算
-            val shadow = idleShadow
-            val cache = idleCache
-            if (shadow != null && cache != null && idleAccumulatedPhases > 0) {
-                val newCultFp = settlementCoordinator.computeCultivationFingerprint(shadow)
-                val newProdFp = settlementCoordinator.computeProductionFingerprint(shadow)
+            // 委托给 SettlementCoordinator 累积
+            val result = settlementCoordinator.accumulateBatch(
+                phasesToAdd = tickResult.phasesToAdvance,
+                monthChanged = monthChanged,
+                yearChanged = yearChanged,
+                isCultivationFocused = false,
+                isProductionFocused = false
+            )
 
-                val cultChanged = newCultFp != idleLastCultFingerprint
-                val prodChanged = newProdFp != idleLastProdFingerprint
-
-                if (cultChanged || prodChanged) {
-                    // 微结算：旧速率 × 累积旬数/月数
-                    DomainLog.d(TAG, "Idle fingerprint changed " +
-                        "(cult=$cultChanged prod=$prodChanged), " +
-                        "micro-settle phases=$idleAccumulatedPhases " +
-                        "months=$idleAccumulatedMonths")
-                    settlementCoordinator.cultivationMicroSettle(
-                        shadow, cache, idleAccumulatedPhases
+            when (result) {
+                is SettlementCoordinator.BatchAccumulateResult.FullSettled -> {
+                    // rebuild idle window
+                    val newShadow = stateStore.createSettlementShadow()
+                    val newCache = SettlementCache(newShadow)
+                    settlementCoordinator.enterBatchMode(
+                        newShadow, newCache, SettlementCoordinator.BatchMode.IDLE
                     )
-                    if (idleAccumulatedMonths > 0) {
-                        settlementCoordinator.productionMicroSettle(
-                            shadow, idleAccumulatedMonths
-                        )
-                    }
-
-                    // 重建缓存 + 更新指纹
-                    idleCache = SettlementCache(shadow)
-                    idleLastCultFingerprint = newCultFp
-                    idleLastProdFingerprint = newProdFp
-
-                    // 重新分类 80% 实时轨
-                    idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(shadow)
-
-                    // 重置累加器
-                    idleAccumulatedPhases = 0
-                    idleAccumulatedMonths = 0
-                    idleHasYearlyChange = false
                 }
+                else -> {}
             }
 
-            // Step 6: 30s 墙壁时钟触发全量结算
-            val now = System.currentTimeMillis()
-            if (now - lastIdleSettleWallMs >= IDLE_DETECTION_MS &&
-                (idleAccumulatedPhases > 0 || idleAccumulatedMonths > 0)
-            ) {
-                doIdleFullSettle()
-            }
-
-            // Step 7: 退出空闲时的待处理结算
+            // 退出空闲时的待处理结算
             if (pendingReturnFromIdleSettle) {
                 pendingReturnFromIdleSettle = false
-                DomainLog.i(TAG, "Exiting idle mode — settling accumulated " +
-                    "phases=$idleAccumulatedPhases months=$idleAccumulatedMonths")
-                doIdleFullSettle()
+                DomainLog.i(TAG, "Exiting idle mode")
+                settlementCoordinator.exitBatchMode()
                 isInIdleState = false
                 cleanupIdleState()
             }
-
-            // 活跃模式下，空闲结算如有待处理步骤，在此执行
-            // （空闲全量结算不经过 scheduler，无需 executeStep）
         } else {
-            // ═══════════ 活跃模式（现有逻辑） ═══════════
+            // ═══════════ 活跃模式 ═══════════
             if (settlementCoordinator.hasPendingWork &&
                 (monthChanged || yearChanged)
             ) {
@@ -833,15 +778,61 @@ class GameEngineCore @Inject constructor(
             }
             if (monthChanged) {
                 cultivationService.processMonthlyEvents()
-                missionCheck?.invoke()
             }
+
             if (yearChanged) {
+                // 年变始终全量结算
+                if (settlementCoordinator.isInBatchMode) {
+                    settlementCoordinator.exitBatchMode()
+                }
                 val shadow = stateStore.createSettlementShadow()
                 settlementCoordinator.scheduleYearly(shadow)
             } else if (monthChanged) {
-                val shadow = stateStore.createSettlementShadow()
-                settlementCoordinator.scheduleMonthly(shadow)
+                val activeDomains = getActiveDomains()
+                val isCultFocused = FocusDomain.DISCIPLES in activeDomains
+                val isProdFocused = FocusDomain.BUILDINGS in activeDomains
+                    || FocusDomain.WAREHOUSE in activeDomains
+
+                val needsThermalBatch = thermalMonitor.shouldReduceWorkload() &&
+                    (!isCultFocused || !isProdFocused)
+
+                if (needsThermalBatch) {
+                    // 进入/维持热控分批模式
+                    if (!settlementCoordinator.isInBatchMode) {
+                        val shadow = stateStore.createSettlementShadow()
+                        val cache = SettlementCache(shadow)
+                        settlementCoordinator.enterBatchMode(
+                            shadow, cache, SettlementCoordinator.BatchMode.ACTIVE_NON_FOCUS
+                        )
+                    }
+                    val result = settlementCoordinator.accumulateBatch(
+                        phasesToAdd = 3, monthChanged = true, yearChanged = false,
+                        isCultivationFocused = isCultFocused,
+                        isProductionFocused = isProdFocused
+                    )
+                    when (result) {
+                        is SettlementCoordinator.BatchAccumulateResult.FullSettled -> {
+                            settlementCoordinator.cancelBatch()
+                            // 恢复正常月度结算
+                            val shadow = stateStore.createSettlementShadow()
+                            settlementCoordinator.scheduleMonthly(shadow,
+                                isProductionFocused = isProdFocused)
+                            missionCheck?.invoke()
+                        }
+                        else -> { /* continue accumulating, skip missionCheck */ }
+                    }
+                } else {
+                    // 常温或无热控 → 正常月度结算
+                    if (settlementCoordinator.isInBatchMode) {
+                        settlementCoordinator.exitBatchMode()
+                    }
+                    missionCheck?.invoke()
+                    val shadow = stateStore.createSettlementShadow()
+                    settlementCoordinator.scheduleMonthly(shadow,
+                        isProductionFocused = isProdFocused)
+                }
             }
+
             if (settlementCoordinator.hasPendingWork) {
                 val completed = settlementCoordinator.executeStep()
                 if (completed) settlementCoordinator.onSettlementComplete()
@@ -872,62 +863,24 @@ class GameEngineCore @Inject constructor(
 
     // ── 空闲批量结算辅助方法 ──
 
-    /** 空闲全量结算：修炼末段 + 生产末段 + swap */
+    /** 空闲全量结算：委托给 SettlementCoordinator */
     private suspend fun doIdleFullSettle() {
-        val shadow = idleShadow ?: return
-        val cache = idleCache ?: return
-        if (idleAccumulatedPhases <= 0 && idleAccumulatedMonths <= 0) return
-
-        DomainLog.i(TAG, "Idle full settle: phases=$idleAccumulatedPhases " +
-            "months=$idleAccumulatedMonths yearly=$idleHasYearlyChange")
-        settlementCoordinator.fullIdleSettle(
-            shadow, cache,
-            idleAccumulatedPhases, idleAccumulatedMonths,
-            idleHasYearlyChange
-        )
-
-        // 重置累加器 + 时间
-        idleAccumulatedPhases = 0
-        idleAccumulatedMonths = 0
-        idleHasYearlyChange = false
-        lastIdleSettleWallMs = System.currentTimeMillis()
-
-        // 重建影子 + 缓存为新窗口准备
-        val newShadow = stateStore.createSettlementShadow()
-        idleShadow = newShadow
-        idleCache = SettlementCache(newShadow)
-        idleLastCultFingerprint = settlementCoordinator.computeCultivationFingerprint(newShadow)
-        idleLastProdFingerprint = settlementCoordinator.computeProductionFingerprint(newShadow)
-        idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(newShadow)
+        if (!settlementCoordinator.isInBatchMode) return
+        DomainLog.i(TAG, "Idle full settle triggered")
+        settlementCoordinator.exitBatchMode()
+        // 重建窗口：enterBatchMode 在下面 idle 分支的 FullSettled 处理中
     }
 
     /** 进入空闲模式时初始化 */
     private fun enterIdleMode() {
         val newShadow = stateStore.createSettlementShadow()
-        idleShadow = newShadow
-        idleCache = SettlementCache(newShadow)
-        idleLastCultFingerprint = settlementCoordinator.computeCultivationFingerprint(newShadow)
-        idleLastProdFingerprint = settlementCoordinator.computeProductionFingerprint(newShadow)
-        idleRealtimeSlots = settlementCoordinator.classifySlotsProgress(newShadow)
-        idleAccumulatedPhases = 0
-        idleAccumulatedMonths = 0
-        idleHasYearlyChange = false
-        lastIdleSettleWallMs = System.currentTimeMillis()
-        DomainLog.i(TAG, "Entered idle mode — " +
-            "realtimeSlots=${idleRealtimeSlots.size} " +
-            "disciples=${newShadow.discipleTables.ids.count { newShadow.discipleTables.isAlive[it] == 1 }}")
+        val newCache = SettlementCache(newShadow)
+        settlementCoordinator.enterBatchMode(newShadow, newCache, SettlementCoordinator.BatchMode.IDLE)
     }
 
-    /** 清理空闲状态（退出空闲时调用） */
+    /** 清理空闲状态 */
     private fun cleanupIdleState() {
-        idleShadow = null
-        idleCache = null
-        idleLastCultFingerprint = null
-        idleLastProdFingerprint = null
-        idleRealtimeSlots = emptySet()
-        idleAccumulatedPhases = 0
-        idleAccumulatedMonths = 0
-        idleHasYearlyChange = false
+        settlementCoordinator.cancelBatch()
     }
 
     /**

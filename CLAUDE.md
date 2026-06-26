@@ -380,9 +380,26 @@ stateStore.swapFromShadow(shadow)
 
 **6.5 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
 
----
+**6.6 🔴 新增可变化数据需同步更新指纹** — 热控分批依赖 `CultivationRateFingerprint` 和 `ProductionRateFingerprint` 检测结构变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
+- `DiscipleTables` 新增列（影响修炼速率计算）→ `SettlementCoordinator.computeFingerprint` 的 `perDiscipleHash`
+- `ElderSlots` 新增槽位类型 → 若在 data class 内部自动覆盖；若单独建表需手动加入
+- `SectPolicies` 新增政策 → 若在 data class 内部自动覆盖；否则需手动加入 `productionPolicyHash`
+- 新增生产系统（如灵兽养殖等）→ `ProductionRateFingerprint` 新增字段 + `compute` 方法
+- 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
 
-### 7. 数据库规范
+指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）和 `ProductionRateFingerprint.kt`（生产指纹）中。两套指纹同时作用于空闲模式和活跃模式，改动一次两模式自动生效。
+
+**6.7 🔴 新增/改动界面必须重新评估焦点域分类** — 焦点域判定标准为「当前界面是否显示生产信息（灵石/境界/修炼进度/生产进度条等）」：
+
+- **焦点域** → 100ms 高频 tick 实时结算（`DISCIPLES`/`BUILDINGS`/`WAREHOUSE`/`EXPLORATION`）
+- **非焦点域** → 30 秒批量结算
+
+新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新以下两处：
+
+1. `FocusDomain.kt` — 更新枚举 KDoc 中的「界面归属」表格
+2. `GameEngineCore.resolveDomainsFromView()` — 根据新的 Tab/Dialog 判定是否激活对应域
+
+界面展示内容变化（如原本不显示灵石的面板新增了灵石展示）意味着焦点域分类可能改变，必须重新评估。判定原则：**只要玩家能看到任何随时间变化的数值（进度条、倒计时、数量增减），该域就应该是焦点域**。
 
 **7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
 
@@ -504,6 +521,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 类构造参数不超过 7 个 |
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
+| 🔴 | 新增/改动界面已重新评估焦点域分类（FocusDomain + resolveDomainsFromView） |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
