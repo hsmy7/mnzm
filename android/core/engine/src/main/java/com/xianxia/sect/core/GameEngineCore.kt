@@ -779,6 +779,10 @@ class GameEngineCore @Inject constructor(
 
                 if (cultChanged || prodChanged) {
                     // 微结算：旧速率 × 累积旬数/月数
+                    DomainLog.d(TAG, "Idle fingerprint changed " +
+                        "(cult=$cultChanged prod=$prodChanged), " +
+                        "micro-settle phases=$idleAccumulatedPhases " +
+                        "months=$idleAccumulatedMonths")
                     settlementCoordinator.cultivationMicroSettle(
                         shadow, cache, idleAccumulatedPhases
                     )
@@ -814,6 +818,8 @@ class GameEngineCore @Inject constructor(
             // Step 7: 退出空闲时的待处理结算
             if (pendingReturnFromIdleSettle) {
                 pendingReturnFromIdleSettle = false
+                DomainLog.i(TAG, "Exiting idle mode — settling accumulated " +
+                    "phases=$idleAccumulatedPhases months=$idleAccumulatedMonths")
                 doIdleFullSettle()
                 isInIdleState = false
                 cleanupIdleState()
@@ -878,6 +884,8 @@ class GameEngineCore @Inject constructor(
         val cache = idleCache ?: return
         if (idleAccumulatedPhases <= 0 && idleAccumulatedMonths <= 0) return
 
+        DomainLog.i(TAG, "Idle full settle: phases=$idleAccumulatedPhases " +
+            "months=$idleAccumulatedMonths yearly=$idleHasYearlyChange")
         settlementCoordinator.fullIdleSettle(
             shadow, cache,
             idleAccumulatedPhases, idleAccumulatedMonths,
@@ -911,6 +919,9 @@ class GameEngineCore @Inject constructor(
         idleAccumulatedMonths = 0
         idleHasYearlyChange = false
         lastIdleSettleWallMs = System.currentTimeMillis()
+        DomainLog.i(TAG, "Entered idle mode — " +
+            "realtimeSlots=${idleRealtimeSlots.size} " +
+            "disciples=${newShadow.discipleTables.ids.count { newShadow.discipleTables.isAlive[it] == 1 }}")
     }
 
     /** 清理空闲状态（退出空闲时调用） */
