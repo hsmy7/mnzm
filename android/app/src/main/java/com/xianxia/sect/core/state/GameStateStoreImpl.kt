@@ -45,6 +45,107 @@ class GameStateStoreImpl @Inject constructor(
 
     companion object {
         private const val TAG = "GameStateStore"
+
+        /**
+         * 三路合并 discipleTables — 影子为基础，生命周期字段取真实 store 的值。
+         *
+         * 问题：空闲模式下 processYearlyEvents() 将老化/反思释放/哀悼到期等
+         * 写入真实 store 的 discipleTables，但后续 swapFromShadow 会用影子的旧
+         * 副本整体覆盖，导致年龄回退。
+         *
+         * 合并规则：
+         * - 以 shadow 为基础（保留修炼/生产进度）
+         * - 生命周期字段（age/isAlive/status/griefEndYear 等）如与 origin
+         *   不同，说明被年度事件修改过，取 current 的值
+         * - origin 有但 current 没有的弟子已死亡，从结果中移除
+         * - shadow 独有的弟子（子嗣出生）保留
+         */
+        internal fun mergeDiscipleTables(
+            originDisciples: List<Disciple>,
+            shadow: DiscipleTables,
+            current: DiscipleTables
+        ): DiscipleTables {
+            val result = shadow.deepCopy()
+            val originMap = originDisciples.associateBy { it.id }
+            val currentIds = current.ids.toSet()
+
+            // 1. 移除已死亡的弟子（origin 有，current 没有）
+            for (oDisciple in originDisciples) {
+                val id = oDisciple.id.toInt()
+                if (id !in currentIds && id in result.ids) {
+                    result.remove(id)
+                }
+            }
+
+            // 2. 生存弟子：生命周期字段若被年度事件修改，取 current 的值
+            for (id in current.ids) {
+                val oDisciple = originMap[id.toString()] ?: continue
+
+                // -- processDiscipleAging --
+                val currentAge = current.ages.getOrDefault(id, 0)
+                if (currentAge != oDisciple.age)
+                    result.ages[id] = currentAge
+
+                val currentIsAlive = current.isAlive.getOrDefault(id, 0)
+                val originAlive = if (oDisciple.isAlive) 1 else 0
+                if (currentIsAlive != originAlive)
+                    result.isAlive[id] = currentIsAlive
+
+                val currentRealmLayer = current.realmLayers.getOrDefault(id, 0)
+                if (currentRealmLayer != oDisciple.realmLayer)
+                    result.realmLayers[id] = currentRealmLayer
+
+                val currentLifespan = current.lifespans.getOrDefault(id, 0)
+                if (currentLifespan != oDisciple.lifespan)
+                    result.lifespans[id] = currentLifespan
+
+                // -- processReflectionRelease --
+                val currentStatus = current.statuses.getOrDefault(
+                    id, DiscipleStatus.IDLE
+                )
+                if (currentStatus != oDisciple.status)
+                    result.statuses[id] = currentStatus
+
+                val currentStatusData = current.statusData.getOrDefault(
+                    id, emptyMap()
+                )
+                if (currentStatusData != oDisciple.statusData)
+                    result.statusData[id] = currentStatusData
+
+                val currentMorality = current.moralities.getOrDefault(id, 0)
+                if (currentMorality != oDisciple.skills.morality)
+                    result.moralities[id] = currentMorality
+
+                val currentLoyalty = current.loyalties.getOrDefault(id, 0)
+                if (currentLoyalty != oDisciple.skills.loyalty)
+                    result.loyalties[id] = currentLoyalty
+
+                // -- processGriefExpiry --
+                // 注：nullable 字段 null 时不 insert，须用 getOrNull 防 NoSuchElementException
+                val currentGriefEnd = current.griefEndYears.getOrNull(id)
+                if (currentGriefEnd != oDisciple.social.griefEndYear)
+                    result.griefEndYears[id] = currentGriefEnd
+
+                // -- handleDiscipleDeath 连锁 --
+                val currentPartnerId = current.partnerIds.getOrNull(id)
+                if (currentPartnerId != oDisciple.social.partnerId)
+                    result.partnerIds[id] = currentPartnerId
+
+                val currentMasterId = current.masterIds.getOrNull(id)
+                if (currentMasterId != oDisciple.social.masterId)
+                    result.masterIds[id] = currentMasterId
+
+                // -- 实时轨修炼进度保留 --
+                // 焦点域（如 DISCIPLES）在空闲模式下仍 100ms 实时结算，
+                // 直接写真实 store。批量结算 shadow 走 30s 非焦点域轨道。
+                // 取 max 确保实时轨更快的进展不被批量影子覆盖。
+                val currentCult = current.cultivations.getOrDefault(id, 0.0)
+                if (currentCult > result.cultivations.getOrDefault(id, 0.0))
+                    result.cultivations[id] = currentCult
+            }
+
+            return result
+        }
     }
 
     private var _discipleTables = DiscipleTables()
@@ -613,7 +714,12 @@ class GameStateStoreImpl @Inject constructor(
                 if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
             }
 
-            this.discipleTables = shadow.discipleTables
+            this.discipleTables = if (origin != null) {
+                val currentTables = this.discipleTables
+                mergeDiscipleTables(origin.disciples, shadow.discipleTables, currentTables)
+            } else {
+                shadow.discipleTables
+            }
         }
         shadowOrigin = null
     }

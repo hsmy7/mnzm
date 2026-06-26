@@ -72,6 +72,9 @@ class SettlementCoordinator @Inject constructor(
     private var lastBatchSettleWallMs: Long = 0L
     // 分批模式
     private var batchMode: BatchMode = BatchMode.NONE
+    // 焦点域状态 — 实时轨正在处理时，批量轨跳过对应领域
+    private var batchCultivationFocused: Boolean = false
+    private var batchProductionFocused: Boolean = false
 
     /**
      * 分批模式。
@@ -183,6 +186,9 @@ class SettlementCoordinator @Inject constructor(
     ): BatchAccumulateResult {
         if (batchMode == BatchMode.NONE) return BatchAccumulateResult.Accumulated
 
+        batchCultivationFocused = isCultivationFocused
+        batchProductionFocused = isProductionFocused
+
         if (phasesToAdd > 0) batchAccumulatedPhases += phasesToAdd
         if (monthChanged) batchAccumulatedMonths++
         if (yearChanged) batchHasYearlyChange = true
@@ -215,8 +221,11 @@ class SettlementCoordinator @Inject constructor(
             DomainLog.d(TAG, "Batch trigger: phases=$batchAccumulatedPhases " +
                 "months=$batchAccumulatedMonths")
             val cache = batchCache ?: return BatchAccumulateResult.Accumulated
-            cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
-            if (batchAccumulatedMonths > 0) {
+            // 焦点域在实时轨处理，批量轨跳过对应领域
+            if (!batchCultivationFocused) {
+                cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
+            }
+            if (!batchProductionFocused && batchAccumulatedMonths > 0) {
                 productionMicroSettle(shadow, batchAccumulatedMonths)
             }
         }
@@ -288,8 +297,11 @@ class SettlementCoordinator @Inject constructor(
         val shadow = batchShadow ?: return
         val cache = batchCache ?: return
 
-        cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
-        if (batchAccumulatedMonths > 0) {
+        // 焦点域在实时轨处理，批量轨跳过对应领域
+        if (!batchCultivationFocused) {
+            cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
+        }
+        if (!batchProductionFocused && batchAccumulatedMonths > 0) {
             productionMicroSettle(shadow, batchAccumulatedMonths)
         }
         if (batchHasYearlyChange) {

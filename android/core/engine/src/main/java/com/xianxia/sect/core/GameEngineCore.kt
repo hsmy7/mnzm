@@ -563,9 +563,8 @@ class GameEngineCore @Inject constructor(
                 isInIdleState = true
                 enterIdleMode()
             }
-            // 空闲模式：过滤 DISCIPLES + 加上 BACKGROUND + 合并实时轨域
+            // 空闲模式：保留焦点域实时结算 + 加上 BACKGROUND 非焦点域批量
             val domains = computeDomainsFromView().toMutableSet()
-            domains.remove(FocusDomain.DISCIPLES)
             domains.add(FocusDomain.BACKGROUND)
             domains.addAll(settlementCoordinator.batchRealtimeDomains)
             return domains
@@ -691,15 +690,6 @@ class GameEngineCore @Inject constructor(
                                 cultivationService.recoverHpMpForAllDisciples(this)
                                 markDomainExecuted(FocusDomain.DISCIPLES)
                             }
-                            // 空闲期间焦点弟子轻量更新
-                            if (isInIdleState) {
-                                val focusedId = stateStore.focusedDiscipleId
-                                if (focusedId != null) {
-                                    cultivationService.updateFocusedDiscipleLightweight(
-                                        focusedId, this
-                                    )
-                                }
-                            }
                         }
 
                         if (this.gameData.gameMonth != prevMonth) monthChanged = true
@@ -738,12 +728,14 @@ class GameEngineCore @Inject constructor(
             }
 
             // 委托给 SettlementCoordinator 累积
+            val activeDomains = getActiveDomains()
             val result = settlementCoordinator.accumulateBatch(
                 phasesToAdd = tickResult.phasesToAdvance,
                 monthChanged = monthChanged,
                 yearChanged = yearChanged,
-                isCultivationFocused = false,
-                isProductionFocused = false
+                isCultivationFocused = FocusDomain.DISCIPLES in activeDomains,
+                isProductionFocused = FocusDomain.BUILDINGS in activeDomains
+                    || FocusDomain.WAREHOUSE in activeDomains
             )
 
             when (result) {
