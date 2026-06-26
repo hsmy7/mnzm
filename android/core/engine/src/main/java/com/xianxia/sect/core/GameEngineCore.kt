@@ -639,7 +639,8 @@ class GameEngineCore @Inject constructor(
 
         when (dialog) {
             "Alchemy", "Forge", "HerbGarden", "SpiritMine",
-            "WarehouseBuilding" -> domains.add(FocusDomain.BUILDINGS)
+            "WarehouseBuilding", "BloodRefiningPool" ->
+                domains.add(FocusDomain.BUILDINGS)
             "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
             "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
             "MissionHall", "PatrolTower" -> domains.add(FocusDomain.EXPLORATION)
