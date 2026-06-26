@@ -59,16 +59,37 @@ private fun domainForTab(tab: String): FocusDomain = when (tab) {
     "DISCIPLES" -> FocusDomain.DISCIPLES; "BUILDINGS" -> FocusDomain.BUILDINGS; "WAREHOUSE" -> FocusDomain.WAREHOUSE; else -> FocusDomain.ALWAYS
 }
 
+/**
+ * Dialog → catchUp 域映射。
+ *
+ * 判定标准：界面是否显示生产信息（灵石/境界/生产进度等）。
+ * 焦点域 → 对应 FocusDomain 强制追赶结算；
+ * 非焦点域 → [FocusDomain.ALWAYS]（安全 no-op，兼顾 onUserInteraction）。
+ */
 private fun domainForDialog(dialogName: String): FocusDomain = when (dialogName) {
-    "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Residence", "WarehouseBuilding" -> FocusDomain.BUILDINGS
-    "WorldMap" -> FocusDomain.WORLD_MAP
-    "Diplomacy" -> FocusDomain.DIPLOMACY
-    "MissionHall", "PatrolTower" -> FocusDomain.EXPLORATION
-    "Warehouse", "Merchant" -> FocusDomain.WAREHOUSE
+    // ── 焦点域：生产建筑（显示进度/产出） ──
+    "Alchemy", "Forge", "HerbGarden", "SpiritMine",
+    "Planting" -> FocusDomain.BUILDINGS
+
+    // 焦点域：仓库/商人/交易（显示灵石数量）
+    "Warehouse", "Merchant", "SectTrade" -> FocusDomain.WAREHOUSE
+
+    // 焦点域：任务阁（显示任务进度）
+    "MissionHall" -> FocusDomain.EXPLORATION
+
+    // 焦点域：血炼池（显示血炼进度）
+    "BloodRefiningPool" -> FocusDomain.BUILDINGS
+
+    // Tab 入口
     "Disciples" -> FocusDomain.DISCIPLES
     "Buildings" -> FocusDomain.BUILDINGS
-    "BattleLog" -> FocusDomain.EXPLORATION
-    "Mail" -> FocusDomain.BACKGROUND
+
+    // ── 非焦点域：不显示生产信息，统一 ALWAYS ──
+    // "Diplomacy", "WorldMap", "Mail", "Activity",
+    // "PatrolTower", "Recruit", "Residence", "Library",
+    // "WenDaoPeak", "QingyunPeak",
+    // "LawEnforcementHall", "ReflectionCliff", "BattleLog",
+    // "WarehouseBuilding", "SalaryConfig"
     else -> FocusDomain.ALWAYS
 }
 

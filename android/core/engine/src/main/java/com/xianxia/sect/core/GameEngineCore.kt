@@ -565,47 +565,13 @@ class GameEngineCore @Inject constructor(
     /**
      * 从当前 Tab/Dialog/焦点弟子计算域集合。
      *
-     * 这是唯一的 Tab/Dialog → Domain 映射，活跃模式和空闲模式共用。
-     * 新增 Dialog/Tab/Domain 时只需修改此方法。
+     * 委托给 [resolveDomainsFromView] 纯函数，便于单元测试。
      */
-    private fun computeDomainsFromView(): Set<FocusDomain> {
-        val tab = stateStore.activeTab
-        val dialog = stateStore.activeDialog
-        val focusedDiscipleId = stateStore.focusedDiscipleId
-        val domains = mutableSetOf(FocusDomain.ALWAYS)
-
-        when (tab) {
-            "OVERVIEW" -> {
-                domains.add(FocusDomain.DISCIPLES)
-                domains.add(FocusDomain.BUILDINGS)
-            }
-            "DISCIPLES" -> domains.add(FocusDomain.DISCIPLES)
-            "BUILDINGS" -> domains.add(FocusDomain.BUILDINGS)
-            "WAREHOUSE" -> domains.add(FocusDomain.WAREHOUSE)
-            "SETTINGS" -> {}
-        }
-        if (focusedDiscipleId != null) domains.add(FocusDomain.DISCIPLES)
-        when (dialog) {
-            "Alchemy", "Forge", "HerbGarden", "SpiritMine",
-            "WarehouseBuilding" -> domains.add(FocusDomain.BUILDINGS)
-            "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
-            "Diplomacy" -> {
-                domains.add(FocusDomain.DIPLOMACY); domains.add(FocusDomain.DISCIPLES)
-            }
-            "MissionHall", "PatrolTower" -> {
-                domains.add(FocusDomain.EXPLORATION); domains.add(FocusDomain.DISCIPLES)
-            }
-            "Warehouse" -> domains.add(FocusDomain.WAREHOUSE)
-            "Recruit", "Residence", "Library", "WenDaoPeak", "QingyunPeak",
-            "TianshuHall", "LawEnforcementHall", "ReflectionCliff",
-            "BattleLog" -> domains.add(FocusDomain.DISCIPLES)
-            "BloodRefiningPool" -> {
-                domains.add(FocusDomain.DISCIPLES)   // 弟子卡片
-                domains.add(FocusDomain.BUILDINGS)   // 血炼进度（空闲时需要）
-            }
-        }
-        return domains
-    }
+    private fun computeDomainsFromView(): Set<FocusDomain> =
+        resolveDomainsFromView(
+            stateStore.activeTab, stateStore.activeDialog,
+            stateStore.focusedDiscipleId
+        )
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点） */
     private fun getActiveDomains(): Set<FocusDomain> {
@@ -1150,4 +1116,80 @@ class GameEngineCore @Inject constructor(
             }
         }
     }
+}
+
+/**
+ * 焦点域判定纯函数 — 根据 Tab/Dialog/焦点弟子计算应激活的域集合。
+ *
+ * 判定标准：界面是否显示生产信息（灵石/境界/生产进度条等）。
+ * - 焦点域 → 加入 activeDomains，100ms 高频结算
+ * - 非焦点域 → 不加入，30 秒批量结算
+ *
+ * 这是唯一映射入口，[GameEngineCore] 和测试共用。
+ *
+ * @param tab 当前激活的底部 Tab（null 视为无 Tab）
+ * @param dialog 当前打开的 DialogRoute.toString()（null 视为无弹窗）
+ * @param focusedDiscipleId 当前焦点弟子 ID（null 视为无焦点）
+ * @return 应激活的 FocusDomain 集合（始终包含 ALWAYS）
+ */
+internal fun resolveDomainsFromView(
+    tab: String?,
+    dialog: String?,
+    focusedDiscipleId: String?
+): Set<FocusDomain> {
+    val domains = mutableSetOf(FocusDomain.ALWAYS)
+
+    when (tab) {
+        "OVERVIEW" -> {
+            domains.add(FocusDomain.DISCIPLES)
+            domains.add(FocusDomain.BUILDINGS)
+        }
+        "DISCIPLES" -> domains.add(FocusDomain.DISCIPLES)
+        "BUILDINGS" -> domains.add(FocusDomain.BUILDINGS)
+        // 仓库 Tab：显示灵石数量 → 灵矿产出需实时结算
+        "WAREHOUSE" -> {
+            domains.add(FocusDomain.BUILDINGS)
+            domains.add(FocusDomain.WAREHOUSE)
+        }
+        "SETTINGS" -> {}
+    }
+    if (focusedDiscipleId != null) domains.add(FocusDomain.DISCIPLES)
+    when (dialog) {
+        // ── 焦点域：生产建筑（显示进度/产出） ──
+        "Alchemy", "Forge", "HerbGarden", "SpiritMine",
+        "Planting" -> domains.add(FocusDomain.BUILDINGS)
+
+        // 焦点域：仓库（显示灵石+物品数量）
+        "Warehouse" -> {
+            domains.add(FocusDomain.BUILDINGS)
+            domains.add(FocusDomain.WAREHOUSE)
+        }
+
+        // 焦点域：商人/宗门交易（显示灵石数量）
+        "Merchant", "SectTrade" -> {
+            domains.add(FocusDomain.BUILDINGS)
+            domains.add(FocusDomain.WAREHOUSE)
+        }
+
+        // 焦点域：任务阁（显示任务进度/剩余时间）
+        "MissionHall" -> {
+            domains.add(FocusDomain.EXPLORATION)
+            domains.add(FocusDomain.DISCIPLES)
+        }
+
+        // 焦点域：血炼池（显示血炼进度+属性提升）
+        "BloodRefiningPool" -> {
+            domains.add(FocusDomain.DISCIPLES)
+            domains.add(FocusDomain.BUILDINGS)
+        }
+
+        // ── 非焦点域：以下界面不显示生产信息，不添加任何域 ──
+        // "Diplomacy", "WorldMap", "Mail", "Activity"
+        // "TianshuHall", "SectLevelDetail"
+        // "PatrolTower", "Recruit", "Residence", "Library"
+        // "WenDaoPeak", "QingyunPeak"
+        // "LawEnforcementHall", "ReflectionCliff"
+        // "BattleLog", "WarehouseBuilding"
+    }
+    return domains
 }
