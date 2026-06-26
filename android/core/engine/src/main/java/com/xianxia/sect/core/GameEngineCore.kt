@@ -564,14 +564,15 @@ class GameEngineCore @Inject constructor(
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点） */
     private fun getActiveDomains(): Set<FocusDomain> {
-        // 空闲检测：30s 无交互 → 所有系统按 BACKGROUND 域频率执行
+        // 空闲检测：30s 无交互 → 空闲模式
         val idleTimeMs = System.currentTimeMillis() - lastUserInteractionTime
         if (idleTimeMs > IDLE_DETECTION_MS) {
             if (!isInIdleState) {
                 isInIdleState = true
                 enterIdleMode()
             }
-            return setOf(FocusDomain.ALWAYS, FocusDomain.BACKGROUND)
+            // 空闲时也根据当前界面添加焦点域（不含 DISCIPLES——太重）
+            return buildIdleActiveDomains()
         }
 
         val tab = stateStore.activeTab
@@ -612,6 +613,37 @@ class GameEngineCore @Inject constructor(
             "Recruit", "Residence", "Library", "WenDaoPeak", "QingyunPeak",
             "TianshuHall", "LawEnforcementHall", "ReflectionCliff",
             "BloodRefiningPool", "BattleLog" -> domains.add(FocusDomain.DISCIPLES)
+        }
+
+        return domains
+    }
+
+    /**
+     * 空闲模式专用：从当前泰布/弹窗计算非 DISCIPLES 活跃域。
+     *
+     * DISCIPLES 域太重（每旬遍历全体弟子），空闲期间焦点弟子的
+     * 修炼/突破/孕养/熟练度已有轻量 updateFocusedDiscipleLightweight
+     * 单独处理，无需启用整个 DISCIPLES 域。
+     */
+    private fun buildIdleActiveDomains(): Set<FocusDomain> {
+        val domains = mutableSetOf(FocusDomain.ALWAYS, FocusDomain.BACKGROUND)
+        val tab = stateStore.activeTab
+        val dialog = stateStore.activeDialog
+
+        when (tab) {
+            "OVERVIEW" -> domains.add(FocusDomain.BUILDINGS)
+            "BUILDINGS" -> domains.add(FocusDomain.BUILDINGS)
+            "WAREHOUSE" -> domains.add(FocusDomain.WAREHOUSE)
+            "DISCIPLES", "SETTINGS" -> {}  // DISCIPLES 在空闲时不启用
+        }
+
+        when (dialog) {
+            "Alchemy", "Forge", "HerbGarden", "SpiritMine",
+            "WarehouseBuilding" -> domains.add(FocusDomain.BUILDINGS)
+            "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
+            "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
+            "MissionHall", "PatrolTower" -> domains.add(FocusDomain.EXPLORATION)
+            "Warehouse" -> domains.add(FocusDomain.WAREHOUSE)
         }
 
         return domains
