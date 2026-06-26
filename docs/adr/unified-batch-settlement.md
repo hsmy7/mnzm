@@ -1,7 +1,8 @@
 # ADR: 统一批量结算模式（移除活跃/空闲双模式）
 
 - **日期**: 2026-06-26
-- **状态**: 提议中（待实施）
+- **更新**: 2026-06-27
+- **状态**: 部分实施（修炼已迁入批量轨，月度结算修炼阶段已移除）
 - **决策者**: 架构评审
 
 ---
@@ -113,6 +114,75 @@ tickInternal()
 - `SettlementScheduler` 及相关阶段类保留
 - `FocusDomain.BACKGROUND` 枚举值保留（系统仍使用）
 - UI 层 `onUserInteraction` 回调链路保留
+
+---
+
+---
+
+## 实施进度（2026-06-27）
+
+### 已完成
+
+1. **GameSystem 接口升级** — `onPhaseTick(state, phasesToSettle: Int = 1)`，批量轨传入跳过旬数
+2. **SystemManager 累积调度** — `onPhaseTickWithDomainFilter` 新增 `getPhasesToSettle` lambda
+3. **GameEngineCore 跳过计算** — `phasesSkippedForDomain` 根据域上次执行时间 + 游戏速度计算跳过旬数
+4. **修炼直接写入** — `batchSettleCultivation` 直接写 `tables.cultivations`，不再走 HFD 中转
+5. **HP/MP 倍率恢复** — `recoverHpMpForAllDisciples(state, phasesToSettle)`，批量轨一次补完
+6. **月度结算修炼阶段移除** — `scheduleMonthly(skipCultivation=true)`，Phases_BuildCache/FocusedDisciple/CleanBatch/DirtyBatch 永久跳过
+7. **防双计代码清理** — `addFocusedPhaseCount` 删除，修炼单一路径不存在双计
+
+### 当前结算路径
+
+```
+实时轨 (100ms)     → onPhaseTick(1)     焦点域 + 80%进度
+批量轨 (30s)       → onPhaseTick(N)     非焦点域累积补完
+月度结算 (剩)      → 生产 + 世界事件     scheduleMonthly(skipCultivation=true)
+月度事件           → 外交/盗窃/任务      processMonthlyEvents
+年度结算/事件      → 老化/死亡/招募/盟约  scheduleYearly + processYearlyEvents
+```
+
+---
+
+## 待优化：进一步削减结算路径
+
+以下系统按月结算，可逐个迁入 `onPhaseTick(N)`，进一步消灭 `scheduleMonthly`：
+
+### 可直接迁（简单计算，无依赖问题）
+
+| 系统 | 当前路径 | 迁入方式 |
+|------|----------|----------|
+| EconomySubsystem | scheduleMonthly → Phase_WorldEvents | `economyService.processPolicyCosts(state)` × 跨月数 |
+| MailSystem | scheduleMonthly → processWorldEventsMonthlyOnly | `mailSystem.onMonthTick(state)` × 跨月数 |
+| ChildBirthSystem | 同上 | `childBirthSystem.onMonthTick(state)` × 跨月数 |
+| PartnerSystem | 同上 | `partnerSystem.onMonthTick(state)` × 跨月数 |
+| ProductionSubsystem | scheduleMonthly → Phase_Production | 将 `onMonthTick` 逻辑迁入 `onPhaseTick`（已有框架） |
+
+### 可迁但需注意（有 shadow 外交互）
+
+| 系统 | 注意点 |
+|------|--------|
+| 外交好感 | 当前在 `processMonthlyEvents`（shadow 外 `stateStore.update`）。迁入 `onPhaseTick` 后改用事务内 `state` 直接写 |
+| 任务刷新/侦察过期 | 同上，注意 shadow 内外差异 |
+
+### 暂不值得迁
+
+| 系统 | 原因 |
+|------|------|
+| 年度老化/死亡 | 多阶段串行，年变频率极低（一年一次） |
+| 年度盟约过期/好感衰减 | 同上 |
+| 招募刷新 | 同上 |
+
+### 迁完后的理想状态
+
+```
+只剩 2 条结算路：
+  实时轨 (100ms) → 所有焦点域系统 onPhaseTick(1)
+  批量轨 (30s)   → 所有非焦点域系统 onPhaseTick(N)
+
+年度事件        → 老化/死亡/招募/盟约（一年一次，保留独立路径）
+```
+
+`scheduleMonthly` 完全移除，`SettlementCoordinator` 仅保留指纹计算和 80% 实时轨分类。
 
 ---
 
