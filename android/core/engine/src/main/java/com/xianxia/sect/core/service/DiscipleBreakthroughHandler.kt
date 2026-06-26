@@ -23,16 +23,139 @@ class DiscipleBreakthroughHandler @Inject constructor(
     private val scope get() = scopeProvider.scope
 
     /**
-     * 实时突破处理。
-     * 直接操作事务内状态 [state]，不使用异步协程，避免覆盖事务变更。
+     * 统一的突破处理方法（单个弟子）。
+     *
+     * 处理突破循环、自动用丹、概率判定、境界变化、HP/MP惩罚、
+     * 突破计数写入。返回修改后的弟子对象，由调用方负责写回状态。
+     *
+     * @param disciple 待突破的弟子
+     * @param state 可变游戏状态（用于读取 tables 和操作丹药库存）
+     * @param data 游戏数据快照
+     * @return 突破处理后的弟子对象
+     */
+    fun performBreakthrough(
+        disciple: Disciple,
+        state: MutableGameState,
+        data: GameData
+    ): Disciple {
+        val tables = state.discipleTables
+        var d = disciple.copy(
+            cultivation = tables.cultivations.getOrDefault(disciple.id.toInt(), disciple.cultivation)
+        )
+        var shouldContinue = true
+        var breakthroughCount = 0
+        var failCount = 0
+
+        while (shouldContinue && d.realm > 0) {
+            if (d.cultivation < d.maxCultivation) break
+
+            val isMajorBreakthrough = d.realmLayer >= GameConfig.Realm.get(d.realm).maxLayers
+            val pillTargetRealm = if (isMajorBreakthrough) d.realm - 1 else d.realm
+            var pillBonus = 0.0
+
+            // 宗门自动用丹
+            val autoPill = qualifiesForSectAutoPublic(
+                d, data.breakthroughAutoPillFocused, data.breakthroughAutoPillRootCounts
+            )
+            if (autoPill) {
+                val warehousePill = state.pills.all()
+                    .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
+                    .maxByOrNull { it.effects.breakthroughChance }
+                if (warehousePill != null) {
+                    state.pills = state.pills - listOf(warehousePill)
+                    pillBonus = warehousePill.effects.breakthroughChance
+                }
+            }
+
+            // 储物袋自动用丹
+            if (pillBonus == 0.0) {
+                val bestPill = d.equipment.storageBagItems
+                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
+                    .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
+                if (bestPill != null) {
+                    d = d.copy(equipment = d.equipment.copy(
+                        storageBagItems = d.equipment.storageBagItems - bestPill
+                    ))
+                    pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
+                }
+            }
+
+            val success = tryBreakthrough(d, pillBonus, state)
+            if (success) {
+                breakthroughCount++
+                d = d.copy(cultivation = 0.0)
+                val oldRealm = d.realm
+                if (d.realmLayer < GameConfig.Realm.get(d.realm).maxLayers) {
+                    d = d.copy(realmLayer = d.realmLayer + 1)
+                } else {
+                    d = d.copy(realm = d.realm - 1, realmLayer = 1)
+                }
+                if (d.realm != oldRealm) {
+                    var lifespanGain = cultivationCore.getLifespanGainForRealm(d.realm)
+                    val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(d.talentIds)["lifespan"] ?: 0.0
+                    if (lifespanTalentBonus != 0.0) {
+                        lifespanGain += (cultivationCore.getLifespanGainForRealm(d.realm) * lifespanTalentBonus).toInt()
+                    }
+                    d = d.copy(lifespan = d.lifespan + lifespanGain)
+                }
+            } else {
+                failCount++
+                d = d.copy(cultivation = 0.0)
+                shouldContinue = false
+                val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
+                val curMp = if (d.combat.currentMp < 0) d.maxMp else d.combat.currentMp
+                d = d.copy(combat = d.combat.copy(
+                    currentHp = (curHp * 0.1).toInt().coerceAtLeast(1),
+                    currentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
+                ))
+            }
+        }
+
+        // 清除广告加成
+        val cleanedStatusData = (d.statusData ?: emptyMap()).toMutableMap().apply {
+            remove("adBreakthroughBonus")
+        }
+        d = d.copy(statusData = cleanedStatusData)
+
+        // 写入突破成功/失败计数
+        val idInt = d.id.toIntOrNull()
+        if (idInt != null) {
+            if (breakthroughCount > 0) {
+                tables.breakthroughCounts[idInt] =
+                    (tables.breakthroughCounts[idInt] ?: 0) + breakthroughCount
+            }
+            if (failCount > 0) {
+                tables.breakthroughFailCounts[idInt] =
+                    (tables.breakthroughFailCounts[idInt] ?: 0) + failCount
+            }
+        }
+
+        // 更新修炼完成时间预估
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
+            data.gameYear, data.gameMonth
+        )
+        val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables)
+        val remainingCultivation = if (d.cultivation < d.maxCultivation) d.maxCultivation - d.cultivation else 0.0
+        val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
+            .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)
+        d = d.copy(
+            cultivationCompletionMonth = currentAbsoluteMonth + monthsToNext,
+            cultivationCompletionPhase = 1
+        )
+
+        return d
+    }
+
+    /**
+     * 实时突破处理 — 委托给 [performBreakthrough]，再批量写回组件表。
      */
     fun processRealtimeBreakthroughs(
         livingDisciples: List<Disciple>, data: GameData, state: MutableGameState
     ) {
         val candidates = livingDisciples.filter { disciple ->
-            disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation && cultivationCore.isDiscipleFullHpMp(disciple)
+            disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation &&
+                cultivationCore.isDiscipleFullHpMp(disciple)
         }
-
         if (candidates.isEmpty()) return
 
         val tables = state.discipleTables
@@ -42,121 +165,32 @@ class DiscipleBreakthroughHandler @Inject constructor(
             val disciple = tables.assemble(id)
             if (disciple.id !in candidateIds) return@map disciple
             if (disciple.cultivation < disciple.maxCultivation || disciple.realm <= 0) return@map disciple
-
-            var newCultivation = disciple.cultivation
-            var newRealm = disciple.realm
-            var newRealmLayer = disciple.realmLayer
-            var newLifespan = disciple.lifespan
-            var newCurrentHp = disciple.combat.currentHp
-            var newCurrentMp = disciple.combat.currentMp
-            var newStorageItems = disciple.equipment.storageBagItems
-            var shouldContinue = true
-
-            while (shouldContinue && newRealm > 0) {
-                val currentMaxCultivation = if (newRealm == 0) Double.MAX_VALUE else {
-                    val base = GameConfig.Realm.get(newRealm).cultivationBase
-                    val nextBase = GameConfig.Realm.get(newRealm - 1).cultivationBase
-                    val maxLayers = GameConfig.Realm.get(newRealm).maxLayers
-                    base + (newRealmLayer - 1) * (nextBase - base).toDouble() / maxLayers
-                }
-                if (newCultivation < currentMaxCultivation) break
-
-                val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-
-                val pillTargetRealm = if (isMajorBreakthrough) newRealm - 1 else newRealm
-                var pillBonus = 0.0
-
-                val autoPill = qualifiesForSectAuto(
-                    disciple, data.breakthroughAutoPillFocused, data.breakthroughAutoPillRootCounts
-                ) { false }
-                if (autoPill) {
-                    val warehousePill = state.pills.all()
-                        .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
-                        .maxByOrNull { it.effects.breakthroughChance }
-                    if (warehousePill != null) {
-                        val pillIndex = state.pills.all().indexOf(warehousePill)
-                        if (pillIndex >= 0) {
-                            val updatedPills = state.pills.all().toMutableList()
-                            updatedPills.removeAt(pillIndex)
-                            state.pills.setItems(updatedPills)
-                            pillBonus = warehousePill.effects.breakthroughChance
-                        }
-                    }
-                }
-
-                if (pillBonus == 0.0) {
-                    val bestPill = newStorageItems
-                        .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
-                        .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
-                    if (bestPill != null) {
-                        newStorageItems = newStorageItems - bestPill
-                        pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
-                    }
-                }
-
-                val success = tryBreakthrough(disciple, pillBonus, state)
-                if (success) {
-                    newCultivation = 0.0
-                    val oldRealm = newRealm
-                    if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
-                        newRealmLayer++
-                    } else {
-                        newRealm--
-                        newRealmLayer = 1
-                    }
-                    if (newRealm != oldRealm) {
-                        newLifespan += cultivationCore.getLifespanGainForRealm(newRealm)
-
-                        val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0
-                        if (lifespanTalentBonus != 0.0) {
-                            val extraLifespan = (cultivationCore.getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
-                            newLifespan += extraLifespan
-                        }
-                    }
-                } else {
-                    newCultivation = 0.0
-                    shouldContinue = false
-                    val curHp = if (newCurrentHp < 0) disciple.maxHp else newCurrentHp
-                    val curMp = if (newCurrentMp < 0) disciple.maxMp else newCurrentMp
-                    newCurrentHp = (curHp * 0.1).toInt().coerceAtLeast(1)
-                    newCurrentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
-                }
-            }
-
-            val cleanedStatusData = (disciple.statusData ?: emptyMap()).toMutableMap().apply {
-                remove("adBreakthroughBonus")
-            }
-
-            val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
-                data.gameYear, data.gameMonth
-            )
-            val cultivationRate = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables)
-            val remainingCultivation = if (newCultivation < disciple.maxCultivation) disciple.maxCultivation - newCultivation else 0.0
-            val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
-                .estimateMonthsToNextBreakthrough(remainingCultivation, cultivationRate)
-
-            disciple.copy(
-                cultivation = newCultivation,
-                realm = newRealm,
-                realmLayer = newRealmLayer,
-                lifespan = newLifespan,
-                combat = disciple.combat.copy(
-                    currentHp = newCurrentHp,
-                    currentMp = newCurrentMp
-                ),
-                equipment = disciple.equipment.copy(
-                    storageBagItems = newStorageItems
-                ),
-                statusData = cleanedStatusData,
-                cultivationCompletionMonth = currentAbsoluteMonth + monthsToNext,
-                cultivationCompletionPhase = 1
-            )
+            performBreakthrough(disciple, state, data)
         }
 
-        // 直接写回事务内状态
-        tables.clear()
-        updatedDisciples.forEach { tables.insert(it) }
+        // 精准字段写回，不再全量 clear+insert
+        updatedDisciples.forEach { d ->
+            val id = d.id.toIntOrNull() ?: return@forEach
+            tables.cultivations[id] = d.cultivation
+            tables.realms[id] = d.realm
+            tables.realmLayers[id] = d.realmLayer
+            tables.lifespans[id] = d.lifespan
+            tables.currentHps[id] = d.combat.currentHp
+            tables.currentMps[id] = d.combat.currentMp
+            // 突破后的装备存储物品变更
+            tables.storageBagItems[id] = d.equipment.storageBagItems
+            // statusData 变更（清除广告加成）
+            tables.statusData[id] = d.statusData
+            // 修炼完成时间
+            tables.cultivationCompletionMonths[id] = d.cultivationCompletionMonth
+            tables.cultivationCompletionPhases[id] = d.cultivationCompletionPhase
+        }
     }
+
+    /** 公开的宗门自动用丹资格检查，供 SettlementCoordinator 使用 */
+    fun qualifiesForSectAutoPublic(
+        disciple: Disciple, focused: Boolean, rootCounts: Set<Int>
+    ): Boolean = qualifiesForSectAuto(disciple, focused, rootCounts) { false }
 
     fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0, state: MutableGameState? = null): Boolean {
         val data = state?.gameData ?: stateStore.gameData.value

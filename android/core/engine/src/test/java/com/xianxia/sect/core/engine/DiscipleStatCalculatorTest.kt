@@ -214,11 +214,28 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 额外加成`() {
+    fun `calculateCultivationPerPhase - 乘区制不同区间独立乘算`() {
         val disciple = createDisciple()
-        val noBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, additionalBonus = 0.0)
-        val withBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, additionalBonus = 0.5)
-        assertTrue("额外加成应提高修炼速度", withBonus > noBonus)
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones()
+        )
+        val withAptitude = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(aptitudeBonus = 0.5)
+        )
+        val withResource = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(resourceBonus = 0.5)
+        )
+        assertTrue("资质乘区加成应提高修炼速度", withAptitude > base)
+        assertTrue("资源乘区加成应提高修炼速度", withResource > base)
+        // 不同乘区独立乘算，两者同时作用应大于单一乘区
+        val withBoth = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple.realm, disciple.spiritRoot.types.size,
+            DiscipleStatCalculator.CultivationSpeedZones(aptitudeBonus = 0.5, resourceBonus = 0.5)
+        )
+        assertTrue("两乘区叠加应大于单一乘区", withBoth > withAptitude && withBoth > withResource)
     }
 
     @Test

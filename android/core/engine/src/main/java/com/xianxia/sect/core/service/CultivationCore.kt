@@ -166,7 +166,7 @@ class CultivationCore @Inject constructor(
             0.0
         }
 
-        val perSecond = DiscipleStatCalculator.calculateCultivationSpeed(
+        val perPhase = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple = disciple,
             manuals = manualInstanceMap,
             manualProficiencies = discipleProficiencies,
@@ -178,8 +178,7 @@ class CultivationCore @Inject constructor(
             griefCultivationSpeedPenalty = griefPenalty,
             masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
-        // calculateCultivationSpeed 已直接返回每旬值，无需再换算
-        return perSecond
+        return perPhase
     }
 
     private fun calculatePreachingBonuses(
@@ -225,12 +224,7 @@ class CultivationCore @Inject constructor(
     private fun calculateBuildingCultivationBonus(disciple: Disciple, data: GameData): Double {
         val slot = data.residenceSlots.firstOrNull { it.discipleId == disciple.id } ?: return 1.0
         val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
-        return when (building.displayName) {
-            "中级单人住所" -> 1.40
-            "单人住所" -> 1.20
-            "多人住所" -> 1.10
-            else -> 1.0
-        }
+        return GameConfig.Cultivation.BUILDING_BONUSES[building.displayName] ?: 1.0
     }
 
     /**

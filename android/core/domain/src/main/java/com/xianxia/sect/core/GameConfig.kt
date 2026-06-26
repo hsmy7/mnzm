@@ -136,6 +136,13 @@ object GameConfig {
             REALM_SPEED_PER_PHASE[realm] ?: REALM_SPEED_PER_PHASE.getValue(9)
 
         const val DAILY_HP_MP_RECOVERY_RATE = 0.05
+
+        /** 住所建筑修炼速度加成系数（按建筑 displayName 查表） */
+        val BUILDING_BONUSES: Map<String, Double> = mapOf(
+            "中级单人住所" to 1.40,
+            "单人住所" to 1.20,
+            "多人住所" to 1.10
+        )
     }
 
     object Production {

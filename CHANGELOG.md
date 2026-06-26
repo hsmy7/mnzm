@@ -5,6 +5,7 @@
 ### 重构
 
 - **彻底重构防守机制** — ①玩家本体宗门被攻击时自动选择十名存活弟子参战（高境界优先），思过中/血炼中/任务中/战斗中/探索中/驻守中弟子不可选择；②玩家占领的宗门被攻击时由驻扎弟子出战，不再免疫AI攻击。修复了防守弟子境界排序方向错误（此前按 realm 降序导致最弱弟子排在最前）
+- **修炼速度公式乘区化** — 14种修炼速度加成从"全加算"升级为"同类加算、异类乘算"的5乘区模型（资质乘区：天赋；资源乘区：功法+建筑；社交乘区：师徒+传道+父母；状态乘区：丧亲+寿命+政策；临时乘区：丹药临时加速）。解决了后期加成堆叠边际递减问题，不同维度加成差异化更显著
 
 ### 新增
 
@@ -14,6 +15,10 @@
 
 - **优化：物品/灵石数量显示改为万/亿单位 floor 格式化** — 当数量超过 5 位数（≥10000）时自动转为「万」单位显示，≥1 亿转为「亿」单位，采用向下取整（floor，只少不多）保留 1 位小数，小数位为 0 时省略小数。例如 10001 显示为「1万」、10999 显示为「1万」、11999 显示为「1.1万」、19999 显示为「1.9万」。统一覆盖灵石数量、物品卡片数量、商店价格、任务奖励、邮件附件、战斗战利品等全部数量显示场景。核心函数 `GameUtils.formatNumber` 由四舍五入改为整数运算 floor，新增 `Int` 重载，删除 `DailySignInDialog` 中的死代码 `formatRewardQuantity`
 - **统一弟子筛选栏** — 消除两套并行筛选实现（手写状态与 DiscipleFilterState），排序和过滤算法统一收敛到 `applyFilters`；境界筛选选项常量统一基于 `GameConfig.Realm` 权威定义（0-9 共 10 项，修复旧 B 套定义不一致 bug）；灵矿场执事推荐属性由「采矿」修正为「道德」；灵矿场执事选择界面从 107 行私有组件重构为复用统一 `DiscipleSelectorDialog`。新增 17 个筛选排序单元测试
+- **突破系统合并** — 合并两套重复的突破实现（~300行）为统一的 `performBreakthrough()` 入口，实时突破从全量 clear+insert 改为精准字段写回。突破成功/失败计数开始正确写入
+- **建筑加成配置化** — 住所修炼速度加成从硬编码迁移到 `GameConfig.Cultivation.BUILDING_BONUSES`，调整数值无需改代码
+- **修炼速率缓存指纹补全** — 增加父母存活状态和灵根数检测维度，父母去世或灵根变化时自动触发修炼速度重算
+- **命名统一** — 修炼速度相关命名统一为 `cultivationPerPhase`
 
 ### 修复
 
@@ -21,6 +26,12 @@
 - **数据库迁移缺失** — 师徒系统新增 `DiscipleExtended.masterId` 列，版本号从 9 升到 10 但未提供 `MIGRATION_9_10`，Room 找不到迁移时触发 `fallbackToDestructiveMigration()` 导致所有本地存档被清空。补充 `ALTER TABLE disciples_extended ADD COLUMN masterId TEXT` 迁移
 - **MMKV 原生库加载异常捕获不完整** — `XianxiaApplication.onCreate()` 中 MMKV 初始化的 `catch (e: Exception)` 无法捕获 `UnsatisfiedLinkError`（Error 子类，不受 Exception 管辖），导致测试环境和部分设备启动崩溃。修正为 `catch (e: Throwable)` 并保留 `CancellationException` 重抛守卫
 - **补充测试依赖** — 新增 `androidx.test:core` 依赖，修复 `AlarmWatchdogReceiverTest` 和 `GameNotificationHelperTest` 编译时 Unresolved reference 错误
+- **丹药修炼速度加成静默失效** — `pillCultivationSpeedBonus` 字段由 `PillEffectApplier` 写入但从未被修炼速度公式读取，导致丹药修炼加速效果完全无效。修复后两路丹药加速均正确参与修炼速度计算
+- **UI与引擎建筑加成数值不一致** — 弟子详情页修炼速度预览使用错误的建筑加成系数（中级单人住所+50%/+25%，实际引擎计算为+40%/+20%），以引擎实际值为准修正UI显示
+- **空闲弟子突破时溢出修为丢失** — 月度批量结算中 dirty 弟子的溢出修为计算在修炼值上限裁剪之后执行，永远为0。修复后将溢出计算移到裁剪之前
+- **空闲弟子 totalGain 公式冗余** — clean/dirty 批量结算中 `+ alreadyGained` 对非焦点弟子无实际作用，简化为直接使用月度修炼总值
+- **batchMonths=0 时熟练度/温养越权执行** — 热控跳过修炼结算时，功法熟练度和装备温养仍被意外推进。修复后仅在结算执行时计算附属进度
+- **HFD 跨月重置导致累积追踪断裂** — 热控跳过结算时 HFD 仍被无条件重置，修复后仅在结算实际执行时才重置
 
 ## [4.0.23] - 2026-06-25（versionCode=4023）
 

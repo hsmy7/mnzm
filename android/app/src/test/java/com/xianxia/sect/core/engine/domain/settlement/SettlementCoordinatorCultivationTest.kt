@@ -115,22 +115,23 @@ class SettlementCoordinatorCultivationTest {
     }
 
     @Test
-    fun `alreadyGained超大值 至少保留已获修为`() = runTest {
+    fun `alreadyGained超大值 非焦点弟子仅按月度修炼结算`() = runTest {
+        // 非焦点弟子的 HFD 值从未落盘，alreadyGained 不参与修为结算
         hfdFlow.value = HighFrequencyData(
             cultivationUpdates = mapOf("1" to 500.0)
         )
-        val s = newCleanShadow("1", realm = 7) // 金丹，maxCult ~800
+        val s = newCleanShadow("1", realm = 7) // 金丹，rate=62/旬，月=186
         val maxCult = s.discipleTables.assemble(1).maxCultivation
 
         coordinator.scheduleMonthly(s)
         executeUntilComplete()
 
-        // totalGain = max(monthlyGain, alreadyGained) = max(?, 500) >= 500
-        // 但 capped at maxCult，所以 actual >= min(500, maxCult)
-        val expectedMin = minOf(500.0, maxCult)
-        assertTrue(
-            "应≥min(alreadyGained, maxCult)=$expectedMin 实际=${s.discipleTables.cultivations[1]}",
-            s.discipleTables.cultivations[1] >= expectedMin - 0.01
+        // 非焦点弟子直接用 totalMonthlyGain = rate * 3 = 186
+        val monthlyGain = 62.0 * 3 // 金丹单灵根基础 62/旬 × 3旬
+        val expected = minOf(monthlyGain, maxCult)
+        assertEquals(
+            "alreadyGained 不参与非焦点结算，修为 = monthlyGain",
+            expected, s.discipleTables.cultivations[1], 0.01
         )
     }
 

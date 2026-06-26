@@ -263,8 +263,8 @@ fun BasicInfoSection(
                         placedBuildings.firstOrNull { it.instanceId == s.buildingInstanceId }
                     }
                     when (building?.displayName) {
-                        "中级单人住所" -> 1.50
-                        "单人住所" -> 1.25
+                        "中级单人住所" -> 1.40
+                        "单人住所" -> 1.20
                         "多人住所" -> 1.10
                         else -> 1.0
                     }

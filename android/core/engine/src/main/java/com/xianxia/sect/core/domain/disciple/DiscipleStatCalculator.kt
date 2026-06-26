@@ -326,6 +326,132 @@ object DiscipleStatCalculator {
         return total.copy(critRate = totalCritRate)
     }
 
+    /**
+     * 修炼速度乘区分组。
+     *
+     * 遵循"同类加算、异类乘算"原则，将 14 种加成归入 5 个独立乘区。
+     * 每个乘区内部为加算，乘区之间为乘算。
+     */
+    data class CultivationSpeedZones(
+        val aptitudeBonus: Double = 0.0,    // 资质乘区：天赋
+        val resourceBonus: Double = 0.0,    // 资源乘区：功法+丹药+建筑
+        val socialBonus: Double = 0.0,      // 社交乘区：师徒+传道+父母
+        val statusBonus: Double = 0.0,      // 状态乘区：丧亲+寿命+政策
+        val temporaryBonus: Double = 0.0,   // 临时乘区：丹药临时加速
+    )
+
+    /**
+     * 计算每旬修炼值（乘区制核心公式）。
+     *
+     * 公式：基础速度 × Π(1 + 各乘区加算和)
+     *
+     * @param realm 弟子境界（0=仙人 … 9=炼气）
+     * @param spiritRootCount 灵根数量（1-5）
+     * @param zones 各乘区加算值分组
+     * @return 每旬修炼值，最低 1.0
+     */
+    fun calculateCultivationPerPhase(
+        realm: Int,
+        spiritRootCount: Int,
+        zones: CultivationSpeedZones
+    ): Double {
+        val rootCount = spiritRootCount.coerceAtLeast(1)
+        val base = GameConfig.Cultivation.getRealmPerPhase(realm) / rootCount.toDouble()
+        return (base
+            * (1.0 + zones.aptitudeBonus)
+            * (1.0 + zones.resourceBonus)
+            * (1.0 + zones.socialBonus)
+            * (1.0 + zones.statusBonus)
+            * (1.0 + zones.temporaryBonus)
+        ).coerceAtLeast(1.0)
+    }
+
+    /**
+     * 组装修炼速度乘区（从 Disciple 对象提取各加成）。
+     */
+    fun buildCultivationZones(
+        disciple: Disciple,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): CultivationSpeedZones {
+        // ── 资质乘区：天赋 ──
+        val talentEffects = getTalentEffects(disciple)
+        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
+
+        // ── 资源乘区：功法 + 建筑 ──
+        var resourceBonus = (buildingBonus - 1.0)
+        if (manuals.isNotEmpty()) {
+            disciple.manualIds.forEach { manualId ->
+                val manual = manuals[manualId] ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
+            }
+        } else if (disciple.manualIds.isNotEmpty()) {
+            disciple.manualIds.forEach { manualId ->
+                val manual = ManualDatabase.getById(manualId) ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
+            }
+        }
+
+        // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
+        val socialBonus = preachingElderBonus + preachingMastersBonus +
+            parentCultivationBonus + masterDiscipleBonus
+
+        // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
+        val lifespanPenalty = calculateLifespanCultivationPenalty(disciple.age, disciple.lifespan)
+        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
+
+        // ── 临时乘区：丹药临时加速 ──
+        var temporaryBonus = 0.0
+        if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedBonus > 0.0) {
+            temporaryBonus += disciple.cultivationSpeedBonus
+        }
+        if (disciple.pillEffects.pillEffectDuration > 0 && disciple.pillEffects.pillCultivationSpeedBonus > 0.0) {
+            temporaryBonus += disciple.pillEffects.pillCultivationSpeedBonus
+        }
+
+        return CultivationSpeedZones(
+            aptitudeBonus = aptitudeBonus,
+            resourceBonus = resourceBonus,
+            socialBonus = socialBonus,
+            statusBonus = statusBonus,
+            temporaryBonus = temporaryBonus
+        )
+    }
+
+    fun calculateCultivationPerPhase(
+        disciple: Disciple,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): Double {
+        val zones = buildCultivationZones(
+            disciple, manuals, manualProficiencies,
+            buildingBonus, preachingElderBonus, preachingMastersBonus,
+            cultivationSubsidyBonus, parentCultivationBonus,
+            griefCultivationSpeedPenalty, masterDiscipleBonus
+        )
+        return calculateCultivationPerPhase(disciple.realm, disciple.spiritRoot.types.size, zones)
+    }
+
+    /** @deprecated 使用 [calculateCultivationPerPhase] 替代 */
+    @Deprecated("使用 calculateCultivationPerPhase", ReplaceWith("calculateCultivationPerPhase(...)"))
     fun calculateCultivationSpeed(
         disciple: Disciple,
         manuals: Map<String, ManualInstance> = emptyMap(),
@@ -338,66 +464,98 @@ object DiscipleStatCalculator {
         parentCultivationBonus: Double = 0.0,
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
-    ): Double {
-        val rootCount = disciple.spiritRoot.types.size.coerceAtLeast(1)
-        val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(disciple.realm) / rootCount.toDouble()
+    ): Double = calculateCultivationPerPhase(
+        disciple, manuals, manualProficiencies,
+        buildingBonus, preachingElderBonus, preachingMastersBonus,
+        cultivationSubsidyBonus, parentCultivationBonus,
+        griefCultivationSpeedPenalty, masterDiscipleBonus
+    )
 
-        var totalBonus = 0.0
+    /**
+     * 组装修炼速度乘区（从 DiscipleAggregate 对象提取各加成）。
+     */
+    fun buildCultivationZones(
+        aggregate: DiscipleAggregate,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): CultivationSpeedZones {
+        // ── 资质乘区：天赋 ──
+        val talentEffects = getTalentEffects(aggregate)
+        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
 
-        // 悟性不再影响修炼速度（仅影响突破/悟道等）
-
+        // ── 资源乘区：功法 + 建筑 ──
+        var resourceBonus = (buildingBonus - 1.0)
+        val manualIds = aggregate.manualIds
         if (manuals.isNotEmpty()) {
-            disciple.manualIds.forEach { manualId ->
-                val manual = manuals[manualId]
-                if (manual != null) {
-                    val proficiencyData = manualProficiencies[manualId]
-                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                    val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                    totalBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
-                }
+            manualIds.forEach { manualId ->
+                val manual = manuals[manualId] ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
             }
-        } else if (disciple.manualIds.isNotEmpty()) {
-            disciple.manualIds.forEach { manualId ->
-                val manual = ManualDatabase.getById(manualId)
-                if (manual != null) {
-                    val proficiencyData = manualProficiencies[manualId]
-                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                    val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                    totalBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
-                }
+        } else if (manualIds.isNotEmpty()) {
+            manualIds.forEach { manualId ->
+                val manual = ManualDatabase.getById(manualId) ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
             }
         }
 
-        val talentEffects = getTalentEffects(disciple)
-        totalBonus += (talentEffects["cultivationSpeed"] ?: 0.0)
+        // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
+        val socialBonus = preachingElderBonus + preachingMastersBonus +
+            parentCultivationBonus + masterDiscipleBonus
 
-        totalBonus += (buildingBonus - 1.0)
+        // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
+        val lifespanPenalty = calculateLifespanCultivationPenalty(aggregate.age, aggregate.lifespan)
+        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
 
-        totalBonus += additionalBonus
-
-        totalBonus += preachingElderBonus
-        totalBonus += preachingMastersBonus
-        totalBonus += cultivationSubsidyBonus
-
-        if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedBonus > 0.0) {
-            totalBonus += disciple.cultivationSpeedBonus
+        // ── 临时乘区：丹药临时加速 ──
+        var temporaryBonus = 0.0
+        val ext = aggregate.extended
+        if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
+            temporaryBonus += ext.cultivationSpeedBonus
         }
 
-        // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
-        totalBonus += parentCultivationBonus
-
-        // 师徒加成：师父大境界差每级 +5% 修炼速度
-        totalBonus += masterDiscipleBonus
-
-        // 亲人逝世对修炼速度的影响
-        totalBonus -= griefCultivationSpeedPenalty
-
-        // 寿命将尽对修炼速度的影响
-        totalBonus -= calculateLifespanCultivationPenalty(disciple.age, disciple.lifespan)
-
-        return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
+        return CultivationSpeedZones(
+            aptitudeBonus = aptitudeBonus,
+            resourceBonus = resourceBonus,
+            socialBonus = socialBonus,
+            statusBonus = statusBonus,
+            temporaryBonus = temporaryBonus
+        )
     }
 
+    fun calculateCultivationPerPhase(
+        aggregate: DiscipleAggregate,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): Double {
+        val zones = buildCultivationZones(
+            aggregate, manuals, manualProficiencies,
+            buildingBonus, preachingElderBonus, preachingMastersBonus,
+            cultivationSubsidyBonus, parentCultivationBonus,
+            griefCultivationSpeedPenalty, masterDiscipleBonus
+        )
+        return calculateCultivationPerPhase(aggregate.realm, aggregate.spiritRoot.types.size, zones)
+    }
+
+    /** @deprecated 使用 [calculateCultivationPerPhase] 替代 */
+    @Deprecated("使用 calculateCultivationPerPhase", ReplaceWith("calculateCultivationPerPhase(...)"))
     fun calculateCultivationSpeed(
         aggregate: DiscipleAggregate,
         manuals: Map<String, ManualInstance> = emptyMap(),
@@ -410,67 +568,12 @@ object DiscipleStatCalculator {
         parentCultivationBonus: Double = 0.0,
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
-    ): Double {
-        val rootCount = aggregate.spiritRoot.types.size.coerceAtLeast(1)
-        val basePerPhase = GameConfig.Cultivation.getRealmPerPhase(aggregate.realm) / rootCount.toDouble()
-
-        var totalBonus = 0.0
-
-        // 悟性不再影响修炼速度（仅影响突破/悟道等）
-
-        val manualIds = aggregate.manualIds
-        if (manuals.isNotEmpty()) {
-            manualIds.forEach { manualId ->
-                val manual = manuals[manualId]
-                if (manual != null) {
-                    val proficiencyData = manualProficiencies[manualId]
-                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                    val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                    totalBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
-                }
-            }
-        } else if (manualIds.isNotEmpty()) {
-            manualIds.forEach { manualId ->
-                val manual = ManualDatabase.getById(manualId)
-                if (manual != null) {
-                    val proficiencyData = manualProficiencies[manualId]
-                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                    val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                    totalBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
-                }
-            }
-        }
-
-        val talentEffects = getTalentEffects(aggregate)
-        totalBonus += (talentEffects["cultivationSpeed"] ?: 0.0)
-
-        totalBonus += (buildingBonus - 1.0)
-
-        totalBonus += additionalBonus
-
-        totalBonus += preachingElderBonus
-        totalBonus += preachingMastersBonus
-        totalBonus += cultivationSubsidyBonus
-
-        val ext = aggregate.extended
-        if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
-            totalBonus += ext.cultivationSpeedBonus
-        }
-
-        // 父母灵根对子嗣修炼速度的影响（仅存活时影响）
-        totalBonus += parentCultivationBonus
-
-        // 师徒加成：师父大境界差每级 +5% 修炼速度
-        totalBonus += masterDiscipleBonus
-
-        // 亲人逝世对修炼速度的影响
-        totalBonus -= griefCultivationSpeedPenalty
-
-        // 寿命将尽对修炼速度的影响
-        totalBonus -= calculateLifespanCultivationPenalty(aggregate.age, aggregate.lifespan)
-
-        return (basePerPhase * (1.0 + totalBonus)).coerceAtLeast(1.0)
-    }
+    ): Double = calculateCultivationPerPhase(
+        aggregate, manuals, manualProficiencies,
+        buildingBonus, preachingElderBonus, preachingMastersBonus,
+        cultivationSubsidyBonus, parentCultivationBonus,
+        griefCultivationSpeedPenalty, masterDiscipleBonus
+    )
 
     fun getBreakthroughChance(
         disciple: Disciple,

@@ -277,7 +277,11 @@ class SettlementCoordinator @Inject constructor(
             cultivationService.cachedCultivationRates = cache.cultivationRateCache
         }
 
-        cultivationService.resetHighFrequencyData()
+        // 仅在实际执行了结算时才重置 HFD（batchMonths > 0）
+        // 避免跳过结算时丢失已累积的追踪数据
+        if (nonFocusedBatchMonths > 0) {
+            cultivationService.resetHighFrequencyData()
+        }
 
         val metrics = metricsBuilder.build(
             monthYear = shadow.gameData.gameYear to shadow.gameData.gameMonth,
@@ -505,16 +509,13 @@ class SettlementCoordinator @Inject constructor(
                 // 非焦点域热控分批：修炼总值 = 月修炼值 × 批次数
                 // alreadyGained 应从总额扣除一次，而非从每月扣除
                 val monthlyGain = rate * 3
-                val alreadyGained = focusedGains[disciple.id] ?: 0.0
                 val totalMonthlyGain = monthlyGain * batchMonths
-                val netTotalGain = (totalMonthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netTotalGain + alreadyGained
+                // 非焦点弟子仅累积 HFD、不写入实际修为，
+                // 直接用 totalMonthlyGain，无需 alreadyGained 加减
+                val totalGain = totalMonthlyGain
                 val rawCultivation = disciple.cultivation + totalGain
-                val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
-                    Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
-                } else {
-                    Pair(rawCultivation, 0.0)
-                }
+                val overflow = (rawCultivation - disciple.maxCultivation).coerceAtLeast(0.0)
+                val newCultivation = rawCultivation.coerceAtMost(disciple.maxCultivation)
                 tables.cultivations[id] = newCultivation
 
                 // 月度 HP/MP 恢复：首月扣除 phase tick 已处理部分，
@@ -541,8 +542,7 @@ class SettlementCoordinator @Inject constructor(
                     writeDiscipleToTables(dAfterBreakthrough, tables)
                     // 溢出修为带入新境界
                     if (overflow > 0 && dAfterBreakthrough.realm > 0) {
-                        val newMaxCult = dAfterBreakthrough.maxCultivation
-                        tables.cultivations[id] = overflow.coerceAtMost(newMaxCult)
+                        tables.cultivations[id] = overflow.coerceAtMost(dAfterBreakthrough.maxCultivation)
                     }
                 }
 
@@ -598,20 +598,21 @@ class SettlementCoordinator @Inject constructor(
             val disciple = tables.assemble(id)
             val rate = cache.cultivationRateCache[disciple.id] ?: 0.0
 
+            // 突破前溢出修为（在 cap 之前计算，确保不丢失）
+            var overflowBeforeBreakthrough = 0.0
+            var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
+            var nurtureUpdates = emptyMap<String, EquipmentInstance>()
+
             if (batchMonths > 0) {
                 // 修炼总值 = 月修炼值 × 批次数
-                // alreadyGained 应从总额扣除一次，而非从每月扣除
                 val monthlyGain = rate * 3
-                val alreadyGained = focusedGains[disciple.id] ?: 0.0
                 val totalMonthlyGain = monthlyGain * batchMonths
-                val netTotalGain = (totalMonthlyGain - alreadyGained).coerceAtLeast(0.0)
-                val totalGain = netTotalGain + alreadyGained
+                // 非焦点弟子仅累积 HFD、不写入实际修为，
+                // 直接用 totalMonthlyGain
+                val totalGain = totalMonthlyGain
                 val rawCultivation = disciple.cultivation + totalGain
-                val (newCultivation, overflow) = if (rawCultivation > disciple.maxCultivation) {
-                    Pair(disciple.maxCultivation, rawCultivation - disciple.maxCultivation)
-                } else {
-                    Pair(rawCultivation, 0.0)
-                }
+                overflowBeforeBreakthrough = (rawCultivation - disciple.maxCultivation).coerceAtLeast(0.0)
+                val newCultivation = rawCultivation.coerceAtMost(disciple.maxCultivation)
                 tables.cultivations[id] = newCultivation
 
                 // 月度 HP/MP 恢复：首月扣除 phase tick 已处理部分，
@@ -626,6 +627,18 @@ class SettlementCoordinator @Inject constructor(
                 repeat(batchMonths - 1) {
                     cultivationService.applyMonthlyDurationDecay(tables, id, 0)
                 }
+
+                // 功法熟练度（与修炼结算同频，避免 batchMonths=0 时越权执行）
+                if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
+                    val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
+                    profUpdates = calculateProficiencyGains(disciple, data, cache, profAlreadyGained)
+                }
+
+                // 装备温养（同上）
+                if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
+                    val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
+                    nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, nurtureAlreadyGained)
+                }
             }
 
             // 突破检查：仅修为 ≥80% 时检查完整条件（低于80%不可能突破，跳过以节省性能）
@@ -636,17 +649,6 @@ class SettlementCoordinator @Inject constructor(
                 isDiscipleFullHpMp(disciple)
 
             val effectiveBatch = if (batchMonths > 0) batchMonths else 1
-            var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
-            if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
-                val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
-                profUpdates = calculateProficiencyGains(disciple, data, cache, profAlreadyGained)
-            }
-
-            var nurtureUpdates = emptyMap<String, EquipmentInstance>()
-            if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
-                val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
-                nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, nurtureAlreadyGained)
-            }
 
             val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
             if (loyaltyDelta != 0) {
@@ -669,12 +671,9 @@ class SettlementCoordinator @Inject constructor(
 
             // 突破处理（需要消费 shadow.pills，串行）
             if (needsBreakthrough) {
-                // 计算溢出（突破前修为超出 maxCultivation 的部分）
-                val overflowBeforeBreakthrough =
-                    (tables.cultivations[id] - disciple.maxCultivation).coerceAtLeast(0.0)
                 val afterBreakthrough = processBreakthroughForDisciple(disciple, shadow, cache)
                 writeDiscipleToTables(afterBreakthrough, tables)
-                // 溢出修为带入新境界
+                // 溢出修为带入新境界（在 cap 之前计算，确保不丢失）
                 if (overflowBeforeBreakthrough > 0 && afterBreakthrough.realm > 0) {
                     tables.cultivations[id] =
                         overflowBeforeBreakthrough.coerceAtMost(afterBreakthrough.maxCultivation)
@@ -829,149 +828,7 @@ class SettlementCoordinator @Inject constructor(
         shadow: MutableGameState,
         cache: SettlementCache
     ): Disciple {
-        // 从组件表读取当前修为，避免调用方传入的 disciple
-        // 对象中修为值为旧值（写入 tables.cultivations[id] 后
-        // 未更新 disciple 即传入，导致守卫条件误判跳过突破，
-        // writeDiscipleToTables 回滚修为）
-        val tables = shadow.discipleTables
-        var d = disciple.copy(
-            cultivation = tables.cultivations[disciple.id.toInt()]
-        )
-        var shouldContinue = true
-
-        while (shouldContinue && d.realm > 0) {
-            if (d.cultivation < d.maxCultivation) break
-
-            val isMajorBreakthrough = d.realmLayer >= GameConfig.Realm.get(d.realm).maxLayers
-            val pillTargetRealm = if (isMajorBreakthrough) d.realm - 1 else d.realm
-            var pillBonus = 0.0
-
-            val autoPill = cultivationService.qualifiesForSectAutoPublic(
-                d, shadow.gameData.breakthroughAutoPillFocused,
-                shadow.gameData.breakthroughAutoPillRootCounts
-            )
-            if (autoPill) {
-                val warehousePill = shadow.pills
-                    .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
-                    .maxByOrNull { it.effects.breakthroughChance }
-                if (warehousePill != null) {
-                    shadow.pills = shadow.pills - listOf(warehousePill)
-                    pillBonus = warehousePill.effects.breakthroughChance
-                }
-            }
-
-            if (pillBonus == 0.0) {
-                val bestPill = d.equipment.storageBagItems
-                    .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
-                    .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
-                if (bestPill != null) {
-                    d = d.copy(equipment = d.equipment.copy(storageBagItems = d.equipment.storageBagItems - bestPill))
-                    pillBonus = bestPill.effect?.breakthroughChance ?: 0.0
-                }
-            }
-
-            val allDisciples = cache.discipleMap
-            val chance = calculateBreakthroughChance(d, shadow.gameData, allDisciples, pillBonus)
-            val success = Random.nextDouble() < chance
-
-            if (success) {
-                var newRealm = d.realm
-                var newRealmLayer = d.realmLayer
-                val oldRealm = newRealm
-                if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
-                    newRealmLayer++
-                } else {
-                    newRealm--
-                    newRealmLayer = 1
-                }
-                var lifespanGain = 0
-                var extraLifespan = 0
-                if (newRealm != oldRealm) {
-                    lifespanGain = getLifespanGainForRealm(newRealm)
-                    val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(d.talentIds)["lifespan"] ?: 0.0
-                    if (lifespanTalentBonus != 0.0) {
-                        extraLifespan = (getLifespanGainForRealm(newRealm) * lifespanTalentBonus).toInt()
-                    }
-                }
-
-                d = d.copy(
-                    cultivation = 0.0,
-                    realm = newRealm,
-                    realmLayer = newRealmLayer,
-                    lifespan = d.lifespan + lifespanGain + extraLifespan
-                )
-            } else {
-                val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
-                val curMp = if (d.combat.currentMp < 0) d.maxMp else d.combat.currentMp
-                d = d.copy(
-                    cultivation = 0.0,
-                    combat = d.combat.copy(
-                        currentHp = (curHp * 0.1).toInt().coerceAtLeast(1),
-                        currentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
-                    )
-                )
-                shouldContinue = false
-            }
-        }
-        return d
-    }
-
-    private fun calculateBreakthroughChance(
-        disciple: Disciple,
-        data: com.xianxia.sect.core.model.GameData,
-        allDisciples: Map<String, Disciple>,
-        pillBonus: Double
-    ): Double {
-        val elderSlots = data.elderSlots
-        val innerElderId = elderSlots.innerElder
-        val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == "inner") {
-            val elder = allDisciples[innerElderId]
-            if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
-                elder.skills.comprehension
-            } else 0
-        } else 0
-
-        val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data, allDisciples)
-
-        // 亲人逝世对突破率的影响
-        val griefBreakthroughPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
-            DiscipleStatCalculator.GRIEF_BREAKTHROUGH_CHANCE_PENALTY
-        } else {
-            0.0
-        }
-
-        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供突破率加成
-        val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
-            val master = allDisciples[mid]
-            if (master != null && master.isAlive) {
-                DiscipleStatCalculator.getMasterDiscipleBreakthroughBonus(disciple.realm, master.realm)
-            } else 0.0
-        } ?: 0.0
-
-        return DiscipleStatCalculator.getBreakthroughChance(
-            disciple = disciple,
-            innerElderComprehension = innerElderComprehension,
-            outerElderComprehensionBonus = outerElderComprehensionBonus,
-            pillBonus = pillBonus,
-            griefBreakthroughPenalty = griefBreakthroughPenalty,
-            masterDiscipleBonus = masterDiscipleBonus
-        )
-    }
-
-    private fun calculateOuterElderBreakthroughBonus(
-        disciple: Disciple,
-        data: com.xianxia.sect.core.model.GameData,
-        allDisciples: Map<String, Disciple>
-    ): Double {
-        if (disciple.discipleType != "outer") return 0.0
-        val outerElderId = data.elderSlots.outerElder
-        if (outerElderId.isEmpty()) return 0.0
-        val elder = allDisciples[outerElderId] ?: return 0.0
-        if (disciple.realm < elder.realm) return 0.0
-        val comprehension = elder.skills.comprehension
-        return if (comprehension >= 80) {
-            ((comprehension - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
-        } else 0.0
+        return cultivationService.breakthroughHandler.performBreakthrough(disciple, shadow, shadow.gameData)
     }
 
     private fun calculateProficiencyGains(
@@ -1206,6 +1063,17 @@ class SettlementCoordinator @Inject constructor(
             h = 31 * h + (masterIdStr?.hashCode() ?: 0)
             val masterIdInt = masterIdStr?.toIntOrNull()
             h = 31 * h + (masterIdInt?.let { tables.realms.getOrDefault(it, 9) } ?: 9)
+            // 父母灵根加成：父母存活状态或灵根数变化影响修炼速度
+            val parent1IdStr = tables.parentId1s.getOrNull(id)
+            h = 31 * h + (parent1IdStr?.hashCode() ?: 0)
+            val p1Int = parent1IdStr?.toIntOrNull()
+            h = 31 * h + (p1Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
+            h = 31 * h + (p1Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
+            val parent2IdStr = tables.parentId2s.getOrNull(id)
+            h = 31 * h + (parent2IdStr?.hashCode() ?: 0)
+            val p2Int = parent2IdStr?.toIntOrNull()
+            h = 31 * h + (p2Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
+            h = 31 * h + (p2Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
             h
         }.hashCode()
         return CultivationRateFingerprint(

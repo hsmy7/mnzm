@@ -167,7 +167,7 @@ class SettlementCache(state: MutableGameState) {
 
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
-        val perSecond = DiscipleStatCalculator.calculateCultivationSpeed(
+        val perPhase = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple = disciple,
             manuals = manualInstanceMapLocal,
             manualProficiencies = discipleProficiencies,
@@ -177,8 +177,7 @@ class SettlementCache(state: MutableGameState) {
             cultivationSubsidyBonus = cultivationSubsidyBonus,
             masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
-        // calculateCultivationSpeed 已直接返回每旬值，无需再换算
-        return perSecond
+        return perPhase
     }
 
     private fun calculateBuildingCultivationBonus(
@@ -187,12 +186,7 @@ class SettlementCache(state: MutableGameState) {
     ): Double {
         val slot = data.residenceSlots.firstOrNull { it.discipleId == disciple.id } ?: return 1.0
         val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
-        return when (building.displayName) {
-            "中级单人住所" -> 1.40
-            "单人住所" -> 1.20
-            "多人住所" -> 1.10
-            else -> 1.0
-        }
+        return GameConfig.Cultivation.BUILDING_BONUSES[building.displayName] ?: 1.0
     }
 
     private fun calculatePreachingBonuses(

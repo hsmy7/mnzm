@@ -31,7 +31,7 @@ data class HighFrequencyData(
 class CultivationService @Inject constructor(
     private val stateStore: GameStateStore,
     private val cultivationCore: CultivationCore,
-    private val breakthroughHandler: DiscipleBreakthroughHandler,
+    internal val breakthroughHandler: DiscipleBreakthroughHandler,
     private val cultivationSettlement: CultivationSettlement,
     private val eventProcessor: CultivationEventProcessor,
     private val productionProcessor: ProductionProcessor,
