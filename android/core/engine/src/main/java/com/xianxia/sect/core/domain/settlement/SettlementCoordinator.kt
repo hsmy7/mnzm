@@ -1153,18 +1153,17 @@ class SettlementCoordinator @Inject constructor(
                 }
             }
 
-            // HP/MP 恢复
-            cultivationService.recoverMonthlyHpMp(tables, id, 0)
-            repeat(phases / 3) { cultivationService.recoverMonthlyHpMp(tables, id, 0) }
+            // HP/MP 恢复：ceil(phases/3) 个月
+            val fullMonths = (phases + 2) / 3
+            repeat(fullMonths) { cultivationService.recoverMonthlyHpMp(tables, id, 0) }
 
-            // 持续效果衰减
-            cultivationService.applyMonthlyDurationDecay(tables, id, 0)
-            repeat(phases / 3) { cultivationService.applyMonthlyDurationDecay(tables, id, 0) }
+            // 持续效果衰减：同上
+            repeat(fullMonths) { cultivationService.applyMonthlyDurationDecay(tables, id, 0) }
 
-            // 忠诚度
+            // 忠诚度：按足月计算（<1月不累加）
             val loyaltyDelta = calculateLoyaltyDelta(dId, cache)
-            if (loyaltyDelta != 0) {
-                val totalLoyaltyDelta = loyaltyDelta * (phases / 3).coerceAtLeast(1)
+            if (loyaltyDelta != 0 && phases >= 3) {
+                val totalLoyaltyDelta = loyaltyDelta * fullMonths
                 tables.loyalties[id] = (tables.loyalties[id] + totalLoyaltyDelta).coerceAtLeast(0)
             }
         }
