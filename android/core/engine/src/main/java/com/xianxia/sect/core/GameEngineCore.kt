@@ -747,20 +747,14 @@ class GameEngineCore @Inject constructor(
                 missionCheck?.invoke()
             }
 
-            // Step 2: 实时轨生产系统每月推进
-            // （进入空闲时已分类，此处处理月变时的实时轨推进）
-            if (monthChanged && idleShadow != null && idleRealtimeSlots.isNotEmpty()) {
-                val shadow = idleShadow ?: return
-                settlementCoordinator.productionMicroSettle(
-                    shadow, months = 1  // 仅推进有月变的月份
-                )
-            }
-
-            // Step 3: 累积旬数和月数
+            // Step 2: 累积旬数和月数
+            // 注意：实时轨不单独做月度生产结算，统一走 30s 批量，
+            // 避免同一月份被结算两次。实时轨的作用是通过域活跃
+            // 让 onPhaseTick 检测完成/自动重启，入口数据由批量负责。
             idleAccumulatedPhases += tickResult.phasesToAdvance
             if (monthChanged) idleAccumulatedMonths++
 
-            // Step 4: 先完成待处理的结算（如有）
+            // Step 3: 先完成待处理的结算（如有）
             if (settlementCoordinator.hasPendingWork &&
                 (monthChanged || yearChanged)
             ) {
