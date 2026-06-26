@@ -15,9 +15,10 @@ class CultivationTickSystem @Inject constructor(
     override val focusDomain = FocusDomain.DISCIPLES
     override val settlementPhase = 1  // 上旬：玩家弟子修炼
 
-    override suspend fun onPhaseTick(state: MutableGameState) {
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         cultivationService.advancePhase(state)
-        cultivationService.recoverHpMpForAllDisciples(state)
+        cultivationService.batchSettleCultivation(state, phasesToSettle)
+        cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle)
     }
 
     override suspend fun onMonthTick(state: MutableGameState) {

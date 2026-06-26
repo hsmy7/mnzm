@@ -584,6 +584,17 @@ class GameEngineCore @Inject constructor(
         return (System.currentTimeMillis() - lastTime) >= NON_FOCUS_TICK_INTERVAL
     }
 
+    /** 计算某域自上次执行后跳过了多少游戏旬 */
+    private fun phasesSkippedForDomain(domain: FocusDomain): Int {
+        if (domain == FocusDomain.ALWAYS) return 1
+        val lastTime = domainLastTickTime[domain] ?: return 1
+        if (lastTime == 0L) return 1
+        val elapsedMs = System.currentTimeMillis() - lastTime
+        val gameSpeed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
+        val msPerPhase = (2000L / gameSpeed).coerceAtLeast(500L)
+        return (elapsedMs / msPerPhase).toInt().coerceAtLeast(1)
+    }
+
     /** 记录域执行时间 */
     private fun markDomainExecuted(domain: FocusDomain) {
         if (domain != FocusDomain.ALWAYS) {
@@ -678,13 +689,15 @@ class GameEngineCore @Inject constructor(
 
                         // 执行当前旬的 tick（两档制 + 分旬调度）
                         if (settlementCoordinator.hasPendingWork) {
-                            systemManager.getSystem(TimeSystem::class).onPhaseTick(this)
+                            systemManager.getSystem(TimeSystem::class)
+                                .onPhaseTick(this, phasesToSettle = 1)
                         } else {
                             val phase1Based = this.gameData.gamePhase + 1
                             systemManager.onPhaseTickWithDomainFilter(
                                 this, activeDomainsPerPhase, ::shouldExecuteDomain, ::markDomainExecuted,
                                 currentPhase = phase1Based,
-                                lazyEvaluationDispatcher = lazyEvaluationDispatcher
+                                lazyEvaluationDispatcher = lazyEvaluationDispatcher,
+                                getPhasesToSettle = ::phasesSkippedForDomain
                             )
                         }
 
@@ -804,20 +817,22 @@ class GameEngineCore @Inject constructor(
                             // 恢复正常月度结算
                             val shadow = stateStore.createSettlementShadow()
                             settlementCoordinator.scheduleMonthly(shadow,
-                                isProductionFocused = isProdFocused)
+                                isProductionFocused = isProdFocused,
+                                skipCultivation = true)
                             missionCheck?.invoke()
                         }
                         else -> { /* continue accumulating, skip missionCheck */ }
                     }
                 } else {
-                    // 常温或无热控 → 正常月度结算
+                    // 常温或无热控 → 正常月度结算（修炼由 onPhaseTick 全权负责）
                     if (settlementCoordinator.isInBatchMode) {
                         settlementCoordinator.exitBatchMode()
                     }
                     missionCheck?.invoke()
                     val shadow = stateStore.createSettlementShadow()
                     settlementCoordinator.scheduleMonthly(shadow,
-                        isProductionFocused = isProdFocused)
+                        isProductionFocused = isProdFocused,
+                        skipCultivation = true)
                 }
             }
 

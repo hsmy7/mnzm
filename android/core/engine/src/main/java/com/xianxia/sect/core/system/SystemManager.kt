@@ -137,21 +137,23 @@ class SystemManager @Inject constructor(
     }
 
     suspend fun onPhaseTick(state: MutableGameState) {
-        executeInParallelGroups(state) { system, s -> system.onPhaseTick(s) }
+        executeInParallelGroups(state) { system, s -> system.onPhaseTick(s, phasesToSettle = 1) }
     }
 
     /**
-     * 两档制执行 + 分旬调度 + 热状态联动。
+     * 两档制执行 + 分旬调度 + 热状态联动 + 累积结算。
      *
      * - 活跃域每 tick 都跑，非活跃域按时间间隔执行
      * - 分旬调度：非焦点域的系统仅在对应旬执行（settlementPhase）
      * - 热状态联动：发热时跳过非焦点域的中旬/下旬系统
+     * - 累积结算：通过 [getPhasesToSettle] 传入跳过旬数，批量轨一次补完
      *
      * @param activeDomains 当前活跃的关注域集合
      * @param shouldExecute 判断某系统是否应在当前 tick 执行
      * @param markExecuted 记录系统已执行（用于非活跃域计时）
      * @param currentPhase 当前旬（1=上旬, 2=中旬, 3=下旬）
      * @param lazyEvaluationDispatcher 惰性求值调度器（热状态联动）
+     * @param getPhasesToSettle 根据焦点域返回应结算的旬数（焦点域=1，非焦点域=跳过旬数）
      */
     suspend fun onPhaseTickWithDomainFilter(
         state: MutableGameState,
@@ -159,7 +161,8 @@ class SystemManager @Inject constructor(
         shouldExecute: (FocusDomain, Set<FocusDomain>) -> Boolean,
         markExecuted: (FocusDomain) -> Unit,
         currentPhase: Int,
-        lazyEvaluationDispatcher: LazyEvaluationDispatcher
+        lazyEvaluationDispatcher: LazyEvaluationDispatcher,
+        getPhasesToSettle: (FocusDomain) -> Int = { 1 }
     ) {
         for (group in priorityGroups) {
             if (group.size == 1) {
@@ -178,7 +181,7 @@ class SystemManager @Inject constructor(
                 )
                 if (shouldExecute(domain, activeDomains) && shouldSettleByPhase && shouldRunByThermal) {
                     try {
-                        system.onPhaseTick(state)
+                        system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))
                         markExecuted(domain)
                     } catch (e: Exception) {
                         DomainLog.e(TAG, "Error in ${system.systemName}", e)
@@ -201,7 +204,7 @@ class SystemManager @Inject constructor(
                         if (shouldExecute(domain, activeDomains) && shouldSettleByPhase && shouldRunByThermal) {
                             launch {
                                 try {
-                                    system.onPhaseTick(state)
+                                    system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))
                                     markExecuted(domain)
                                 } catch (e: Exception) {
                                     DomainLog.e(TAG, "Error in ${system.systemName}", e)

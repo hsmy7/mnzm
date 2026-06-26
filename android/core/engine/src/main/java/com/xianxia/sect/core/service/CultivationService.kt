@@ -66,8 +66,16 @@ class CultivationService @Inject constructor(
         cultivationCore.recoverHpMpForBattleParticipants(state, discipleIds)
     }
 
-    fun recoverHpMpForAllDisciples(state: MutableGameState) {
-        cultivationCore.recoverHpMpForAllDisciples(state)
+    fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 1) {
+        cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle)
+    }
+
+    /**
+     * 批量轨累积结算：直接将 N 旬修炼值写入 discipleTables.cultivations，
+     * 跳过 HFD 中转。月度结算通过 focusedPhaseCount 自动扣除不双计。
+     */
+    fun batchSettleCultivation(state: MutableGameState, phasesToSettle: Int) {
+        cultivationCore.batchSettleCultivation(state, phasesToSettle)
     }
 
     /** 月度 HP/MP 恢复（月结制专用） */

@@ -46,10 +46,13 @@ class ProductionSubsystem @Inject constructor(
      * BUILDINGS 焦点域实时结算：每 200ms 检测生产槽位完成 + 触发自动生产。
      * 焦点域兜底，确保玩家看着建筑 Tab 时进度实时更新。
      */
-    override suspend fun onPhaseTick(state: MutableGameState) {
-        val now = System.currentTimeMillis()
-        if (now - lastRealtimeTickMs < realtimeTickInterval) return
-        lastRealtimeTickMs = now
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+        // 批量轨累积模式（phasesToSettle > 1）：不节流，立即处理
+        if (phasesToSettle == 1) {
+            val now = System.currentTimeMillis()
+            if (now - lastRealtimeTickMs < realtimeTickInterval) return
+            lastRealtimeTickMs = now
+        }
 
         val year = state.gameData.gameYear
         val month = state.gameData.gameMonth

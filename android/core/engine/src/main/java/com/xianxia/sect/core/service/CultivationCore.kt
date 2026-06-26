@@ -285,17 +285,19 @@ class CultivationCore @Inject constructor(
     /**
      * 为所有存活弟子恢复 HP 与 MP。
      *
-     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × phaseMultiplier（每旬 ×10），
+     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × phaseMultiplier × phasesToSettle，
      * 至少恢复 1 点，且不超过上限。currentHp/currentMp 均为负数的弟子被视为特殊状态跳过恢复。
      *
-     * @param state 可变游戏状态，包含弟子数据表与装备/功法实例
+     * @param state 可变游戏状态
+     * @param phasesToSettle 需结算的旬数（焦点域=1，批量轨=跳过旬数）
      */
-    fun recoverHpMpForAllDisciples(state: MutableGameState) {
+    fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 1) {
+        if (phasesToSettle <= 0) return
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = state.gameData.manualProficiencies
-        val multiplier = phaseMultiplier.toDouble()
+        val multiplier = phaseMultiplier.toDouble() * phasesToSettle
 
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
@@ -316,6 +318,32 @@ class CultivationCore @Inject constructor(
 
             if (newHp != curHp) tables.currentHps[id] = newHp
             if (newMp != curMp) tables.currentMps[id] = newMp
+        }
+    }
+
+    /**
+     * 批量轨累积结算：直接将 N 旬修炼值写入 tables.cultivations。
+     * 配合 HFD focusedPhaseCount 增量，月度结算自动扣除不双计。
+     * 突破由月度结算统一处理。
+     */
+    /**
+     * 修炼直接结算：将 phasesToSettle 旬修炼值直接写入 tables.cultivations。
+     * 焦点域 phasesToSettle=1，批量轨 phasesToSettle=N。
+     * 月度结算不再碰修炼——这是唯一修炼写入路径。
+     */
+    fun batchSettleCultivation(state: MutableGameState, phasesToSettle: Int) {
+        if (phasesToSettle <= 0) return
+        val tables = state.discipleTables
+        val gameData = state.gameData
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val curCult = tables.cultivations[id]
+            val disciple = tables.assemble(id)
+            if (curCult >= disciple.maxCultivation) continue
+            val rate = calculateDiscipleCultivationPerPhase(disciple, gameData, tables)
+            if (rate <= 0.0) continue
+            val newCult = (curCult + rate * phasesToSettle).coerceAtMost(disciple.maxCultivation)
+            if (newCult != curCult) tables.cultivations[id] = newCult
         }
     }
 

@@ -385,10 +385,30 @@ class SettlementCoordinator @Inject constructor(
      */
     fun scheduleMonthly(
         shadow: MutableGameState,
-        isProductionFocused: Boolean = true
+        isProductionFocused: Boolean = true,
+        skipCultivation: Boolean = false
     ) {
         shadowState = shadow
         metricsBuilder = SettlementMetricsBuilder()
+
+        val productionPhase = Phase_Production(
+            onProcess = { s -> processProduction(s) }
+        )
+        val worldEventsPhase = Phase_WorldEvents(
+            onProcess = { s -> processWorldEvents(s) }
+        )
+
+        // 批量轨已接管修炼结算，跳过全部弟子阶段
+        if (skipCultivation) {
+            scheduler.scheduleMonthly(
+                shadow, null,
+                Phase_FocusedDisciple({ _, _ -> }, { null }),
+                Phase_CleanDiscipleBatch({ _, _ -> }, { null }),
+                Phase_DirtyDiscipleBatch({ _, _, _ -> 0 }, { null }),
+                productionPhase, worldEventsPhase
+            )
+            return
+        }
 
         // 修炼速率指纹缓存
         val fingerprint = computeFingerprint(shadow)
@@ -410,32 +430,23 @@ class SettlementCoordinator @Inject constructor(
             }
         }
 
-        val focusedPhase = Phase_FocusedDisciple(
-            onProcess = { s, cache -> processFocusedDiscipleImmediate(s, cache) },
-            cacheProvider = { currentCache }
-        )
-
-        val cleanPhase = Phase_CleanDiscipleBatch(
-            onProcess = { s, cache -> processCleanDiscipleBatch(s, cache) },
-            cacheProvider = { currentCache }
-        )
-
-        val dirtyPhase = Phase_DirtyDiscipleBatch(
-            onProcess = { s, cache, offset -> processDirtyDiscipleBatch(s, cache, offset) },
-            cacheProvider = { currentCache }
-        )
-
-        val productionPhase = Phase_Production(
-            onProcess = { s -> processProduction(s) }
-        )
-
-        val worldEventsPhase = Phase_WorldEvents(
-            onProcess = { s -> processWorldEvents(s) }
-        )
-
         scheduler.scheduleMonthly(
-            shadow, cachePhase, focusedPhase, cleanPhase,
-            dirtyPhase, productionPhase, worldEventsPhase
+            shadow, cachePhase,
+            Phase_FocusedDisciple(
+                onProcess = { s, cache -> processFocusedDiscipleImmediate(s, cache) },
+                cacheProvider = { currentCache }
+            ),
+            Phase_CleanDiscipleBatch(
+                onProcess = { s, cache -> processCleanDiscipleBatch(s, cache) },
+                cacheProvider = { currentCache }
+            ),
+            Phase_DirtyDiscipleBatch(
+                onProcess = { s, cache, offset ->
+                    processDirtyDiscipleBatch(s, cache, offset)
+                },
+                cacheProvider = { currentCache }
+            ),
+            productionPhase, worldEventsPhase
         )
     }
 

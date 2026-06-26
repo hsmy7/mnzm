@@ -36,7 +36,7 @@ class TimeSystem @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onPhaseTick(state: MutableGameState) {
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         val gd = state.gameData
         var newPhase = gd.gamePhase + 1
         var newMonth = gd.gameMonth

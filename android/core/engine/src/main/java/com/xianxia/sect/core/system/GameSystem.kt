@@ -14,7 +14,11 @@ interface GameSystem {
     suspend fun clear() {}
     suspend fun clearForSlot(slotId: Int) { clear() }
 
-    suspend fun onPhaseTick(state: MutableGameState) {}
+    /**
+     * 旬级 tick。焦点域每 100ms 执行，非焦点域每 30s 执行。
+     * @param phasesToSettle 需结算的旬数：焦点域=1，非焦点域批量触发时=上次执行后跳过的旬数
+     */
+    suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int = 1) {}
     suspend fun onMonthTick(state: MutableGameState) {}
     suspend fun onYearTick(state: MutableGameState) {}
 }
