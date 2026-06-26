@@ -77,7 +77,7 @@ class GameStateStoreImpl @Inject constructor(
                 }
             }
 
-            // 2. 生存弟子：生命周期字段若被年度事件修改，取 current 的值
+            // 2. 生存弟子：生命周期字段若被年度/实时轨修改，取 current 的值
             for (id in current.ids) {
                 val oDisciple = originMap[id.toString()] ?: continue
 
@@ -85,6 +85,22 @@ class GameStateStoreImpl @Inject constructor(
                 val currentAge = current.ages.getOrDefault(id, 0)
                 if (currentAge != oDisciple.age)
                     result.ages[id] = currentAge
+
+                // -- 实时轨 HP/MP 恢复 --
+                // 实时轨每旬恢复，批量轨不持有，影子 swap 时从主状态保留
+                val currentHp = current.currentHps.getOrDefault(id, 0)
+                if (currentHp != oDisciple.currentHp)
+                    result.currentHps[id] = currentHp
+
+                val currentMp = current.currentMps.getOrDefault(id, 0)
+                if (currentMp != oDisciple.currentMp)
+                    result.currentMps[id] = currentMp
+
+                // -- 实时轨突破：大境界变更 --
+                // 突破改变大境界，影子未参与，从主状态保留
+                val currentRealm = current.realms.getOrDefault(id, 0)
+                if (currentRealm != oDisciple.realm)
+                    result.realms[id] = currentRealm
 
                 val currentIsAlive = current.isAlive.getOrDefault(id, 0)
                 val originAlive = if (oDisciple.isAlive) 1 else 0
