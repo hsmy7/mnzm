@@ -40,7 +40,8 @@ class CaveExplorationProcessor @Inject constructor(
     private val analyticsTracker: AnalyticsTracker,
     private val sectWarehouseManager: SectWarehouseManager,
     private val thermalMonitor: ThermalMonitor,
-    private val attackWarningService: AttackWarningService
+    private val attackWarningService: AttackWarningService,
+    private val cultivationService: CultivationService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -555,7 +556,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    fun processAISectOperations(year: Int, month: Int) {
+    suspend fun processAISectOperations(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples
 
@@ -749,12 +750,32 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    fun processAISectAttackDecisions() {
+    suspend fun processAISectAttackDecisions() {
         ensureAISectPersonalities()
 
         val data = stateStore.gameData.value
 
         // AI vs AI + 玩家占领宗门攻击
+        // 战斗前全量结算所有驻军弟子
+        val playerSectId = data.worldMapSects
+            .find { it.isPlayerSect }?.id
+        if (playerSectId != null) {
+            val allGarrisonIds = data.worldMapSects
+                .filter {
+                    it.isPlayerOccupied &&
+                    it.occupierSectId == playerSectId
+                }
+                .flatMap { it.garrisonSlots }
+                .filter { it.discipleId.isNotEmpty() }
+                .map { it.discipleId }
+            if (allGarrisonIds.isNotEmpty()) {
+                stateStore.update {
+                    cultivationService.forceSettleDisciplesBeforeBattle(
+                        this, allGarrisonIds
+                    )
+                }
+            }
+        }
         val playerDefenders = buildPlayerOccupiedDefendersMap()
         val aiResults = AISectAttackManager.decideAttacks(
             data, playerDefenders
@@ -781,12 +802,35 @@ class CaveExplorationProcessor @Inject constructor(
                 .sortedBy { it.realm }
                 .take(AISectAttackManager.TEAM_SIZE)
 
+            // 战斗前全量结算防御弟子
+            val refreshedDefenders =
+                if (selectedDefenders.isNotEmpty()) {
+                    val defenderIds = selectedDefenders.map { it.id }
+                    stateStore.update {
+                        cultivationService.forceSettleDisciplesBeforeBattle(
+                            this, defenderIds
+                        )
+                    }
+                    val idSet = defenderIds.toSet()
+                    val tables = stateStore.discipleTables
+                    defenderIds.mapNotNull { id ->
+                        val idInt = id.toIntOrNull()
+                            ?: return@mapNotNull null
+                        if (tables.isAlive[idInt] == 1)
+                            tables.assemble(idInt)
+                        else null
+                    }
+                } else {
+                    selectedDefenders
+                }
+
             val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
             val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
-            val profMap = data.manualProficiencies.mapValues { (_, list) ->
+            val freshData = stateStore.gameData.value
+            val profMap = freshData.manualProficiencies.mapValues { (_, list) ->
                 list.associateBy { it.manualId }
             }
-            val playerDefenseTeam = selectedDefenders.map { d ->
+            val playerDefenseTeam = refreshedDefenders.map { d ->
                 battleSystem.convertDiscipleToCombatant(
                     d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
                 )

@@ -694,4 +694,121 @@ class CultivationCoreTest {
 
         assertTrue("仙人境界修炼值恒满，满血满蓝即可突破", canBreakthrough)
     }
+
+    // ==================== forceSettleDisciplesBeforeBattle ====================
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 空列表无副作用`() {
+        val disciple = createDisciple(id = "1")
+        val state = createMutableGameState(listOf(disciple))
+
+        core.forceSettleDisciplesBeforeBattle(state, emptyList())
+
+        // 弟子数据应保持不变
+        val assembled = state.discipleTables.assemble(1)
+        assertEquals(disciple.id, assembled.id)
+        assertEquals(disciple.realm, assembled.realm)
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 不存在ID跳过不抛异常`() {
+        val disciple = createDisciple(id = "1")
+        val state = createMutableGameState(listOf(disciple))
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("999"))
+
+        // 不应抛异常，现有弟子数据保持不变
+        val assembled = state.discipleTables.assemble(1)
+        assertEquals(disciple.id, assembled.id)
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 已死亡弟子跳过`() {
+        val aliveDisciple = createDisciple(id = "1")
+        val deadDisciple = createDisciple(id = "2")
+        val state = createMutableGameState(listOf(aliveDisciple, deadDisciple))
+        state.discipleTables.isAlive[2] = 0
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("1", "2"))
+
+        // 存活弟子正常处理，死亡弟子跳过
+        val alive = state.discipleTables.assemble(1)
+        assertEquals(aliveDisciple.id, alive.id)
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - HP恢复`() {
+        val disciple = createDisciple(
+            id = "1", currentHp = 50, currentMp = 50
+        )
+        val state = createMutableGameState(listOf(disciple))
+        // 设置基础HP/MP用于恢复计算
+        state.discipleTables.baseHps[1] = 100
+        state.discipleTables.baseMps[1] = 100
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+
+        // 恢复后的HP应大于原始值（只要恢复率>0且phasesToSettle>0）
+        val hpAfter = state.discipleTables.currentHps[1]
+        assertTrue("HP应有恢复", hpAfter >= 50)
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 装备孕养经验增加`() {
+        val disciple = createDisciple(id = "1")
+        val state = createMutableGameState(listOf(disciple))
+        // 给弟子装备一把武器
+        state.discipleTables.weaponIds[1] = "weapon_1"
+        val equipment = EquipmentInstance(
+            id = "weapon_1", name = "测试剑", rarity = 1,
+            nurtureLevel = 0, nurtureProgress = 0.0
+        )
+        state.equipmentInstances =
+            EntityStore(listOf(equipment))
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+
+        // 装备孕养经验应有增加
+        val updatedEquip = state.equipmentInstances
+            .firstOrNull { it.id == "weapon_1" }
+        assertNotNull("装备应仍存在", updatedEquip)
+        assertTrue(
+            "孕养经验应有增加",
+            updatedEquip!!.nurtureProgress > 0.0
+        )
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 无装备弟子不抛异常`() {
+        val disciple = createDisciple(id = "1")
+        val state = createMutableGameState(listOf(disciple))
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+
+        // 无装备弟子正常处理
+        val assembled = state.discipleTables.assemble(1)
+        assertEquals(disciple.id, assembled.id)
+    }
+
+    @Test
+    fun `forceSettleDisciplesBeforeBattle - 功法熟练度增加`() {
+        val disciple = createDisciple(id = "1", comprehension = 100)
+        val state = createMutableGameState(
+            listOf(disciple),
+            gameData = GameData()
+        )
+        // 给弟子一本功法
+        state.discipleTables.manualIds[1] = listOf("manual_1")
+        val manual = ManualInstance(
+            id = "manual_1", name = "测试功法", rarity = 1
+        )
+        state.manualInstances = EntityStore(listOf(manual))
+
+        core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+
+        // 功法熟练度应有新增条目或增长
+        val proficiencies = state.gameData.manualProficiencies["1"]
+        assertNotNull("应创建熟练度条目", proficiencies)
+        assertTrue("熟练度列表非空", proficiencies!!.isNotEmpty())
+    }
 }

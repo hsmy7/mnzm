@@ -31,6 +31,14 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+    val combatIds = attackSlots.map { it.second.id }
+    if (combatIds.isNotEmpty()) {
+        stateStore.update {
+            cultivationService.forceSettleDisciplesBeforeBattle(
+                this, combatIds
+            )
+        }
+    }
     val allDisciples = stateStore.discipleTables.assembleAll()
     val attackers = attackSlots.mapNotNull { (_, agg) -> allDisciples.find { it.id == agg.id && it.isAlive } }
     if (attackers.isEmpty()) return
@@ -177,6 +185,11 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     if (level.defeated) return
     val validIds = discipleIds.filterNotNull()
     if (validIds.isEmpty()) return
+    stateStore.update {
+        cultivationService.forceSettleDisciplesBeforeBattle(
+            this, validIds
+        )
+    }
     val allDisciples = stateStore.discipleTables.assembleAll()
     val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return
@@ -261,6 +274,13 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+    if (memberIds.isNotEmpty()) {
+        stateStore.update {
+            cultivationService.forceSettleDisciplesBeforeBattle(
+                this, memberIds
+            )
+        }
+    }
     val allDisciples = stateStore.discipleTables.assembleAll()
     val combatDisciples = memberIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return

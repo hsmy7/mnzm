@@ -111,6 +111,52 @@ class CultivationService @Inject constructor(
         breakthroughHandler.processRealtimeBreakthroughs(livingDisciples, state.gameData, state)
     }
 
+    /**
+     * 战斗前对指定出战弟子执行全量数据追赶结算。
+     *
+     * 在 [MutableGameState] 事务内调用，仅处理目标弟子（≤10人）。
+     * 编排步骤：
+     * 1. [CultivationCore.forceSettleDisciplesBeforeBattle] —
+     *    HP/MP 恢复、装备孕养、功法熟练度
+     * 2. 突破检测 — 复用 [DiscipleBreakthroughHandler] 核心逻辑
+     *
+     * @param state 可变游戏状态
+     * @param discipleIds 出战弟子 ID 字符串列表
+     */
+    fun forceSettleDisciplesBeforeBattle(
+        state: MutableGameState,
+        discipleIds: List<String>
+    ) {
+        if (discipleIds.isEmpty()) return
+
+        cultivationCore.forceSettleDisciplesBeforeBattle(
+            state, discipleIds
+        )
+        processBreakthroughsForDisciples(state, discipleIds)
+    }
+
+    /**
+     * 仅对指定弟子列表执行突破检测。
+     *
+     * 复用 [DiscipleBreakthroughHandler.processRealtimeBreakthroughs]
+     * 核心逻辑，但过滤为只处理目标弟子。
+     */
+    private fun processBreakthroughsForDisciples(
+        state: MutableGameState,
+        discipleIds: List<String>
+    ) {
+        val tables = state.discipleTables
+        val targetDisciples = discipleIds.mapNotNull { idStr ->
+            val id = idStr.toIntOrNull() ?: return@mapNotNull null
+            if (tables.isAlive[id] != 1) return@mapNotNull null
+            tables.assemble(id)
+        }
+        if (targetDisciples.isEmpty()) return
+        breakthroughHandler.processRealtimeBreakthroughs(
+            targetDisciples, state.gameData, state
+        )
+    }
+
 
     suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         cultivationSettlement.settleSalaryOnBreakthrough(discipleId, currentYear)

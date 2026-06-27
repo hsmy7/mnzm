@@ -35,7 +35,8 @@ class ExplorationService @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val battleSystem: BattleSystem,
     private val buildingConfigService: BuildingConfigService,
-    private val inventorySystem: InventorySystem
+    private val inventorySystem: InventorySystem,
+    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -238,6 +239,13 @@ class ExplorationService @Inject constructor(
         val garrisonIds = targetSect.garrisonSlots
             .filter { it.discipleId.isNotEmpty() }
             .map { it.discipleId }.toSet()
+
+        // 战斗前全量结算驻军弟子
+        if (garrisonIds.isNotEmpty()) {
+            cultivationService.forceSettleDisciplesBeforeBattle(
+                this, garrisonIds.toList()
+            )
+        }
 
         var disciples = discipleTables.assembleAll()
         val defenders = disciples.filter {
