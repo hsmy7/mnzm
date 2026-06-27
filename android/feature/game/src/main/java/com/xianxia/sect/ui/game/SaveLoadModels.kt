@@ -31,10 +31,15 @@ object SaveLoadViewModelConstants {
     const val PROGRESS_DATA_LOAD = 0.25f
     const val PROGRESS_SAVE_COMPLETE = 0.40f
     const val PROGRESS_RESTART_DATA_LOAD = 0.50f
-    const val PROGRESS_MANUAL_PRELOAD = 0.50f
-    const val PROGRESS_RECIPE_PRELOAD = 0.60f
-    const val PROGRESS_BITMAP_PRELOAD = 0.70f
+    const val PROGRESS_DATA_PRELOAD = 0.55f
+    const val PROGRESS_SPRITE_PRELOAD = 0.70f
     const val PROGRESS_GAME_LOOP_START = 0.80f
     const val PROGRESS_MAP_PRELOAD = 0.90f
     const val PROGRESS_COMPLETE = 1f
+
+    /** 预加载阶段标签 */
+    const val PHASE_INIT = "正在初始化引擎..."
+    const val PHASE_DATA_PRELOAD = "正在加载宗门数据..."
+    const val PHASE_SPRITE_PRELOAD = "正在准备界面资源..."
+    const val PHASE_READY = "即将进入宗门..."
 }

@@ -50,20 +50,33 @@ class SaveLoadViewModel @Inject constructor(
         private const val PROGRESS_DATA_LOAD = SaveLoadViewModelConstants.PROGRESS_DATA_LOAD
         private const val PROGRESS_SAVE_COMPLETE = SaveLoadViewModelConstants.PROGRESS_SAVE_COMPLETE
         private const val PROGRESS_RESTART_DATA_LOAD = SaveLoadViewModelConstants.PROGRESS_RESTART_DATA_LOAD
-        private const val PROGRESS_MANUAL_PRELOAD = SaveLoadViewModelConstants.PROGRESS_MANUAL_PRELOAD
-        private const val PROGRESS_RECIPE_PRELOAD = SaveLoadViewModelConstants.PROGRESS_RECIPE_PRELOAD
-        private const val PROGRESS_BITMAP_PRELOAD = SaveLoadViewModelConstants.PROGRESS_BITMAP_PRELOAD
+        private const val PROGRESS_DATA_PRELOAD = SaveLoadViewModelConstants.PROGRESS_DATA_PRELOAD
+        private const val PROGRESS_SPRITE_PRELOAD = SaveLoadViewModelConstants.PROGRESS_SPRITE_PRELOAD
         private const val PROGRESS_GAME_LOOP_START = SaveLoadViewModelConstants.PROGRESS_GAME_LOOP_START
         const val PROGRESS_MAP_PRELOAD = SaveLoadViewModelConstants.PROGRESS_MAP_PRELOAD
         private const val PROGRESS_COMPLETE = SaveLoadViewModelConstants.PROGRESS_COMPLETE
     }
 
     private suspend fun preloadGameResources() {
-        val result = resourcePreloader.preloadGameResources { progress ->
-            _loadingProgress.value = progress
-        }
+        _preloadPhase.value = SaveLoadViewModelConstants.PHASE_DATA_PRELOAD
+        val result = resourcePreloader.preloadGameResources(
+            onProgress = { _loadingProgress.value = it },
+            onPhase = { _preloadPhase.value = it }
+        )
         _preloadedBuildingBitmaps.value = result.buildingBitmaps
         _preloadedItemSprites.value = result.itemSprites
+        _preloadedPortraitSprites.value = result.portraitSprites
+        _preloadedUiSprites.value = result.uiSprites
+    }
+
+    /**
+     * 启动 L2 后台精灵图预加载（不阻塞首帧）
+     * 在 MainGameScreen 已显示后调用
+     */
+    fun launchL2Preload() {
+        resourcePreloader.launchBackgroundPreload(viewModelScope) { sprites ->
+            _l2Sprites.value = _l2Sprites.value + sprites
+        }
     }
 
     private val saveLock = AtomicBoolean(false)
@@ -86,6 +99,20 @@ class SaveLoadViewModel @Inject constructor(
 
     private val _preloadedItemSprites = MutableStateFlow<Map<Int, ImageBitmap>>(emptyMap())
     val preloadedItemSprites: StateFlow<Map<Int, ImageBitmap>> = _preloadedItemSprites.asStateFlow()
+
+    private val _preloadedPortraitSprites = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val preloadedPortraitSprites: StateFlow<Map<String, ImageBitmap>> = _preloadedPortraitSprites.asStateFlow()
+
+    private val _preloadedUiSprites = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val preloadedUiSprites: StateFlow<Map<String, ImageBitmap>> = _preloadedUiSprites.asStateFlow()
+
+    /** L2 后台加载的剩余精灵图（异步累积，不阻塞首帧） */
+    private val _l2Sprites = MutableStateFlow<Map<Int, ImageBitmap>>(emptyMap())
+    val l2Sprites: StateFlow<Map<Int, ImageBitmap>> = _l2Sprites.asStateFlow()
+
+    /** 预加载阶段标签（UI 展示用） */
+    private val _preloadPhase = MutableStateFlow(SaveLoadViewModelConstants.PHASE_INIT)
+    val preloadPhase: StateFlow<String> = _preloadPhase.asStateFlow()
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
@@ -444,6 +471,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 preloadGameResources()
+                _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
                 _loadingProgress.value = PROGRESS_GAME_LOOP_START
 
@@ -681,6 +709,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 preloadGameResources()
+                _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
                 startGameLoop()
                 _isGameLoaded = true
@@ -703,6 +732,7 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
                         preloadGameResources()
+                        _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
                         startGameLoop()
                         _isGameLoaded = true
                     } catch (e: CancellationException) { throw e }
@@ -810,6 +840,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
 
                     preloadGameResources()
+                    _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
                     _loadingProgress.value = PROGRESS_GAME_LOOP_START
 
                     gameEngine.ensureHeavyDataLoaded()

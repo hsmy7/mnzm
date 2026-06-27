@@ -11,6 +11,9 @@ object PortraitPool {
         return pool[Random.nextInt(pool.size)]
     }
 
+    /** 返回所有头像资源名称列表（用于预加载） */
+    fun allPortraitNames(): List<String> = malePortraits + femalePortraits
+
     fun getResourceId(context: android.content.Context, portraitRes: String): Int {
         if (portraitRes.isBlank()) return 0
         return context.resources.getIdentifier(portraitRes, "drawable", context.packageName)

@@ -194,6 +194,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val loadingProgress by saveLoadViewModel.loadingProgress.collectAsStateWithLifecycle()
+                    val preloadPhase by saveLoadViewModel.preloadPhase.collectAsStateWithLifecycle()
                     var errorMessage by remember { mutableStateOf<String?>(null) }
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
@@ -399,6 +400,13 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                         }
                     }
 
+                    // L2 后台精灵图预加载：主界面就绪后触发，不阻塞首帧
+                    LaunchedEffect(mapPreloadData) {
+                        if (mapPreloadData != null) {
+                            saveLoadViewModel.launchL2Preload()
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         saveLoadViewModel.errorEvents.collect { msg ->
                             errorMessage = msg
@@ -450,7 +458,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                         if (mapPreloadData == null && !isRestarting) {
                             LoadingScreen(
                                 progress = loadingProgress,
-                                showProgress = true
+                                showProgress = true,
+                                phaseText = preloadPhase
                             )
                         }
 
