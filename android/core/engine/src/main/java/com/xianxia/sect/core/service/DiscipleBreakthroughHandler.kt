@@ -256,12 +256,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
         return false
     }
 
-    fun processMonthlyBreakthroughs(state: MutableGameState) {
-        val data = state.gameData
-        val livingDisciples = state.discipleTables.assembleAll().filter { it.isAlive }
-        processRealtimeBreakthroughs(livingDisciples, data, state)
-    }
-
     companion object {
         private const val TAG = "DiscipleBreakthroughHandler"
     }
