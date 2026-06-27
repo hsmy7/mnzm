@@ -37,6 +37,8 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import com.xianxia.sect.ui.components.progressRateForMonthsDuration
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
@@ -153,6 +155,11 @@ private fun ActiveMissionCard(
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
     val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
+    val missionRate = progressRateForMonthsDuration(mission.duration)
+    val animMissionState = rememberAnimatedProgress(
+        target = progress / 100f,
+        progressPerTick = missionRate
+    )
 
     Card(
         modifier = Modifier
@@ -200,7 +207,7 @@ private fun ActiveMissionCard(
             }
 
             LinearProgressIndicator(
-                progress = { progress / 100f },
+                progress = { animMissionState.value },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
@@ -313,6 +320,11 @@ private fun ActiveMissionDetailDialog(
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
     val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
+    val missionRate = progressRateForMonthsDuration(mission.duration)
+    val animMissionState = rememberAnimatedProgress(
+        target = progress / 100f,
+        progressPerTick = missionRate
+    )
 
     val discipleMap = remember(disciples) {
         disciples.associateBy { it.id }
@@ -363,7 +375,7 @@ private fun ActiveMissionDetailDialog(
                     )
 
                     LinearProgressIndicator(
-                        progress = { progress / 100f },
+                        progress = { animMissionState.value },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)

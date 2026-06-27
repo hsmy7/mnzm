@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,63 +33,63 @@ import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 全屏加载界面组件
- * 
+ *
  * @param progress 加载进度 (0.0 - 1.0)
  * @param showProgress 是否显示进度条和百分比
+ * @param phaseText 当前加载阶段标签
  */
 @Composable
 fun LoadingScreen(
     progress: Float = 0f,
-    showProgress: Boolean = false
+    showProgress: Boolean = false,
+    phaseText: String = ""
 ) {
     LoadingScreenContent(
         progress = progress,
-        showProgress = showProgress
+        showProgress = showProgress,
+        phaseText = phaseText
     )
 }
 
 /**
  * 全屏加载对话框（用于需要对话框语义的场景）
- * 
+ *
  * @param progress 加载进度 (0.0 - 1.0)
  * @param showProgress 是否显示进度条和百分比
- * @param onDismiss 对话框关闭回调（目前未使用，保留用于未来扩展）
+ * @param phaseText 当前加载阶段标签
+ * @param onDismiss 对话框关闭回调
  */
 @Composable
 fun LoadingDialog(
     progress: Float = 0f,
     showProgress: Boolean = false,
+    phaseText: String = "",
     onDismiss: () -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         LoadingScreenContent(
             progress = progress,
-            showProgress = showProgress
+            showProgress = showProgress,
+            phaseText = phaseText
         )
     }
 }
 
 /**
  * 加载界面通用内容组件
- * 
- * @param progress 加载进度 (0.0 - 1.0)
- * @param showProgress 是否显示进度条和百分比
  */
 @Composable
 private fun LoadingScreenContent(
     progress: Float,
-    showProgress: Boolean
+    showProgress: Boolean,
+    phaseText: String
 ) {
-    // 平滑进度动画
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
-        animationSpec = tween(
-            durationMillis = 300,
-            easing = FastOutSlowInEasing
-        ),
-        label = "progressAnimation"
+    // 加载进度动画 — 100ms 递增，约1秒填满
+    val animatedProgress by rememberAnimatedProgress(
+        target = progress,
+        progressPerTick = 0.1f
     )
-    
+
     // 进度百分比文本
     val progressPercent = (animatedProgress * 100).toInt()
     
@@ -121,7 +119,17 @@ private fun LoadingScreenContent(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (showProgress) {
-                // 百分比文本（移到进度条上方）
+                // 阶段标签文本
+                if (phaseText.isNotEmpty()) {
+                    Text(
+                        text = phaseText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFFCCAA66)
+                    )
+                }
+
+                // 百分比文本
                 Text(
                     text = "$progressPercent%",
                     fontSize = 14.sp,

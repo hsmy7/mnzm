@@ -27,6 +27,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 
 @Composable
@@ -127,6 +128,10 @@ fun GiftDialog(
 @Composable
 private fun FavorProgressBar(currentFavor: Int, maxFavor: Int) {
     val progress = (currentFavor.toFloat() / maxFavor).coerceIn(0f, 1f)
+    val animProgress by rememberAnimatedProgress(
+        target = progress,
+        progressPerTick = 0.05f
+    )
     val relationLevel = GameUtils.getSectRelationLevel(currentFavor)
 
     val favorColor = Color(relationLevel.colorHex)
@@ -151,7 +156,7 @@ private fun FavorProgressBar(currentFavor: Int, maxFavor: Int) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(progress)
+                        .fillMaxWidth(animProgress)
                         .clip(RoundedCornerShape(3.dp))
                         .background(favorColor)
                 )

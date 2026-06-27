@@ -1,8 +1,8 @@
 package com.xianxia.sect.ui.game.components.detail
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
+import com.xianxia.sect.ui.components.PROGRESS_MS_PER_PHASE_1X
+import com.xianxia.sect.ui.components.PROGRESS_TICK_MS
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -296,39 +296,18 @@ fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    // 旬切换检测 — 修为进度条每旬动画一次
-                    val cultivationPhaseKey = "$gameMonth-$gamePhase"
-                    var cultivationLastPhaseKey by remember { mutableStateOf(cultivationPhaseKey) }
-
-                    // 每旬修为进度增量
-                    val speedProgressPerPhase = if (disciple.maxCultivation > 0) {
-                        (cultivationSpeed / disciple.maxCultivation).toFloat().coerceIn(0f, 1f)
+                    // 修为进度条 — 100ms 递增动画，与游戏 tick 对齐
+                    val cultivationPerTick = if (disciple.maxCultivation > 0 && gameSpeed > 0) {
+                        (cultivationSpeed / disciple.maxCultivation).toFloat()
+                            .coerceIn(0f, 1f) *
+                            (PROGRESS_TICK_MS.toFloat() /
+                            (PROGRESS_MS_PER_PHASE_1X / gameSpeed.toFloat()))
                     } else 0f
-
-                    // 动画状态
-                    val animatedCultivationProgress = remember {
-                        Animatable(disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
-                    }
-
-                    // 旬切换时触发修为进度动画
-                    LaunchedEffect(cultivationPhaseKey) {
-                        if (cultivationPhaseKey != cultivationLastPhaseKey && gameSpeed > 0) {
-                            cultivationLastPhaseKey = cultivationPhaseKey
-                            val currentProgress = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
-                            val targetProgress = (currentProgress + speedProgressPerPhase).coerceIn(0f, 1f)
-                            val phaseDurationMs = (com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / gameSpeed).toInt()
-
-                            if (targetProgress < animatedCultivationProgress.value - 0.001f) {
-                                // 突破/渡劫导致进度回退，瞬间同步
-                                animatedCultivationProgress.snapTo(currentProgress)
-                            } else {
-                                animatedCultivationProgress.animateTo(
-                                    targetValue = targetProgress,
-                                    animationSpec = tween(durationMillis = phaseDurationMs)
-                                )
-                            }
-                        }
-                    }
+                    val animatedCultivationProgress by rememberAnimatedProgress(
+                        target = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f),
+                        progressPerTick = cultivationPerTick,
+                        paused = gameSpeed == 0
+                    )
 
                     Canvas(
                         modifier = Modifier
@@ -336,11 +315,10 @@ fun BasicInfoSection(
                             .height(10.dp)
                             .clip(RoundedCornerShape(5.dp))
                     ) {
-                        val progress = animatedCultivationProgress.value
                         drawRect(Color(0xFFE8E8E8))
                         drawRect(
                             Color(0xFF4CAF50),
-                            size = Size(size.width * progress, size.height)
+                            size = Size(size.width * animatedCultivationProgress, size.height)
                         )
                     }
                     Text(
@@ -405,35 +383,20 @@ fun HpMpBars(
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
-    // 动画状态
-    val animatedHpProgress = remember { Animatable(hpFraction) }
-    val animatedMpProgress = remember { Animatable(mpFraction) }
-    val phaseDurationMs = if (gameSpeed > 0) {
-        (com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / gameSpeed).toInt()
-    } else 300
-
-    // 气血动画：随hpFraction实时更新
-    LaunchedEffect(hpFraction) {
-        if (gameSpeed > 0) {
-            if (hpFraction < animatedHpProgress.value - 0.5f) {
-                // 骤降超过50%，瞬间同步（濒死/受重伤）
-                animatedHpProgress.snapTo(hpFraction)
-            } else {
-                animatedHpProgress.animateTo(hpFraction, tween(phaseDurationMs))
-            }
-        }
-    }
-
-    // 灵力动画：随mpFraction实时更新
-    LaunchedEffect(mpFraction) {
-        if (gameSpeed > 0) {
-            if (mpFraction < animatedMpProgress.value - 0.5f) {
-                animatedMpProgress.snapTo(mpFraction)
-            } else {
-                animatedMpProgress.animateTo(mpFraction, tween(phaseDurationMs))
-            }
-        }
-    }
+    // 动画状态 — 统一 100ms 递增，下降时自动 snap
+    val hpChaseRate = if (gameSpeed > 0) {
+        1f / (PROGRESS_MS_PER_PHASE_1X / gameSpeed.toFloat() / PROGRESS_TICK_MS.toFloat())
+    } else 0f
+    val animatedHpProgress by rememberAnimatedProgress(
+        target = hpFraction,
+        progressPerTick = hpChaseRate,
+        paused = gameSpeed == 0
+    )
+    val animatedMpProgress by rememberAnimatedProgress(
+        target = mpFraction,
+        progressPerTick = hpChaseRate,
+        paused = gameSpeed == 0
+    )
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -460,7 +423,7 @@ fun HpMpBars(
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
                     Color(0xFFE74C3C),
-                    size = Size(size.width * animatedHpProgress.value, size.height)
+                    size = Size(size.width * animatedHpProgress, size.height)
                 )
             }
             Text(
@@ -494,7 +457,7 @@ fun HpMpBars(
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
                     Color(0xFF3498DB),
-                    size = Size(size.width * animatedMpProgress.value, size.height)
+                    size = Size(size.width * animatedMpProgress, size.height)
                 )
             }
             Text(

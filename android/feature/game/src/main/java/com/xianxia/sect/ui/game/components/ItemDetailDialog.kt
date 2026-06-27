@@ -1,8 +1,7 @@
 package com.xianxia.sect.ui.game.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
+import com.xianxia.sect.ui.components.progressRateForPerSecond
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -217,18 +216,16 @@ fun ItemDetailDialog(
                 val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, item.rarity)
                 val progressFraction = (item.nurtureProgress / expRequired).toFloat().coerceIn(0f, 1f)
 
-                val prevNurtureLevel = remember { mutableIntStateOf(nurtureLevel) }
-                val prevTarget = remember { mutableStateOf(progressFraction) }
-                val shouldSnapNurture = nurtureLevel > prevNurtureLevel.intValue || progressFraction < prevTarget.value - 0.5f
-                val animatedNurtureProgress by animateFloatAsState(
-                    targetValue = progressFraction,
-                    animationSpec = if (shouldSnapNurture) snap() else tween(durationMillis = 300),
-                    label = "nurtureProgress"
+                val nurtureRate = if (expRequired > 0) {
+                    progressRateForPerSecond(
+                        EquipmentNurtureSystem.calculateAutoExpGain(item.rarity).toDouble(),
+                        expRequired.toDouble()
+                    )
+                } else 0f
+                val animatedNurtureProgress by rememberAnimatedProgress(
+                    target = progressFraction,
+                    progressPerTick = nurtureRate
                 )
-                SideEffect {
-                    prevNurtureLevel.intValue = nurtureLevel
-                    prevTarget.value = progressFraction
-                }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
@@ -379,14 +376,17 @@ fun LearnedManualDetailDialog(
         }
 
         val progressTarget = progressInCurrentLevel.toFloat().coerceIn(0f, 1f)
-        val prevProgressTarget = remember { mutableStateOf(progressTarget) }
-        val shouldSnap = progressTarget < prevProgressTarget.value - 0.5f
-        val animatedProgress by animateFloatAsState(
-            targetValue = progressTarget,
-            animationSpec = if (shouldSnap) snap() else tween(durationMillis = 300),
-            label = "manualProficiency"
+        val denominator = nextThreshold - currentThreshold
+        val proficiencyRate = if (denominator > 0) {
+            progressRateForPerSecond(
+                ManualProficiencySystem.BASE_PROFICIENCY_RATE.toDouble(),
+                denominator.toDouble()
+            )
+        } else 0f
+        val animatedProgress by rememberAnimatedProgress(
+            target = progressTarget,
+            progressPerTick = proficiencyRate
         )
-        SideEffect { prevProgressTarget.value = progressTarget }
 
         Box(
             modifier = Modifier

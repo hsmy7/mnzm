@@ -32,6 +32,8 @@ import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.components.progressRateForMonthsDuration
+import com.xianxia.sect.ui.components.rememberAnimatedProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
@@ -99,6 +101,11 @@ fun BloodRefiningPoolDialog(
                 val remaining = uiState.remainingMonths
                 val total = progress.durationMonths
                 val fraction = if (total > 0) (total - remaining).toFloat() / total else 0f
+                val bloodRate = progressRateForMonthsDuration(progress.durationMonths)
+                val animFractionState = rememberAnimatedProgress(
+                    target = fraction,
+                    progressPerTick = bloodRate
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -113,7 +120,7 @@ fun BloodRefiningPoolDialog(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         LinearProgressIndicator(
-                            progress = { fraction },
+                            progress = { animFractionState.value },
                             modifier = Modifier.width(52.dp).height(4.dp),
                             color = Color(0xFF4CAF50),
                             trackColor = Color(0x334CAF50),
