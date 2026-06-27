@@ -28,10 +28,9 @@ enum class FocusDomain(
     ALWAYS(setOf(TimeSystem::class)),
 
     // ── Tab 级域 ──
-    /** 总览 Tab — 弟子状态摘要 + 建筑总览 + 灵石 + 库存 */
+    /** 总览 Tab（宗门地图）— 弟子状态摘要 + 灵石 */
     OVERVIEW(setOf(
-        CultivationTickSystem::class, ProductionSubsystem::class,
-        EconomySubsystem::class, InventorySystem::class
+        CultivationTickSystem::class, EconomySubsystem::class
     )),
     /** 弟子列表 Tab — 修炼进度、HP/MP */
     DISCIPLE_LIST(setOf(CultivationTickSystem::class)),

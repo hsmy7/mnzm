@@ -360,8 +360,8 @@ class DomainMappingTest {
             systems.any { it.simpleName == "CultivationTickSystem" }
         )
         assertTrue(
-            "OVERVIEW 应激活 ProductionSubsystem",
-            systems.any { it.simpleName == "ProductionSubsystem" }
+            "OVERVIEW 应激活 EconomySubsystem",
+            systems.any { it.simpleName == "EconomySubsystem" }
         )
     }
 
@@ -471,24 +471,22 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `端到端 — 总览 Tab 应激活五个系统`() {
+    fun `端到端 — 宗门地图 Tab 应激活三个系统`() {
         val domains = resolve(tab = "OVERVIEW")
         assertTrue("应包含 OVERVIEW", FocusDomain.OVERVIEW in domains)
 
-        // ALWAYS(TimeSystem) + OVERVIEW(4个系统) = 5 个系统
+        // ALWAYS(TimeSystem) + OVERVIEW(2个系统) = 3 个系统
         val activeSystems = FocusDomain.activeSystemsFor(domains)
         val names = activeSystems.map { it.simpleName }.toSet()
         assertTrue("应包含 TimeSystem", "TimeSystem" in names)
         assertTrue("应包含 CultivationTickSystem", "CultivationTickSystem" in names)
-        assertTrue("应包含 ProductionSubsystem", "ProductionSubsystem" in names)
         assertTrue("应包含 EconomySubsystem", "EconomySubsystem" in names)
-        assertTrue("应包含 InventorySystem", "InventorySystem" in names)
-        assertEquals("应激活 5 个系统", 5, activeSystems.size)
+        assertEquals("应激活 3 个系统", 3, activeSystems.size)
     }
 
     @Test
     fun `端到端 — 切换域后系统应正确变更`() {
-        // 模拟：从总览切换到建筑 Tab
+        // 模拟：从宗门地图切换到建筑 Tab
         val overviewSystems = FocusDomain.activeSystemsFor(
             resolve(tab = "OVERVIEW")
         )
@@ -496,16 +494,24 @@ class DomainMappingTest {
             resolve(tab = "BUILDINGS")
         )
 
-        // 总览激活 5 个系统（TimeSystem + OVERVIEW的4个）
-        // 建筑激活 2 个系统（TimeSystem + ProductionSubsystem）
-        assertEquals(5, overviewSystems.size)
+        // 宗门地图激活 3 个系统（TimeSystem + CultivationTickSystem + EconomySubsystem）
+        // 建筑 Tab 激活 2 个系统（TimeSystem + ProductionSubsystem）
+        assertEquals(3, overviewSystems.size)
         assertEquals(2, buildingSystems.size)
 
+        val overviewNames = overviewSystems.map { it.simpleName }.toSet()
         val buildingNames = buildingSystems.map { it.simpleName }.toSet()
+        assertTrue("宗门地图应激活 TimeSystem", "TimeSystem" in overviewNames)
+        assertTrue("宗门地图应激活 CultivationTickSystem", "CultivationTickSystem" in overviewNames)
+        assertTrue("宗门地图应激活 EconomySubsystem", "EconomySubsystem" in overviewNames)
         assertTrue("建筑 Tab 应激活 TimeSystem", "TimeSystem" in buildingNames)
         assertTrue("建筑 Tab 应激活 ProductionSubsystem", "ProductionSubsystem" in buildingNames)
 
-        // 建筑 Tab 激活的系统是总览的子集
-        assertTrue(overviewSystems.containsAll(buildingSystems))
+        // 两域叠加合并去重
+        val combinedSystems = FocusDomain.activeSystemsFor(
+            setOf(FocusDomain.OVERVIEW, FocusDomain.BUILDING_LIST)
+        )
+        // CultivationTickSystem + EconomySubsystem + ProductionSubsystem = 3
+        assertEquals(3, combinedSystems.size)
     }
 }
