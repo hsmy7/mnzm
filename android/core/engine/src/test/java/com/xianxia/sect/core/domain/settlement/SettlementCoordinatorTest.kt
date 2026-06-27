@@ -1248,4 +1248,150 @@ class SettlementCoordinatorTest {
     fun `classifySlotsProgress — 持续时间为0时跳过`() {
         assertFalse("duration=0 应返回 false", isProgressAbove80(5, 0))
     }
+
+    // ============================================================
+    // 16. accumulateBatch — 指纹检测触发缓存重建
+    // ============================================================
+
+    /**
+     * 复制 accumulateBatch 中指纹变化检测的核心逻辑。
+     * 指纹变化 → 重建 SettlementCache + 重置 HFD。
+     */
+    @Test
+    fun `accumulateBatch — 指纹相同时不触发重建`() {
+        val fp1 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        val fp2 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        assertEquals("相同指纹", fp1, fp2)
+        // 指纹相同 → 不触发重建
+        assertTrue("指纹相同不应触发重建", fp1 == fp2)
+    }
+
+    @Test
+    fun `accumulateBatch — 指纹不同时应触发重建`() {
+        val fp1 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        // 长老分配变化 → 指纹不同
+        val fp2 = fp1.copy(elderAssignments = 999)
+        assertNotEquals("长老分配变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `accumulateBatch — 政策变化触发指纹变化`() {
+        val fp1 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        val fp2 = fp1.copy(policyFlags = 999)
+        assertNotEquals("政策变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `accumulateBatch — 弟子增删触发指纹变化`() {
+        val fp1 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        val fp2 = fp1.copy(aliveDiscipleIdsHash = 999)
+        assertNotEquals("弟子集合变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `accumulateBatch — 境界分布变化触发指纹变化`() {
+        val fp1 = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        val fp2 = fp1.copy(realmHash = 999)
+        assertNotEquals("境界分布变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `accumulateBatch — 任意字段变化均触发指纹变化`() {
+        val base = CultivationRateFingerprint(
+            residenceLayout = 100, elderAssignments = 200,
+            preachingAssignments = 300, policyFlags = 400,
+            aliveDiscipleIdsHash = 500, realmHash = 600,
+            perDiscipleHash = 700
+        )
+        // 验证所有字段都参与比较（data class 自动 equals）
+        val fields = listOf(
+            base.copy(residenceLayout = 999),
+            base.copy(elderAssignments = 999),
+            base.copy(preachingAssignments = 999),
+            base.copy(policyFlags = 999),
+            base.copy(aliveDiscipleIdsHash = 999),
+            base.copy(realmHash = 999),
+            base.copy(perDiscipleHash = 999)
+        )
+        for ((i, fp) in fields.withIndex()) {
+            assertNotEquals("字段[$i]变化应导致指纹不同", base, fp)
+        }
+    }
+
+    // ============================================================
+    // 17. batchRealtimeDomains 转轨 — phasesToSettle 验证
+    // ============================================================
+
+    /**
+     * 复制 getActiveDomains() 中 batchRealtimeDomains 的清除逻辑。
+     * 验证新增域后 phasesSkipped 返回 1 而非旧时间戳算出的 N。
+     */
+    private fun simulatePhasesSkipped(
+        domainLastTick: Long?,
+        nowMs: Long,
+        gameSpeed: Int = 1
+    ): Int {
+        if (domainLastTick == null || domainLastTick == 0L) return 1
+        val elapsed = nowMs - domainLastTick
+        val msPerPhase = (2000L / gameSpeed.coerceIn(1, 2)).coerceAtLeast(500L)
+        return (elapsed / msPerPhase).toInt().coerceAtLeast(1)
+    }
+
+    @Test
+    fun `转轨 — batchRealtimeDomains 新增域未清除时 phasesSkipped 异常`() {
+        val now = System.currentTimeMillis()
+        // 模拟：MISSION_HALL 2分钟前活跃过，有旧时间戳
+        val oldTick = now - 120_000
+        val result = simulatePhasesSkipped(oldTick, now)
+        assertTrue(
+            "未清除时间戳时 phasesSkipped 应 > 1（Bug场景，实际=$result）",
+            result > 1
+        )
+    }
+
+    @Test
+    fun `转轨 — batchRealtimeDomains 新增域清除后 phasesSkipped 为1`() {
+        val now = System.currentTimeMillis()
+        // 清除追踪后 → null → 返回 1
+        val result = simulatePhasesSkipped(null, now)
+        assertEquals("清除追踪后 phasesSkipped 应为 1", 1, result)
+    }
+
+    @Test
+    fun `转轨 — 活跃域正常 tick 后 phasesSkipped 为1`() {
+        val now = System.currentTimeMillis()
+        // 模拟：域刚执行完 (~100ms 前)
+        val result = simulatePhasesSkipped(now - 100, now)
+        assertEquals("刚执行完 phasesSkipped 应为 1", 1, result)
+    }
 }

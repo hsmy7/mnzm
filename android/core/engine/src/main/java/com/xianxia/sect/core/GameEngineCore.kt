@@ -513,9 +513,20 @@ class GameEngineCore @Inject constructor(
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点 + 实时轨） */
     private fun getActiveDomains(): Set<FocusDomain> {
-        val domains = computeDomainsFromView().toMutableSet()
-        domains.addAll(settlementCoordinator.batchRealtimeDomains)
-        return domains
+        val viewDomains = computeDomainsFromView()
+        val batchDomains = settlementCoordinator.batchRealtimeDomains
+        val allDomains = viewDomains.toMutableSet()
+        // 批量轨 ≥80% 槽位新增的域需清除追踪时间戳，
+        // 确保 phasesSkippedForDomain 返回 1（而非旧时间戳算出的 N）。
+        // viewDomains 中的域已由 setActiveTab/setActiveDialog 调用
+        // catchUpDomain 清除，此处仅处理批量轨特有域。
+        for (domain in batchDomains) {
+            if (domain !in viewDomains && domain != FocusDomain.ALWAYS) {
+                domainLastTickTime.remove(domain)
+            }
+        }
+        allDomains.addAll(batchDomains)
+        return allDomains
     }
 
     /** 判断某个域在本 tick 是否应执行 */
