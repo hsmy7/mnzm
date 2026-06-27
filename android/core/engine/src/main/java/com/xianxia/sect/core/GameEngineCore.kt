@@ -509,8 +509,7 @@ class GameEngineCore @Inject constructor(
      */
     private fun computeDomainsFromView(): Set<FocusDomain> =
         resolveDomainsFromView(
-            stateStore.activeTab, stateStore.activeDialog,
-            stateStore.focusedDiscipleId
+            stateStore.activeTab, stateStore.activeDialog
         )
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点 + 实时轨） */
@@ -903,13 +902,11 @@ class GameEngineCore @Inject constructor(
  *
  * @param tab 当前激活的底部 Tab（null 视为无 Tab）
  * @param dialog 当前打开的 DialogRoute.toString()（null 视为无弹窗）
- * @param focusedDiscipleId 当前焦点弟子 ID（null 视为无焦点）
  * @return 应激活的 FocusDomain 集合（始终包含 ALWAYS）
  */
 internal fun resolveDomainsFromView(
     tab: String?,
-    dialog: String?,
-    focusedDiscipleId: String?
+    dialog: String?
 ): Set<FocusDomain> {
     val domains = mutableSetOf(FocusDomain.ALWAYS)
 
@@ -927,7 +924,6 @@ internal fun resolveDomainsFromView(
         }
         "SETTINGS" -> {}
     }
-    if (focusedDiscipleId != null) domains.add(FocusDomain.DISCIPLES)
     when (dialog) {
         // ── 焦点域：生产建筑（显示进度/产出） ──
         "Alchemy", "Forge", "HerbGarden", "SpiritMine",

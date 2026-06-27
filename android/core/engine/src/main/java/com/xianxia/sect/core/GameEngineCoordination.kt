@@ -32,8 +32,7 @@ import com.xianxia.sect.core.util.DomainResult
 // ── Focus / UI state ────────────────────────────────────────────────
 
 fun GameEngine.setFocusedDiscipleId(id: String?) {
-    stateStore.focusedDiscipleId = id
-    if (id != null) { gameEngineCore.catchUpDomain(FocusDomain.DISCIPLES) }
+    // 焦点域已覆盖焦点弟子功能，不再需要独立焦点弟子跟踪
 }
 
 fun GameEngine.setActiveTab(tab: String) {

@@ -17,9 +17,8 @@ class DomainMappingTest {
 
     private fun resolve(
         tab: String? = null,
-        dialog: String? = null,
-        focusedDiscipleId: String? = null
-    ): Set<FocusDomain> = resolveDomainsFromView(tab, dialog, focusedDiscipleId)
+        dialog: String? = null
+    ): Set<FocusDomain> = resolveDomainsFromView(tab, dialog)
 
     private fun assertDomains(
         actual: Set<FocusDomain>,
@@ -78,22 +77,11 @@ class DomainMappingTest {
     // 焦点弟子
     // ═══════════════════════════════════════════════════════════════
 
-    @Test
-    fun `焦点弟子 — 追加 DISCIPLES`() {
-        val domains = resolve(focusedDiscipleId = "42")
-        assertDomains(domains, FocusDomain.DISCIPLES)
-    }
 
     @Test
-    fun `焦点弟子 null — 不追加`() {
-        val domains = resolve(focusedDiscipleId = null)
+    fun `SETTINGS tab — 仅 ALWAYS`() {
+        val domains = resolve(tab = "SETTINGS")
         assertDomains(domains)
-    }
-
-    @Test
-    fun `SETTINGS tab + 焦点弟子 — DISCIPLES（弟子详情覆盖设置Tab）`() {
-        val domains = resolve(tab = "SETTINGS", focusedDiscipleId = "42")
-        assertDomains(domains, FocusDomain.DISCIPLES)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -284,12 +272,8 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `组合：OVERVIEW tab + Merchant dialog + 焦点弟子 — 四域叠加`() {
-        val domains = resolve(
-            tab = "OVERVIEW",
-            dialog = "Merchant",
-            focusedDiscipleId = "42"
-        )
+    fun `组合：OVERVIEW tab + Merchant dialog — 三域叠加`() {
+        val domains = resolve(tab = "OVERVIEW", dialog = "Merchant")
         assertDomains(
             domains,
             FocusDomain.DISCIPLES, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE
@@ -309,13 +293,9 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `组合：SETTINGS tab + Diplomacy dialog + 焦点弟子 — DISCIPLES + DIPLOMACY`() {
-        val domains = resolve(
-            tab = "SETTINGS",
-            dialog = "Diplomacy",
-            focusedDiscipleId = "99"
-        )
-        assertDomains(domains, FocusDomain.DISCIPLES, FocusDomain.DIPLOMACY)
+    fun `组合：SETTINGS tab + Diplomacy dialog — DIPLOMACY（无焦点弟子追加）`() {
+        val domains = resolve(tab = "SETTINGS", dialog = "Diplomacy")
+        assertDomains(domains, FocusDomain.DIPLOMACY)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -325,9 +305,9 @@ class DomainMappingTest {
     @Test
     fun `ALWAYS 始终在结果中`() {
         // 任意组合都应包含 ALWAYS
-        assertTrue(resolve(tab = null, dialog = null, focusedDiscipleId = null)
+        assertTrue(resolve(tab = null, dialog = null)
             .contains(FocusDomain.ALWAYS))
-        assertTrue(resolve(tab = "OVERVIEW", dialog = "Alchemy", focusedDiscipleId = "1")
+        assertTrue(resolve(tab = "OVERVIEW", dialog = "Alchemy")
             .contains(FocusDomain.ALWAYS))
     }
 

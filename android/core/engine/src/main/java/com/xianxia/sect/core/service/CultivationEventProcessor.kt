@@ -77,12 +77,6 @@ class CultivationEventProcessor @Inject constructor(
         // 此时持有 transactionMutex。processPhaseEvents 内部必须直接操作传入的
         // targetState（即事务内状态），不能再调用 stateStore.update{}（不可重入锁会死锁）。
         processPhaseEvents(phase, month, year, targetState)
-
-        val focusedId = stateStore.focusedDiscipleId
-        if (focusedId != null) {
-            val newHfd = cultivationCore.updateFocusedDisciple(focusedId, targetState, sharedState.highFrequencyData.value, breakthroughHandler)
-            sharedState.highFrequencyData.value = newHfd
-        }
     }
 
     suspend fun advanceMonth(state: MutableGameState? = null) {
@@ -190,7 +184,7 @@ class CultivationEventProcessor @Inject constructor(
             maxStack = maxManualStack
         )
         val tickShared = TickSharedContext(
-            focusedDiscipleId = stateStore.focusedDiscipleId,
+            focusedDiscipleId = null,
             cachedCultivationRates = sharedState.cachedCultivationRates,
             highFrequencyData = sharedState.highFrequencyData.value,
             autoEquipDirty = sharedState.autoEquipDirty,
@@ -223,11 +217,9 @@ class CultivationEventProcessor @Inject constructor(
         val currentHfd = sharedState.highFrequencyData.value
         val accumGains = currentHfd.cultivationUpdates.toMutableMap()
         processedAlive.forEach { d ->
-            if (d.id != stateStore.focusedDiscipleId) {
-                val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
-                if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                    accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
-                }
+            val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
+            if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
+                accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
             }
         }
         sharedState.highFrequencyData.value = currentHfd.copy(
