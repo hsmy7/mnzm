@@ -362,32 +362,32 @@ val productionSlots: StateFlow<List<ProductionSlot>> = _productionSlots.asStateF
 
 **6.2 🔴 UI 层禁止直接写 `GameStateStore`** — 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
 
-**6.3 🟡 多实体变更必须用 Shadow Transaction** — `createSettlementShadow()` → 多次修改 → `swapFromShadow()`，保证原子性。
+**6.3 🟡 多实体变更必须用单次 `stateStore.update`** — 所有状态修改在 `stateStore.update {}` 事务内原子完成，禁止多次孤立的 `update` 调用。
 
 ```kotlin
 // ❌ BAD — 多次孤立的 update 调用
 stateStore.update { it.copy(spiritStones = it.spiritStones + 100) }
 stateStore.update { it.copy(gameMonth = it.gameMonth + 1) }
 
-// ✅ GOOD — 一次原子 Shadow Transaction
-val shadow = stateStore.createSettlementShadow()
-shadow.gameData.spiritStones += 100
-shadow.gameData.gameMonth += 1
-stateStore.swapFromShadow(shadow)
+// ✅ GOOD — 一次原子 update 事务
+stateStore.update {
+    gameData = gameData.copy(
+        spiritStones = gameData.spiritStones + 100,
+        gameMonth = gameData.gameMonth + 1
+    )
+}
 ```
-
-**6.4 🔴 新 `GameData` 字段必须有 `@SettlementStrategy`** — 已由 `GameDataSettlementCoverageTest` 编译时检查。
 
 **6.5 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
 
-**6.6 🔴 新增可变化数据需同步更新指纹** — 热控分批依赖 `CultivationRateFingerprint` 和 `ProductionRateFingerprint` 检测结构变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
+**6.6 🔴 新增可变化数据需同步更新指纹** — 批量轨指纹检测依赖 `CultivationRateFingerprint` 检测修炼速率变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
 - `DiscipleTables` 新增列（影响修炼速率计算）→ `SettlementCoordinator.computeFingerprint` 的 `perDiscipleHash`
 - `ElderSlots` 新增槽位类型 → 若在 data class 内部自动覆盖；若单独建表需手动加入
 - `SectPolicies` 新增政策 → 若在 data class 内部自动覆盖；否则需手动加入 `productionPolicyHash`
 - 新增生产系统（如灵兽养殖等）→ `ProductionRateFingerprint` 新增字段 + `compute` 方法
 - 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
 
-指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）和 `ProductionRateFingerprint.kt`（生产指纹）中。两套指纹同时作用于实时轨和批量轨，改动一次两轨自动生效。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
+指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。批量轨每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 
 **6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动：**当前界面所在域即为焦点域（100ms 高频实时结算），其他域自动为非焦点域（30 秒批量结算）**。不再预先将界面分类为「焦点域界面」和「非焦点域界面」。
 
@@ -512,7 +512,6 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 无 `!!` 操作符 |
 | 🔴 | `CancellationException` 已重新抛出 |
 | 🔴 | 无空 catch 块 |
-| 🔴 | 新 `GameData` 字段有 `@SettlementStrategy` |
 | 🔴 | Entity 变更有 Migration |
 | 🔴 | UI 层无直接 `GameStateStore` 访问 |
 | 🔴 | 文件不超过 2000 行 |
