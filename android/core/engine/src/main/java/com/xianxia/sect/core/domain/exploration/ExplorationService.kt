@@ -227,7 +227,7 @@ class ExplorationService @Inject constructor(
         }
     }
 
-    private fun MutableGameState.resolveBeastFightInternal(
+    private suspend fun MutableGameState.resolveBeastFightInternal(
         beastLevelId: String, level: WorldLevel
     ) {
         val gd = gameData
@@ -750,7 +750,7 @@ class ExplorationService @Inject constructor(
         state.gameData = gd
     }
 
-    private fun processPatrolAttacks(state: MutableGameState) {
+    private suspend fun processPatrolAttacks(state: MutableGameState) {
         var gd = state.gameData
         var disciples = state.discipleTables.assembleAll()
         val allSlots = gd.patrolSlots

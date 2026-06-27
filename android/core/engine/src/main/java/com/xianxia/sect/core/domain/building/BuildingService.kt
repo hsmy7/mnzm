@@ -296,7 +296,7 @@ private val inventorySystem: InventorySystem,
      * Auto-collect a completed slot's result and reset it to IDLE.
      * Called internally by the auto-harvest system during month advancement.
      */
-    private fun autoCollectSlotResult(slot: ProductionSlot) {
+    private suspend fun autoCollectSlotResult(slot: ProductionSlot) {
         completeBuildingTaskFromProductionSlot(slot)
 
         slot.assignedDiscipleId?.let { discipleId ->
@@ -374,7 +374,7 @@ private val inventorySystem: InventorySystem,
      * Auto-harvest a completed forge slot.
      * Called internally during month advancement.
      */
-    fun autoHarvestForgeSlot(slot: ProductionSlot) {
+    suspend fun autoHarvestForgeSlot(slot: ProductionSlot) {
         autoCollectSlotResult(slot)
     }
 
@@ -474,7 +474,7 @@ private val inventorySystem: InventorySystem,
         return (baseDuration - reducedMonths).coerceAtLeast(1)
     }
 
-    private fun completeBuildingTaskFromProductionSlot(slot: ProductionSlot) {
+    private suspend fun completeBuildingTaskFromProductionSlot(slot: ProductionSlot) {
         val recipeId = slot.recipeId
         if (recipeId == null) {
             return

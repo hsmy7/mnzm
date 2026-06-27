@@ -53,9 +53,9 @@ class EconomySubsystem @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onMonthTick(state: MutableGameState) {
-        cultivationService.processPolicyCosts(state)
-        // 居住忠诚度加成由 SettlementCoordinator.calculateLoyaltyDelta() 统一处理，
-        // 此处不再重复调用 processResidenceLoyalty() 以避免双重加成。
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+        if (phasesToSettle < 3) return
+        val months = phasesToSettle / 3
+        repeat(months) { cultivationService.processPolicyCosts(state) }
     }
 }

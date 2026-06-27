@@ -126,9 +126,14 @@ interface GameStateStore : GameStateSnapshotProvider {
     // === Shadow/Transaction API ===
     fun createSettlementShadow(): MutableGameState
     suspend fun swapFromShadow(shadow: MutableGameState)
-    fun beginShadowTransaction(shadow: MutableGameState)
-    fun endShadowTransaction()
-    fun currentTransactionMutableState(): MutableGameState?
+
+    /**
+     * 在事务内原地修改状态，避免 [update] 重入。
+     *
+     * - 若当前已在 [update] 事务内 → 直接执行 block
+     * - 否则 → 新开 [update] 事务执行 block
+     */
+    suspend fun modifyState(block: MutableGameState.() -> Unit)
 
     // === 直接状态设置 ===
     fun setPausedDirect(paused: Boolean)

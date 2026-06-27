@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.27] - 2026-06-27（versionCode=4027）
+
+### 重构
+
+- **结算系统彻底重构：移除空闲/活跃双模式，统一为四轨结算架构**
+  - 移除 `BatchMode` 枚举（IDLE/ACTIVE_NON_FOCUS）及相关热控分批逻辑 `resolveThermalBatchSize`
+  - 删除空闲状态字段（`isInIdleState`/`lastUserInteractionTime`/`pendingReturnFromIdleSettle`）和辅助方法（`enterIdleMode`/`cleanupIdleState`/`doIdleFullSettle`）
+  - 统一 `tickInternal()` 为单一路径，消除 ~150 行重复的双分支代码
+  - 删除 `scheduleMonthly`，月度生产/经济/邮件/子嗣/伙伴/探索系统全部迁入 `onPhaseTick` 批量轨
+  - 简化 `scheduleYearly` 仅保留年度阶段（老化/死亡/招募/盟约）
+  - 移除 `SystemManager` 热控联动检查，简化 `onPhaseTickWithDomainFilter`
+  - 清理 `GameEngineCoordination` 中冗余的 `onUserInteraction()` 调用链
+  - 删除 `ProductionRateFingerprint` 依赖、`fullIdleSettle` 死代码、`SettlementCoordinatorCultivationTest`/`IdleModeSettlementTest` 过时测试
+- **最终结算路径收敛为 4 条**：实时轨（100ms，焦点域+≥80%进度）→ 批量轨（30s，非焦点域+<80%进度）→ 月度事件（外交/盗窃/任务/商人）→ 年度结算（老化/死亡/招募/盟约）。每个系统仅在单一路径上运行，彻底杜绝双计可能
+
 ## [4.0.25] - 2026-06-27（versionCode=4025）
 
 ### 修复

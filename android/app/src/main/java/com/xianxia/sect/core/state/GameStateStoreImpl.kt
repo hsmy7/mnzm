@@ -450,193 +450,19 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    override fun currentTransactionMutableState(): MutableGameState? = currentTransactionState
+    override suspend fun modifyState(block: MutableGameState.() -> Unit) {
+        val txState = currentTransactionState
+        if (txState != null && transactionOwnerThread.get() == Thread.currentThread()) {
+            txState.block()
+        } else {
+            update { block() }
+        }
+    }
 
     private var shadowOrigin: UnifiedGameState? = null
 
     // CUSTOM 字段的合并函数（origin, shadow, oldState → 合并后的值）
     // 策略声明见 GameData.kt 各字段的 @SettlementStrategy 注解
-    private val customGameDataMergers: Map<String, (GameData, GameData, GameData) -> Any?> = mapOf(
-        "worldLevels" to { origin, shadow, oldState ->
-            val oldLevelMap = oldState.worldLevels.associateBy { it.id }
-            shadow.worldLevels.map { sl ->
-                val ol = oldLevelMap[sl.id]
-                if (ol != null && ol.defeated && !sl.defeated) sl.copy(defeated = true) else sl
-            }
-        },
-        "worldMapSects" to { origin, shadow, oldState ->
-            val originMap = origin.worldMapSects.associateBy { it.id }
-            shadow.worldMapSects.map { ss ->
-                val os = originMap[ss.id]
-                val ms = oldState.worldMapSects.find { it.id == ss.id }
-                if (os != null && ms != null) ss.copy(
-                    garrisonSlots = ms.garrisonSlots,
-                    isPlayerOccupied = ms.isPlayerOccupied,
-                    occupierSectId = ms.occupierSectId,
-                    occupierBattleTeamId = ms.occupierBattleTeamId
-                ) else ss
-            }
-        },
-        "sectDetails" to { origin, shadow, oldState ->
-            val originDetails = origin.sectDetails
-            val result = shadow.sectDetails.toMutableMap()
-            for ((sectId, oldDetail) in oldState.sectDetails) {
-                val originDetail = originDetails[sectId]
-                val shadowDetail = result[sectId]
-                if (originDetail != null && shadowDetail != null) {
-                    val tradeChanged = oldDetail.tradeItems !== originDetail.tradeItems
-                    val scoutChanged = oldDetail.scoutInfo !== originDetail.scoutInfo
-                    if (tradeChanged || scoutChanged) {
-                        result[sectId] = shadowDetail.copy(
-                            tradeItems = if (tradeChanged) oldDetail.tradeItems else shadowDetail.tradeItems,
-                            scoutInfo = if (scoutChanged) oldDetail.scoutInfo else shadowDetail.scoutInfo
-                        )
-                    }
-                }
-            }
-            result
-        },
-        "sectRelations" to { origin, shadow, oldState ->
-            val originMap = origin.sectRelations.associateBy { "${it.sectId1}_${it.sectId2}" }
-            shadow.sectRelations.map { sr ->
-                val or = originMap["${sr.sectId1}_${sr.sectId2}"]
-                val mr = oldState.sectRelations.find { it.sectId1 == sr.sectId1 && it.sectId2 == sr.sectId2 }
-                if (or != null && mr != null) sr.copy(favor = mr.favor + (sr.favor - or.favor))
-                else if (mr != null) mr else sr
-            }
-        },
-        "manualProficiencies" to { origin, shadow, oldState ->
-            val originMap = origin.manualProficiencies
-            val shadowMap = shadow.manualProficiencies
-            val oldMap = oldState.manualProficiencies
-            val result = mutableMapOf<String, List<ManualProficiencyData>>()
-
-            val allDiscipleIds = (shadowMap.keys + oldMap.keys).toSet()
-            for (discipleId in allDiscipleIds) {
-                val originList = originMap[discipleId] ?: emptyList()
-                val shadowList = shadowMap[discipleId]
-                val oldList = oldMap[discipleId]
-
-                if (shadowList == null) {
-                    // 结算删除了该弟子的熟练度 → 保留 oldState（玩家操作）
-                    if (oldList != null) result[discipleId] = oldList
-                    continue
-                }
-                if (oldList == null) {
-                    // 结算新增 → 使用 shadow
-                    result[discipleId] = shadowList
-                    continue
-                }
-
-                // 两边都有：子条目 delta 合并
-                val originById = originList.associateBy { it.manualId }
-                val shadowById = shadowList.associateBy { it.manualId }
-                val oldById = oldList.associateBy { it.manualId }
-
-                val allManualIds = (shadowById.keys + oldById.keys).toSet()
-                val merged = allManualIds.mapNotNull { manualId ->
-                    val op = originById[manualId]
-                    val sp = shadowById[manualId]
-                    val mp = oldById[manualId]
-
-                    when {
-                        sp != null && mp != null && op != null ->
-                            sp.copy(
-                                proficiency = mp.proficiency + (sp.proficiency - op.proficiency),
-                                level = maxOf(mp.level, sp.level),
-                                masteryLevel = maxOf(mp.masteryLevel, sp.masteryLevel)
-                            )
-                        sp != null && mp != null ->
-                            sp.copy(proficiency = maxOf(mp.proficiency, sp.proficiency))
-                        sp != null -> sp    // 结算新增
-                        mp != null -> mp    // 玩家新增
-                        else -> null
-                    }
-                }
-                if (merged.isNotEmpty()) result[discipleId] = merged
-            }
-            result
-        },
-        "aiSectDisciples" to { origin, shadow, oldState ->
-            val result = shadow.aiSectDisciples.toMutableMap()
-            for ((sectId, shadowList) in result.toMap()) {
-                val originList = origin.aiSectDisciples[sectId]
-                val oldList = oldState.aiSectDisciples[sectId]
-                if (originList != null && oldList != null && originList !== oldList) {
-                    result[sectId] = oldList
-                }
-            }
-            result
-        },
-        "bloodRefinements" to { origin, shadow, oldState ->
-            // 结算新增的完成记录 + oldState 已有的
-            val result = oldState.bloodRefinements.toMutableMap()
-            for ((discipleId, materials) in shadow.bloodRefinements) {
-                result[discipleId] = (result[discipleId] ?: emptyList()) + materials
-            }
-            result
-        },
-        "activeBloodRefinements" to { origin, shadow, oldState ->
-            // oldState 做底（保留玩家在结算期间新增的），移除结算完成的
-            val result = oldState.activeBloodRefinements.toMutableMap()
-            val completedBySettlement = origin.activeBloodRefinements.keys - shadow.activeBloodRefinements.keys
-            completedBySettlement.forEach { result.remove(it) }
-            result
-        },
-        "spiritFieldPlants" to { origin, shadow, oldState ->
-            val originMap = origin.spiritFieldPlants.associateBy { it.buildingInstanceId }
-            val shadowMap = shadow.spiritFieldPlants.associateBy { it.buildingInstanceId }
-            val oldMap = oldState.spiritFieldPlants.associateBy { it.buildingInstanceId }
-
-            val allIds = (shadowMap.keys + oldMap.keys).toSet()
-            allIds.mapNotNull { id ->
-                val op = originMap[id]
-                val sp = shadowMap[id]
-                val mp = oldMap[id]
-                when {
-                    sp != null && mp != null && op != null && op != mp ->
-                        mp  // 玩家修改了 → 保留 oldState
-                    sp != null && mp != null ->
-                        sp  // 结算修改 → 保留 shadow
-                    sp != null -> sp     // 仅 shadow 有
-                    mp != null -> mp     // 仅 oldState 有（玩家新增）
-                    else -> null
-                }
-            }
-        },
-        "elderSlots" to { origin, shadow, oldState ->
-            val o = origin.elderSlots; val s = shadow.elderSlots
-            var r = oldState.elderSlots
-            if (o.viceSectMaster.isNotEmpty() && s.viceSectMaster.isEmpty()) r = r.copy(viceSectMaster = "")
-            if (o.herbGardenElder.isNotEmpty() && s.herbGardenElder.isEmpty()) r = r.copy(herbGardenElder = "")
-            if (o.alchemyElder.isNotEmpty() && s.alchemyElder.isEmpty()) r = r.copy(alchemyElder = "")
-            if (o.forgeElder.isNotEmpty() && s.forgeElder.isEmpty()) r = r.copy(forgeElder = "")
-            if (o.outerElder.isNotEmpty() && s.outerElder.isEmpty()) r = r.copy(outerElder = "")
-            if (o.preachingElder.isNotEmpty() && s.preachingElder.isEmpty()) r = r.copy(preachingElder = "")
-            if (o.lawEnforcementElder.isNotEmpty() && s.lawEnforcementElder.isEmpty()) r = r.copy(lawEnforcementElder = "")
-            if (o.innerElder.isNotEmpty() && s.innerElder.isEmpty()) r = r.copy(innerElder = "")
-            if (o.qingyunPreachingElder.isNotEmpty() && s.qingyunPreachingElder.isEmpty()) r = r.copy(qingyunPreachingElder = "")
-            r
-        },
-        "spiritMineSlots" to { origin, shadow, oldState ->
-            val oSlots = origin.spiritMineSlots.associateBy { it.index }
-            val sSlots = shadow.spiritMineSlots.associateBy { it.index }
-            oldState.spiritMineSlots.map { slot ->
-                val os = oSlots[slot.index] ?: return@map slot
-                val ss = sSlots[slot.index] ?: return@map slot
-                if (os.discipleId.isNotEmpty() && ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-        },
-        "librarySlots" to { origin, shadow, oldState ->
-            val oSlots = origin.librarySlots.associateBy { it.index }
-            val sSlots = shadow.librarySlots.associateBy { it.index }
-            oldState.librarySlots.map { slot ->
-                val os = oSlots[slot.index] ?: return@map slot
-                val ss = sSlots[slot.index] ?: return@map slot
-                if (os.discipleId.isNotEmpty() && ss.discipleId.isEmpty()) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-        },
-    )
 
     override fun createSettlementShadow(): MutableGameState {
         val gd = _gameDataFlow.value
@@ -695,59 +521,16 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun swapFromShadow(shadow: MutableGameState) {
         val origin = shadowOrigin
-        val isSettlement = shadow.isSettlementShadow
         update {
-            val oldGameData = this.gameData
-            // 结算修改字段（始终同步）
-            val oldEquipmentInstances = this.equipmentInstances.items
-            val oldPills = this.pills.items
-            val oldManualInstances = this.manualInstances.items
-            val oldHerbs = this.herbs.items
-            val oldSeeds = this.seeds.items
-            val oldEquipmentStacks = this.equipmentStacks.items
-            val oldMaterials = this.materials.items
-            val oldManualStacks = this.manualStacks.items
-            // 非结算字段（仅在非结算 shadow 时同步）
-            val oldTeams = if (!isSettlement) this.teams else null
-            val oldBattleLogs = if (!isSettlement) this.battleLogs else null
-
-            val mergedGameData = mergeGameData(origin?.gameData, shadow.gameData, oldGameData)
-            this.gameData = mergedGameData
-
-            // 结算修改字段始终同步（生产消耗/产出）
-            if (shadow.equipmentInstances.items !== oldEquipmentInstances) this.equipmentInstances = shadow.equipmentInstances
-            if (shadow.pills.items !== oldPills) this.pills = shadow.pills
-            if (shadow.manualInstances.items !== oldManualInstances) this.manualInstances = shadow.manualInstances
-            if (shadow.herbs.items !== oldHerbs) this.herbs = shadow.herbs
-            if (shadow.seeds.items !== oldSeeds) this.seeds = shadow.seeds
-            if (shadow.equipmentStacks.items !== oldEquipmentStacks) this.equipmentStacks = shadow.equipmentStacks
-            if (shadow.materials.items !== oldMaterials) this.materials = shadow.materials
-            if (shadow.manualStacks.items !== oldManualStacks) this.manualStacks = shadow.manualStacks
-
-            // 非结算字段仅在非结算 shadow 时同步
-            if (!isSettlement) {
-                if (shadow.teams !== oldTeams) this.teams = shadow.teams
-                if (shadow.battleLogs !== oldBattleLogs) this.battleLogs = shadow.battleLogs
-            }
-
+            // gameData 和物品永不被影子修改 — 全部走 phase loop 的 stateStore.update
+            // 只需合并 discipleTables（修炼值/HP/MP/子嗣出生）
             this.discipleTables = if (origin != null) {
-                val currentTables = this.discipleTables
-                mergeDiscipleTables(origin.disciples, shadow.discipleTables, currentTables)
+                mergeDiscipleTables(origin.disciples, shadow.discipleTables, this.discipleTables)
             } else {
                 shadow.discipleTables
             }
         }
         shadowOrigin = null
-    }
-
-    override fun beginShadowTransaction(shadow: MutableGameState) {
-        currentTransactionState = shadow
-        shadowTransactionThread = Thread.currentThread()
-    }
-
-    override fun endShadowTransaction() {
-        currentTransactionState = null
-        shadowTransactionThread = null
     }
 
     private val reusableMutableState = MutableGameState(
@@ -837,15 +620,8 @@ class GameStateStoreImpl @Inject constructor(
         _rewardCardQueueFlow.value = _rewardCardQueueFlow.value.drop(count)
     }
 
-    private var shadowTransactionThread: Thread? = null
 
     override suspend fun update(block: suspend MutableGameState.() -> Unit) {
-        if (shadowTransactionThread == Thread.currentThread()) {
-            check(currentTransactionState == null) {
-                "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
-                    "Use currentTransactionMutableState() to modify state within a tick transaction."
-            }
-        }
 
         // 重入检测：若当前线程已持有 transactionMutex，说明本次 update 是在
         // tick 事务内被某个 System/Service 嵌套调用的。transactionMutex 不可重入，
@@ -972,14 +748,6 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     override suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R {
-        if (shadowTransactionThread == Thread.currentThread()) {
-            check(currentTransactionState == null) {
-                "GameStateStore.updateAndReturn() must not be called inside " +
-                    "an existing transaction (nested lock). " +
-                    "Use currentTransactionMutableState() to modify state " +
-                    "within a tick transaction."
-            }
-        }
 
         // 重入检测：当前线程已持有 transactionMutex，直接对事务内状态执行 block
         if (transactionOwnerThread.get() == Thread.currentThread()
@@ -1239,102 +1007,6 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     // ==================== GameData 策略表驱动合并 ====================
-
-    /**
-     * 根据 GameData 各字段的 @SettlementStrategy 注解合并。
-     * origin=null 时无结算在进行，直接返回 oldState。
-     */
-    private fun mergeGameData(origin: GameData?, shadow: GameData, oldState: GameData): GameData {
-        if (origin == null) return oldState
-        val c = customGameDataMergers
-
-        // THREE_WAY_ID 通用合并：shadow 做底 + 玩家新增 - 玩家删除
-        fun <T> threeWayId(
-            originList: List<T>, shadowList: List<T>, oldList: List<T>,
-            idSelector: (T) -> String
-        ): List<T> {
-            val originIds = originList.map(idSelector).toSet()
-            val shadowIds = shadowList.map(idSelector).toSet()
-            val oldIds = oldList.map(idSelector).toSet()
-            val result = shadowList.toMutableList()
-            // 玩家新增
-            for (item in oldList) {
-                if (idSelector(item) !in originIds && idSelector(item) !in shadowIds)
-                    result.add(item)
-            }
-            // 玩家删除
-            val removedByPlayer = originIds - oldIds
-            if (removedByPlayer.isNotEmpty())
-                return result.filter { idSelector(it) !in removedByPlayer }
-            return result
-        }
-
-        return shadow.copy(
-            // === PRESERVE_OLD ===
-            gameYear = oldState.gameYear,
-            gameMonth = oldState.gameMonth,
-            gamePhase = oldState.gamePhase,
-            gameSpeed = oldState.gameSpeed,
-            autoSaveIntervalMonths = oldState.autoSaveIntervalMonths,
-            yearlySalary = oldState.yearlySalary,
-            yearlySalaryEnabled = oldState.yearlySalaryEnabled,
-            placedBuildings = oldState.placedBuildings,
-            elderSlots = c.getValue("elderSlots")(origin, shadow, oldState) as ElderSlots,
-            librarySlots = c.getValue("librarySlots")(origin, shadow, oldState) as List<LibrarySlot>,
-            spiritMineSlots = c.getValue("spiritMineSlots")(origin, shadow, oldState) as List<SpiritMineSlot>,
-            residenceSlots = oldState.residenceSlots,
-            patrolSlots = oldState.patrolSlots,
-            patrolConfig = oldState.patrolConfig,
-            patrolConfigs = oldState.patrolConfigs,
-            warehouseGarrisons = oldState.warehouseGarrisons,
-            sectPolicies = oldState.sectPolicies,
-            autoRecruitSpiritRootFilter = oldState.autoRecruitSpiritRootFilter,
-            daoCompanionBannedRootCounts = oldState.daoCompanionBannedRootCounts,
-            daoCompanionConsentRequired = oldState.daoCompanionConsentRequired,
-            breakthroughAutoPillFocused = oldState.breakthroughAutoPillFocused,
-            breakthroughAutoPillRootCounts = oldState.breakthroughAutoPillRootCounts,
-            autoEquipFromWarehouseFocused = oldState.autoEquipFromWarehouseFocused,
-            autoEquipFromWarehouseRootCounts = oldState.autoEquipFromWarehouseRootCounts,
-            autoLearnFromWarehouseFocused = oldState.autoLearnFromWarehouseFocused,
-            autoLearnFromWarehouseRootCounts = oldState.autoLearnFromWarehouseRootCounts,
-            battleTeams = oldState.battleTeams,
-            usedTeamNumbers = oldState.usedTeamNumbers,
-            // travelingMerchantItems 由年度结算刷新，不保留旧值（Phase_AgingAndDeath 已更新 shadow）
-            playerListedItems = oldState.playerListedItems,
-            usedRedeemCodes = oldState.usedRedeemCodes,
-            activeSectId = oldState.activeSectId,
-            patrolBattleResultPopup = oldState.patrolBattleResultPopup,
-            playerProtectionEnabled = oldState.playerProtectionEnabled,
-            playerProtectionStartYear = oldState.playerProtectionStartYear,
-            playerHasAttackedAI = oldState.playerHasAttackedAI,
-            productionSlots = oldState.productionSlots,
-
-            // === DELTA ===
-            spiritStones = oldState.spiritStones + (shadow.spiritStones - origin.spiritStones),
-
-            // === THREE_WAY_ID ===
-            activeMissions = threeWayId(
-                origin.activeMissions, shadow.activeMissions, oldState.activeMissions
-            ) { (it as ActiveMission).id },
-            alliances = threeWayId(
-                origin.alliances, shadow.alliances, oldState.alliances
-            ) { (it as Alliance).id },
-            recruitList = threeWayId(
-                origin.recruitList, shadow.recruitList, oldState.recruitList
-            ) { (it as Disciple).id },
-
-            // === CUSTOM ===
-            worldLevels = c.getValue("worldLevels")(origin, shadow, oldState) as List<WorldLevel>,
-            worldMapSects = c.getValue("worldMapSects")(origin, shadow, oldState) as List<WorldSect>,
-            sectDetails = c.getValue("sectDetails")(origin, shadow, oldState) as Map<String, SectDetail>,
-            sectRelations = c.getValue("sectRelations")(origin, shadow, oldState) as List<SectRelation>,
-            manualProficiencies = c.getValue("manualProficiencies")(origin, shadow, oldState) as Map<String, List<ManualProficiencyData>>,
-            aiSectDisciples = c.getValue("aiSectDisciples")(origin, shadow, oldState) as Map<String, List<Disciple>>,
-            spiritFieldPlants = c.getValue("spiritFieldPlants")(origin, shadow, oldState) as List<SpiritFieldPlant>,
-            bloodRefinements = c.getValue("bloodRefinements")(origin, shadow, oldState) as Map<String, List<String>>,
-            activeBloodRefinements = c.getValue("activeBloodRefinements")(origin, shadow, oldState) as Map<String, BloodRefinementProgress>,
-        )
-    }
 }
 
 fun fixStorageBagReferences(

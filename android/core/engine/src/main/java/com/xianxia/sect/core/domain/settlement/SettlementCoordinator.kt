@@ -138,6 +138,8 @@ class SettlementCoordinator @Inject constructor(
      */
     val hasPendingWork: Boolean get() = scheduler.hasPendingWork
 
+    fun resetBatchClock() { lastBatchSettleWallMs = System.currentTimeMillis() }
+
     private val timer = SettlementTimer()
     private var metricsBuilder = SettlementMetricsBuilder()
 
@@ -177,37 +179,33 @@ class SettlementCoordinator @Inject constructor(
      *
      * @return [BatchAccumulateResult] 指示本次累积的结果
      */
-    suspend fun accumulateBatch(
-        phasesToAdd: Int,
-        monthChanged: Boolean,
-        yearChanged: Boolean,
-        isCultivationFocused: Boolean,
-        isProductionFocused: Boolean
-    ): BatchAccumulateResult {
-        if (batchMode == BatchMode.NONE) return BatchAccumulateResult.Accumulated
-
-        batchCultivationFocused = isCultivationFocused
-        batchProductionFocused = isProductionFocused
-
+    fun accumulateBatch(phasesToAdd: Int, monthChanged: Boolean, yearChanged: Boolean) {
         if (phasesToAdd > 0) batchAccumulatedPhases += phasesToAdd
         if (monthChanged) batchAccumulatedMonths++
-        if (yearChanged) batchHasYearlyChange = true
 
-        val shadow = batchShadow ?: return BatchAccumulateResult.Accumulated
+        val now = System.currentTimeMillis()
+        if (now - lastBatchSettleWallMs < 30_000L) return
 
-        // 双指纹 + 实时轨检测
-        val newCultFp = computeCultivationFingerprint(shadow)
-        val newProdFp = computeProductionFingerprint(shadow)
-        val newRealtime = classifySlotsProgress(shadow)
+        lastBatchSettleWallMs = now
 
-        if (newCultFp != batchCultFingerprint ||
-            newProdFp != batchProdFingerprint ||
-            newRealtime != batchRealtimeSlots
-        ) {
-            return handleBatchChange(shadow, newCultFp, newProdFp, newRealtime)
+        // 临时影子做指纹检测（只读，用完即弃不 swap）
+        val tempShadow = stateStore.createSettlementShadow()
+        try {
+            val newFp = computeFingerprint(tempShadow)
+            val newRt = classifySlotsProgress(tempShadow)
+            if (newFp != lastFingerprint || newRt != batchRealtimeSlots) {
+                DomainLog.d(TAG, "Fingerprint/80% changed")
+                if (batchAccumulatedPhases > 0 || batchAccumulatedMonths > 0)
+                    domain.cultivationService.resetHighFrequencyData()
+                val cache = SettlementCache(tempShadow)
+                reusableCache = cache
+                domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
+                lastFingerprint = newFp; batchRealtimeSlots = newRt
+                batchAccumulatedPhases = 0; batchAccumulatedMonths = 0
+            }
+        } finally {
+            shadowState = null; currentCache = null; scheduler.reset()
         }
-
-        return checkBatchClock()
     }
 
     /** 指纹或实时轨变化 → 微结算 + 重建缓存 */
@@ -383,139 +381,11 @@ class SettlementCoordinator @Inject constructor(
      * @param shadow 本次结算使用的可变游戏状态（shadow）
      * @param isProductionFocused 生产域是否焦点（保留兼容，当前所有域按月结算）
      */
-    fun scheduleMonthly(
-        shadow: MutableGameState,
-        isProductionFocused: Boolean = true,
-        skipCultivation: Boolean = false
-    ) {
+    fun scheduleYearly(shadow: MutableGameState) {
         shadowState = shadow
-        metricsBuilder = SettlementMetricsBuilder()
-
-        val productionPhase = Phase_Production(
-            onProcess = { s -> processProduction(s) }
-        )
-        val worldEventsPhase = Phase_WorldEvents(
-            onProcess = { s -> processWorldEvents(s) }
-        )
-
-        // 批量轨已接管修炼结算，跳过全部弟子阶段
-        if (skipCultivation) {
-            scheduler.scheduleMonthly(
-                shadow, null,
-                Phase_FocusedDisciple({ _, _ -> }, { null }),
-                Phase_CleanDiscipleBatch({ _, _ -> }, { null }),
-                Phase_DirtyDiscipleBatch({ _, _, _ -> 0 }, { null }),
-                productionPhase, worldEventsPhase
-            )
-            return
-        }
-
-        // 修炼速率指纹缓存
-        val fingerprint = computeFingerprint(shadow)
-        val cachePhase: Phase_BuildCache?
-
-        if (fingerprint == lastFingerprint && reusableCache != null) {
-            currentCache = reusableCache
-            cachePhase = null
-            metricsBuilder.cacheBuildMs = 0f
-        } else {
-            timer.start()
-            cachePhase = Phase_BuildCache { state ->
-                val cache = SettlementCache(state)
-                currentCache = cache
-                reusableCache = cache
-                lastFingerprint = fingerprint
-                metricsBuilder.cacheBuildMs = timer.stop()
-                cache
-            }
-        }
-
-        scheduler.scheduleMonthly(
-            shadow, cachePhase,
-            Phase_FocusedDisciple(
-                onProcess = { s, cache -> processFocusedDiscipleImmediate(s, cache) },
-                cacheProvider = { currentCache }
-            ),
-            Phase_CleanDiscipleBatch(
-                onProcess = { s, cache -> processCleanDiscipleBatch(s, cache) },
-                cacheProvider = { currentCache }
-            ),
-            Phase_DirtyDiscipleBatch(
-                onProcess = { s, cache, offset ->
-                    processDirtyDiscipleBatch(s, cache, offset)
-                },
-                cacheProvider = { currentCache }
-            ),
-            productionPhase, worldEventsPhase
-        )
-    }
-
-    /**
-     * 调度一次年度结算。
-     *
-     * 与 [scheduleMonthly] 类似，但额外追加年度专属阶段。
-     *
-     * @param shadow 本次结算使用的可变游戏状态（shadow）
-     * @param isProductionFocused 生产域是否焦点（保留兼容）
-     */
-    fun scheduleYearly(
-        shadow: MutableGameState,
-        isProductionFocused: Boolean = true
-    ) {
-        shadowState = shadow
-        metricsBuilder = SettlementMetricsBuilder()
-
-        // 修炼速率指纹缓存（与 scheduleMonthly 一致）
-        val fingerprint = computeFingerprint(shadow)
-        val cachePhase: Phase_BuildCache?
-
-        if (fingerprint == lastFingerprint && reusableCache != null) {
-            currentCache = reusableCache
-            cachePhase = null
-            metricsBuilder.cacheBuildMs = 0f
-        } else {
-            timer.start()
-            cachePhase = Phase_BuildCache { state ->
-                val cache = SettlementCache(state)
-                currentCache = cache
-                reusableCache = cache
-                lastFingerprint = fingerprint
-                metricsBuilder.cacheBuildMs = timer.stop()
-                cache
-            }
-        }
-
-        val focusedPhase = Phase_FocusedDisciple(
-            onProcess = { s, cache -> processFocusedDiscipleImmediate(s, cache) },
-            cacheProvider = { currentCache }
-        )
-
-        val cleanPhase = Phase_CleanDiscipleBatch(
-            onProcess = { s, cache -> processCleanDiscipleBatch(s, cache) },
-            cacheProvider = { currentCache }
-        )
-
-        val dirtyPhase = Phase_DirtyDiscipleBatch(
-            onProcess = { s, cache, offset -> processDirtyDiscipleBatch(s, cache, offset) },
-            cacheProvider = { currentCache }
-        )
-
-        val productionPhase = Phase_Production(
-            onProcess = { s -> processProduction(s) }
-        )
-
-        val worldEventsPhase = Phase_WorldEvents(
-            onProcess = { s -> processWorldEvents(s) }
-        )
-
-        val agingPhase = Phase_AgingAndDeath(
-            onProcess = { s -> processAgingAndDeath(s) }
-        )
-
         scheduler.scheduleYearly(
-            shadow, cachePhase, focusedPhase, cleanPhase,
-            dirtyPhase, productionPhase, worldEventsPhase,
-            agingPhase,
+            shadow,
+            Phase_AgingAndDeath { s -> world.childBirthSystem.onYearTick(s) },
             Phase_RecruitRefresh { },
             Phase_AISectYearly { },
             Phase_AllianceExpiry { }
@@ -969,11 +839,11 @@ class SettlementCoordinator @Inject constructor(
                      else batchAccumulatedMonths.coerceAtLeast(1)
         if (months <= 0) return
         timer.start()
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             repeat(months) { domain.productionSubsystem.onMonthTick(shadow) }
         } finally {
-            stateStore.endShadowTransaction()
+
         }
         metricsBuilder.productionMs = timer.stop()
     }
@@ -981,20 +851,20 @@ class SettlementCoordinator @Inject constructor(
     /** 可分批的世界事件：经济（政策开销）+ 血炼进度 */
     private suspend fun processBatchableWorldEvents(shadow: MutableGameState, months: Int) {
         if (months <= 0) return
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             repeat(months) {
                 domain.economySubsystem.onMonthTick(shadow)
                 processBloodRefinementProgress(shadow)
             }
         } finally {
-            stateStore.endShadowTransaction()
+
         }
     }
 
     private suspend fun processWorldEvents(shadow: MutableGameState) {
         timer.start()
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             processWorldEventsMonthlyOnly(shadow)
             // 可分批部分仅在非分批模式执行
@@ -1003,7 +873,7 @@ class SettlementCoordinator @Inject constructor(
                 processBloodRefinementProgress(shadow)
             }
         } finally {
-            stateStore.endShadowTransaction()
+
         }
         metricsBuilder.worldEventsMs = timer.stop()
     }
@@ -1080,13 +950,13 @@ class SettlementCoordinator @Inject constructor(
     }
 
     private suspend fun processAgingAndDeath(shadow: MutableGameState) {
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             // 年度事件（招募、俸禄、外交等）已在 GameEngineCore.tickInternal()
             // 中于 shadow 创建前处理完毕。此处仅保留需 shadow 隔离的子嗣系统。
             world.childBirthSystem.onYearTick(shadow)
         } finally {
-            stateStore.endShadowTransaction()
+
         }
     }
 
@@ -1421,14 +1291,14 @@ class SettlementCoordinator @Inject constructor(
      */
     suspend fun productionMicroSettle(shadow: MutableGameState, months: Int) {
         if (months <= 0) return
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             // 生产系统按批次数全额处理
             repeat(months) { domain.productionSubsystem.onMonthTick(shadow) }
             // 经济 + 血炼按批次数全额处理
             processBatchableWorldEvents(shadow, months)
         } finally {
-            stateStore.endShadowTransaction()
+
         }
         // 始终每月的事件（不分批，执行一次即可）
         processWorldEventsMonthlyOnly(shadow)
@@ -1436,7 +1306,7 @@ class SettlementCoordinator @Inject constructor(
 
     /** 始终每月执行的事件（不分批） */
     private suspend fun processWorldEventsMonthlyOnly(shadow: MutableGameState) {
-        stateStore.beginShadowTransaction(shadow)
+        // shadow tx removed
         try {
             domain.explorationService.processMonthlyWorldLevels(shadow)
             world.mailSystem.onMonthTick(shadow)
@@ -1446,7 +1316,7 @@ class SettlementCoordinator @Inject constructor(
                 shadow.gameData.gameYear, shadow.gameData.gameMonth, shadow
             )
         } finally {
-            stateStore.endShadowTransaction()
+
         }
     }
 

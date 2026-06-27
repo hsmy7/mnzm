@@ -3,14 +3,14 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 
-fun GameEngine.addEquipmentStack(stack: EquipmentStack) = inventoryFacade.addEquipmentStack(stack)
-fun GameEngine.removeEquipment(equipmentId: String): Boolean = inventoryFacade.removeEquipment(equipmentId)
-fun GameEngine.addManualStackToWarehouse(stack: ManualStack) = inventoryFacade.addManualStackToWarehouse(stack)
-fun GameEngine.addPillToWarehouse(pill: Pill) = inventoryFacade.addPillToWarehouse(pill)
-fun GameEngine.addMaterialToWarehouse(material: Material) = inventoryFacade.addMaterialToWarehouse(material)
-fun GameEngine.addHerbToWarehouse(herb: Herb) = inventoryFacade.addHerbToWarehouse(herb)
-fun GameEngine.addSeedToWarehouse(seed: Seed) = inventoryFacade.addSeedToWarehouse(seed)
-fun GameEngine.sortWarehouse() = inventoryFacade.sortWarehouse()
+suspend fun GameEngine.addEquipmentStack(stack: EquipmentStack) = inventoryFacade.addEquipmentStack(stack)
+suspend fun GameEngine.removeEquipment(equipmentId: String): Boolean = inventoryFacade.removeEquipment(equipmentId)
+suspend fun GameEngine.addManualStackToWarehouse(stack: ManualStack) = inventoryFacade.addManualStackToWarehouse(stack)
+suspend fun GameEngine.addPillToWarehouse(pill: Pill) = inventoryFacade.addPillToWarehouse(pill)
+suspend fun GameEngine.addMaterialToWarehouse(material: Material) = inventoryFacade.addMaterialToWarehouse(material)
+suspend fun GameEngine.addHerbToWarehouse(herb: Herb) = inventoryFacade.addHerbToWarehouse(herb)
+suspend fun GameEngine.addSeedToWarehouse(seed: Seed) = inventoryFacade.addSeedToWarehouse(seed)
+suspend fun GameEngine.sortWarehouse() = inventoryFacade.sortWarehouse()
 suspend fun GameEngine.confiscateStorageBagItem(discipleId: String, item: StorageBagItem) = inventoryFacade.confiscateStorageBagItem(discipleId, item)
 fun GameEngine.createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack = inventoryFacade.createEquipmentStackFromRecipe(recipe)
 fun GameEngine.createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack = inventoryFacade.createEquipmentStackFromMerchantItem(item)

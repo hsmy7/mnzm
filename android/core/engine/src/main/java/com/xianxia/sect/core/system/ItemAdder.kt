@@ -11,13 +11,13 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.DomainResult
 
 interface ItemAdder {
-    fun addPill(item: Pill): DomainResult<Pill>
-    fun addMaterial(item: Material): DomainResult<Material>
-    fun addHerb(item: Herb): DomainResult<Herb>
-    fun addSeed(item: Seed): DomainResult<Seed>
+    suspend fun addPill(item: Pill): DomainResult<Pill>
+    suspend fun addMaterial(item: Material): DomainResult<Material>
+    suspend fun addHerb(item: Herb): DomainResult<Herb>
+    suspend fun addSeed(item: Seed): DomainResult<Seed>
 
-    fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack>
-    fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance>
-    fun addManualStack(item: ManualStack, merge: Boolean = true): DomainResult<ManualStack>
-    fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance>
+    suspend fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack>
+    suspend fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance>
+    suspend fun addManualStack(item: ManualStack, merge: Boolean = true): DomainResult<ManualStack>
+    suspend fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance>
 }

@@ -727,7 +727,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 任务 ──────────────────────────────────────────────────────────
 
-    fun processCompletedMissionsLazy(year: Int, month: Int) {
+    suspend fun processCompletedMissionsLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val completedIds = mutableListOf<String>()
@@ -760,7 +760,7 @@ class CultivationEventProcessor @Inject constructor(
                     )
                     if (result.spiritStones > 0) {
                         val sp = result.spiritStones.toLong()
-                        scope.launch { stateStore.update { gameData = gameData.copy(spiritStones = gameData.spiritStones + sp) } }
+                        stateStore.update { gameData = gameData.copy(spiritStones = gameData.spiritStones + sp) }
                     }
                     result.materials.forEach { material ->
                         inventorySystem.addMaterial(material)

@@ -40,7 +40,7 @@ class InventorySystemTest {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
         inventoryConfig = InventoryConfig()
-        system = InventorySystem(stateStore, scopeProvider, inventoryConfig)
+        system = InventorySystem(stateStore, inventoryConfig)
         system.initialize()
         runBlocking { stateStore.reset() }
     }
@@ -64,13 +64,13 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addEquipmentStack - empty name returns INVALID_NAME`() {
+    fun `addEquipmentStack - empty name returns INVALID_NAME`() = runBlocking {
         val item = EquipmentStack(id = "e1", name = "", rarity = 1)
         assertTrue(system.addEquipmentStack(item) is DomainResult.Failure)
     }
 
     @Test
-    fun `addEquipmentStack - invalid rarity returns INVALID_RARITY`() {
+    fun `addEquipmentStack - invalid rarity returns INVALID_RARITY`() = runBlocking {
         val item0 = EquipmentStack(id = "e1", name = "铁剑", rarity = 0)
         assertTrue(system.addEquipmentStack(item0) is DomainResult.Failure)
         val item7 = EquipmentStack(id = "e2", name = "铁剑", rarity = 7)
@@ -137,19 +137,19 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addPill - empty name returns INVALID_NAME`() {
+    fun `addPill - empty name returns INVALID_NAME`() = runBlocking {
         val pill = Pill(id = "p1", name = "", rarity = 1, quantity = 1)
         assertTrue(system.addPill(pill) is DomainResult.Failure)
     }
 
     @Test
-    fun `addPill - invalid rarity returns INVALID_RARITY`() {
+    fun `addPill - invalid rarity returns INVALID_RARITY`() = runBlocking {
         val pill = Pill(id = "p1", name = "丹药", rarity = 0, quantity = 1)
         assertTrue(system.addPill(pill) is DomainResult.Failure)
     }
 
     @Test
-    fun `addPill - invalid quantity returns INVALID_QUANTITY`() {
+    fun `addPill - invalid quantity returns INVALID_QUANTITY`() = runBlocking {
         val pill = Pill(id = "p1", name = "丹药", rarity = 1, quantity = 0)
         assertTrue(system.addPill(pill) is DomainResult.Failure)
     }

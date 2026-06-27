@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -152,7 +151,6 @@ class SystemManager @Inject constructor(
      * @param shouldExecute 判断某系统是否应在当前 tick 执行
      * @param markExecuted 记录系统已执行（用于非活跃域计时）
      * @param currentPhase 当前旬（1=上旬, 2=中旬, 3=下旬）
-     * @param lazyEvaluationDispatcher 惰性求值调度器（热状态联动）
      * @param getPhasesToSettle 根据焦点域返回应结算的旬数（焦点域=1，非焦点域=跳过旬数）
      */
     suspend fun onPhaseTickWithDomainFilter(
@@ -161,7 +159,6 @@ class SystemManager @Inject constructor(
         shouldExecute: (FocusDomain, Set<FocusDomain>) -> Boolean,
         markExecuted: (FocusDomain) -> Unit,
         currentPhase: Int,
-        lazyEvaluationDispatcher: LazyEvaluationDispatcher,
         getPhasesToSettle: (FocusDomain) -> Int = { 1 }
     ) {
         for (group in priorityGroups) {
@@ -175,11 +172,7 @@ class SystemManager @Inject constructor(
                 } else {
                     system.settlementPhase == 0 || system.settlementPhase == currentPhase
                 }
-                // 热状态联动：发热时跳过非焦点域的中旬/下旬系统
-                val shouldRunByThermal = lazyEvaluationDispatcher.shouldSystemRunWithThermal(
-                    system.settlementPhase, isActiveDomain
-                )
-                if (shouldExecute(domain, activeDomains) && shouldSettleByPhase && shouldRunByThermal) {
+                if (shouldExecute(domain, activeDomains) && shouldSettleByPhase) {
                     try {
                         system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))
                         markExecuted(domain)
@@ -198,10 +191,7 @@ class SystemManager @Inject constructor(
                         } else {
                             system.settlementPhase == 0 || system.settlementPhase == currentPhase
                         }
-                        val shouldRunByThermal = lazyEvaluationDispatcher.shouldSystemRunWithThermal(
-                            system.settlementPhase, isActiveDomain
-                        )
-                        if (shouldExecute(domain, activeDomains) && shouldSettleByPhase && shouldRunByThermal) {
+                        if (shouldExecute(domain, activeDomains) && shouldSettleByPhase) {
                             launch {
                                 try {
                                     system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))

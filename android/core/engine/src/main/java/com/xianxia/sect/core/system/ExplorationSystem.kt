@@ -14,7 +14,9 @@ class ExplorationTickSystem @Inject constructor(
     override val systemName: String = "ExplorationTickSystem"
     override val focusDomain = FocusDomain.EXPLORATION
 
-    override suspend fun onMonthTick(state: MutableGameState) {
-        explorationService.processMonthlyWorldLevels(state)
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+        if (phasesToSettle < 3) return
+        val months = phasesToSettle / 3
+        repeat(months) { explorationService.processMonthlyWorldLevels(state) }
     }
 }

@@ -426,7 +426,7 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
-    private fun harvestHerbFromCompletedSlot(slot: ProductionSlot) {
+    private suspend fun harvestHerbFromCompletedSlot(slot: ProductionSlot) {
         val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
             ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
             ?: return

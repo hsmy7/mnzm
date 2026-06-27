@@ -34,14 +34,14 @@ class InventoryFacadeImpl @Inject constructor(
     override val seeds: StateFlow<List<Seed>> get() = inventorySystem.seeds
     override val storageBags: StateFlow<List<StorageBag>> get() = stateStore.storageBags
 
-    override fun addEquipmentStack(stack: EquipmentStack) { inventorySystem.addEquipmentStack(stack) }
-    override fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
-    override fun addManualStackToWarehouse(stack: ManualStack) { inventorySystem.addManualStack(stack) }
-    override fun addPillToWarehouse(pill: Pill) { inventorySystem.addPill(pill) }
-    override fun addMaterialToWarehouse(material: Material) { inventorySystem.addMaterial(material) }
-    override fun addHerbToWarehouse(herb: Herb) { inventorySystem.addHerb(herb) }
-    override fun addSeedToWarehouse(seed: Seed) { inventorySystem.addSeed(seed) }
-    override fun sortWarehouse() = inventorySystem.sortWarehouse()
+    override suspend fun addEquipmentStack(stack: EquipmentStack) { inventorySystem.addEquipmentStack(stack) }
+    override suspend fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
+    override suspend fun addManualStackToWarehouse(stack: ManualStack) { inventorySystem.addManualStack(stack) }
+    override suspend fun addPillToWarehouse(pill: Pill) { inventorySystem.addPill(pill) }
+    override suspend fun addMaterialToWarehouse(material: Material) { inventorySystem.addMaterial(material) }
+    override suspend fun addHerbToWarehouse(herb: Herb) { inventorySystem.addHerb(herb) }
+    override suspend fun addSeedToWarehouse(seed: Seed) { inventorySystem.addSeed(seed) }
+    override suspend fun sortWarehouse() = inventorySystem.sortWarehouse()
 
     override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
         stateStore.update {

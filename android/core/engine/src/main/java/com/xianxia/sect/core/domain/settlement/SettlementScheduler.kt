@@ -122,35 +122,8 @@ class SettlementScheduler @Inject constructor() {
 
     val hasPendingWork: Boolean get() = currentPhaseIndex < pendingPhases.size
 
-    fun scheduleMonthly(
-        shadow: MutableGameState,
-        cachePhase: Phase_BuildCache?,
-        focusedPhase: Phase_FocusedDisciple,
-        cleanPhase: Phase_CleanDiscipleBatch,
-        dirtyPhase: Phase_DirtyDiscipleBatch,
-        productionPhase: Phase_Production,
-        worldEventsPhase: Phase_WorldEvents
-    ) {
-        reset()
-        aggressiveFrameCount = 0
-        if (cachePhase != null) {
-            pendingPhases.add(cachePhase)
-        }
-        pendingPhases.add(focusedPhase)
-        pendingPhases.add(cleanPhase)
-        pendingPhases.add(dirtyPhase)
-        pendingPhases.add(productionPhase)
-        pendingPhases.add(worldEventsPhase)
-    }
-
     fun scheduleYearly(
         shadow: MutableGameState,
-        cachePhase: Phase_BuildCache?,
-        focusedPhase: Phase_FocusedDisciple,
-        cleanPhase: Phase_CleanDiscipleBatch,
-        dirtyPhase: Phase_DirtyDiscipleBatch,
-        productionPhase: Phase_Production,
-        worldEventsPhase: Phase_WorldEvents,
         agingPhase: Phase_AgingAndDeath,
         recruitPhase: Phase_RecruitRefresh,
         aiSectPhase: Phase_AISectYearly,
@@ -158,14 +131,6 @@ class SettlementScheduler @Inject constructor() {
     ) {
         reset()
         aggressiveFrameCount = 0
-        if (cachePhase != null) {
-            pendingPhases.add(cachePhase)
-        }
-        pendingPhases.add(focusedPhase)
-        pendingPhases.add(cleanPhase)
-        pendingPhases.add(dirtyPhase)
-        pendingPhases.add(productionPhase)
-        pendingPhases.add(worldEventsPhase)
         pendingPhases.add(agingPhase)
         pendingPhases.add(recruitPhase)
         pendingPhases.add(aiSectPhase)

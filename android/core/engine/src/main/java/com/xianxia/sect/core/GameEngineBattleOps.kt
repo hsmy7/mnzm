@@ -337,7 +337,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
 
 // ── Private: Victory rewards ────────────────────────────────────────
 
-private fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRewardItem> {
     val rewards = mutableListOf<BattleRewardItem>()
     val beastConfig = GameConfig.Beast.getType(level.beastType ?: 0)
     val tier = GameConfig.Realm.getMaxRarity(level.realm)
@@ -354,7 +354,7 @@ private fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<BattleRe
     return rewards
 }
 
-private fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
     val rewards = mutableListOf<BattleRewardItem>()
     val config = LevelGenerator.getCaveReward(level.realm)
     val spiritStones = (config.baseSpiritStones * (0.8 + kotlin.random.Random.nextDouble() * 0.4)).toLong()

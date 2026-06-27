@@ -33,14 +33,13 @@ import com.xianxia.sect.core.util.DomainResult
 
 fun GameEngine.setFocusedDiscipleId(id: String?) {
     stateStore.focusedDiscipleId = id
-    if (id != null) { gameEngineCore.catchUpDomain(FocusDomain.DISCIPLES); gameEngineCore.onUserInteraction() }
+    if (id != null) { gameEngineCore.catchUpDomain(FocusDomain.DISCIPLES) }
 }
 
 fun GameEngine.setActiveTab(tab: String) {
     val oldTab = stateStore.activeTab
     stateStore.activeTab = tab
     if (oldTab != tab) gameEngineCore.catchUpDomain(domainForTab(tab))
-    gameEngineCore.onUserInteraction()
 }
 
 fun GameEngine.setActiveDialog(dialogName: String?) {
@@ -50,7 +49,6 @@ fun GameEngine.setActiveDialog(dialogName: String?) {
         stateStore.activeDialog = dialogName
         gameEngineCore.catchUpDomain(domainForDialog(dialogName))
     }
-    gameEngineCore.onUserInteraction()
 }
 
 fun GameEngine.notifyUserInteraction() = gameEngineCore.onUserInteraction()
@@ -403,7 +401,7 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
     }
 }
 
-private fun GameEngine.addInitialManual() {
+private suspend fun GameEngine.addInitialManual() {
     inventorySystem.addManualStack(ManualStack(id = java.util.UUID.randomUUID().toString(), name = "基础心法", rarity = 1, description = "一门基础的心法功法", type = ManualType.MIND, stats = mapOf("hp" to 10, "mp" to 10), minRealm = 9))
 }
 
@@ -615,8 +613,9 @@ fun GameEngine.updatePatrolConfig(config: PatrolConfig) { updateGameDataSync { i
 fun GameEngine.updatePatrolConfigs(configs: List<PatrolConfig>) { updateGameDataSync { it.copy(patrolConfigs = configs) } }
 
 fun GameEngine.addSpiritStones(amount: Long) {
-    val ts = stateStore.currentTransactionMutableState()
-    if (ts != null) ts.gameData = ts.gameData.copy(spiritStones = ts.gameData.spiritStones + amount) else updateGameDataSync { it.copy(spiritStones = it.spiritStones + amount) }
+    gameEngineCore.launchInScope {
+        stateStore.modifyState { gameData = gameData.copy(spiritStones = gameData.spiritStones + amount) }
+    }
 }
 
 fun GameEngine.updateYearlySalary(newSalary: Map<Int, Int>) { updateGameDataSync { it.copy(yearlySalary = newSalary) } }
@@ -630,7 +629,7 @@ fun GameEngine.startMission(mission: Mission, selectedDisciples: List<Disciple>)
     selectedDisciples.forEach { disciple -> gameEngineCore.launchInScope { updateDiscipleStatus(disciple.id, DiscipleStatus.ON_MISSION) } }
 }
 
-fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
+suspend fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
     val data = stateStore.gameDataSnapshot
     val completedIds = mutableListOf<String>()
     val remainingActive = mutableListOf<ActiveMission>()
@@ -661,7 +660,7 @@ fun GameEngine.processMonthlyMissionRefresh() {
     updateGameDataSync { it.copy(availableMissions = result.cleanedMissions) }
 }
 
-private fun GameEngine.applyMissionResult(
+private suspend fun GameEngine.applyMissionResult(
     result: MissionSystem.MissionResult,
     activeMission: ActiveMission,
     year: Int,
@@ -753,7 +752,7 @@ private suspend fun GameEngine.checkAndCollectCompletedSlots() {
     }
 }
 
-private fun GameEngine.harvestHerbFromCompletedSlot(slot: ProductionSlot) {
+private suspend fun GameEngine.harvestHerbFromCompletedSlot(slot: ProductionSlot) {
     val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeedName(slot.recipeName) ?: slot.recipeId?.let { com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeed(it) } ?: return
     val herbGrowthBonus = if (stateStore.gameData.value.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
     val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)

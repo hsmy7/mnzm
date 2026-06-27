@@ -714,11 +714,8 @@ class DiplomacyService @Inject constructor(
                 tradeItems = newItems,
                 tradeLastRefreshYear = currentYear
             )
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) {
-                ts.gameData = ts.gameData.copy(sectDetails = updatedSectDetails)
-            } else {
-                scope.launch { stateStore.update { gameData = gameData.copy(sectDetails = updatedSectDetails) } }
+            scope.launch {
+                stateStore.modifyState { gameData = gameData.copy(sectDetails = updatedSectDetails) }
             }
             return newItems
         }

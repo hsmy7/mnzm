@@ -16,34 +16,15 @@ class StateAccessor<T>(
     private val fallbackGetter: () -> T
 ) {
     var current: T
-        get() {
-            val ts = stateStore.currentTransactionMutableState()
-            return stateGetter(ts) ?: fallbackGetter()
-        }
+        get() = stateGetter(null) ?: fallbackGetter()
         set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) {
-                stateSetter(ts, value)
-                return
-            }
-            if (dispatcher != null) {
-                scope.launch(dispatcher) {
-                    stateStore.update { stateSetter(this, value) }
-                }
-            } else {
-                scope.launch {
-                    stateStore.update { stateSetter(this, value) }
-                }
+            scope.launch(dispatcher ?: Dispatchers.Main) {
+                stateStore.modifyState { stateSetter(this, value) }
             }
         }
 
     suspend fun setCurrentSync(value: T) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            stateSetter(ts, value)
-            return
-        }
-        stateStore.update { stateSetter(this, value) }
+        stateStore.modifyState { stateSetter(this, value) }
     }
 }
 

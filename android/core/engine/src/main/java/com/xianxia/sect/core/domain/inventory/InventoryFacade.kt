@@ -14,14 +14,14 @@ interface InventoryFacade {
     val seeds: StateFlow<List<Seed>>
     val storageBags: StateFlow<List<StorageBag>>
 
-    fun addEquipmentStack(stack: EquipmentStack)
-    fun removeEquipment(equipmentId: String): Boolean
-    fun addManualStackToWarehouse(stack: ManualStack)
-    fun addPillToWarehouse(pill: Pill)
-    fun addMaterialToWarehouse(material: Material)
-    fun addHerbToWarehouse(herb: Herb)
-    fun addSeedToWarehouse(seed: Seed)
-    fun sortWarehouse()
+    suspend fun addEquipmentStack(stack: EquipmentStack)
+    suspend fun removeEquipment(equipmentId: String): Boolean
+    suspend fun addManualStackToWarehouse(stack: ManualStack)
+    suspend fun addPillToWarehouse(pill: Pill)
+    suspend fun addMaterialToWarehouse(material: Material)
+    suspend fun addHerbToWarehouse(herb: Herb)
+    suspend fun addSeedToWarehouse(seed: Seed)
+    suspend fun sortWarehouse()
     suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)
     fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack
     fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack

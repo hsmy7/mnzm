@@ -90,14 +90,12 @@ class SettlementCoordinatorTest {
         val productionPhase = Phase_Production { _ -> executedPhases.add("Production") }
         val worldEventsPhase = Phase_WorldEvents { _ -> executedPhases.add("WorldEvents") }
 
-        scheduler.scheduleMonthly(
+        scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = cachePhase,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase
+            agingPhase = Phase_AgingAndDeath { _ -> executedPhases.add("AgingAndDeath") },
+            recruitPhase = Phase_RecruitRefresh { _ -> executedPhases.add("RecruitRefresh") },
+            aiSectPhase = Phase_AISectYearly { _ -> executedPhases.add("AISectYearly") },
+            alliancePhase = Phase_AllianceExpiry { _ -> executedPhases.add("AllianceExpiry") }
         )
 
         assertTrue("调度后应有待执行工作", scheduler.hasPendingWork)
@@ -109,7 +107,7 @@ class SettlementCoordinatorTest {
         }
 
         assertEquals(
-            listOf("BuildCache", "FocusedDisciple", "CleanDiscipleBatch", "DirtyDiscipleBatch", "Production", "WorldEvents"),
+            listOf("AgingAndDeath", "RecruitRefresh", "AISectYearly", "AllianceExpiry"),
             executedPhases
         )
     }
@@ -149,12 +147,6 @@ class SettlementCoordinatorTest {
 
         scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = cachePhase,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase,
             agingPhase = agingPhase,
             recruitPhase = recruitPhase,
             aiSectPhase = aiSectPhase,
@@ -167,11 +159,11 @@ class SettlementCoordinatorTest {
             }
         }
 
-        assertEquals(10, executedPhases.size)
-        assertEquals("AgingAndDeath", executedPhases[6])
-        assertEquals("RecruitRefresh", executedPhases[7])
-        assertEquals("AISectYearly", executedPhases[8])
-        assertEquals("AllianceExpiry", executedPhases[9])
+        assertEquals(4, executedPhases.size)
+        assertEquals("AgingAndDeath", executedPhases[0])
+        assertEquals("RecruitRefresh", executedPhases[1])
+        assertEquals("AISectYearly", executedPhases[2])
+        assertEquals("AllianceExpiry", executedPhases[3])
     }
 
     /**
@@ -199,24 +191,15 @@ class SettlementCoordinatorTest {
         val productionPhase = Phase_Production { _ -> executedPhases.add("Production") }
         val worldEventsPhase = Phase_WorldEvents { _ -> executedPhases.add("WorldEvents") }
 
-        scheduler.scheduleMonthly(
+        scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = null,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase
+            agingPhase = Phase_AgingAndDeath { _ -> },
+            recruitPhase = Phase_RecruitRefresh { _ -> },
+            aiSectPhase = Phase_AISectYearly { _ -> },
+            alliancePhase = Phase_AllianceExpiry { _ -> }
         )
 
-        kotlinx.coroutines.runBlocking {
-            while (scheduler.hasPendingWork) {
-                scheduler.executeStep(state)
-            }
-        }
-
-        assertFalse("不应包含 BuildCache", executedPhases.contains("BuildCache"))
-        assertEquals(5, executedPhases.size)
+        assertFalse("reset 前应有待执行工作", !scheduler.hasPendingWork)
     }
 
     /**
@@ -243,14 +226,12 @@ class SettlementCoordinatorTest {
         val productionPhase = Phase_Production { _ -> }
         val worldEventsPhase = Phase_WorldEvents { _ -> }
 
-        scheduler.scheduleMonthly(
+        scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = null,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase
+            agingPhase = Phase_AgingAndDeath { _ -> },
+            recruitPhase = Phase_RecruitRefresh { _ -> },
+            aiSectPhase = Phase_AISectYearly { _ -> },
+            alliancePhase = Phase_AllianceExpiry { _ -> }
         )
         assertTrue(scheduler.hasPendingWork)
 
@@ -286,14 +267,12 @@ class SettlementCoordinatorTest {
         val productionPhase = Phase_Production { _ -> }
         val worldEventsPhase = Phase_WorldEvents { _ -> }
 
-        scheduler.scheduleMonthly(
+        scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = null,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase
+            agingPhase = Phase_AgingAndDeath { _ -> },
+            recruitPhase = Phase_RecruitRefresh { _ -> },
+            aiSectPhase = Phase_AISectYearly { _ -> },
+            alliancePhase = Phase_AllianceExpiry { _ -> }
         )
 
         kotlinx.coroutines.runBlocking {
@@ -302,7 +281,8 @@ class SettlementCoordinatorTest {
             }
         }
 
-        assertEquals("DirtyDiscipleBatch 应只被调用一次（返回0即完成）", 1, callCount)
+        // scheduleYearly 不再包含 DirtyDiscipleBatch 阶段（已迁入 onPhaseTick）
+        assertEquals("不应调用 DirtyDiscipleBatch", 0, callCount)
     }
 
     // ============================================================
@@ -1091,14 +1071,12 @@ class SettlementCoordinatorTest {
         val productionPhase = Phase_Production { _ -> }
         val worldEventsPhase = Phase_WorldEvents { _ -> }
 
-        scheduler.scheduleMonthly(
+        scheduler.scheduleYearly(
             shadow = state,
-            cachePhase = null,
-            focusedPhase = focusedPhase,
-            cleanPhase = cleanPhase,
-            dirtyPhase = dirtyPhase,
-            productionPhase = productionPhase,
-            worldEventsPhase = worldEventsPhase
+            agingPhase = Phase_AgingAndDeath { _ -> },
+            recruitPhase = Phase_RecruitRefresh { _ -> },
+            aiSectPhase = Phase_AISectYearly { _ -> },
+            alliancePhase = Phase_AllianceExpiry { _ -> }
         )
         assertTrue("调度后应有待执行工作", scheduler.hasPendingWork)
 

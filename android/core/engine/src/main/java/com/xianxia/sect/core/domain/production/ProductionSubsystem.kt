@@ -43,16 +43,22 @@ class ProductionSubsystem @Inject constructor(
     override suspend fun clearForSlot(slotId: Int) {}
 
     /**
-     * BUILDINGS 焦点域实时结算：每 200ms 检测生产槽位完成 + 触发自动生产。
-     * 焦点域兜底，确保玩家看着建筑 Tab 时进度实时更新。
+     * BUILDINGS 域结算。
+     * - 实时轨 (phasesToSettle == 1)：每 200ms 检测生产槽位完成 + 自动炼器/炼丹
+     * - 批量轨 (phasesToSettle >= 3)：执行完整月度生产周期 × months
      */
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
-        // 批量轨累积模式（phasesToSettle > 1）：不节流，立即处理
-        if (phasesToSettle == 1) {
-            val now = System.currentTimeMillis()
-            if (now - lastRealtimeTickMs < realtimeTickInterval) return
-            lastRealtimeTickMs = now
+        if (phasesToSettle >= 3) {
+            // 批量轨 — 完整月度生产
+            val months = phasesToSettle / 3
+            repeat(months) { processMonthlyProduction(state) }
+            return
         }
+
+        // 实时轨 — 200ms 节流
+        val now = System.currentTimeMillis()
+        if (now - lastRealtimeTickMs < realtimeTickInterval) return
+        lastRealtimeTickMs = now
 
         val year = state.gameData.gameYear
         val month = state.gameData.gameMonth
@@ -62,25 +68,24 @@ class ProductionSubsystem @Inject constructor(
         cultivationService.processAutoForge()
     }
 
-    override suspend fun onMonthTick(state: MutableGameState) {
-        // 组 A（并行）：纯独立方法——autoAlchemy 只写 herbs，autoForge 只写 materials
+    /** 单月完整生产周期 */
+    private suspend fun processMonthlyProduction(state: MutableGameState) {
+        // 组 A（并行）：autoAlchemy + autoForge
         coroutineScope {
             val alchemyJob = async(Dispatchers.Default) { cultivationService.processAutoAlchemy() }
             val forgeJob = async(Dispatchers.Default) { cultivationService.processAutoForge() }
             awaitAll(alchemyJob, forgeJob)
         }
 
-        // spiritMineProduction 和 autoAssign 都写游戏状态，
-        // 不能并行，必须串行以避免数据竞争。
-        // 所有方法改为直接操作 shadow，不再使用异步协程覆盖。
+        // 组 A 后续（串行）：spiritMineProduction + autoAssign
         cultivationService.processSpiritMineProduction(state)
         cultivationService.processAutoAssign()
 
-        // 组 B（串行，依赖 A 产出）
+        // 组 B（串行）：buildingProduction + herbGardenGrowth
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processHerbGardenGrowth(state)
 
-        // 组 C（串行）
+        // 组 C（串行）：spiritFieldHarvest + autoPlant
         cultivationService.processSpiritFieldHarvest(state)
         cultivationService.processAutoPlant(state)
     }

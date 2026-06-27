@@ -55,8 +55,10 @@ class PartnerSystem @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onMonthTick(state: MutableGameState) {
-        processPartnerMatching(state)
+    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+        if (phasesToSettle < 3) return
+        val months = phasesToSettle / 3
+        repeat(months) { processPartnerMatching(state) }
     }
 
     private fun processPartnerMatching(state: MutableGameState) {
