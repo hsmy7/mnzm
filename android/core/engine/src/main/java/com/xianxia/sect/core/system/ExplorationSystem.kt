@@ -12,7 +12,7 @@ class ExplorationTickSystem @Inject constructor(
     private val explorationService: ExplorationService
 ) : GameSystem {
     override val systemName: String = "ExplorationTickSystem"
-    override val focusDomain = FocusDomain.EXPLORATION
+    override val focusDomains = setOf(FocusDomain.EXPLORATION)
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         if (phasesToSettle < 3) return

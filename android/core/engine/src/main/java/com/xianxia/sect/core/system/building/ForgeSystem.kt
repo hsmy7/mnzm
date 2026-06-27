@@ -14,7 +14,7 @@ class ForgeSystem @Inject constructor(
     private val cultivationService: CultivationService
 ) : GameSystem {
     override val systemName = "ForgeSystem"
-    override val focusDomain = FocusDomain.FORGE
+    override val focusDomains = setOf(FocusDomain.FORGE)
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         if (phasesToSettle == 1) {

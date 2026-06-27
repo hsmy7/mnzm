@@ -69,7 +69,7 @@ class GameSystemInterfaceTest {
 
     private class CustomFocusGameSystem : GameSystem {
         override val systemName: String = "CustomFocusSystem"
-        override val focusDomain: FocusDomain = FocusDomain.DISCIPLES
+        override val focusDomains = setOf(FocusDomain.DISCIPLES)
     }
 
     // 5. GameSystem interface has systemName property
@@ -79,17 +79,17 @@ class GameSystemInterfaceTest {
         assertEquals("TestSystem", system.systemName)
     }
 
-    // 6. GameSystem interface has focusDomain with default BACKGROUND
+    // 6. GameSystem interface has focusDomains with default BACKGROUND
     @Test
-    fun gameSystem_focusDomain_defaultsToBackground() {
+    fun gameSystem_focusDomains_defaultsToBackground() {
         val system = TestGameSystem()
-        assertEquals(FocusDomain.BACKGROUND, system.focusDomain)
+        assertEquals(setOf(FocusDomain.BACKGROUND), system.focusDomains)
     }
 
     @Test
-    fun gameSystem_focusDomain_canBeOverridden() {
+    fun gameSystem_focusDomains_canBeOverridden() {
         val system = CustomFocusGameSystem()
-        assertEquals(FocusDomain.DISCIPLES, system.focusDomain)
+        assertEquals(setOf(FocusDomain.DISCIPLES), system.focusDomains)
     }
 
     // 7. GameSystem interface has default no-op implementations

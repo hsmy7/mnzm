@@ -164,8 +164,9 @@ class SystemManager @Inject constructor(
         for (group in priorityGroups) {
             if (group.size == 1) {
                 val system = group.first()
-                val domain = system.focusDomain
-                val isActiveDomain = domain in activeDomains
+                val domain = system.focusDomains.firstOrNull { it in activeDomains }
+                    ?: system.focusDomains.first()
+                val isActiveDomain = system.focusDomains.any { it in activeDomains }
                 // 分旬调度：焦点域强制执行；非焦点域检查结算旬
                 val shouldSettleByPhase = if (isActiveDomain) {
                     true
@@ -184,8 +185,9 @@ class SystemManager @Inject constructor(
             } else {
                 coroutineScope {
                     group.forEach { system ->
-                        val domain = system.focusDomain
-                        val isActiveDomain = domain in activeDomains
+                        val domain = system.focusDomains.firstOrNull { it in activeDomains }
+                            ?: system.focusDomains.first()
+                        val isActiveDomain = system.focusDomains.any { it in activeDomains }
                         val shouldSettleByPhase = if (isActiveDomain) {
                             true
                         } else {

@@ -24,7 +24,7 @@ class PartnerSystem @Inject constructor(
 ) : GameSystem, DomainEventSubscriber {
 
     override val systemName: String = "PartnerSystem"
-    override val focusDomain = FocusDomain.BACKGROUND
+    override val focusDomains = setOf(FocusDomain.BACKGROUND)
     private val scope get() = scopeProvider.scope
 
     override val subscribedTypes: Set<String> = setOf("breakthrough")
