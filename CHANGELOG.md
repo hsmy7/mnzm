@@ -2,6 +2,14 @@
 
 ## [4.0.27] - 2026-06-27（versionCode=4027）
 
+### 修复
+
+- **华为畅享70游戏时间不动（第二轮修复）**
+  - 根因：`OemPowerProfile` 华为 `antiFreezeBusyInterval=64` 需 128ms 累积延迟才触发一次忙等，但 tick 间隔仅 100ms，忙等条件永不为真，防挂起机制完全禁用
+  - 修复：华为参数与 vivo OriginOS 同级（busyInterval 64→12，busyDuration 2ms→4ms，watchdogInterval 5s→3s），占空比 0%→15%
+  - 防御：`GameForegroundService.startForeground()` 增加异常保护，通知权限被拒时游戏循环仍正常启动
+  - 防御：`GameActivity.onResume()` 增加 Android 13+ `POST_NOTIFICATIONS` 运行时权限请求
+
 ### 重构
 
 - **结算系统彻底重构：移除空闲/活跃双模式，统一为四轨结算架构**

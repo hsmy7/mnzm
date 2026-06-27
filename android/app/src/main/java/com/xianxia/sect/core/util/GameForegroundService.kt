@@ -89,11 +89,10 @@ class GameForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 5s 内必须调用 startForeground，否则触发 ANR + 崩溃
-        startForeground(
-            NOTIFICATION_ID,
-            gameNotificationHelper.buildForegroundNotification(this)
-        )
+        // 5s 内必须调用 startForeground，否则触发 ANR + 崩溃。
+        // 包装为安全方法：即使前台通知启动失败（如 POST_NOTIFICATIONS 权限
+        // 被拒绝导致 SecurityException），游戏循环仍需正常启动。
+        safeStartForeground()
 
         when (intent?.action) {
             ACTION_START, null -> {
@@ -152,6 +151,34 @@ class GameForegroundService : Service() {
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /**
+     * 安全启动前台通知。
+     *
+     * 将 [startForeground] 包装在 try-catch 中，防止 POST_NOTIFICATIONS 权限
+     * 被拒绝等场景下 [SecurityException] 导致整条 [onStartCommand] 崩溃。
+     * 即使前台通知启动失败，游戏循环仍能正常运行——通知不是游戏循环的前置条件。
+     *
+     * @return true 前台通知启动成功，false 失败（已记录日志）
+     */
+    private fun safeStartForeground(): Boolean {
+        return try {
+            startForeground(
+                NOTIFICATION_ID,
+                gameNotificationHelper.buildForegroundNotification(this)
+            )
+            true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "startForeground failed: POST_NOTIFICATIONS likely denied. " +
+                "Game loop will continue without foreground notification. " +
+                "Error: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed with unexpected exception. " +
+                "Game loop will continue. Error: ${e.message}", e)
+            false
         }
     }
 

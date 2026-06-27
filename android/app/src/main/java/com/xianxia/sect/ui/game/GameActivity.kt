@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import android.Manifest
 import android.app.AlarmManager
 import android.content.ComponentCallbacks2
 import android.content.ComponentName
@@ -58,6 +59,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     companion object {
         private const val TAG = "GameActivity"
+        private const val REQUEST_CODE_POST_NOTIFICATIONS = 1001
         private const val KEY_CURRENT_SLOT = "current_slot"
 
         private const val TILE_GROUND = 0
@@ -134,6 +136,11 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     @Inject
     lateinit var wakeLockManager: com.xianxia.sect.core.util.WakeLockManager
+
+    // ── 通知权限提示框 ──
+    // 用项目自己的 StandardPromptDialog 替代系统原生权限弹窗，统一 UI 风格
+    var showNotificationPermissionDialog by mutableStateOf(false)
+        private set
 
     // ── GameForegroundService 绑定 ──
     // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
@@ -462,6 +469,27 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 confirmLabel = "确定"
                             )
                         }
+
+                        // 通知权限提示框：使用项目 StandardPromptDialog 组件，
+                        // 居中显示，按钮使用 GameButton 组件（ButtonSizes 标准尺寸）
+                        if (showNotificationPermissionDialog) {
+                            StandardPromptDialog(
+                                onDismissRequest = {
+                                    showNotificationPermissionDialog = false
+                                },
+                                title = "通知权限",
+                                text = "需要开启通知权限",
+                                confirmLabel = "允许",
+                                onConfirm = {
+                                    showNotificationPermissionDialog = false
+                                    requestPermissions(
+                                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                        REQUEST_CODE_POST_NOTIFICATIONS
+                                    )
+                                },
+                                dismissLabel = "拒绝"
+                            )
+                        }
                     }
                 }
             }
@@ -532,6 +560,17 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
         backgroundTaskScheduler.resume()
         Log.d(TAG, "onResume: background tasks resumed")
+
+        // Android 13+：显示自定义通知权限提示框（使用项目 StandardPromptDialog 组件，
+        // 替代系统原生弹窗，统一 UI 风格）。用户确认后触发系统权限请求。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                showNotificationPermissionDialog = true
+            }
+        }
+
         // 启动并绑定 GameForegroundService：游戏循环控制权已迁移到 Service
         // WakeLock 由 Service 持有，Activity 不再管理 acquire/release
         val startIntent = Intent(this, GameForegroundService::class.java).apply {

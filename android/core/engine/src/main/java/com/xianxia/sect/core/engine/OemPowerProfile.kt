@@ -68,11 +68,17 @@ object OemPowerProfileProvider {
 
     private val PROFILES: Map<OemManufacturer, OemPowerProfile> = mapOf(
         OemManufacturer.HUAWEI to OemPowerProfile(
+            // 华为 EMUI/HarmonyOS PowerGenie 空闲检测窗口 ~50-100ms。
+            // busyInterval=64 需 128ms 累积延迟才触发一次忙等，但 tick 间隔仅
+            // 100ms（实际延迟 60-80ms），忙等条件 cycleCount%64==0 永不为真，
+            // 防挂起机制完全禁用。采用与 vivo OriginOS 同级的激进参数（占空比~15%），
+            // 确保每次 tick 间至少触发 3 次忙等，突破 PowerGenie 空闲检测。
+            // 参考：commit ea245e33 漏改 busyInterval，后续 vivo(01a9118b) 和
+            // OPPO(86535e01) 均已修正，华为本次补齐。
             manufacturer = OemManufacturer.HUAWEI,
-            // 华为 EMUI/HarmonyOS PowerGenie 空闲检测窗口 ~50-100ms，保守参数即可
-            antiFreezeBusyInterval = 64L,
-            antiFreezeBusyDuration = 2L,
-            watchdogIntervalMs = 5000L,
+            antiFreezeBusyInterval = 12L,
+            antiFreezeBusyDuration = 4L,
+            watchdogIntervalMs = 3000L,
         ),
         OemManufacturer.HONOR to OemPowerProfile(
             manufacturer = OemManufacturer.HONOR,
