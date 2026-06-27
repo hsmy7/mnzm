@@ -168,11 +168,6 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateFocusedDisciple(discipleId: String) {
-        stateStore.update {
-            cultivationService.updateFocusedDisciple(discipleId, this)
-        }
-    }
 
     override suspend fun dismissDisciple(discipleId: String) {
         expelDisciple(discipleId)

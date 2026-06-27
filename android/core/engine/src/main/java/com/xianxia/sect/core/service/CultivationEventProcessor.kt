@@ -184,7 +184,6 @@ class CultivationEventProcessor @Inject constructor(
             maxStack = maxManualStack
         )
         val tickShared = TickSharedContext(
-            focusedDiscipleId = null,
             cachedCultivationRates = sharedState.cachedCultivationRates,
             highFrequencyData = sharedState.highFrequencyData.value,
             autoEquipDirty = sharedState.autoEquipDirty,

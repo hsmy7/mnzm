@@ -445,7 +445,7 @@ class SettlementCoordinator @Inject constructor(
      */
     private suspend fun processFocusedDiscipleImmediate(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
-        val focusedId = stateStore.focusedDiscipleId ?: run {
+        val focusedId = null ?: run {
             metricsBuilder.focusedDiscipleMs = timer.stop()
             return
         }
@@ -586,7 +586,7 @@ class SettlementCoordinator @Inject constructor(
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
         timer.start()
         val data = shadow.gameData
-        val focusedId = stateStore.focusedDiscipleId
+        val focusedId = null
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val tables = shadow.discipleTables
 
@@ -672,7 +672,7 @@ class SettlementCoordinator @Inject constructor(
     private fun processDirtyDiscipleBatch(shadow: MutableGameState, cache: SettlementCache, offset: Int): Int {
         timer.start()
         val data = shadow.gameData
-        val focusedId = stateStore.focusedDiscipleId
+        val focusedId = null
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val tables = shadow.discipleTables
 

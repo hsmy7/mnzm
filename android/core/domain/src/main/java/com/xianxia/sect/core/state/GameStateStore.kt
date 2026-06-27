@@ -108,7 +108,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE)
 
     // === 交互状态 ===
-    var focusedDiscipleId: String?
     var activeTab: String
     var activeDialog: String?
 

@@ -27,7 +27,6 @@ fun GameEngine.getIdleDisciples(): List<Disciple> = discipleFacade.getIdleDiscip
 suspend fun GameEngine.autoFillLawEnforcementSlots(): Int = discipleFacade.autoFillLawEnforcementSlots()
 fun GameEngine.getDiscipleAggregate(discipleId: String): DiscipleAggregate? = discipleFacade.getDiscipleAggregate(discipleId)
 fun GameEngine.getAllDiscipleAggregates(): List<DiscipleAggregate> = discipleFacade.getAllDiscipleAggregates()
-suspend fun GameEngine.updateFocusedDisciple(discipleId: String) = discipleFacade.updateFocusedDisciple(discipleId)
 suspend fun GameEngine.dismissDisciple(discipleId: String) = discipleFacade.dismissDisciple(discipleId)
 fun GameEngine.giveItemToDisciple(discipleId: String, itemId: String, itemType: String) = discipleFacade.giveItemToDisciple(discipleId, itemId, itemType)
 fun GameEngine.assignManual(discipleId: String, stackId: String) = discipleFacade.assignManual(discipleId, stackId)

@@ -37,7 +37,6 @@ interface DiscipleFacade {
     fun getAllDiscipleAggregates(): List<DiscipleAggregate>
     suspend fun approveMarriage(maleId: String, femaleId: String)
     suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
-    suspend fun updateFocusedDisciple(discipleId: String)
     suspend fun dismissDisciple(discipleId: String)
     fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String)
     fun assignManual(discipleId: String, stackId: String)

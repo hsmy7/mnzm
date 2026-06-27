@@ -70,14 +70,12 @@ data class TickManualContext(
  * 在批量 tick 循环中仅读取一次，所有弟子共享同一份引用，
  * 避免每个弟子独立获取 [HighFrequencyData] 等高开销对象。
  *
- * @property focusedDiscipleId 当前焦点弟子 ID（可空）
  * @property cachedCultivationRates 缓存的修炼速率映射
  * @property highFrequencyData 高频更新数据
  * @property autoEquipDirty 自动装备脏标记集合
  * @property autoLearnDirty 自动学习脏标记集合
  */
 data class TickSharedContext(
-    val focusedDiscipleId: String?,
     val cachedCultivationRates: Map<String, Double>,
     val highFrequencyData: HighFrequencyData,
     val autoEquipDirty: java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>,
@@ -793,102 +791,6 @@ class CultivationCore @Inject constructor(
      * @param breakthroughHandler 突破处理器
      * @return 更新后的 highFrequencyData
      */
-    fun updateFocusedDisciple(discipleId: String, state: MutableGameState, highFrequencyData: HighFrequencyData, breakthroughHandler: DiscipleBreakthroughHandler): HighFrequencyData {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val idInt = discipleId.toIntOrNull() ?: return highFrequencyData
-        if (!tables.names.contains(idInt) || tables.isAlive[idInt] != 1) return highFrequencyData
-
-        val disciple = tables.assemble(idInt)
-
-        if (disciple.cultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)) {
-            breakthroughHandler.processRealtimeBreakthroughs(listOf(disciple), data, state)
-        }
-
-        val currentDisciple = tables.assemble(idInt)
-
-        val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
-
-        tables.cultivations.update(idInt) { (it + cultivationPerPhase).coerceIn(0.0, currentDisciple.maxCultivation) }
-
-        val accumGains = highFrequencyData.cultivationUpdates.toMutableMap()
-        accumGains[discipleId] = (accumGains[discipleId] ?: 0.0) + cultivationPerPhase
-
-        val manualInstanceMap = state.manualInstances.associateBy { it.id }
-        val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
-        val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val proficiencyGainPerTick = ManualProficiencySystem.calculateProficiencyGainPerPhase(currentDisciple.comprehension, libraryBonus)
-
-        var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-        val profUpdatesMap = highFrequencyData.proficiencyUpdates.toMutableMap()
-        val discipleProfUpdates = profUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
-        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-
-        currentDisciple.manualIds.forEach { manualId ->
-            manualInstanceMap[manualId]?.let { manual ->
-                val profList = updatedManualProficiencies.getOrDefault(discipleId, emptyList()).toMutableList()
-                val profIndex = profList.indexOfFirst { it.manualId == manualId }
-                if (profIndex >= 0) {
-                    val cp = profList[profIndex]
-                    val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
-                    val newProf = (cp.proficiency + proficiencyGainPerTick).coerceAtMost(fixedMaxProf.toDouble())
-                    profList[profIndex] = cp.copy(
-                        proficiency = newProf,
-                        maxProficiency = fixedMaxProf,
-                        masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProf).level
-                    )
-                } else {
-                    val initProf = proficiencyGainPerTick.coerceAtMost(maxProf.toDouble())
-                    profList.add(ManualProficiencyData(
-                        manualId = manualId,
-                        manualName = manual.name,
-                        proficiency = initProf,
-                        maxProficiency = maxProf,
-                        masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
-                    ))
-                }
-                updatedManualProficiencies[discipleId] = profList
-                discipleProfUpdates[manualId] = (discipleProfUpdates[manualId] ?: 0.0) + proficiencyGainPerTick
-            }
-        }
-        profUpdatesMap[discipleId] = discipleProfUpdates
-        if (updatedManualProficiencies != data.manualProficiencies) {
-            state.gameData = data.copy(manualProficiencies = updatedManualProficiencies)
-        }
-
-        val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
-        // 温养每旬基础值 = 5.0/s × 每旬秒数
-        val nurtureGainPerTick = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
-        val nurtureUpdatesMap = highFrequencyData.nurtureUpdates.toMutableMap()
-        val discipleNurtureUpdates = nurtureUpdatesMap.getOrDefault(discipleId, emptyMap()).toMutableMap()
-        val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
-
-        listOfNotNull(
-            currentDisciple.equipment.weaponId,
-            currentDisciple.equipment.armorId,
-            currentDisciple.equipment.bootsId,
-            currentDisciple.equipment.accessoryId
-        ).forEach { eqId ->
-            equipmentInstanceMap[eqId]?.let { eq ->
-                val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGainPerTick)
-                equipmentInstanceUpdates[eqId] = result.equipment
-                discipleNurtureUpdates[eqId] = (discipleNurtureUpdates[eqId] ?: 0.0) + nurtureGainPerTick
-            }
-        }
-        nurtureUpdatesMap[discipleId] = discipleNurtureUpdates
-        if (equipmentInstanceUpdates.isNotEmpty()) {
-            state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
-        }
-
-        return highFrequencyData.copy(
-            lastCultivationTime = System.currentTimeMillis(),
-            cultivationPerPhase = cultivationPerPhase,
-            totalDisciples = tables.ids.count { tables.isAlive[it] == 1 },
-            cultivationUpdates = accumGains,
-            proficiencyUpdates = profUpdatesMap,
-            nurtureUpdates = nurtureUpdatesMap
-        )
-    }
 
     companion object {
         private const val TAG = "CultivationCore"

@@ -35,9 +35,6 @@ class GameStateStoreImpl @Inject constructor(
 ) : GameStateStore {
 
     @Volatile
-    override var focusedDiscipleId: String? = null
-
-    @Volatile
     override var activeTab: String = "OVERVIEW"
 
     @Volatile

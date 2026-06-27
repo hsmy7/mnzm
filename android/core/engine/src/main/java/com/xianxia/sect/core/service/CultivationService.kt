@@ -111,10 +111,6 @@ class CultivationService @Inject constructor(
         breakthroughHandler.processRealtimeBreakthroughs(livingDisciples, state.gameData, state)
     }
 
-    fun updateFocusedDisciple(discipleId: String, state: MutableGameState) {
-        val newHfd = cultivationCore.updateFocusedDisciple(discipleId, state, _highFrequencyData.value, breakthroughHandler)
-        _highFrequencyData.value = newHfd
-    }
 
     suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         cultivationSettlement.settleSalaryOnBreakthrough(discipleId, currentYear)
@@ -196,18 +192,10 @@ class CultivationService @Inject constructor(
      * 空闲期间焦点弟子轻量 HFD 累积。
      *
      * 仅更新焦点弟子一人的修炼值/功法熟练度/装备孕养，
-     * 不遍历全体弟子。委托给 [CultivationCore.updateFocusedDisciple]。
      *
      * @param focusedId 焦点弟子 ID
      * @param state 可变游戏状态
      */
-    fun updateFocusedDiscipleLightweight(focusedId: String, state: MutableGameState) {
-        val hfd = _highFrequencyData.value
-        val newHfd = cultivationCore.updateFocusedDisciple(
-            focusedId, state, hfd, breakthroughHandler
-        )
-        _highFrequencyData.value = newHfd
-    }
 
     /**
      * 空闲期间战斗中弟子 HP/MP 轻量恢复。
