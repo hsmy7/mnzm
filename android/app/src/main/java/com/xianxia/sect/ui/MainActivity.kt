@@ -1,6 +1,9 @@
 package com.xianxia.sect.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -123,6 +126,7 @@ class MainActivity : ComponentActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
+        private const val REQUEST_CODE_POST_NOTIFICATIONS = 1001
         const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
@@ -164,6 +168,7 @@ class MainActivity : ComponentActivity() {
         if (com.xianxia.sect.core.util.VivoGCJITOptimizer.isOptimizationActive()) {
             com.xianxia.sect.core.util.VivoGCJITOptimizer.extendGcDelayForMs(10_000L)
         }
+        requestNotificationPermissionIfNeeded()
         proceedAfterPrivacyConsent()
     }
     
@@ -582,6 +587,26 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
+        requestNotificationPermissionIfNeeded()
+    }
+
+    /**
+     * Android 13+：直接弹出系统通知权限请求（无中间提示框）。
+     *
+     * 在进入应用时（隐私同意后）直接调用 [requestPermissions]，
+     * 不再使用自定义提示框作为中转。
+     */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (!sessionManager.hasAgreedPrivacy) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED
+        ) return
+
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            REQUEST_CODE_POST_NOTIFICATIONS
+        )
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

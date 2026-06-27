@@ -114,17 +114,9 @@ class GameNotificationHelper @Inject constructor(
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("修仙门派")
+            .setContentTitle("模拟宗门")
             .setContentText(contentText)
             .setContentIntent(createContentIntent(context))
-            .addAction(
-                android.R.drawable.ic_media_pause, "暂停",
-                createPauseIntent(context)
-            )
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel, "退出",
-                createStopIntent(context)
-            )
             .setOngoing(true)
             .build()
             .apply {

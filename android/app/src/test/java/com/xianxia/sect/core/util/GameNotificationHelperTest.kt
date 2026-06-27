@@ -42,14 +42,14 @@ class GameNotificationHelperTest {
     @Test
     fun `buildForegroundNotification - running state shows correct text`() {
         val notification = helper.buildForegroundNotification(context, paused = false)
-        assertEquals("修仙门派", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("模拟宗门", notification.extras.getString(Notification.EXTRA_TITLE))
         assertNotNull(notification.extras.getString(Notification.EXTRA_TEXT))
     }
 
     @Test
     fun `buildForegroundNotification - paused state shows paused text`() {
         val notification = helper.buildForegroundNotification(context, paused = true)
-        assertEquals("修仙门派", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("模拟宗门", notification.extras.getString(Notification.EXTRA_TITLE))
     }
 
     @Test
@@ -72,10 +72,12 @@ class GameNotificationHelperTest {
     }
 
     @Test
-    fun `buildForegroundNotification - has two action buttons`() {
+    fun `buildForegroundNotification - has no action buttons`() {
         val notification = helper.buildForegroundNotification(context)
-        assertNotNull("Notification should have actions", notification.actions)
-        assertEquals("Should have 2 actions (暂停, 退出)", 2, notification.actions!!.size)
+        assertTrue(
+            "Notification should have no action buttons",
+            notification.actions == null || notification.actions!!.isEmpty()
+        )
     }
 
     // ── 常量一致性 ──
