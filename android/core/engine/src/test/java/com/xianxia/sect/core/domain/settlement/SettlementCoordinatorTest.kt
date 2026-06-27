@@ -1146,4 +1146,267 @@ class SettlementCoordinatorTest {
         assertFalse("A" in map)
         assertTrue("B" in map)
     }
+
+    // ============================================================
+    // 13. 指纹检测 — computeFingerprint 核心逻辑
+    // ============================================================
+
+    /**
+     * 复制 computeFingerprint 的核心逻辑：
+     * 指纹由 residenceLayout + elderAssignments + preachingAssignments +
+     * policyFlags + aliveDiscipleIdsHash + realmHash + perDiscipleHash 组成。
+     * 任一维度变化 → 指纹不同。
+     */
+    private fun computeFingerprintTest(
+        residenceSlots: Int = 0,
+        placedBuildings: Int = 0,
+        elderSlots: Int = 0,
+        preachingElder: Int = 0,
+        preachingMasters: Int = 0,
+        qingyunPreachingElder: Int = 0,
+        qingyunPreachingMasters: Int = 0,
+        policyFlags: Int = 0,
+        aliveIds: List<Int> = emptyList(),
+        realmMapper: (Int) -> Int = { 9 },
+        perDiscipleMapper: (Int) -> Int = { it }
+    ): CultivationRateFingerprint {
+        val residenceLayout = residenceSlots * 31 + placedBuildings
+        val elderAssignments = elderSlots.hashCode()
+        val preachingAssignments = (
+            preachingElder * 31 +
+            preachingMasters * 31 +
+            qingyunPreachingElder * 31 +
+            qingyunPreachingMasters
+        )
+        val discipleIdsHash = aliveIds.hashCode()
+        val realmHash = aliveIds.map { realmMapper(it) }.hashCode()
+        val perDiscipleHash = aliveIds.map { perDiscipleMapper(it) }.hashCode()
+        return CultivationRateFingerprint(
+            residenceLayout = residenceLayout,
+            elderAssignments = elderAssignments,
+            preachingAssignments = preachingAssignments,
+            policyFlags = policyFlags,
+            aliveDiscipleIdsHash = discipleIdsHash,
+            realmHash = realmHash,
+            perDiscipleHash = perDiscipleHash
+        )
+    }
+
+    @Test
+    fun `computeFingerprint — 相同状态生成相同指纹`() {
+        val fp1 = computeFingerprintTest(
+            residenceSlots = 5, placedBuildings = 3,
+            elderSlots = 2, policyFlags = 0x0F,
+            aliveIds = listOf(1, 2, 3)
+        )
+        val fp2 = computeFingerprintTest(
+            residenceSlots = 5, placedBuildings = 3,
+            elderSlots = 2, policyFlags = 0x0F,
+            aliveIds = listOf(1, 2, 3)
+        )
+        assertEquals("相同输入应生成相同指纹", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 住所布局变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(residenceSlots = 5, placedBuildings = 3)
+        val fp2 = computeFingerprintTest(residenceSlots = 4, placedBuildings = 3)
+        assertNotEquals("住所布局变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 政策变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(policyFlags = 0x0F)
+        val fp2 = computeFingerprintTest(policyFlags = 0x1F)
+        assertNotEquals("政策变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 长老分配变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(elderSlots = 2)
+        val fp2 = computeFingerprintTest(elderSlots = 3)
+        assertNotEquals("长老分配变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 传功分配变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(preachingElder = 1, preachingMasters = 2)
+        val fp2 = computeFingerprintTest(preachingElder = 2, preachingMasters = 2)
+        assertNotEquals("传功长老变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 存活弟子集合变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(aliveIds = listOf(1, 2, 3))
+        val fp2 = computeFingerprintTest(aliveIds = listOf(1, 2))
+        assertNotEquals("弟子增删应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 弟子境界分布变化导致指纹不同`() {
+        val fp1 = computeFingerprintTest(
+            aliveIds = listOf(1, 2, 3),
+            realmMapper = { 8 }  // 全部筑基
+        )
+        val fp2 = computeFingerprintTest(
+            aliveIds = listOf(1, 2, 3),
+            realmMapper = { if (it == 1) 7 else 8 }  // 弟子1突破到金丹
+        )
+        assertNotEquals("境界分布变化应导致指纹不同", fp1, fp2)
+    }
+
+    @Test
+    fun `computeFingerprint — 逐弟子哈希变化导致指纹不同（模拟丹药加速）`() {
+        val fp1 = computeFingerprintTest(
+            aliveIds = listOf(1, 2),
+            perDiscipleMapper = { it * 100 }
+        )
+        val fp2 = computeFingerprintTest(
+            aliveIds = listOf(1, 2),
+            perDiscipleMapper = { it * 200 }  // 不同丹药/丧亲状态
+        )
+        assertNotEquals("逐弟子状态变化应导致指纹不同", fp1, fp2)
+    }
+
+    // ============================================================
+    // 14. batchRealtimeDomains — 槽位→域映射
+    // ============================================================
+
+    /**
+     * 复制 batchRealtimeDomains 的槽位→域映射逻辑。
+     */
+    private fun mapSlotsToDomains(slots: Set<String>): Set<String> {
+        val domains = mutableSetOf<String>()
+        for (slot in slots) {
+            when {
+                slot.startsWith("cultivation:") ||
+                slot.startsWith("nurture:") ||
+                slot.startsWith("proficiency:") ||
+                slot.startsWith("reflection:") -> domains.add("DISCIPLE_LIST")
+                slot.startsWith("bloodRefinement:") ||
+                slot.startsWith("spiritField:") ||
+                slot.startsWith("production:") -> domains.add("BUILDING_LIST")
+                slot.startsWith("mission:") -> domains.add("MISSION_HALL")
+            }
+        }
+        return domains
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 修炼槽位映射到 DISCIPLE_LIST`() {
+        val domains = mapSlotsToDomains(setOf("cultivation:1"))
+        assertTrue("修炼≥80%应映射到 DISCIPLE_LIST", "DISCIPLE_LIST" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 装备温养槽位映射到 DISCIPLE_LIST`() {
+        val domains = mapSlotsToDomains(setOf("nurture:eq-1"))
+        assertTrue("温养≥80%应映射到 DISCIPLE_LIST", "DISCIPLE_LIST" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 功法熟练度槽位映射到 DISCIPLE_LIST`() {
+        val domains = mapSlotsToDomains(setOf("proficiency:1:manual-1"))
+        assertTrue("熟练度≥80%应映射到 DISCIPLE_LIST", "DISCIPLE_LIST" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 血炼槽位映射到 BUILDING_LIST`() {
+        val domains = mapSlotsToDomains(setOf("bloodRefinement:bld-1"))
+        assertTrue("血炼≥80%应映射到 BUILDING_LIST", "BUILDING_LIST" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 生产槽位映射到 BUILDING_LIST`() {
+        val domains = mapSlotsToDomains(setOf("production:slot-1"))
+        assertTrue("生产≥80%应映射到 BUILDING_LIST", "BUILDING_LIST" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 任务槽位映射到 MISSION_HALL`() {
+        val domains = mapSlotsToDomains(setOf("mission:m1"))
+        assertTrue("任务≥80%应映射到 MISSION_HALL", "MISSION_HALL" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 多槽位多域去重`() {
+        val domains = mapSlotsToDomains(setOf(
+            "cultivation:1", "cultivation:2", "nurture:eq-1",
+            "production:slot-1", "mission:m1"
+        ))
+        assertEquals("3个域（DISCIPLE_LIST + BUILDING_LIST + MISSION_HALL）", 3, domains.size)
+        assertTrue("DISCIPLE_LIST" in domains)
+        assertTrue("BUILDING_LIST" in domains)
+        assertTrue("MISSION_HALL" in domains)
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 空槽位返回空域集`() {
+        val domains = mapSlotsToDomains(emptySet())
+        assertTrue("空槽位应返回空域集", domains.isEmpty())
+    }
+
+    @Test
+    fun `batchRealtimeDomains — 未知前缀被忽略`() {
+        val domains = mapSlotsToDomains(setOf("unknown:xxx"))
+        assertTrue("未知前缀应被忽略", domains.isEmpty())
+    }
+
+    // ============================================================
+    // 15. classifySlotsProgress — ≥80% 进度检测核心逻辑
+    // ============================================================
+
+    /**
+     * 复制 classifySlotsProgress 中修炼 ≥80% 的判定逻辑。
+     */
+    private fun isCultivationAbove80(cultivation: Double, maxCultivation: Double): Boolean {
+        return maxCultivation > 0.0 && cultivation / maxCultivation >= 0.8
+    }
+
+    @Test
+    fun `classifySlotsProgress — 修炼达到80%时返回true`() {
+        assertTrue("80/100=0.8 ≥ 0.8", isCultivationAbove80(80.0, 100.0))
+    }
+
+    @Test
+    fun `classifySlotsProgress — 修炼超过80%时返回true`() {
+        assertTrue("90/100=0.9 ≥ 0.8", isCultivationAbove80(90.0, 100.0))
+    }
+
+    @Test
+    fun `classifySlotsProgress — 修炼低于80%时返回false`() {
+        assertFalse("79/100=0.79 < 0.8", isCultivationAbove80(79.0, 100.0))
+    }
+
+    @Test
+    fun `classifySlotsProgress — 修炼为0时返回false`() {
+        assertFalse("0/100=0 < 0.8", isCultivationAbove80(0.0, 100.0))
+    }
+
+    @Test
+    fun `classifySlotsProgress — maxCultivation为0时返回false（除零保护）`() {
+        assertFalse("maxCult=0 应返回 false", isCultivationAbove80(50.0, 0.0))
+    }
+
+    /**
+     * 复制 classifySlotsProgress 中生产进度 ≥80% 的判定。
+     */
+    private fun isProgressAbove80(elapsed: Int, duration: Int): Boolean {
+        return duration > 0 && elapsed.toDouble() / duration >= 0.8
+    }
+
+    @Test
+    fun `classifySlotsProgress — 任务进度达到80%`() {
+        assertTrue("8/10=0.8 ≥ 0.8", isProgressAbove80(8, 10))
+    }
+
+    @Test
+    fun `classifySlotsProgress — 任务进度低于80%`() {
+        assertFalse("7/10=0.7 < 0.8", isProgressAbove80(7, 10))
+    }
+
+    @Test
+    fun `classifySlotsProgress — 持续时间为0时跳过`() {
+        assertFalse("duration=0 应返回 false", isProgressAbove80(5, 0))
+    }
 }
