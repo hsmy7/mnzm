@@ -91,6 +91,50 @@ User Action (Compose UI)
 - **GameEngineCore** runs on a 100ms tick via `SystemManager`, driving autonomous systems (TimeSystem, BuildingSubsystem, etc.) that also write to `GameStateStore`.
 - **GameStateStore** is the single source of truth — one `MutableStateFlow<UnifiedGameState>` containing all game state. Individual `StateFlow` projections are derived via `.map {}`.
 
+### Settlement Architecture: Four-Track Model
+
+系统结算分四条路径，每个系统只在一条路径上运行，杜绝双计。
+
+```
+tickInternal() 每 100ms
+  │
+  ├─ for each phase:
+  │   stateStore.update {
+  │     systemManager.onPhaseTickWithDomainFilter(activeDomains)
+  │       ├─ 实时轨 (100ms): onPhaseTick(this, 1)
+  │       │   焦点域系统 + 进度≥80%槽位 → 每旬结算
+  │       └─ 批量轨 (30s): onPhaseTick(this, N)
+  │           非焦点域系统 + 进度<80%槽位 → 跳过N旬一次补齐
+  │   }
+  │
+  ├─ 月变事件: processMonthlyEvents   ← 外交/盗窃/任务/商人
+  ├─ 年变事件: processYearlyEvents    ← 招募刷新/盟约
+  │
+  ├─ accumulateBatch(临时影子指纹检测)
+  │   └─ 30s墙壁时钟 → 从主状态创建临时影子 → 计算指纹
+  │       指纹变化 → 重建 SettlementCache
+  │       (临时影子只读即弃，不持有持久状态)
+  │
+  └─ yearChanged? → scheduleYearly(shadow)  ← 老化/死亡/招募/盟约
+```
+
+**四条路径：**
+
+| 路径 | 频率 | 结算方式 | 覆盖系统 |
+|------|------|---------|---------|
+| 实时轨 | 100ms (每旬) | `onPhaseTick(state, 1)` — 增量1旬 | 焦点域系统 + 进度≥80%槽位 |
+| 批量轨 | 30s | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非焦点域全部系统 |
+| 月度事件 | 游戏月变时 | 一次性 | 外交/盗窃/任务/商人 |
+| 年度结算 | 游戏年变时 | 一次性 | 老化/死亡/招募/盟约 |
+
+**核心原则：**
+- **焦点域决定轨道** — 当前界面所在域的系统走实时轨，其他域走批量轨
+- **单路径原则** — 每个系统只在一个结算路径上运行
+- **无影子** — 批量轨不持有持久影子，临时影子仅用于指纹检测（只读即弃）
+- **突破检测仅在实时轨** — `CultivationTickSystem.onPhaseTick` 中 `phasesToSettle==1` 时调用 `processBreakthroughs`
+- **焦点域 = 视角驱动** — 如在弟子 Tab 则 DISCIPLES 域激活，在建筑 Tab 则 BUILDINGS 域激活
+- **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
+
 ### Key Source Directories
 
 **Core — Game logic, state, and static data**
@@ -130,7 +174,8 @@ User Action (Compose UI)
 
 ### Key Classes
 
-- **`GameEngineCore`** — Game loop controller. `start()`/`stop()`/`tick()` at 100ms intervals. Delegates to `SystemManager` which runs registered systems (TimeSystem, BuildingSubsystem, etc.) in priority order.
+- **`GameEngineCore`** — Game loop controller. `tick()` at 100ms intervals, driving 4 settlement paths (real-time/batch/monthly/annual). Focus domains are computed from `resolveDomainsFromView(tab, dialog)`, and `SystemManager.onPhaseTickWithDomainFilter` routes systems to real-time (`phasesToSettle=1`) or batch (`phasesToSettle=N`) track.
+- **`SettlementCoordinator`** — Fingerprint detection + annual settlement. No persistent shadow. Every 30s creates a temporary shadow from main state for cultivation fingerprint computation and 80% progress classification. Annual settlement handled via `scheduleYearly` → `SettlementScheduler`.
 - **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
 - **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
 - **`GameViewModel`** — Primary ViewModel (Hilt). Bridges UI to engine. Owns `DialogStateManager`.
@@ -394,7 +439,7 @@ stateStore.update {
 新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新以下三处：
 
 1. `FocusDomain.kt` — 更新枚举 KDoc 中的「界面→域映射」表格
-2. `GameEngineCore.resolveDomainsFromView()` — 根据新 Tab/Dialog 判定激活对应域
+2. `GameEngineCore.resolveDomainsFromView()` — 根据新 Tab/Dialog 判定激活对应域（参数: `tab, dialog`）
 3. `GameEngineCoordination.kt` 中的 `domainForDialog()` — 切换界面时的追赶结算映射
 
 判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面只映射 ALWAYS。**
