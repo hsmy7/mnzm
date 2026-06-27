@@ -14,7 +14,6 @@ import com.xianxia.sect.core.state.MutableGameState
  * 任一指纹变化 → 触发微结算：旧速率结算已累积产出 → 重建缓存 → 新速率继续累积。
  *
  * 检测维度（纯 Int 比较 O(1)）：
- * - 采矿（灵矿）：槽位分配 + 建筑等级
  * - 种植（灵植阁）：灵田状态 + 长老/弟子分配
  * - 炼丹：长老/弟子分配 + 政策
  * - 炼器（锻造）：长老/弟子分配 + 政策
@@ -27,8 +26,6 @@ import com.xianxia.sect.core.state.MutableGameState
  *       进度完成型溢出由 80% 实时轨机制处理。
  */
 data class ProductionRateFingerprint(
-    /** 灵矿槽位：discipleId × buildingInstanceId */
-    val spiritMineHash: Int,
     /** 灵植阁：灵田种植状态 + 长老/弟子分配 */
     val herbGardenHash: Int,
     /** 炼丹：长老/弟子分配 + 政策 */
@@ -59,16 +56,10 @@ data class ProductionRateFingerprint(
             val data = state.gameData
             val tables = state.discipleTables
 
-            // 1. 灵矿槽位
-            val spiritMineHash = data.spiritMineSlots
-                .filter { it.discipleId.isNotEmpty() }
-                .map { "${it.discipleId}:${it.buildingInstanceId}" }
-                .hashCode()
-
-            // 2. 灵植阁：灵田状态 + 长老/弟子分配
+            // 1. 灵植阁：灵田状态 + 长老/弟子分配
             val herbGardenHash = buildHerbGardenHash(data, tables)
 
-            // 3. 炼丹：长老/弟子/储备弟子分配 + 激励政策 + 已分配弟子属性
+            // 2. 炼丹：长老/弟子/储备弟子分配 + 激励政策 + 已分配弟子属性
             val alchemyHash = buildAlchemyForgeHash(
                 data, tables,
                 elderId = data.elderSlots.alchemyElder,
@@ -77,7 +68,7 @@ data class ProductionRateFingerprint(
                 policyEnabled = data.sectPolicies.alchemyIncentive
             )
 
-            // 4. 炼器：同炼丹模式
+            // 3. 炼器：同炼丹模式
             val forgeHash = buildAlchemyForgeHash(
                 data, tables,
                 elderId = data.elderSlots.forgeElder,
@@ -86,7 +77,7 @@ data class ProductionRateFingerprint(
                 policyEnabled = data.sectPolicies.forgeIncentive
             )
 
-            // 5. 血炼：活跃血炼进程
+            // 4. 血炼：活跃血炼进程
             val bloodRefinementHash = data.activeBloodRefinements.entries
                 .map { (buildingId, progress) ->
                     val dId = progress.discipleId.toIntOrNull()
@@ -96,7 +87,7 @@ data class ProductionRateFingerprint(
                 }
                 .hashCode()
 
-            // 6. 任务：活跃任务
+            // 5. 任务：活跃任务
             val missionHash = data.activeMissions
                 .map { m ->
                     val discipleRealms = m.discipleIds.map { dId ->
@@ -108,23 +99,22 @@ data class ProductionRateFingerprint(
                 }
                 .hashCode()
 
-            // 7. 思过：弟子 REFLECTING 状态
+            // 6. 思过：弟子 REFLECTING 状态
             val reflectionHash = buildReflectionHash(tables)
 
-            // 8. 生产建筑等级
+            // 7. 生产建筑等级
             val productionBuildingHash = data.placedBuildings
                 .filter { it.isProductionBuilding() }
                 .map { "${it.displayName}:${it.instanceId}" }
                 .hashCode()
 
-            // 9. 生产相关政策
+            // 8. 生产相关政策
             val productionPolicyHash = buildProductionPolicyHash(data)
 
-            // 10. 已分配到任何生产槽位的弟子关键属性
+            // 9. 已分配到任何生产槽位的弟子关键属性
             val assignedDiscipleStatsHash = buildAssignedDiscipleStatsHash(data, tables)
 
             return ProductionRateFingerprint(
-                spiritMineHash = spiritMineHash,
                 herbGardenHash = herbGardenHash,
                 alchemyHash = alchemyHash,
                 forgeHash = forgeHash,

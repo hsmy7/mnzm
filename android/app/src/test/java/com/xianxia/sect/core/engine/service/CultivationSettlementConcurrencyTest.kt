@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
 /**
  * 修复回归测试：弟子批量消失 bug（异步 clear+insert 覆盖竞态）。
  *
- * 根因：processSalaryYearly 等函数在入口捕获快照后通过 scope.launch 异步
+ * 根因：processAnnualSalary 等函数在入口捕获快照后通过 scope.launch 异步
  * clear()+insert(陈旧快照)，与 createSettlementShadow().deepCopy() 并发，
  * 导致 shadow 捕获到空 ids，swapFromShadow 整体覆盖活表 → 全体弟子消失。
  *
@@ -38,9 +38,6 @@ import org.robolectric.annotation.Config
  * 并同步操作，消除异步覆盖竞态。
  *
  * 本测试验证：每次操作后弟子数量不丢失（bug 核心症状）+ 功能正确性。
- *
- * 使用 Robolectric 以获得真实的 SparseArray/SparseIntArray 实现
- * （DiscipleTables 的底层存储依赖 Android 的 SparseArray）。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -96,43 +93,43 @@ class CultivationSettlementConcurrencyTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // processSalaryYearly
+    // processAnnualSalary
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `processSalaryYearly_灵石充足_忠诚度提升且弟子数量不变`() = runTest {
+    fun `processAnnualSalary_灵石充足_全员发放忠诚加一`() = runTest {
         insertDisciples(5)
         val before = getDisciples()
-        println("DEBUG: before.size=${before.size}, ids=${before.map { it.id }}")
         assertEquals(5, before.size)
         assertEquals(50, before[0].skills.loyalty)
 
-        cultivationSettlement.processSalaryYearly(2)
+        cultivationSettlement.processAnnualSalary(2)
 
         val after = getDisciples()
         assertEquals("弟子数量必须不变", 5, after.size)
-        assertTrue("忠诚度应提升", after[0].skills.loyalty > 50)
-        assertTrue("俸禄次数应增加", after[0].skills.salaryPaidCount > 0)
+        assertEquals("忠诚度应 +1", 51, after[0].skills.loyalty)
+        assertEquals("俸禄次数应 +1", 1, after[0].skills.salaryPaidCount)
     }
 
     @Test
-    fun `processSalaryYearly_灵石不足_忠诚度下降且弟子数量不变`() = runTest {
+    fun `processAnnualSalary_灵石不足_全员不发`() = runTest {
         insertDisciples(3)
         stateStore.update {
             gameData = gameData.copy(spiritStones = 0L)
         }
+        val before = getDisciples()
 
-        cultivationSettlement.processSalaryYearly(2)
+        cultivationSettlement.processAnnualSalary(2)
 
         val after = getDisciples()
-        assertEquals("灵石不足时弟子数量也不应变", 3, after.size)
-        assertTrue("忠诚度应下降", after[0].skills.loyalty < 50)
-        assertTrue("欠饷次数应增加", after[0].skills.salaryMissedCount > 0)
+        assertEquals("弟子数量不变", 3, after.size)
+        assertEquals("忠诚度不变", before[0].skills.loyalty, after[0].skills.loyalty)
+        assertEquals("俸禄次数不变", before[0].skills.salaryPaidCount, after[0].skills.salaryPaidCount)
     }
 
     @Test
-    fun `processSalaryYearly_空弟子列表_不崩溃`() = runTest {
-        cultivationSettlement.processSalaryYearly(2)
+    fun `processAnnualSalary_空弟子列表_不崩溃`() = runTest {
+        cultivationSettlement.processAnnualSalary(2)
         assertEquals(0, getDisciples().size)
     }
 

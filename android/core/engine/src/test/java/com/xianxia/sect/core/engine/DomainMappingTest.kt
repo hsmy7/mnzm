@@ -104,7 +104,7 @@ class DomainMappingTest {
     }
 
     @Test
-    fun `dialog SpiritMine — SPIRIT_MINE（灵矿场生产）`() {
+    fun `dialog SpiritMine — SPIRIT_MINE（灵矿界面映射，产出走月度结算）`() {
         assertDomains(resolve(dialog = "SpiritMine"), FocusDomain.SPIRIT_MINE)
     }
 

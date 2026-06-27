@@ -6,7 +6,7 @@ import com.xianxia.sect.core.engine.system.building.AlchemySystem
 import com.xianxia.sect.core.engine.system.building.ForgeSystem
 import com.xianxia.sect.core.engine.system.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.system.building.PlantingSystem
-import com.xianxia.sect.core.engine.system.building.SpiritMineSystem
+
 import kotlin.reflect.KClass
 
 /**
@@ -46,8 +46,8 @@ enum class FocusDomain(
     FORGE(setOf(ForgeSystem::class)),
     /** 药园 — 灵草生长检测 */
     HERB_GARDEN(setOf(HerbGardenSystem::class)),
-    /** 灵矿 — 灵石产出检测 */
-    SPIRIT_MINE(setOf(SpiritMineSystem::class)),
+    /** 灵矿 — 产出已移至月度结算，域保留用于界面映射 */
+    SPIRIT_MINE(emptySet()),
     /** 灵田 — 种植成熟检测 */
     PLANTING(setOf(PlantingSystem::class)),
 

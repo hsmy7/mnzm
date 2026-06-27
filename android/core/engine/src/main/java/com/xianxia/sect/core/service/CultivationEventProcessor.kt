@@ -397,6 +397,8 @@ class CultivationEventProcessor @Inject constructor(
         if (month == 12) {
             autoBuyService.executeAutoBuy(year, month)
         }
+        // 灵矿月度产出结算
+        cultivationSettlement.processSpiritMineProductionMonthly()
     }
 
     suspend fun processYearlyEvents(year: Int) {
@@ -405,7 +407,6 @@ class CultivationEventProcessor @Inject constructor(
         discipleLifecycleProcessor.processDiscipleAging(year)
         caveExplorationProcessor.get().processSectDisciplesAging(year)
         discipleLifecycleProcessor.processYearlyAging(year)
-        cultivationSettlement.processSalaryYearly(year)
         merchantAndRecruitService.refreshRecruitList(year)
         merchantAndRecruitService.refreshTravelingMerchant(year, 1)
         autoBuyService.executeAutoBuy(year, 1)

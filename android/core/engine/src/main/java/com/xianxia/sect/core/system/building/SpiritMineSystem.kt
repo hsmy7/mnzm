@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.system.building
 
-import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
@@ -10,14 +9,10 @@ import javax.inject.Singleton
 
 @Singleton
 @SystemPriority(order = 213)
-class SpiritMineSystem @Inject constructor(
-    private val cultivationService: CultivationService
-) : GameSystem {
+class SpiritMineSystem @Inject constructor() : GameSystem {
     override val systemName = "SpiritMineSystem"
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
-        if (phasesToSettle == 1) {
-            cultivationService.processSpiritMineProduction(state)
-        }
+        // 灵矿产出已移至月度结算 CultivationEventProcessor.processMonthlyEvents
     }
 }

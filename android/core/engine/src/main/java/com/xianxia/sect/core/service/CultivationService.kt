@@ -10,6 +10,7 @@ import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 data class HighFrequencyData(
@@ -37,7 +38,7 @@ class CultivationService @Inject constructor(
     private val eventProcessor: CultivationEventProcessor,
     private val productionProcessor: ProductionProcessor,
     private val merchantAndRecruitService: MerchantAndRecruitService,
-    private val caveExplorationProcessor: CaveExplorationProcessor,
+    private val caveExplorationProcessor: Provider<CaveExplorationProcessor>,
     private val sharedState: CultivationSharedState,
     private val discipleService: DiscipleService
 ) {
@@ -162,8 +163,8 @@ class CultivationService @Inject constructor(
         cultivationSettlement.settleSalaryOnBreakthrough(discipleId, currentYear)
     }
 
-    suspend fun processSalaryYearly(year: Int) {
-        cultivationSettlement.processSalaryYearly(year)
+    suspend fun processAnnualSalary(year: Int) {
+        cultivationSettlement.processAnnualSalary(year)
     }
 
     suspend fun processResidenceLoyalty() {
@@ -176,6 +177,10 @@ class CultivationService @Inject constructor(
 
     internal fun processSpiritMineProduction(state: MutableGameState) {
         productionProcessor.processSpiritMineProduction(state)
+    }
+
+    internal fun recordPhaseSnapshot(state: MutableGameState) {
+        cultivationSettlement.recordPhaseSnapshot(state)
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
@@ -351,6 +356,6 @@ class CultivationService @Inject constructor(
     // ── 委托方法：CaveExplorationProcessor ─────────────────────────────
 
     suspend fun processCaveLifecycle(year: Int, month: Int) {
-        caveExplorationProcessor.processCaveLifecycle(year, month)
+        caveExplorationProcessor.get().processCaveLifecycle(year, month)
     }
 }

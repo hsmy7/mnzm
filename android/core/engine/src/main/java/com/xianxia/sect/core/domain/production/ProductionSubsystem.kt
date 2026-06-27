@@ -76,8 +76,7 @@ class ProductionSubsystem @Inject constructor(
             awaitAll(alchemyJob, forgeJob)
         }
 
-        // 组 A 后续（串行）：spiritMineProduction + autoAssign
-        cultivationService.processSpiritMineProduction(state)
+        // 组 A 后续（串行）：autoAssign（灵矿产出已移至月度结算）
         cultivationService.processAutoAssign()
 
         // 组 B（串行）：buildingProduction + herbGardenGrowth

@@ -640,6 +640,9 @@ class GameEngineCore @Inject constructor(
                         if (this.gameData.gameMonth != prevMonth) monthChanged = true
                         if (this.gameData.gameYear != prevYear) yearChanged = true
 
+                        // 灵矿产出 phase 快照（月度结算用）
+                        cultivationService.recordPhaseSnapshot(this)
+
                         // 自动存档检测（上旬触发，避免重复）
                         val snapshot = this.gameData
                         val interval = snapshot.autoSaveIntervalMonths
@@ -680,6 +683,13 @@ class GameEngineCore @Inject constructor(
             if (settlementCoordinator.hasPendingWork) {
                 val completed = settlementCoordinator.executeStep()
                 if (completed) settlementCoordinator.onSettlementComplete()
+            }
+
+            // 年俸发放（每年 1 月）
+            if (stateStore.gameData.value.gameMonth == 1) {
+                cultivationService.processAnnualSalary(
+                    stateStore.gameData.value.gameYear
+                )
             }
         }
 
