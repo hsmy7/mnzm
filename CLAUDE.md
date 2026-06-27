@@ -122,17 +122,17 @@ tickInternal() 每 100ms
 
 | 路径 | 频率 | 结算方式 | 覆盖系统 |
 |------|------|---------|---------|
-| 实时轨 | 100ms (每旬) | `onPhaseTick(state, 1)` — 增量1旬 | 焦点域系统 + 进度≥80%槽位 |
-| 批量轨 | 30s | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非焦点域全部系统 |
+| 实时轨 | 100ms (每旬) | `onPhaseTick(state, 1)` — 增量1旬 | 活跃域声明的系统 + 进度≥80%槽位 |
+| 批量轨 | 30s | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非活跃域声明的系统 |
 | 月度事件 | 游戏月变时 | 一次性 | 外交/盗窃/任务/商人 |
 | 年度结算 | 游戏年变时 | 一次性 | 老化/死亡/招募/盟约 |
 
 **核心原则：**
-- **焦点域决定轨道** — 当前界面所在域的系统走实时轨，其他域走批量轨
+- **焦点域决定轨道** — 当前界面所在域声明的系统走实时轨，其他系统走批量轨
 - **单路径原则** — 每个系统只在一个结算路径上运行
 - **无影子** — 批量轨不持有持久影子，临时影子仅用于指纹检测（只读即弃）
 - **突破检测仅在实时轨** — `CultivationTickSystem.onPhaseTick` 中 `phasesToSettle==1` 时调用 `processBreakthroughs`
-- **焦点域 = 视角驱动** — 如在弟子 Tab 则 DISCIPLES 域激活，在建筑 Tab 则 BUILDINGS 域激活
+- **焦点域 = 视角驱动 + 域声明系统** — 每个 UI 界面对应一个 FocusDomain，域通过 `systemClasses` 声明激活时需实时 tick 的系统。如在弟子 Tab 则 DISCIPLE_LIST 域激活 → CultivationTickSystem 实时 tick
 - **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
 
 ### Key Source Directories
@@ -174,7 +174,7 @@ tickInternal() 每 100ms
 
 ### Key Classes
 
-- **`GameEngineCore`** — Game loop controller. `tick()` at 100ms intervals, driving 4 settlement paths (real-time/batch/monthly/annual). Focus domains are computed from `resolveDomainsFromView(tab, dialog)`, and `SystemManager.onPhaseTickWithDomainFilter` routes systems to real-time (`phasesToSettle=1`) or batch (`phasesToSettle=N`) track.
+- **`GameEngineCore`** — Game loop controller. `tick()` at 100ms intervals, driving 4 settlement paths (real-time/batch/monthly/annual). Focus domains are computed from `resolveDomainsFromView(tab, dialog)` via 1:1 `InterfaceDomainMap`. `SystemManager.onPhaseTickWithDomainFilter` builds active system set from domain declarations and routes systems to real-time (`phasesToSettle=1`) or batch (`phasesToSettle=N`) track.
 - **`SettlementCoordinator`** — Fingerprint detection + annual settlement. No persistent shadow. Every 30s creates a temporary shadow from main state for cultivation fingerprint computation and 80% progress classification. Annual settlement handled via `scheduleYearly` → `SettlementScheduler`.
 - **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
 - **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
@@ -434,15 +434,15 @@ stateStore.update {
 
 指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。批量轨每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 
-**6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动：**当前界面所在域即为焦点域（100ms 高频实时结算），其他域自动为非焦点域（30 秒批量结算）**。不再预先将界面分类为「焦点域界面」和「非焦点域界面」。
+**6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
 
-新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新以下三处：
+新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新：
 
-1. `FocusDomain.kt` — 更新枚举 KDoc 中的「界面→域映射」表格
-2. `GameEngineCore.resolveDomainsFromView()` — 根据新 Tab/Dialog 判定激活对应域（参数: `tab, dialog`）
-3. `GameEngineCoordination.kt` 中的 `domainForDialog()` — 切换界面时的追赶结算映射
+1. `FocusDomain.kt` — 新增枚举值（含 `systemClasses` 声明）或修改现有域的系统列表
+2. `InterfaceDomainMap` — 添加 UI 名 → 域的 1:1 映射
+3. `DomainMappingTest.kt` — 添加对应的测试用例
 
-判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面只映射 ALWAYS。**
+判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面不在此表。**
 
 **7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
 
@@ -563,7 +563,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 类构造参数不超过 7 个 |
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
-| 🔴 | 新增/改动界面已重新评估焦点域分类（FocusDomain + resolveDomainsFromView） |
+| 🔴 | 新增/改动界面已重新评估焦点域映射（FocusDomain 枚举 + InterfaceDomainMap） |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |

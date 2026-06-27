@@ -14,7 +14,6 @@ class HerbGardenSystem @Inject constructor(
     private val cultivationService: CultivationService
 ) : GameSystem {
     override val systemName = "HerbGardenSystem"
-    override val focusDomains = setOf(FocusDomain.HERB_GARDEN)
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         if (phasesToSettle == 1) {

@@ -12,20 +12,24 @@ class GameSystemInterfaceTest {
     @Test
     fun focusDomain_hasAllExpectedValues() {
         val values = FocusDomain.values()
-        assertEquals(14, values.size)
+        assertEquals(18, values.size)
         assertTrue(values.contains(FocusDomain.ALWAYS))
-        assertTrue(values.contains(FocusDomain.DISCIPLES))
-        assertTrue(values.contains(FocusDomain.BUILDINGS))
+        assertTrue(values.contains(FocusDomain.OVERVIEW))
+        assertTrue(values.contains(FocusDomain.DISCIPLE_LIST))
+        assertTrue(values.contains(FocusDomain.BUILDING_LIST))
+        assertTrue(values.contains(FocusDomain.WAREHOUSE_TAB))
         assertTrue(values.contains(FocusDomain.ALCHEMY))
         assertTrue(values.contains(FocusDomain.FORGE))
         assertTrue(values.contains(FocusDomain.HERB_GARDEN))
         assertTrue(values.contains(FocusDomain.SPIRIT_MINE))
         assertTrue(values.contains(FocusDomain.PLANTING))
+        assertTrue(values.contains(FocusDomain.WAREHOUSE_DIALOG))
+        assertTrue(values.contains(FocusDomain.MERCHANT))
+        assertTrue(values.contains(FocusDomain.SECT_TRADE))
+        assertTrue(values.contains(FocusDomain.MISSION_HALL))
         assertTrue(values.contains(FocusDomain.BLOOD_REFINING))
-        assertTrue(values.contains(FocusDomain.WAREHOUSE))
         assertTrue(values.contains(FocusDomain.WORLD_MAP))
         assertTrue(values.contains(FocusDomain.DIPLOMACY))
-        assertTrue(values.contains(FocusDomain.EXPLORATION))
         assertTrue(values.contains(FocusDomain.BACKGROUND))
     }
 
@@ -67,11 +71,6 @@ class GameSystemInterfaceTest {
         override val systemName: String = "TestSystem"
     }
 
-    private class CustomFocusGameSystem : GameSystem {
-        override val systemName: String = "CustomFocusSystem"
-        override val focusDomains = setOf(FocusDomain.DISCIPLES)
-    }
-
     // 5. GameSystem interface has systemName property
     @Test
     fun gameSystem_hasSystemNameProperty() {
@@ -79,20 +78,7 @@ class GameSystemInterfaceTest {
         assertEquals("TestSystem", system.systemName)
     }
 
-    // 6. GameSystem interface has focusDomains with default BACKGROUND
-    @Test
-    fun gameSystem_focusDomains_defaultsToBackground() {
-        val system = TestGameSystem()
-        assertEquals(setOf(FocusDomain.BACKGROUND), system.focusDomains)
-    }
-
-    @Test
-    fun gameSystem_focusDomains_canBeOverridden() {
-        val system = CustomFocusGameSystem()
-        assertEquals(setOf(FocusDomain.DISCIPLES), system.focusDomains)
-    }
-
-    // 7. GameSystem interface has default no-op implementations
+    // 6. GameSystem interface has default no-op implementations
     @Test
     fun gameSystem_initialize_isNoOp() {
         val system = TestGameSystem()

@@ -40,7 +40,7 @@ fun GameEngine.setActiveTab(tab: String) {
     val oldTab = stateStore.activeTab
     stateStore.activeTab = tab
     if (oldTab != tab) {
-        InterfaceDomainMap[tab]?.forEach { gameEngineCore.catchUpDomain(it) }
+        InterfaceDomainMap[tab]?.let { gameEngineCore.catchUpDomain(it) }
     }
 }
 
@@ -49,7 +49,7 @@ fun GameEngine.setActiveDialog(dialogName: String?) {
         stateStore.activeDialog = null
     } else {
         stateStore.activeDialog = dialogName
-        InterfaceDomainMap[dialogName]?.forEach { gameEngineCore.catchUpDomain(it) }
+        InterfaceDomainMap[dialogName]?.let { gameEngineCore.catchUpDomain(it) }
     }
 }
 

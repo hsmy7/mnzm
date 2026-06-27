@@ -12,7 +12,6 @@ class MailSystem @Inject constructor(
     private val mailService: MailService
 ) : GameSystem {
     override val systemName: String = "MailSystem"
-    override val focusDomains = setOf(FocusDomain.BACKGROUND)
 
     override fun initialize() {
         mailService.initialize()

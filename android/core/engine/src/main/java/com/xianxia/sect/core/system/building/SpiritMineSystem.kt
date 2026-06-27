@@ -14,7 +14,6 @@ class SpiritMineSystem @Inject constructor(
     private val cultivationService: CultivationService
 ) : GameSystem {
     override val systemName = "SpiritMineSystem"
-    override val focusDomains = setOf(FocusDomain.SPIRIT_MINE)
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         if (phasesToSettle == 1) {

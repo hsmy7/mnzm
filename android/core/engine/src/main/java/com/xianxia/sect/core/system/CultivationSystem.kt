@@ -12,7 +12,6 @@ class CultivationTickSystem @Inject constructor(
     private val cultivationService: CultivationService
 ) : GameSystem {
     override val systemName: String = "CultivationTickSystem"
-    override val focusDomains = setOf(FocusDomain.DISCIPLES)
     override val settlementPhase = 1  // 上旬：玩家弟子修炼
 
     override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {

@@ -55,6 +55,13 @@ sealed class GameRoute(val route: String) {
 }
 
 sealed class DialogRoute {
+    /**
+     * 返回 DialogRoute 的简单类名作为域映射键。
+     * 覆写 toString() 以确保与 [InterfaceDomainMap] 的键精确匹配，
+     * 而非返回默认的 FQN@hash（object）或 data class 的完整参数串。
+     */
+    override fun toString(): String = this::class.simpleName ?: super.toString()
+
     object None : DialogRoute()
 
     object Disciples : DialogRoute()

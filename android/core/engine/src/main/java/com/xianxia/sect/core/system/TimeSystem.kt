@@ -24,7 +24,6 @@ class TimeSystem @Inject constructor(
     }
 
     override val systemName: String = SYSTEM_NAME
-    override val focusDomains = setOf(FocusDomain.ALWAYS)
 
     override fun initialize() {
         DomainLog.d(TAG, "TimeSystem initialized")

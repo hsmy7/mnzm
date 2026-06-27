@@ -4,8 +4,6 @@ import com.xianxia.sect.core.state.MutableGameState
 
 interface GameSystem {
     val systemName: String
-    /** 所属关注域集合，默认仅 BACKGROUND（最慢频率）。一个系统可属于多个域。 */
-    val focusDomains: Set<FocusDomain> get() = setOf(FocusDomain.BACKGROUND)
     /** 该系统在哪一旬结算（1=上旬, 2=中旬, 3=下旬, 0=每旬都结算） */
     val settlementPhase: Int get() = 0
 

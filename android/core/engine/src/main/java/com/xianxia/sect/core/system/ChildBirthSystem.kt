@@ -22,7 +22,6 @@ class ChildBirthSystem @Inject constructor(
 ) : GameSystem {
 
     override val systemName: String = "ChildBirthSystem"
-    override val focusDomains = setOf(FocusDomain.BACKGROUND)
 
     override fun initialize() {}
     override fun release() {}

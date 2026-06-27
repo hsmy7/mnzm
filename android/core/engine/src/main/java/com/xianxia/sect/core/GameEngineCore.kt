@@ -904,7 +904,7 @@ internal fun resolveDomainsFromView(
     dialog: String?
 ): Set<FocusDomain> {
     val domains = mutableSetOf(FocusDomain.ALWAYS)
-    tab?.let { domains.addAll(InterfaceDomainMap[it] ?: emptySet()) }
-    dialog?.let { domains.addAll(InterfaceDomainMap[it] ?: emptySet()) }
+    tab?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
+    dialog?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
     return domains
 }

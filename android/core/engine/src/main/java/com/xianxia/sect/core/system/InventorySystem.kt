@@ -50,7 +50,6 @@ class InventorySystem @Inject constructor(
         private val VALID_RARITY_RANGE = 1..6
     }
 
-    override val focusDomains = setOf(FocusDomain.WAREHOUSE)
     override val settlementPhase = 1  // 上旬：功法熟练度 + 装备孕养
 
     private fun getMaxSlots(): Int {

@@ -55,9 +55,9 @@ class LazyEvaluationDispatcher @Inject constructor(
      * 判断实体是否在当前焦点域中。
      */
     fun isInFocusDomain(entity: Any, currentFocusDomain: FocusDomain): Boolean = when (currentFocusDomain) {
-        FocusDomain.DISCIPLES -> entity is Disciple
-        FocusDomain.BUILDINGS -> entity is ProductionSlot || entity is SpiritFieldPlant
-        FocusDomain.EXPLORATION -> entity is CultivatorCave
+        FocusDomain.DISCIPLE_LIST -> entity is Disciple
+        FocusDomain.BUILDING_LIST -> entity is ProductionSlot || entity is SpiritFieldPlant
+        FocusDomain.MISSION_HALL -> entity is CultivatorCave
         else -> false
     }
 

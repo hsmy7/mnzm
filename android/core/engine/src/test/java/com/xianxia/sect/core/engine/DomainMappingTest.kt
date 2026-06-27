@@ -32,27 +32,27 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `tab OVERVIEW — DISCIPLES + BUILDINGS + WAREHOUSE（宗门地图显示灵石+弟子数）`() {
+    fun `tab OVERVIEW — OVERVIEW（宗门地图显示灵石+弟子数+建筑）`() {
         val domains = resolve(tab = "OVERVIEW")
-        assertDomains(domains, FocusDomain.DISCIPLES, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE)
+        assertDomains(domains, FocusDomain.OVERVIEW)
     }
 
     @Test
-    fun `tab DISCIPLES — DISCIPLES（弟子卡片显示境界）`() {
+    fun `tab DISCIPLES — DISCIPLE_LIST（弟子卡片显示境界）`() {
         val domains = resolve(tab = "DISCIPLES")
-        assertDomains(domains, FocusDomain.DISCIPLES)
+        assertDomains(domains, FocusDomain.DISCIPLE_LIST)
     }
 
     @Test
-    fun `tab BUILDINGS — BUILDINGS（建筑管理）`() {
+    fun `tab BUILDINGS — BUILDING_LIST（建筑管理）`() {
         val domains = resolve(tab = "BUILDINGS")
-        assertDomains(domains, FocusDomain.BUILDINGS)
+        assertDomains(domains, FocusDomain.BUILDING_LIST)
     }
 
     @Test
-    fun `tab WAREHOUSE — BUILDINGS + WAREHOUSE（显示灵石+物品数量）`() {
+    fun `tab WAREHOUSE — WAREHOUSE_TAB（显示灵石+物品数量）`() {
         val domains = resolve(tab = "WAREHOUSE")
-        assertDomains(domains, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE)
+        assertDomains(domains, FocusDomain.WAREHOUSE_TAB)
     }
 
     @Test
@@ -89,28 +89,28 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog Alchemy — ALCHEMY + BUILDINGS（显示炼制进度条）`() {
-        assertDomains(resolve(dialog = "Alchemy"), FocusDomain.ALCHEMY, FocusDomain.BUILDINGS)
+    fun `dialog Alchemy — ALCHEMY（显示炼制进度条）`() {
+        assertDomains(resolve(dialog = "Alchemy"), FocusDomain.ALCHEMY)
     }
 
     @Test
-    fun `dialog Forge — FORGE + BUILDINGS（显示锻造进度条）`() {
-        assertDomains(resolve(dialog = "Forge"), FocusDomain.FORGE, FocusDomain.BUILDINGS)
+    fun `dialog Forge — FORGE（显示锻造进度条）`() {
+        assertDomains(resolve(dialog = "Forge"), FocusDomain.FORGE)
     }
 
     @Test
-    fun `dialog HerbGarden — HERB_GARDEN + BUILDINGS（灵植阁生产）`() {
-        assertDomains(resolve(dialog = "HerbGarden"), FocusDomain.HERB_GARDEN, FocusDomain.BUILDINGS)
+    fun `dialog HerbGarden — HERB_GARDEN（灵植阁生产）`() {
+        assertDomains(resolve(dialog = "HerbGarden"), FocusDomain.HERB_GARDEN)
     }
 
     @Test
-    fun `dialog SpiritMine — SPIRIT_MINE + BUILDINGS（灵矿场生产）`() {
-        assertDomains(resolve(dialog = "SpiritMine"), FocusDomain.SPIRIT_MINE, FocusDomain.BUILDINGS)
+    fun `dialog SpiritMine — SPIRIT_MINE（灵矿场生产）`() {
+        assertDomains(resolve(dialog = "SpiritMine"), FocusDomain.SPIRIT_MINE)
     }
 
     @Test
-    fun `dialog Planting — PLANTING + BUILDINGS（灵田种植生产）`() {
-        assertDomains(resolve(dialog = "Planting"), FocusDomain.PLANTING, FocusDomain.BUILDINGS)
+    fun `dialog Planting — PLANTING（灵田种植生产）`() {
+        assertDomains(resolve(dialog = "Planting"), FocusDomain.PLANTING)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -118,26 +118,26 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog Warehouse — BUILDINGS + WAREHOUSE（显示灵石+物品）`() {
+    fun `dialog Warehouse — WAREHOUSE_DIALOG（显示灵石+物品）`() {
         assertDomains(
             resolve(dialog = "Warehouse"),
-            FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE
+            FocusDomain.WAREHOUSE_DIALOG
         )
     }
 
     @Test
-    fun `dialog Merchant — BUILDINGS + WAREHOUSE（显示灵石余额+仓库存量）`() {
+    fun `dialog Merchant — MERCHANT（显示灵石余额+仓库存量）`() {
         assertDomains(
             resolve(dialog = "Merchant"),
-            FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE
+            FocusDomain.MERCHANT
         )
     }
 
     @Test
-    fun `dialog SectTrade — BUILDINGS + WAREHOUSE（显示灵石+交易物品）`() {
+    fun `dialog SectTrade — SECT_TRADE（显示灵石+交易物品）`() {
         assertDomains(
             resolve(dialog = "SectTrade"),
-            FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE
+            FocusDomain.SECT_TRADE
         )
     }
 
@@ -146,10 +146,10 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog MissionHall — EXPLORATION + DISCIPLES（显示任务进度+弟子HP）`() {
+    fun `dialog MissionHall — MISSION_HALL（显示任务进度+弟子HP）`() {
         assertDomains(
             resolve(dialog = "MissionHall"),
-            FocusDomain.EXPLORATION, FocusDomain.DISCIPLES
+            FocusDomain.MISSION_HALL
         )
     }
 
@@ -158,10 +158,10 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog BloodRefiningPool — DISCIPLES + BLOOD_REFINING（显示血炼进度）`() {
+    fun `dialog BloodRefiningPool — BLOOD_REFINING（显示血炼进度）`() {
         assertDomains(
             resolve(dialog = "BloodRefiningPool"),
-            FocusDomain.DISCIPLES, FocusDomain.BLOOD_REFINING
+            FocusDomain.BLOOD_REFINING
         )
     }
 
@@ -272,18 +272,18 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `组合：OVERVIEW tab + Merchant dialog — 三域叠加`() {
+    fun `组合：OVERVIEW tab + Merchant dialog — 两域叠加`() {
         val domains = resolve(tab = "OVERVIEW", dialog = "Merchant")
         assertDomains(
             domains,
-            FocusDomain.DISCIPLES, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE
+            FocusDomain.OVERVIEW, FocusDomain.MERCHANT
         )
     }
 
     @Test
-    fun `组合：SETTINGS tab + Alchemy dialog — 仅 BUILDINGS`() {
+    fun `组合：SETTINGS tab + Alchemy dialog — ALCHEMY 单独`() {
         val domains = resolve(tab = "SETTINGS", dialog = "Alchemy")
-        assertDomains(domains, FocusDomain.ALCHEMY, FocusDomain.BUILDINGS)
+        assertDomains(domains, FocusDomain.ALCHEMY)
     }
 
     @Test
@@ -346,5 +346,166 @@ class DomainMappingTest {
                 setOf(FocusDomain.ALWAYS), domains
             )
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FocusDomain 反向声明：activeSystemsFor / assignedDomainFor
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `activeSystemsFor — OVERVIEW 域返回完整系统集合`() {
+        val systems = FocusDomain.activeSystemsFor(setOf(FocusDomain.OVERVIEW))
+        assertTrue(
+            "OVERVIEW 应激活 CultivationTickSystem",
+            systems.any { it.simpleName == "CultivationTickSystem" }
+        )
+        assertTrue(
+            "OVERVIEW 应激活 ProductionSubsystem",
+            systems.any { it.simpleName == "ProductionSubsystem" }
+        )
+    }
+
+    @Test
+    fun `activeSystemsFor — 空域集返回空系统集`() {
+        val systems = FocusDomain.activeSystemsFor(emptySet())
+        assertTrue("空域集应返回空系统集", systems.isEmpty())
+    }
+
+    @Test
+    fun `activeSystemsFor — 多域叠加去重`() {
+        // DISCIPLE_LIST 和 MISSION_HALL 都声明 CultivationTickSystem
+        val systems = FocusDomain.activeSystemsFor(
+            setOf(FocusDomain.DISCIPLE_LIST, FocusDomain.MISSION_HALL)
+        )
+        val cultivationCount = systems.count { it.simpleName == "CultivationTickSystem" }
+        assertEquals("重复系统应去重", 1, cultivationCount)
+    }
+
+    @Test
+    fun `assignedDomainFor — 活跃域优先`() {
+        val domain = FocusDomain.assignedDomainFor(
+            com.xianxia.sect.core.engine.system.building.AlchemySystem::class,
+            setOf(FocusDomain.ALCHEMY)
+        )
+        assertEquals("应返回活跃域 ALCHEMY", FocusDomain.ALCHEMY, domain)
+    }
+
+    @Test
+    fun `assignedDomainFor — 系统不在活跃域时返回其首个域`() {
+        // CultivationTickSystem 声明在 OVERVIEW, DISCIPLE_LIST, MISSION_HALL
+        val domain = FocusDomain.assignedDomainFor(
+            com.xianxia.sect.core.engine.system.CultivationTickSystem::class,
+            setOf(FocusDomain.ALCHEMY) // ALCHEMY 不包含 CultivationTickSystem
+        )
+        // 应回退到该系统的第一个声明域（OVERVIEW）
+        assertEquals("应返回系统的首个声明域", FocusDomain.OVERVIEW, domain)
+    }
+
+    @Test
+    fun `assignedDomainFor — 未声明系统回退 BACKGROUND`() {
+        // TimeSystem 只声明在 ALWAYS 域
+        val domain = FocusDomain.assignedDomainFor(
+            com.xianxia.sect.core.engine.system.TimeSystem::class,
+            setOf(FocusDomain.ALCHEMY) // ALCHEMY 不包含 TimeSystem
+        )
+        // TimeSystem 的首个域是 ALWAYS（永远在活跃集中），所以返回 ALWAYS
+        assertEquals("TimeSystem 的 assignedDomain 应为 ALWAYS", FocusDomain.ALWAYS, domain)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DialogRoute → InterfaceDomainMap 一致性验证
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `DialogRoute 焦点 dialog 的 toString 匹配 InterfaceDomainMap`() {
+        // 所有应有独立域的 DialogRoute 对象
+        val focusDialogs = listOf(
+            "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
+            "Warehouse", "Merchant", "MissionHall",
+            "BloodRefiningPool", "WorldMap", "Diplomacy",
+            "Disciples", "Buildings"
+        )
+        for (name in focusDialogs) {
+            assertNotNull(
+                "DialogRoute $name 应在 InterfaceDomainMap 中有映射",
+                resolve(dialog = name).find { it != FocusDomain.ALWAYS }
+            )
+        }
+    }
+
+    @Test
+    fun `DialogRoute 静态 dialog 的 toString 不匹配任何焦点域`() {
+        val staticDialogs = listOf(
+            "None", "Settings", "Recruit", "SalaryConfig",
+            "BattleLog", "Mail", "Activity", "Library",
+            "WenDaoPeak", "QingyunPeak", "TianshuHall",
+            "LawEnforcementHall", "ReflectionCliff",
+            "PatrolTower", "Residence", "WarehouseBuilding",
+            "GameOver", "SectLevelDetail"
+        )
+        for (name in staticDialogs) {
+            val domains = resolve(dialog = name)
+            assertEquals(
+                "DialogRoute $name 应仅含 ALWAYS（无非焦点域映射）",
+                setOf(FocusDomain.ALWAYS), domains
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 域→系统→轨道 端到端验证
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `端到端 — 炼丹 dialog 应激活 ALCHEMY 域及其 AlchemySystem`() {
+        val domains = resolve(dialog = "Alchemy")
+        assertTrue("应包含 ALCHEMY", FocusDomain.ALCHEMY in domains)
+        assertTrue("始终包含 ALWAYS", FocusDomain.ALWAYS in domains)
+
+        // ALWAYS(TimeSystem) + ALCHEMY(AlchemySystem) = 2 个系统
+        val activeSystems = FocusDomain.activeSystemsFor(domains)
+        val names = activeSystems.map { it.simpleName }.toSet()
+        assertTrue("应激活 AlchemySystem", "AlchemySystem" in names)
+        assertTrue("应激活 TimeSystem（来自 ALWAYS）", "TimeSystem" in names)
+        assertEquals("应激活 2 个系统（TimeSystem + AlchemySystem）", 2, activeSystems.size)
+    }
+
+    @Test
+    fun `端到端 — 总览 Tab 应激活五个系统`() {
+        val domains = resolve(tab = "OVERVIEW")
+        assertTrue("应包含 OVERVIEW", FocusDomain.OVERVIEW in domains)
+
+        // ALWAYS(TimeSystem) + OVERVIEW(4个系统) = 5 个系统
+        val activeSystems = FocusDomain.activeSystemsFor(domains)
+        val names = activeSystems.map { it.simpleName }.toSet()
+        assertTrue("应包含 TimeSystem", "TimeSystem" in names)
+        assertTrue("应包含 CultivationTickSystem", "CultivationTickSystem" in names)
+        assertTrue("应包含 ProductionSubsystem", "ProductionSubsystem" in names)
+        assertTrue("应包含 EconomySubsystem", "EconomySubsystem" in names)
+        assertTrue("应包含 InventorySystem", "InventorySystem" in names)
+        assertEquals("应激活 5 个系统", 5, activeSystems.size)
+    }
+
+    @Test
+    fun `端到端 — 切换域后系统应正确变更`() {
+        // 模拟：从总览切换到建筑 Tab
+        val overviewSystems = FocusDomain.activeSystemsFor(
+            resolve(tab = "OVERVIEW")
+        )
+        val buildingSystems = FocusDomain.activeSystemsFor(
+            resolve(tab = "BUILDINGS")
+        )
+
+        // 总览激活 5 个系统（TimeSystem + OVERVIEW的4个）
+        // 建筑激活 2 个系统（TimeSystem + ProductionSubsystem）
+        assertEquals(5, overviewSystems.size)
+        assertEquals(2, buildingSystems.size)
+
+        val buildingNames = buildingSystems.map { it.simpleName }.toSet()
+        assertTrue("建筑 Tab 应激活 TimeSystem", "TimeSystem" in buildingNames)
+        assertTrue("建筑 Tab 应激活 ProductionSubsystem", "ProductionSubsystem" in buildingNames)
+
+        // 建筑 Tab 激活的系统是总览的子集
+        assertTrue(overviewSystems.containsAll(buildingSystems))
     }
 }

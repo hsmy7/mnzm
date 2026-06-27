@@ -116,15 +116,15 @@ class SettlementCoordinator @Inject constructor(
                     slot.startsWith("nurture:") ||
                     slot.startsWith("proficiency:") ||
                     slot.startsWith("reflection:") -> domains.add(
-                        com.xianxia.sect.core.engine.system.FocusDomain.DISCIPLES
+                        com.xianxia.sect.core.engine.system.FocusDomain.DISCIPLE_LIST
                     )
                     slot.startsWith("bloodRefinement:") ||
                     slot.startsWith("spiritField:") ||
                     slot.startsWith("production:") -> domains.add(
-                        com.xianxia.sect.core.engine.system.FocusDomain.BUILDINGS
+                        com.xianxia.sect.core.engine.system.FocusDomain.BUILDING_LIST
                     )
                     slot.startsWith("mission:") -> domains.add(
-                        com.xianxia.sect.core.engine.system.FocusDomain.EXPLORATION
+                        com.xianxia.sect.core.engine.system.FocusDomain.MISSION_HALL
                     )
                 }
             }
