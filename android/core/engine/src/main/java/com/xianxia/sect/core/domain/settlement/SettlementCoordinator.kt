@@ -13,7 +13,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.perf.ThermalMonitor
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -39,8 +38,7 @@ class SettlementCoordinator @Inject constructor(
     private val world: SettlementWorldFacade,
     private val stateStore: GameStateStore,
     private val scheduler: SettlementScheduler,
-    private val metricsCollector: SettlementMetricsCollector,
-    private val thermalMonitor: ThermalMonitor
+    private val metricsCollector: SettlementMetricsCollector
 ) {
     @Volatile
     private var shadowState: MutableGameState? = null
@@ -237,25 +235,7 @@ class SettlementCoordinator @Inject constructor(
         return BatchAccumulateResult.MicroSettled
     }
 
-    /** 检查时钟/热控阈值是否触发全量结算 */
-    private suspend fun checkBatchClock(): BatchAccumulateResult {
-        if (batchMode == BatchMode.IDLE) {
-            val now = System.currentTimeMillis()
-            if (now - lastBatchSettleWallMs >= IDLE_FULL_SETTLE_MS &&
-                (batchAccumulatedPhases > 0 || batchAccumulatedMonths > 0)
-            ) {
-                doBatchFullSettle()
-                return BatchAccumulateResult.FullSettled
-            }
-        } else if (batchMode == BatchMode.ACTIVE_NON_FOCUS) {
-            val batchSize = resolveThermalBatchSize()
-            if (batchAccumulatedMonths >= batchSize) {
-                doBatchFullSettle()
-                return BatchAccumulateResult.FullSettled
-            }
-        }
-        return BatchAccumulateResult.Accumulated
-    }
+    // checkBatchClock 已删除 — accumulateBatch 使用临时影子指纹检测替代
 
     /**
      * 退出分批模式，强制执行全量结算 + swap。
@@ -327,13 +307,6 @@ class SettlementCoordinator @Inject constructor(
         DomainLog.i(TAG, "Batch full settle: phases=$batchAccumulatedPhases " +
             "months=$batchAccumulatedMonths " +
             "realtimeSlots=${batchRealtimeSlots.size}")
-    }
-
-    /** 热控批次大小 */
-    private fun resolveThermalBatchSize(): Int = when {
-        thermalMonitor.shouldEmergencySave() -> 12
-        thermalMonitor.shouldReduceWorkload() -> 6
-        else -> 1
     }
 
     /**

@@ -16,7 +16,6 @@ import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
-import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.*
@@ -63,8 +62,6 @@ class GameEngineCore @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
-    private val thermalMonitor: ThermalMonitor,
-    private val lazyEvaluationDispatcher: LazyEvaluationDispatcher,
     private val gameClock: GameTimeClock
 ) {
 
@@ -248,7 +245,6 @@ class GameEngineCore @Inject constructor(
 
             // ADPF Hint Session 必须在游戏线程内创建，确保 myTid() 返回
             // 游戏引擎线程的 TID（而非调用 startGameLoop 的线程）
-            thermalMonitor.createHintSession(100_000_000L)  // 100ms target
 
             // 提升游戏线程优先级以对抗 OEM 省电策略
             // （华为 PowerGenie、小米神隐模式等会对低优先级线程进行 CPU 挂起）
@@ -283,13 +279,9 @@ class GameEngineCore @Inject constructor(
                 lastFrameTime = currentTime
 
                 val elapsed = currentTime - startTime
-                val effectiveInterval = when {
-                    thermalMonitor.shouldEmergencySave() -> 500L
-                    thermalMonitor.shouldReduceWorkload() -> 200L
-                    thermalMonitor.isLightThrottle() -> 150L
-                    adaptiveSlowdownFactor > 1.0 -> (TICK_INTERVAL_MS * adaptiveSlowdownFactor).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
-                    else -> TICK_INTERVAL_MS
-                }
+                val effectiveInterval = if (adaptiveSlowdownFactor > 1.0)
+                    (TICK_INTERVAL_MS * adaptiveSlowdownFactor).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
+                else TICK_INTERVAL_MS
                 currentTickInterval = effectiveInterval
                 val delayMs = (effectiveInterval - elapsed).coerceAtLeast(MIN_TICK_DELAY_MS)
 
@@ -337,7 +329,6 @@ class GameEngineCore @Inject constructor(
     fun shutdown() {
         stopGameLoop()
         stopWatchdog()
-        thermalMonitor.closeHintSession()
         deathEventJob?.cancel()
         deathEventJob = null
         systemManager.releaseAll()
@@ -563,7 +554,6 @@ class GameEngineCore @Inject constructor(
         tickInternal()
 
         val tickDurationNanos = System.nanoTime() - tickStartNanos
-        thermalMonitor.reportActualWorkDuration(tickDurationNanos)
 
         val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
         unifiedPerformanceMonitor.recordTick(tickTime)
@@ -596,22 +586,6 @@ class GameEngineCore @Inject constructor(
                     "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
             }
             return
-        }
-
-        // 热管理：过热时降低负载
-        if (thermalMonitor.shouldEmergencySave()) {
-            DomainLog.w(TAG, "Thermal status SEVERE+, triggering emergency save and skipping tick")
-            _autoSaveTrigger.trySend(Unit)
-            gameClock.consumeDeadTime()  // 更新lastWallMs，防止恢复后时间跳变
-            return
-        }
-        if (thermalMonitor.shouldReduceWorkload()) {
-            // 跳过非关键计算（如 AI 更新、视觉效果）
-            // 只执行核心时间推进
-            DomainLog.d(TAG, "Thermal throttling: skipping non-critical systems")
-            thermalMonitor.updateTargetDuration(200_000_000L)  // 200ms target
-        } else {
-            thermalMonitor.updateTargetDuration(100_000_000L)  // 100ms target
         }
 
         _tickCount.value++
