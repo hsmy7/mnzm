@@ -106,6 +106,11 @@ class CultivationService @Inject constructor(
         _highFrequencyData.value = newHfd
     }
 
+    fun processBreakthroughs(state: MutableGameState) {
+        val livingDisciples = state.discipleTables.assembleAll().filter { it.isAlive }
+        breakthroughHandler.processRealtimeBreakthroughs(livingDisciples, state.gameData, state)
+    }
+
     fun updateFocusedDisciple(discipleId: String, state: MutableGameState) {
         val newHfd = cultivationCore.updateFocusedDisciple(discipleId, state, _highFrequencyData.value, breakthroughHandler)
         _highFrequencyData.value = newHfd

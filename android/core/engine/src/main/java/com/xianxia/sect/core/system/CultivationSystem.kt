@@ -19,6 +19,11 @@ class CultivationTickSystem @Inject constructor(
         cultivationService.advancePhase(state)
         cultivationService.batchSettleCultivation(state, phasesToSettle)
         cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle)
+        // 实时轨每旬检测突破：焦点域弟子 + 进度≥80%弟子
+        // HP/MP已在上一步恢复，修炼满+状志满即突破
+        if (phasesToSettle == 1) {
+            cultivationService.processBreakthroughs(state)
+        }
     }
 
     override suspend fun onMonthTick(state: MutableGameState) {
