@@ -31,7 +31,7 @@ class EconomySubsystem @Inject constructor(
     private val scope get() = scopeProvider.scope
 
     override val systemName: String = SYSTEM_NAME
-    override val focusDomain = FocusDomain.BUILDINGS
+    override val focusDomain = FocusDomain.WAREHOUSE
 
     override val subscribedTypes: Set<String> = setOf("building_completed")
 

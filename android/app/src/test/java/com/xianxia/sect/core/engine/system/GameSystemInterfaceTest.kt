@@ -12,10 +12,16 @@ class GameSystemInterfaceTest {
     @Test
     fun focusDomain_hasAllExpectedValues() {
         val values = FocusDomain.values()
-        assertEquals(8, values.size)
+        assertEquals(14, values.size)
         assertTrue(values.contains(FocusDomain.ALWAYS))
         assertTrue(values.contains(FocusDomain.DISCIPLES))
         assertTrue(values.contains(FocusDomain.BUILDINGS))
+        assertTrue(values.contains(FocusDomain.ALCHEMY))
+        assertTrue(values.contains(FocusDomain.FORGE))
+        assertTrue(values.contains(FocusDomain.HERB_GARDEN))
+        assertTrue(values.contains(FocusDomain.SPIRIT_MINE))
+        assertTrue(values.contains(FocusDomain.PLANTING))
+        assertTrue(values.contains(FocusDomain.BLOOD_REFINING))
         assertTrue(values.contains(FocusDomain.WAREHOUSE))
         assertTrue(values.contains(FocusDomain.WORLD_MAP))
         assertTrue(values.contains(FocusDomain.DIPLOMACY))

@@ -32,9 +32,9 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `tab OVERVIEW — DISCIPLES + BUILDINGS（宗门地图显示灵石+弟子数）`() {
+    fun `tab OVERVIEW — DISCIPLES + BUILDINGS + WAREHOUSE（宗门地图显示灵石+弟子数）`() {
         val domains = resolve(tab = "OVERVIEW")
-        assertDomains(domains, FocusDomain.DISCIPLES, FocusDomain.BUILDINGS)
+        assertDomains(domains, FocusDomain.DISCIPLES, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE)
     }
 
     @Test
@@ -89,28 +89,28 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog Alchemy — BUILDINGS（显示炼制进度条）`() {
-        assertDomains(resolve(dialog = "Alchemy"), FocusDomain.BUILDINGS)
+    fun `dialog Alchemy — ALCHEMY + BUILDINGS（显示炼制进度条）`() {
+        assertDomains(resolve(dialog = "Alchemy"), FocusDomain.ALCHEMY, FocusDomain.BUILDINGS)
     }
 
     @Test
-    fun `dialog Forge — BUILDINGS（显示锻造进度条）`() {
-        assertDomains(resolve(dialog = "Forge"), FocusDomain.BUILDINGS)
+    fun `dialog Forge — FORGE + BUILDINGS（显示锻造进度条）`() {
+        assertDomains(resolve(dialog = "Forge"), FocusDomain.FORGE, FocusDomain.BUILDINGS)
     }
 
     @Test
-    fun `dialog HerbGarden — BUILDINGS（灵植阁生产）`() {
-        assertDomains(resolve(dialog = "HerbGarden"), FocusDomain.BUILDINGS)
+    fun `dialog HerbGarden — HERB_GARDEN + BUILDINGS（灵植阁生产）`() {
+        assertDomains(resolve(dialog = "HerbGarden"), FocusDomain.HERB_GARDEN, FocusDomain.BUILDINGS)
     }
 
     @Test
-    fun `dialog SpiritMine — BUILDINGS（灵矿场生产）`() {
-        assertDomains(resolve(dialog = "SpiritMine"), FocusDomain.BUILDINGS)
+    fun `dialog SpiritMine — SPIRIT_MINE + BUILDINGS（灵矿场生产）`() {
+        assertDomains(resolve(dialog = "SpiritMine"), FocusDomain.SPIRIT_MINE, FocusDomain.BUILDINGS)
     }
 
     @Test
-    fun `dialog Planting — BUILDINGS（灵田种植生产）`() {
-        assertDomains(resolve(dialog = "Planting"), FocusDomain.BUILDINGS)
+    fun `dialog Planting — PLANTING + BUILDINGS（灵田种植生产）`() {
+        assertDomains(resolve(dialog = "Planting"), FocusDomain.PLANTING, FocusDomain.BUILDINGS)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -158,10 +158,10 @@ class DomainMappingTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `dialog BloodRefiningPool — DISCIPLES + BUILDINGS（显示血炼进度）`() {
+    fun `dialog BloodRefiningPool — DISCIPLES + BLOOD_REFINING（显示血炼进度）`() {
         assertDomains(
             resolve(dialog = "BloodRefiningPool"),
-            FocusDomain.DISCIPLES, FocusDomain.BUILDINGS
+            FocusDomain.DISCIPLES, FocusDomain.BLOOD_REFINING
         )
     }
 
@@ -283,7 +283,7 @@ class DomainMappingTest {
     @Test
     fun `组合：SETTINGS tab + Alchemy dialog — 仅 BUILDINGS`() {
         val domains = resolve(tab = "SETTINGS", dialog = "Alchemy")
-        assertDomains(domains, FocusDomain.BUILDINGS)
+        assertDomains(domains, FocusDomain.ALCHEMY, FocusDomain.BUILDINGS)
     }
 
     @Test

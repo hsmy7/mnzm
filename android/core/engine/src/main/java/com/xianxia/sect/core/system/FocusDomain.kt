@@ -14,8 +14,22 @@ enum class FocusDomain {
     /** 弟子 — 修炼进度、突破、HP/MP 恢复（弟子列表/详情/宗门地图） */
     DISCIPLES,
 
-    /** 建筑/生产 — 灵矿产出、炼丹/锻器/种植/血炼进度 */
+    /** 建筑/生产（基础，保留用于建筑级操作） */
     BUILDINGS,
+
+    // ── 建筑专项域（每个界面一个域）──
+    /** 炼丹 — 炼制进度/完成 */
+    ALCHEMY,
+    /** 锻器 — 锻造进度/完成 */
+    FORGE,
+    /** 药园 — 灵草生长进度 */
+    HERB_GARDEN,
+    /** 灵矿 — 灵石产出 */
+    SPIRIT_MINE,
+    /** 种植 — 灵植/灵田生长 */
+    PLANTING,
+    /** 血炼池 — 血炼进度 */
+    BLOOD_REFINING,
 
     /** 仓库/物品 — 物品数量变化（仓库 Tab/商人/交易） */
     WAREHOUSE,
@@ -43,17 +57,17 @@ enum class FocusDomain {
  */
 internal val InterfaceDomainMap: Map<String, Set<FocusDomain>> = mapOf(
     // ═══ Tab ═══
-    "OVERVIEW" to setOf(FocusDomain.DISCIPLES, FocusDomain.BUILDINGS),
+    "OVERVIEW" to setOf(FocusDomain.DISCIPLES, FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
     "DISCIPLES" to setOf(FocusDomain.DISCIPLES),
     "BUILDINGS" to setOf(FocusDomain.BUILDINGS),
     "WAREHOUSE" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
 
-    // ═══ 生产建筑（显示进度/产出）═══
-    "Alchemy" to setOf(FocusDomain.BUILDINGS),
-    "Forge" to setOf(FocusDomain.BUILDINGS),
-    "HerbGarden" to setOf(FocusDomain.BUILDINGS),
-    "SpiritMine" to setOf(FocusDomain.BUILDINGS),
-    "Planting" to setOf(FocusDomain.BUILDINGS),
+    // ═══ 生产建筑（每个界面独立域）═══
+    "Alchemy" to setOf(FocusDomain.ALCHEMY, FocusDomain.BUILDINGS),
+    "Forge" to setOf(FocusDomain.FORGE, FocusDomain.BUILDINGS),
+    "HerbGarden" to setOf(FocusDomain.HERB_GARDEN, FocusDomain.BUILDINGS),
+    "SpiritMine" to setOf(FocusDomain.SPIRIT_MINE, FocusDomain.BUILDINGS),
+    "Planting" to setOf(FocusDomain.PLANTING, FocusDomain.BUILDINGS),
 
     // ═══ 仓库/物品 ═══
     "Warehouse" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
@@ -64,7 +78,7 @@ internal val InterfaceDomainMap: Map<String, Set<FocusDomain>> = mapOf(
     "MissionHall" to setOf(FocusDomain.EXPLORATION, FocusDomain.DISCIPLES),
 
     // ═══ 弟子相关 ═══
-    "BloodRefiningPool" to setOf(FocusDomain.DISCIPLES, FocusDomain.BUILDINGS),
+    "BloodRefiningPool" to setOf(FocusDomain.DISCIPLES, FocusDomain.BLOOD_REFINING),
     "Disciples" to setOf(FocusDomain.DISCIPLES),
     "Buildings" to setOf(FocusDomain.BUILDINGS),
 
