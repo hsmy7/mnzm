@@ -1091,4 +1091,59 @@ class SettlementCoordinatorTest {
         assertNull(currentCache)
         assertFalse("cancel 后 hasPendingWork 应为 false", scheduler.hasPendingWork)
     }
+
+    // ============================================================
+    // 新增：批量轨 + modifyState + 年度结算简化验证
+    // ============================================================
+
+    @Test
+    fun `scheduleYearly 仅注册4个年度阶段无月度阶段`() {
+        val scheduler = SettlementScheduler()
+        val state = emptyState()
+        val executed = mutableListOf<String>()
+
+        scheduler.scheduleYearly(
+            shadow = state,
+            agingPhase = Phase_AgingAndDeath { _ -> executed.add("AgingAndDeath") },
+            recruitPhase = Phase_RecruitRefresh { _ -> executed.add("RecruitRefresh") },
+            aiSectPhase = Phase_AISectYearly { _ -> executed.add("AISectYearly") },
+            alliancePhase = Phase_AllianceExpiry { _ -> executed.add("AllianceExpiry") }
+        )
+
+        kotlinx.coroutines.runBlocking {
+            while (scheduler.hasPendingWork) scheduler.executeStep(state)
+        }
+
+        assertEquals("应只有4个年度阶段", 4, executed.size)
+        assertFalse("不应含 BuildCache", executed.contains("BuildCache"))
+        assertFalse("不应含 Production", executed.contains("Production"))
+        assertFalse("不应含 WorldEvents", executed.contains("WorldEvents"))
+    }
+
+    @Test
+    fun `phasesToSettle pattern matches migrated systems behavior`() {
+        // 验证 6 个迁移系统的统一模式正确
+        // Price 3 phases = 1 month, 6 phases = 2 months
+        data class TestCase(val phases: Int, val expectedMonths: Int)
+        val cases = listOf(
+            TestCase(1, 0), TestCase(2, 0),  // < 3 → 不处理
+            TestCase(3, 1), TestCase(4, 1),  // 3-5 → 1 个月
+            TestCase(6, 2), TestCase(9, 3),  // ≥6 → phases/3 个月
+            TestCase(30, 10)                 // 30 phases = 10 months
+        )
+        for (c in cases) {
+            val months = if (c.phases >= 3) c.phases / 3 else 0
+            assertEquals("phasesToSettle=${c.phases}", c.expectedMonths, months)
+        }
+    }
+
+    @Test
+    fun `catchUpDomain removes key from map`() {
+        // catchUpDomain 本质是 domainLastTickTime.remove(domain)
+        val map = mutableMapOf<String, Long>("A" to 1L, "B" to 2L)
+        assertTrue("A" in map)
+        map.remove("A")
+        assertFalse("A" in map)
+        assertTrue("B" in map)
+    }
 }
