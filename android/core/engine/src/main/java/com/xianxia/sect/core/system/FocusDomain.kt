@@ -3,29 +3,9 @@ package com.xianxia.sect.core.engine.system
 /**
  * 玩家关注域 — 两档制 tick 分频，纯视角驱动。
  *
- * ## 判定标准
- * - 视角驱动：当前界面所在的域即为焦点域 → 100ms 高频实时结算
- * - 其他域：非当前视角的域 → 30 秒批量结算
- * - 切换界面时 → 新焦点域执行「追赶结算」
- *
- * ## 界面→域映射（参见 [com.xianxia.sect.core.GameEngineCore.computeDomainsFromView]）
- *
- * | 界面 | 域 | 原因 |
- * |------|-----|------|
- * | 宗门地图 | DISCIPLES + BUILDINGS | SectInfoCard 显示灵石/弟子数 |
- * | 弟子列表/详情 | DISCIPLES | 卡片显示境界 |
- * | 建筑 Tab | BUILDINGS | 显示生产进度 |
- * | 仓库 Tab | BUILDINGS + WAREHOUSE | 显示灵石+物品数量 |
- * | 灵矿/药园/炼丹/锻器/种植 | BUILDINGS | 显示生产进度 |
- * | 商人/宗门交易 | BUILDINGS + WAREHOUSE | 显示灵石数量 |
- * | 任务阁 | EXPLORATION + DISCIPLES | 显示任务进度 |
- * | 血炼池 | DISCIPLES + BUILDINGS | 显示血炼进度 |
- * | 世界地图 | WORLD_MAP | 地图标记/探索状态 |
- * | 外交 | DIPLOMACY | 好感度/关系变化 |
- * | 活动/邮件 | (仅 ALWAYS) | 一次性领取，无实时数据 |
- * | 天枢殿/宗门等级详情 | (仅 ALWAYS) | 长老任命/升级条件，无实时数据 |
- * | 设置/建造/招募/藏经阁/问道塔/青云塔 | (仅 ALWAYS) | 不显示随时间变化的数据 |
- * | 执法堂/思过崖/巡视楼/住所/建筑仓库 | (仅 ALWAYS) | 不显示随时间变化的数据 |
+ * - 视角驱动：当前界面所在的域即为焦点域 → 100ms 实时结算
+ * - 其他域：非当前视角的域 → 30s 批量结算
+ * - 界面→域映射定义在 [InterfaceDomainMap] 中，新增界面只需在那里加一行
  */
 enum class FocusDomain {
     /** 时间推进 — 始终高频，每 tick 必执行 */
@@ -52,3 +32,45 @@ enum class FocusDomain {
     /** 后台 — AI 宗门、生育、邮件等玩家不可见的系统（30 秒一次） */
     BACKGROUND
 }
+
+/**
+ * 界面→域映射表 — 焦点域判定的唯一数据源。
+ *
+ * [GameEngineCore.resolveDomainsFromView] 和 [GameEngineCoordination.domainForDialog]
+ * 均从此表读取，新增界面只需在此加一行。
+ *
+ * 判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应域。**
+ */
+internal val InterfaceDomainMap: Map<String, Set<FocusDomain>> = mapOf(
+    // ═══ Tab ═══
+    "OVERVIEW" to setOf(FocusDomain.DISCIPLES, FocusDomain.BUILDINGS),
+    "DISCIPLES" to setOf(FocusDomain.DISCIPLES),
+    "BUILDINGS" to setOf(FocusDomain.BUILDINGS),
+    "WAREHOUSE" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
+
+    // ═══ 生产建筑（显示进度/产出）═══
+    "Alchemy" to setOf(FocusDomain.BUILDINGS),
+    "Forge" to setOf(FocusDomain.BUILDINGS),
+    "HerbGarden" to setOf(FocusDomain.BUILDINGS),
+    "SpiritMine" to setOf(FocusDomain.BUILDINGS),
+    "Planting" to setOf(FocusDomain.BUILDINGS),
+
+    // ═══ 仓库/物品 ═══
+    "Warehouse" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
+    "Merchant" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
+    "SectTrade" to setOf(FocusDomain.BUILDINGS, FocusDomain.WAREHOUSE),
+
+    // ═══ 任务/探索 ═══
+    "MissionHall" to setOf(FocusDomain.EXPLORATION, FocusDomain.DISCIPLES),
+
+    // ═══ 弟子相关 ═══
+    "BloodRefiningPool" to setOf(FocusDomain.DISCIPLES, FocusDomain.BUILDINGS),
+    "Disciples" to setOf(FocusDomain.DISCIPLES),
+    "Buildings" to setOf(FocusDomain.BUILDINGS),
+
+    // ═══ 地图/外交 ═══
+    "WorldMap" to setOf(FocusDomain.WORLD_MAP),
+    "Diplomacy" to setOf(FocusDomain.DIPLOMACY),
+
+    // ═══ 新增界面在此加一行 ═══
+)

@@ -21,6 +21,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.system.FocusDomain
+import com.xianxia.sect.core.engine.system.InterfaceDomainMap
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -38,7 +39,9 @@ fun GameEngine.setFocusedDiscipleId(id: String?) {
 fun GameEngine.setActiveTab(tab: String) {
     val oldTab = stateStore.activeTab
     stateStore.activeTab = tab
-    if (oldTab != tab) gameEngineCore.catchUpDomain(domainForTab(tab))
+    if (oldTab != tab) {
+        InterfaceDomainMap[tab]?.forEach { gameEngineCore.catchUpDomain(it) }
+    }
 }
 
 fun GameEngine.setActiveDialog(dialogName: String?) {
@@ -46,55 +49,11 @@ fun GameEngine.setActiveDialog(dialogName: String?) {
         stateStore.activeDialog = null
     } else {
         stateStore.activeDialog = dialogName
-        gameEngineCore.catchUpDomain(domainForDialog(dialogName))
+        InterfaceDomainMap[dialogName]?.forEach { gameEngineCore.catchUpDomain(it) }
     }
 }
 
 fun GameEngine.notifyUserInteraction() = gameEngineCore.onUserInteraction()
-
-private fun domainForTab(tab: String): FocusDomain = when (tab) {
-    "DISCIPLES" -> FocusDomain.DISCIPLES; "BUILDINGS" -> FocusDomain.BUILDINGS; "WAREHOUSE" -> FocusDomain.WAREHOUSE; else -> FocusDomain.ALWAYS
-}
-
-/**
- * Dialog → catchUp 域映射。
- *
- * 视角驱动：当前界面所在域即为焦点域。
- * 焦点域 → 对应 FocusDomain 强制追赶结算；
- * 无实时数据界面 → [FocusDomain.ALWAYS]（安全 no-op，兼顾 onUserInteraction）。
- */
-private fun domainForDialog(dialogName: String): FocusDomain = when (dialogName) {
-    // ── 焦点域：生产建筑（显示进度/产出） ──
-    "Alchemy", "Forge", "HerbGarden", "SpiritMine",
-    "Planting" -> FocusDomain.BUILDINGS
-
-    // 焦点域：仓库/商人/交易（显示灵石数量）
-    "Warehouse", "Merchant", "SectTrade" -> FocusDomain.WAREHOUSE
-
-    // 焦点域：任务阁（显示任务进度）
-    "MissionHall" -> FocusDomain.EXPLORATION
-
-    // 焦点域：血炼池（显示血炼进度）
-    "BloodRefiningPool" -> FocusDomain.BUILDINGS
-
-    // 焦点域：世界地图（地图标记/探索状态）
-    "WorldMap" -> FocusDomain.WORLD_MAP
-
-    // 焦点域：外交（好感度/关系变化）
-    "Diplomacy" -> FocusDomain.DIPLOMACY
-
-    // Tab 入口
-    "Disciples" -> FocusDomain.DISCIPLES
-    "Buildings" -> FocusDomain.BUILDINGS
-
-    // ── 仅 ALWAYS：无实时变化数据 ──
-    // "Mail", "Activity",
-    // "PatrolTower", "Recruit", "Residence", "Library",
-    // "WenDaoPeak", "QingyunPeak",
-    // "LawEnforcementHall", "ReflectionCliff", "BattleLog",
-    // "WarehouseBuilding", "SalaryConfig"
-    else -> FocusDomain.ALWAYS
-}
 
 // ── Game lifecycle ──────────────────────────────────────────────────
 

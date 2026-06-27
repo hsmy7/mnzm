@@ -12,6 +12,7 @@ import com.xianxia.sect.core.engine.domain.settlement.ProductionRateFingerprint
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.FocusDomain
+import com.xianxia.sect.core.engine.system.InterfaceDomainMap
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
@@ -892,16 +893,10 @@ class GameEngineCore @Inject constructor(
 }
 
 /**
- * 焦点域判定纯函数 — 视角驱动，根据 Tab/Dialog/焦点弟子计算应激活的域集合。
+ * 焦点域判定纯函数 — 从 [InterfaceDomainMap] 读取界面→域映射。
  *
- * 判定标准：当前界面所在域即为焦点域，其余为非焦点域。
- * - 焦点域 → 加入 activeDomains，100ms 高频结算
- * - 非当前视角的域 → 不加入，30 秒批量结算
- *
- * 这是唯一映射入口，[GameEngineCore] 和测试共用。
- *
- * @param tab 当前激活的底部 Tab（null 视为无 Tab）
- * @param dialog 当前打开的 DialogRoute.toString()（null 视为无弹窗）
+ * @param tab 当前 Tab（null 视为无）
+ * @param dialog 当前 Dialog（null 视为无）
  * @return 应激活的 FocusDomain 集合（始终包含 ALWAYS）
  */
 internal fun resolveDomainsFromView(
@@ -909,63 +904,7 @@ internal fun resolveDomainsFromView(
     dialog: String?
 ): Set<FocusDomain> {
     val domains = mutableSetOf(FocusDomain.ALWAYS)
-
-    when (tab) {
-        "OVERVIEW" -> {
-            domains.add(FocusDomain.DISCIPLES)
-            domains.add(FocusDomain.BUILDINGS)
-        }
-        "DISCIPLES" -> domains.add(FocusDomain.DISCIPLES)
-        "BUILDINGS" -> domains.add(FocusDomain.BUILDINGS)
-        // 仓库 Tab：显示灵石数量 → 灵矿产出需实时结算
-        "WAREHOUSE" -> {
-            domains.add(FocusDomain.BUILDINGS)
-            domains.add(FocusDomain.WAREHOUSE)
-        }
-        "SETTINGS" -> {}
-    }
-    when (dialog) {
-        // ── 焦点域：生产建筑（显示进度/产出） ──
-        "Alchemy", "Forge", "HerbGarden", "SpiritMine",
-        "Planting" -> domains.add(FocusDomain.BUILDINGS)
-
-        // 焦点域：仓库（显示灵石+物品数量）
-        "Warehouse" -> {
-            domains.add(FocusDomain.BUILDINGS)
-            domains.add(FocusDomain.WAREHOUSE)
-        }
-
-        // 焦点域：商人/宗门交易（显示灵石数量）
-        "Merchant", "SectTrade" -> {
-            domains.add(FocusDomain.BUILDINGS)
-            domains.add(FocusDomain.WAREHOUSE)
-        }
-
-        // 焦点域：任务阁（显示任务进度/剩余时间）
-        "MissionHall" -> {
-            domains.add(FocusDomain.EXPLORATION)
-            domains.add(FocusDomain.DISCIPLES)
-        }
-
-        // 焦点域：血炼池（显示血炼进度+属性提升）
-        "BloodRefiningPool" -> {
-            domains.add(FocusDomain.DISCIPLES)
-            domains.add(FocusDomain.BUILDINGS)
-        }
-
-        // 焦点域：世界地图（地图标记/探索状态）
-        "WorldMap" -> domains.add(FocusDomain.WORLD_MAP)
-
-        // 焦点域：外交（好感度/关系变化）
-        "Diplomacy" -> domains.add(FocusDomain.DIPLOMACY)
-
-        // ── 仅 ALWAYS：以下界面无实时变化数据，不添加额外域 ──
-        // "Mail", "Activity"
-        // "TianshuHall", "SectLevelDetail"
-        // "PatrolTower", "Recruit", "Residence", "Library"
-        // "WenDaoPeak", "QingyunPeak"
-        // "LawEnforcementHall", "ReflectionCliff"
-        // "BattleLog", "WarehouseBuilding"
-    }
+    tab?.let { domains.addAll(InterfaceDomainMap[it] ?: emptySet()) }
+    dialog?.let { domains.addAll(InterfaceDomainMap[it] ?: emptySet()) }
     return domains
 }
