@@ -7,8 +7,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.settlement.SettlementCoordinator
-import com.xianxia.sect.core.engine.domain.settlement.CultivationRateFingerprint
-import com.xianxia.sect.core.engine.domain.settlement.ProductionRateFingerprint
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.FocusDomain
@@ -662,11 +660,7 @@ class GameEngineCore @Inject constructor(
         }
 
         // 批量轨指纹检测（从主状态计算，无影子）
-        settlementCoordinator.accumulateBatch(
-            phasesToAdd = tickResult.phasesToAdvance,
-            monthChanged = monthChanged,
-            yearChanged = yearChanged
-        )
+        settlementCoordinator.accumulateBatch()
 
         // 年度结算
         if (yearChanged) {

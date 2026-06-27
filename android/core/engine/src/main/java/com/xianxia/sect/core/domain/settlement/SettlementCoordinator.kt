@@ -47,59 +47,11 @@ class SettlementCoordinator @Inject constructor(
 
     // 修炼速率指纹缓存：仅在结构变化时重建 SettlementCache
     private var lastFingerprint: CultivationRateFingerprint? = null
-    private var reusableCache: SettlementCache? = null
 
-    // ═══ 非焦点域批量结算状态（空闲 + 活跃共用） ═══
-
-    // 分批影子 — 跨月持有的可变状态
-    @Volatile
-    private var batchShadow: MutableGameState? = null
-    // 分批缓存 — 批次开始时的修炼速率
-    @Volatile
-    private var batchCache: SettlementCache? = null
-    // 双指纹快照
-    private var batchCultFingerprint: CultivationRateFingerprint? = null
-    private var batchProdFingerprint: ProductionRateFingerprint? = null
-    // 累积计数
-    private var batchAccumulatedPhases: Int = 0
-    private var batchAccumulatedMonths: Int = 0
-    private var batchHasYearlyChange: Boolean = false
-    // 80% 实时轨槽位
+    // 80% 实时轨槽位（由 accumulateBatch 中的 classifySlotsProgress 维护）
     private var batchRealtimeSlots: Set<String> = emptySet()
-    // 上次全量结算墙壁时钟（空闲 30s 触发用）
+    // 上次指纹检测墙壁时钟（30s 触发用）
     private var lastBatchSettleWallMs: Long = 0L
-    // 分批模式
-    private var batchMode: BatchMode = BatchMode.NONE
-    // 焦点域状态 — 实时轨正在处理时，批量轨跳过对应领域
-    private var batchCultivationFocused: Boolean = false
-    private var batchProductionFocused: Boolean = false
-
-    /**
-     * 分批模式。
-     */
-    enum class BatchMode {
-        /** 未在分批模式中 */
-        NONE,
-        /** 空闲模式 — 全部域进入分批 */
-        IDLE,
-        /** 活跃模式 — 仅非焦点域进入分批 */
-        ACTIVE_NON_FOCUS
-    }
-
-    /**
-     * [accumulateBatch] 的返回结果。
-     */
-    sealed interface BatchAccumulateResult {
-        /** 正常累积，无需额外操作 */
-        data object Accumulated : BatchAccumulateResult
-        /** 指纹或实时轨变化触发微结算 */
-        data object MicroSettled : BatchAccumulateResult
-        /** 全量结算 + swap 已完成 */
-        data object FullSettled : BatchAccumulateResult
-    }
-
-    /** 当前是否处于分批模式 */
-    val isInBatchMode: Boolean get() = batchMode != BatchMode.NONE
 
     /**
      * 实时轨槽位映射为需要激活的域集合。
@@ -141,46 +93,15 @@ class SettlementCoordinator @Inject constructor(
     private val timer = SettlementTimer()
     private var metricsBuilder = SettlementMetricsBuilder()
 
-    // ── 分批模式 API ──────────────────────────────────────────
+    // ── 累积与指纹检测 ──────────────────────────────────────────
 
     /**
-     * 进入分批模式。
+     * 每帧指纹检测。
      *
-     * @param shadow 分批期间持有的可变游戏状态
-     * @param cache  批次开始时的修炼速率缓存
-     * @param mode   分批模式（IDLE / ACTIVE_NON_FOCUS）
+     * 执行指纹检测 + 80% 槽位分类，在结构或进度变化时重建缓存。
+     * 临时影子只读即弃，不持有持久状态。
      */
-    fun enterBatchMode(
-        shadow: MutableGameState,
-        cache: SettlementCache,
-        mode: BatchMode
-    ) {
-        batchShadow = shadow
-        batchCache = cache
-        batchMode = mode
-        batchAccumulatedPhases = 0
-        batchAccumulatedMonths = 0
-        batchHasYearlyChange = false
-        batchCultFingerprint = computeCultivationFingerprint(shadow)
-        batchProdFingerprint = computeProductionFingerprint(shadow)
-        batchRealtimeSlots = classifySlotsProgress(shadow)
-        lastBatchSettleWallMs = System.currentTimeMillis()
-        DomainLog.i(TAG, "Entered batch mode: $mode " +
-            "realtimeSlots=${batchRealtimeSlots.size} " +
-            "disciples=${shadow.discipleTables.ids.count { shadow.discipleTables.isAlive[it] == 1 }}")
-    }
-
-    /**
-     * 每帧/每月累积。
-     *
-     * 执行双指纹检测 + 实时轨检测，在结构或进度变化时触发微结算。
-     *
-     * @return [BatchAccumulateResult] 指示本次累积的结果
-     */
-    fun accumulateBatch(phasesToAdd: Int, monthChanged: Boolean, yearChanged: Boolean) {
-        if (phasesToAdd > 0) batchAccumulatedPhases += phasesToAdd
-        if (monthChanged) batchAccumulatedMonths++
-
+    fun accumulateBatch() {
         val now = System.currentTimeMillis()
         if (now - lastBatchSettleWallMs < 30_000L) return
 
@@ -188,125 +109,16 @@ class SettlementCoordinator @Inject constructor(
 
         // 临时影子做指纹检测（只读，用完即弃不 swap）
         val tempShadow = stateStore.createSettlementShadow()
-        try {
-            val newFp = computeFingerprint(tempShadow)
-            val newRt = classifySlotsProgress(tempShadow)
-            if (newFp != lastFingerprint || newRt != batchRealtimeSlots) {
-                DomainLog.d(TAG, "Fingerprint/80% changed")
-                if (batchAccumulatedPhases > 0 || batchAccumulatedMonths > 0)
-                    domain.cultivationService.resetHighFrequencyData()
-                val cache = SettlementCache(tempShadow)
-                reusableCache = cache
-                domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
-                lastFingerprint = newFp; batchRealtimeSlots = newRt
-                batchAccumulatedPhases = 0; batchAccumulatedMonths = 0
-            }
-        } finally {
-            shadowState = null; currentCache = null; scheduler.reset()
-        }
-    }
-
-    /** 指纹或实时轨变化 → 微结算 + 重建缓存 */
-    private suspend fun handleBatchChange(
-        shadow: MutableGameState,
-        newCultFp: CultivationRateFingerprint,
-        newProdFp: ProductionRateFingerprint,
-        newRealtime: Set<String>
-    ): BatchAccumulateResult {
-        if (batchAccumulatedPhases > 0 || batchAccumulatedMonths > 0) {
-            DomainLog.d(TAG, "Batch trigger: phases=$batchAccumulatedPhases " +
-                "months=$batchAccumulatedMonths")
-            val cache = batchCache ?: return BatchAccumulateResult.Accumulated
-            // 焦点域在实时轨处理，批量轨跳过对应领域
-            if (!batchCultivationFocused) {
-                cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
-            }
-            if (!batchProductionFocused && batchAccumulatedMonths > 0) {
-                productionMicroSettle(shadow, batchAccumulatedMonths)
-            }
-        }
-        batchCache = SettlementCache(shadow)
-        batchCultFingerprint = newCultFp
-        batchProdFingerprint = newProdFp
-        batchRealtimeSlots = newRealtime
-        batchAccumulatedPhases = 0
-        batchAccumulatedMonths = 0
-        batchHasYearlyChange = false
-        return BatchAccumulateResult.MicroSettled
-    }
-
-    // checkBatchClock 已删除 — accumulateBatch 使用临时影子指纹检测替代
-
-    /**
-     * 退出分批模式，强制执行全量结算 + swap。
-     */
-    suspend fun exitBatchMode() {
-        if (batchMode == BatchMode.NONE) return
-        if (batchAccumulatedPhases > 0 || batchAccumulatedMonths > 0) {
-            DomainLog.i(TAG, "Exit batch mode — settling accumulated " +
-                "phases=$batchAccumulatedPhases months=$batchAccumulatedMonths")
-            doBatchFullSettle()
-        }
-        cancelBatch()
-    }
-
-    /**
-     * 取消分批模式，丢弃累积的中间状态（不 swap）。
-     */
-    fun cancelBatch() {
-        batchShadow = null
-        batchCache = null
-        batchCultFingerprint = null
-        batchProdFingerprint = null
-        batchAccumulatedPhases = 0
-        batchAccumulatedMonths = 0
-        batchHasYearlyChange = false
-        batchRealtimeSlots = emptySet()
-        batchMode = BatchMode.NONE
-        shadowState = null
-        currentCache = null
-        scheduler.reset()
-    }
-
-    /**
-     * 全量结算：末段微结算 + swap + 重建窗口。
-     */
-    private suspend fun doBatchFullSettle() {
-        val shadow = batchShadow ?: return
-        val cache = batchCache ?: return
-
-        // 焦点域在实时轨处理，批量轨跳过对应领域
-        if (!batchCultivationFocused) {
-            cultivationMicroSettle(shadow, cache, batchAccumulatedPhases)
-        }
-        if (!batchProductionFocused && batchAccumulatedMonths > 0) {
-            productionMicroSettle(shadow, batchAccumulatedMonths)
-        }
-        if (batchHasYearlyChange) {
-            processAgingAndDeath(shadow)
-        }
-
-        stateStore.swapFromShadow(shadow)
-        domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
-        if (batchAccumulatedMonths > 0 || batchAccumulatedPhases > 0) {
+        val newFp = computeFingerprint(tempShadow)
+        val newRt = classifySlotsProgress(tempShadow)
+        if (newFp != lastFingerprint || newRt != batchRealtimeSlots) {
+            DomainLog.d(TAG, "Fingerprint/80% changed")
             domain.cultivationService.resetHighFrequencyData()
+            val cache = SettlementCache(tempShadow)
+            domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
+            lastFingerprint = newFp
+            batchRealtimeSlots = newRt
         }
-
-        // 重建影子 + 缓存为新窗口
-        val newShadow = stateStore.createSettlementShadow()
-        batchShadow = newShadow
-        batchCache = SettlementCache(newShadow)
-        batchCultFingerprint = computeCultivationFingerprint(newShadow)
-        batchProdFingerprint = computeProductionFingerprint(newShadow)
-        batchRealtimeSlots = classifySlotsProgress(newShadow)
-        batchAccumulatedPhases = 0
-        batchAccumulatedMonths = 0
-        batchHasYearlyChange = false
-        lastBatchSettleWallMs = System.currentTimeMillis()
-
-        DomainLog.i(TAG, "Batch full settle: phases=$batchAccumulatedPhases " +
-            "months=$batchAccumulatedMonths " +
-            "realtimeSlots=${batchRealtimeSlots.size}")
     }
 
     /**
@@ -340,7 +152,6 @@ class SettlementCoordinator @Inject constructor(
     private fun resetOnError() {
         shadowState = null
         currentCache = null
-        reusableCache = null
         lastFingerprint = null
         scheduler.reset()
     }
@@ -409,11 +220,8 @@ class SettlementCoordinator @Inject constructor(
     fun cancelPendingWork() {
         shadowState = null
         currentCache = null
-        reusableCache = null
         lastFingerprint = null
         scheduler.reset()
-        // 也清理分批状态
-        cancelBatch()
     }
 
     /**
@@ -807,53 +615,6 @@ class SettlementCoordinator @Inject constructor(
         return batch.size
     }
 
-    private suspend fun processProduction(shadow: MutableGameState) {
-        val months = if (batchMode == BatchMode.NONE) 1
-                     else batchAccumulatedMonths.coerceAtLeast(1)
-        if (months <= 0) return
-        timer.start()
-        // shadow tx removed
-        try {
-            repeat(months) { domain.productionSubsystem.onMonthTick(shadow) }
-        } finally {
-
-        }
-        metricsBuilder.productionMs = timer.stop()
-    }
-
-    /** 可分批的世界事件：经济（政策开销）+ 血炼进度 */
-    private suspend fun processBatchableWorldEvents(shadow: MutableGameState, months: Int) {
-        if (months <= 0) return
-        // shadow tx removed
-        try {
-            repeat(months) {
-                domain.economySubsystem.onMonthTick(shadow)
-                processBloodRefinementProgress(shadow)
-            }
-        } finally {
-
-        }
-    }
-
-    private suspend fun processWorldEvents(shadow: MutableGameState) {
-        timer.start()
-        // shadow tx removed
-        try {
-            processWorldEventsMonthlyOnly(shadow)
-            // 可分批部分仅在非分批模式执行
-            if (batchMode == BatchMode.NONE) {
-                domain.economySubsystem.onMonthTick(shadow)
-                processBloodRefinementProgress(shadow)
-            }
-        } finally {
-
-        }
-        metricsBuilder.worldEventsMs = timer.stop()
-    }
-
-    /**
-     * 检查血炼进度，到期则完成洗炼。
-     */
     private fun processBloodRefinementProgress(shadow: MutableGameState) {
         val currentYear = shadow.gameData.gameYear
         val currentMonth = shadow.gameData.gameMonth
@@ -1180,162 +941,6 @@ class SettlementCoordinator @Inject constructor(
             realmHash = realmHash,
             perDiscipleHash = perDiscipleHash
         )
-    }
-
-    // ── 空闲模式：双指纹 + 80% 分类 + 微结算 ──────────────────────
-
-    /**
-     * 计算修炼速率指纹，复用 [computeFingerprint] 逻辑。
-     */
-    fun computeCultivationFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
-        return computeFingerprint(shadow)
-    }
-
-    /**
-     * 计算生产系统指纹，委托给 [ProductionRateFingerprint.compute]。
-     */
-    fun computeProductionFingerprint(shadow: MutableGameState): ProductionRateFingerprint {
-        return ProductionRateFingerprint.compute(shadow)
-    }
-
-    /**
-     * 空闲修炼微结算：用旧缓存中的速率结算 [phases] 旬的修炼值。
-     *
-     * 直接操作 shadow 中的 DiscipleTables，不经过 Scheduler。
-     * 处理内容：修炼值累加、HP/MP 恢复、持续效果衰减、突破检查。
-     *
-     * @param shadow 空闲期间持有的可变游戏状态
-     * @param cache 变化前的修炼速率缓存（旧速率）
-     * @param phases 本累积段内的旬数
-     */
-    fun cultivationMicroSettle(
-        shadow: MutableGameState,
-        cache: SettlementCache,
-        phases: Int
-    ) {
-        if (phases <= 0) return
-        val tables = shadow.discipleTables
-
-        for (dId in cache.aliveDisciples) {
-            val id = dId.id.toInt()
-            if (tables.isAlive[id] != 1) continue
-
-            // 修炼值：旧速率 × 旬数
-            val rate = cache.cultivationRateCache[dId.id] ?: 0.0
-            if (rate > 0.0) {
-                val gain = rate * phases
-                val rawCult = tables.cultivations[id] + gain
-                val maxCult = dId.maxCultivation
-                tables.cultivations[id] = rawCult.coerceAtMost(maxCult)
-
-                // 突破检查
-                if (rawCult >= maxCult &&
-                    tables.currentHps[id] >= dId.maxHp &&
-                    tables.currentMps[id] >= dId.maxMp
-                ) {
-                    val updated = processBreakthroughForDisciple(dId, shadow, cache)
-                    writeDiscipleToTables(updated, tables)
-                }
-            }
-
-            // HP/MP 恢复：ceil(phases/3) 个月
-            val fullMonths = (phases + 2) / 3
-            repeat(fullMonths) { domain.cultivationService.recoverMonthlyHpMp(tables, id, 0) }
-
-            // 持续效果衰减：同上
-            repeat(fullMonths) { domain.cultivationService.applyMonthlyDurationDecay(tables, id, 0) }
-
-            // 忠诚度：按足月计算（<1月不累加）
-            val loyaltyDelta = calculateLoyaltyDelta(dId, cache)
-            if (loyaltyDelta != 0 && phases >= 3) {
-                val totalLoyaltyDelta = loyaltyDelta * fullMonths
-                tables.loyalties[id] = (tables.loyalties[id] + totalLoyaltyDelta).coerceAtLeast(0)
-            }
-        }
-    }
-
-    /**
-     * 空闲生产微结算：逐月推进生产系统和世界事件。
-     *
-     * 直接操作 shadow，处理 [months] 个月的生产/经济/邮件/子嗣等。
-     *
-     * @param shadow 空闲期间持有的可变游戏状态
-     * @param months 需结算的月份数
-     */
-    suspend fun productionMicroSettle(shadow: MutableGameState, months: Int) {
-        if (months <= 0) return
-        // shadow tx removed
-        try {
-            // 生产系统按批次数全额处理
-            repeat(months) { domain.productionSubsystem.onMonthTick(shadow) }
-            // 经济 + 血炼按批次数全额处理
-            processBatchableWorldEvents(shadow, months)
-        } finally {
-
-        }
-        // 始终每月的事件（不分批，执行一次即可）
-        processWorldEventsMonthlyOnly(shadow)
-    }
-
-    /** 始终每月执行的事件（不分批） */
-    private suspend fun processWorldEventsMonthlyOnly(shadow: MutableGameState) {
-        // shadow tx removed
-        try {
-            domain.explorationService.processMonthlyWorldLevels(shadow)
-            world.mailSystem.onMonthTick(shadow)
-            world.childBirthSystem.onMonthTick(shadow)
-            world.partnerSystem.onMonthTick(shadow)
-            domain.cultivationService.processAutoFromWarehouseMonthly(
-                shadow.gameData.gameYear, shadow.gameData.gameMonth, shadow
-            )
-        } finally {
-
-        }
-    }
-
-    /**
-     * 空闲全量结算：修炼末段 + 生产末段 + swap。
-     *
-     * 在 30s 墙壁时钟到期或退出空闲时调用。
-     *
-     * @param shadow 空闲期间持有的可变游戏状态
-     * @param cache 当前修炼速率缓存
-     * @param phases 末段累积旬数
-     * @param months 末段累积月数
-     * @param hasYearlyChange 是否发生过年变
-     */
-    suspend fun fullIdleSettle(
-        shadow: MutableGameState,
-        cache: SettlementCache,
-        phases: Int,
-        months: Int,
-        hasYearlyChange: Boolean
-    ) {
-        // 1. 修炼末段
-        cultivationMicroSettle(shadow, cache, phases)
-
-        // 2. 生产末段
-        productionMicroSettle(shadow, months)
-
-        // 3. 年度事件
-        if (hasYearlyChange) {
-            processAgingAndDeath(shadow)
-        }
-
-        // 4. 原子写入
-        stateStore.swapFromShadow(shadow)
-
-        // 5. 同步修炼速率缓存
-        domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
-
-        // 6. 重置 HFD
-        if (months > 0 || phases > 0) {
-            domain.cultivationService.resetHighFrequencyData()
-        }
-
-        shadowState = null
-        currentCache = null
-        scheduler.reset()
     }
 
     /**
