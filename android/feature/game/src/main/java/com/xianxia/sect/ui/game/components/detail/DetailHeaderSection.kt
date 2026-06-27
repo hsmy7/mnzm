@@ -57,11 +57,50 @@ fun DetailRightPanel(
             contentScale = ContentScale.Fit
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Text(disciple.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+        // 提前计算翻页索引，用于名称两侧的翻页按钮
+        val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
+        val hasPrev = currentIndex > 0
+        val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
+
+        // 弟子名称行：翻页按钮在名称两侧
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (hasPrev && onNavigateToDisciple != null) {
+                Box(
+                    modifier = Modifier.size(28.dp).clip(CircleShape)
+                        .background(Color(0x99000000))
+                        .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex - 1]) },
+                    contentAlignment = Alignment.Center
+                ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+            Text(
+                disciple.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            if (hasNext && onNavigateToDisciple != null) {
+                Box(
+                    modifier = Modifier.size(28.dp).clip(CircleShape)
+                        .background(Color(0x99000000))
+                        .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                    contentAlignment = Alignment.Center
+                ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+        }
         Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
         Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // 六个操作按钮：FlowRow 根据屏幕宽度自动换行
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             val btnColor = if (localDiscipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
             val btnShape = if (showDiscipleTypeDropdown)
                 RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
@@ -130,31 +169,6 @@ fun DetailRightPanel(
                     .clickable(enabled = !hasMaster) { dismissDropdown(); onShowApprentice() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        // prev/next navigation at bottom
-        val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
-        val hasPrev = currentIndex > 0
-        val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
-
-        if (hasPrev || hasNext) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                if (hasPrev && onNavigateToDisciple != null) {
-                    Box(
-                        modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
-                            .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex - 1]) },
-                        contentAlignment = Alignment.Center
-                    ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                if (hasNext && onNavigateToDisciple != null) {
-                    Box(
-                        modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
-                            .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex + 1]) },
-                        contentAlignment = Alignment.Center
-                    ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                }
-            }
         }
         Spacer(modifier = Modifier.weight(0.5f))
     }

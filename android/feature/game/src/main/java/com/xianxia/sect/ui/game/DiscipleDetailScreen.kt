@@ -109,10 +109,6 @@ fun DiscipleDetailDialog(
     @Suppress("DEPRECATION")
     val gameSpeed = gameData?.gameSpeed ?: 1
 
-    val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
-    val hasPrev = currentIndex > 0
-    val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
-
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
