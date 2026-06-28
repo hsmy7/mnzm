@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.EquipmentSet
@@ -767,5 +768,93 @@ class DiscipleStatCalculatorTest {
             disciple, masterDiscipleBonus = 1.0
         )
         assertTrue("突破率不应超过1, actual=$chance", chance <= 1.0)
+    }
+
+    // ── 内门/外门执事加成计算验证 ──
+
+    @Test
+    fun `getBreakthroughChance - 内门执事加成正确计算`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        // 悟性90 → (90-80)/4*0.01 = 0.02（整数除法）
+        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
+            disciple, innerElderComprehension = 90
+        )
+        assertEquals(0.02, bonusChance - baseChance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 外门执事加成正确计算`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        // 外门执事加成已预计算为Double，直接传入
+        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
+            disciple, outerElderComprehensionBonus = 0.03
+        )
+        assertEquals(0.03, bonusChance - baseChance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 内门和外门执事加成可叠加`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        // 内门执事悟性100 → (100-80)/4*0.01 = 0.05
+        // 外门执事加成直接传入0.03
+        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val bothChance = DiscipleStatCalculator.getBreakthroughChance(
+            disciple,
+            innerElderComprehension = 100,
+            outerElderComprehensionBonus = 0.03
+        )
+        assertEquals(0.08, bothChance - baseChance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 内门执事悟性低于80无加成`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
+            disciple, innerElderComprehension = 70
+        )
+        assertEquals(baseChance, bonusChance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughBonusDetail - 内门执事加成详情正确`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+            DiscipleAggregate.fromDisciple(disciple),
+            innerElderComprehension = 90
+        )
+        // 悟性90 → (90-80)/4*0.01 = 0.02（整数除法）
+        assertEquals(0.02, detail.innerElderBonus, 0.001)
+        assertEquals(0.0, detail.outerElderBonus, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughBonusDetail - 外门执事加成详情正确`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+            DiscipleAggregate.fromDisciple(disciple),
+            outerElderComprehensionBonus = 0.03
+        )
+        assertEquals(0.0, detail.innerElderBonus, 0.001)
+        assertEquals(0.03, detail.outerElderBonus, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughBonusDetail - 双执事加成均在total中体现`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        val baseDetail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+            DiscipleAggregate.fromDisciple(disciple)
+        )
+        val bothDetail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+            DiscipleAggregate.fromDisciple(disciple),
+            innerElderComprehension = 100,
+            outerElderComprehensionBonus = 0.03
+        )
+        // 内门执事悟性100 → 0.05 + 外门执事 0.03 = 0.08
+        assertEquals(0.08, bothDetail.total - baseDetail.total, 0.001)
+        assertEquals(0.05, bothDetail.innerElderBonus, 0.001)
+        assertEquals(0.03, bothDetail.outerElderBonus, 0.001)
     }
 }

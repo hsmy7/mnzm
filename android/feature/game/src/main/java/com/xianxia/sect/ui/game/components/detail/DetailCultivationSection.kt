@@ -197,12 +197,22 @@ fun BasicInfoSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
-            val innerElderComp = elderSlots?.innerElder?.let { eid ->
-                discipleMap[eid]?.comprehension ?: 0
-            } ?: 0
-            val outerElderComp = elderSlots?.outerElder?.let { eid ->
-                discipleMap[eid]?.comprehension ?: 0
-            } ?: 0
+            val innerElderComp = if (disciple.discipleType == "inner") {
+                elderSlots?.innerElder?.let { eid ->
+                    val elder = discipleMap[eid] ?: return@let 0
+                    if (elder.isAlive && disciple.realm >= elder.realm) {
+                        elder.comprehension
+                    } else { 0 }
+                } ?: 0
+            } else { 0 }
+            val outerElderComp = if (disciple.discipleType == "outer") {
+                elderSlots?.outerElder?.let { eid ->
+                    val elder = discipleMap[eid] ?: return@let 0
+                    if (elder.isAlive && disciple.realm >= elder.realm) {
+                        elder.comprehension
+                    } else { 0 }
+                } ?: 0
+            } else { 0 }
             val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
                 disciple,
                 innerElderComprehension = innerElderComp,
