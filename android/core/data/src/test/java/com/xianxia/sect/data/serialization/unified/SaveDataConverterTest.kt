@@ -82,7 +82,11 @@ class SaveDataConverterTest {
                 pillHpBonus = 0,
                 pillMpBonus = 0,
                 pillSpeedBonus = 0,
-                pillEffectDuration = 0
+                pillEffectDuration = 0,
+                activePillTypes = setOf(
+                    "cultivation_speed_boost",
+                    "temp_attack_boost"
+                )
             ),
             equipment = EquipmentSet(
                 weaponId = "weapon_1",
@@ -115,6 +119,8 @@ class SaveDataConverterTest {
                 salaryMissedCount = 0
             ),
             usage = UsageTracking(
+                usedPermanentPillKeys = setOf("3#intelligence", "1#charm"),
+                usedExtendLifePillTypes = setOf("extend_life_low"),
                 usedFunctionalPillTypes = emptyList(),
                 usedExtendLifePillIds = emptyList(),
                 recruitedMonth = 3,
@@ -659,5 +665,80 @@ class SaveDataConverterTest {
             assertEquals("disciple_$i", restored.disciples[i - 1].id)
             assertEquals(i, restored.disciples[i - 1].realm)
         }
+    }
+
+    @Test
+    fun `roundtrip preserves activePillTypes`() {
+        val original = createRichSaveData()
+        val serializable = converter.toSerializable(original)
+        val restored = converter.fromSerializable(serializable)
+        val oTypes = original.disciples[0].pillEffects.activePillTypes
+        val rTypes = restored.disciples[0].pillEffects.activePillTypes
+        assertEquals(oTypes, rTypes)
+        assertTrue(rTypes.contains("cultivation_speed_boost"))
+        assertTrue(rTypes.contains("temp_attack_boost"))
+    }
+
+    @Test
+    fun `roundtrip preserves usedPermanentPillKeys`() {
+        val original = createRichSaveData()
+        val serializable = converter.toSerializable(original)
+        val restored = converter.fromSerializable(serializable)
+        val oKeys = original.disciples[0].usage.usedPermanentPillKeys
+        val rKeys = restored.disciples[0].usage.usedPermanentPillKeys
+        assertEquals(oKeys, rKeys)
+        assertTrue(rKeys.contains("3#intelligence"))
+        assertTrue(rKeys.contains("1#charm"))
+    }
+
+    @Test
+    fun `roundtrip preserves usedExtendLifePillTypes`() {
+        val original = createRichSaveData()
+        val serializable = converter.toSerializable(original)
+        val restored = converter.fromSerializable(serializable)
+        val oTypes = original.disciples[0].usage.usedExtendLifePillTypes
+        val rTypes = restored.disciples[0].usage.usedExtendLifePillTypes
+        assertEquals(oTypes, rTypes)
+        assertTrue(rTypes.contains("extend_life_low"))
+    }
+
+    @Test
+    fun `old save compatibility - missing pill tracking fields default to empty`() {
+        // 模拟旧存档：不传新字段，依赖 data class 默认值 emptyList()
+        val oldData = createRichSaveData()
+        val full = converter.toSerializable(oldData)
+        // 构造一个缺少新字段的 SerializableDisciple
+        val oldStyleDisciple = full.disciples[0].copy(
+            usedPermanentPillKeys = emptyList(),
+            usedExtendLifePillTypes = emptyList(),
+            activePillTypes = emptyList()
+        )
+        val oldStyleSave = full.copy(
+            gameData = full.gameData,
+            disciples = listOf(oldStyleDisciple),
+            equipment = full.equipment,
+            manuals = full.manuals,
+            pills = full.pills,
+            materials = full.materials,
+            herbs = full.herbs,
+            seeds = full.seeds,
+            teams = full.teams,
+            battleLogs = full.battleLogs,
+            alliances = full.alliances
+        )
+        val restored = converter.fromSerializable(oldStyleSave)
+        val rDisciple = restored.disciples[0]
+        assertTrue(
+            "旧存档缺失 activePillTypes 应默认为空 Set",
+            rDisciple.pillEffects.activePillTypes.isEmpty()
+        )
+        assertTrue(
+            "旧存档缺失 usedPermanentPillKeys 应默认为空 Set",
+            rDisciple.usage.usedPermanentPillKeys.isEmpty()
+        )
+        assertTrue(
+            "旧存档缺失 usedExtendLifePillTypes 应默认为空 Set",
+            rDisciple.usage.usedExtendLifePillTypes.isEmpty()
+        )
     }
 }

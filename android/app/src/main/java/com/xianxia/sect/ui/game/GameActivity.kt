@@ -526,7 +526,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onStop() {
         super.onStop()
         try {
-            saveLoadViewModel.pauseAndSaveForBackground()
+            saveLoadViewModel.pauseForBackground()
             backgroundTaskScheduler.pause()
             Log.d(TAG, "onStop: background tasks paused")
         } catch (e: Exception) {

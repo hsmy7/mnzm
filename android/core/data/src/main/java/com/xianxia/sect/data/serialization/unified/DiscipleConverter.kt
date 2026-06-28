@@ -90,6 +90,9 @@ internal class DiscipleConverter {
             discipleType = NullSafeProtoBuf.stringToProto(disciple.discipleType, "outer"),
             usedFunctionalPillTypes = NullSafeProtoBuf.listToProto(disciple.usage.usedFunctionalPillTypes),
             usedExtendLifePillIds = NullSafeProtoBuf.listToProto(disciple.usage.usedExtendLifePillIds),
+            usedPermanentPillKeys = disciple.usage.usedPermanentPillKeys.toList(),
+            usedExtendLifePillTypes = disciple.usage.usedExtendLifePillTypes.toList(),
+            activePillTypes = disciple.pillEffects.activePillTypes.toList(),
             hasReviveEffect = disciple.usage.hasReviveEffect ?: false,
             hasClearAllEffect = disciple.usage.hasClearAllEffect ?: false,
             currentHp = disciple.combat.currentHp,
@@ -171,7 +174,8 @@ internal class DiscipleConverter {
                 pillSkillExpSpeedBonus = data.pillSkillExpSpeedBonus,
                 pillNurtureSpeedBonus = data.pillNurtureSpeedBonus,
                 pillEffectDuration = data.pillEffectDuration,
-                activePillCategory = data.activePillCategory
+                activePillCategory = data.activePillCategory,
+                activePillTypes = data.activePillTypes.toSet()
             ),
             equipment = com.xianxia.sect.core.model.EquipmentSet(
                 weaponId = weaponId ?: "",
@@ -209,6 +213,8 @@ internal class DiscipleConverter {
                 salaryMissedCount = data.salaryMissedCount
             ),
             usage = com.xianxia.sect.core.model.UsageTracking(
+                usedPermanentPillKeys = data.usedPermanentPillKeys.toSet(),
+                usedExtendLifePillTypes = data.usedExtendLifePillTypes.toSet(),
                 usedFunctionalPillTypes = data.usedFunctionalPillTypes,
                 usedExtendLifePillIds = data.usedExtendLifePillIds,
                 recruitedMonth = data.recruitedMonth,

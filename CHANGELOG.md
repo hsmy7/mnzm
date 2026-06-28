@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.31] - 2026-06-28（versionCode=4031）
+
+### 修复
+
+- **一次性丹药服用记录存档丢失导致可无限刷属性**
+  - 根因：`usedPermanentPillKeys`（永久属性丹去重）、`usedExtendLifePillTypes`（延寿丹去重）、`activePillTypes`（临时丹药去重）三个 `Set<String>` 字段在 Protobuf 序列化路径中缺失，大退或切后台自动保存时这三个追踪字段丢失，读档后为空 Set，丹药防重复检查失效
+  - 修复：在 `SerializableDisciple` ProtoBuf schema 中新增三个字段（ProtoNumber 87/88/89），`DiscipleConverter` 增加 `toList()`/`toSet()` 双向转换
+  - 防御：移除 `onStop()` → `pauseAndSaveForBackground()` 退出自动保存，改为仅暂停游戏循环（`pauseForBackground()`）。避免不完整序列化在后台保存时覆盖正确存档
+
 ## [4.0.30] - 2026-06-28（versionCode=4030）
 
 ### 修复

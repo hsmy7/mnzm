@@ -1048,6 +1048,18 @@ class SaveLoadViewModel @Inject constructor(
         return false
     }
 
+    /**
+     * 暂停游戏循环（不保存）
+     *
+     * 仅停止游戏循环和后台结算工作，不触发存档。
+     * 用于 onStop 等快速切后台场景，避免不完整序列化落盘覆盖正确存档。
+     */
+    fun pauseForBackground() {
+        Log.d(TAG, "pauseForBackground: stopping game loop only")
+        stopGameLoop()
+        gameEngineCore.pauseForBackground()
+    }
+
     fun pauseAndSaveForBackground() {
         // 关键修复：先获取快照，再停游戏循环
         // 之前的逻辑先 stopGameLoop() 再获取快照，游戏循环停止后

@@ -165,6 +165,10 @@ data class SerializableDisciple(
     @ProtoNumber(74) val discipleType: String,
     @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),
     @ProtoNumber(76) val usedExtendLifePillIds: List<String> = emptyList(),
+    // 丹药服用追踪 — 防重复服用（从 DiscipleComponents @Ignore Set 转换）
+    @ProtoNumber(87) val usedPermanentPillKeys: List<String> = emptyList(),
+    @ProtoNumber(88) val usedExtendLifePillTypes: List<String> = emptyList(),
+    @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),
     @ProtoNumber(77) val hasReviveEffect: Boolean,
     @ProtoNumber(78) val hasClearAllEffect: Boolean,
     @ProtoNumber(79) val currentHp: Int = -1,
