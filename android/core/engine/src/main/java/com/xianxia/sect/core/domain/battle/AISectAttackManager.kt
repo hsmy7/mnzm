@@ -189,6 +189,105 @@ object AISectAttackManager {
     }
 
     /**
+     * 单个攻击方宗门对单个防御方宗门尝试攻击。
+     * 构建攻防队伍、执行战斗、返回结果。
+     * @return 战斗结果，条件不满足时返回 null
+     */
+    fun tryAttackTarget(
+        attacker: WorldSect,
+        defender: WorldSect,
+        gameData: GameData,
+        aiDisciplesMap: Map<String, List<Disciple>>,
+        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo> = emptyMap()
+    ): AIAttackResult? {
+        val attackerDisciples = aiDisciplesMap[attacker.id] ?: return null
+        val availableAttackers = attackerDisciples.filter { it.isAlive }
+        if (availableAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
+
+        val selectedAttackers = availableAttackers
+            .sortedBy { it.realm }
+            .take(TEAM_SIZE)
+        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
+
+        val defenderSect = gameData.worldMapSects.find {
+            it.id == defender.id
+        }
+        val isAiOccupied = defenderSect?.occupierSectId
+            ?.isNotEmpty() == true &&
+            defenderSect.occupierSectId != attacker.id
+        val isPlayerOccupied = defenderSect?.isPlayerOccupied == true
+        val garrisonDisciples = if (isAiOccupied) {
+            if (isPlayerOccupied) {
+                playerOccupiedDefendersMap[defender.id]
+                    ?.disciples ?: emptyList()
+            } else {
+                val occupierDisciples = aiDisciplesMap[
+                    defenderSect.occupierSectId] ?: emptyList()
+                defenderSect.garrisonSlots
+                    .filter { it.discipleId.isNotEmpty() }
+                    .mapNotNull { slot ->
+                        occupierDisciples.find { d ->
+                            d.id == slot.discipleId && d.isAlive
+                        }
+                    }
+            }
+        } else {
+            emptyList()
+        }
+
+        val defenderPool = aiDisciplesMap[defender.id] ?: emptyList()
+        val defenderDisciples = if (garrisonDisciples.isNotEmpty()) {
+            garrisonDisciples
+        } else {
+            defenderPool.filter { it.isAlive }
+                .sortedBy { it.realm }.take(TEAM_SIZE)
+        }
+
+        if (defenderDisciples.isEmpty()) return null
+
+        val allDefenderPool = if (garrisonDisciples.isNotEmpty()) {
+            if (isPlayerOccupied) {
+                garrisonDisciples
+            } else {
+                aiDisciplesMap[
+                    defenderSect?.occupierSectId ?: ""]
+                    ?: emptyList()
+            }
+        } else {
+            defenderPool
+        }
+
+        val battleResult = if (isPlayerOccupied &&
+            garrisonDisciples.isNotEmpty()
+        ) {
+            val garrisonCombatants = playerOccupiedDefendersMap[
+                defender.id]?.combatants ?: emptyList()
+            executePlayerSectBattle(
+                selectedAttackers, garrisonCombatants)
+        } else {
+            executeSectBattle(selectedAttackers,
+                defenderSect ?: defender,
+                defenderDisciples, allDefenderPool)
+        }
+
+        val survivingAttackers = selectedAttackers.filter {
+            it.id !in battleResult.deadAttackerIds
+        }
+
+        return AIAttackResult(
+            attackerSectId = attacker.id,
+            defenderSectId = defender.id,
+            attackerSectName = attacker.name,
+            defenderSectName = defender.name,
+            winner = battleResult.winner,
+            deadAttackerIds = battleResult.deadAttackerIds,
+            deadDefenderIds = battleResult.deadDefenderIds,
+            canOccupy = battleResult.canOccupy,
+            survivingAttackers = survivingAttackers
+        )
+    }
+
+    /**
      * Execute a sect battle given raw disciple lists (no AIBattleTeam needed).
      */
     fun executeSectBattle(

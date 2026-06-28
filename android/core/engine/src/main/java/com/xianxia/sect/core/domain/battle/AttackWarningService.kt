@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.AttackWarning
 import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.launch
@@ -137,5 +138,68 @@ class AttackWarningService @Inject constructor(
     /** 获取所有活跃预警 */
     fun getActiveWarnings(): List<AttackWarning> {
         return stateStore.gameData.value.activeAttackWarnings
+    }
+
+    // ── 同步版本：直接操作 MutableGameState，供 BattleTickSystem 使用 ──
+
+    /**
+     * 同步推进预警阶段（谴责→战书），直接在 [state] 上修改。
+     * @return 刚升级的预警列表
+     */
+    fun advanceWarningsIfNeededSync(state: MutableGameState): List<AttackWarning> {
+        val data = state.gameData
+        val nowMonth = data.gameYear * 12 + data.gameMonth
+        val newlyAdvanced = mutableListOf<AttackWarning>()
+
+        val updatedWarnings = data.activeAttackWarnings.map { warning ->
+            if (warning.stage == WarningStage.DENUNCIATION &&
+                nowMonth >= warning.attackMonth -
+                    GameConfig.AIAttack.WAR_WARNING_BEFORE_ATTACK_MONTHS
+            ) {
+                val advanced = warning.copy(stage = WarningStage.WAR_DECLARATION)
+                newlyAdvanced.add(advanced)
+                advanced
+            } else {
+                warning
+            }
+        }
+
+        if (newlyAdvanced.isNotEmpty()) {
+            state.gameData = data.copy(activeAttackWarnings = updatedWarnings)
+        }
+        return newlyAdvanced
+    }
+
+    /**
+     * 同步检查到期预警，直接在 [state] 上修改（移除已到期）。
+     * @return 到期需执行战斗的预警列表
+     */
+    fun checkExpiredWarningsSync(state: MutableGameState): List<AttackWarning> {
+        val data = state.gameData
+        val nowMonth = data.gameYear * 12 + data.gameMonth
+
+        val expired = data.activeAttackWarnings.filter {
+            it.stage == WarningStage.WAR_DECLARATION &&
+                nowMonth >= it.attackMonth
+        }
+
+        if (expired.isNotEmpty()) {
+            val expiredIds = expired.map { it.warningId }.toSet()
+            state.gameData = data.copy(
+                activeAttackWarnings = data.activeAttackWarnings.filter {
+                    it.warningId !in expiredIds
+                }
+            )
+        }
+        return expired
+    }
+
+    /**
+     * 同步添加预警，直接在 [state] 上修改。
+     */
+    fun addWarningSync(state: MutableGameState, warning: AttackWarning) {
+        state.gameData = state.gameData.copy(
+            activeAttackWarnings = state.gameData.activeAttackWarnings + warning
+        )
     }
 }

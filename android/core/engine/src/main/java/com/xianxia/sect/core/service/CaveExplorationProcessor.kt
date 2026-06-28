@@ -10,18 +10,18 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
-import com.xianxia.sect.core.engine.domain.battle.PlayerLootLossResult
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.PlayerAttackDecision
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
-import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.SectWarehouseManager
+import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.perf.ThermalMonitor
@@ -38,9 +38,9 @@ class CaveExplorationProcessor @Inject constructor(
     private val battleSystem: BattleSystem,
     private val eventProcessor: CultivationEventProcessor,
     private val analyticsTracker: AnalyticsTracker,
-    private val sectWarehouseManager: SectWarehouseManager,
     private val thermalMonitor: ThermalMonitor,
     private val attackWarningService: AttackWarningService,
+    private val sectWarehouseManager: SectWarehouseManager,
     private val cultivationService: CultivationService
 ) {
     private val scope get() = scopeProvider.scope
@@ -56,23 +56,8 @@ class CaveExplorationProcessor @Inject constructor(
         private const val THERMAL_NORMAL_BATCH = 1
 
         /**
-         * 不可参与宗门防守的弟子状态：外出任务、探索洞府/妖兽/世界节点等。
-         */
-        private val SECT_DEFENSE_EXCLUDED_STATUSES = setOf(
-            DiscipleStatus.ON_MISSION,
-            DiscipleStatus.IN_TEAM,
-            DiscipleStatus.REFLECTING,
-            DiscipleStatus.GARRISONING
-        )
-
-        /**
-         * 从实际参战弟子（而非全宗门弟子池）构建防守战日志的敌人快照列表。
-         *
-         * @param survivingAttackers 战后幸存的攻击方弟子（仅参战者）
-         * @param deadAttackerIds    阵亡的攻击方弟子ID
-         * @param sectDisciplePool   攻击方宗门完整弟子池（仅用于查阵亡者详细数据）
-         * @param attackerSectName   攻击方宗门名
-         * @return 仅包含实际参战弟子的快照列表
+         * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数）。
+         * 供 BattleTickSystem 和测试使用。
          */
         internal fun buildDefenseBattleEnemies(
             survivingAttackers: List<Disciple>,
@@ -81,7 +66,9 @@ class CaveExplorationProcessor @Inject constructor(
             attackerSectName: String
         ): List<BattleLogEnemy> {
             val survivorIds = survivingAttackers.map { it.id }.toSet()
-            val deadAttackerData = sectDisciplePool.filter { it.id in deadAttackerIds }
+            val deadAttackerData = sectDisciplePool.filter {
+                it.id in deadAttackerIds
+            }
             val participants = survivingAttackers + deadAttackerData
             return participants.map { d ->
                 val survived = d.id in survivorIds
@@ -646,22 +633,438 @@ class CaveExplorationProcessor @Inject constructor(
             stateStore.update {
                 gameData = gameData.copy(
                     sectDetails = cleanedSectDetails,
-                    aiSectDisciples = updatedAiDisciples,
+                    aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
+                        val calculated = updatedAiDisciples[sId] ?: return@mapValues current
+                        val currentIds = current.map { it.id }.toSet()
+                        calculated.filter { it.id in currentIds }
+                    },
                     worldMapSects = syncedWorldSects
                 )
             }
         }
 
-        if (month == 1) {
-            processSectDisciplesYearlyRecruitment(year)
+        processAIVsAIBattles()
+        processPlayerDefenseBattles()
+    }
+
+    /**
+     * AI 攻打玩家：预警生命周期 + 战斗结算。
+     */
+    private suspend fun processPlayerDefenseBattles() {
+        val data = stateStore.gameData.value
+
+        // 1. 推进预警阶段（谴责 → 战书）
+        stateStore.update {
+            attackWarningService.advanceWarningsIfNeededSync(this)
         }
 
-        processAISectAttackDecisions()
+        // 2. 检查到期战书 → 执行内联结算（战斗前结算 + 战斗 + 结果）
+        val expiredWarnings = data.activeAttackWarnings.filter {
+            it.stage == WarningStage.WAR_DECLARATION &&
+                data.gameYear * 12 + data.gameMonth >= it.attackMonth
+        }
+        for (expired in expiredWarnings) {
+            executePlayerDefenseBattle(expired)
+        }
 
+        // 3. 新攻击决策 → 生成谴责
+        val decision = AISectAttackManager.decidePlayerAttack(data)
+        if (decision is PlayerAttackDecision.GenerateWarning) {
+            scope.launch {
+                stateStore.update {
+                    attackWarningService.addWarningSync(
+                        this,
+                        attackWarningService.createDenunciationWarning(
+                            decision.attackerSectId, decision.attackerSectName
+                        )
+                    )
+                }
+            }
+        }
+
+        // 4. 驻军填充
         scope.launch {
             stateStore.update {
                 gameData = AISectGarrisonManager.fillEmptyGarrisonSlots(gameData)
             }
+        }
+    }
+
+    private suspend fun executePlayerDefenseBattle(expired: AttackWarning) {
+        val data = stateStore.gameData.value
+        val allDisciples = stateStore.discipleTables.assembleAll()
+        val selectedDefenders = allDisciples
+            .filter {
+                it.isAlive &&
+                    it.status !in setOf(DiscipleStatus.ON_MISSION,
+                        DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING,
+                        DiscipleStatus.GARRISONING) &&
+                    it.statusData["bloodRefining"] != "true"
+            }
+            .sortedBy { it.realm }
+            .take(AISectAttackManager.TEAM_SIZE)
+
+        val defenderIds = selectedDefenders.map { it.id }
+        if (defenderIds.isEmpty()) return
+
+        // 战斗前全量结算 + 转换 Combatant
+        val equipmentMap = stateStore.equipmentInstancesSnapshot
+            .associateBy { it.id }
+        val manualMap = stateStore.manualInstancesSnapshot
+            .associateBy { it.id }
+        val profMap = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        stateStore.update {
+            cultivationService.forceSettleDisciplesBeforeBattle(this, defenderIds)
+        }
+        val tables = stateStore.discipleTables
+        val refreshedDefenders = defenderIds.mapNotNull { id ->
+            val idInt = id.toIntOrNull() ?: return@mapNotNull null
+            if (tables.isAlive[idInt] == 1) tables.assemble(idInt) else null
+        }
+
+        val defenseTeam = refreshedDefenders.map { d ->
+            battleSystem.convertDiscipleToCombatant(
+                d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
+            )
+        }
+
+        val result = AISectAttackManager.executePlayerAttack(
+            data, expired.attackerSectId, defenseTeam
+        ) ?: return
+
+        // 删除到期预警 + 应用战斗结果
+        scope.launch {
+            stateStore.update {
+                gameData = gameData.copy(
+                    activeAttackWarnings = gameData.activeAttackWarnings.filter {
+                        it.warningId != expired.warningId
+                    }
+                )
+
+                val currentDisciples = discipleTables.assembleAll()
+                val deadDefenders = currentDisciples.filter {
+                    it.id in result.deadDefenderIds
+                }
+                var newDisciples = currentDisciples
+                if (deadDefenders.isNotEmpty()) {
+                    newDisciples = DiscipleStatCalculator
+                        .applyGriefToRelatives(
+                            newDisciples, deadDefenders, gameData.gameYear
+                        )
+                }
+                newDisciples = newDisciples.map { d ->
+                    if (d.id in result.deadDefenderIds) {
+                        d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                    } else {
+                        val hp = result.defenderSurvivorHpMap[d.id]
+                        val mp = result.defenderSurvivorMpMap[d.id]
+                        if (hp != null && mp != null) d.copy(
+                            combat = d.combat.copy(
+                                currentHp = hp.coerceIn(0, d.maxHp),
+                                currentMp = mp.coerceIn(0, d.maxMp)
+                            )
+                        ) else d
+                    }
+                }
+                discipleTables.clear()
+                newDisciples.forEach { discipleTables.insert(it) }
+
+                val attackerDisc = gameData.aiSectDisciples[
+                    result.attackerSectId] ?: emptyList()
+                val playerSectId = gameData.worldMapSects
+                    .find { it.isPlayerSect }?.id ?: return@update
+                val playerSectName = gameData.worldMapSects
+                    .find { it.isPlayerSect }?.name ?: "玩家宗门"
+
+                var updated = gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
+                        this[result.attackerSectId] = attackerDisc.filter {
+                            it.id !in result.deadAttackerIds
+                        }
+                    },
+                    worldMapSects = gameData.worldMapSects.map { sect ->
+                        if (sect.id == playerSectId) sect.copy(
+                            garrisonSlots = sect.garrisonSlots.map { slot ->
+                                if (slot.discipleId in result.deadDefenderIds)
+                                    GarrisonSlot(index = slot.index) else slot
+                            }
+                        ) else sect
+                    },
+                    sectRelations = gameData.sectRelations.map { r ->
+                        val relevant = (r.sectId1 == result.attackerSectId &&
+                            r.sectId2 == playerSectId) ||
+                            (r.sectId1 == playerSectId &&
+                                r.sectId2 == result.attackerSectId)
+                        if (relevant) r.copy(
+                            favor = (r.favor - 15).coerceIn(
+                                GameConfig.Diplomacy.MIN_FAVOR,
+                                GameConfig.Diplomacy.MAX_FAVOR)
+                        ) else r
+                    }
+                )
+
+                if (result.winner == AIBattleWinner.ATTACKER) {
+                    val detail = updated.sectDetails[playerSectId]
+                        ?: SectDetail(sectId = playerSectId)
+                    val loot = sectWarehouseManager
+                        .calculateWarehouseLootLoss(detail.warehouse)
+                    val newWarehouse = sectWarehouseManager
+                        .applyLootLossToWarehouse(detail.warehouse, loot)
+                    updated = updated.copy(
+                        sectDetails = updated.sectDetails.toMutableMap().apply {
+                            this[playerSectId] = detail.copy(warehouse = newWarehouse)
+                        }
+                    )
+                }
+
+                // 战斗日志
+                val winResult = when (result.winner) {
+                    AIBattleWinner.ATTACKER -> BattleResult.LOSE
+                    AIBattleWinner.DEFENDER -> BattleResult.WIN
+                    AIBattleWinner.DRAW -> BattleResult.DRAW
+                }
+                val participantIds = result.deadDefenderIds.toSet() +
+                    result.defenderSurvivorHpMap.keys
+                val teamMembers = newDisciples
+                    .filter { it.id in participantIds }
+                    .map { d ->
+                        BattleLogMember(
+                            id = d.id, name = d.name,
+                            realm = d.realm, realmName = d.realmName,
+                            hp = result.defenderSurvivorHpMap[d.id] ?: 0,
+                            maxHp = d.maxHp,
+                            mp = result.defenderSurvivorMpMap[d.id] ?: 0,
+                            maxMp = d.maxMp,
+                            isAlive = d.id !in result.deadDefenderIds,
+                            portraitRes = d.portraitRes
+                        )
+                    }
+                val survivorIds = result.survivingAttackers.map { it.id }.toSet()
+                val deadAttackerData = attackerDisc.filter {
+                    it.id in result.deadAttackerIds
+                }
+                val enemies = (result.survivingAttackers + deadAttackerData).map { d ->
+                    BattleLogEnemy(
+                        id = d.id,
+                        name = "${result.attackerSectName}弟子",
+                        realm = d.realm, realmName = d.realmName,
+                        hp = if (d.id in survivorIds) d.combat.currentHp else 0,
+                        maxHp = d.maxHp,
+                        isAlive = d.id in survivorIds,
+                        portraitRes = d.portraitRes
+                    )
+                }
+                recordPlayerBattle(
+                    year = gameData.gameYear,
+                    month = gameData.gameMonth,
+                    type = BattleType.SECT_WAR,
+                    attackerName = result.attackerSectName,
+                    defenderName = playerSectName,
+                    result = winResult,
+                    teamMembers = teamMembers,
+                    enemies = enemies,
+                    rounds = result.rounds,
+                    turns = result.rounds.size,
+                    details = "${result.attackerSectName} 进犯${playerSectName}，" +
+                        when (result.winner) {
+                            AIBattleWinner.ATTACKER -> "防守失利"
+                            AIBattleWinner.DEFENDER -> "防守成功"
+                            else -> "不分胜负"
+                        },
+                    beastsDefeated = result.deadAttackerIds.size,
+                    teamCasualties = result.deadDefenderIds.size
+                )
+
+                gameData = updated
+            }
+        }
+    }
+
+    /**
+     * AI-vs-AI 战斗月度结算（含玩家占领宗门防御）。
+     * 同步执行，不通过 scope.launch 异步写入。
+     */
+    private suspend fun processAIVsAIBattles() {
+        val data = stateStore.gameData.value
+        val playerSectId = data.worldMapSects
+            .find { it.isPlayerSect }?.id
+
+        // 驻军弟子由 BattleTickSystem 每 tick 实时结算，此处无需重复
+
+        // 构建玩家占领宗门防御信息
+        val allDisciples = stateStore.discipleTables.assembleAll()
+        val equipmentMap = stateStore.equipmentInstancesSnapshot
+            .associateBy { it.id }
+        val manualMap = stateStore.manualInstancesSnapshot
+            .associateBy { it.id }
+        val profMap = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        val playerDefenders = if (playerSectId != null) {
+            data.worldMapSects
+                .filter { it.isPlayerOccupied && it.occupierSectId == playerSectId }
+                .associate { sect ->
+                    val garrisoned = sect.garrisonSlots
+                        .filter { it.discipleId.isNotEmpty() }
+                        .mapNotNull { slot ->
+                            allDisciples.find { d ->
+                                d.id == slot.discipleId && d.isAlive
+                            }
+                        }
+                    val combatants = garrisoned.map { d ->
+                        battleSystem.convertDiscipleToCombatant(
+                            d, equipmentMap, manualMap, profMap,
+                            CombatantSide.DEFENDER
+                        )
+                    }
+                    sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
+                        disciples = garrisoned,
+                        combatants = combatants
+                    )
+                }
+        } else emptyMap()
+
+        val results = AISectAttackManager.decideAttacks(data, playerDefenders)
+        if (results.isEmpty()) return
+
+        for (result in results) {
+            scope.launch {
+                stateStore.update {
+                    val currentGameData = gameData
+                    val defenderSect = currentGameData.worldMapSects
+                        .find { it.id == result.defenderSectId }
+                    val isPlayerOccupied = defenderSect
+                        ?.isPlayerOccupied == true
+
+                    // 玩家占领宗门防御：更新驻军弟子状态
+                    if (isPlayerOccupied) {
+                        updatePlayerGarrisonState(
+                            result, discipleTables
+                        )
+                    }
+
+                    // 过滤阵亡弟子
+                    val attackerDisc = currentGameData
+                        .aiSectDisciples[result.attackerSectId]
+                        ?: emptyList()
+                    val updatedAttacker = attackerDisc
+                        .filter { it.id !in result.deadAttackerIds }
+                    val defenderDisc = currentGameData
+                        .aiSectDisciples[result.defenderSectId]
+                        ?: emptyList()
+                    val updatedDefender = defenderDisc
+                        .filter { it.id !in result.deadDefenderIds }
+
+                    var updatedData = gameData.copy(
+                        aiSectDisciples = gameData.aiSectDisciples
+                            .toMutableMap().apply {
+                                this[result.attackerSectId] = updatedAttacker
+                                this[result.defenderSectId] = updatedDefender
+                            },
+                        sectRelations = gameData.sectRelations.map { r ->
+                            val relevant =
+                                (r.sectId1 == result.attackerSectId &&
+                                    r.sectId2 == result.defenderSectId) ||
+                                    (r.sectId1 == result.defenderSectId &&
+                                        r.sectId2 == result.attackerSectId)
+                            if (relevant) r.copy(
+                                favor = (r.favor - 10).coerceIn(
+                                    GameConfig.Diplomacy.MIN_FAVOR,
+                                    GameConfig.Diplomacy.MAX_FAVOR
+                                )
+                            ) else r
+                        }
+                    )
+
+                    // 占领处理
+                    if (result.winner == AIBattleWinner.ATTACKER &&
+                        result.canOccupy
+                    ) {
+                        updatedData = if (isPlayerOccupied) {
+                            updatedData.copy(
+                                worldMapSects = updatedData.worldMapSects.map { s ->
+                                    if (s.id == result.defenderSectId) s.copy(
+                                        isPlayerOccupied = false,
+                                        occupierSectId = result.attackerSectId,
+                                        garrisonSlots = buildGarrSlots(
+                                            result.survivingAttackers
+                                        )
+                                    ) else s
+                                }
+                            )
+                        } else {
+                            updatedData.copy(
+                                worldMapSects = updatedData.worldMapSects.map { s ->
+                                    if (s.id == result.defenderSectId) s.copy(
+                                        occupierSectId = result.attackerSectId,
+                                        garrisonSlots = buildGarrSlots(
+                                            result.survivingAttackers
+                                        )
+                                    ) else s
+                                },
+                                aiSectDisciples = updatedData.aiSectDisciples
+                                    .toMutableMap().apply {
+                                        this[result.attackerSectId] =
+                                            updatedAttacker + updatedDefender
+                                        this[result.defenderSectId] = emptyList()
+                                    }
+                            )
+                        }
+                    }
+
+                    gameData = updatedData
+                }
+            }
+        }
+    }
+
+    private fun updatePlayerGarrisonState(
+        result: AISectAttackManager.AIAttackResult,
+        tables: DiscipleTables
+    ) {
+        if (result.deadDefenderIds.isEmpty() &&
+            result.defenderSurvivorHpMap.isEmpty()
+        ) return
+        val current = tables.assembleAll()
+        val updated = current.map { d ->
+            when {
+                d.id in result.deadDefenderIds -> d.copy(
+                    isAlive = false, status = DiscipleStatus.DEAD
+                )
+                else -> {
+                    val hp = result.defenderSurvivorHpMap[d.id]
+                    val mp = result.defenderSurvivorMpMap[d.id]
+                    if (hp != null && mp != null) d.copy(
+                        combat = d.combat.copy(
+                            currentHp = hp.coerceIn(0, d.maxHp),
+                            currentMp = mp.coerceIn(0, d.maxMp)
+                        )
+                    ) else d
+                }
+            }
+        }
+        tables.clear()
+        updated.forEach { tables.insert(it) }
+    }
+
+    private fun buildGarrSlots(
+        survivors: List<Disciple>
+    ): List<GarrisonSlot> {
+        return (0 until 10).map { i ->
+            if (i < survivors.size) {
+                val d = survivors[i]
+                GarrisonSlot(
+                    index = i, discipleId = d.id,
+                    discipleName = d.name,
+                    discipleRealm = d.realmName,
+                    discipleSpiritRootColor = d.spiritRoot.countColor,
+                    portraitRes = d.portraitRes
+                )
+            } else GarrisonSlot(index = i)
         }
     }
 
@@ -690,7 +1093,14 @@ class CaveExplorationProcessor @Inject constructor(
         }
         scope.launch {
             stateStore.update {
-                gameData = data.copy(aiSectDisciples = updatedAiDisciples, recruitList = updatedRecruitList)
+                gameData = gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
+                        val calculated = updatedAiDisciples[sId] ?: return@mapValues current
+                        val currentIds = current.map { it.id }.toSet()
+                        current + calculated.filter { it.id !in currentIds }
+                    },
+                    recruitList = updatedRecruitList
+                )
             }
         }
     }
@@ -704,529 +1114,16 @@ class CaveExplorationProcessor @Inject constructor(
         }
         // 年度老化仅修改年龄，不改变境界，无需同步宗门等级
         scope.launch {
-            stateStore.update { gameData = data.copy(aiSectDisciples = updatedAiDisciples) }
-        }
-    }
-
-    /**
-     * 确保所有AI宗门都有个性分配（旧存档兼容 + 懒初始化）。
-     */
-    private fun ensureAISectPersonalities() {
-        val data = stateStore.gameData.value
-        val sects = data.worldMapSects.filter { !it.isPlayerSect }
-        val existing = data.aiSectPersonalities
-        var needsUpdate = false
-        val updated = existing.toMutableMap()
-
-        for (sect in sects) {
-            if (sect.id !in updated) {
-                updated[sect.id] = AISectPersonality.random()
-                needsUpdate = true
-            }
-        }
-
-        if (needsUpdate) {
-            scopeProvider.scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(aiSectPersonalities = updated)
-                }
-            }
-        }
-    }
-
-    /**
-     * 构建玩家占领宗门的驻军防御信息映射。
-     * 从 discipleTables 解析 garrisonSlots 中的存活弟子，
-     * 使用真实装备/功法转换为 Combatant。
-     */
-    private fun buildPlayerOccupiedDefendersMap(
-    ): Map<String, AISectAttackManager.PlayerOccupiedDefenseInfo> {
-        val data = stateStore.gameData.value
-        val playerSectId = data.worldMapSects
-            .find { it.isPlayerSect }?.id ?: return emptyMap()
-
-        val playerOccupiedSects = data.worldMapSects.filter {
-            it.isPlayerOccupied &&
-            it.occupierSectId == playerSectId
-        }
-        if (playerOccupiedSects.isEmpty()) return emptyMap()
-
-        val allDisciples = stateStore.discipleTables.assembleAll()
-        val equipmentMap = stateStore.equipmentInstancesSnapshot
-            .associateBy { it.id }
-        val manualMap = stateStore.manualInstancesSnapshot
-            .associateBy { it.id }
-        val profMap = data.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
-
-        return playerOccupiedSects.associate { sect ->
-            val garrisoned = sect.garrisonSlots
-                .filter { it.discipleId.isNotEmpty() }
-                .mapNotNull { slot ->
-                    allDisciples.find { d ->
-                        d.id == slot.discipleId && d.isAlive
-                    }
-                }
-
-            val combatants = garrisoned.map { d ->
-                battleSystem.convertDiscipleToCombatant(
-                    d, equipmentMap, manualMap, profMap,
-                    CombatantSide.DEFENDER
-                )
-            }
-
-            sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
-                disciples = garrisoned,
-                combatants = combatants
-            )
-        }
-    }
-
-    suspend fun processAISectAttackDecisions() {
-        ensureAISectPersonalities()
-
-        val data = stateStore.gameData.value
-
-        // AI vs AI + 玩家占领宗门攻击
-        // 战斗前全量结算所有驻军弟子
-        val playerSectId = data.worldMapSects
-            .find { it.isPlayerSect }?.id
-        if (playerSectId != null) {
-            val allGarrisonIds = data.worldMapSects
-                .filter {
-                    it.isPlayerOccupied &&
-                    it.occupierSectId == playerSectId
-                }
-                .flatMap { it.garrisonSlots }
-                .filter { it.discipleId.isNotEmpty() }
-                .map { it.discipleId }
-            if (allGarrisonIds.isNotEmpty()) {
-                stateStore.update {
-                    cultivationService.forceSettleDisciplesBeforeBattle(
-                        this, allGarrisonIds
-                    )
-                }
-            }
-        }
-        val playerDefenders = buildPlayerOccupiedDefendersMap()
-        val aiResults = AISectAttackManager.decideAttacks(
-            data, playerDefenders
-        )
-        for (result in aiResults) {
-            applyAIAttackResult(result)
-        }
-
-        // ---- AI攻击玩家：预警生命周期管理 ----
-
-        // 1. 推进预警阶段（谴责 → 战书）
-        val newlyAdvanced = attackWarningService.advanceWarningsIfNeeded()
-
-        // 2. 检查到期预警 → 执行实际战斗
-        val expiredWarnings = attackWarningService.checkExpiredWarnings()
-        for (expired in expiredWarnings) {
-            val allPlayerDisciples = stateStore.discipleTables.assembleAll()
-            val selectedDefenders = allPlayerDisciples
-                .filter {
-                    it.isAlive &&
-                    it.status !in SECT_DEFENSE_EXCLUDED_STATUSES &&
-                    it.statusData["bloodRefining"] != "true"
-                }
-                .sortedBy { it.realm }
-                .take(AISectAttackManager.TEAM_SIZE)
-
-            // 战斗前全量结算防御弟子
-            val refreshedDefenders =
-                if (selectedDefenders.isNotEmpty()) {
-                    val defenderIds = selectedDefenders.map { it.id }
-                    stateStore.update {
-                        cultivationService.forceSettleDisciplesBeforeBattle(
-                            this, defenderIds
-                        )
-                    }
-                    val idSet = defenderIds.toSet()
-                    val tables = stateStore.discipleTables
-                    defenderIds.mapNotNull { id ->
-                        val idInt = id.toIntOrNull()
-                            ?: return@mapNotNull null
-                        if (tables.isAlive[idInt] == 1)
-                            tables.assemble(idInt)
-                        else null
-                    }
-                } else {
-                    selectedDefenders
-                }
-
-            val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
-            val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
-            val freshData = stateStore.gameData.value
-            val profMap = freshData.manualProficiencies.mapValues { (_, list) ->
-                list.associateBy { it.manualId }
-            }
-            val playerDefenseTeam = refreshedDefenders.map { d ->
-                battleSystem.convertDiscipleToCombatant(
-                    d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
-                )
-            }
-
-            val result = AISectAttackManager.executePlayerAttack(
-                stateStore.gameData.value,
-                expired.attackerSectId,
-                playerDefenseTeam
-            )
-            if (result != null) {
-                applyPlayerDefenseResult(result)
-            }
-        }
-
-        // 3. 决定新的攻击 → 生成谴责预警
-        val decision = AISectAttackManager.decidePlayerAttack(data)
-        when (decision) {
-            is AISectAttackManager.PlayerAttackDecision.GenerateWarning -> {
-                val warning = attackWarningService.createDenunciationWarning(
-                    attackerSectId = decision.attackerSectId,
-                    attackerSectName = decision.attackerSectName
-                )
-                attackWarningService.addWarning(warning)
-            }
-            is AISectAttackManager.PlayerAttackDecision.Skip -> {
-                // 无事发生
-            }
-        }
-    }
-
-    fun applyAIAttackResult(result: AISectAttackManager.AIAttackResult) {
-        scope.launch {
             stateStore.update {
-                val currentGameData = gameData
-                val defenderSect = currentGameData.worldMapSects
-                    .find { it.id == result.defenderSectId }
-                val isPlayerOccupied = defenderSect
-                    ?.isPlayerOccupied == true
-
-                // 玩家占领宗门防御：更新玩家弟子HP/MP/死亡
-                if (isPlayerOccupied) {
-                    updatePlayerGarrisonDiscipleState(
-                        result, discipleTables)
-                }
-
-                val attackerDisciples = currentGameData
-                    .aiSectDisciples[result.attackerSectId]
-                    ?: emptyList()
-                val updatedAttackerDisciples = attackerDisciples
-                    .filter { it.id !in result.deadAttackerIds }
-
-                val defenderDisciples = currentGameData
-                    .aiSectDisciples[result.defenderSectId]
-                    ?: emptyList()
-                val updatedDefenderDisciples = defenderDisciples
-                    .filter { it.id !in result.deadDefenderIds }
-
-                var updatedData = gameData.copy(
-                    aiSectDisciples = gameData.aiSectDisciples
-                        .toMutableMap().apply {
-                        this[result.attackerSectId] =
-                            updatedAttackerDisciples
-                        this[result.defenderSectId] =
-                            updatedDefenderDisciples
+                gameData = gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
+                        val calculated = updatedAiDisciples[sId] ?: return@mapValues current
+                        val currentIds = current.map { it.id }.toSet()
+                        calculated.filter { it.id in currentIds }
                     }
                 )
-
-                updatedData = updatedData.copy(
-                    sectRelations = computeUpdatedRelations(
-                        updatedData, result))
-
-                if (result.winner == AIBattleWinner.ATTACKER &&
-                    result.canOccupy) {
-                    updatedData = if (isPlayerOccupied) {
-                        applyPlayerOccupiedConquest(
-                            updatedData, result)
-                    } else {
-                        applyAIOccupation(updatedData, result,
-                            updatedAttackerDisciples,
-                            updatedDefenderDisciples)
-                    }
-                }
-
-                gameData = updatedData
             }
         }
     }
 
-    /**
-     * 更新玩家驻军弟子状态：标记阵亡、回写幸存者 HP/MP。
-     * 必须在 stateStore.update {} 事务内调用。
-     */
-    private fun updatePlayerGarrisonDiscipleState(
-        result: AISectAttackManager.AIAttackResult,
-        tables: DiscipleTables
-    ) {
-        if (result.deadDefenderIds.isEmpty() &&
-            result.defenderSurvivorHpMap.isEmpty()) return
-        val currentDisciples = tables.assembleAll()
-        val updatedDisciples = currentDisciples.map { d ->
-            when {
-                d.id in result.deadDefenderIds -> d.copy(
-                    isAlive = false, status = DiscipleStatus.DEAD)
-                else -> {
-                    val hp = result.defenderSurvivorHpMap[d.id]
-                    val mp = result.defenderSurvivorMpMap[d.id]
-                    if (hp != null && mp != null) d.copy(
-                        combat = d.combat.copy(
-                            currentHp = hp.coerceIn(0, d.maxHp),
-                            currentMp = mp.coerceIn(0, d.maxMp)
-                        )
-                    ) else d
-                }
-            }
-        }
-        tables.clear()
-        updatedDisciples.forEach { tables.insert(it) }
-    }
-
-    /**
-     * 计算攻击后的宗门关系变化。
-     */
-    private fun computeUpdatedRelations(
-        data: GameData,
-        result: AISectAttackManager.AIAttackResult
-    ): List<SectRelation> {
-        return data.sectRelations.map { relation ->
-            val isRelevant =
-                (relation.sectId1 == result.attackerSectId &&
-                 relation.sectId2 == result.defenderSectId) ||
-                (relation.sectId1 == result.defenderSectId &&
-                 relation.sectId2 == result.attackerSectId)
-            if (isRelevant) {
-                relation.copy(
-                    favor = (relation.favor - 10).coerceIn(
-                        GameConfig.Diplomacy.MIN_FAVOR,
-                        GameConfig.Diplomacy.MAX_FAVOR))
-            } else {
-                relation
-            }
-        }
-    }
-
-    /**
-     * 处理玩家占领宗门被攻陷：清空占领状态，
-     * 由攻击方幸存者接管驻军槽位。
-     */
-    private fun applyPlayerOccupiedConquest(
-        data: GameData,
-        result: AISectAttackManager.AIAttackResult
-    ): GameData {
-        return data.copy(
-            worldMapSects = data.worldMapSects.map { sect ->
-                if (sect.id == result.defenderSectId) {
-                    sect.copy(
-                        isPlayerOccupied = false,
-                        occupierSectId = result.attackerSectId,
-                        garrisonSlots = buildGarrisonSlots(
-                            result.survivingAttackers)
-                    )
-                } else {
-                    sect
-                }
-            }
-        )
-    }
-
-    /**
-     * 处理AI宗门被占领：合并防守方幸存者到攻击方池。
-     */
-    private fun applyAIOccupation(
-        data: GameData,
-        result: AISectAttackManager.AIAttackResult,
-        updatedAttackerDisciples: List<Disciple>,
-        updatedDefenderDisciples: List<Disciple>
-    ): GameData {
-        val merged = updatedAttackerDisciples +
-            updatedDefenderDisciples
-        return data.copy(
-            worldMapSects = data.worldMapSects.map { sect ->
-                if (sect.id == result.defenderSectId) {
-                    sect.copy(
-                        occupierSectId = result.attackerSectId,
-                        garrisonSlots = buildGarrisonSlots(
-                            result.survivingAttackers)
-                    )
-                } else {
-                    sect
-                }
-            },
-            aiSectDisciples = data.aiSectDisciples
-                .toMutableMap().apply {
-                this[result.attackerSectId] = merged
-                this[result.defenderSectId] = emptyList()
-            }
-        )
-    }
-
-    /**
-     * 从幸存攻击者列表构建 GarrisonSlot 列表（10槽位）。
-     */
-    private fun buildGarrisonSlots(
-        survivors: List<Disciple>
-    ): List<GarrisonSlot> {
-        return (0 until 10).map { index ->
-            if (index < survivors.size) {
-                val d = survivors[index]
-                GarrisonSlot(
-                    index = index,
-                    discipleId = d.id,
-                    discipleName = d.name,
-                    discipleRealm = d.realmName,
-                    discipleSpiritRootColor = d.spiritRoot.countColor,
-                    portraitRes = d.portraitRes
-                )
-            } else {
-                GarrisonSlot(index = index)
-            }
-        }
-    }
-
-    fun applyPlayerDefenseResult(result: AISectAttackManager.AIAttackResult) {
-        scope.launch {
-            stateStore.update {
-                val currentDisciples = discipleTables.assembleAll()
-                val currentGameData = gameData
-
-                val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
-                var newDisciples = currentDisciples
-                if (deadDefenders.isNotEmpty()) {
-                    newDisciples = DiscipleStatCalculator.applyGriefToRelatives(
-                        newDisciples, deadDefenders, currentGameData.gameYear
-                    )
-                }
-
-                newDisciples = newDisciples.map { d ->
-                    if (d.id in result.deadDefenderIds) {
-                        d.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                    } else {
-                        val hp = result.defenderSurvivorHpMap[d.id]
-                        val mp = result.defenderSurvivorMpMap[d.id]
-                        if (hp != null && mp != null) {
-                            d.copy(
-                                combat = d.combat.copy(
-                                    currentHp = hp.coerceIn(0, d.maxHp),
-                                    currentMp = mp.coerceIn(0, d.maxMp)
-                                )
-                            )
-                        } else {
-                            d
-                        }
-                    }
-                }
-
-                discipleTables.clear()
-                newDisciples.forEach { discipleTables.insert(it) }
-
-                val attackerDisciples = currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList()
-                val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
-
-                val playerSectId = currentGameData.worldMapSects.find { it.isPlayerSect }?.id ?: return@update
-                val playerSectName = currentGameData.worldMapSects.find { it.isPlayerSect }?.name ?: "玩家宗门"
-
-                var updatedData = gameData.copy(
-                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
-                        this[result.attackerSectId] = updatedAttackerDisciples
-                    },
-                    worldMapSects = gameData.worldMapSects.map { sect ->
-                        if (sect.id == playerSectId) {
-                            sect.copy(
-                                garrisonSlots = sect.garrisonSlots.map { slot ->
-                                    if (slot.discipleId in result.deadDefenderIds) {
-                                        GarrisonSlot(index = slot.index)
-                                    } else {
-                                        slot
-                                    }
-                                }
-                            )
-                        } else {
-                            sect
-                        }
-                    }
-                )
-
-                val updatedRelations = updatedData.sectRelations.map { relation ->
-                    val isRelevantRelation = (relation.sectId1 == result.attackerSectId && relation.sectId2 == playerSectId) ||
-                            (relation.sectId1 == playerSectId && relation.sectId2 == result.attackerSectId)
-                    if (isRelevantRelation) {
-                        relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
-                    } else {
-                        relation
-                    }
-                }
-                updatedData = updatedData.copy(sectRelations = updatedRelations)
-
-                var lootResult: PlayerLootLossResult? = null
-                if (result.winner == AIBattleWinner.ATTACKER) {
-                    val playerDetail = updatedData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
-                    lootResult = sectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
-                    val updatedWarehouse = sectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
-                    updatedData = updatedData.copy(
-                        sectDetails = updatedData.sectDetails.toMutableMap().apply {
-                            this[playerSectId] = playerDetail.copy(warehouse = updatedWarehouse)
-                        }
-                    )
-                }
-
-                // 写入战斗日志（玩家方视角）
-                val participantIds = result.deadDefenderIds.toSet() + result.defenderSurvivorHpMap.keys
-                val teamMembers = newDisciples
-                    .filter { it.id in participantIds }
-                    .map { d ->
-                        BattleLogMember(
-                            id = d.id, name = d.name, realm = d.realm, realmName = d.realmName,
-                            hp = result.defenderSurvivorHpMap[d.id] ?: 0, maxHp = d.maxHp,
-                            mp = result.defenderSurvivorMpMap[d.id] ?: 0, maxMp = d.maxMp,
-                            isAlive = d.id !in result.deadDefenderIds, portraitRes = d.portraitRes
-                        )
-                    }
-                // 仅包含实际参战的攻击方弟子（幸存者 + 阵亡者），而非全宗门弟子
-                val enemies = buildDefenseBattleEnemies(
-                    survivingAttackers = result.survivingAttackers,
-                    deadAttackerIds = result.deadAttackerIds,
-                    sectDisciplePool = attackerDisciples,
-                    attackerSectName = result.attackerSectName
-                )
-                val drops = mutableListOf<String>()
-                lootResult?.let { lr ->
-                    if (lr.lostSpiritStones > 0) drops.add("灵石 ×${lr.lostSpiritStones}")
-                    lr.lostMaterials.forEach { (key, qty) ->
-                        // key 格式: itemId:itemType:rarity:itemName
-                        val itemName = key.substringAfterLast(':')
-                        drops.add("$itemName ×$qty")
-                    }
-                }
-                val battleResult = when (result.winner) {
-                    AIBattleWinner.ATTACKER -> BattleResult.LOSE
-                    AIBattleWinner.DEFENDER -> BattleResult.WIN
-                    AIBattleWinner.DRAW -> BattleResult.DRAW
-                }
-                recordPlayerBattle(
-                    year = currentGameData.gameYear,
-                    month = currentGameData.gameMonth,
-                    type = BattleType.SECT_WAR,
-                    attackerName = result.attackerSectName,
-                    defenderName = playerSectName,
-                    result = battleResult,
-                    teamMembers = teamMembers,
-                    enemies = enemies,
-                    rounds = result.rounds,
-                    turns = result.rounds.size,
-                    details = "${result.attackerSectName} 进犯${playerSectName}，" +
-                        if (result.winner == AIBattleWinner.ATTACKER) "防守失利"
-                        else if (result.winner == AIBattleWinner.DEFENDER) "防守成功"
-                        else "不分胜负",
-                    drops = drops,
-                    beastsDefeated = result.deadAttackerIds.size,
-                    teamCasualties = result.deadDefenderIds.size
-                )
-
-                gameData = updatedData
-            }
-        }
-    }
 }

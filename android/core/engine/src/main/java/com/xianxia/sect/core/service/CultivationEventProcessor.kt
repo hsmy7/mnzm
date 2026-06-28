@@ -407,6 +407,7 @@ class CultivationEventProcessor @Inject constructor(
         vassalService.processYearlyTribute()
         discipleLifecycleProcessor.processDiscipleAging(year)
         caveExplorationProcessor.get().processSectDisciplesAging(year)
+        caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
         discipleLifecycleProcessor.processYearlyAging(year)
         merchantAndRecruitService.refreshRecruitList(year)
         merchantAndRecruitService.refreshTravelingMerchant(year, 1)
