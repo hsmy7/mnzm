@@ -7,11 +7,14 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.mergeStackable
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 @Singleton
 class InventoryFacadeImpl @Inject constructor(
@@ -668,7 +671,10 @@ class InventoryFacadeImpl @Inject constructor(
                     } else {
                         equipmentStacks.update(itemId) { it.copy(quantity = n) }
                     }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = eqStack.name, type = "equipment", itemId = itemId, rarity = eqStack.rarity, price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1), quantity = quantity))
+                    val eqTemplate = EquipmentDatabase.getTemplateByName(eqStack.name)
+                    val eqOriginal = eqTemplate?.price ?: GameConfig.Rarity.get(eqStack.rarity).basePrice
+                    val eqPrice = (eqOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
+                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = eqStack.name, type = "equipment", itemId = itemId, rarity = eqStack.rarity, price = eqPrice, quantity = quantity))
                     return@forEach
                 }
                 val manualStack = manualStacks.get(itemId)
@@ -679,7 +685,10 @@ class InventoryFacadeImpl @Inject constructor(
                     } else {
                         manualStacks.update(itemId) { it.copy(quantity = n) }
                     }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = manualStack.name, type = "manual", itemId = itemId, rarity = manualStack.rarity, price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1), quantity = quantity))
+                    val mTemplate = ManualDatabase.getByName(manualStack.name)
+                    val mOriginal = mTemplate?.price ?: GameConfig.Rarity.get(manualStack.rarity).basePrice
+                    val mPrice = (mOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
+                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = manualStack.name, type = "manual", itemId = itemId, rarity = manualStack.rarity, price = mPrice, quantity = quantity))
                     return@forEach
                 }
                 val pill = pills.get(itemId)
@@ -690,7 +699,9 @@ class InventoryFacadeImpl @Inject constructor(
                     } else {
                         pills.update(itemId) { it.copy(quantity = n) }
                     }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = pill.name, type = "pill", itemId = itemId, rarity = pill.rarity, price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1), quantity = quantity, grade = pill.grade.displayName))
+                    val pOriginal = GameConfig.Rarity.get(pill.rarity).pillBasePrice * pill.grade.priceMultiplier
+                    val pPrice = (pOriginal * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
+                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = pill.name, type = "pill", itemId = itemId, rarity = pill.rarity, price = pPrice, quantity = quantity, grade = pill.grade.displayName))
                     return@forEach
                 }
             }

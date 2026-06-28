@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -714,7 +715,12 @@ fun ListingManagementDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .background(
+                                GameColors.CardBackground,
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -724,58 +730,93 @@ fun ListingManagementDialog(
                         )
                     }
                 } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(GameColors.Background)
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "道具名称",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "数量",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary,
-                            modifier = Modifier.width(60.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "价格",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary,
-                            modifier = Modifier.width(60.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "操作",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary,
-                            modifier = Modifier.width(60.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    LazyColumn(
+                    Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(listItems, key = { it.id }) { item ->
-                            ListedItemCard(
-                                item = item,
-                                onDelist = { viewModel.removePlayerListedItem(item.id) }
+                            .background(
+                                GameColors.CardBackground,
+                                RoundedCornerShape(4.dp)
                             )
+                            .padding(8.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = 8.dp,
+                                        vertical = 8.dp
+                                    ),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = "道具名称",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GameColors.TextSecondary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "数量",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GameColors.TextSecondary,
+                                    modifier = Modifier.width(60.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "价格",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GameColors.TextSecondary,
+                                    modifier = Modifier.width(60.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "操作",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GameColors.TextSecondary,
+                                    modifier = Modifier.width(60.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            HorizontalDivider(
+                                thickness = 1.dp,
+                                color = Color(0xFFBDBDBD)
+                            )
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                            ) {
+                                itemsIndexed(
+                                    listItems,
+                                    key = { _, item -> item.id }
+                                ) { index, item ->
+                                    Column {
+                                        ListedItemCard(
+                                            item = item,
+                                            onDelist = {
+                                                viewModel
+                                                    .removePlayerListedItem(
+                                                        item.id
+                                                    )
+                                            }
+                                        )
+                                        if (index < listItems.lastIndex) {
+                                            HorizontalDivider(
+                                                thickness = 1.dp,
+                                                color = Color(
+                                                    0xFFBDBDBD
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -800,8 +841,6 @@ private fun ListedItemCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground, RoundedCornerShape(4.dp))
-            .border(1.dp, rarityColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -932,7 +971,11 @@ fun InventorySelectDialog(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-                Box(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(GameColors.CardBackground)
+                ) {
                     Image(
                         painter = painterResource(id = R.drawable.bg_horizontal),
                         contentDescription = null,
