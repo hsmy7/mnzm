@@ -152,8 +152,8 @@ class MerchantAndRecruitService @Inject constructor(
         pools.rarityMap["中品灵石"] = 3
         pools.priceMap["中品灵石"] = SpiritStoneExchange.RATIO
 
-        pools.poolByRarity.getOrPut(5) { mutableListOf() }.add(PoolEntry("上品灵石", "spiritStone"))
-        pools.rarityMap["上品灵石"] = 5
+        pools.poolByRarity.getOrPut(4) { mutableListOf() }.add(PoolEntry("上品灵石", "spiritStone"))
+        pools.rarityMap["上品灵石"] = 4
         pools.priceMap["上品灵石"] = SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
 
         return pools

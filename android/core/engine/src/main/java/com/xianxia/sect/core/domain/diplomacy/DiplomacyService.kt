@@ -666,9 +666,9 @@ class DiplomacyService @Inject constructor(
                     )
                 }
                 "spiritStone" -> {
-                    val isHigh = rarity >= 5
+                    val isHigh = rarity >= 4
                     val name = if (isHigh) "上品灵石" else "中品灵石"
-                    val itemRarity = if (isHigh) 5 else 3
+                    val itemRarity = if (isHigh) 4 else 3
                     val basePrice = if (isHigh) {
                         SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
                     } else {

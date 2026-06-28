@@ -61,14 +61,14 @@ class MerchantAndRecruitServiceTest {
         val pools = service.buildMerchantItemPools()
 
         val midEntry = pools.poolByRarity[3]?.find { it.name == "中品灵石" && it.type == "spiritStone" }
-        val highEntry = pools.poolByRarity[5]?.find { it.name == "上品灵石" && it.type == "spiritStone" }
+        val highEntry = pools.poolByRarity[4]?.find { it.name == "上品灵石" && it.type == "spiritStone" }
 
         assertNotNull("中品灵石应加入稀有度 3 池", midEntry)
-        assertNotNull("上品灵石应加入稀有度 5 池", highEntry)
+        assertNotNull("上品灵石应加入稀有度 4 池", highEntry)
 
         assertEquals(SpiritStoneExchange.RATIO, pools.priceMap["中品灵石"])
         assertEquals(SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO, pools.priceMap["上品灵石"])
         assertEquals(3, pools.rarityMap["中品灵石"])
-        assertEquals(5, pools.rarityMap["上品灵石"])
+        assertEquals(4, pools.rarityMap["上品灵石"])
     }
 }
