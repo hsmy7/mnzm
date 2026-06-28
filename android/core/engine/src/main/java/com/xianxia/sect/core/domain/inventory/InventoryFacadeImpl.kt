@@ -693,39 +693,6 @@ class InventoryFacadeImpl @Inject constructor(
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = pill.name, type = "pill", itemId = itemId, rarity = pill.rarity, price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1), quantity = quantity, grade = pill.grade.displayName))
                     return@forEach
                 }
-                val material = materials.get(itemId)
-                if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                    val n = material.quantity - quantity
-                    if (n <= 0) {
-                        materials.remove(itemId)
-                    } else {
-                        materials.update(itemId) { it.copy(quantity = n) }
-                    }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = material.name, type = "material", itemId = itemId, rarity = material.rarity, price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1), quantity = quantity))
-                    return@forEach
-                }
-                val herb = herbs.get(itemId)
-                if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                    val n = herb.quantity - quantity
-                    if (n <= 0) {
-                        herbs.remove(itemId)
-                    } else {
-                        herbs.update(itemId) { it.copy(quantity = n) }
-                    }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = herb.name, type = "herb", itemId = itemId, rarity = herb.rarity, price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1), quantity = quantity))
-                    return@forEach
-                }
-                val seed = seeds.get(itemId)
-                if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                    val n = seed.quantity - quantity
-                    if (n <= 0) {
-                        seeds.remove(itemId)
-                    } else {
-                        seeds.update(itemId) { it.copy(quantity = n) }
-                    }
-                    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = seed.name, type = "seed", itemId = itemId, rarity = seed.rarity, price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1), quantity = quantity))
-                    return@forEach
-                }
             }
             if (newItems.isNotEmpty()) {
                 gameData = gameData.copy(playerListedItems = gameData.playerListedItems + newItems)

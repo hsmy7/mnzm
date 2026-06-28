@@ -54,7 +54,8 @@ class CultivationEventProcessor @Inject constructor(
     private val equipmentManager: DiscipleEquipmentManager,
     private val manualManager: DiscipleManualManager,
     private val autoBuyService: AutoBuyService,
-    private val vassalService: VassalService
+    private val vassalService: VassalService,
+    private val disciplePurchaseService: DisciplePurchaseService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -397,6 +398,8 @@ class CultivationEventProcessor @Inject constructor(
         }
         // 灵矿月度产出结算
         cultivationSettlement.processSpiritMineProductionMonthly()
+        // 弟子智能购买上架物品
+        disciplePurchaseService.executePurchase(year, month)
     }
 
     suspend fun processYearlyEvents(year: Int) {

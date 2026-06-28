@@ -868,10 +868,7 @@ private enum class ListingFilter(val displayName: String) {
     ALL("全部"),
     EQUIPMENT("装备"),
     MANUAL("功法"),
-    PILL("丹药"),
-    HERB("灵药"),
-    SEED("种子"),
-    MATERIAL("材料")
+    PILL("丹药")
 }
 
 private enum class MerchantFilter(val displayName: String, val typeValue: String?) {
@@ -894,9 +891,6 @@ fun InventorySelectDialog(
     val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
-    val materials by viewModel.materials.collectAsStateWithLifecycle()
-    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
-    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
     var selectedFilter by remember { mutableStateOf(ListingFilter.ALL) }
@@ -916,15 +910,6 @@ fun InventorySelectDialog(
     }
     val sortedPills = remember(pills, listedItemIds) {
         filterAndSortItems(pills, listedItemIds)
-    }
-    val sortedMaterials = remember(materials, listedItemIds) {
-        filterAndSortItems(materials, listedItemIds)
-    }
-    val sortedHerbs = remember(herbs, listedItemIds) {
-        filterAndSortItems(herbs, listedItemIds)
-    }
-    val sortedSeeds = remember(seeds, listedItemIds) {
-        filterAndSortItems(seeds, listedItemIds)
     }
 
     UnifiedGameDialog(
@@ -985,27 +970,6 @@ fun InventorySelectDialog(
                                 onClick = { selectedFilter = ListingFilter.MANUAL }
                             )
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ListingFilterButton(
-                                text = ListingFilter.HERB.displayName,
-                                selected = selectedFilter == ListingFilter.HERB,
-                                onClick = { selectedFilter = ListingFilter.HERB }
-                            )
-                            ListingFilterButton(
-                                text = ListingFilter.SEED.displayName,
-                                selected = selectedFilter == ListingFilter.SEED,
-                                onClick = { selectedFilter = ListingFilter.SEED }
-                            )
-                            ListingFilterButton(
-                                text = ListingFilter.MATERIAL.displayName,
-                                selected = selectedFilter == ListingFilter.MATERIAL,
-                                onClick = { selectedFilter = ListingFilter.MATERIAL }
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
                     }
                 }
 
@@ -1015,9 +979,6 @@ fun InventorySelectDialog(
                             equipment = sortedEquipment,
                             manuals = sortedManuals,
                             pills = sortedPills,
-                            materials = sortedMaterials,
-                            herbs = sortedHerbs,
-                            seeds = sortedSeeds,
                             selectedItems = selectedItems
                         )
                         ListingFilter.EQUIPMENT -> InventorySelectGrid(
@@ -1034,21 +995,6 @@ fun InventorySelectDialog(
                             items = sortedPills,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无丹药"
-                        )
-                        ListingFilter.MATERIAL -> InventorySelectGrid(
-                            items = sortedMaterials,
-                            selectedItems = selectedItems,
-                            emptyMessage = "暂无材料"
-                        )
-                        ListingFilter.HERB -> InventorySelectGrid(
-                            items = sortedHerbs,
-                            selectedItems = selectedItems,
-                            emptyMessage = "暂无灵药"
-                        )
-                        ListingFilter.SEED -> InventorySelectGrid(
-                            items = sortedSeeds,
-                            selectedItems = selectedItems,
-                            emptyMessage = "暂无种子"
                         )
                     }
                 }
@@ -1108,9 +1054,6 @@ private fun <T> InventorySelectGrid(
                     is EquipmentStack -> "equipment_${item.id}"
                     is ManualStack -> "manual_${item.id}"
                     is Pill -> "pill_${item.id}_${item.quantity}"
-                    is Material -> "material_${item.id}_${item.quantity}"
-                    is Herb -> "herb_${item.id}_${item.quantity}"
-                    is Seed -> "seed_${item.id}_${item.quantity}"
                     else -> "unknown_${System.identityHashCode(item)}"
                 }
             }) { item ->
@@ -1118,9 +1061,6 @@ private fun <T> InventorySelectGrid(
                     is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     else -> Tuple5("", "", "", 1, 1)
                 }
                 val grade = (item as? Pill)?.grade?.displayName
@@ -1136,10 +1076,7 @@ private fun <T> InventorySelectGrid(
                         quantity = quantity,
                         grade = grade,
                         isManual = item is ManualStack,
-                        isPill = item is Pill,
-                        isHerb = item is Herb,
-                        isSeed = item is Seed,
-                        isMaterial = item is Material
+                        isPill = item is Pill
                     ),
                     isSelected = isSelected,
                     onClick = {
@@ -1205,30 +1142,21 @@ private fun AllItemsSelectGrid(
     equipment: List<EquipmentStack>,
     manuals: List<ManualStack>,
     pills: List<Pill>,
-    materials: List<Material>,
-    herbs: List<Herb>,
-    seeds: List<Seed>,
     selectedItems: MutableMap<String, Int>
 ) {
     var selectedItem by remember { mutableStateOf<Any?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
-    val allItems = remember(equipment, manuals, pills, materials, herbs, seeds) {
+    val allItems = remember(equipment, manuals, pills) {
         val items = mutableListOf<Any>()
         items.addAll(equipment)
         items.addAll(manuals)
         items.addAll(pills)
-        items.addAll(materials)
-        items.addAll(herbs)
-        items.addAll(seeds)
         items.sortedWith(compareByDescending<Any> {
             when (it) {
                 is EquipmentStack -> it.rarity
                 is ManualStack -> it.rarity
                 is Pill -> it.rarity
-                is Material -> it.rarity
-                is Herb -> it.rarity
-                is Seed -> it.rarity
                 else -> 1
             }
         }.thenBy {
@@ -1236,9 +1164,6 @@ private fun AllItemsSelectGrid(
                 is EquipmentStack -> it.name
                 is ManualStack -> it.name
                 is Pill -> it.name
-                is Material -> it.name
-                is Herb -> it.name
-                is Seed -> it.name
                 else -> ""
             }
         })
@@ -1269,9 +1194,6 @@ private fun AllItemsSelectGrid(
                     is EquipmentStack -> "equipment_${item.id}"
                     is ManualStack -> "manual_${item.id}"
                     is Pill -> "pill_${item.id}_${item.quantity}"
-                    is Material -> "material_${item.id}_${item.quantity}"
-                    is Herb -> "herb_${item.id}_${item.quantity}"
-                    is Seed -> "seed_${item.id}_${item.quantity}"
                     else -> "unknown_${System.identityHashCode(item)}"
                 }
             }) { item ->
@@ -1279,9 +1201,6 @@ private fun AllItemsSelectGrid(
                     is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
-                    is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     else -> Tuple5("", "", "", 1, 1)
                 }
                 val grade = (item as? Pill)?.grade?.displayName
@@ -1297,10 +1216,7 @@ private fun AllItemsSelectGrid(
                         quantity = quantity,
                         grade = grade,
                         isManual = item is ManualStack,
-                        isPill = item is Pill,
-                        isHerb = item is Herb,
-                        isSeed = item is Seed,
-                        isMaterial = item is Material
+                        isPill = item is Pill
                     ),
                     isSelected = isSelected,
                     onClick = {
