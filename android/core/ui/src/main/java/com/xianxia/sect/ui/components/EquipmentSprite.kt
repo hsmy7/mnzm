@@ -4,11 +4,71 @@ import androidx.annotation.DrawableRes
 import com.xianxia.sect.core.model.SpiritStoneGrade
 
 /**
+ * 精灵图分类 — 决定预加载优先级。
+ * priority: 0 = L0（首屏必须），1 = L1（重要界面），2 = L2（后台加载）
+ */
+enum class SpriteCategory(val priority: Int) {
+    UI(0),
+    PORTRAIT(0),
+    ITEM(1),
+    BUILDING(1),
+    BEAST(2),
+    CAVE(2),
+    HEAVENLY_TRIAL(2),
+    BACKGROUND(1),
+    MAP(1)
+}
+
+/**
  * Registry for sprite drawable resource IDs.
  * The app module must call [initialize] at startup to provide the actual R.drawable values,
  * since library modules cannot reference the app module's R class.
+ *
+ * 新增精灵图分类通过 [register] 统一注册，通过 [resolve] 按名称查找，
+ * 通过 [categoryResIds] 供 ResourcePreloader 自动发现。
  */
 object SpriteResRegistry {
+
+    /** 按分类存储 name→resId 映射（统一注册入口） */
+    private val categoryMaps = mutableMapOf<SpriteCategory, Map<String, Int>>()
+
+    /**
+     * 注册一个精灵图分类下的所有资源映射。
+     * 应在 [XianxiaApplication.onCreate] 中调用。
+     */
+    fun register(category: SpriteCategory, sprites: Map<String, Int>) {
+        categoryMaps[category] = sprites
+    }
+
+    /**
+     * 遍历所有已注册分类，按名称查找精灵图资源 ID。
+     * @return 找到的第一个匹配 resId，未找到返回 null
+     */
+    fun resolve(name: String): Int? {
+        for ((_, sprites) in categoryMaps) {
+            sprites[name]?.let { return it }
+        }
+        // 回退到旧版分类映射
+        equipmentSprites[name]?.let { return it }
+        materialSprites[name]?.let { return it }
+        herbSprites[name]?.let { return it }
+        seedSprites[name]?.let { return it }
+        growingSprites[name]?.let { return it }
+        return null
+    }
+
+    /**
+     * 获取指定分类下的所有资源 ID。
+     * 供 ResourcePreloader 按分类预加载。
+     */
+    fun categoryResIds(category: SpriteCategory): List<Int> =
+        categoryMaps[category]?.values?.toList() ?: emptyList()
+
+    /**
+     * 获取所有已注册分类的精灵图资源 ID（去重）。
+     */
+    fun allResIds(): List<Int> =
+        categoryMaps.values.flatMap { it.values }.distinct()
     var equipmentSprites: Map<String, Int> = emptyMap()
         private set
     var manualSprites: Map<Int, Int> = emptyMap()
@@ -132,6 +192,29 @@ fun sectIconRes(level: Int): Int? = SpriteResRegistry.sectIconSprites[level]
     ?: SpriteResRegistry.sectIconSprites[0]?.takeIf { it != 0 }
 
 fun allEquipmentSpriteResIds(): List<Int> = SpriteResRegistry.allEquipmentResIds
+
+/** 通过 beastType 索引查找妖兽精灵图资源 ID（0=tiger, 1=wolf, ...） */
+private val beastNames =
+    listOf("tiger", "wolf", "snake", "bear", "eagle", "fox", "dragon", "turtle")
+
+fun beastSpriteRes(beastType: Int): Int? {
+    val name = beastNames.getOrNull(beastType) ?: return null
+    return SpriteResRegistry.resolve(name)
+}
+
+/** 通过洞穴索引查找洞穴精灵图资源 ID */
+fun caveSpriteRes(index: Int): Int? {
+    val name = "cave_${index + 1}"
+    return SpriteResRegistry.resolve(name)
+}
+
+/** 通过名称查找天劫试炼精灵图资源 ID */
+fun heavenlyTrialSpriteRes(name: String): Int? =
+    SpriteResRegistry.resolve(name)
+
+/** 通过名称查找背景精灵图资源 ID */
+fun backgroundRes(name: String): Int? =
+    SpriteResRegistry.resolve(name)
 
 /**
  * 根据物品类型、名称和稀有度查找奖励卡片用的精灵图资源ID。

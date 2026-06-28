@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.util.GameUtils
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -51,6 +50,9 @@ import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
+private val beastNames =
+    listOf("tiger", "wolf", "snake", "bear", "eagle", "fox", "dragon", "turtle")
+
 @Composable
 fun LevelDetailDialog(
     level: MapItem.Level,
@@ -66,23 +68,10 @@ fun LevelDetailDialog(
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
     val discipleMap = disciples.associateBy { it.id }
 
-    val imageRes = remember(level) {
+    val spriteName = remember(level) {
         when (level.levelType) {
-            LevelType.BEAST -> when (level.beastType ?: 0) {
-                0 -> R.drawable.tiger_beast
-                1 -> R.drawable.wolf_beast
-                2 -> R.drawable.snake_beast
-                3 -> R.drawable.bear_beast
-                4 -> R.drawable.eagle_beast
-                5 -> R.drawable.fox_beast
-                6 -> R.drawable.dragon_beast
-                else -> R.drawable.turtle_beast
-            }
-            LevelType.CAVE -> when (level.caveImageIndex) {
-                0 -> R.drawable.cave_1
-                1 -> R.drawable.cave_2
-                else -> R.drawable.cave_3
-            }
+            LevelType.BEAST -> beastNames.getOrElse(level.beastType ?: 0) { "turtle" }
+            LevelType.CAVE -> "cave_" + ((level.caveImageIndex).coerceIn(0, 2) + 1)
         }
     }
 
@@ -125,8 +114,8 @@ fun LevelDetailDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Image(
-                    painter = painterResource(id = imageRes),
+                SpriteImage(
+                    name = spriteName,
                     contentDescription = null,
                     modifier = Modifier.size(120.dp)
                 )

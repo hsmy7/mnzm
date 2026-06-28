@@ -444,6 +444,21 @@ stateStore.update {
 
 判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面不在此表。**
 
+**6.8 🔴 新增精灵图必须注册到 SpriteResRegistry** — 详见 `rules/static-resources.md`。任何新增的精灵图资源必须走统一注册管道，禁止绕过：
+
+1. **文件放置** — WebP 必须同时放入 `feature/game/src/main/res/drawable-nodpi/` 和 `app/src/main/res/drawable-nodpi/` 两个模块
+2. **注册** — 在 `XianxiaApplication.kt` 中调用 `SpriteResRegistry.register(SpriteCategory.XXX, mapOf("名称" to R.drawable.xxx))`
+3. **显示** — 界面中使用 `SpriteImage("名称")` 或 `SpriteResRegistry.resolve("名称")`，**禁止**直接写 `painterResource(R.drawable.xxx)`
+4. **完成** — 注册后预加载自动发现、缓存自动生效，不需要修改 `ResourcePreloader`
+
+**6.9 🔴 新增 UI 界面必须使用统一精灵图入口** — 任何新增的 Composable 界面（Dialog/Screen/Tab/Component），如需显示精灵图：
+
+- ✅ 使用 `SpriteImage(name = "精灵图名称", contentDescription = "描述")` — 自动查缓存 + 自动回退
+- ✅ 在 Canvas 中使用 `drawSprite(name, cache, ...)` — 使用预加载缓存
+- ✅ 需手动处理 Painter 时使用 `painterResource(id = SpriteResRegistry.resolve("名称") ?: 0)` — 通过注册表查找
+- ❌ **禁止** `painterResource(R.drawable.xxx)` 直接引用（XianxiaApplication 注册代码除外）
+- ❌ **禁止** 新建硬编码 `R.drawable` 列表（如 `listOf(R.drawable.tiger_beast, ...)`）
+
 **7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
 
 **7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。使用 `db.safeDropColumns()` 或保留旧列 + `@Ignore`。
@@ -564,6 +579,8 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
 | 🔴 | 新增/改动界面已重新评估焦点域映射（FocusDomain 枚举 + InterfaceDomainMap） |
+| 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |
+| 🔴 | 新增 UI 界面使用 `SpriteImage()` 或 `SpriteResRegistry.resolve()` 而非直接 `R.drawable.xxx` |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
@@ -632,6 +649,15 @@ Before modifying ANY `@Entity` class (especially `GameData`), read `rules/databa
 - **NEVER use `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0+ required, not guaranteed on any Android version. To drop columns, use `db.safeDropColumns("table", "col1", "col2")` (defined in `GameDatabase.kt`). It rebuilds the table via PRAGMA, works on all API levels.
 - **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
 - **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
+
+## Static Resource Requirements
+
+When adding ANY new static image resource (sprites, UI elements, buildings, portraits, map tiles, etc.), read `rules/static-resources.md`. All image resources MUST be:
+
+1. **Lossless WebP format** — use `scripts/convert-remaining-pngs-to-webp.mjs` (lossless: true, effort: 6)
+2. **Registered for preloading** — register in `SpriteResRegistry.initialize()` / `BuildingRegistry` / `PortraitPool` / `ResourcePreloader` depending on resource type
+
+Never commit PNG/JPG game images. The only PNG exception is `ic_launcher-playstore.png` for Google Play Store listing.
 
 ## Changelog Requirements
 

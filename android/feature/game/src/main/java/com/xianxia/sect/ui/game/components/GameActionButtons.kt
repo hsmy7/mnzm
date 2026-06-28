@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,11 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.navigation.DialogRoute
 
@@ -44,37 +42,37 @@ fun GameActionButtons(
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FloatingActionButton(
                 text = "外交",
-                drawableRes = R.drawable.ui_diplomacy_button
+                spriteName = "ui_diplomacy_button"
             ) { viewModel.navigateToDialog(DialogRoute.Diplomacy) }
             FloatingActionButton(
                 text = "商人",
-                drawableRes = R.drawable.ui_merchant_button
+                spriteName = "ui_merchant_button"
             ) { viewModel.navigateToDialog(DialogRoute.Merchant) }
             FloatingActionButton(
                 text = "建造",
-                drawableRes = R.drawable.ui_build_button
+                spriteName = "ui_build_button"
             ) { onToggleBuildingBar(); onCancelPlacement() }
             FloatingActionButton(
                 text = "仓库",
-                drawableRes = R.drawable.ui_warehouse_button
+                spriteName = "ui_warehouse_button"
             ) { viewModel.navigateToDialog(DialogRoute.Warehouse) }
             FloatingActionButton(
                 text = "活动",
-                drawableRes = R.drawable.ui_activity_button,
+                spriteName = "ui_activity_button",
                 badge = if (activityBadge) 1 else 0
             ) { viewModel.navigateToDialog(DialogRoute.Activity) }
         }
         FloatingActionButton(
             text = "弟子",
-            drawableRes = R.drawable.ui_team_button
+            spriteName = "ui_team_button"
         ) { viewModel.navigateToDialog(DialogRoute.Disciples) }
         FloatingActionButton(
             text = "世界",
-            drawableRes = R.drawable.ui_map_button
+            spriteName = "ui_map_button"
         ) { viewModel.navigateToDialog(DialogRoute.WorldMap) }
         FloatingActionButton(
             text = "种植",
-            drawableRes = R.drawable.ui_planting_button
+            spriteName = "ui_planting_button"
         ) { viewModel.navigateToDialog(DialogRoute.Planting) }
     }
 }
@@ -93,20 +91,20 @@ fun LeftSideButtons(
     ) {
         FloatingActionButton(
             text = "设置",
-            drawableRes = R.drawable.ui_settings_button
+            spriteName = "ui_settings_button"
         ) { viewModel.navigateToDialog(DialogRoute.Settings) }
         FloatingActionButton(
             text = "招募",
-            drawableRes = R.drawable.ui_recruit_button
+            spriteName = "ui_recruit_button"
         ) { viewModel.navigateToDialog(DialogRoute.Recruit) }
         FloatingActionButton(
             text = "邮件",
-            drawableRes = R.drawable.ui_mail_button,
+            spriteName = "ui_mail_button",
             badge = mailUnreadCount
         ) { viewModel.navigateToDialog(DialogRoute.Mail) }
         FloatingActionButton(
             text = "日志",
-            drawableRes = R.drawable.ui_log_button
+            spriteName = "ui_log_button"
         ) { viewModel.navigateToDialog(DialogRoute.BattleLog) }
     }
 }
@@ -114,7 +112,7 @@ fun LeftSideButtons(
 @Composable
 private fun FloatingActionButton(
     text: String,
-    drawableRes: Int = R.drawable.ui_button,
+    spriteName: String = "ui_button",
     badge: Int = 0,
     onClick: () -> Unit
 ) {
@@ -128,8 +126,8 @@ private fun FloatingActionButton(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.BottomCenter
         ) {
-            Image(
-                painter = painterResource(id = drawableRes),
+            SpriteImage(
+                name = spriteName,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds

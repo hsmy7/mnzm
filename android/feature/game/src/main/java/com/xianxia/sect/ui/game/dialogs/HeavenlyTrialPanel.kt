@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,12 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
@@ -35,16 +33,7 @@ fun HeavenlyTrialPanel(
     val hasClaimable by viewModel.hasClaimableRewards.collectAsStateWithLifecycle()
 
     // 8 座岛屿图资源
-    val islandDrawables = listOf(
-        R.drawable.heavenly_trial_island_1,
-        R.drawable.heavenly_trial_island_2,
-        R.drawable.heavenly_trial_island_3,
-        R.drawable.heavenly_trial_island_4,
-        R.drawable.heavenly_trial_island_5,
-        R.drawable.heavenly_trial_island_6,
-        R.drawable.heavenly_trial_island_7,
-        R.drawable.heavenly_trial_island_8
-    )
+    val islandNames = (1..8).map { "heavenly_trial_island_$it" }
 
     // 岛屿在图中的相对位置（中心点 X 比例，从左到右）
     val islandXFractions = listOf(0.09f, 0.23f, 0.37f, 0.50f, 0.63f, 0.76f, 0.87f, 0.96f)
@@ -60,8 +49,8 @@ fun HeavenlyTrialPanel(
         val islandSize = containerWidth * 0.14f
 
         // 与挑战界面共用背景图
-        Image(
-            painter = painterResource(R.drawable.heavenly_trial_challenge_bg),
+        SpriteImage(
+            name = "heavenly_trial_challenge_bg",
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds
@@ -77,8 +66,8 @@ fun HeavenlyTrialPanel(
             val centerY = containerHeight * islandYFractions[i]
 
             // 岛屿图
-            Image(
-                painter = painterResource(islandDrawables[i]),
+            SpriteImage(
+                name = islandNames[i],
                 contentDescription = config.label,
                 modifier = Modifier
                     .offset(

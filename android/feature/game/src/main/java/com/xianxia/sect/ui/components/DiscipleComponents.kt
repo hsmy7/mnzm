@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -169,7 +170,7 @@ fun PortraitDiscipleCard(
                 }
                 Image(
                     painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                              else painterResource(id = R.drawable.disciple_portrait),
+                              else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
                     contentDescription = null,
                     modifier = Modifier.width(44.dp).height(56.dp),
                     contentScale = ContentScale.Fit
@@ -300,17 +301,6 @@ fun PortraitDiscipleCard(
     }
 }
 
-private val beastDrawables = listOf(
-    R.drawable.tiger_beast,
-    R.drawable.wolf_beast,
-    R.drawable.snake_beast,
-    R.drawable.bear_beast,
-    R.drawable.eagle_beast,
-    R.drawable.fox_beast,
-    R.drawable.dragon_beast,
-    R.drawable.turtle_beast
-)
-
 @Composable
 private fun SlotContent(
     name: String,
@@ -337,14 +327,14 @@ private fun SlotContent(
                 if (isBeastPortrait) {
                     val suffix = portraitRes.removePrefix("beast_")
                     val index = suffix.toIntOrNull() ?: -1
-                    if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                    if (index in 0..7) beastSpriteRes(index) ?: 0
                     else if (index > 0) index
                     else 0
                 } else PortraitPool.getResourceId(context, portraitRes)
             }
             Image(
                 painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                          else painterResource(id = R.drawable.disciple_portrait),
+                          else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
                 contentDescription = null,
                 modifier = Modifier.width(40.dp).height(48.dp),
                 contentScale = ContentScale.Fit
@@ -452,14 +442,14 @@ fun DiscipleSlot(
                                 if (isBeastPortrait) {
                                     val suffix = portraitRes.removePrefix("beast_")
                                     val index = suffix.toIntOrNull() ?: -1
-                                    if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                                    if (index in 0..7) beastSpriteRes(index) ?: 0
                                     else if (index > 0) index
                                     else 0
                                 } else PortraitPool.getResourceId(context, portraitRes)
                             }
                             Image(
                                 painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                                          else painterResource(id = R.drawable.disciple_portrait),
+                                          else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
                                 contentDescription = null,
                                 modifier = Modifier.width(40.dp).height(48.dp),
                                 contentScale = ContentScale.Fit

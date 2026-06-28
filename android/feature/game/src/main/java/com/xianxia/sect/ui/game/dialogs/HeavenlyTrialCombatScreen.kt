@@ -36,7 +36,8 @@ import com.xianxia.sect.core.engine.domain.battle.BattleAI
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.PortraitPool
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.beastSpriteRes
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
@@ -46,17 +47,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
-// 复用 DiscipleComponents 中已有的妖兽立绘列表
-private val beastDrawables = listOf(
-    R.drawable.tiger_beast,
-    R.drawable.wolf_beast,
-    R.drawable.snake_beast,
-    R.drawable.bear_beast,
-    R.drawable.eagle_beast,
-    R.drawable.fox_beast,
-    R.drawable.dragon_beast,
-    R.drawable.turtle_beast
-)
+// 通过统一精灵图注册表查找妖兽立绘
 
 enum class BattlePhase { PLAYER_TURN, ENEMY_TURN, WON, LOST }
 
@@ -526,7 +517,7 @@ fun HeavenlyTrialCombatScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // 背景
         Image(
-            painter = painterResource(R.drawable.heavenly_trial_battle_scene),
+            painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_battle_scene") ?: 0),
             contentDescription = null,
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.Crop
@@ -763,7 +754,7 @@ fun HeavenlyTrialCombatScreen(
                     .padding(vertical = 8.dp)
             ) {
                 Image(
-                    painter = painterResource(R.drawable.heavenly_trial_battle_bar),
+                    painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_battle_bar") ?: 0),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -949,7 +940,7 @@ fun HeavenlyTrialCombatScreen(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Image(painterResource(R.drawable.heavenly_trial_defend), "防御",
+                                Image(painterResource(id = SpriteResRegistry.resolve("heavenly_trial_defend") ?: 0), "防御",
                                     Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
                             }
                             Text("防御", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
@@ -1013,7 +1004,7 @@ fun HeavenlyTrialCombatScreen(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Image(painterResource(R.drawable.heavenly_trial_atk_normal), "普攻",
+                                Image(painterResource(id = SpriteResRegistry.resolve("heavenly_trial_atk_normal") ?: 0), "普攻",
                                     Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
                             }
                             Text("普攻", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
@@ -1177,11 +1168,11 @@ private fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
         when {
             combatant.isBeast -> {
                 val index = combatant.portraitRes.removePrefix("beast_").toIntOrNull() ?: 0
-                beastDrawables.getOrNull(index) ?: R.drawable.tiger_beast
+                beastSpriteRes(index) ?: beastSpriteRes(0) ?: 0
             }
             combatant.portraitRes.isNotBlank() -> {
                 PortraitPool.getResourceId(context, combatant.portraitRes).takeIf { it != 0 }
-                    ?: R.drawable.disciple_portrait
+                    ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
             else -> {
                 // 试炼弟子无 portrait，随机分配一个弟子肖像
@@ -1189,7 +1180,7 @@ private fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
                     if (Random.nextBoolean()) "male" else "female"
                 )
                 PortraitPool.getResourceId(context, randomPortrait).takeIf { it != 0 }
-                    ?: R.drawable.disciple_portrait
+                    ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
         }
     }

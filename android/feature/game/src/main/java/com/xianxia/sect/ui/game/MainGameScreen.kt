@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -1057,10 +1058,7 @@ private fun HideUiToggleButton(
     isUiVisible: Boolean,
     onToggle: () -> Unit
 ) {
-    val drawableRes = if (isUiVisible)
-        R.drawable.ui_hide_button
-    else
-        R.drawable.ui_show_button
+    val spriteName = if (isUiVisible) "ui_hide_button" else "ui_show_button"
     val description = if (isUiVisible) "隐藏UI" else "显示UI"
     Box(
         modifier = Modifier
@@ -1069,8 +1067,8 @@ private fun HideUiToggleButton(
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = drawableRes),
+        SpriteImage(
+            name = spriteName,
             contentDescription = description,
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds

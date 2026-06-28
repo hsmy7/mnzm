@@ -12,6 +12,7 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.allEquipmentSpriteResIds
 import com.xianxia.sect.ui.components.allManualSpriteResIds
 import com.xianxia.sect.ui.components.allPillSpriteResIds
+import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -157,10 +158,14 @@ class ResourcePreloader @Inject constructor(
     // ── L0: 弟子头像精灵图 ──
 
     private fun preloadPortraitSprites(): Map<String, ImageBitmap> {
-        val portraitNames = PortraitPool.allPortraitNames()
+        val portraitNames = PortraitPool.allPortraitNames() + "disciple_portrait"
         return portraitNames.mapNotNull { name ->
-            val resId = context.resources.getIdentifier(
-                name, "drawable", context.packageName)
+            val resId = if (name == "disciple_portrait") {
+                SpriteResRegistry.resolve("disciple_portrait") ?: return@mapNotNull null
+            } else {
+                context.resources.getIdentifier(
+                    name, "drawable", context.packageName)
+            }
             if (resId == 0) return@mapNotNull null
             try {
                 val bmp = decodeBitmap(resId, MAX_PORTRAIT_DIMENSION)
@@ -175,20 +180,15 @@ class ResourcePreloader @Inject constructor(
     // ── L0: 关键 UI 精灵图 ──
 
     private fun preloadCriticalUiSprites(): Map<String, ImageBitmap> {
-        val uiNames = listOf(
-            "ui_button", "ui_close_button", "ui_play_button",
-            "ui_pause_button", "ui_settings_button", "ui_start_button",
-            "loading_background"
-        )
-        return uiNames.mapNotNull { name ->
-            val resId = context.resources.getIdentifier(
-                name, "drawable", context.packageName)
-            if (resId == 0) return@mapNotNull null
+        val uiResIds = SpriteResRegistry.categoryResIds(SpriteCategory.UI)
+        return uiResIds.mapNotNull { resId ->
             try {
                 val bmp = decodeBitmap(resId, MAX_UI_DIMENSION)
+                // 通过资源名反查精灵图名（用于预加载结果 key）
+                val name = context.resources.getResourceEntryName(resId)
                 name to (bmp?.asImageBitmap() ?: return@mapNotNull null)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to decode UI sprite: $name", e)
+                Log.w(TAG, "Failed to decode UI sprite: $resId", e)
                 null
             }
         }.toMap()
@@ -258,6 +258,19 @@ class ResourcePreloader @Inject constructor(
         // 宗门图标
         SpriteResRegistry.sectIconSprites.values
             .filter { it != 0 }
+            .forEach { allRemaining.add(it) }
+
+        // ── 统一精灵图分类（自动发现） ──
+        // 妖兽/洞穴/天劫试炼/背景/地图精灵图
+        SpriteResRegistry.categoryResIds(SpriteCategory.BEAST)
+            .forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.CAVE)
+            .forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.HEAVENLY_TRIAL)
+            .forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.BACKGROUND)
+            .forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.PORTRAIT)
             .forEach { allRemaining.add(it) }
 
         return allRemaining.mapNotNull { resId ->

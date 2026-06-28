@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getRewardSprite
 import kotlinx.coroutines.delay
@@ -149,14 +150,26 @@ private fun AnimatedRewardCard(
                 ) {
                     val sprite = getRewardSprite(item.itemType, item.itemName, item.rarity)
                     if (sprite != null && sprite != 0) {
-                        Image(
-                            painter = painterResource(id = sprite),
-                            contentDescription = item.itemName,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .padding(2.dp),
-                            contentScale = ContentScale.Fit
-                        )
+                        val cachedBitmap = LocalItemSpriteCache.current[sprite]
+                        if (cachedBitmap != null) {
+                            Image(
+                                bitmap = cachedBitmap,
+                                contentDescription = item.itemName,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(2.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(id = sprite),
+                                contentDescription = item.itemName,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(2.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                     } else {
                         Text(
                             text = "敬请期待",

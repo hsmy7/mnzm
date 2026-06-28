@@ -49,7 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.xianxia.sect.core.util.PortraitPool
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.beastSpriteRes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -65,20 +65,9 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.GameConfig
 
-private val beastDrawables = listOf(
-    R.drawable.tiger_beast,
-    R.drawable.wolf_beast,
-    R.drawable.snake_beast,
-    R.drawable.bear_beast,
-    R.drawable.eagle_beast,
-    R.drawable.fox_beast,
-    R.drawable.dragon_beast,
-    R.drawable.turtle_beast
-)
-
 private fun resolveBeastImageRes(enemyName: String): Int? {
     val idx = GameConfig.Beast.TYPES.indexOfFirst { enemyName.endsWith(it.name) }
-    return if (idx >= 0) beastDrawables.getOrNull(idx) else null
+    return if (idx >= 0) beastSpriteRes(idx) else null
 }
 
 /**

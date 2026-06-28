@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.data.ChangelogData
+import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
@@ -404,6 +405,83 @@ class XianxiaApplication : Application() {
                 "spiritFruit6" to R.drawable.growing_spiritfruit6
             )
         )
+
+        // ── 统一精灵图分类注册 ──
+        // 所有新增精灵图在此处注册，ResourcePreloader 自动发现
+
+        SpriteResRegistry.register(SpriteCategory.UI, mapOf(
+            "ui_button" to R.drawable.ui_button,
+            "ui_close_button" to R.drawable.ui_close_button,
+            "ui_detail_button" to R.drawable.ui_detail_button,
+            "ui_diplomacy_button" to R.drawable.ui_diplomacy_button,
+            "ui_merchant_button" to R.drawable.ui_merchant_button,
+            "ui_build_button" to R.drawable.ui_build_button,
+            "ui_warehouse_button" to R.drawable.ui_warehouse_button,
+            "ui_activity_button" to R.drawable.ui_activity_button,
+            "ui_team_button" to R.drawable.ui_team_button,
+            "ui_map_button" to R.drawable.ui_map_button,
+            "ui_planting_button" to R.drawable.ui_planting_button,
+            "ui_recruit_button" to R.drawable.ui_recruit_button,
+            "ui_mail_button" to R.drawable.ui_mail_button,
+            "ui_log_button" to R.drawable.ui_log_button,
+            "ui_tooltip" to R.drawable.ui_tooltip,
+            "ui_hide_button" to R.drawable.ui_hide_button,
+            "ui_show_button" to R.drawable.ui_show_button,
+            "ui_play_button" to R.drawable.ui_play_button,
+            "ui_pause_button" to R.drawable.ui_pause_button,
+            "ui_settings_button" to R.drawable.ui_settings_button,
+            "ui_start_button" to R.drawable.ui_start_button,
+            "loading_background" to R.drawable.loading_background,
+            "ui_sysmsg" to R.drawable.ui_sysmsg
+        ))
+
+        SpriteResRegistry.register(SpriteCategory.BEAST, mapOf(
+            "tiger" to R.drawable.tiger_beast,
+            "wolf" to R.drawable.wolf_beast,
+            "snake" to R.drawable.snake_beast,
+            "bear" to R.drawable.bear_beast,
+            "eagle" to R.drawable.eagle_beast,
+            "fox" to R.drawable.fox_beast,
+            "dragon" to R.drawable.dragon_beast,
+            "turtle" to R.drawable.turtle_beast
+        ))
+
+        SpriteResRegistry.register(SpriteCategory.CAVE, mapOf(
+            "cave_1" to R.drawable.cave_1,
+            "cave_2" to R.drawable.cave_2,
+            "cave_3" to R.drawable.cave_3
+        ))
+
+        SpriteResRegistry.register(SpriteCategory.HEAVENLY_TRIAL, mapOf(
+            "heavenly_trial_island_1" to R.drawable.heavenly_trial_island_1,
+            "heavenly_trial_island_2" to R.drawable.heavenly_trial_island_2,
+            "heavenly_trial_island_3" to R.drawable.heavenly_trial_island_3,
+            "heavenly_trial_island_4" to R.drawable.heavenly_trial_island_4,
+            "heavenly_trial_island_5" to R.drawable.heavenly_trial_island_5,
+            "heavenly_trial_island_6" to R.drawable.heavenly_trial_island_6,
+            "heavenly_trial_island_7" to R.drawable.heavenly_trial_island_7,
+            "heavenly_trial_island_8" to R.drawable.heavenly_trial_island_8,
+            "heavenly_trial_challenge_bg" to R.drawable.heavenly_trial_challenge_bg,
+            "heavenly_trial_battle_scene" to R.drawable.heavenly_trial_battle_scene,
+            "heavenly_trial_battle_bar" to R.drawable.heavenly_trial_battle_bar,
+            "heavenly_trial_defend" to R.drawable.heavenly_trial_defend,
+            "heavenly_trial_atk_normal" to R.drawable.heavenly_trial_atk_normal,
+            "heavenly_trial_phase1" to R.drawable.heavenly_trial_phase1,
+            "heavenly_trial_phase2" to R.drawable.heavenly_trial_phase2,
+            "heavenly_trial_map" to R.drawable.heavenly_trial_map
+        ))
+
+        SpriteResRegistry.register(SpriteCategory.BACKGROUND, mapOf(
+            "bg_horizontal" to R.drawable.bg_horizontal,
+            "dialog_box" to R.drawable.dialog_box,
+            "bg_dialog_mail" to R.drawable.bg_dialog_mail,
+            "bg_screen" to R.drawable.bg_screen,
+            "map_zhongzhou" to R.drawable.map_zhongzhou
+        ))
+
+        SpriteResRegistry.register(SpriteCategory.PORTRAIT, mapOf(
+            "disciple_portrait" to R.drawable.disciple_portrait
+        ))
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()

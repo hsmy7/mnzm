@@ -15,7 +15,8 @@ import com.xianxia.sect.core.ui.R
 fun GameBackground(
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
-    @DrawableRes backgroundRes: Int = R.drawable.bg_horizontal,
+    @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
+        ?: R.drawable.bg_horizontal,
     content: @Composable () -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = contentAlignment) {

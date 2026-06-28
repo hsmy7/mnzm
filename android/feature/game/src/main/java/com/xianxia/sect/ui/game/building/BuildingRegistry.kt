@@ -47,4 +47,8 @@ object BuildingRegistry {
     fun isResidence(name: String): Boolean = byName[name]?.isResidence ?: false
     val residenceNames = ALL.filter { it.isResidence }.map { it.displayName }
     val noLimitNames = ALL.filter { it.noLimit }.map { it.displayName }
+
+    /** 返回所有建筑的 displayName → drawableRes 映射，供 SpriteResRegistry 注册 */
+    fun allDrawableMap(): Map<String, Int> =
+        ALL.associate { it.displayName to it.drawableRes }
 }

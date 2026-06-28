@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -61,7 +61,7 @@ fun HeavenlyTrialBattleDialog(
     androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize(), color = GameColors.PageBackground) {
         Box(modifier = Modifier.fillMaxSize()) {
             Image(
-                painter = painterResource(R.drawable.heavenly_trial_challenge_bg),
+                painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_challenge_bg") ?: 0),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -105,7 +105,7 @@ fun HeavenlyTrialBattleDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    painter = painterResource(R.drawable.heavenly_trial_phase1),
+                                    painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase1") ?: 0),
                                     contentDescription = null,
                                     modifier = Modifier.matchParentSize(),
                                     contentScale = ContentScale.FillBounds
@@ -134,7 +134,7 @@ fun HeavenlyTrialBattleDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    painter = painterResource(R.drawable.heavenly_trial_phase2),
+                                    painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase2") ?: 0),
                                     contentDescription = null,
                                     modifier = Modifier.matchParentSize(),
                                     contentScale = ContentScale.FillBounds

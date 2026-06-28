@@ -19,7 +19,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
@@ -51,7 +51,7 @@ fun DetailRightPanel(
         val portraitResId = PortraitPool.getResourceId(context, disciple.portraitRes)
         Image(
             painter = if (portraitResId != 0) painterResource(id = portraitResId)
-            else painterResource(id = R.drawable.disciple_portrait),
+            else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
             contentDescription = null,
             modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
             contentScale = ContentScale.Fit

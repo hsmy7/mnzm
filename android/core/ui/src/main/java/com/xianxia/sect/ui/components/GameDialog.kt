@@ -56,8 +56,10 @@ fun UnifiedGameDialog(
     titleColor: Color = Color.Black,
     titleFontSize: TextUnit = AppTypography.Title,
     showCloseButton: Boolean = true,
-    @DrawableRes backgroundRes: Int = R.drawable.bg_horizontal,
-    @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
+    @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
+        ?: R.drawable.bg_horizontal,
+    @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
+        ?: R.drawable.ui_close_button,
     content: @Composable () -> Unit
 ) {
     if (dismissOnBackPress) {
@@ -234,8 +236,10 @@ fun HalfScreenDialog(
     isFullScreen: Boolean = false,
     widthFraction: Float = DialogDefaults.HalfScreenWidthFraction,
     heightFraction: Float = DialogDefaults.HalfScreenHeightFraction,
-    @DrawableRes backgroundRes: Int = R.drawable.bg_horizontal,
-    @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
+    @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
+        ?: R.drawable.bg_horizontal,
+    @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
+        ?: R.drawable.ui_close_button,
     content: @Composable () -> Unit
 ) {
     if (isFullScreen) {
