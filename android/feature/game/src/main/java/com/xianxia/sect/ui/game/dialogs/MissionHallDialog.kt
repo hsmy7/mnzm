@@ -575,7 +575,8 @@ private fun MissionDispatchDialog(
                 selectedSlotIds[selectingSlotIndex] = selected.firstOrNull()?.id
                 selectingSlotIndex = -1
             },
-            onDismiss = { selectingSlotIndex = -1 }
+            onDismiss = { selectingSlotIndex = -1 },
+            viewModel = viewModel
         )
     } else {
         UnifiedGameDialog(

@@ -120,6 +120,22 @@ class GameViewModel @Inject constructor(
         gameEngine.setActiveDialog(null)
     }
 
+    /**
+     * 激活子界面焦点域。子界面进入组合时调用，
+     * 委托给 [GameEngine.pushSubDialogDomain]。
+     */
+    fun activateSubDialogDomain(domainName: String) {
+        gameEngine.pushSubDialogDomain(domainName)
+    }
+
+    /**
+     * 停用子界面焦点域。子界面离开组合时调用，
+     * 委托给 [GameEngine.popSubDialogDomain]。
+     */
+    fun deactivateSubDialogDomain(domainName: String) {
+        gameEngine.popSubDialogDomain(domainName)
+    }
+
     /** 通知引擎有用户交互（与 [onUserInteraction] 等价，保留以兼容旧调用点） */
     fun notifyUserInteraction() {
         gameEngine.notifyUserInteraction()

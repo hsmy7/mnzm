@@ -214,7 +214,8 @@ fun SpiritMineDialog(
                     }
                     showDiscipleSelection = false
                     swappingSlotIndex = null
-                }
+                },
+                viewModel = viewModel
             )
         } else {
             DiscipleSelectorDialog(
@@ -224,7 +225,8 @@ fun SpiritMineDialog(
                 onConfirm = { selected ->
                     spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected, mineIndex)
                     showDiscipleSelection = false
-                }
+                },
+                viewModel = viewModel
             )
         }
     }
@@ -245,7 +247,8 @@ fun SpiritMineDialog(
                 }
                 showDeaconSelection = null
             },
-            onDismiss = { showDeaconSelection = null }
+            onDismiss = { showDeaconSelection = null },
+            viewModel = viewModel
         )
     }
 

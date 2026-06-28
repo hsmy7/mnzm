@@ -541,7 +541,8 @@ class GameEngineCore @Inject constructor(
      */
     private fun computeDomainsFromView(): Set<FocusDomain> =
         resolveDomainsFromView(
-            stateStore.activeTab, stateStore.activeDialog
+            stateStore.activeTab, stateStore.activeDialog,
+            stateStore.activeSubDialogs
         )
 
     /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点 + 实时轨） */
@@ -956,10 +957,14 @@ class GameEngineCore @Inject constructor(
  */
 internal fun resolveDomainsFromView(
     tab: String?,
-    dialog: String?
+    dialog: String?,
+    subDialogs: Set<String> = emptySet()
 ): Set<FocusDomain> {
     val domains = mutableSetOf(FocusDomain.ALWAYS)
     tab?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
     dialog?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
+    for (sd in subDialogs) {
+        InterfaceDomainMap[sd]?.let { d -> domains.add(d) }
+    }
     return domains
 }

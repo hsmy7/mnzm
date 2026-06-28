@@ -111,6 +111,13 @@ interface GameStateStore : GameStateSnapshotProvider {
     var activeTab: String
     var activeDialog: String?
 
+    /**
+     * 当前激活的子界面域名称集合（不经过导航系统的子界面，
+     * 如 [DiscipleSelectorDialog]）。引擎在 [resolveDomainsFromView]
+     * 中将其解析为对应的 [FocusDomain]。
+     */
+    var activeSubDialogs: Set<String>
+
     // === 核心写入 API ===
     suspend fun update(block: suspend MutableGameState.() -> Unit)
 

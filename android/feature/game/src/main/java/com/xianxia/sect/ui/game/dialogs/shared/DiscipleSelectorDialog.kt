@@ -17,6 +17,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 data class DiscipleSelectorConfig(
@@ -33,8 +34,16 @@ fun DiscipleSelectorDialog(
     config: DiscipleSelectorConfig,
     disciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit,
-    onConfirm: (List<DiscipleAggregate>) -> Unit
+    onConfirm: (List<DiscipleAggregate>) -> Unit,
+    viewModel: GameViewModel? = null
 ) {
+    DisposableEffect(Unit) {
+        viewModel?.activateSubDialogDomain("DiscipleSelector")
+        onDispose {
+            viewModel?.deactivateSubDialogDomain("DiscipleSelector")
+        }
+    }
+
     val filterState = rememberDiscipleFilterState(config.defaultSortAttribute)
     val realmCounts = remember(disciples) { filterState.realmCounts(disciples) }
     val spiritRootCounts = remember(disciples) { filterState.spiritRootCounts(disciples) }

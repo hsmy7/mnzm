@@ -53,6 +53,23 @@ fun GameEngine.setActiveDialog(dialogName: String?) {
     }
 }
 
+/**
+ * 注册子界面域。子界面进入组合时调用，
+ * 将其声明的 [FocusDomain] 加入实时轨。
+ */
+fun GameEngine.pushSubDialogDomain(domainName: String) {
+    stateStore.activeSubDialogs = stateStore.activeSubDialogs + domainName
+    InterfaceDomainMap[domainName]?.let { gameEngineCore.catchUpDomain(it) }
+}
+
+/**
+ * 注销子界面域。子界面离开组合时调用，
+ * 将其声明的 [FocusDomain] 从实时轨移除。
+ */
+fun GameEngine.popSubDialogDomain(domainName: String) {
+    stateStore.activeSubDialogs = stateStore.activeSubDialogs - domainName
+}
+
 fun GameEngine.notifyUserInteraction() = gameEngineCore.onUserInteraction()
 
 // ── Game lifecycle ──────────────────────────────────────────────────

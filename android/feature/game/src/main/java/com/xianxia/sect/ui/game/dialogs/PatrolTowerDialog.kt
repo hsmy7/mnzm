@@ -171,7 +171,8 @@ fun PatrolTowerDialog(
                     else patrolTowerViewModel.assignDisciple(towerIndex, selectingSlotIndex, id)
                 }
                 selectingSlotIndex = -1
-            }
+            },
+            viewModel = viewModel
         )
     }
 

@@ -40,6 +40,9 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     override var activeDialog: String? = null
 
+    @Volatile
+    override var activeSubDialogs: Set<String> = emptySet()
+
     companion object {
         private const val TAG = "GameStateStore"
 

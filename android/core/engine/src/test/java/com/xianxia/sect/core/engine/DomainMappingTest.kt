@@ -514,4 +514,65 @@ class DomainMappingTest {
         // CultivationTickSystem + EconomySubsystem + ProductionSubsystem = 3
         assertEquals(3, combinedSystems.size)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 子对话框（Sub-dialog）域
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `subDialog DiscipleSelector — DISCIPLE_SELECTOR（显示弟子卡片）`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = null, subDialogs = setOf("DiscipleSelector")
+        )
+        assertDomains(domains, FocusDomain.DISCIPLE_SELECTOR)
+    }
+
+    @Test
+    fun `subDialog 与父 dialog 域叠加 — Alchemy + DiscipleSelector`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = "Alchemy",
+            subDialogs = setOf("DiscipleSelector")
+        )
+        assertDomains(domains, FocusDomain.ALCHEMY, FocusDomain.DISCIPLE_SELECTOR)
+    }
+
+    @Test
+    fun `subDialog 与 tab + dialog 三域叠加`() {
+        val domains = resolveDomainsFromView(
+            tab = "OVERVIEW", dialog = "Alchemy",
+            subDialogs = setOf("DiscipleSelector")
+        )
+        assertDomains(
+            domains, FocusDomain.OVERVIEW,
+            FocusDomain.ALCHEMY, FocusDomain.DISCIPLE_SELECTOR
+        )
+    }
+
+    @Test
+    fun `subDialog 空集合 — 不影响结果`() {
+        val domains = resolveDomainsFromView(
+            tab = "OVERVIEW", dialog = null, subDialogs = emptySet()
+        )
+        assertDomains(domains, FocusDomain.OVERVIEW)
+    }
+
+    @Test
+    fun `subDialog 未知值 — 仅 ALWAYS`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = null,
+            subDialogs = setOf("UnknownSubDialog")
+        )
+        assertDomains(domains)
+    }
+
+    @Test
+    fun `activeSystemsFor — DISCIPLE_SELECTOR 包含 CultivationTickSystem`() {
+        val systems = FocusDomain.activeSystemsFor(
+            setOf(FocusDomain.DISCIPLE_SELECTOR)
+        )
+        assertTrue(
+            "DISCIPLE_SELECTOR 应激活 CultivationTickSystem",
+            systems.any { it.simpleName == "CultivationTickSystem" }
+        )
+    }
 }

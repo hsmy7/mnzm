@@ -207,7 +207,8 @@ fun BloodRefiningPoolDialog(
             onConfirm = { selected ->
                 selected.firstOrNull()?.let { bloodRefiningViewModel.selectDisciple(it) }
                 showDiscipleSelection = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 }

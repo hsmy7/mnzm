@@ -66,6 +66,10 @@ enum class FocusDomain(
     BLOOD_REFINING(emptySet()),
     /** 世界地图 — 地图标记/探索状态 */
     WORLD_MAP(emptySet()),
+
+    // ── 子界面域 ──
+    /** 弟子选择器子界面 — 需实时刷新弟子修炼进度/HP/MP */
+    DISCIPLE_SELECTOR(setOf(CultivationTickSystem::class)),
     /** 外交 — 好感度/关系变化（月度事件中处理） */
     DIPLOMACY(emptySet()),
 
@@ -151,6 +155,9 @@ internal val InterfaceDomainMap: Map<String, FocusDomain> = mapOf(
     // ═══ 地图/外交 ═══
     "WorldMap"  to FocusDomain.WORLD_MAP,
     "Diplomacy" to FocusDomain.DIPLOMACY,
+
+    // ═══ 子界面 ═══
+    "DiscipleSelector" to FocusDomain.DISCIPLE_SELECTOR,
 
     // ═══ 兼容旧调用方（GameRoute.DialogRoute.Disciples/Buildings.toString()）═══
     "Disciples" to FocusDomain.DISCIPLE_LIST,

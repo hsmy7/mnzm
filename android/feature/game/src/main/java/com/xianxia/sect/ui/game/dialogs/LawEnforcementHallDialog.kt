@@ -508,7 +508,8 @@ private fun ReserveDiscipleListDialog(
             onConfirm = { selected ->
                 productionViewModel.addReserveDisciples(selected.map { it.id })
                 showAddDiscipleDialog = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 }

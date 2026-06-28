@@ -316,7 +316,8 @@ private fun AlchemyReserveDiscipleDialogWrapper(
             onConfirm = { selected ->
                 alchemyViewModel.addAlchemyReserveDisciples(selected.map { it.id })
                 showAddDialog = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 }

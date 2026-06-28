@@ -291,7 +291,8 @@ fun ForgeDialog(
             onConfirm = { selected ->
                 forgeViewModel.addForgeReserveDisciples(selected.map { it.id })
                 showAddReserveDialog = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 

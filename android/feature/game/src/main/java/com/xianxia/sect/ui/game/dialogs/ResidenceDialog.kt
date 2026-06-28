@@ -224,7 +224,8 @@ fun ResidenceDialog(
                 }
                 showDiscipleSelector = false
                 isSwapping = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 }
