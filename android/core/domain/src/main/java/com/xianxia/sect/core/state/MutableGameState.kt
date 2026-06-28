@@ -40,6 +40,8 @@ data class MutableGameState(
  * @param turns       总回合数
  * @param details     文字摘要
  * @param drops       战利品/被掠夺物品描述列表
+ * @param beastsDefeated 击杀敌人数（宗门战为击杀进攻者数）
+ * @param teamCasualties 我方阵亡数
  */
 fun MutableGameState.recordPlayerBattle(
     year: Int,
@@ -53,7 +55,9 @@ fun MutableGameState.recordPlayerBattle(
     rounds: List<BattleLogRound> = emptyList(),
     turns: Int = 0,
     details: String = "",
-    drops: List<String> = emptyList()
+    drops: List<String> = emptyList(),
+    beastsDefeated: Int = 0,
+    teamCasualties: Int = 0
 ) {
     battleLogs = (battleLogs + BattleLog(
         year = year,
@@ -67,6 +71,8 @@ fun MutableGameState.recordPlayerBattle(
         rounds = rounds,
         turns = turns,
         details = details,
-        drops = drops
+        drops = drops,
+        beastsDefeated = beastsDefeated,
+        teamCasualties = teamCasualties
     )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 }

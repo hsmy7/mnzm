@@ -64,6 +64,39 @@ class CaveExplorationProcessor @Inject constructor(
             DiscipleStatus.REFLECTING,
             DiscipleStatus.GARRISONING
         )
+
+        /**
+         * 从实际参战弟子（而非全宗门弟子池）构建防守战日志的敌人快照列表。
+         *
+         * @param survivingAttackers 战后幸存的攻击方弟子（仅参战者）
+         * @param deadAttackerIds    阵亡的攻击方弟子ID
+         * @param sectDisciplePool   攻击方宗门完整弟子池（仅用于查阵亡者详细数据）
+         * @param attackerSectName   攻击方宗门名
+         * @return 仅包含实际参战弟子的快照列表
+         */
+        internal fun buildDefenseBattleEnemies(
+            survivingAttackers: List<Disciple>,
+            deadAttackerIds: List<String>,
+            sectDisciplePool: List<Disciple>,
+            attackerSectName: String
+        ): List<BattleLogEnemy> {
+            val survivorIds = survivingAttackers.map { it.id }.toSet()
+            val deadAttackerData = sectDisciplePool.filter { it.id in deadAttackerIds }
+            val participants = survivingAttackers + deadAttackerData
+            return participants.map { d ->
+                val survived = d.id in survivorIds
+                BattleLogEnemy(
+                    id = d.id,
+                    name = "${attackerSectName}弟子",
+                    realm = d.realm,
+                    realmName = d.realmName,
+                    hp = if (survived) d.combat.currentHp else 0,
+                    maxHp = d.maxHp,
+                    isAlive = survived,
+                    portraitRes = d.portraitRes
+                )
+            }
+        }
     }
 
     // ── 洞府探索 ──────────────────────────────────────────────────────
@@ -1151,13 +1184,13 @@ class CaveExplorationProcessor @Inject constructor(
                             isAlive = d.id !in result.deadDefenderIds, portraitRes = d.portraitRes
                         )
                     }
-                val enemies = attackerDisciples.map { d ->
-                    BattleLogEnemy(
-                        id = d.id, name = "${result.attackerSectName}弟子", realm = d.realm,
-                        realmName = d.realmName, hp = 0, maxHp = d.maxHp,
-                        isAlive = d.id !in result.deadAttackerIds, portraitRes = d.portraitRes
-                    )
-                }
+                // 仅包含实际参战的攻击方弟子（幸存者 + 阵亡者），而非全宗门弟子
+                val enemies = buildDefenseBattleEnemies(
+                    survivingAttackers = result.survivingAttackers,
+                    deadAttackerIds = result.deadAttackerIds,
+                    sectDisciplePool = attackerDisciples,
+                    attackerSectName = result.attackerSectName
+                )
                 val drops = mutableListOf<String>()
                 lootResult?.let { lr ->
                     if (lr.lostSpiritStones > 0) drops.add("灵石 ×${lr.lostSpiritStones}")
@@ -1187,7 +1220,9 @@ class CaveExplorationProcessor @Inject constructor(
                         if (result.winner == AIBattleWinner.ATTACKER) "防守失利"
                         else if (result.winner == AIBattleWinner.DEFENDER) "防守成功"
                         else "不分胜负",
-                    drops = drops
+                    drops = drops,
+                    beastsDefeated = result.deadAttackerIds.size,
+                    teamCasualties = result.deadDefenderIds.size
                 )
 
                 gameData = updatedData
