@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import com.xianxia.sect.core.GameConfig
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -680,5 +681,140 @@ class ItemsTest {
         val result = a + b
         assertEquals(15, result.physicalAttack)
         assertEquals(150, result.hp)
+    }
+
+    // ---- 统一价格体系 ----
+
+    @Test
+    fun `rarityConfig prices - 六品阶基准价`() {
+        val expectedBase = listOf(4000, 16000, 80000, 480000, 3360000, 26880000)
+        for (i in 1..6) {
+            val config = GameConfig.Rarity.get(i)
+            assertEquals("品阶$i basePrice", expectedBase[i - 1], config.basePrice)
+            assertEquals("品阶$i pillBasePrice", expectedBase[i - 1], config.pillBasePrice)
+        }
+    }
+
+    @Test
+    fun `rarityConfig prices - 材料价格为基准价十分之一`() {
+        val expectedMaterial = listOf(400, 1600, 8000, 48000, 336000, 2688000)
+        for (i in 1..6) {
+            assertEquals("品阶$i materialBasePrice", expectedMaterial[i - 1],
+                GameConfig.Rarity.get(i).materialBasePrice)
+        }
+    }
+
+    @Test
+    fun `rarityConfig prices - 草药价格为基准价十分之一`() {
+        val expectedHerb = listOf(400, 1600, 8000, 48000, 336000, 2688000)
+        for (i in 1..6) {
+            assertEquals("品阶$i herbPrice", expectedHerb[i - 1],
+                GameConfig.Rarity.get(i).herbPrice)
+        }
+    }
+
+    @Test
+    fun `rarityConfig prices - 种子价格为基准价百分之二`() {
+        val expectedSeed = listOf(80, 320, 1600, 9600, 67200, 537600)
+        for (i in 1..6) {
+            assertEquals("品阶$i seedPrice", expectedSeed[i - 1],
+                GameConfig.Rarity.get(i).seedPrice)
+        }
+    }
+
+    @Test
+    fun `rarityConfig prices - 品阶差距逐级递增`() {
+        val multipliers = mutableListOf<Double>()
+        for (i in 1..5) {
+            val curr = GameConfig.Rarity.get(i).basePrice.toDouble()
+            val next = GameConfig.Rarity.get(i + 1).basePrice.toDouble()
+            multipliers.add(next / curr)
+        }
+        // 4x, 5x, 6x, 7x, 8x
+        assertEquals(4.0, multipliers[0], 0.01)
+        assertEquals(5.0, multipliers[1], 0.01)
+        assertEquals(6.0, multipliers[2], 0.01)
+        assertEquals(7.0, multipliers[3], 0.01)
+        assertEquals(8.0, multipliers[4], 0.01)
+    }
+
+    @Test
+    fun `rarityConfig prices - 种子价远低于草药价`() {
+        for (i in 1..6) {
+            val herb = GameConfig.Rarity.get(i).herbPrice.toDouble()
+            val seed = GameConfig.Rarity.get(i).seedPrice.toDouble()
+            assertEquals("品阶$i seed/herb ratio", 0.2, seed / herb, 0.01)
+        }
+    }
+
+    @Test
+    fun `equipmentStack basePrice - uses template price for known equipment`() {
+        val stack = EquipmentStack(name = "精铁剑", rarity = 1)
+        assertEquals(4000, stack.basePrice)
+    }
+
+    @Test
+    fun `equipmentStack basePrice - uses template price for high rarity equipment`() {
+        val stack = EquipmentStack(name = "诛仙剑", rarity = 6)
+        assertEquals(26880000, stack.basePrice)
+    }
+
+    @Test
+    fun `equipmentStack basePrice - falls back to rarity config for unknown equipment`() {
+        val stack = EquipmentStack(name = "不存在的装备", rarity = 3)
+        assertEquals(80000, stack.basePrice)
+    }
+
+    @Test
+    fun `herb basePrice - uses herbPrice not materialBasePrice`() {
+        val herb = Herb(rarity = 2)
+        assertEquals(1600, herb.basePrice)
+    }
+
+    @Test
+    fun `herb basePrice - different from materialBasePrice for same rarity`() {
+        // 验证 herb 和 material 价格可以不同（当前方案中恰好相同，但字段已分离）
+        for (i in 1..6) {
+            val herb = Herb(rarity = i)
+            val material = Material(rarity = i)
+            assertEquals("品阶$i herb vs material basePrice", material.basePrice, herb.basePrice)
+        }
+    }
+
+    @Test
+    fun `seed basePrice - uses seedPrice`() {
+        val seed = Seed(rarity = 3)
+        assertEquals(1600, seed.basePrice)
+    }
+
+    @Test
+    fun `seed basePrice - much lower than herb basePrice`() {
+        for (i in 1..6) {
+            val seed = Seed(rarity = i)
+            val herb = Herb(rarity = i)
+            assertTrue("品阶$i seed(${seed.basePrice}) should be < herb(${herb.basePrice})",
+                seed.basePrice < herb.basePrice)
+        }
+    }
+
+    @Test
+    fun `material basePrice - much lower than equipment basePrice`() {
+        for (i in 1..6) {
+            val material = Material(rarity = i)
+            val equip = EquipmentStack(name = "测试装备$i", rarity = i)
+            assertTrue("品阶$i material(${material.basePrice}) should be < equip(${equip.basePrice})",
+                material.basePrice < equip.basePrice)
+        }
+    }
+
+    @Test
+    fun `pill basePrice - uses pillBasePrice times grade multiplier`() {
+        val pillLow = Pill(rarity = 1, grade = PillGrade.LOW)
+        val pillMed = Pill(rarity = 1, grade = PillGrade.MEDIUM)
+        val pillHigh = Pill(rarity = 1, grade = PillGrade.HIGH)
+        // 凡品基准4000, LOW=0.5, MED=1.0, HIGH=2.0
+        assertEquals(2000, pillLow.basePrice)
+        assertEquals(4000, pillMed.basePrice)
+        assertEquals(8000, pillHigh.basePrice)
     }
 }

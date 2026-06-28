@@ -18,7 +18,7 @@
       "skillCooldown": 3,
       "skillMpCost": 10,
       "skillIsAoe": false,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_phys_aoe_1",
@@ -38,7 +38,7 @@
       "skillCooldown": 3,
       "skillMpCost": 12,
       "skillIsAoe": true,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_phys_multi_1",
@@ -58,7 +58,7 @@
       "skillCooldown": 3,
       "skillMpCost": 12,
       "skillIsAoe": false,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_phys_aoe_multi_1",
@@ -78,7 +78,7 @@
       "skillCooldown": 3,
       "skillMpCost": 14,
       "skillIsAoe": true,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_magic_single_1",
@@ -98,7 +98,7 @@
       "skillCooldown": 3,
       "skillMpCost": 10,
       "skillIsAoe": false,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_magic_aoe_1",
@@ -118,7 +118,7 @@
       "skillCooldown": 3,
       "skillMpCost": 12,
       "skillIsAoe": true,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_magic_multi_1",
@@ -138,7 +138,7 @@
       "skillCooldown": 3,
       "skillMpCost": 12,
       "skillIsAoe": false,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "common_magic_aoe_multi_1",
@@ -158,7 +158,7 @@
       "skillCooldown": 3,
       "skillMpCost": 14,
       "skillIsAoe": true,
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "uncommon_phys_single_1",
@@ -178,7 +178,7 @@
       "skillCooldown": 3,
       "skillMpCost": 30,
       "skillIsAoe": false,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_phys_aoe_1",
@@ -198,7 +198,7 @@
       "skillCooldown": 3,
       "skillMpCost": 35,
       "skillIsAoe": true,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_phys_multi_1",
@@ -218,7 +218,7 @@
       "skillCooldown": 3,
       "skillMpCost": 35,
       "skillIsAoe": false,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_phys_aoe_multi_1",
@@ -238,7 +238,7 @@
       "skillCooldown": 3,
       "skillMpCost": 40,
       "skillIsAoe": true,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_magic_single_1",
@@ -258,7 +258,7 @@
       "skillCooldown": 3,
       "skillMpCost": 30,
       "skillIsAoe": false,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_magic_aoe_1",
@@ -278,7 +278,7 @@
       "skillCooldown": 3,
       "skillMpCost": 35,
       "skillIsAoe": true,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_magic_multi_1",
@@ -298,7 +298,7 @@
       "skillCooldown": 3,
       "skillMpCost": 35,
       "skillIsAoe": false,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "uncommon_magic_aoe_multi_1",
@@ -318,7 +318,7 @@
       "skillCooldown": 3,
       "skillMpCost": 40,
       "skillIsAoe": true,
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "rare_phys_single_1",
@@ -338,7 +338,7 @@
       "skillCooldown": 3,
       "skillMpCost": 70,
       "skillIsAoe": false,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_phys_aoe_1",
@@ -358,7 +358,7 @@
       "skillCooldown": 3,
       "skillMpCost": 80,
       "skillIsAoe": true,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_phys_multi_1",
@@ -378,7 +378,7 @@
       "skillCooldown": 3,
       "skillMpCost": 80,
       "skillIsAoe": false,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_phys_aoe_multi_1",
@@ -398,7 +398,7 @@
       "skillCooldown": 3,
       "skillMpCost": 90,
       "skillIsAoe": true,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_magic_single_1",
@@ -418,7 +418,7 @@
       "skillCooldown": 3,
       "skillMpCost": 70,
       "skillIsAoe": false,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_magic_aoe_1",
@@ -438,7 +438,7 @@
       "skillCooldown": 3,
       "skillMpCost": 80,
       "skillIsAoe": true,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_magic_multi_1",
@@ -458,7 +458,7 @@
       "skillCooldown": 3,
       "skillMpCost": 80,
       "skillIsAoe": false,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "rare_magic_aoe_multi_1",
@@ -478,7 +478,7 @@
       "skillCooldown": 3,
       "skillMpCost": 90,
       "skillIsAoe": true,
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "epic_phys_single_1",
@@ -498,7 +498,7 @@
       "skillCooldown": 3,
       "skillMpCost": 180,
       "skillIsAoe": false,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_phys_aoe_1",
@@ -518,7 +518,7 @@
       "skillCooldown": 3,
       "skillMpCost": 200,
       "skillIsAoe": true,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_phys_multi_1",
@@ -538,7 +538,7 @@
       "skillCooldown": 3,
       "skillMpCost": 200,
       "skillIsAoe": false,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_phys_aoe_multi_1",
@@ -558,7 +558,7 @@
       "skillCooldown": 3,
       "skillMpCost": 220,
       "skillIsAoe": true,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_magic_single_1",
@@ -578,7 +578,7 @@
       "skillCooldown": 3,
       "skillMpCost": 180,
       "skillIsAoe": false,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_magic_aoe_1",
@@ -598,7 +598,7 @@
       "skillCooldown": 3,
       "skillMpCost": 200,
       "skillIsAoe": true,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_magic_multi_1",
@@ -618,7 +618,7 @@
       "skillCooldown": 3,
       "skillMpCost": 200,
       "skillIsAoe": false,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "epic_magic_aoe_multi_1",
@@ -638,7 +638,7 @@
       "skillCooldown": 3,
       "skillMpCost": 220,
       "skillIsAoe": true,
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "legendary_phys_single_1",
@@ -658,7 +658,7 @@
       "skillCooldown": 3,
       "skillMpCost": 500,
       "skillIsAoe": false,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_phys_aoe_1",
@@ -678,7 +678,7 @@
       "skillCooldown": 3,
       "skillMpCost": 550,
       "skillIsAoe": true,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_phys_multi_1",
@@ -698,7 +698,7 @@
       "skillCooldown": 3,
       "skillMpCost": 550,
       "skillIsAoe": false,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_phys_aoe_multi_1",
@@ -718,7 +718,7 @@
       "skillCooldown": 3,
       "skillMpCost": 600,
       "skillIsAoe": true,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_magic_single_1",
@@ -738,7 +738,7 @@
       "skillCooldown": 3,
       "skillMpCost": 500,
       "skillIsAoe": false,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_magic_aoe_1",
@@ -758,7 +758,7 @@
       "skillCooldown": 3,
       "skillMpCost": 550,
       "skillIsAoe": true,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_magic_multi_1",
@@ -778,7 +778,7 @@
       "skillCooldown": 3,
       "skillMpCost": 550,
       "skillIsAoe": false,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "legendary_magic_aoe_multi_1",
@@ -798,7 +798,7 @@
       "skillCooldown": 3,
       "skillMpCost": 600,
       "skillIsAoe": true,
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "mythic_phys_single_1",
@@ -818,7 +818,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1200,
       "skillIsAoe": false,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_phys_aoe_1",
@@ -838,7 +838,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1300,
       "skillIsAoe": true,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_phys_multi_1",
@@ -858,7 +858,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1300,
       "skillIsAoe": false,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_phys_aoe_multi_1",
@@ -878,7 +878,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1400,
       "skillIsAoe": true,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_magic_single_1",
@@ -898,7 +898,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1200,
       "skillIsAoe": false,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_magic_aoe_1",
@@ -918,7 +918,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1300,
       "skillIsAoe": true,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_magic_multi_1",
@@ -938,7 +938,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1300,
       "skillIsAoe": false,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mythic_magic_aoe_multi_1",
@@ -958,7 +958,7 @@
       "skillCooldown": 3,
       "skillMpCost": 1400,
       "skillIsAoe": true,
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "new_stun_1",
@@ -990,7 +990,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -1023,7 +1023,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -1056,7 +1056,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -1089,7 +1089,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -1122,7 +1122,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -1155,7 +1155,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -1187,7 +1187,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -1219,7 +1219,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -1251,7 +1251,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -1283,7 +1283,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -1315,7 +1315,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -1347,7 +1347,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -1379,7 +1379,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -1411,7 +1411,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -1443,7 +1443,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -1475,7 +1475,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -1507,7 +1507,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -1539,7 +1539,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -1571,7 +1571,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -1603,7 +1603,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -1635,7 +1635,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -1667,7 +1667,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -1699,7 +1699,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -1731,7 +1731,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -1763,7 +1763,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -1795,7 +1795,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -1827,7 +1827,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -1859,7 +1859,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -1891,7 +1891,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -1923,7 +1923,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -1966,7 +1966,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -2009,7 +2009,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -2052,7 +2052,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -2095,7 +2095,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -2138,7 +2138,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -2181,7 +2181,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -2224,7 +2224,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -2267,7 +2267,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -2310,7 +2310,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -2353,7 +2353,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -2396,7 +2396,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -2439,7 +2439,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -2482,7 +2482,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -2525,7 +2525,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -2568,7 +2568,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -2611,7 +2611,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -2654,7 +2654,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -2697,7 +2697,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -2740,7 +2740,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -2783,7 +2783,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -2826,7 +2826,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -2869,7 +2869,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -2912,7 +2912,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -2955,7 +2955,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -2988,7 +2988,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.3,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -3021,7 +3021,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.35,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -3054,7 +3054,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.4,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -3087,7 +3087,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.45,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -3120,7 +3120,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.55,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -3153,7 +3153,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0.7,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     }
   ],
@@ -3181,7 +3181,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "hp_def_common_team",
@@ -3206,7 +3206,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_def_common_self",
@@ -3231,7 +3231,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_def_common_team",
@@ -3256,7 +3256,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_hp_def_common_self",
@@ -3287,7 +3287,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_hp_def_common_team",
@@ -3318,7 +3318,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "mag_def_common_self",
@@ -3343,7 +3343,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "mag_def_common_team",
@@ -3368,7 +3368,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "mag_hp_def_common_self",
@@ -3399,7 +3399,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "mag_hp_def_common_team",
@@ -3430,7 +3430,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_mag_def_common_self",
@@ -3461,7 +3461,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "phys_mag_def_common_team",
@@ -3492,7 +3492,7 @@
           "duration": 3
         }
       ],
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "hp_def_uncommon_self",
@@ -3517,7 +3517,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "hp_def_uncommon_team",
@@ -3542,7 +3542,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_def_uncommon_self",
@@ -3567,7 +3567,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_def_uncommon_team",
@@ -3592,7 +3592,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_hp_def_uncommon_self",
@@ -3623,7 +3623,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_hp_def_uncommon_team",
@@ -3654,7 +3654,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "mag_def_uncommon_self",
@@ -3679,7 +3679,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "mag_def_uncommon_team",
@@ -3704,7 +3704,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "mag_hp_def_uncommon_self",
@@ -3735,7 +3735,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "mag_hp_def_uncommon_team",
@@ -3766,7 +3766,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_mag_def_uncommon_self",
@@ -3797,7 +3797,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "phys_mag_def_uncommon_team",
@@ -3828,7 +3828,7 @@
           "duration": 3
         }
       ],
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "hp_def_rare_self",
@@ -3853,7 +3853,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "hp_def_rare_team",
@@ -3878,7 +3878,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_def_rare_self",
@@ -3903,7 +3903,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_def_rare_team",
@@ -3928,7 +3928,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_hp_def_rare_self",
@@ -3959,7 +3959,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_hp_def_rare_team",
@@ -3990,7 +3990,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "mag_def_rare_self",
@@ -4015,7 +4015,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "mag_def_rare_team",
@@ -4040,7 +4040,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "mag_hp_def_rare_self",
@@ -4071,7 +4071,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "mag_hp_def_rare_team",
@@ -4102,7 +4102,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_mag_def_rare_self",
@@ -4133,7 +4133,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "phys_mag_def_rare_team",
@@ -4164,7 +4164,7 @@
           "duration": 3
         }
       ],
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "hp_def_epic_self",
@@ -4189,7 +4189,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "hp_def_epic_team",
@@ -4214,7 +4214,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_def_epic_self",
@@ -4239,7 +4239,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_def_epic_team",
@@ -4264,7 +4264,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_hp_def_epic_self",
@@ -4295,7 +4295,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_hp_def_epic_team",
@@ -4326,7 +4326,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "mag_def_epic_self",
@@ -4351,7 +4351,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "mag_def_epic_team",
@@ -4376,7 +4376,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "mag_hp_def_epic_self",
@@ -4407,7 +4407,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "mag_hp_def_epic_team",
@@ -4438,7 +4438,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_mag_def_epic_self",
@@ -4469,7 +4469,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "phys_mag_def_epic_team",
@@ -4500,7 +4500,7 @@
           "duration": 3
         }
       ],
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "hp_def_legendary_self",
@@ -4525,7 +4525,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "hp_def_legendary_team",
@@ -4550,7 +4550,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_def_legendary_self",
@@ -4575,7 +4575,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_def_legendary_team",
@@ -4600,7 +4600,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_hp_def_legendary_self",
@@ -4631,7 +4631,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_hp_def_legendary_team",
@@ -4662,7 +4662,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "mag_def_legendary_self",
@@ -4687,7 +4687,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "mag_def_legendary_team",
@@ -4712,7 +4712,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "mag_hp_def_legendary_self",
@@ -4743,7 +4743,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "mag_hp_def_legendary_team",
@@ -4774,7 +4774,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_mag_def_legendary_self",
@@ -4805,7 +4805,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "phys_mag_def_legendary_team",
@@ -4836,7 +4836,7 @@
           "duration": 3
         }
       ],
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "hp_def_mythic_self",
@@ -4861,7 +4861,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "hp_def_mythic_team",
@@ -4886,7 +4886,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_def_mythic_self",
@@ -4911,7 +4911,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_def_mythic_team",
@@ -4936,7 +4936,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_hp_def_mythic_self",
@@ -4967,7 +4967,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_hp_def_mythic_team",
@@ -4998,7 +4998,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mag_def_mythic_self",
@@ -5023,7 +5023,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mag_def_mythic_team",
@@ -5048,7 +5048,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mag_hp_def_mythic_self",
@@ -5079,7 +5079,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "mag_hp_def_mythic_team",
@@ -5110,7 +5110,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_mag_def_mythic_self",
@@ -5141,7 +5141,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "phys_mag_def_mythic_team",
@@ -5172,7 +5172,7 @@
           "duration": 3
         }
       ],
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "new_taunt_1",
@@ -5204,7 +5204,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -5237,7 +5237,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -5270,7 +5270,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -5303,7 +5303,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -5336,7 +5336,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -5369,7 +5369,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -5402,7 +5402,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -5435,7 +5435,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -5468,7 +5468,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -5501,7 +5501,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -5534,7 +5534,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -5567,7 +5567,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -5600,7 +5600,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -5633,7 +5633,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -5666,7 +5666,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -5699,7 +5699,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -5732,7 +5732,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -5765,7 +5765,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -5798,7 +5798,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -5831,7 +5831,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -5864,7 +5864,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -5897,7 +5897,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -5930,7 +5930,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -5963,7 +5963,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -5996,7 +5996,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6029,7 +6029,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6062,7 +6062,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6095,7 +6095,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6128,7 +6128,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6161,7 +6161,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6194,7 +6194,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6227,7 +6227,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6260,7 +6260,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6293,7 +6293,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6326,7 +6326,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6359,7 +6359,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6392,7 +6392,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -6425,7 +6425,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -6458,7 +6458,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -6491,7 +6491,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -6524,7 +6524,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -6557,7 +6557,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -6591,7 +6591,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6625,7 +6625,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6659,7 +6659,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -6693,7 +6693,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6727,7 +6727,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6761,7 +6761,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -6795,7 +6795,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6829,7 +6829,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6863,7 +6863,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -6897,7 +6897,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6931,7 +6931,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6965,7 +6965,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -6999,7 +6999,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7033,7 +7033,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7067,7 +7067,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7101,7 +7101,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7135,7 +7135,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7169,7 +7169,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7202,7 +7202,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -7235,7 +7235,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -7268,7 +7268,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -7301,7 +7301,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -7334,7 +7334,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -7367,7 +7367,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -7400,7 +7400,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -7433,7 +7433,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -7466,7 +7466,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -7499,7 +7499,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -7532,7 +7532,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -7565,7 +7565,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -7598,7 +7598,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7631,7 +7631,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7664,7 +7664,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -7697,7 +7697,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7730,7 +7730,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7763,7 +7763,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -7797,7 +7797,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.4,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -7831,7 +7831,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.5,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -7865,7 +7865,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.45,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -7899,7 +7899,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.55,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -7933,7 +7933,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.5,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -7967,7 +7967,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.6,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -8001,7 +8001,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.55,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -8035,7 +8035,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.65,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -8069,7 +8069,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.65,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -8103,7 +8103,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.75,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -8137,7 +8137,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.75,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -8171,7 +8171,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0.85,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     }
   ],
@@ -8200,7 +8200,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_mp",
@@ -8226,7 +8226,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pa",
@@ -8252,7 +8252,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_ma",
@@ -8278,7 +8278,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pd",
@@ -8304,7 +8304,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_md",
@@ -8330,7 +8330,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_speed",
@@ -8356,7 +8356,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_hp_mp",
@@ -8388,7 +8388,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pa_pd",
@@ -8420,7 +8420,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_ma_md",
@@ -8452,7 +8452,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pa_ma",
@@ -8484,7 +8484,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pd_md",
@@ -8516,7 +8516,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_pa_speed",
@@ -8548,7 +8548,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_ma_speed",
@@ -8580,7 +8580,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_mp_pa",
@@ -8612,7 +8612,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_hp_pd",
@@ -8644,7 +8644,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r1_mp_ma",
@@ -8676,7 +8676,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 3600
+      "price": 4000
     },
     {
       "id": "support_r2_hp",
@@ -8702,7 +8702,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_mp",
@@ -8728,7 +8728,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pa",
@@ -8754,7 +8754,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_ma",
@@ -8780,7 +8780,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pd",
@@ -8806,7 +8806,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_md",
@@ -8832,7 +8832,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_speed",
@@ -8858,7 +8858,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_hp_mp",
@@ -8890,7 +8890,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pa_pd",
@@ -8922,7 +8922,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_ma_md",
@@ -8954,7 +8954,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pa_ma",
@@ -8986,7 +8986,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pd_md",
@@ -9018,7 +9018,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_pa_speed",
@@ -9050,7 +9050,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_ma_speed",
@@ -9082,7 +9082,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_mp_pa",
@@ -9114,7 +9114,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_hp_pd",
@@ -9146,7 +9146,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r2_mp_ma",
@@ -9178,7 +9178,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 16200
+      "price": 16000
     },
     {
       "id": "support_r3_hp",
@@ -9204,7 +9204,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_mp",
@@ -9230,7 +9230,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pa",
@@ -9256,7 +9256,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_ma",
@@ -9282,7 +9282,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pd",
@@ -9308,7 +9308,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_md",
@@ -9334,7 +9334,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_speed",
@@ -9360,7 +9360,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_hp_mp",
@@ -9392,7 +9392,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pa_pd",
@@ -9424,7 +9424,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_ma_md",
@@ -9456,7 +9456,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pa_ma",
@@ -9488,7 +9488,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pd_md",
@@ -9520,7 +9520,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_pa_speed",
@@ -9552,7 +9552,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_ma_speed",
@@ -9584,7 +9584,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_mp_pa",
@@ -9616,7 +9616,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_hp_pd",
@@ -9648,7 +9648,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r3_mp_ma",
@@ -9680,7 +9680,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 64800
+      "price": 80000
     },
     {
       "id": "support_r4_hp",
@@ -9706,7 +9706,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_mp",
@@ -9732,7 +9732,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pa",
@@ -9758,7 +9758,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_ma",
@@ -9784,7 +9784,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pd",
@@ -9810,7 +9810,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_md",
@@ -9836,7 +9836,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_speed",
@@ -9862,7 +9862,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_hp_mp",
@@ -9894,7 +9894,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pa_pd",
@@ -9926,7 +9926,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_ma_md",
@@ -9958,7 +9958,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pa_ma",
@@ -9990,7 +9990,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pd_md",
@@ -10022,7 +10022,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_pa_speed",
@@ -10054,7 +10054,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_ma_speed",
@@ -10086,7 +10086,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_mp_pa",
@@ -10118,7 +10118,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_hp_pd",
@@ -10150,7 +10150,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r4_mp_ma",
@@ -10182,7 +10182,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 259200
+      "price": 480000
     },
     {
       "id": "support_r5_hp",
@@ -10208,7 +10208,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_mp",
@@ -10234,7 +10234,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pa",
@@ -10260,7 +10260,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_ma",
@@ -10286,7 +10286,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pd",
@@ -10312,7 +10312,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_md",
@@ -10338,7 +10338,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_speed",
@@ -10364,7 +10364,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_hp_mp",
@@ -10396,7 +10396,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pa_pd",
@@ -10428,7 +10428,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_ma_md",
@@ -10460,7 +10460,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pa_ma",
@@ -10492,7 +10492,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pd_md",
@@ -10524,7 +10524,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_pa_speed",
@@ -10556,7 +10556,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_ma_speed",
@@ -10588,7 +10588,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_mp_pa",
@@ -10620,7 +10620,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_hp_pd",
@@ -10652,7 +10652,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r5_mp_ma",
@@ -10684,7 +10684,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 1036800
+      "price": 3360000
     },
     {
       "id": "support_r6_hp",
@@ -10710,7 +10710,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_mp",
@@ -10736,7 +10736,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pa",
@@ -10762,7 +10762,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_ma",
@@ -10788,7 +10788,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pd",
@@ -10814,7 +10814,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_md",
@@ -10840,7 +10840,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_speed",
@@ -10866,7 +10866,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_hp_mp",
@@ -10898,7 +10898,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pa_pd",
@@ -10930,7 +10930,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_ma_md",
@@ -10962,7 +10962,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pa_ma",
@@ -10994,7 +10994,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pd_md",
@@ -11026,7 +11026,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_pa_speed",
@@ -11058,7 +11058,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_ma_speed",
@@ -11090,7 +11090,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_mp_pa",
@@ -11122,7 +11122,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_hp_pd",
@@ -11154,7 +11154,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "support_r6_mp_ma",
@@ -11186,7 +11186,7 @@
       ],
       "skillIsAoe": true,
       "skillTargetScope": "team",
-      "price": 4147200
+      "price": 26880000
     },
     {
       "id": "new_hp_pct_self_1",
@@ -11217,7 +11217,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11249,7 +11249,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11281,7 +11281,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11313,7 +11313,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11345,7 +11345,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11377,7 +11377,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -11409,7 +11409,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11441,7 +11441,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11473,7 +11473,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11505,7 +11505,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11537,7 +11537,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11569,7 +11569,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -11601,7 +11601,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11633,7 +11633,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11665,7 +11665,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11697,7 +11697,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11729,7 +11729,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11761,7 +11761,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -11793,7 +11793,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11825,7 +11825,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11857,7 +11857,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11889,7 +11889,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11921,7 +11921,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11953,7 +11953,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -11985,7 +11985,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12017,7 +12017,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12049,7 +12049,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12081,7 +12081,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12113,7 +12113,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12145,7 +12145,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -12177,7 +12177,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12209,7 +12209,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12241,7 +12241,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12273,7 +12273,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12305,7 +12305,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12337,7 +12337,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -12369,7 +12369,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12401,7 +12401,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12433,7 +12433,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12465,7 +12465,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12497,7 +12497,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12529,7 +12529,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -12561,7 +12561,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12593,7 +12593,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12625,7 +12625,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12657,7 +12657,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12689,7 +12689,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12721,7 +12721,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -12753,7 +12753,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12785,7 +12785,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12817,7 +12817,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12849,7 +12849,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12881,7 +12881,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12913,7 +12913,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -12945,7 +12945,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -12977,7 +12977,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13009,7 +13009,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13041,7 +13041,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13073,7 +13073,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13105,7 +13105,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13137,7 +13137,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13169,7 +13169,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13201,7 +13201,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13233,7 +13233,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13265,7 +13265,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13297,7 +13297,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13329,7 +13329,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13361,7 +13361,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13393,7 +13393,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13425,7 +13425,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13457,7 +13457,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13489,7 +13489,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -13523,7 +13523,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -13557,7 +13557,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -13591,7 +13591,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -13625,7 +13625,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -13659,7 +13659,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -13693,7 +13693,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -13727,7 +13727,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -13761,7 +13761,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -13795,7 +13795,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -13829,7 +13829,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13863,7 +13863,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13897,7 +13897,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -13931,7 +13931,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13965,7 +13965,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -13999,7 +13999,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -14033,7 +14033,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14067,7 +14067,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14101,7 +14101,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14134,7 +14134,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14167,7 +14167,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14200,7 +14200,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14233,7 +14233,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14266,7 +14266,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14299,7 +14299,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14332,7 +14332,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -14365,7 +14365,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -14398,7 +14398,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -14431,7 +14431,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -14464,7 +14464,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -14497,7 +14497,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -14530,7 +14530,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -14563,7 +14563,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -14596,7 +14596,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -14629,7 +14629,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14662,7 +14662,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14695,7 +14695,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -14728,7 +14728,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14761,7 +14761,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14794,7 +14794,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -14827,7 +14827,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14860,7 +14860,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14893,7 +14893,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -14926,7 +14926,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -14959,7 +14959,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -14992,7 +14992,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -15025,7 +15025,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -15058,7 +15058,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -15091,7 +15091,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -15124,7 +15124,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -15157,7 +15157,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -15190,7 +15190,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -15223,7 +15223,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -15256,7 +15256,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -15289,7 +15289,7 @@
       "skillTurnAdvancePercent": 0,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     },
     {
@@ -15322,7 +15322,7 @@
       "skillTurnAdvancePercent": 0.5,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 3600,
+      "price": 4000,
       "minRealm": 9
     },
     {
@@ -15355,7 +15355,7 @@
       "skillTurnAdvancePercent": 0.6,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 16200,
+      "price": 16000,
       "minRealm": 7
     },
     {
@@ -15388,7 +15388,7 @@
       "skillTurnAdvancePercent": 0.7,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 64800,
+      "price": 80000,
       "minRealm": 6
     },
     {
@@ -15421,7 +15421,7 @@
       "skillTurnAdvancePercent": 0.8,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 259200,
+      "price": 480000,
       "minRealm": 5
     },
     {
@@ -15454,7 +15454,7 @@
       "skillTurnAdvancePercent": 0.9,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 1036800,
+      "price": 3360000,
       "minRealm": 4
     },
     {
@@ -15487,7 +15487,7 @@
       "skillTurnAdvancePercent": 1,
       "skillDamageSharePercent": 0,
       "skillDamageLinkPercent": 0,
-      "price": 4147200,
+      "price": 26880000,
       "minRealm": 2
     }
   ],
@@ -15522,7 +15522,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "self",
       "minRealm": 9
     },
@@ -15556,7 +15556,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "self",
       "minRealm": 9
     },
@@ -15596,7 +15596,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "self",
       "minRealm": 9
     },
@@ -15630,7 +15630,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "team",
       "minRealm": 9
     },
@@ -15664,7 +15664,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "team",
       "minRealm": 9
     },
@@ -15704,7 +15704,7 @@
           "duration": 3
         }
       ],
-      "price": 20000,
+      "price": 4000,
       "skillTargetScope": "team",
       "minRealm": 9
     },
@@ -15738,7 +15738,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "self",
       "minRealm": 7
     },
@@ -15772,7 +15772,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "self",
       "minRealm": 7
     },
@@ -15812,7 +15812,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "self",
       "minRealm": 7
     },
@@ -15846,7 +15846,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "team",
       "minRealm": 7
     },
@@ -15880,7 +15880,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "team",
       "minRealm": 7
     },
@@ -15920,7 +15920,7 @@
           "duration": 3
         }
       ],
-      "price": 70000,
+      "price": 16000,
       "skillTargetScope": "team",
       "minRealm": 7
     },
@@ -15954,7 +15954,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "self",
       "minRealm": 6
     },
@@ -15988,7 +15988,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "self",
       "minRealm": 6
     },
@@ -16028,7 +16028,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "self",
       "minRealm": 6
     },
@@ -16062,7 +16062,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "team",
       "minRealm": 6
     },
@@ -16096,7 +16096,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "team",
       "minRealm": 6
     },
@@ -16136,7 +16136,7 @@
           "duration": 3
         }
       ],
-      "price": 210000,
+      "price": 80000,
       "skillTargetScope": "team",
       "minRealm": 6
     },
@@ -16170,7 +16170,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "self",
       "minRealm": 5
     },
@@ -16204,7 +16204,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "self",
       "minRealm": 5
     },
@@ -16244,7 +16244,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "self",
       "minRealm": 5
     },
@@ -16278,7 +16278,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "team",
       "minRealm": 5
     },
@@ -16312,7 +16312,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "team",
       "minRealm": 5
     },
@@ -16352,7 +16352,7 @@
           "duration": 3
         }
       ],
-      "price": 700000,
+      "price": 480000,
       "skillTargetScope": "team",
       "minRealm": 5
     },
@@ -16386,7 +16386,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "self",
       "minRealm": 4
     },
@@ -16420,7 +16420,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "self",
       "minRealm": 4
     },
@@ -16460,7 +16460,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "self",
       "minRealm": 4
     },
@@ -16494,7 +16494,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "team",
       "minRealm": 4
     },
@@ -16528,7 +16528,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "team",
       "minRealm": 4
     },
@@ -16568,7 +16568,7 @@
           "duration": 3
         }
       ],
-      "price": 1400000,
+      "price": 3360000,
       "skillTargetScope": "team",
       "minRealm": 4
     },
@@ -16602,7 +16602,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "self",
       "minRealm": 2
     },
@@ -16636,7 +16636,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "self",
       "minRealm": 2
     },
@@ -16676,7 +16676,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "self",
       "minRealm": 2
     },
@@ -16710,7 +16710,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "team",
       "minRealm": 2
     },
@@ -16744,7 +16744,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "team",
       "minRealm": 2
     },
@@ -16784,7 +16784,7 @@
           "duration": 3
         }
       ],
-      "price": 7000000,
+      "price": 26880000,
       "skillTargetScope": "team",
       "minRealm": 2
     }

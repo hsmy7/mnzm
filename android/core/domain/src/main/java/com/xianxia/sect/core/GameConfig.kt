@@ -164,12 +164,24 @@ object GameConfig {
 
     object Rarity {
         val CONFIGS = mapOf(
-            1 to RarityConfig(1, "凡品", "#b8b8b8", 1.0, 20000, 16000, 1000),
-            2 to RarityConfig(2, "灵品", "#afcb8a", 1.3, 70000, 56000, 3500),
-            3 to RarityConfig(3, "宝品", "#9fc2ee", 1.6, 210000, 168000, 10500),
-            4 to RarityConfig(4, "玄品", "#c0a2dd", 2.0, 700000, 560000, 35000),
-            5 to RarityConfig(5, "地品", "#e7c67d", 2.5, 1400000, 1120000, 70000),
-            6 to RarityConfig(6, "天品", "#e3a0a0", 3.2, 7000000, 5600000, 350000)
+            1 to RarityConfig(1, "凡品", "#b8b8b8", 1.0,
+                basePrice = 4000, pillBasePrice = 4000, materialBasePrice = 400,
+                herbPrice = 400, seedPrice = 80),
+            2 to RarityConfig(2, "灵品", "#afcb8a", 1.3,
+                basePrice = 16000, pillBasePrice = 16000, materialBasePrice = 1600,
+                herbPrice = 1600, seedPrice = 320),
+            3 to RarityConfig(3, "宝品", "#9fc2ee", 1.6,
+                basePrice = 80000, pillBasePrice = 80000, materialBasePrice = 8000,
+                herbPrice = 8000, seedPrice = 1600),
+            4 to RarityConfig(4, "玄品", "#c0a2dd", 2.0,
+                basePrice = 480000, pillBasePrice = 480000, materialBasePrice = 48000,
+                herbPrice = 48000, seedPrice = 9600),
+            5 to RarityConfig(5, "地品", "#e7c67d", 2.5,
+                basePrice = 3360000, pillBasePrice = 3360000, materialBasePrice = 336000,
+                herbPrice = 336000, seedPrice = 67200),
+            6 to RarityConfig(6, "天品", "#e3a0a0", 3.2,
+                basePrice = 26880000, pillBasePrice = 26880000, materialBasePrice = 2688000,
+                herbPrice = 2688000, seedPrice = 537600)
         )
         
         fun get(rarity: Int): RarityConfig = CONFIGS[rarity] ?: CONFIGS.getValue(1)
@@ -666,7 +678,9 @@ object GameConfig {
         val multiplier: Double,
         val basePrice: Int,
         val pillBasePrice: Int = 0,
-        val materialBasePrice: Int = 0
+        val materialBasePrice: Int = 0,
+        val herbPrice: Int = 0,
+        val seedPrice: Int = 0
     )
     
     data class RealmConfig(

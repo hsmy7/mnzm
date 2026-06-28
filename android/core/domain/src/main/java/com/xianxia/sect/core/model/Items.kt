@@ -8,6 +8,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
@@ -70,7 +71,8 @@ data class EquipmentStack(
 
     override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
+    val basePrice: Int get() = EquipmentDatabase.getTemplateByName(name)?.price
+        ?: GameConfig.Rarity.get(rarity).basePrice
 
     val stats: EquipmentStats get() = EquipmentStats(
         physicalAttack = physicalAttack,
@@ -147,7 +149,8 @@ data class EquipmentInstance(
     val isEquipped: Boolean = false
 ) : GameItem() {
 
-    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
+    val basePrice: Int get() = EquipmentDatabase.getTemplateByName(name)?.price
+        ?: GameConfig.Rarity.get(rarity).basePrice
 
     val stats: EquipmentStats get() = EquipmentStats(
         physicalAttack = physicalAttack,
@@ -857,7 +860,7 @@ data class Herb(
 
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).herbPrice
 }
 
 @Keep
@@ -891,7 +894,7 @@ data class Seed(
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).seedPrice
 }
 
 @Entity(tableName = "storage_bags")

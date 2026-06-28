@@ -12,9 +12,9 @@ object HerbDatabase {
         val category: String,
         val description: String
     ) {
-        val price: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+        val price: Int get() = GameConfig.Rarity.get(rarity).herbPrice
     }
-    
+
     data class Seed(
         val id: String,
         val name: String,
@@ -24,7 +24,7 @@ object HerbDatabase {
         val yield: Int,
         val description: String
     ) {
-        val price: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+        val price: Int get() = GameConfig.Rarity.get(rarity).seedPrice
     }
 
     private val tier1Herbs = listOf(
