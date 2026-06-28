@@ -1,88 +1,25 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.33] - 2026-06-28（versionCode=4033）
-
-### 重构
-
-- **统一物品价格体系**
-  - 消除两套价格：RarityConfig 理论价与模板数据库实际价合并为统一价格源
-  - 装备/功法/丹药（中品）同品阶价格统一：凡品4000→灵品16000(4x)→宝品80000(5x)→玄品480000(6x)→地品3360000(7x)→天品26880000(8x)，品阶差距逐级递增
-  - 材料价格 = 基准价×10%（凡品400、天品268.8万），远低于同品阶装备
-  - 草药价格 = 基准价×10%（同材料），远低于同品阶丹药
-  - 种子价格 = 基准价×2%（凡品80、天品53.76万），远低于同品阶草药
-  - 售卖价统一为原价×80%，卖价不再高于买价
-
-## [4.0.32] - 2026-06-28（versionCode=4032）
-
-### 重构
-
-- **价格体系重构：清理 PRICE_MULTIPLIER 全局折扣系数**
-  - 移除 `GameConfig.Rarity.PRICE_MULTIPLIER`（原值 0.9）及所有引用（Items、MerchantAndRecruitService、DiplomacyService、GameConfigData、game_config.json）
-  - 商人/宗门交易价格恢复为物品原价（±20% 波动），不再有隐式 9 折
-  - 售卖/上架/一键售卖价格 = 原价 × 80%（SELL_PRICE_MULTIPLIER 保持不变），此前实际为原价 × 72%（0.9 × 0.8）
-
-## [4.0.31] - 2026-06-28（versionCode=4031）
-
-### 修复
-
-- **一次性丹药服用记录存档丢失导致可无限刷属性**
-  - 根因：`usedPermanentPillKeys`（永久属性丹去重）、`usedExtendLifePillTypes`（延寿丹去重）、`activePillTypes`（临时丹药去重）三个 `Set<String>` 字段在 Protobuf 序列化路径中缺失，大退或切后台自动保存时这三个追踪字段丢失，读档后为空 Set，丹药防重复检查失效
-  - 修复：在 `SerializableDisciple` ProtoBuf schema 中新增三个字段（ProtoNumber 87/88/89），`DiscipleConverter` 增加 `toList()`/`toSet()` 双向转换
-  - 防御：移除 `onStop()` → `pauseAndSaveForBackground()` 退出自动保存，改为仅暂停游戏循环（`pauseForBackground()`）。避免不完整序列化在后台保存时覆盖正确存档
-
-## [4.0.30] - 2026-06-28（versionCode=4030）
-
-### 修复
-
-- **华为畅想70x 第二次进入游戏时间停止**
-  - 根因：退出游戏时 `GameForegroundService.onDestroy()` 只调用 `stopGameLoop()` 不调用 `shutdown()`，导致进程存活时 `@Singleton GameEngineCore` 的 `isInitialized` 保持为 true、看门狗累计失败计数跨 session 残留、`engineScope` 状态未重建，第二次进入时游戏循环在污染状态下运行
-  - 修复：`onDestroy()` 改为调用 `shutdown()` 确保 `systemManager.releaseAll()` + `isInitialized=false` + `engineScope` 重建
-  - 防御：`startGameLoop()` 增加 `watchdogRecoveryAttempts = 0` 防止跨 session 看门狗降级残留
-  - 防御：看门狗新增"假运行"检测——tickCount 递增但游戏月份/年份长时间不变时触发恢复
-  - 防御：`SystemManager` 所有 `catch (e: Exception)` 前增加 `CancellationException` 重抛，防止协同取消传播链断裂
-  - 防御：`antiFreezeDelay` API < 33 空忙等循环增加 volatile 读取防止 JIT 优化消除
-
-## [4.0.29] - 2026-06-27（versionCode=4029）
-
-### 修复
-
-- **宗门地图界面灵石没有每月产出结算**：灵矿产出从域路由系统移至月度结算，每游戏月固定触发；引入灵矿产出指纹和phase快照机制，月内矿工变化时自动正确分摊
-- **重构年俸系统**：年俸移至年度结算路径每年1月发放；灵石不足全员不发（不再降忠诚）；支持中品/上品补差价找零退回下品；发放后忠诚+1
-
-## [4.0.28] - 2026-06-27（versionCode=4028）
-
-### 优化
-
-- **战斗前全量结算出战弟子数据**：发生战斗时所有出战弟子（手动进攻、被攻击防御、驻军防守）的数据全部追赶结算一遍，包括突破检测、装备孕养、功法熟练度、HP/MP 恢复，确保出战弟子均为最新数据最新战力
-
-## [4.0.27] - 2026-06-27（versionCode=4027）
-
-### 修复
-
-- **华为畅享70游戏时间不动（第二轮修复）**
-  - 根因：`OemPowerProfile` 华为 `antiFreezeBusyInterval=64` 需 128ms 累积延迟才触发一次忙等，但 tick 间隔仅 100ms，忙等条件永不为真，防挂起机制完全禁用
-  - 修复：华为参数与 vivo OriginOS 同级（busyInterval 64→12，busyDuration 2ms→4ms，watchdogInterval 5s→3s），占空比 0%→15%
-  - 防御：`GameForegroundService.startForeground()` 增加异常保护，通知权限被拒时游戏循环仍正常启动
-  - 防御：`GameActivity.onResume()` 增加 Android 13+ `POST_NOTIFICATIONS` 运行时权限请求
-
-### 重构
-
-- **结算系统彻底重构：移除空闲/活跃双模式，统一为四轨结算架构**
-  - 移除 `BatchMode` 枚举（IDLE/ACTIVE_NON_FOCUS）及相关热控分批逻辑 `resolveThermalBatchSize`
-  - 删除空闲状态字段（`isInIdleState`/`lastUserInteractionTime`/`pendingReturnFromIdleSettle`）和辅助方法（`enterIdleMode`/`cleanupIdleState`/`doIdleFullSettle`）
-  - 统一 `tickInternal()` 为单一路径，消除 ~150 行重复的双分支代码
-  - 删除 `scheduleMonthly`，月度生产/经济/邮件/子嗣/伙伴/探索系统全部迁入 `onPhaseTick` 批量轨
-  - 简化 `scheduleYearly` 仅保留年度阶段（老化/死亡/招募/盟约）
-  - 移除 `SystemManager` 热控联动检查，简化 `onPhaseTickWithDomainFilter`
-  - 清理 `GameEngineCoordination` 中冗余的 `onUserInteraction()` 调用链
-  - 删除 `ProductionRateFingerprint` 依赖、`fullIdleSettle` 死代码、`SettlementCoordinatorCultivationTest`/`IdleModeSettlementTest` 过时测试
-- **最终结算路径收敛为 4 条**：实时轨（100ms，焦点域+≥80%进度）→ 批量轨（30s，非焦点域+<80%进度）→ 月度事件（外交/盗窃/任务/商人）→ 年度结算（老化/死亡/招募/盟约）。每个系统仅在单一路径上运行，彻底杜绝双计可能
-
-## [4.0.25] - 2026-06-27（versionCode=4025）
+## [4.0.25] - 2026-06-28（versionCode=4025）
 
 ### 修复
 
 - **修复空闲模式修炼进度回滚** — 空闲模式下批量轨 swap 时影子内的修炼值为 30 秒前旧快照，覆盖主状态后实时轨（焦点域）的修炼进度被回滚，导致弟子列表长时间无交互时境界不变化。修复方案：批量轨 swap 前将实时轨正在管的字段（修炼值/HP/MP/大境界）从主状态同步到影子，确保批量轨不越界覆盖实时轨的数据
+- **华为畅享70游戏时间不动（第二轮修复）** — 根因：`OemPowerProfile` 华为 `antiFreezeBusyInterval=64` 需 128ms 累积延迟才触发一次忙等，但 tick 间隔仅 100ms，忙等条件永不为真，防挂起机制完全禁用。修复：华为参数与 vivo OriginOS 同级（busyInterval 64→12，busyDuration 2ms→4ms，watchdogInterval 5s→3s），占空比 0%→15%。防御：`GameForegroundService.startForeground()` 增加异常保护，通知权限被拒时游戏循环仍正常启动；`GameActivity.onResume()` 增加 Android 13+ `POST_NOTIFICATIONS` 运行时权限请求
+- **华为畅想70x 第二次进入游戏时间停止** — 根因：退出游戏时 `GameForegroundService.onDestroy()` 只调用 `stopGameLoop()` 不调用 `shutdown()`，导致进程存活时 `@Singleton GameEngineCore` 的 `isInitialized` 保持为 true、看门狗累计失败计数跨 session 残留、`engineScope` 状态未重建，第二次进入时游戏循环在污染状态下运行。修复：`onDestroy()` 改为调用 `shutdown()` 确保 `systemManager.releaseAll()` + `isInitialized=false` + `engineScope` 重建。防御：`startGameLoop()` 增加 `watchdogRecoveryAttempts = 0` 防止跨 session 看门狗降级残留；看门狗新增"假运行"检测——tickCount 递增但游戏月份/年份长时间不变时触发恢复；`SystemManager` 所有 `catch (e: Exception)` 前增加 `CancellationException` 重抛，防止协同取消传播链断裂；`antiFreezeDelay` API < 33 空忙等循环增加 volatile 读取防止 JIT 优化消除
+- **一次性丹药服用记录存档丢失导致可无限刷属性** — 根因：`usedPermanentPillKeys`（永久属性丹去重）、`usedExtendLifePillTypes`（延寿丹去重）、`activePillTypes`（临时丹药去重）三个 `Set<String>` 字段在 Protobuf 序列化路径中缺失，大退或切后台自动保存时这三个追踪字段丢失，读档后为空 Set，丹药防重复检查失效。修复：在 `SerializableDisciple` ProtoBuf schema 中新增三个字段（ProtoNumber 87/88/89），`DiscipleConverter` 增加 `toList()`/`toSet()` 双向转换。防御：移除 `onStop()` → `pauseAndSaveForBackground()` 退出自动保存，改为仅暂停游戏循环（`pauseForBackground()`），避免不完整序列化在后台保存时覆盖正确存档
+- **宗门地图界面灵石没有每月产出结算** — 灵矿产出从域路由系统移至月度结算，每游戏月固定触发；引入灵矿产出指纹和phase快照机制，月内矿工变化时自动正确分摊
+
+### 重构
+
+- **结算系统彻底重构：移除空闲/活跃双模式，统一为四轨结算架构** — 移除 `BatchMode` 枚举（IDLE/ACTIVE_NON_FOCUS）及相关热控分批逻辑 `resolveThermalBatchSize`；删除空闲状态字段（`isInIdleState`/`lastUserInteractionTime`/`pendingReturnFromIdleSettle`）和辅助方法（`enterIdleMode`/`cleanupIdleState`/`doIdleFullSettle`）；统一 `tickInternal()` 为单一路径，消除 ~150 行重复的双分支代码；删除 `scheduleMonthly`，月度生产/经济/邮件/子嗣/伙伴/探索系统全部迁入 `onPhaseTick` 批量轨；简化 `scheduleYearly` 仅保留年度阶段（老化/死亡/招募/盟约）；移除 `SystemManager` 热控联动检查，简化 `onPhaseTickWithDomainFilter`；清理 `GameEngineCoordination` 中冗余的 `onUserInteraction()` 调用链；删除 `ProductionRateFingerprint` 依赖、`fullIdleSettle` 死代码、`SettlementCoordinatorCultivationTest`/`IdleModeSettlementTest` 过时测试。最终结算路径收敛为 4 条：实时轨（100ms，焦点域+≥80%进度）→ 批量轨（30s，非焦点域+<80%进度）→ 月度事件（外交/盗窃/任务/商人）→ 年度结算（老化/死亡/招募/盟约）。每个系统仅在单一路径上运行，彻底杜绝双计可能
+- **重构年俸系统** — 年俸移至年度结算路径每年1月发放；灵石不足全员不发（不再降忠诚）；支持中品/上品补差价找零退回下品；发放后忠诚+1
+- **价格体系重构：清理 PRICE_MULTIPLIER 全局折扣系数** — 移除 `GameConfig.Rarity.PRICE_MULTIPLIER`（原值 0.9）及所有引用（Items、MerchantAndRecruitService、DiplomacyService、GameConfigData、game_config.json）；商人/宗门交易价格恢复为物品原价（±20% 波动），不再有隐式 9 折；售卖/上架/一键售卖价格 = 原价 × 80%（SELL_PRICE_MULTIPLIER 保持不变），此前实际为原价 × 72%（0.9 × 0.8）
+- **统一物品价格体系** — 消除两套价格：RarityConfig 理论价与模板数据库实际价合并为统一价格源；装备/功法/丹药（中品）同品阶价格统一：凡品4000→灵品16000(4x)→宝品80000(5x)→玄品480000(6x)→地品3360000(7x)→天品26880000(8x)，品阶差距逐级递增；材料价格 = 基准价×10%（凡品400、天品268.8万），远低于同品阶装备；草药价格 = 基准价×10%（同材料），远低于同品阶丹药；种子价格 = 基准价×2%（凡品80、天品53.76万），远低于同品阶草药；售卖价统一为原价×80%，卖价不再高于买价
+
+### 优化
+
+- **战斗前全量结算出战弟子数据** — 发生战斗时所有出战弟子（手动进攻、被攻击防御、驻军防守）的数据全部追赶结算一遍，包括突破检测、装备孕养、功法熟练度、HP/MP 恢复，确保出战弟子均为最新数据最新战力
 
 ## [4.0.24] - 2026-06-26（versionCode=4024）
 
