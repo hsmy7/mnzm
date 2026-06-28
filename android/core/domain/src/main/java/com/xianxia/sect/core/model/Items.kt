@@ -70,7 +70,7 @@ data class EquipmentStack(
 
     override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
     val stats: EquipmentStats get() = EquipmentStats(
         physicalAttack = physicalAttack,
@@ -147,7 +147,7 @@ data class EquipmentInstance(
     val isEquipped: Boolean = false
 ) : GameItem() {
 
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
     val stats: EquipmentStats get() = EquipmentStats(
         physicalAttack = physicalAttack,
@@ -327,7 +327,7 @@ data class ManualStack(
 
     override fun withQuantity(newQuantity: Int): ManualStack = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
     fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null, isLearned: Boolean = true): ManualInstance = ManualInstance(
         id = id,
@@ -420,7 +420,7 @@ data class ManualInstance(
     val isLearned: Boolean = false
 ) : GameItem() {
 
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
     private fun parseBuffType(bt: String): BuffType? = when (bt) {
         "physical_attack" -> BuffType.PHYSICAL_ATTACK_BOOST
@@ -634,7 +634,7 @@ data class Pill(
     
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier).roundToInt()
     
     val breakthroughChance: Double get() = effects.breakthroughChance
     val targetRealm: Int get() = effects.targetRealm
@@ -788,10 +788,10 @@ data class Material(
     override var quantity: Int = 1,
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
-    
+
     override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
-    
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
 @Keep
@@ -854,10 +854,10 @@ data class Herb(
     override var quantity: Int = 1,
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
-    
+
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
-    
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
 @Keep
@@ -891,7 +891,7 @@ data class Seed(
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
 
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
 @Entity(tableName = "storage_bags")

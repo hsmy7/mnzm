@@ -51,7 +51,6 @@
     "capacityPerBuilding": 50
   },
   "rarity": {
-    "priceMultiplier": 0.9,
     "sellPriceMultiplier": 0.8
   },
   "starting": {

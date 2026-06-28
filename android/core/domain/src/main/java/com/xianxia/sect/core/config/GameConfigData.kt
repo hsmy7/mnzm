@@ -104,7 +104,6 @@ data class GameConfigData(
 
     @Serializable
     data class RaritySection(
-        val priceMultiplier: Double = 0.9,
         val sellPriceMultiplier: Double = 0.8
     )
 

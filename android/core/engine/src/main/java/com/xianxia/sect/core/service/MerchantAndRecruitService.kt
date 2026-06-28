@@ -108,14 +108,14 @@ class MerchantAndRecruitService @Inject constructor(
         EquipmentDatabase.allTemplates.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "equipment"))
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            pools.priceMap[t.name] = t.price.toLong()
         }
 
         if (ManualDatabase.isInitialized) {
             ManualDatabase.allManuals.values.forEach { t ->
                 pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "manual"))
                 pools.rarityMap[t.name] = t.rarity
-                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+                pools.priceMap[t.name] = t.price.toLong()
             }
         }
 
@@ -125,26 +125,26 @@ class MerchantAndRecruitService @Inject constructor(
                 addedPillNames.add(t.name)
                 pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "pill"))
                 pools.rarityMap[t.name] = t.rarity
-                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+                pools.priceMap[t.name] = t.price.toLong()
             }
         }
 
         ItemDatabase.allMaterials.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "material"))
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            pools.priceMap[t.name] = t.price.toLong()
         }
 
         HerbDatabase.getAllHerbs().forEach { h ->
             pools.poolByRarity.getOrPut(h.rarity) { mutableListOf() }.add(PoolEntry(h.name, "herb"))
             pools.rarityMap[h.name] = h.rarity
-            pools.priceMap[h.name] = (h.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            pools.priceMap[h.name] = h.price.toLong()
         }
 
         HerbDatabase.getAllSeeds().forEach { s ->
             pools.poolByRarity.getOrPut(s.rarity) { mutableListOf() }.add(PoolEntry(s.name, "seed"))
             pools.rarityMap[s.name] = s.rarity
-            pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            pools.priceMap[s.name] = s.price.toLong()
         }
 
         // 中品/上品灵石加入旅行商人与收购池（价格按下品结算）
@@ -218,7 +218,7 @@ class MerchantAndRecruitService @Inject constructor(
     ): MerchantItem {
         val rarity = forcedRarity ?: pools.rarityMap[entry.name] ?: 1
         val basePrice = pools.priceMap[entry.name]
-            ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            ?: GameConfig.Rarity.get(rarity).materialBasePrice.toLong()
         val quantity = calculateMerchantStock(entry.type, rarity)
 
         val grade: PillGrade? = if (entry.type == "pill") selectMerchantPillGrade() else null

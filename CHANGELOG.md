@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.32] - 2026-06-28（versionCode=4032）
+
+### 重构
+
+- **价格体系重构：清理 PRICE_MULTIPLIER 全局折扣系数**
+  - 移除 `GameConfig.Rarity.PRICE_MULTIPLIER`（原值 0.9）及所有引用（Items、MerchantAndRecruitService、DiplomacyService、GameConfigData、game_config.json）
+  - 商人/宗门交易价格恢复为物品原价（±20% 波动），不再有隐式 9 折
+  - 售卖/上架/一键售卖价格 = 原价 × 80%（SELL_PRICE_MULTIPLIER 保持不变），此前实际为原价 × 72%（0.9 × 0.8）
+
 ## [4.0.31] - 2026-06-28（versionCode=4031）
 
 ### 修复
