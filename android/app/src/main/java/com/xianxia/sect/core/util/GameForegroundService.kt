@@ -129,11 +129,16 @@ class GameForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        gameEngineCore.stopGameLoop()
+        // 调用 shutdown() 而非 stopGameLoop()，确保完整释放：
+        // - systemManager.releaseAll() 释放所有系统
+        // - isInitialized = false 允许下次启动重新初始化
+        // - engineScope / engineJob 重建，防止跨 session 状态污染
+        // （stopGameLoop 仅取消 gameLoopJob，不会重置上述状态）
+        gameEngineCore.shutdown()
         wakeLockManager.release()
         // 取消 AlarmManager 精确闹钟
         AlarmWatchdogReceiver.cancelAlarm(this)
-        Log.d(TAG, "onDestroy: game loop stopped, wakeLock released, alarm cancelled")
+        Log.d(TAG, "onDestroy: engine shutdown, wakeLock released, alarm cancelled")
         super.onDestroy()
     }
 

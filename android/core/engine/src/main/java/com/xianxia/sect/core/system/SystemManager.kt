@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -109,6 +110,8 @@ class SystemManager @Inject constructor(
                 try {
                     system.release()
                     DomainLog.d(TAG, "System ${system.systemName} released")
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     DomainLog.e(TAG, "Failed to release system ${system.systemName}", e)
                 }
@@ -179,6 +182,8 @@ class SystemManager @Inject constructor(
                     try {
                         system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))
                         markExecuted(domain)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         DomainLog.e(TAG, "Error in ${system.systemName}", e)
                         _errors.trySend(SystemError(system.systemName, "tick", e))
@@ -199,6 +204,8 @@ class SystemManager @Inject constructor(
                                 try {
                                     system.onPhaseTick(state, phasesToSettle = getPhasesToSettle(domain))
                                     markExecuted(domain)
+                                } catch (e: CancellationException) {
+                                    throw e
                                 } catch (e: Exception) {
                                     DomainLog.e(TAG, "Error in ${system.systemName}", e)
                                     _errors.trySend(SystemError(system.systemName, "tick", e))
@@ -228,6 +235,8 @@ class SystemManager @Inject constructor(
                 val system = group.first()
                 try {
                     action(system, state)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     DomainLog.e(TAG, "Error in ${system.systemName}", e)
                     _errors.trySend(SystemError(system.systemName, "tick", e))
@@ -238,6 +247,8 @@ class SystemManager @Inject constructor(
                         launch {
                             try {
                                 action(system, state)
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 DomainLog.e(TAG, "Error in ${system.systemName}", e)
                                 _errors.trySend(SystemError(system.systemName, "tick", e))

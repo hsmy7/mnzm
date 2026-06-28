@@ -223,6 +223,10 @@ class GameEngineCore @Inject constructor(
             return
         }
 
+        // 全新启动时重置看门狗累计失败计数，防止跨 session 残留
+        // 导致第二次进入游戏时看门狗以降级模式（30s 间隔）启动
+        watchdogRecoveryAttempts = 0
+
         gameClock.start()
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
@@ -376,6 +380,10 @@ class GameEngineCore @Inject constructor(
         }
         watchdogJob = CoroutineScope(WATCHDOG_DISPATCHER + SupervisorJob()).launch {
             var lastTickCount = _tickCount.value
+            // 游戏时间推进检测：tickCount 递增但月份不变 → "假运行"
+            var lastGameMonth = stateStore.gameData.value.gameMonth
+            var lastGameYear = stateStore.gameData.value.gameYear
+            var fakeRunningCount = 0
             // 当前退避间隔：失败后翻倍递增（如 3s→6s→12s→24s→30s 上限），成功后重置为初始间隔
             var currentBackoffMs = effectiveBaseMs
             while (isActive) {
@@ -407,6 +415,26 @@ class GameEngineCore @Inject constructor(
                     currentBackoffMs = computeWatchdogBackoff(
                         currentBackoffMs, baseIntervalMs, hasRecovered = true
                     )
+                    // 检测"假运行"：tickCount 在递增但游戏月份/年份长时间不变
+                    // 可能原因：forceConsumeOnePhase 死循环、isSaving 频繁翻转等
+                    val currentMonth = stateStore.gameData.value.gameMonth
+                    val currentYear = stateStore.gameData.value.gameYear
+                    if (currentMonth == lastGameMonth && currentYear == lastGameYear) {
+                        fakeRunningCount++
+                        if (fakeRunningCount >= 3) {
+                            DomainLog.w(TAG,
+                                "Watchdog: tick advancing but game time stuck " +
+                                "(month=$currentMonth, year=$currentYear, " +
+                                "fakeRunningCount=$fakeRunningCount) — force restarting")
+                            restartGameLoopInternal()
+                            fakeRunningCount = 0
+                            // 不计入退避（这是独立于 tick 停滞的另一种故障模式）
+                        }
+                    } else {
+                        fakeRunningCount = 0
+                        lastGameMonth = currentMonth
+                        lastGameYear = currentYear
+                    }
                 }
                 lastTickCount = currentTickCount
             }
@@ -437,8 +465,13 @@ class GameEngineCore @Inject constructor(
         gameClock.consumeDeadTime()
         // 重新设置 paused 为 false（如果之前被错误地卡在 true）
         stateStore.setPausedDirect(false)
+        // 保存看门狗累计失败计数（startGameLoop 会将其重置为 0，
+        // 但看门狗自恢复时应保留降级模式状态）
+        val savedWatchdogAttempts = watchdogRecoveryAttempts
         // 重启循环
         startGameLoop()
+        // 恢复看门狗计数，使降级模式在下次看门狗启动时得以保持
+        watchdogRecoveryAttempts = savedWatchdogAttempts
     }
 
     private fun stopWatchdog() {
@@ -848,10 +881,17 @@ class GameEngineCore @Inject constructor(
             if (remaining > 0 && cycleCount % busyInterval == 0L) {
                 // 忙等循环：周期性保持线程 RUNNABLE 打破 OEM 空闲检测。
                 // API 33+：忙等循环内调用 Thread.onSpinWait() 作为 CPU 优化提示。
+                // API < 33：显式读取 volatile 变量 _tickCount.value 防止 JIT
+                // 编译器将空循环体优化消除（第二次启动 JIT 已预热，优化更激进）。
+                // 华为 EMUI/HarmonyOS 的 PowerGenie 空闲检测窗口 ~50-100ms。
                 val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
                 while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
                     if (Build.VERSION.SDK_INT >= 33) {
                         Thread.onSpinWait()
+                    } else {
+                        // volatile 读取 → 内存屏障，JIT 无法消除循环
+                        @Suppress("UNUSED_EXPRESSION")
+                        _tickCount.value
                     }
                 }
             }

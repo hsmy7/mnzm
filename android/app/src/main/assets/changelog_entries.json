@@ -1,5 +1,12 @@
 [
 	{
+		"date": "2026-06-28",
+		"version": "4.0.30",
+		"changes": [
+			"修复：华为畅想70x第二次进入游戏时间停止——退出时增加shutdown()完整清理引擎状态，防止跨session看门狗降级残留，看门狗新增假运行检测，修复SystemManager中CancellationException被吞没导致协同取消传播链断裂，防冻结忙等循环增加JIT优化防护"
+		]
+	},
+	{
 		"date": "2026-06-27",
 		"version": "4.0.29",
 		"changes": [

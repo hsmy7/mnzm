@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.30] - 2026-06-28（versionCode=4030）
+
+### 修复
+
+- **华为畅想70x 第二次进入游戏时间停止**
+  - 根因：退出游戏时 `GameForegroundService.onDestroy()` 只调用 `stopGameLoop()` 不调用 `shutdown()`，导致进程存活时 `@Singleton GameEngineCore` 的 `isInitialized` 保持为 true、看门狗累计失败计数跨 session 残留、`engineScope` 状态未重建，第二次进入时游戏循环在污染状态下运行
+  - 修复：`onDestroy()` 改为调用 `shutdown()` 确保 `systemManager.releaseAll()` + `isInitialized=false` + `engineScope` 重建
+  - 防御：`startGameLoop()` 增加 `watchdogRecoveryAttempts = 0` 防止跨 session 看门狗降级残留
+  - 防御：看门狗新增"假运行"检测——tickCount 递增但游戏月份/年份长时间不变时触发恢复
+  - 防御：`SystemManager` 所有 `catch (e: Exception)` 前增加 `CancellationException` 重抛，防止协同取消传播链断裂
+  - 防御：`antiFreezeDelay` API < 33 空忙等循环增加 volatile 读取防止 JIT 优化消除
+
 ## [4.0.29] - 2026-06-27（versionCode=4029）
 
 ### 修复

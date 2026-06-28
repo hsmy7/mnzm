@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.state.MutableGameState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -420,6 +421,135 @@ class SystemManagerDomainRoutingTest {
         assertEquals(
             "Phase1System(sP=1) 非活跃域 currentPhase=2 → 应跳过",
             0, phase1.records.size
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CancellationException 传播测试（规范 1.4）
+    // ═══════════════════════════════════════════════════════════════
+
+    @SystemPriority(order = 10)
+    private class CancellationThrowingPhaseSystem : GameSystem {
+        override val systemName = "CancellationThrowingPhaseSystem"
+        override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+            throw CancellationException("phase tick cancelled")
+        }
+    }
+
+    @SystemPriority(order = 10)
+    private class CancellationThrowingMonthSystem : GameSystem {
+        override val systemName = "CancellationThrowingMonthSystem"
+        override suspend fun onMonthTick(state: MutableGameState) {
+            throw CancellationException("month tick cancelled")
+        }
+    }
+
+    @SystemPriority(order = 10)
+    private class CancellationThrowingReleaseSystem : GameSystem {
+        override val systemName = "CancellationThrowingReleaseSystem"
+        override fun release() {
+            throw CancellationException("release cancelled")
+        }
+    }
+
+    @SystemPriority(order = 10)
+    private class NormalCompanionSystem : GameSystem {
+        override val systemName = "NormalCompanionSystem"
+        val phaseCalled = AtomicInteger(0)
+        override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+            phaseCalled.incrementAndGet()
+        }
+        override suspend fun onMonthTick(state: MutableGameState) {
+            // no-op for parallel group tests
+        }
+        override fun release() {
+            // no-op for release tests
+        }
+    }
+
+    @Test(expected = CancellationException::class)
+    fun `CancellationException - onPhaseTick single system propagates`() = runBlocking {
+        val throwing = CancellationThrowingPhaseSystem()
+        val mgr = SystemManager(setOf(throwing))
+        val state = mock(MutableGameState::class.java)
+
+        mgr.onPhaseTickWithDomainFilter(
+            state = state,
+            activeDomains = emptySet(),
+            shouldExecute = { _, _ -> true },
+            markExecuted = {},
+            currentPhase = 1
+        )
+    }
+
+    @Test
+    fun `CancellationException - onPhaseTick parallel group handled by coroutineScope`() =
+        runBlocking {
+            val throwing = CancellationThrowingPhaseSystem()
+            val companion = NormalCompanionSystem()
+            val mgr = SystemManager(setOf(throwing, companion))
+            val state = mock(MutableGameState::class.java)
+
+            // 并行组中 CancellationException 由 coroutineScope 处理，
+            // 不会被吞为普通 Exception（修复前会被 catch(e: Exception) 吞掉）
+            // coroutineScope 收到子协程的 CE 后取消其他子协程但不传播到外层
+            mgr.onPhaseTickWithDomainFilter(
+                state = state,
+                activeDomains = emptySet(),
+                shouldExecute = { _, _ -> true },
+                markExecuted = {},
+                currentPhase = 1
+            )
+            // 验证：方法正常返回（不抛异常），companion 被取消前可能已执行
+        }
+
+    @Test(expected = CancellationException::class)
+    fun `CancellationException - onMonthTick single system propagates`() = runBlocking {
+        val throwing = CancellationThrowingMonthSystem()
+        val mgr = SystemManager(setOf(throwing))
+        val state = mock(MutableGameState::class.java)
+
+        mgr.onMonthTick(state)
+    }
+
+    @Test
+    fun `CancellationException - onMonthTick parallel group handled by coroutineScope`() =
+        runBlocking {
+            val throwing = CancellationThrowingMonthSystem()
+            val companion = NormalCompanionSystem()
+            val mgr = SystemManager(setOf(throwing, companion))
+            val state = mock(MutableGameState::class.java)
+
+            mgr.onMonthTick(state)
+            // 验证：方法正常返回，coroutineScope 内部处理 CE
+        }
+
+    @Test(expected = CancellationException::class)
+    fun `CancellationException — release 传播`() {
+        val throwing = CancellationThrowingReleaseSystem()
+        val mgr = SystemManager(setOf(throwing))
+
+        mgr.releaseAll()
+    }
+
+    @Test
+    fun `CancellationException — 普通异常仍被捕获不传播`() = runBlocking {
+        val system = object : GameSystem {
+            override val systemName = "RuntimeExceptionThrowingSystem"
+            override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+                throw RuntimeException("normal error")
+            }
+        }
+        val mgr = SystemManager(setOf(system))
+        val state = mock(MutableGameState::class.java)
+
+        // 不应抛异常
+        mgr.onPhaseTickWithDomainFilter(
+            state = state,
+            activeDomains = emptySet(),
+            shouldExecute = { _, _ -> true },
+            markExecuted = {},
+            currentPhase = 1
         )
     }
 }
