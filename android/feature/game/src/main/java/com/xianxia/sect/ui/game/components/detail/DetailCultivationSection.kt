@@ -197,10 +197,6 @@ fun BasicInfoSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
-            val breakthroughChance = disciple.getBreakthroughChance(
-                griefBreakthroughPenalty = griefBreakthroughPenalty,
-                masterDiscipleBonus = masterDiscipleBonus
-            )
             val innerElderComp = elderSlots?.innerElder?.let { eid ->
                 discipleMap[eid]?.comprehension ?: 0
             } ?: 0
@@ -223,7 +219,7 @@ fun BasicInfoSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "突破率 ${GameUtils.formatPercent(breakthroughChance)}",
+                    text = "突破率 ${GameUtils.formatPercent(detail.total)}",
                     fontSize = 12.sp,
                     color = Color.Black,
                     modifier = Modifier.weight(1f)
