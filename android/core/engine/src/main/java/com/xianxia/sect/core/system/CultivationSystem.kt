@@ -18,9 +18,11 @@ class CultivationTickSystem @Inject constructor(
         cultivationService.advancePhase(state)
         cultivationService.batchSettleCultivation(state, phasesToSettle)
         cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle)
-        // 实时轨专用操作：突破检测 + 自动装备/学习
+        // 实时轨专用操作：
+        // 自动装备/学习 → 自动服用丹药 → 突破检测
         if (phasesToSettle == 1) {
             cultivationService.processAutoFromWarehouseRealtime(state)
+            cultivationService.processAutoPillsRealtime(state)
             cultivationService.processBreakthroughs(state)
         }
     }

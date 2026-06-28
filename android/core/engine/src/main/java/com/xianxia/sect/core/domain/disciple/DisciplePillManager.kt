@@ -57,9 +57,14 @@ class DisciplePillManager @Inject constructor(
 
         var updatedDisciple = disciple
 
-        // 按规则优先级 > 品阶排序：永久 → 直接修为 → 持续/临时 → 突破
+        // 按规则优先级 > 品阶排序：永久 → 直接修为 → 持续/临时
+        // 突破丹由 DiscipleBreakthroughHandler 内联处理，不在此处消费
         val pillItems = disciple.equipment.storageBagItems
             .filter { it.itemType == "pill" && it.effect != null }
+            .filterNot {
+                val effect = checkNotNull(it.effect) { "Effect null: ${it.name}" }
+                classify(effect) == PillRule.BREAKTHROUGH
+            }
             .sortedWith(
                 compareByDescending<StorageBagItem> {
                     val effect = checkNotNull(it.effect) {

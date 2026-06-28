@@ -431,6 +431,7 @@ stateStore.update {
 - `SectPolicies` 新增政策 → 若在 data class 内部自动覆盖；否则需手动加入 `productionPolicyHash`
 - 新增生产系统（如灵兽养殖等）→ `ProductionRateFingerprint` 新增字段 + `compute` 方法
 - 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
+- 新增丹药类型（pillType）或 PillEffects 字段 → `CultivationCore.processRealtimeAutoPills` 的字段写回列表 + `DisciplePillManager.classify` 的分类规则需同步更新。丹药指纹检测在该方法内通过 `storageBagItems.any { it.itemType == "pill" }` 实现，无需单独指纹数据类
 
 指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。批量轨每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 

@@ -92,6 +92,14 @@ class CultivationService @Inject constructor(
         eventProcessor.processAutoFromWarehouseRealtime(state)
     }
 
+    /** 实时轨专用：自动服用储物袋丹药（突破丹除外） */
+    fun processAutoPillsRealtime(state: MutableGameState) {
+        val data = state.gameData
+        cultivationCore.processRealtimeAutoPills(
+            state, data.gameYear, data.gameMonth, data.gamePhase
+        )
+    }
+
     /** 月度持续效果衰减（月结制专用） */
     fun applyMonthlyDurationDecay(
         tables: com.xianxia.sect.core.state.DiscipleTables, id: Int,
