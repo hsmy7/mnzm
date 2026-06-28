@@ -87,11 +87,9 @@ class CultivationService @Inject constructor(
         cultivationCore.recoverMonthlyHpMp(tables, id, focusedPhaseCount)
     }
 
-    /** 月度自动从仓库装备/学习（月结制专用） */
-    fun processAutoFromWarehouseMonthly(
-        year: Int, month: Int, state: MutableGameState
-    ) {
-        eventProcessor.processAutoFromWarehouseMonthly(year, month, state)
+    /** 实时轨专用：自动从仓库装备/学习 */
+    fun processAutoFromWarehouseRealtime(state: MutableGameState) {
+        eventProcessor.processAutoFromWarehouseRealtime(state)
     }
 
     /** 月度持续效果衰减（月结制专用） */
@@ -215,6 +213,8 @@ class CultivationService @Inject constructor(
     suspend fun processMonthlyEvents() {
         val data = stateStore.gameData.value
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        // 空闲弟子自动分配：月度结算路径，一月判定一次
+        productionProcessor.processAutoAssign()
     }
 
     /**
@@ -297,10 +297,6 @@ class CultivationService @Inject constructor(
         }
     }
 
-    fun qualifiesForSectAutoPublic(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {
-        return eventProcessor.qualifiesForSectAutoPublic(disciple, focused, rootCounts)
-    }
-
     fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         eventProcessor.updateDiscipleHpMpAfterBattle(battleMembers)
     }
@@ -333,10 +329,6 @@ class CultivationService @Inject constructor(
 
     internal suspend fun processAutoForge() {
         productionProcessor.processAutoForge()
-    }
-
-    internal suspend fun processAutoAssign() {
-        productionProcessor.processAutoAssign()
     }
 
     // ── 委托方法：MerchantAndRecruitService ────────────────────────────

@@ -520,6 +520,137 @@ class GameViewModelTest {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // 场景 4：天枢殿三大自动设置方法
+    // ════════════════════════════════════════════════════════════════
+    // 覆盖 ViewModel → GameEngine.updateGameData 链路，
+    // 验证 setAutoAssignSettings / setBreakthroughAutoPillSettings /
+    // setAutoEquipSettings / setAutoLearnSettings /
+    // setDaoCompanionBannedRootCounts / setDaoCompanionConsentRequired
+    // 六个方法是否正确将参数写入 GameData。
+
+    @Test
+    fun `setAutoAssignSettings - 12参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setAutoAssignSettings(
+            mineFocused = true, mineRootCounts = listOf(1, 2), mineThreshold = 5,
+            plantFocused = false, plantRootCounts = listOf(3), plantThreshold = 8,
+            alchemyFocused = true, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
+            forgeFocused = false, forgeRootCounts = listOf(1, 3, 5), forgeThreshold = 10
+        )
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        val p = result.sectPolicies
+
+        assertTrue("灵矿 focused 应为 true", p.autoMineFocused)
+        assertEquals("灵矿 rootCounts", listOf(1, 2), p.autoMineRootCounts)
+        assertEquals("灵矿 threshold", 5, p.autoMineThreshold)
+
+        assertFalse("灵植 focused 应为 false", p.autoPlantFocused)
+        assertEquals("灵植 rootCounts", listOf(3), p.autoPlantRootCounts)
+        assertEquals("灵植 threshold", 8, p.autoPlantThreshold)
+
+        assertTrue("炼丹 focused 应为 true", p.autoAlchemyFocused)
+        assertEquals("炼丹 rootCounts", emptyList<Int>(), p.autoAlchemyRootCounts)
+        assertEquals("炼丹 threshold", 1, p.autoAlchemyThreshold)
+
+        assertFalse("炼器 focused 应为 false", p.autoForgeFocused)
+        assertEquals("炼器 rootCounts", listOf(1, 3, 5), p.autoForgeRootCounts)
+        assertEquals("炼器 threshold", 10, p.autoForgeThreshold)
+    }
+
+    @Test
+    fun `setAutoAssignSettings - 全默认值时仍正确传递`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setAutoAssignSettings(
+            mineFocused = false, mineRootCounts = emptyList(), mineThreshold = 1,
+            plantFocused = false, plantRootCounts = emptyList(), plantThreshold = 1,
+            alchemyFocused = false, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
+            forgeFocused = false, forgeRootCounts = emptyList(), forgeThreshold = 1
+        )
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        val p = result.sectPolicies
+        assertFalse("灵矿 focused 应为 false", p.autoMineFocused)
+        assertEquals("灵矿 rootCounts 应为空", emptyList<Int>(), p.autoMineRootCounts)
+        assertEquals("灵矿 threshold", 1, p.autoMineThreshold)
+        assertFalse("灵植 focused 应为 false", p.autoPlantFocused)
+        assertEquals("灵植 rootCounts 应为空", emptyList<Int>(), p.autoPlantRootCounts)
+        assertFalse("炼丹 focused 应为 false", p.autoAlchemyFocused)
+        assertEquals("炼丹 rootCounts 应为空", emptyList<Int>(), p.autoAlchemyRootCounts)
+        assertFalse("炼器 focused 应为 false", p.autoForgeFocused)
+        assertEquals("炼器 rootCounts 应为空", emptyList<Int>(), p.autoForgeRootCounts)
+    }
+
+    @Test
+    fun `setBreakthroughAutoPillSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setBreakthroughAutoPillSettings(focused = true, rootCounts = setOf(1, 3))
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        assertTrue("breakthroughAutoPillFocused 应为 true", result.breakthroughAutoPillFocused)
+        assertEquals("breakthroughAutoPillRootCounts", setOf(1, 3), result.breakthroughAutoPillRootCounts)
+    }
+
+    @Test
+    fun `setAutoEquipSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setAutoEquipSettings(focused = true, rootCounts = setOf(2))
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        assertTrue("autoEquipFromWarehouseFocused 应为 true", result.autoEquipFromWarehouseFocused)
+        assertEquals("autoEquipFromWarehouseRootCounts", setOf(2), result.autoEquipFromWarehouseRootCounts)
+    }
+
+    @Test
+    fun `setAutoLearnSettings - focused=false和空rootCounts正确写入`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setAutoLearnSettings(focused = false, rootCounts = emptySet())
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        assertFalse("autoLearnFromWarehouseFocused 应为 false", result.autoLearnFromWarehouseFocused)
+        assertEquals("autoLearnFromWarehouseRootCounts", emptySet<Int>(), result.autoLearnFromWarehouseRootCounts)
+    }
+
+    @Test
+    fun `setDaoCompanionBannedRootCounts - 正确写入GameData`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setDaoCompanionBannedRootCounts(setOf(4, 5))
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        assertEquals("daoCompanionBannedRootCounts", setOf(4, 5), result.daoCompanionBannedRootCounts)
+    }
+
+    @Test
+    fun `setDaoCompanionConsentRequired - 正确写入GameData`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.setDaoCompanionConsentRequired(required = true)
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(GameData())
+        assertTrue("daoCompanionConsentRequired 应为 true", result.daoCompanionConsentRequired)
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // 辅助方法
     // ════════════════════════════════════════════════════════════════
 

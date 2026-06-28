@@ -34,7 +34,6 @@ class ProductionProcessor @Inject constructor(
     private val cultivationSettlement: CultivationSettlement,
     private val sharedState: CultivationSharedState
 ) {
-    private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "ProductionProcessor"
@@ -533,16 +532,15 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    private fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
-        scope.launch {
-            stateStore.update {
-                val currentList = discipleTables.assembleAll()
-                val updated = currentList.map { d ->
-                    if (d.id == discipleId) d.copy(status = status) else d
-                }
-                discipleTables.clear()
-                updated.forEach { discipleTables.insert(it) }
-            }
+    /**
+     * 同步更新弟子状态（直接列写入，O(1)）。
+     *
+     * 在 [processAutoAssign] 中连续分配时，
+     * 确保状态变更在后续槽位查询前已可见。
+     */
+    private suspend fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
+        stateStore.update {
+            discipleTables.statuses[discipleId.toInt()] = status
         }
     }
 

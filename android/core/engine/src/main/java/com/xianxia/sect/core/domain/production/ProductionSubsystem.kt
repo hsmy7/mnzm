@@ -67,7 +67,7 @@ class ProductionSubsystem @Inject constructor(
         cultivationService.processAutoForge()
     }
 
-    /** 单月完整生产周期 */
+    /** 单月完整生产周期（批量轨） */
     private suspend fun processMonthlyProduction(state: MutableGameState) {
         // 组 A（并行）：autoAlchemy + autoForge
         coroutineScope {
@@ -75,9 +75,6 @@ class ProductionSubsystem @Inject constructor(
             val forgeJob = async(Dispatchers.Default) { cultivationService.processAutoForge() }
             awaitAll(alchemyJob, forgeJob)
         }
-
-        // 组 A 后续（串行）：autoAssign（灵矿产出已移至月度结算）
-        cultivationService.processAutoAssign()
 
         // 组 B（串行）：buildingProduction + herbGardenGrowth
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)

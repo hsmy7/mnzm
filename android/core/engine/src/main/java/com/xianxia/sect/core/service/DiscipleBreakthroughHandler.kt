@@ -49,25 +49,31 @@ class DiscipleBreakthroughHandler @Inject constructor(
         while (shouldContinue && d.realm > 0) {
             if (d.cultivation < d.maxCultivation) break
 
+            // 满状态检查：HP/MP 均满才可突破
+            if (!cultivationCore.isDiscipleFullHpMp(d)) break
+
             val isMajorBreakthrough = d.realmLayer >= GameConfig.Realm.get(d.realm).maxLayers
             val pillTargetRealm = if (isMajorBreakthrough) d.realm - 1 else d.realm
             var pillBonus = 0.0
 
-            // 宗门自动用丹
-            val autoPill = qualifiesForSectAutoPublic(
-                d, data.breakthroughAutoPillFocused, data.breakthroughAutoPillRootCounts
-            )
-            if (autoPill) {
-                val warehousePill = state.pills.all()
-                    .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
-                    .maxByOrNull { it.effects.breakthroughChance }
-                if (warehousePill != null) {
-                    state.pills = state.pills - listOf(warehousePill)
-                    pillBonus = warehousePill.effects.breakthroughChance
+            // 自动服用突破丹药：检测配置 → 仓库优先 → 储物袋兜底
+            val autoFocused = data.breakthroughAutoPillFocused
+            val autoRootCounts = data.breakthroughAutoPillRootCounts
+            if (autoFocused || autoRootCounts.isNotEmpty()) {
+                val qualifies = (autoFocused && d.statusData["followed"] == "true") ||
+                    d.spiritRootType.split(",").size in autoRootCounts
+                if (qualifies) {
+                    val warehousePill = state.pills.all()
+                        .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
+                        .maxByOrNull { it.effects.breakthroughChance }
+                    if (warehousePill != null) {
+                        state.pills = state.pills - listOf(warehousePill)
+                        pillBonus = warehousePill.effects.breakthroughChance
+                    }
                 }
             }
 
-            // 储物袋自动用丹
+            // 储物袋丹药兜底
             if (pillBonus == 0.0) {
                 val bestPill = d.equipment.storageBagItems
                     .filter { it.itemType == "pill" && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
@@ -187,11 +193,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
         }
     }
 
-    /** 公开的宗门自动用丹资格检查，供 SettlementCoordinator 使用 */
-    fun qualifiesForSectAutoPublic(
-        disciple: Disciple, focused: Boolean, rootCounts: Set<Int>
-    ): Boolean = qualifiesForSectAuto(disciple, focused, rootCounts) { false }
-
     fun tryBreakthrough(disciple: Disciple, pillBonus: Double = 0.0, state: MutableGameState? = null): Boolean {
         val data = state?.gameData ?: stateStore.gameData.value
         val tables = state?.discipleTables ?: stateStore.discipleTables
@@ -245,15 +246,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
             masterDiscipleBonus = masterDiscipleBonus
         )
         return Random.nextDouble() < chance
-    }
-
-    private fun qualifiesForSectAuto(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>, legacyCheck: (Disciple) -> Boolean): Boolean {
-        if (focused || rootCounts.isNotEmpty()) {
-            if (focused && disciple.statusData["followed"] == "true") return true
-            val rootCount = disciple.spiritRootType.split(",").size
-            return rootCount in rootCounts
-        }
-        return false
     }
 
     companion object {

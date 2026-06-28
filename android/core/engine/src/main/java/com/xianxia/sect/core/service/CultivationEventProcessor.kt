@@ -247,19 +247,17 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
-
-        processAutoFromWarehouse(year, month, phase, state)
     }
 
     // ── 自动从仓库装备/学习 ──────────────────────────────────────────
 
     /**
-     * 自动从仓库装备/学习。
-     * 直接操作事务内状态 [state]，不使用异步协程，避免影子事务覆盖问题。
+     * 实时轨专用：自动从仓库装备/学习。
+     * 仅由 [CultivationTickSystem.onPhaseTick] 在 phasesToSettle==1 时调用。
      */
-    /** 月度自动从仓库装备/学习（月结制专用） */
-    fun processAutoFromWarehouseMonthly(year: Int, month: Int, state: MutableGameState) {
-        processAutoFromWarehouse(year, month, 0, state)
+    fun processAutoFromWarehouseRealtime(state: MutableGameState) {
+        val d = state.gameData
+        processAutoFromWarehouse(d.gameYear, d.gameMonth, d.gamePhase, state)
     }
 
     private fun processAutoFromWarehouse(
