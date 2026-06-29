@@ -115,6 +115,45 @@ class DiscipleTablesTest {
     }
 
     @Test
+    fun `lifeEvents stored and retrieved correctly`() {
+        val tables = DiscipleTables()
+        val disciple = createTestDisciple(id = "1")
+        tables.insert(disciple)
+
+        assertEquals(emptyList<String>(), tables.lifeEvents[1])
+
+        tables.lifeEvents[1] = listOf("16岁：加入宗门")
+        assertEquals(listOf("16岁：加入宗门"), tables.lifeEvents[1])
+    }
+
+    @Test
+    fun `lifeEvents survive assemble round-trip`() {
+        val tables = DiscipleTables()
+        val d = createTestDisciple(id = "1")
+        tables.insert(d)
+        tables.lifeEvents[1] = listOf("16岁：加入宗门")
+
+        val assembled = tables.assemble(1)
+        assertEquals(listOf("16岁：加入宗门"), assembled.lifeEvents)
+    }
+
+    @Test
+    fun `lifeEvents deep copy is independent`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1"))
+        tables.lifeEvents[1] = listOf("16岁：加入宗门")
+
+        val copy = tables.deepCopy()
+        copy.lifeEvents[1] = copy.lifeEvents[1] + "17岁：突破至筑基期"
+
+        assertEquals(listOf("16岁：加入宗门"), tables.lifeEvents[1])
+        assertEquals(
+            listOf("16岁：加入宗门", "17岁：突破至筑基期"),
+            copy.lifeEvents[1]
+        )
+    }
+
+    @Test
     fun `deepCopy creates independent snapshot`() {
         val tables = DiscipleTables()
         tables.insert(createTestDisciple(id = "1", cultivation = 100.0, loyalty = 50))

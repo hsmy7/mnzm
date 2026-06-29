@@ -134,7 +134,37 @@ class CombatService @Inject constructor(
                 // A. 悲痛期
                 for ((id, griefEndYear) in griefUpdates) {
                     if (id in discipleTables.ids) {
+                        val wasGrieving = discipleTables.griefEndYears.getOrNull(id) != null
                         discipleTables.griefEndYears[id] = griefEndYear
+                        // 记录丧亲日志（仅新陷入悲痛时）
+                        if (!wasGrieving) {
+                            val grievingAge = discipleTables.ages[id]
+                            // 查找致悲的死亡弟子
+                            val deadDisciple = deadDisciples.firstOrNull { dead ->
+                                val deadId = dead.id.toIntOrNull() ?: return@firstOrNull false
+                                val grievingDisciple = discipleTables.assemble(id)
+                                DiscipleStatCalculator.areRelatives(
+                                    grievingDisciple, dead
+                                )
+                            }
+                            if (deadDisciple != null) {
+                                val relationship = when {
+                                    discipleTables.partnerIds.getOrNull(id) == deadDisciple.id -> "道侣"
+                                    deadDisciple.id == discipleTables.partnerIds.getOrNull(id) -> "道侣"
+                                    listOfNotNull(
+                                        discipleTables.parentId1s.getOrNull(id),
+                                        discipleTables.parentId2s.getOrNull(id)
+                                    ).contains(deadDisciple.id) -> "父/母"
+                                    deadDisciple.id == discipleTables.parentId1s.getOrNull(id) ||
+                                    deadDisciple.id == discipleTables.parentId2s.getOrNull(id) -> "子女"
+                                    else -> "亲属"
+                                }
+                                val currentEvents = discipleTables.lifeEvents
+                                    .getOrDefault(id, emptyList())
+                                discipleTables.lifeEvents[id] = currentEvents +
+                                    "${grievingAge}岁：因${relationship}${deadDisciple.name}离世陷入悲痛，修炼速度降低50%"
+                            }
+                        }
                     }
                 }
 

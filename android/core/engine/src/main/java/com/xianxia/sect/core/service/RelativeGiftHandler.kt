@@ -64,13 +64,23 @@ class RelativeGiftHandler @Inject constructor() {
         if (relatives.isEmpty()) return
 
         val receiverRealm = tables.realms.getOrDefault(discipleId, 9)
+        val receiverAge = tables.ages[discipleId]
 
         for (giverId in relatives) {
             val relationship = classifyRelationship(giverId, discipleId, tables)
             val probability = getGiftProbability(relationship)
             if (Random.nextDouble() >= probability) continue
 
-            tryGiveGift(giverId, discipleId, receiverRealm, tables, state)
+            val result = tryGiveGift(giverId, discipleId, receiverRealm, tables, state)
+            // 记录赠礼日志
+            if (result is GiftResult.Success) {
+                val giverName = tables.names.getOrNull(giverId) ?: "亲属"
+                val currentEvents = tables.lifeEvents.getOrDefault(
+                    discipleId, emptyList()
+                )
+                tables.lifeEvents[discipleId] = currentEvents +
+                    "${receiverAge}岁：从${giverName}处获得${result.giftItemName}"
+            }
         }
     }
 

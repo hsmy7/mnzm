@@ -92,6 +92,7 @@ fun DiscipleDetailDialog(
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
     var showApprenticeSelectDialog by remember { mutableStateOf(false) }
+    var showLifeLogDialog by remember { mutableStateOf(false) }
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
@@ -114,6 +115,12 @@ fun DiscipleDetailDialog(
 
     key(disciple.id) {
     BackHandler(onBack = onDismiss)
+
+    // 首次查看时初始化日志（仅当尚无日志时生成合成事件）
+    LaunchedEffect(disciple.id) {
+        viewModel?.initializeLifeEvents(disciple.id)
+    }
+
     CompositionLocalProvider(LocalDismissDropdown provides { showDiscipleTypeDropdown = false }) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -225,11 +232,14 @@ fun DiscipleDetailDialog(
                         showDiscipleTypeDropdown = showDiscipleTypeDropdown,
                         onDiscipleTypeDropdownChange = { showDiscipleTypeDropdown = it },
                         onLocalDiscipleTypeChange = { localDiscipleType = it },
-                        onShowRelations = { showRelationsDialog = true },
-                        onShowStorageBag = { showStorageBagDialog = true },
-                        onShowExpelConfirm = { showExpelConfirmDialog = true },
-                        onShowApprentice = { showApprenticeSelectDialog = true },
-                        onNavigateToDisciple = onNavigateToDisciple,
+                        actions = DetailActionCallbacks(
+                            onShowRelations = { showRelationsDialog = true },
+                            onShowStorageBag = { showStorageBagDialog = true },
+                            onShowExpelConfirm = { showExpelConfirmDialog = true },
+                            onShowLifeLog = { showLifeLogDialog = true },
+                            onShowApprentice = { showApprenticeSelectDialog = true },
+                            onNavigateToDisciple = onNavigateToDisciple,
+                        ),
                         viewModel = viewModel
                     )
                 }
@@ -247,6 +257,14 @@ fun DiscipleDetailDialog(
             disciple = disciple,
             allDisciples = allDisciples,
             onDismiss = { showRelationsDialog = false }
+        )
+    }
+
+    if (showLifeLogDialog) {
+        LifeLogDialog(
+            discipleName = disciple.name,
+            events = viewModel?.getLifeEvents(disciple.id) ?: emptyList(),
+            onDismiss = { showLifeLogDialog = false }
         )
     }
 

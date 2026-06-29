@@ -882,6 +882,14 @@ class GameViewModel @Inject constructor(
     /** 拜师：将 discipleId 设为 masterId 的徒弟，委托给 [DiscipleDelegate] */
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
 
+    /** 获取弟子日志事件列表 */
+    fun getLifeEvents(discipleId: String): List<String> =
+        discipleFacade.getLifeEvents(discipleId)
+
+    /** 初始化弟子日志（生成合成历史事件，仅当尚无日志时生效） */
+    fun initializeLifeEvents(discipleId: String) =
+        discipleFacade.initializeLifeEvents(discipleId)
+
     /** 清空弟子侧待处理通知 */
     fun clearNotification() {
         discipleFacade.clearPendingNotification()

@@ -61,6 +61,7 @@ class DiscipleTables {
     // === 列表类型（ComponentTable<List<T>>） ===
     val manualIds = ComponentTable<List<String>>()        // id → [manualId1, ...]
     val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
+    val lifeEvents = ComponentTable<List<String>>()       // id → ["11岁：加入宗门", ...]
     val manualMasteries = ComponentTable<Map<String, Int>>()
 
     // === 状态 ===
@@ -205,6 +206,7 @@ class DiscipleTables {
 
         manualIds[id] = disciple.manualIds
         talentIds[id] = disciple.talentIds
+        lifeEvents[id] = disciple.lifeEvents
         manualMasteries[id] = disciple.manualMasteries
 
         statuses[id] = disciple.status
@@ -327,6 +329,7 @@ class DiscipleTables {
 
         manualIds[id] = disciple.manualIds
         talentIds[id] = disciple.talentIds
+        lifeEvents[id] = disciple.lifeEvents
         manualMasteries[id] = disciple.manualMasteries
 
         statuses[id] = disciple.status
@@ -528,7 +531,7 @@ class DiscipleTables {
                 hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
                 lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
             )
-        )
+        ).also { it.lifeEvents = lifeEvents.getOrNull(id) ?: emptyList() }
     }
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。 */
@@ -546,7 +549,7 @@ class DiscipleTables {
         ages.remove(id); lifespans.remove(id); isAlive.remove(id); soulPowers.remove(id)
         cultivationSpeedBonuses.remove(id); cultivationSpeedDurations.remove(id)
         autoLearnFromWarehouse.remove(id); autoEquipFromWarehouse.remove(id)
-        manualIds.remove(id); talentIds.remove(id); manualMasteries.remove(id)
+        manualIds.remove(id); talentIds.remove(id); lifeEvents.remove(id); manualMasteries.remove(id)
         statuses.remove(id); statusData.remove(id)
         baseHps.remove(id); baseMps.remove(id)
         basePhysicalAttacks.remove(id); baseMagicAttacks.remove(id)
@@ -597,7 +600,7 @@ class DiscipleTables {
         ages.clear(); lifespans.clear(); isAlive.clear(); soulPowers.clear()
         cultivationSpeedBonuses.clear(); cultivationSpeedDurations.clear()
         autoLearnFromWarehouse.clear(); autoEquipFromWarehouse.clear()
-        manualIds.clear(); talentIds.clear(); manualMasteries.clear()
+        manualIds.clear(); talentIds.clear(); lifeEvents.clear(); manualMasteries.clear()
         statuses.clear(); statusData.clear()
         baseHps.clear(); baseMps.clear()
         basePhysicalAttacks.clear(); baseMagicAttacks.clear()
@@ -658,7 +661,8 @@ class DiscipleTables {
         // 自动行为
         autoLearnFromWarehouse.onWrite = cb; autoEquipFromWarehouse.onWrite = cb
         // 列表类型
-        manualIds.onWrite = cb; talentIds.onWrite = cb; manualMasteries.onWrite = cb
+        manualIds.onWrite = cb; talentIds.onWrite = cb; lifeEvents.onWrite = cb
+        manualMasteries.onWrite = cb
         // 状态
         statuses.onWrite = cb; statusData.onWrite = cb
         // 战斗属性
@@ -825,6 +829,7 @@ class DiscipleTables {
         // List/Map 表：深拷贝防止 Shadow 内突变影响原表
         copyMutableTable(this.manualIds, copy.manualIds) { it.toList() }
         copyMutableTable(this.talentIds, copy.talentIds) { it.toList() }
+        copyMutableTable(this.lifeEvents, copy.lifeEvents) { it.toList() }
         copyMutableTable(this.manualMasteries, copy.manualMasteries) { it.toMap() }
         copyMutableTable(this.statusData, copy.statusData) { it.toMap() }
         copyMutableTable(this.storageBagItems, copy.storageBagItems) { it.toList() }

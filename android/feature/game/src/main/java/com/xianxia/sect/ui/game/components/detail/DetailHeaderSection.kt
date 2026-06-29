@@ -26,6 +26,19 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 
+/**
+ * 弟子详情右侧面板的操作按钮回调集合。
+ * 将回调分组为数据类，控制 Composable 参数数量在规范上限内。
+ */
+data class DetailActionCallbacks(
+    val onShowRelations: () -> Unit,
+    val onShowStorageBag: () -> Unit,
+    val onShowExpelConfirm: () -> Unit,
+    val onShowLifeLog: () -> Unit,
+    val onShowApprentice: () -> Unit,
+    val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
+)
+
 @Composable
 fun DetailRightPanel(
     disciple: DiscipleAggregate,
@@ -34,11 +47,7 @@ fun DetailRightPanel(
     showDiscipleTypeDropdown: Boolean,
     onDiscipleTypeDropdownChange: (Boolean) -> Unit,
     onLocalDiscipleTypeChange: (String) -> Unit,
-    onShowRelations: () -> Unit,
-    onShowStorageBag: () -> Unit,
-    onShowExpelConfirm: () -> Unit,
-    onShowApprentice: () -> Unit,
-    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
+    actions: DetailActionCallbacks,
     viewModel: GameViewModel?
 ) {
     val context = LocalContext.current
@@ -61,6 +70,7 @@ fun DetailRightPanel(
         val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
         val hasPrev = currentIndex > 0
         val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
+        val navTo = actions.onNavigateToDisciple
 
         // 弟子名称行：翻页按钮在名称两侧
         Row(
@@ -68,11 +78,11 @@ fun DetailRightPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            if (hasPrev && onNavigateToDisciple != null) {
+            if (hasPrev && navTo != null) {
                 Box(
                     modifier = Modifier.size(28.dp).clip(CircleShape)
                         .background(Color(0x99000000))
-                        .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex - 1]) },
+                        .clickable { dismissDropdown(); navTo(allDisciples[currentIndex - 1]) },
                     contentAlignment = Alignment.Center
                 ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
             }
@@ -83,11 +93,11 @@ fun DetailRightPanel(
                 color = Color.Black,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
-            if (hasNext && onNavigateToDisciple != null) {
+            if (hasNext && navTo != null) {
                 Box(
                     modifier = Modifier.size(28.dp).clip(CircleShape)
                         .background(Color(0x99000000))
-                        .clickable { dismissDropdown(); onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                        .clickable { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) },
                     contentAlignment = Alignment.Center
                 ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
             }
@@ -145,11 +155,11 @@ fun DetailRightPanel(
             }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
-                    .clickable { dismissDropdown(); onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickable { dismissDropdown(); actions.onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("关系", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
-                    .clickable { dismissDropdown(); onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickable { dismissDropdown(); actions.onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
@@ -159,14 +169,18 @@ fun DetailRightPanel(
             ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
-                    .clickable { dismissDropdown(); onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickable { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF00BCD4))
+                    .clickable { dismissDropdown(); actions.onShowLifeLog() }.padding(horizontal = 6.dp, vertical = 2.dp)
+            ) { Text("日志", fontSize = 10.sp, color = Color.White) }
             // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
             val hasMaster = disciple.masterId != null
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
                     .background(if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63))
-                    .clickable(enabled = !hasMaster) { dismissDropdown(); onShowApprentice() }
+                    .clickable(enabled = !hasMaster) { dismissDropdown(); actions.onShowApprentice() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
         }

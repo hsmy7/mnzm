@@ -88,6 +88,7 @@ data class Disciple(
 
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
+
     var manualMasteries: Map<String, Int> = emptyMap(),
 
     var status: DiscipleStatus = DiscipleStatus.IDLE,
@@ -135,6 +136,10 @@ data class Disciple(
     @Embedded(prefix = "usage_")
     var usage: UsageTracking = UsageTracking()
 ) {
+    /** 弟子日志事件列表，存储于 DiscipleTables.lifeEvents */
+    @Ignore
+    var lifeEvents: List<String> = emptyList()
+
     // ==================== 委托属性 ====================
     // 大部分委托扩展属性已提取到 DiscipleDelegates.kt，仅保留
     // 属性名与源字段名不同的例外（monthlyUsedPillIds → usedFunctionalPillTypes）

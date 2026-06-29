@@ -319,6 +319,12 @@ class CultivationEventProcessor @Inject constructor(
                 if (result.newInstances.isNotEmpty()) {
                     d = result.disciple
                     newEqInstances.addAll(result.newInstances)
+                    // 记录自动装备日志
+                    val equipName = result.newInstances.firstOrNull()?.name ?: ""
+                    if (equipName.isNotEmpty()) {
+                        val age = tables.ages[d.id.toInt()]
+                        discipleService.addLifeEvent(d.id, "${age}岁：自动装备了${equipName}")
+                    }
                     result.stackUpdates.forEach { update ->
                         if (update.isDeletion) {
                             eqStacks = eqStacks.filter { it.id != update.stackId }
@@ -344,6 +350,12 @@ class CultivationEventProcessor @Inject constructor(
                 if (result.newInstance != null) {
                     d = result.disciple
                     newMnInstances.add(result.newInstance)
+                    // 记录自动学习日志
+                    val manualName = result.newInstance?.name ?: ""
+                    if (manualName.isNotEmpty()) {
+                        val age = tables.ages[d.id.toInt()]
+                        discipleService.addLifeEvent(d.id, "${age}岁：自动学习了${manualName}")
+                    }
                     result.stackUpdate?.let { update ->
                         if (update.isDeletion) {
                             mnStacks = mnStacks.filter { it.id != update.stackId }

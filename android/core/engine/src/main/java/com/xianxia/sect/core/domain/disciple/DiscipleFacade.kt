@@ -42,6 +42,9 @@ interface DiscipleFacade {
     fun assignManual(discipleId: String, stackId: String)
     fun removeManual(discipleId: String, instanceId: String)
     fun recruitDiscipleFromList(discipleId: String)
+    fun addLifeEvent(discipleId: String, event: String)
+    fun getLifeEvents(discipleId: String): List<String>
+    fun initializeLifeEvents(discipleId: String)
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit>
     fun updateElderSlots(newElderSlots: ElderSlots)
     fun assignDirectDisciple(

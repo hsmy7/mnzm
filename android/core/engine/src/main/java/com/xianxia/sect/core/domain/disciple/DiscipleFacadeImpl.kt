@@ -157,6 +157,20 @@ class DiscipleFacadeImpl @Inject constructor(
             if (femaleIntId != null && discipleTables.ids.contains(femaleIntId)) {
                 discipleTables.partnerIds[femaleIntId] = maleId
             }
+
+            // 记录道侣日志
+            val maleName = if (maleIntId != null) discipleTables.names.getOrNull(maleIntId) ?: "" else ""
+            val femaleName = if (femaleIntId != null) discipleTables.names.getOrNull(femaleIntId) ?: "" else ""
+            val maleAge = if (maleIntId != null) discipleTables.ages[maleIntId] else 0
+            val femaleAge = if (femaleIntId != null) discipleTables.ages[femaleIntId] else 0
+            if (maleIntId != null && maleName.isNotEmpty() && femaleName.isNotEmpty()) {
+                val maleEvents = discipleTables.lifeEvents.getOrDefault(maleIntId, emptyList())
+                discipleTables.lifeEvents[maleIntId] = maleEvents + "${maleAge}岁：与${femaleName}结为道侣"
+            }
+            if (femaleIntId != null && maleName.isNotEmpty() && femaleName.isNotEmpty()) {
+                val femaleEvents = discipleTables.lifeEvents.getOrDefault(femaleIntId, emptyList())
+                discipleTables.lifeEvents[femaleIntId] = femaleEvents + "${femaleAge}岁：与${maleName}结为道侣"
+            }
         }
     }
 
@@ -172,6 +186,15 @@ class DiscipleFacadeImpl @Inject constructor(
     override suspend fun dismissDisciple(discipleId: String) {
         expelDisciple(discipleId)
     }
+
+    override fun addLifeEvent(discipleId: String, event: String) =
+        discipleService.addLifeEvent(discipleId, event)
+
+    override fun getLifeEvents(discipleId: String): List<String> =
+        discipleService.getLifeEvents(discipleId)
+
+    override fun initializeLifeEvents(discipleId: String) =
+        discipleService.initializeLifeEvents(discipleId)
 
     override fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String) {
         when (itemType) {
@@ -201,6 +224,8 @@ class DiscipleFacadeImpl @Inject constructor(
                 discipleTables.insert(recruitedDisciple)
                 gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
             }
+            // 记录加入宗门日志
+            discipleService.addLifeEvent(newId, "${recruitedDisciple.age}岁：加入宗门")
         }
     }
 
@@ -758,6 +783,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
 
                 applyPillEffectsToDisciple(id, pill)
+
+                // 记录服药日志
+                val pillAge = discipleTables.ages[id]
+                val currentLifeEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+                discipleTables.lifeEvents[id] = currentLifeEvents +
+                    "${pillAge}岁：服用了${pill.name}"
             }
         }
     }
@@ -808,6 +839,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 discipleTables.manualIds[id] = currentManualIds + instanceId
                 discipleTables.currentHps[id] = newHp
                 discipleTables.currentMps[id] = newMp
+
+                // 记录学习功法日志
+                val learnAge = discipleTables.ages[id]
+                val learnEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+                discipleTables.lifeEvents[id] = learnEvents +
+                    "${learnAge}岁：学习了${stack.name}"
             }
         }
     }

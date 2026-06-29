@@ -96,6 +96,72 @@ private val scopeProvider: CoroutineScopeProvider,
         }
     }
 
+    // ==================== 弟子日志 ====================
+
+    /**
+     * 为指定弟子追加一条日志事件。
+     * 事件格式："xx岁：事件描述"。
+     */
+    fun addLifeEvent(discipleId: String, event: String) {
+        val id = discipleId.toIntOrNull() ?: return
+        val tables = currentDiscipleTables
+        if (!tables.ids.contains(id)) return
+        val currentEvents = tables.lifeEvents.getOrDefault(id, emptyList())
+        tables.lifeEvents[id] = currentEvents + event
+    }
+
+    /**
+     * 获取指定弟子的全部日志事件，按添加顺序排列。
+     */
+    fun getLifeEvents(discipleId: String): List<String> {
+        val id = discipleId.toIntOrNull() ?: return emptyList()
+        return currentDiscipleTables.lifeEvents.getOrDefault(id, emptyList())
+    }
+
+    /**
+     * 根据弟子当前状态生成合成历史事件（仅当尚无日志时）。
+     * 用于加载旧存档后首次查看日志。
+     */
+    fun initializeLifeEvents(discipleId: String) {
+        val id = discipleId.toIntOrNull() ?: return
+        val tables = currentDiscipleTables
+        if (!tables.ids.contains(id)) return
+        if (tables.lifeEvents.getOrNull(id)?.isNotEmpty() == true) return
+
+        val events = mutableListOf<String>()
+        val age = tables.ages[id]
+        val data = stateStore.gameData.value
+        val currentAbsoluteMonth = data.gameYear * 12 + data.gameMonth
+        val recruitedMonth = tables.recruitedMonths.getOrDefault(id, 0)
+
+        // 加入宗门
+        if (recruitedMonth > 0 && currentAbsoluteMonth > recruitedMonth) {
+            val monthsSince = currentAbsoluteMonth - recruitedMonth
+            val recruitedAge = (age - monthsSince / 12).coerceAtLeast(1)
+            events.add("${recruitedAge}岁：加入宗门")
+        }
+
+        // 拜师
+        val masterId = tables.masterIds.getOrNull(id)
+        if (masterId != null) {
+            val masterIdInt = masterId.toIntOrNull()
+            val masterName = if (masterIdInt != null) tables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
+            events.add("${age}岁：拜${masterName}为师")
+        }
+
+        // 道侣
+        val partnerId = tables.partnerIds.getOrNull(id)
+        if (partnerId != null) {
+            val partnerIdInt = partnerId.toIntOrNull()
+            val partnerName = if (partnerIdInt != null) tables.names.getOrNull(partnerIdInt) ?: "未知" else "未知"
+            events.add("${age}岁：与${partnerName}结为道侣")
+        }
+
+        if (events.isNotEmpty()) {
+            tables.lifeEvents[id] = events
+        }
+    }
+
     // ==================== 弟子状态管理 ====================
 
     /**
@@ -449,6 +515,9 @@ private val scopeProvider: CoroutineScopeProvider,
 
         addDisciple(disciple)
 
+        // 记录加入宗门日志
+        addLifeEvent(disciple.id, "${disciple.age}岁：加入宗门")
+
         return disciple
     }
 
@@ -589,6 +658,17 @@ private val scopeProvider: CoroutineScopeProvider,
             }
             // 通过校验，建立师徒关系
             discipleTables.masterIds[did] = masterId
+
+            // 记录拜师日志（徒弟视角）
+            val masterName = discipleTables.names[mid] ?: "未知"
+            val discipleName = discipleTables.names[did] ?: "未知"
+            val discipleAge = discipleTables.ages[did]
+            val masterAge = discipleTables.ages[mid]
+            val currentEvents = discipleTables.lifeEvents.getOrDefault(did, emptyList())
+            discipleTables.lifeEvents[did] = currentEvents + "${discipleAge}岁：拜${masterName}为师"
+            // 记录收徒日志（师父视角）
+            val masterEvents = discipleTables.lifeEvents.getOrDefault(mid, emptyList())
+            discipleTables.lifeEvents[mid] = masterEvents + "${masterAge}岁：收${discipleName}为徒"
         }
         val finalError = error
         return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
@@ -693,6 +773,18 @@ private val scopeProvider: CoroutineScopeProvider,
                     else -> {}
                 }
                 equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
+            }
+
+            // 记录装备日志
+            val equipAge = discipleTables.ages[id]
+            val equipEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+            if (oldEquipId.isNotEmpty()) {
+                val oldName = equipmentInstances.get(oldEquipId)?.name ?: "旧装备"
+                discipleTables.lifeEvents[id] = equipEvents +
+                    "${equipAge}岁：将${oldName}替换为${equipName}"
+            } else {
+                discipleTables.lifeEvents[id] = equipEvents +
+                    "${equipAge}岁：装备了${equipName}"
             }
 
             error = null

@@ -494,6 +494,13 @@ suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, 
         val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
         discipleTables.remove(id)
         discipleTables.insert(updatedDisciple)
+
+        // 记录功法替换日志
+        val replaceAge = discipleTables.ages[id]
+        val replaceEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+        discipleTables.lifeEvents[id] = replaceEvents +
+            "${replaceAge}岁：将功法${oldInstance.name}替换为${newStack.name}"
+
         gameData = gameData.copy(manualProficiencies = updatedProficiencies)
     }
 }

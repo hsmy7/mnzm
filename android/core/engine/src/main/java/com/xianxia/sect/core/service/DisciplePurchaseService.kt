@@ -238,6 +238,14 @@ class DisciplePurchaseService @Inject constructor(
                 deductSpiritStones(dId, item.price)
                 addToWarehouseAndBag(item, dId, year, month)
 
+                // 记录购买日志
+                val purchaseAge = discipleTables.ages[dId]
+                val currentEvents = discipleTables.lifeEvents.getOrDefault(
+                    dId, emptyList()
+                )
+                discipleTables.lifeEvents[dId] = currentEvents +
+                    "${purchaseAge}岁：购买了${item.name}"
+
                 val newQty = listedItem.quantity - 1
                 if (newQty <= 0) {
                     updatedListedItems.removeAt(idx)

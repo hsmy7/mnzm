@@ -110,6 +110,31 @@ class DiscipleLifecycleProcessor @Inject constructor(
             }
         }
 
+        // 记录丧亲日志：为因本次死亡而新陷入悲痛的亲属追加事件
+        val deceasedName = disciple.name
+        val tables = stateStore.discipleTables
+        for (grievingD in griefUpdated) {
+            val originalD = currentDiscipleList.find { it.id == grievingD.id } ?: continue
+            val wasGrieving = originalD.social.griefEndYear != null
+            val isNowGrieving = grievingD.social.griefEndYear != null
+            if (wasGrieving || !isNowGrieving) continue
+            // 判定亲属关系
+            val relationship = when {
+                originalD.social.partnerId == deadId -> "道侣"
+                deadId == originalD.social.partnerId -> "道侣"
+                originalD.social.parentId1 == deadId || originalD.social.parentId2 == deadId -> "父/母"
+                deadId == originalD.social.parentId1 || deadId == originalD.social.parentId2 -> "子女"
+                else -> "亲属"
+            }
+            val grievingId = grievingD.id.toIntOrNull() ?: continue
+            val grievingAge = tables.ages[grievingId]
+            val currentLifeEvents = tables.lifeEvents.getOrDefault(
+                grievingId, emptyList()
+            )
+            tables.lifeEvents[grievingId] = currentLifeEvents +
+                "${grievingAge}岁：因${relationship}${deceasedName}离世陷入悲痛，修炼速度降低50%"
+        }
+
         stateStore.update {
             discipleTables.clear()
             griefUpdated.forEach { discipleTables.insert(it) }

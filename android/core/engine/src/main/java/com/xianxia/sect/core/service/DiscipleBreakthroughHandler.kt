@@ -201,6 +201,15 @@ class DiscipleBreakthroughHandler @Inject constructor(
             if (candidate.realm != newRealm || candidate.realmLayer != newLayer) {
                 relativeGiftHandler.processGiftsForBreakthrough(id, tables, state)
             }
+
+            // 记录突破日志（仅大境界变化）
+            if (candidate.realm != newRealm) {
+                val discipleAge = tables.ages[id]
+                val newRealmName = GameConfig.Realm.getName(newRealm)
+                val event = "${discipleAge}岁：突破至${newRealmName}"
+                val currentEvents = tables.lifeEvents.getOrDefault(id, emptyList())
+                tables.lifeEvents[id] = currentEvents + event
+            }
         }
     }
 
