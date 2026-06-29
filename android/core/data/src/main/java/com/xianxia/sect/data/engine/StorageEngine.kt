@@ -132,8 +132,6 @@ class StorageEngine @Inject constructor(
     private val _currentSlot = MutableStateFlow(1)
     val currentSlot: StateFlow<Int> = _currentSlot.asStateFlow()
 
-    private val isEmergencySaving = AtomicBoolean(false)
-
     suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
         if (!lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
@@ -313,48 +311,6 @@ class StorageEngine @Inject constructor(
 
     suspend fun exportToFile(slot: Int, file: File): StorageResult<Unit> {
         return storageBackup.exportToFile(slot, file)
-    }
-
-    suspend fun emergencySave(data: SaveData): StorageResult<SaveOperationStats> {
-        val emergencySlot = StorageConstants.EMERGENCY_SLOT
-
-        if (!isEmergencySaving.compareAndSet(false, true)) {
-            Log.w(TAG, "Emergency save already in progress, skipping duplicate request")
-            return StorageResult.failure(StorageError.SAVE_FAILED, "Emergency save already in progress")
-        }
-
-        return try {
-            lockManager.withWriteLockLight(emergencySlot) {
-                try {
-                    val startTime = System.currentTimeMillis()
-
-                    val cleanedData = cleanSaveDataWithArchive(data)
-                    val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
-
-                    database.withTransaction {
-                        writeAllDataToDatabase(emergencySlot, dataWithTimestamp)
-                    }
-
-                    updateCacheAfterSave(emergencySlot, dataWithTimestamp)
-
-                    val elapsed = System.currentTimeMillis() - startTime
-                    Log.i(TAG, "Emergency save completed in ${elapsed}ms")
-
-                    StorageResult.success(SaveOperationStats(
-                        bytesWritten = estimateSaveSize(dataWithTimestamp),
-                        timeMs = elapsed,
-                        wasIncremental = false
-                    ))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Emergency save failed", e)
-                    StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Emergency save failed", e)
-                }
-            }
-        } finally {
-            isEmergencySaving.set(false)
-        }
     }
 
     suspend fun createBackup(slot: Int): com.xianxia.sect.data.unified.SaveResult<String> {
@@ -552,43 +508,6 @@ class StorageEngine @Inject constructor(
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Incremental save failed", e)
             }
-        }
-    }
-
-    suspend fun hasEmergencySave(): Boolean {
-        return try {
-            val slot = StorageConstants.EMERGENCY_SLOT
-            lockManager.isValidSlot(slot) && withContext(Dispatchers.IO) {
-                database.gameDataDao().existsBySlot(slot) != null
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    suspend fun loadEmergencySave(): SaveData? {
-        return try {
-            val result = load(StorageConstants.EMERGENCY_SLOT)
-            result.getOrNull()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load emergency save", e)
-            null
-        }
-    }
-
-    suspend fun clearEmergencySave(): Boolean {
-        return try {
-            val result = delete(StorageConstants.EMERGENCY_SLOT)
-            result.isSuccess
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to clear emergency save", e)
-            false
         }
     }
 

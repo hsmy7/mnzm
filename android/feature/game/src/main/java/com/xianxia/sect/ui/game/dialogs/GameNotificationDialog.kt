@@ -46,6 +46,32 @@ fun DiscipleDesertionDialog(
 }
 
 /**
+ * 弟子偷盗后叛逃提示框（小卡片格式）
+ */
+@Composable
+fun DiscipleTheftDesertionDialog(
+    disciple: Disciple,
+    onDismiss: () -> Unit
+) {
+    StandardPromptDialog(
+        onDismissRequest = onDismiss,
+        title = "${disciple.name}偷盗后叛逃",
+        confirmLabel = "知道了",
+        onConfirm = onDismiss
+    ) {
+        BattleParticipantSlot(
+            name = disciple.name,
+            realmName = disciple.realmName,
+            hp = 0,
+            maxHp = 1,
+            isAlive = true,
+            portraitRes = disciple.portraitRes,
+            showHpBar = false
+        )
+    }
+}
+
+/**
  * 弟子偷盗被捕提示框
  */
 @Composable

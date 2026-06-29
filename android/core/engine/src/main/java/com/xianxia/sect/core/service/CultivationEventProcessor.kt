@@ -474,48 +474,66 @@ class CultivationEventProcessor @Inject constructor(
         val data = stateStore.gameData.value
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
+        val tables = stateStore.discipleTables
+        val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val protectionMonths =
+            GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
 
-        val atRiskDisciples = stateStore.disciples.value.filter {
-            it.isAlive &&
-            it.status == DiscipleStatus.IDLE &&
-            DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
-            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+        // 直接从 discipleTables 读取实时数据，避免 StateFlow 快照不一致
+        val atRiskIds = tables.ids.filter { id ->
+            tables.isAlive.getOrDefault(id, 0) == 1 &&
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
+                DiscipleStatus.IDLE &&
+            tables.loyalties.getOrDefault(id, 0) < threshold &&
+            (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0))
+                >= protectionMonths
         }
 
-        for (disciple in atRiskDisciples) {
-            val effectiveLoyalty = DiscipleStatCalculator.getBaseStats(disciple).loyalty
-            val desertionProb = ((GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD - effectiveLoyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+        for (id in atRiskIds) {
+            val loyal = tables.loyalties.getOrDefault(id, 0)
+            val desertionProb =
+                ((threshold - loyal) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+                    .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < desertionProb) {
                 if (Random.nextDouble() < captureRate) {
                     val currentYear = data.gameYear
-                    val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
+                    val endYear = currentYear +
+                        GameConfig.LawEnforcementConfig.REFLECTION_YEARS
                     stateStore.update {
-                        val mapped = discipleTables.assembleAll().map {
-                            if (it.id == disciple.id) it.copy(
-                                status = DiscipleStatus.REFLECTING,
-                                statusData = it.statusData + mapOf(
-                                    "reflectionStartYear" to currentYear.toString(),
-                                    "reflectionEndYear" to endYear.toString()
-                                )
-                            ) else it
-                        }
-                        discipleTables.clear()
-                        mapped.forEach { discipleTables.insert(it) }
+                        val d = discipleTables.assemble(id) ?: return@update
+                        discipleTables.remove(id)
+                        discipleTables.insert(d.copy(
+                            status = DiscipleStatus.REFLECTING,
+                            statusData = d.statusData + mapOf(
+                                "reflectionStartYear" to currentYear.toString(),
+                                "reflectionEndYear" to endYear.toString()
+                            )
+                        ))
                     }
                 } else {
-                    val discipleSnapshot = disciple.copy()
-                    discipleLifecycleProcessor.clearDiscipleFromAllSlots(disciple.id)
+                    // 防御性二次校验：确认忠诚度仍低于阈值
+                    val currentLoyal =
+                        tables.loyalties.getOrDefault(id, 0)
+                    if (currentLoyal >= threshold) continue
+
+                    val snapshot = tables.assemble(id) ?: continue
+                    discipleLifecycleProcessor
+                        .clearDiscipleFromAllSlots(id.toString())
                     stateStore.update {
-                        val filtered = discipleTables.assembleAll().filter { it.id != disciple.id }
-                        discipleTables.clear()
-                        filtered.forEach { discipleTables.insert(it) }
+                        // 二次校验在事务内再做一次，防止悬停点间被修改
+                        if (discipleTables.loyalties.getOrDefault(
+                                id, 0
+                            ) < threshold
+                        ) {
+                            discipleTables.remove(id)
+                        }
                     }
-                    stateStore.setPendingNotification(GameNotification.DiscipleDesertion(discipleSnapshot))
+                    stateStore.setPendingNotification(
+                        GameNotification.DiscipleDesertion(snapshot)
+                    )
                 }
             }
         }
-
-        processTheftMonthly()
     }
 
     suspend fun processTheftMonthly() {
@@ -524,44 +542,79 @@ class CultivationEventProcessor @Inject constructor(
 
         val captureRate = calculateCaptureRate()
         val currentMonthValue = currentData.gameYear * 12 + currentData.gameMonth
+        val tables = stateStore.discipleTables
+        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val protectionMonths =
+            GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
 
-        val atRiskDisciples = stateStore.disciples.value.filter {
-            it.isAlive &&
-            it.status == DiscipleStatus.IDLE &&
-            DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
-            DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
-            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS &&
-            (currentMonthValue - it.usage.lastTheftMonth) >= 12
+        // 直接从 discipleTables 读取实时数据
+        val atRiskIds = tables.ids.filter { id ->
+            tables.isAlive.getOrDefault(id, 0) == 1 &&
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
+                DiscipleStatus.IDLE &&
+            tables.moralities.getOrDefault(id, 0) < moralThreshold &&
+            tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
+            (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0))
+                >= protectionMonths &&
+            (currentMonthValue - tables.lastTheftMonths.getOrDefault(id, 0))
+                >= 12
         }
 
-        val thiefIds = mutableSetOf<String>()
+        val thiefIds = mutableSetOf<Int>()
         val warehouses = currentData.placedBuildings.filter {
             it.displayName == "仓库"
         }
         val garrisons = currentData.warehouseGarrisons
 
-        for (disciple in atRiskDisciples) {
+        for (id in atRiskIds) {
+            val disciple = tables.assemble(id) ?: continue
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
             val effectiveMorality = stats.morality
-            val theftProb = ((GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+            val theftProb =
+                ((moralThreshold - effectiveMorality) *
+                    GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+                    .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < theftProb) {
                 val caught = if (warehouses.isNotEmpty()) {
-                    val warehouse = warehouses[Random.nextInt(warehouses.size)]
-                    val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive }
+                    val warehouse =
+                        warehouses[Random.nextInt(warehouses.size)]
+                    val garrison = garrisons.find {
+                        it.buildingInstanceId == warehouse.instanceId
+                            && it.isActive
+                    }
                     if (garrison == null) {
                         false
                     } else {
-                        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId }
+                        val guardDisciple =
+                            stateStore.disciples.value.find {
+                                it.id == garrison.discipleId
+                            }
                         if (guardDisciple == null) {
                             false
                         } else {
-                            val thiefStats = DiscipleStatCalculator.getBaseStats(disciple)
-                            val guardStats = DiscipleStatCalculator.getBaseStats(guardDisciple)
-                            val thiefPower = thiefStats.physicalAttack + thiefStats.magicAttack +
-                                    thiefStats.physicalDefense + thiefStats.magicDefense + thiefStats.speed
-                            val guardPower = guardStats.physicalAttack + guardStats.magicAttack +
-                                    guardStats.physicalDefense + guardStats.magicDefense + guardStats.speed
-                            val thiefWinProb = (thiefPower.toDouble() / (thiefPower + guardPower).coerceAtLeast(1)).coerceIn(0.1, 0.9)
+                            val thiefStats =
+                                DiscipleStatCalculator.getBaseStats(
+                                    disciple
+                                )
+                            val guardStats =
+                                DiscipleStatCalculator.getBaseStats(
+                                    guardDisciple
+                                )
+                            val thiefPower = thiefStats.physicalAttack +
+                                thiefStats.magicAttack +
+                                thiefStats.physicalDefense +
+                                thiefStats.magicDefense +
+                                thiefStats.speed
+                            val guardPower = guardStats.physicalAttack +
+                                guardStats.magicAttack +
+                                guardStats.physicalDefense +
+                                guardStats.magicDefense +
+                                guardStats.speed
+                            val thiefWinProb =
+                                (thiefPower.toDouble() / (thiefPower + guardPower)
+                                    .coerceAtLeast(1))
+                                    .coerceIn(0.1, 0.9)
                             Random.nextDouble() >= thiefWinProb
                         }
                     }
@@ -570,42 +623,84 @@ class CultivationEventProcessor @Inject constructor(
                 }
 
                 if (caught) {
-                    stateStore.setPendingNotification(GameNotification.DiscipleTheftCaught(disciple))
+                    stateStore.setPendingNotification(
+                        GameNotification.DiscipleTheftCaught(disciple)
+                    )
                 } else {
-                    val currentData = stateStore.gameData.value
-                    if (currentData.spiritStones <= 0) break
-                    val stolenAmount = (currentData.spiritStones * Random.nextDouble(GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO, GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO)).toLong().coerceAtLeast(1)
+                    val currentData2 = stateStore.gameData.value
+                    if (currentData2.spiritStones <= 0) break
+                    val stolenAmount =
+                        (currentData2.spiritStones * Random.nextDouble(
+                            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO,
+                            GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO
+                        )).toLong().coerceAtLeast(1)
                     stateStore.update {
-                        gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
-                        discipleTables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
+                        gameData = gameData.copy(
+                            spiritStones = (gameData.spiritStones - stolenAmount)
+                                .coerceAtLeast(0)
+                        )
+                        discipleTables.assembleAll().firstOrNull {
+                            it.id == disciple.id
+                        }?.let { d ->
                             discipleTables.update(
                                 d.copy(
-                                    equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount),
-                                    usage = d.usage.copy(lastTheftMonth = currentMonthValue)
+                                    equipment = d.equipment.copy(
+                                        storageBagSpiritStones =
+                                            d.equipment.storageBagSpiritStones + stolenAmount
+                                    ),
+                                    usage = d.usage.copy(
+                                        lastTheftMonth = currentMonthValue
+                                    )
                                 )
                             )
                         }
                     }
 
                     val loyalty = stats.loyalty
-                    val desertionProb = ((GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD - loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+                    val desertionProb =
+                        ((loyalThreshold - loyalty) *
+                            GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+                            .coerceIn(
+                                0.0,
+                                GameConfig.LawEnforcementConfig.MAX_PROB
+                            )
                     if (Random.nextDouble() < desertionProb) {
-                        thiefIds.add(disciple.id)
+                        thiefIds.add(id)
                     }
 
-                    stateStore.setPendingNotification(GameNotification.WarehouseTheft(stolenAmount))
+                    stateStore.setPendingNotification(
+                        GameNotification.WarehouseTheft(stolenAmount)
+                    )
                 }
             }
         }
 
+        // 偷盗后叛逃：设置小卡片通知 + 清除槽位 + 移除弟子
         for (thiefId in thiefIds) {
-            discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId)
+            // 防御性二次校验
+            val currentLoyal =
+                tables.loyalties.getOrDefault(thiefId, 0)
+            if (currentLoyal >= loyalThreshold) continue
+
+            val snapshot = tables.assemble(thiefId)
+            if (snapshot != null) {
+                stateStore.setPendingNotification(
+                    GameNotification.DiscipleTheftDesertion(snapshot)
+                )
+            }
+            discipleLifecycleProcessor
+                .clearDiscipleFromAllSlots(thiefId.toString())
         }
         if (thiefIds.isNotEmpty()) {
             stateStore.update {
-                val filtered = discipleTables.assembleAll().filter { it.id !in thiefIds }
-                discipleTables.clear()
-                filtered.forEach { discipleTables.insert(it) }
+                for (thiefId in thiefIds) {
+                    if (discipleTables.loyalties.getOrDefault(
+                            thiefId, 0
+                        ) < loyalThreshold
+                    ) {
+                        discipleTables.remove(thiefId)
+                    }
+                }
             }
         }
     }
@@ -722,10 +817,17 @@ class CultivationEventProcessor @Inject constructor(
 
     suspend fun processTheftIfNeeded() {
         if (stateStore.gameData.value.spiritStones <= 0) return
-        val hasLowMoralityDisciple = stateStore.disciples.value.any {
-            it.isAlive && it.status == DiscipleStatus.IDLE &&
-            DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
-            DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val tables = stateStore.discipleTables
+        val moralThreshold =
+            GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val loyalThreshold =
+            GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val hasLowMoralityDisciple = tables.ids.any { id ->
+            tables.isAlive.getOrDefault(id, 0) == 1 &&
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
+                DiscipleStatus.IDLE &&
+            tables.moralities.getOrDefault(id, 0) < moralThreshold &&
+            tables.loyalties.getOrDefault(id, 0) < loyalThreshold
         }
         if (!hasLowMoralityDisciple) return
         processTheftMonthly()

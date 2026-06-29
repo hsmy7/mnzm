@@ -24,7 +24,6 @@ enum class RecoveryLevel(val priority: Int, val description: String) {
     WAL_SNAPSHOT(1, "WAL快照恢复"),
     LOCAL_BACKUP(2, "本地备份恢复"),
     AUTO_SAVE(3, "自动存档恢复"),
-    EMERGENCY_SAVE(4, "紧急存档恢复"),
     DEFAULT_DATA(5, "默认数据恢复")
 }
 
@@ -395,10 +394,6 @@ class RecoveryManager @Inject constructor(
                 val autoSaveData = database.gameDataDao().getGameDataSync(StorageConstants.AUTO_SAVE_SLOT)
                 autoSaveData != null
             }
-            RecoveryLevel.EMERGENCY_SAVE -> {
-                val emergencyData = database.gameDataDao().getGameDataSync(StorageConstants.EMERGENCY_SLOT)
-                emergencyData != null
-            }
             RecoveryLevel.DEFAULT_DATA -> true
         }
     }
@@ -424,14 +419,6 @@ class RecoveryManager @Inject constructor(
                     Log.w(TAG, "Skipping AUTO_SAVE recovery for manual slot $slot: auto-save is independent")
                     false
                 }
-            }
-            RecoveryLevel.EMERGENCY_SAVE -> {
-                val emergencyData = database.gameDataDao().getGameDataSync(StorageConstants.EMERGENCY_SLOT)
-                if (emergencyData != null) {
-                    val restored = emergencyData.copy(slotId = slot)
-                    database.gameDataDao().insert(restored)
-                    true
-                } else false
             }
             RecoveryLevel.DEFAULT_DATA -> {
                 val defaultData = com.xianxia.sect.core.model.GameData(slotId = slot)

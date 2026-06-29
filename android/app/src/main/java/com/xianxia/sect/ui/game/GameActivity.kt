@@ -54,7 +54,7 @@ import kotlin.random.Random
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListener {
+class GameActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "GameActivity"
@@ -165,9 +165,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
-
-        // 注册内存压力监听
-        (application as? XianxiaApplication)?.registerMemoryPressureListener(this)
 
         // 初始化并注册崩溃处理器
         setupCrashHandler()
@@ -573,9 +570,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
     }
 
-    private var lastEmergencySaveTime = 0L
-    private val emergencySaveDebounceMs = 5000L
-
     private fun hideSystemBars() {
         WindowInsetsControllerCompat(window, window.decorView).let { controller ->
             controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
@@ -598,7 +592,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         Log.d(TAG, "onDestroy called")
         frameMetricsMonitor.stopMonitoring(window)
         SecureKeyManager.recoveryCallback = null
-        (application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)
         // 解除与 GameForegroundService 的绑定
         if (isServiceBound) {
             try {
@@ -621,8 +614,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onLowMemory() {
         super.onLowMemory()
-        Log.e(TAG, "系统内存严重不足，执行紧急保存")
-        performEmergencySaveWithDebounce()
     }
 
     @Suppress("DEPRECATION")
@@ -632,11 +623,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
                 // Release UI-only resources
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
-                viewModel.onMemoryPressure(level)
-            }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
-                viewModel.onMemoryPressure(level)
                 // 释放地图 Bitmap 引用以允许 GC 回收内存（ImageBitmap 无 recycle API）
                 mapPreloadDataRef = null
             }
@@ -647,87 +634,19 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
                 Log.w(TAG, "内存适中压力，建议释放部分资源")
             }
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
-                Log.e(TAG, "内存严重不足(level=$level)，执行紧急保存")
-                performEmergencySaveWithDebounce()
-            }
-        }
-    }
-
-    override fun onMemoryPressure(level: Int) {
-        Log.w(TAG, "收到内存压力通知: level=$level")
-        viewModel.onMemoryPressure(level)
-    }
-
-    private fun performEmergencySaveWithDebounce() {
-        val now = System.currentTimeMillis()
-        if (now - lastEmergencySaveTime > emergencySaveDebounceMs) {
-            lastEmergencySaveTime = now
-            try {
-                saveLoadViewModel.performEmergencySave()
-            } catch (e: Exception) {
-                Log.e(TAG, "紧急保存失败", e)
-            }
-        } else {
-            Log.d(TAG, "跳过重复的紧急保存请求，距上次保存 ${now - lastEmergencySaveTime}ms")
         }
     }
 
     /**
      * 设置崩溃处理器
-     * 注册全局异常捕获，并在崩溃时尝试紧急保存游戏数据
      */
     private fun setupCrashHandler() {
         try {
-            // 初始化 CrashHandler 单例
             CrashHandler.init(crashHandler)
-
-            // 设置紧急保存回调
-            crashHandler.setEmergencySaveCallback {
-                performEmergencySave()
-            }
-
-            // 注册崩溃处理器
             crashHandler.register()
-
             Log.i(TAG, "CrashHandler setup completed")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup CrashHandler", e)
-        }
-    }
-
-    /**
-     * 执行紧急保存
-     * 在崩溃发生时调用，尝试保存当前游戏状态
-     * 注意：使用同步方法避免死锁，可能读取到不一致状态但总比丢失数据好
-     * @return 是否保存成功
-     */
-    private fun performEmergencySave(): Boolean {
-        return try {
-            val gameData = viewModel.gameData.value
-            if (gameData.sectName.isNotEmpty()) {
-                Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")
-                val saveData = saveLoadViewModel.createSaveDataSync()
-                var emergencyResult = false
-                val latch = java.util.concurrent.CountDownLatch(1)
-                lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        emergencyResult = withTimeoutOrNull(2_000L) {
-                            storageFacade.emergencySaveSuspend(saveData)
-                        } ?: false
-                    } finally {
-                        latch.countDown()
-                    }
-                }
-                latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-                emergencyResult
-            } else {
-                Log.w(TAG, "No valid game data to save in emergency")
-                false
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Emergency save failed", e)
-            false
         }
     }
 

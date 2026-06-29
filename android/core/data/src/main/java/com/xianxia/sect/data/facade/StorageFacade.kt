@@ -341,51 +341,6 @@ class StorageFacade @Inject constructor(
 
     fun getCurrentSlot(): Int = _currentSlot.value
 
-    // ==================== 紧急存档方法 ====================
-
-    suspend fun hasEmergencySave(): Boolean {
-        return try {
-            engine.hasEmergencySave()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "hasEmergencySave check failed", e)
-            false
-        }
-    }
-
-    suspend fun loadEmergencySaveSuspend(): SaveData? {
-        return try {
-            engine.loadEmergencySave()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "loadEmergencySave failed", e)
-            null
-        }
-    }
-
-    suspend fun clearEmergencySaveSuspend() {
-        try {
-            engine.clearEmergencySave()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "clearEmergencySave failed", e)
-        }
-    }
-
-    suspend fun emergencySaveSuspend(data: SaveData): Boolean {
-        return try {
-            engine.emergencySave(data).isSuccess
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "emergencySave failed", e)
-            false
-        }
-    }
-
     // ==================== 数据检查方法 ====================
 
     suspend fun hasSaveSuspend(slot: Int): Boolean {

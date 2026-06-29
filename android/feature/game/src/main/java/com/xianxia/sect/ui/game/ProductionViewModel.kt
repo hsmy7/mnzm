@@ -48,22 +48,27 @@ class ProductionViewModel @Inject constructor(
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
         launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
 
-    fun assignWarehouseGarrison(buildingInstanceId: String, discipleId: String, discipleName: String, sectId: String) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                val existing = data.warehouseGarrisons.toMutableList()
-                existing.removeAll { it.buildingInstanceId == buildingInstanceId }
-                existing.add(WarehouseGarrisonSlot(buildingInstanceId, discipleId, discipleName, sectId))
-                data.copy(warehouseGarrisons = existing)
-            }
+    suspend fun assignWarehouseGarrison(
+        buildingInstanceId: String,
+        discipleId: String,
+        discipleName: String,
+        sectId: String
+    ) {
+        gameEngine.updateGameDataAndSync { data ->
+            val existing = data.warehouseGarrisons.toMutableList()
+            existing.removeAll { it.buildingInstanceId == buildingInstanceId }
+            existing.add(WarehouseGarrisonSlot(
+                buildingInstanceId, discipleId, discipleName, sectId
+            ))
+            data.copy(warehouseGarrisons = existing)
         }
     }
 
-    fun removeWarehouseGarrison(buildingInstanceId: String) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                data.copy(warehouseGarrisons = data.warehouseGarrisons.filter { it.buildingInstanceId != buildingInstanceId })
-            }
+    suspend fun removeWarehouseGarrison(buildingInstanceId: String) {
+        gameEngine.updateGameDataAndSync { data ->
+            data.copy(warehouseGarrisons = data.warehouseGarrisons.filter {
+                it.buildingInstanceId != buildingInstanceId
+            })
         }
     }
 

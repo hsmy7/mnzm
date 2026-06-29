@@ -402,10 +402,6 @@ class SaveLoadViewModel @Inject constructor(
         enqueueAutoSave(SavePipeline.SaveSource.AUTO)
     }
 
-    fun performEmergencySave() {
-        enqueueAutoSave(SavePipeline.SaveSource.EMERGENCY)
-    }
-
     suspend fun createSaveData(): SaveData {
         val snapshot = gameEngine.getStateSnapshot()
         return trimSaveData(snapshot)
@@ -494,17 +490,6 @@ class SaveLoadViewModel @Inject constructor(
                     "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                     "totalElapsed=${System.currentTimeMillis() - startTime}ms")
-
-                // 清除残留的紧急存档，防止古早数据在下一次异常退出恢复时覆盖当前进度
-                launch {
-                    try {
-                        storageFacade.clearEmergencySaveSuspend()
-                        Log.d(TAG, "Stale emergency save cleared after new game start, slot=$slot")
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.w(TAG, "Failed to clear stale emergency save: ${e.message}")
-                    }
-                }
             } catch (e: CancellationException) {
                 Log.w(TAG, "startNewGame cancelled")
                 throw e
@@ -858,17 +843,6 @@ class SaveLoadViewModel @Inject constructor(
                         "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                         "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                         "elapsed=${System.currentTimeMillis() - startTime}ms")
-
-                    // 清除残留的紧急存档，防止古早数据在下一次异常退出恢复时覆盖当前进度
-                    launch {
-                        try {
-                            storageFacade.clearEmergencySaveSuspend()
-                            Log.d(TAG, "Stale emergency save cleared after successful load, slot=$slot")
-                        } catch (e: CancellationException) { throw e }
-                          catch (e: Exception) {
-                            Log.w(TAG, "Failed to clear stale emergency save: ${e.message}")
-                        }
-                    }
                 } else {
                     val elapsed = System.currentTimeMillis() - loadStartTime
                     Log.e(TAG, "=== loadGameFromSlot FAILED === timeout or null for slot $slot, elapsed=${elapsed}ms")
@@ -976,19 +950,6 @@ class SaveLoadViewModel @Inject constructor(
                             Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
                         }
                         showSuccess("游戏保存成功")
-
-                        // 同步更新紧急存档，确保崩溃恢复时使用最新数据
-                        launch {
-                            try {
-                                withTimeoutOrNull(5_000L) {
-                                    storageFacade.emergencySaveSuspend(saveData)
-                                }
-                                Log.d(TAG, "Emergency save updated during manual save, slot=$slot")
-                            } catch (e: CancellationException) { throw e }
-                              catch (e: Exception) {
-                                Log.w(TAG, "Failed to update emergency save during manual save: ${e.message}")
-                            }
-                        }
 
                         Log.i(TAG, "=== saveGame SUCCESS === " +
                             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +

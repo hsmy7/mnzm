@@ -41,8 +41,7 @@ class SlotLockManager(
 
     private val slotIndexMap: Map<Int, Int> = mapOf(
         StorageConstants.AUTO_SAVE_SLOT to 0,
-        StorageConstants.EMERGENCY_SLOT to 1,
-        *(1..maxSlots).map { it to it + 1 }.toTypedArray()
+        *(1..maxSlots).map { it to it }.toTypedArray()
     )
 
     private fun getMutex(slot: Int): Mutex {

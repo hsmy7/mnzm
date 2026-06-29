@@ -114,9 +114,6 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var storageFacade: StorageFacade
     
-    @Inject
-    lateinit var crashHandler: CrashHandler
-    
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
     internal var tapTapReady = mutableStateOf(false)
@@ -240,33 +237,6 @@ class MainActivity : ComponentActivity() {
     
     internal fun onLoadingComplete() {
         lifecycleScope.launch {
-            // 检查 crash_flag 是否过期（超过7天视为无效，防止古早标记触发误恢复）
-            if (crashHandler.hasCrashed()) {
-                val crashTime = crashHandler.getCrashTime()
-                val sevenDaysMs = 7 * 24 * 60 * 60 * 1000L
-                if (crashTime > 0 && System.currentTimeMillis() - crashTime > sevenDaysMs) {
-                    Log.w(TAG, "Crash flag expired (>7 days, crashTime=$crashTime), clearing")
-                    crashHandler.clearCrashState()
-                    try {
-                        storageFacade.clearEmergencySaveSuspend()
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to clear emergency save for expired crash: ${e.message}")
-                    }
-                }
-            }
-
-            if (crashHandler.hasCrashed() && storageFacade.hasEmergencySave()) {
-                Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
-                showCrashRecoveryDialog()
-                return@launch
-            }
-
-            if (crashHandler.hasCrashed()) {
-                crashHandler.clearCrashState()
-            }
-
             initTapTapSDK()
 
             if (sessionManager.isLoggedIn) {
@@ -384,114 +354,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-    }
-    
-    /**
-     * 显示崩溃恢复对话框
-     * 当检测到上次游戏异常退出且存在紧急存档时调用
-     * 先加载紧急存档元数据（游戏时间、宗门名），再显示对话框
-     */
-    private fun showCrashRecoveryDialog() {
-        lifecycleScope.launch {
-            // 加载紧急存档元数据以供用户判断数据新旧
-            var emergencyYear = 0
-            var emergencyMonth = 0
-            var emergencySectName = ""
-            try {
-                val emergencyData = storageFacade.loadEmergencySaveSuspend()
-                if (emergencyData != null) {
-                    emergencyYear = emergencyData.gameData.gameYear
-                    emergencyMonth = emergencyData.gameData.gameMonth
-                    emergencySectName = emergencyData.gameData.sectName
-                    Log.i(TAG, "Emergency save metadata: sect=$emergencySectName, " +
-                        "year=$emergencyYear, month=$emergencyMonth")
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to load emergency save metadata: ${e.message}")
-            }
-
-            withContext(Dispatchers.Main) {
-                setContent {
-                    XianxiaTheme {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = Color.White
-                        ) {
-                            CrashRecoveryDialog(
-                                gameYear = emergencyYear,
-                                gameMonth = emergencyMonth,
-                                sectName = emergencySectName,
-                                onRecover = {
-                                    recoverFromEmergencySave()
-                                },
-                                onDismiss = {
-                                    clearCrashStateAndContinue()
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    /**
-     * 从紧急存档恢复并进入游戏
-     */
-    private fun recoverFromEmergencySave() {
-        try {
-            lifecycleScope.launch {
-                val emergencyData = storageFacade.loadEmergencySaveSuspend()
-                if (emergencyData != null) {
-                    Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}, " +
-                        "year=${emergencyData.gameData.gameYear}, month=${emergencyData.gameData.gameMonth}")
-
-                    // 先保存到正常槽位，成功后再清除紧急存档和crash_flag
-                    // 保证原子性：即使App在清除前被杀死，数据已在正常槽位中
-                    val slot = if (emergencyData.gameData.currentSlot > 0) emergencyData.gameData.currentSlot else 1
-                    storageFacade.save(slot, emergencyData)
-
-                    storageFacade.clearEmergencySaveSuspend()
-                    crashHandler.clearCrashState()
-
-                    Log.i(TAG, "Emergency save recovered to slot $slot, emergency data cleared")
-
-                    val intent = Intent(this@MainActivity, GameActivity::class.java)
-                    intent.putExtra(EXTRA_SLOT, slot)
-                    startActivity(intent)
-                    finish()
-                } else {
-                    Log.e(TAG, "Failed to load emergency save")
-                    Toast.makeText(this@MainActivity, "恢复数据失败，将进入正常游戏", Toast.LENGTH_LONG).show()
-                    clearCrashStateAndContinue()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error recovering from emergency save", e)
-            Toast.makeText(this, "恢复数据时发生错误", Toast.LENGTH_LONG).show()
-            clearCrashStateAndContinue()
-        }
-    }
-    
-    private fun clearCrashStateAndContinue() {
-        try {
-            lifecycleScope.launch {
-                storageFacade.clearEmergencySaveSuspend()
-            }
-            crashHandler.clearCrashState()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error clearing crash state", e)
-        }
-        
-        initTapTapSDK()
-        
-        if (sessionManager.isLoggedIn) {
-            showSaveSelectScreen()
-        } else {
-            showMainScreen()
         }
     }
     
@@ -877,112 +739,7 @@ fun MainScreen(
  * 崩溃恢复对话框
  * 当检测到上次游戏异常退出时显示，询问用户是否恢复数据
  *
- * @param gameYear 紧急存档的游戏年份（0=加载失败或未知）
- * @param gameMonth 紧急存档的游戏月份
- * @param sectName 紧急存档的宗门名称
  */
-@Composable
-fun CrashRecoveryDialog(
-    gameYear: Int = 0,
-    gameMonth: Int = 0,
-    sectName: String = "",
-    onRecover: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    // 格式化游戏时间显示
-    val gameTimeText = if (gameYear > 0) {
-        "第${gameYear}年${gameMonth}月"
-    } else {
-        null
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White),
-        contentAlignment = Alignment.Center
-    ) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = {
-                Text(
-                    text = "数据恢复",
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "检测到上次游戏异常退出，发现可恢复的游戏数据。",
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    // 显示紧急存档的游戏时间信息
-                    if (gameTimeText != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "可恢复的游戏进度：",
-                            fontSize = 13.sp,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (sectName.isNotEmpty()) {
-                                "【$sectName】$gameTimeText"
-                            } else {
-                                gameTimeText
-                            },
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFD4380D),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = "是否恢复上次的游戏进度？",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "选择\"恢复\"将加载上次的游戏数据；\n选择\"不恢复\"将丢弃这些数据。",
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-                }
-            },
-            confirmButton = {
-                GameButton(
-                    text = "恢复",
-                    onClick = onRecover
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "不恢复",
-                    onClick = onDismiss
-                )
-            }
-        )
-    }
-}
 
 @Composable
 fun ComplianceVerificationScreen(

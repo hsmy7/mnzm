@@ -10,9 +10,7 @@ enum class BackupType {
     /** 手动备份：用户主动触发的备份 */
     MANUAL,
     /** 关键节点备份：如境界突破等重要游戏事件时自动创建 */
-    CRITICAL,
-    /** 紧急备份：系统异常或崩溃前创建的保护性备份 */
-    EMERGENCY;
+    CRITICAL;
 
     companion object {
         fun fromString(value: String): BackupType? =
@@ -76,22 +74,10 @@ data class BackupRetentionPolicy(
             autoCleanable = false
         )
 
-        /** 紧急备份策略：永久保留 */
-        val EMERGENCY_POLICY = BackupRetentionPolicy(
-            backupType = BackupType.EMERGENCY,
-            maxVersions = Int.MAX_VALUE,
-            defaultImportance = BackupImportance.PERMANENT,
-            autoCleanable = false
-        )
-
-        /**
-         * 根据备份类型获取对应的策略
-         */
         fun forType(type: BackupType): BackupRetentionPolicy = when (type) {
             BackupType.AUTO -> AUTO_POLICY
             BackupType.MANUAL -> MANUAL_POLICY
             BackupType.CRITICAL -> CRITICAL_POLICY
-            BackupType.EMERGENCY -> EMERGENCY_POLICY
         }
     }
 }
@@ -160,7 +146,6 @@ class BackupStrategy {
         BackupType.AUTO -> "auto"
         BackupType.MANUAL -> "manual"
         BackupType.CRITICAL -> "critical"
-        BackupType.EMERGENCY -> "emergency"
     }
 
     /**
@@ -171,7 +156,6 @@ class BackupStrategy {
             fileName.startsWith("auto_") -> BackupType.AUTO
             fileName.startsWith("manual_") -> BackupType.MANUAL
             fileName.startsWith("critical_") -> BackupType.CRITICAL
-            fileName.startsWith("emergency_") -> BackupType.EMERGENCY
             else -> null
         }
     }
@@ -269,7 +253,6 @@ class BackupStrategy {
      */
     private fun getTypePriority(type: BackupType): Int = when (type) {
         BackupType.CRITICAL -> 4
-        BackupType.EMERGENCY -> 4
         BackupType.MANUAL -> 3
         BackupType.AUTO -> 2
     }
@@ -357,7 +340,7 @@ class BackupStrategy {
         context: Map<String, Any>? = null
     ): BackupImportance {
         // CRITICAL 和 EMERGENCY 类型默认为 PERMANENT
-        if (type == BackupType.CRITICAL || type == BackupType.EMERGENCY) {
+        if (type == BackupType.CRITICAL) {
             return BackupImportance.PERMANENT
         }
 

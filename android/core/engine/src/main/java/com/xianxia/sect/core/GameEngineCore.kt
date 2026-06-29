@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.InterfaceDomainMap
+import com.xianxia.sect.core.engine.system.CultivationTickSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
@@ -459,6 +460,8 @@ class GameEngineCore @Inject constructor(
         // 取消当前循环
         gameLoopJob?.cancel()
         gameLoopJob = null
+        // 清除残留结算状态，防止重启后 hasPendingWork 阻塞
+        settlementCoordinator.cancelPendingWork()
         // 重置可能卡住的状态
         forceResetStuckStates()
         // 消耗死区时间，防止重启后时间跳变
@@ -662,6 +665,8 @@ class GameEngineCore @Inject constructor(
                         if (settlementCoordinator.hasPendingWork) {
                             systemManager.getSystem(TimeSystem::class)
                                 .onPhaseTick(this, phasesToSettle = 1)
+                            systemManager.getSystem(CultivationTickSystem::class)
+                                .onPhaseTick(this, phasesToSettle = 1)
                         } else {
                             val phase1Based = this.gameData.gamePhase + 1
                             systemManager.onPhaseTickWithDomainFilter(
@@ -700,10 +705,8 @@ class GameEngineCore @Inject constructor(
             missionCheck?.invoke()
         }
 
-        // 先完成待处理的结算（如有）
-        if (settlementCoordinator.hasPendingWork &&
-            (monthChanged || yearChanged)
-        ) {
+        // 先完成待处理的结算（如有）— 每 tick 检查
+        if (settlementCoordinator.hasPendingWork) {
             forceCompleteSettlement()
         }
 

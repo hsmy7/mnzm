@@ -594,6 +594,12 @@ fun GameOverlayHost(
                     onDismiss = { viewModel.clearNotification() }
                 )
             }
+            is GameNotification.DiscipleTheftDesertion -> {
+                DiscipleTheftDesertionDialog(
+                    disciple = notification.disciple,
+                    onDismiss = { viewModel.clearNotification() }
+                )
+            }
             is GameNotification.DiscipleTheftCaught -> {
                 DiscipleTheftCaughtDialog(
                     disciple = notification.disciple,

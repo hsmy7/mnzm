@@ -298,6 +298,10 @@ private val scopeProvider: CoroutineScopeProvider,
         data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
             ?.filter { it.discipleId.isNotEmpty() }
             ?.forEach { garrisonIds.add(it.discipleId) }
+        // 仓库驻守弟子也标记为 GARRISONING
+        data.warehouseGarrisons
+            .filter { it.discipleId.isNotEmpty() }
+            .forEach { garrisonIds.add(it.discipleId) }
 
         val inTeamIds = mutableSetOf<String>()
         data.battleTeams.flatMap { it.slots }

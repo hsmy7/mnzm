@@ -27,9 +27,6 @@ object StorageConstants {
 
     /** 根据槽位号解析有效槽位：自动存档返回 AUTO_SAVE_SLOT，手动存档原样返回 */
     fun resolveEffectiveSlot(slot: Int): Int = if (isAutoSaveSlot(slot)) AUTO_SAVE_SLOT else slot
-    
-    /** 紧急存档槽位 ID */
-    const val EMERGENCY_SLOT = -1
 
     // ==================== 缓存配置 ====================
     

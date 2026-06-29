@@ -68,15 +68,6 @@ class CrashHandler @Inject constructor(
     private val fileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA)
 
     private var defaultExceptionHandler: Thread.UncaughtExceptionHandler? = null
-    private var emergencySaveCallback: (() -> Boolean)? = null
-
-    /**
-     * 设置紧急保存回调
-     * 在崩溃发生时调用，用于尝试保存游戏数据
-     */
-    fun setEmergencySaveCallback(callback: () -> Boolean) {
-        emergencySaveCallback = callback
-    }
 
     /**
      * 注册崩溃处理器
@@ -108,16 +99,13 @@ class CrashHandler @Inject constructor(
             //     } catch (_: Exception) { }
             // }
 
-            // 1. 尝试紧急保存
-            performEmergencySave()
-
-            // 2. 记录崩溃日志到文件
+            // 1. 记录崩溃日志到文件
             val crashLogFile = writeCrashLogToFile(thread, throwable)
 
-            // 3. 保存崩溃状态到 SharedPreferences
+            // 2. 保存崩溃状态
             saveCrashState(throwable, crashLogFile)
 
-            // 4. 上传崩溃日志到远程服务器
+            // 3. 上传崩溃日志到远程服务器
             tryUploadCrashLog(crashLogFile)
 
             Log.i(TAG, "Crash handling completed, crash log saved to: ${crashLogFile?.absolutePath}")
@@ -160,39 +148,6 @@ class CrashHandler @Inject constructor(
         } catch (_: Exception) { /* 静默失败 */ }
     }
 
-    /**
-     * 执行紧急保存
-     * 添加超时保护，防止崩溃处理阻塞过久
-     */
-    private fun performEmergencySave() {
-        try {
-            val callback = emergencySaveCallback
-            if (callback != null) {
-                val startTime = System.currentTimeMillis()
-                val timeoutMs = 5000L
-                
-                val saveThread = Thread {
-                    try {
-                        val success = callback.invoke()
-                        val elapsed = System.currentTimeMillis() - startTime
-                        Log.i(TAG, "Emergency save ${if (success) "succeeded" else "failed"} in ${elapsed}ms")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error in emergency save thread", e)
-                    }
-                }
-                saveThread.start()
-                
-                saveThread.join(timeoutMs)
-                
-                if (saveThread.isAlive) {
-                    Log.w(TAG, "Emergency save timed out after ${timeoutMs}ms, interrupting...")
-                    saveThread.interrupt()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during emergency save", e)
-        }
-    }
 
     /**
      * 将崩溃日志写入文件
