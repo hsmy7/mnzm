@@ -34,7 +34,8 @@ data class GameConfigData(
     val ai: AISection = AISection(),
     val sectMap: SectMapSection = SectMapSection(),
     val worldMap: WorldMapSection = WorldMapSection(),
-    val diplomacy: DiplomacySection = DiplomacySection()
+    val diplomacy: DiplomacySection = DiplomacySection(),
+    val relativeGift: RelativeGiftSection = RelativeGiftSection()
 ) {
     @Serializable
     data class GameSection(
@@ -304,4 +305,18 @@ data class GameConfigData(
             val spiritStonePenaltyRatio: Double = 0.1
         )
     }
+
+    /**
+     * 亲属智能赠送概率配置。
+     * 当弟子突破境界时，亲属独立掷骰决定是否赠送贺礼。
+     */
+    @Serializable
+    data class RelativeGiftSection(
+        val masterGiftProb: Double = 0.40,
+        val apprenticeGiftProb: Double = 0.30,
+        val partnerGiftProb: Double = 0.45,
+        val parentGiftProb: Double = 0.35,
+        val childGiftProb: Double = 0.50,
+        val siblingGiftProb: Double = 0.25
+    )
 }

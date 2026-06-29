@@ -18,7 +18,8 @@ import kotlin.random.Random
 class DiscipleBreakthroughHandler @Inject constructor(
     private val stateStore: GameStateStore,
     private val cultivationCore: CultivationCore,
-    private val scopeProvider: CoroutineScopeProvider
+    private val scopeProvider: CoroutineScopeProvider,
+    private val relativeGiftHandler: RelativeGiftHandler
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -190,6 +191,16 @@ class DiscipleBreakthroughHandler @Inject constructor(
             // 修炼完成时间
             tables.cultivationCompletionMonths[id] = d.cultivationCompletionMonth
             tables.cultivationCompletionPhases[id] = d.cultivationCompletionPhase
+        }
+
+        // 亲属智能赠送：突破（realm 或 realmLayer 变化）后触发
+        for (candidate in candidates) {
+            val id = candidate.id.toIntOrNull() ?: continue
+            val newRealm = tables.realms[id]
+            val newLayer = tables.realmLayers[id]
+            if (candidate.realm != newRealm || candidate.realmLayer != newLayer) {
+                relativeGiftHandler.processGiftsForBreakthrough(id, tables, state)
+            }
         }
     }
 
