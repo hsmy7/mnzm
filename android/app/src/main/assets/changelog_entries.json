@@ -9,6 +9,7 @@
 				"修复：仓库驻守弟子关闭界面重进变空闲——assignWarehouseGarrison改为suspend同步写入+updateGameDataAndSync确保原子写入和状态同步，UI层await完成后再关闭弹窗；DiscipleService增加warehouseGarrisons状态同步",
 				"修复：驻守弟子选择界面不显示弟子卡片和筛选栏——自定义实现替换为项目标准的DiscipleSelectorDialog，增加PortraitDiscipleCard卡片和SpiritRootAttributeFilterBar三维护筛选",
 				"删除：紧急存档系统——游戏不需要紧急存档且冻结时保存不一致状态导致大退重进闪退，移除CrashHandler/GameActivity/MainActivity/StorageEngine/StorageFacade/SaveLoadViewModel/SavePipeline/BackupStrategy/RecoveryManager中所有紧急存档代码",
+				"修复：部分机型宗门地图和世界地图显示白边——根因为系统层面display cutout letterbox（仅theme XML设置shortEdges，MIUI/ColorOS/EMUI等OEM可能忽略）。改用enableEdgeToEdge()程序化设置cutout mode=ALWAYS从根本上消除letterbox，同时设置windowBackground为透明防御极端情况，清理Theme.kt中每次重组合重复执行全屏设置的冗余SideEffect",
 		]
 	},
 	{

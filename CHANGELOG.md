@@ -8,6 +8,7 @@
 - **游戏时间停止** — 年度结算期间 bypass 模式仅执行 TimeSystem 跳过所有领域系统（修炼/生产/物品），forceCompleteSettlement 改为每 tick 检查并增加 CultivationTickSystem 同步执行，看门狗重启时清理残留结算状态
 - **仓库驻守弟子关闭界面重进变空闲** — assignWarehouseGarrison 改为 suspend 同步写入 + updateGameDataAndSync 确保原子写入和状态同步，UI 层 await 完成后再关闭弹窗；DiscipleService 增加 warehouseGarrisons 状态同步使驻守弟子正确显示为驻守中
 - **驻守弟子选择界面无卡片无筛选栏** — 自定义实现替换为项目标准的 DiscipleSelectorDialog，增加 PortraitDiscipleCard 卡片和 SpiritRootAttributeFilterBar 三维护筛选（灵根/属性/境界）
+- **部分机型宗门地图和世界地图显示白边** — 根因是系统层面 display cutout letterbox（仅通过 theme XML 设置 shortEdges，MIUI/ColorOS/EMUI 等 OEM ROM 可能忽略此属性）。改用 `enableEdgeToEdge()` 程序化设置 cutout mode = ALWAYS，从根源消除 letterbox，使 Compose 布局区域真正延伸到物理屏幕边缘。同时设置 windowBackground 为透明防御极端情况，清理 Theme.kt 中每次 Compose 重组合都重复执行全屏设置的冗余 SideEffect
 
 ### 删除
 

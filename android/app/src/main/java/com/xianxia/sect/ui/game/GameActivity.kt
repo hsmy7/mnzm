@@ -21,7 +21,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.core.view.WindowCompat
+import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -171,7 +171,7 @@ class GameActivity : ComponentActivity() {
 
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        enableEdgeToEdge()
         hideSystemBars()
 
         val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
