@@ -4,6 +4,7 @@
 
 ### 修复
 
+- **偷盗后叛逃缺少通知** — 弟子偷盗得手后叛逃时未设置叛逃通知，仅显示仓库失窃通知，导致玩家误以为弟子"无故消失"。修复后弹出弟子槽位小卡片通知"偷盗后叛逃"。同时将叛逃/偷盗筛选从 StateFlow 快照改为直接读取弟子组件表，避免数据不一致；新增防御性二次校验，叛逃移除前重新确认忠诚度仍低于阈值
 - **游戏时间停止** — 年度结算期间 bypass 模式仅执行 TimeSystem 跳过所有领域系统（修炼/生产/物品），forceCompleteSettlement 改为每 tick 检查并增加 CultivationTickSystem 同步执行，看门狗重启时清理残留结算状态
 - **仓库驻守弟子关闭界面重进变空闲** — assignWarehouseGarrison 改为 suspend 同步写入 + updateGameDataAndSync 确保原子写入和状态同步，UI 层 await 完成后再关闭弹窗；DiscipleService 增加 warehouseGarrisons 状态同步使驻守弟子正确显示为驻守中
 - **驻守弟子选择界面无卡片无筛选栏** — 自定义实现替换为项目标准的 DiscipleSelectorDialog，增加 PortraitDiscipleCard 卡片和 SpiritRootAttributeFilterBar 三维护筛选（灵根/属性/境界）

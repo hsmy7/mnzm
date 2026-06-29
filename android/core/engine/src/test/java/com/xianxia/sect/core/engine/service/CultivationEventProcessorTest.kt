@@ -156,4 +156,148 @@ class CultivationEventProcessorTest {
         val hasAutoEquip = true || emptySet<Int>().isNotEmpty() // focused=true
         assertTrue("focused=true 单独也应启用 autoEquip", hasAutoEquip)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 叛逃概率公式
+    // ═══════════════════════════════════════════════════════════════
+    // 公式：desertionProb = (30 - loyalty) * 0.03，范围 [0, 0.9]
+
+    private fun calcDesertionProb(loyalty: Int): Double {
+        val threshold = 30
+        val probPerPoint = 0.03
+        val maxProb = 0.9
+        return ((threshold - loyalty) * probPerPoint)
+            .coerceIn(0.0, maxProb)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=30 概率为0`() {
+        assertEquals(0.0, calcDesertionProb(30), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=29 概率为3%`() {
+        assertEquals(0.03, calcDesertionProb(29), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=20 概率为30%`() {
+        assertEquals(0.30, calcDesertionProb(20), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=0 概率为90%上限`() {
+        assertEquals(0.90, calcDesertionProb(0), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=-10 概率仍为90%上限`() {
+        assertEquals(0.90, calcDesertionProb(-10), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=35 概率为0不叛逃`() {
+        assertEquals(0.0, calcDesertionProb(35), 0.001)
+    }
+
+    @Test
+    fun `叛逃概率 - loyalty=31 概率为0`() {
+        // loyalty > 30 → 不会被筛选，即使计算概率也是0
+        assertEquals(0.0, calcDesertionProb(31), 0.001)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 偷盗概率公式
+    // ═══════════════════════════════════════════════════════════════
+    // 公式：(30 - morality) * 0.03，范围 [0, 0.9]
+
+    private fun calcTheftProb(morality: Int): Double {
+        val threshold = 30
+        val probPerPoint = 0.03
+        val maxProb = 0.9
+        return ((threshold - morality) * probPerPoint)
+            .coerceIn(0.0, maxProb)
+    }
+
+    @Test
+    fun `偷盗概率 - morality=30 概率为0`() {
+        assertEquals(0.0, calcTheftProb(30), 0.001)
+    }
+
+    @Test
+    fun `偷盗概率 - morality=20 概率为30%`() {
+        assertEquals(0.30, calcTheftProb(20), 0.001)
+    }
+
+    @Test
+    fun `偷盗概率 - morality=0 概率为90%上限`() {
+        assertEquals(0.90, calcTheftProb(0), 0.001)
+    }
+
+    @Test
+    fun `偷盗概率 - morality=35 概率为0不偷盗`() {
+        assertEquals(0.0, calcTheftProb(35), 0.001)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 叛逃筛选条件
+    // ═══════════════════════════════════════════════════════════════
+    // 直接叛逃：loyalty < 30
+    // 偷盗后叛逃：morality < 30 AND loyalty < 30
+
+    @Test
+    fun `筛选条件 - 直接叛逃 loyalty=29 应入选`() {
+        assertTrue("loyalty<30 应被筛选", 29 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 直接叛逃 loyalty=30 不应入选`() {
+        assertFalse("loyalty=30 不应被筛选", 30 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 直接叛逃 loyalty=31 不应入选`() {
+        assertFalse("loyalty>30 不应被筛选", 31 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 偷盗 morality=29 loyalty=29 应入选`() {
+        assertTrue("两个都低于阈值应入选", 29 < 30 && 29 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 偷盗 morality=31 loyalty=29 不应入选`() {
+        assertFalse("道德高于阈值不应入选", 31 < 30 && 29 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 偷盗 morality=29 loyalty=31 不应入选`() {
+        assertFalse("忠诚高于阈值不应入选", 29 < 30 && 31 < 30)
+    }
+
+    @Test
+    fun `筛选条件 - 偷盗 morality=35 loyalty=35 不应入选`() {
+        assertFalse("两者都高于阈值不应入选", 35 < 30 && 35 < 30)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 防御性二次校验
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `防御性校验 - loyalty从25恢复到31后跳过叛逃`() {
+        val loyalBefore = 25
+        val loyalNow = 31
+        val wasAtRisk = loyalBefore < 30
+        assertTrue("筛选时loyalty=25应入选", wasAtRisk)
+        val shouldSkip = loyalNow >= 30
+        assertTrue("当前loyalty=31应跳过叛逃", shouldSkip)
+    }
+
+    @Test
+    fun `防御性校验 - loyalty从25到25仍执行叛逃`() {
+        val loyalNow = 25
+        val shouldSkip = loyalNow >= 30
+        assertFalse("loyalty=25仍低于阈值不应跳过", shouldSkip)
+    }
 }

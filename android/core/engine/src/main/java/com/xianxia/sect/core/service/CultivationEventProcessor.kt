@@ -479,21 +479,25 @@ class CultivationEventProcessor @Inject constructor(
         val protectionMonths =
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
 
-        // 直接从 discipleTables 读取实时数据，避免 StateFlow 快照不一致
+        // 直接用 discipleTables 读实时数据，避免 StateFlow 快照滞后
         val atRiskIds = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
-            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
-                DiscipleStatus.IDLE &&
-            tables.loyalties.getOrDefault(id, 0) < threshold &&
-            (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0))
-                >= protectionMonths
+                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
+                    DiscipleStatus.IDLE &&
+                tables.loyalties.getOrDefault(id, 0) < threshold &&
+                (currentMonthValue -
+                    tables.recruitedMonths.getOrDefault(id, 0)) >=
+                    protectionMonths
         }
 
         for (id in atRiskIds) {
             val loyal = tables.loyalties.getOrDefault(id, 0)
             val desertionProb =
-                ((threshold - loyal) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-                    .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+                ((threshold - loyal) *
+                    GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+                    .coerceIn(
+                        0.0, GameConfig.LawEnforcementConfig.MAX_PROB
+                    )
             if (Random.nextDouble() < desertionProb) {
                 if (Random.nextDouble() < captureRate) {
                     val currentYear = data.gameYear
@@ -520,7 +524,7 @@ class CultivationEventProcessor @Inject constructor(
                     discipleLifecycleProcessor
                         .clearDiscipleFromAllSlots(id.toString())
                     stateStore.update {
-                        // 二次校验在事务内再做一次，防止悬停点间被修改
+                        // 二次校验在事务内重做，防悬停点间被修改
                         if (discipleTables.loyalties.getOrDefault(
                                 id, 0
                             ) < threshold
@@ -551,14 +555,15 @@ class CultivationEventProcessor @Inject constructor(
         // 直接从 discipleTables 读取实时数据
         val atRiskIds = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
-            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
-                DiscipleStatus.IDLE &&
-            tables.moralities.getOrDefault(id, 0) < moralThreshold &&
-            tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
-            (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0))
-                >= protectionMonths &&
-            (currentMonthValue - tables.lastTheftMonths.getOrDefault(id, 0))
-                >= 12
+                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
+                    DiscipleStatus.IDLE &&
+                tables.moralities.getOrDefault(id, 0) < moralThreshold &&
+                tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
+                (currentMonthValue -
+                    tables.recruitedMonths.getOrDefault(id, 0)) >=
+                    protectionMonths &&
+                (currentMonthValue -
+                    tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
         }
 
         val thiefIds = mutableSetOf<Int>()
@@ -611,9 +616,11 @@ class CultivationEventProcessor @Inject constructor(
                                 guardStats.physicalDefense +
                                 guardStats.magicDefense +
                                 guardStats.speed
+                            val totalPower =
+                                (thiefPower + guardPower)
+                                    .coerceAtLeast(1)
                             val thiefWinProb =
-                                (thiefPower.toDouble() / (thiefPower + guardPower)
-                                    .coerceAtLeast(1))
+                                (thiefPower.toDouble() / totalPower)
                                     .coerceIn(0.1, 0.9)
                             Random.nextDouble() >= thiefWinProb
                         }
