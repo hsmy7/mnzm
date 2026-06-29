@@ -14,7 +14,10 @@ data class ChangelogEntry(
 
 object ChangelogData {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true  // 允许尾部逗号等非严格JSON，防止格式问题导致整份日志空白
+    }
 
     @Volatile
     private var cachedEntries: List<ChangelogEntry>? = null
