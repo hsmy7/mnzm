@@ -70,6 +70,10 @@ enum class FocusDomain(
     // ── 子界面域 ──
     /** 弟子选择器子界面 — 需实时刷新弟子修炼进度/HP/MP */
     DISCIPLE_SELECTOR(setOf(CultivationTickSystem::class)),
+    /** 功法详情子界面 — 熟练度进度条需实时刷新 */
+    MANUAL_DETAIL(setOf(CultivationTickSystem::class)),
+    /** 装备详情子界面 — 孕养进度条需实时刷新 */
+    EQUIPMENT_DETAIL(setOf(CultivationTickSystem::class)),
     /** 外交 — 好感度/关系变化（月度事件中处理） */
     DIPLOMACY(emptySet()),
 
@@ -158,6 +162,8 @@ internal val InterfaceDomainMap: Map<String, FocusDomain> = mapOf(
 
     // ═══ 子界面 ═══
     "DiscipleSelector" to FocusDomain.DISCIPLE_SELECTOR,
+    "ManualDetail"     to FocusDomain.MANUAL_DETAIL,
+    "EquipmentDetail"  to FocusDomain.EQUIPMENT_DETAIL,
 
     // ═══ 兼容旧调用方（GameRoute.DialogRoute.Disciples/Buildings.toString()）═══
     "Disciples" to FocusDomain.DISCIPLE_LIST,

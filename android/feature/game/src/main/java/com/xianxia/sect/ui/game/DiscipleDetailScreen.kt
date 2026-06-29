@@ -102,6 +102,29 @@ fun DiscipleDetailDialog(
     val elderSlots by viewModel?.elderSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }
     val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<ResidenceSlot>()) }
+
+    // 功法/装备详情界面激活对应 FocusDomain，使熟练度/孕养进入实时轨
+    LaunchedEffect(showManualDetailDialog) {
+        if (showManualDetailDialog != null) {
+            viewModel?.activateSubDialogDomain("ManualDetail")
+        } else {
+            viewModel?.deactivateSubDialogDomain("ManualDetail")
+        }
+    }
+    LaunchedEffect(showEquipmentDetailDialog) {
+        if (showEquipmentDetailDialog != null) {
+            viewModel?.activateSubDialogDomain("EquipmentDetail")
+        } else {
+            viewModel?.deactivateSubDialogDomain("EquipmentDetail")
+        }
+    }
+    // 离开组合时清理子界面域
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel?.deactivateSubDialogDomain("ManualDetail")
+            viewModel?.deactivateSubDialogDomain("EquipmentDetail")
+        }
+    }
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val gameMonth = gameData?.gameMonth ?: 1

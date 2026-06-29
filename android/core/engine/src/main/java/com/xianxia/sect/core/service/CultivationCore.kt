@@ -330,19 +330,140 @@ class CultivationCore @Inject constructor(
      * 焦点域 phasesToSettle=1，批量轨 phasesToSettle=N。
      * 月度结算不再碰修炼——这是唯一修炼写入路径。
      */
+    /**
+     * 批量结算：修炼、功法熟练度、装备孕养。
+     *
+     * 在 [CultivationTickSystem.onPhaseTick] 中统一调用，
+     * 实时轨 phasesToSettle=1（每旬），批量轨 phasesToSettle=N（跳过N旬一次补齐）。
+     * 所有结算直接写入 [MutableGameState]，不再走月度结算中转。
+     */
     fun batchSettleCultivation(state: MutableGameState, phasesToSettle: Int) {
         if (phasesToSettle <= 0) return
         val tables = state.discipleTables
         val gameData = state.gameData
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val nurtureGainPerPhase =
+            5.0 * GameTimeClock.MS_PER_PHASE_1X / 1000.0
+        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+        var updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
-            val curCult = tables.cultivations[id]
             val disciple = tables.assemble(id)
-            if (curCult >= disciple.maxCultivation) continue
-            val rate = calculateDiscipleCultivationPerPhase(disciple, gameData, tables)
-            if (rate <= 0.0) continue
-            val newCult = (curCult + rate * phasesToSettle).coerceAtMost(disciple.maxCultivation)
-            if (newCult != curCult) tables.cultivations[id] = newCult
+            settleCultivationInPlace(disciple, id, tables, gameData,
+                phasesToSettle)
+            settleProficiencyInPlace(disciple, gameData, manualMap,
+                phasesToSettle, updatedProficiencies)
+            settleNurtureInPlace(id, tables, equipmentMap,
+                nurtureGainPerPhase, phasesToSettle, equipmentUpdates)
+        }
+
+        if (equipmentUpdates.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.map { eq ->
+                equipmentUpdates[eq.id] ?: eq
+            }
+        }
+        if (updatedProficiencies != gameData.manualProficiencies) {
+            state.gameData = gameData.copy(
+                manualProficiencies = updatedProficiencies
+            )
+        }
+    }
+
+    /** 修炼结算：单弟子修为增量写入组件表。 */
+    private fun settleCultivationInPlace(
+        disciple: Disciple, id: Int, tables: DiscipleTables,
+        gameData: GameData, phasesToSettle: Int
+    ) {
+        val curCult = tables.cultivations[id]
+        if (curCult >= disciple.maxCultivation) return
+        val rate = calculateDiscipleCultivationPerPhase(
+            disciple, gameData, tables
+        )
+        if (rate <= 0.0) return
+        val newCult = (curCult + rate * phasesToSettle)
+            .coerceAtMost(disciple.maxCultivation)
+        if (newCult != curCult) tables.cultivations[id] = newCult
+    }
+
+    /** 功法熟练度结算：单弟子熟练度增量写入累积映射。 */
+    private fun settleProficiencyInPlace(
+        disciple: Disciple, gameData: GameData,
+        manualMap: Map<String, ManualInstance>, phasesToSettle: Int,
+        updatedProficiencies: MutableMap<String, List<ManualProficiencyData>>
+    ) {
+        if (disciple.manualIds.isEmpty()) return
+        val inLibrary = gameData.librarySlots.any {
+            it.discipleId == disciple.id
+        }
+        val libraryBonus = if (inLibrary)
+            ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+        val profGainPerPhase =
+            ManualProficiencySystem.calculateProficiencyGainPerPhase(
+                disciple.comprehension, libraryBonus
+            )
+        val totalProfGain = profGainPerPhase * phasesToSettle
+        if (totalProfGain <= 0.0) return
+
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+        val profList = updatedProficiencies
+            .getOrDefault(disciple.id, emptyList())
+            .toMutableList()
+        for (manualId in disciple.manualIds) {
+            manualMap[manualId]?.let { manual ->
+                applyProficiencyGain(profList, manualId, manual.name,
+                    totalProfGain, maxProf)
+            }
+        }
+        updatedProficiencies[disciple.id] = profList
+    }
+
+    private fun applyProficiencyGain(
+        profList: MutableList<ManualProficiencyData>,
+        manualId: String, manualName: String, gain: Double, maxProf: Int
+    ) {
+        val idx = profList.indexOfFirst { it.manualId == manualId }
+        if (idx >= 0) {
+            val cp = profList[idx]
+            val newProf = (cp.proficiency + gain)
+                .coerceAtMost(maxProf.toDouble())
+            if (newProf != cp.proficiency) {
+                profList[idx] = cp.copy(
+                    proficiency = newProf,
+                    masteryLevel = ManualProficiencySystem.MasteryLevel
+                        .fromProficiency(newProf).level
+                )
+            }
+        } else {
+            val initProf = gain.coerceAtMost(maxProf.toDouble())
+            profList.add(ManualProficiencyData(
+                manualId = manualId, manualName = manualName,
+                proficiency = initProf, maxProficiency = maxProf,
+                masteryLevel = ManualProficiencySystem.MasteryLevel
+                    .fromProficiency(initProf).level
+            ))
+        }
+    }
+
+    /** 装备孕养结算：单弟子装备孕养增量写入累积映射。 */
+    private fun settleNurtureInPlace(
+        id: Int, tables: DiscipleTables,
+        equipmentMap: Map<String, EquipmentInstance>,
+        nurtureGainPerPhase: Double, phasesToSettle: Int,
+        equipmentUpdates: MutableMap<String, EquipmentInstance>
+    ) {
+        listOf(
+            tables.weaponIds[id], tables.armorIds[id],
+            tables.bootsIds[id], tables.accessoryIds[id]
+        ).filter { it.isNotEmpty() }.forEach { eqId ->
+            val eq = equipmentMap[eqId] ?: return@forEach
+            val result = EquipmentNurtureSystem.updateNurtureExp(
+                eq, nurtureGainPerPhase * phasesToSettle
+            )
+            if (result.equipment != eq) {
+                equipmentUpdates[eqId] = result.equipment
+            }
         }
     }
 
@@ -802,109 +923,6 @@ class CultivationCore @Inject constructor(
                 state.manualStacks + stack
             }
         }
-    }
-
-    /**
-     * 月度修炼结算：为所有存活弟子结算本月修炼、功法熟练度与装备温养进度。
-     *
-     * 月度增量 = 每旬增量 × 3（3 旬/月），并扣除焦点域已通过高频更新应用的部分，避免双计。
-     * 结算完成后清空 highFrequencyData 中的累积增量。
-     *
-     * @param state 可变游戏状态
-     * @param highFrequencyData 高频更新数据，包含已应用的修炼/熟练度/温养增量
-     * @return 重置累积增量后的 highFrequencyData
-     */
-    fun updateMonthlyCultivation(state: MutableGameState, highFrequencyData: HighFrequencyData): HighFrequencyData {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val livingIds = tables.ids.filter { tables.isAlive[it] == 1 }
-        if (livingIds.isEmpty()) return highFrequencyData
-
-        val equipmentInstanceMap = state.equipmentInstances.associateBy { it.id }
-        val manualInstanceMap = state.manualInstances.associateBy { it.id }
-        var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-        val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
-
-        val focusedGains = highFrequencyData.cultivationUpdates
-        val focusedProfGains = highFrequencyData.proficiencyUpdates
-        val focusedNurtureGains = highFrequencyData.nurtureUpdates
-
-        for (id in livingIds) {
-            val disciple = tables.assemble(id)
-            val cultivationPerPhase = calculateDiscipleCultivationPerPhase(disciple, data, tables)
-            val monthlyGain = cultivationPerPhase * 3  // 3旬/月
-            val alreadyGained = focusedGains[disciple.id] ?: 0.0
-            val netGain = (monthlyGain - alreadyGained).coerceAtLeast(0.0)
-            tables.cultivations[id] = (disciple.cultivation + netGain).coerceIn(0.0, disciple.maxCultivation)
-
-            val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
-            val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-            val proficiencyGainPerPhase = ManualProficiencySystem.calculateProficiencyGainPerPhase(disciple.comprehension, libraryBonus)
-            val proficiencyGain = proficiencyGainPerPhase * 3  // 3旬/月
-            val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
-            disciple.manualIds.forEach { manualId ->
-                manualInstanceMap[manualId]?.let { manual ->
-                    val profList = updatedManualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
-                    val profIndex = profList.indexOfFirst { it.manualId == manualId }
-                    val alreadyGainedProf = profAlreadyGained[manualId] ?: 0.0
-                    val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
-                    val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-                    if (profIndex >= 0) {
-                        val cp = profList[profIndex]
-                        val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
-                        val newProf = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble())
-                        profList[profIndex] = cp.copy(
-                            proficiency = newProf,
-                            maxProficiency = fixedMaxProf,
-                            masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProf).level
-                        )
-                    } else {
-                        val initProf = netProfGain.coerceAtMost(maxProf.toDouble())
-                        profList.add(ManualProficiencyData(
-                            manualId = manualId,
-                            manualName = manual.name,
-                            proficiency = initProf,
-                            maxProficiency = maxProf,
-                            masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
-                        ))
-                    }
-                    updatedManualProficiencies[disciple.id] = profList
-                }
-            }
-
-            // 温养每旬基础值：5.0/s × MS_PER_PHASE_1X/1000 → × 3旬/月
-            val monthlyNurtureGain = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0 * 3
-            val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
-
-            fun processNurture(eqId: String?) {
-                eqId?.let { eid ->
-                    equipmentInstanceMap[eid]?.let { eq ->
-                        val already = nurtureAlreadyGained[eid] ?: 0.0
-                        val netGain = (monthlyNurtureGain - already).coerceAtLeast(0.0)
-                        equipmentInstanceUpdates[eid] = EquipmentNurtureSystem.updateNurtureExp(eq, netGain).equipment
-                    }
-                }
-            }
-            processNurture(disciple.equipment.weaponId)
-            processNurture(disciple.equipment.armorId)
-            processNurture(disciple.equipment.bootsId)
-            processNurture(disciple.equipment.accessoryId)
-        }
-
-        if (equipmentInstanceUpdates.isNotEmpty()) {
-            state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
-        }
-        if (updatedManualProficiencies != data.manualProficiencies) {
-            state.gameData = data.copy(manualProficiencies = updatedManualProficiencies)
-        }
-
-        return highFrequencyData.copy(
-            lastUpdateTime = System.currentTimeMillis(),
-            totalDisciples = livingIds.size,
-            cultivationUpdates = emptyMap(),
-            proficiencyUpdates = emptyMap(),
-            nurtureUpdates = emptyMap()
-        )
     }
 
     /**

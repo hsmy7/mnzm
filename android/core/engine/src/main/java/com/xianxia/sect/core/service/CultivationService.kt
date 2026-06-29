@@ -22,8 +22,6 @@ data class HighFrequencyData(
     val timestamp: Long = 0L,
     val cultivationUpdates: Map<String, Double> = emptyMap(),
     val realtimeCultivation: Map<String, Double>? = null,
-    val proficiencyUpdates: Map<String, Map<String, Double>> = emptyMap(),
-    val nurtureUpdates: Map<String, Map<String, Double>> = emptyMap(),
     /** 本月焦点域已处理的旬数，用于月结时扣除已应用的 HP/MP 恢复和衰减 */
     val focusedPhaseCount: Int = 0
 )
@@ -106,11 +104,6 @@ class CultivationService @Inject constructor(
         focusedPhaseCount: Int = 0
     ) {
         cultivationCore.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
-    }
-
-    fun updateMonthlyCultivation(state: MutableGameState) {
-        val newHfd = cultivationCore.updateMonthlyCultivation(state, _highFrequencyData.value)
-        _highFrequencyData.value = newHfd
     }
 
     fun processBreakthroughs(state: MutableGameState) {

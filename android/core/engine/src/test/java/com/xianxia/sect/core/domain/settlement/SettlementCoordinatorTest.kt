@@ -523,16 +523,12 @@ class SettlementCoordinatorTest {
         // 模拟结算过程中累积的 HFD
         val hfdBeforeReset = HighFrequencyData(
             cultivationUpdates = mapOf("1" to 30.0, "2" to 45.0),
-            proficiencyUpdates = mapOf("1" to mapOf("manual-1" to 10.0)),
-            nurtureUpdates = mapOf("1" to mapOf("eq-1" to 5.0)),
             focusedPhaseCount = 3,
             totalDisciples = 10
         )
 
         // 验证重置前有数据
         assertTrue(hfdBeforeReset.cultivationUpdates.isNotEmpty())
-        assertTrue(hfdBeforeReset.proficiencyUpdates.isNotEmpty())
-        assertTrue(hfdBeforeReset.nurtureUpdates.isNotEmpty())
         assertEquals(3, hfdBeforeReset.focusedPhaseCount)
 
         // 执行重置（等价于 cultivationService.resetHighFrequencyData()）
@@ -540,8 +536,6 @@ class SettlementCoordinatorTest {
 
         // 验证重置后所有累积增量已清空
         assertTrue(hfdAfterReset.cultivationUpdates.isEmpty())
-        assertTrue(hfdAfterReset.proficiencyUpdates.isEmpty())
-        assertTrue(hfdAfterReset.nurtureUpdates.isEmpty())
         assertEquals(0, hfdAfterReset.focusedPhaseCount)
         assertEquals(0, hfdAfterReset.totalDisciples)
     }

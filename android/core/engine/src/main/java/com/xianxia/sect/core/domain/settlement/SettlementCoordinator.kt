@@ -65,10 +65,14 @@ class SettlementCoordinator @Inject constructor(
             for (slot in batchRealtimeSlots) {
                 when {
                     slot.startsWith("cultivation:") ||
-                    slot.startsWith("nurture:") ||
-                    slot.startsWith("proficiency:") ||
                     slot.startsWith("reflection:") -> domains.add(
                         com.xianxia.sect.core.engine.system.FocusDomain.DISCIPLE_LIST
+                    )
+                    slot.startsWith("proficiency:") -> domains.add(
+                        com.xianxia.sect.core.engine.system.FocusDomain.MANUAL_DETAIL
+                    )
+                    slot.startsWith("nurture:") -> domains.add(
+                        com.xianxia.sect.core.engine.system.FocusDomain.EQUIPMENT_DETAIL
                     )
                     slot.startsWith("bloodRefinement:") ||
                     slot.startsWith("spiritField:") ||
@@ -278,7 +282,7 @@ class SettlementCoordinator @Inject constructor(
 
         // 重新组装以获取最新状态（突破可能已改变）
         val discipleAfterBreakthrough = tables.assemble(focusedIdInt)
-        updateFocusedProficiency(discipleAfterBreakthrough, data, cache, shadow, tables, focusedIdInt, hfd)
+        updateFocusedLoyalty(discipleAfterBreakthrough, data, cache, tables, focusedIdInt)
 
         metricsBuilder.focusedDiscipleMs = timer.stop()
     }
@@ -356,26 +360,19 @@ class SettlementCoordinator @Inject constructor(
     }
 
     /**
-     * 熟练度/温养/忠诚度增量：重新计算功法熟练度、装备温养、忠诚度（居住加成），
-     * 并写入下一次修炼完成时间。
+     * 忠诚度增量（居住加成）+ 下一次修炼完成时间写入。
      *
-     * @param hfd 月结期间缓存的 HFD 快照（只读）
+     * 功法熟练度/装备孕养已移至
+     * [com.xianxia.sect.core.engine.service.CultivationCore.batchSettleCultivation]
+     * 随 [com.xianxia.sect.core.engine.system.CultivationTickSystem.onPhaseTick] 走实时轨/批量轨。
      */
-    private fun updateFocusedProficiency(
+    private fun updateFocusedLoyalty(
         disciple: Disciple,
         data: com.xianxia.sect.core.model.GameData,
         cache: SettlementCache,
-        shadow: MutableGameState,
         tables: DiscipleTables,
-        focusedIdInt: Int,
-        hfd: HighFrequencyData
+        focusedIdInt: Int
     ) {
-        val focusedProfGains = hfd.proficiencyUpdates
-        val focusedNurtureGains = hfd.nurtureUpdates
-
-        val profUpdates = calculateProficiencyGains(disciple, data, cache, focusedProfGains[disciple.id] ?: emptyMap())
-        val nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, focusedNurtureGains[disciple.id] ?: emptyMap())
-
         // 忠诚度（居住加成）
         val loyaltyDelta = calculateLoyaltyDelta(disciple, cache)
         if (loyaltyDelta != 0) {
@@ -386,9 +383,6 @@ class SettlementCoordinator @Inject constructor(
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val cultivationRate = cache.cultivationRateCache[disciple.id] ?: 0.0
         writeCultivationCompletionToTables(disciple, tables, currentAbsoluteMonth, cultivationRate)
-
-        applyNurtureUpdates(shadow, nurtureUpdates)
-        applyProficiencyUpdates(shadow, profUpdates)
     }
 
     private fun processCleanDiscipleBatch(shadow: MutableGameState, cache: SettlementCache) {
@@ -498,12 +492,7 @@ class SettlementCoordinator @Inject constructor(
 
         val hfd = domain.cultivationService.getHighFrequencyData().value
         val focusedGains = hfd.cultivationUpdates
-        val focusedProfGains = hfd.proficiencyUpdates
-        val focusedNurtureGains = hfd.nurtureUpdates
         val focusedPhaseCount = hfd.focusedPhaseCount
-
-        val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
-        var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
 
         for (id in batch) {
             val isFocused = id.toString() == focusedId
@@ -514,8 +503,6 @@ class SettlementCoordinator @Inject constructor(
 
             // 突破前溢出修为（在 cap 之前计算，确保不丢失）
             var overflowBeforeBreakthrough = 0.0
-            var profUpdates = emptyMap<String, List<ManualProficiencyData>>()
-            var nurtureUpdates = emptyMap<String, EquipmentInstance>()
 
             if (batchMonths > 0) {
                 // 修炼总值 = 月修炼值 × 批次数
@@ -540,18 +527,6 @@ class SettlementCoordinator @Inject constructor(
                 domain.cultivationService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
                 repeat(batchMonths - 1) {
                     domain.cultivationService.applyMonthlyDurationDecay(tables, id, 0)
-                }
-
-                // 功法熟练度（与修炼结算同频，避免 batchMonths=0 时越权执行）
-                if (DiscipleDirtyFlag.MANUAL in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
-                    val profAlreadyGained = focusedProfGains[disciple.id] ?: emptyMap()
-                    profUpdates = calculateProficiencyGains(disciple, data, cache, profAlreadyGained)
-                }
-
-                // 装备温养（同上）
-                if (DiscipleDirtyFlag.EQUIPMENT in (cache.dirtyFlags[disciple.id] ?: emptySet())) {
-                    val nurtureAlreadyGained = focusedNurtureGains[disciple.id] ?: emptyMap()
-                    nurtureUpdates = calculateNurtureGains(disciple, shadow, cache, nurtureAlreadyGained)
                 }
             }
 
@@ -594,20 +569,6 @@ class SettlementCoordinator @Inject constructor(
                 }
             }
 
-            equipmentInstanceUpdates.putAll(nurtureUpdates)
-            for ((discipleId, profList) in profUpdates) {
-                updatedManualProficiencies[discipleId] = profList
-            }
-        }
-
-        if (equipmentInstanceUpdates.isNotEmpty()) {
-            shadow.equipmentInstances = shadow.equipmentInstances.map { eq ->
-                equipmentInstanceUpdates[eq.id] ?: eq
-            }
-        }
-
-        if (updatedManualProficiencies != data.manualProficiencies) {
-            shadow.gameData = data.copy(manualProficiencies = updatedManualProficiencies)
         }
 
         metricsBuilder.dirtyDiscipleCount += batch.size
@@ -706,104 +667,6 @@ class SettlementCoordinator @Inject constructor(
         cache: SettlementCache
     ): Disciple {
         return domain.cultivationService.breakthroughHandler.performBreakthrough(disciple, shadow, shadow.gameData)
-    }
-
-    private fun calculateProficiencyGains(
-        disciple: Disciple,
-        data: com.xianxia.sect.core.model.GameData,
-        cache: SettlementCache,
-        alreadyGained: Map<String, Double>
-    ): Map<String, List<ManualProficiencyData>> {
-        val result = mutableMapOf<String, List<ManualProficiencyData>>()
-        if (disciple.manualIds.isEmpty()) return result
-
-        val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
-        val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val proficiencyGainPerPhase = ManualProficiencySystem.calculateProficiencyGainPerPhase(disciple.comprehension, libraryBonus)
-        val proficiencyGain = proficiencyGainPerPhase * 3  // 3旬/月
-        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-
-        val profList = data.manualProficiencies.getOrDefault(disciple.id, emptyList()).toMutableList()
-
-        disciple.manualIds.forEach { manualId ->
-            cache.manualInstanceMap[manualId]?.let { manual ->
-                val alreadyGainedProf = alreadyGained[manualId] ?: 0.0
-                val netProfGain = (proficiencyGain - alreadyGainedProf).coerceAtLeast(0.0)
-                val profIndex = profList.indexOfFirst { it.manualId == manualId }
-                if (profIndex >= 0) {
-                    val cp = profList[profIndex]
-                    val fixedMaxProf = if (cp.maxProficiency != maxProf) maxProf else cp.maxProficiency
-                    val newProf = (cp.proficiency + netProfGain).coerceAtMost(fixedMaxProf.toDouble())
-                    profList[profIndex] = cp.copy(
-                        proficiency = newProf,
-                        maxProficiency = fixedMaxProf,
-                        masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProf).level
-                    )
-                } else {
-                    val initProf = netProfGain.coerceAtMost(maxProf.toDouble())
-                    profList.add(
-                        ManualProficiencyData(
-                            manualId = manualId,
-                            manualName = manual.name,
-                            proficiency = initProf,
-                            maxProficiency = maxProf,
-                            masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(initProf).level
-                        )
-                    )
-                }
-            }
-        }
-
-        result[disciple.id] = profList
-        return result
-    }
-
-    private fun calculateNurtureGains(
-        disciple: Disciple,
-        shadow: MutableGameState,
-        cache: SettlementCache,
-        alreadyGained: Map<String, Double>
-    ): Map<String, EquipmentInstance> {
-        val updates = mutableMapOf<String, EquipmentInstance>()
-        // 温养每旬基础值：5.0/s × MS_PER_PHASE_1X/1000 → × 3旬/月
-        val monthlyNurtureGain = 5.0 * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0 * 3
-
-        fun processNurture(eqId: String?) {
-            eqId?.let { id ->
-                cache.equipmentInstanceMap[id]?.let { eq ->
-                    val already = alreadyGained[id] ?: 0.0
-                    val netGain = (monthlyNurtureGain - already).coerceAtLeast(0.0)
-                    updates[id] = EquipmentNurtureSystem.updateNurtureExp(eq, netGain).equipment
-                }
-            }
-        }
-
-        processNurture(disciple.equipment.weaponId)
-        processNurture(disciple.equipment.armorId)
-        processNurture(disciple.equipment.bootsId)
-        processNurture(disciple.equipment.accessoryId)
-
-        return updates
-    }
-
-    private fun applyNurtureUpdates(shadow: MutableGameState, updates: Map<String, EquipmentInstance>) {
-        if (updates.isEmpty()) return
-        shadow.equipmentInstances = shadow.equipmentInstances.map { eq ->
-            updates[eq.id] ?: eq
-        }
-    }
-
-    private fun applyProficiencyUpdates(
-        shadow: MutableGameState,
-        profUpdates: Map<String, List<ManualProficiencyData>>
-    ) {
-        if (profUpdates.isEmpty()) return
-        val data = shadow.gameData
-        val updatedProficiencies = data.manualProficiencies.toMutableMap()
-        updatedProficiencies.putAll(profUpdates)
-        if (updatedProficiencies != data.manualProficiencies) {
-            shadow.gameData = data.copy(manualProficiencies = updatedProficiencies)
-        }
     }
 
     private fun calculateLoyaltyDelta(

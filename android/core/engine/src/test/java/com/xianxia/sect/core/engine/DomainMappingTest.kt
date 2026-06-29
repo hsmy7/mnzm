@@ -575,4 +575,46 @@ class DomainMappingTest {
             systems.any { it.simpleName == "CultivationTickSystem" }
         )
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 功法/装备详情子界面域
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `subDialog ManualDetail — MANUAL_DETAIL（功法详情进入实时轨）`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = null, subDialogs = setOf("ManualDetail")
+        )
+        assertDomains(domains, FocusDomain.MANUAL_DETAIL)
+    }
+
+    @Test
+    fun `subDialog EquipmentDetail — EQUIPMENT_DETAIL（装备详情进入实时轨）`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = null, subDialogs = setOf("EquipmentDetail")
+        )
+        assertDomains(domains, FocusDomain.EQUIPMENT_DETAIL)
+    }
+
+    @Test
+    fun `activeSystemsFor — MANUAL_DETAIL 包含 CultivationTickSystem`() {
+        val systems = FocusDomain.activeSystemsFor(
+            setOf(FocusDomain.MANUAL_DETAIL)
+        )
+        assertTrue(
+            "MANUAL_DETAIL 应激活 CultivationTickSystem",
+            systems.any { it.simpleName == "CultivationTickSystem" }
+        )
+    }
+
+    @Test
+    fun `activeSystemsFor — EQUIPMENT_DETAIL 包含 CultivationTickSystem`() {
+        val systems = FocusDomain.activeSystemsFor(
+            setOf(FocusDomain.EQUIPMENT_DETAIL)
+        )
+        assertTrue(
+            "EQUIPMENT_DETAIL 应激活 CultivationTickSystem",
+            systems.any { it.simpleName == "CultivationTickSystem" }
+        )
+    }
 }
