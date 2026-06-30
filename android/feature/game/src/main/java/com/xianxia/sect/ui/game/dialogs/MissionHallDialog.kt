@@ -37,8 +37,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-import com.xianxia.sect.ui.components.progressRateForMonthsDuration
-import com.xianxia.sect.ui.components.rememberAnimatedProgress
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
@@ -155,11 +154,7 @@ private fun ActiveMissionCard(
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
     val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
-    val missionRate = progressRateForMonthsDuration(mission.duration)
-    val animMissionState = rememberAnimatedProgress(
-        target = progress / 100f,
-        progressPerTick = missionRate
-    )
+    val animMissionState = rememberChasingProgress(target = progress / 100f)
 
     Card(
         modifier = Modifier
@@ -320,11 +315,7 @@ private fun ActiveMissionDetailDialog(
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
     val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
-    val missionRate = progressRateForMonthsDuration(mission.duration)
-    val animMissionState = rememberAnimatedProgress(
-        target = progress / 100f,
-        progressPerTick = missionRate
-    )
+    val animMissionState = rememberChasingProgress(target = progress / 100f)
 
     val discipleMap = remember(disciples) {
         disciples.associateBy { it.id }

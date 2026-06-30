@@ -1,6 +1,6 @@
 package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.ui.components.rememberAnimatedProgress
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -84,11 +84,8 @@ private fun LoadingScreenContent(
     showProgress: Boolean,
     phaseText: String
 ) {
-    // 加载进度动画 — 100ms 递增，约1秒填满
-    val animatedProgress by rememberAnimatedProgress(
-        target = progress,
-        progressPerTick = 0.1f
-    )
+    // 加载进度动画 — 100ms lerp 追赶
+    val animatedProgress by rememberChasingProgress(target = progress)
 
     // 进度百分比文本
     val progressPercent = (animatedProgress * 100).toInt()

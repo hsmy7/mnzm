@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.components
 
-import com.xianxia.sect.ui.components.progressRateForPerSecond
-import com.xianxia.sect.ui.components.rememberAnimatedProgress
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -216,15 +215,8 @@ fun ItemDetailDialog(
                 val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, item.rarity)
                 val progressFraction = (item.nurtureProgress / expRequired).toFloat().coerceIn(0f, 1f)
 
-                val nurtureRate = if (expRequired > 0) {
-                    progressRateForPerSecond(
-                        EquipmentNurtureSystem.calculateAutoExpGain(item.rarity).toDouble(),
-                        expRequired.toDouble()
-                    )
-                } else 0f
-                val animatedNurtureProgress by rememberAnimatedProgress(
-                    target = progressFraction,
-                    progressPerTick = nurtureRate
+                val animatedNurtureProgress by rememberChasingProgress(
+                    target = progressFraction
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -376,16 +368,8 @@ fun LearnedManualDetailDialog(
         }
 
         val progressTarget = progressInCurrentLevel.toFloat().coerceIn(0f, 1f)
-        val denominator = nextThreshold - currentThreshold
-        val proficiencyRate = if (denominator > 0) {
-            progressRateForPerSecond(
-                ManualProficiencySystem.BASE_PROFICIENCY_RATE.toDouble(),
-                denominator.toDouble()
-            )
-        } else 0f
-        val animatedProgress by rememberAnimatedProgress(
-            target = progressTarget,
-            progressPerTick = proficiencyRate
+        val animatedProgress by rememberChasingProgress(
+            target = progressTarget
         )
 
         Box(

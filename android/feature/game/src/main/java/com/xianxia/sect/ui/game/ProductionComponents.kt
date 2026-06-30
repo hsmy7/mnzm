@@ -32,8 +32,7 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.progressRateForMonthsDuration
-import com.xianxia.sect.ui.components.rememberAnimatedProgress
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.theme.GameColors
@@ -328,11 +327,7 @@ fun ProductionSlotItem(
         val phaseFraction = gamePhase.toFloat() / 3f
         ((elapsedMonths + phaseFraction) / totalDuration).coerceIn(0f, 1f)
     } else 0f
-    val prodRate = progressRateForMonthsDuration(totalDuration)
-    val progressState = rememberAnimatedProgress(
-        target = targetProgress,
-        progressPerTick = prodRate
-    )
+    val progressState = rememberChasingProgress(target = targetProgress)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (isWorking) {

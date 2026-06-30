@@ -1,113 +1,79 @@
 package com.xianxia.sect.ui.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProgressAnimationTest {
 
-    // ========== nextProgressTick ==========
+    // ========== nextChasingProgressTick ==========
 
     @Test
-    fun `nextProgressTick - target zero snaps to zero`() {
-        assertEquals(0f, nextProgressTick(0.5f, 0f, 0.1f))
-        assertEquals(0f, nextProgressTick(1f, 0f, 0.1f))
+    fun `nextChasingProgressTick - target unchanged returns same`() {
+        assertEquals(0.5f, nextChasingProgressTick(0.5f, 0.5f, 0.3f))
+        assertEquals(1f, nextChasingProgressTick(1f, 1f, 0.3f))
     }
 
     @Test
-    fun `nextProgressTick - target below current snaps to target`() {
-        assertEquals(0.3f, nextProgressTick(0.8f, 0.3f, 0.1f))
-        assertEquals(0.1f, nextProgressTick(0.9f, 0.1f, 0.05f))
+    fun `nextChasingProgressTick - target zero snaps to zero`() {
+        assertEquals(0f, nextChasingProgressTick(0.5f, 0f, 0.3f))
+        assertEquals(0f, nextChasingProgressTick(1f, 0f, 0.3f))
     }
 
     @Test
-    fun `nextProgressTick - advances by rate toward target`() {
-        assertEquals(0.15f, nextProgressTick(0.1f, 1f, 0.05f))
-        assertEquals(0.6f, nextProgressTick(0.5f, 1f, 0.1f))
+    fun `nextChasingProgressTick - target below current snaps to target`() {
+        assertEquals(0.3f, nextChasingProgressTick(0.8f, 0.3f, 0.3f))
+        assertEquals(0.1f, nextChasingProgressTick(0.9f, 0.1f, 0.3f))
     }
 
     @Test
-    fun `nextProgressTick - clamps at target`() {
-        assertEquals(1f, nextProgressTick(0.95f, 1f, 0.1f))
-        assertEquals(0.5f, nextProgressTick(0.49f, 0.5f, 0.1f))
+    fun `nextChasingProgressTick - lerps toward target`() {
+        // 0.3 + (1.0 - 0.3) * 0.3 = 0.3 + 0.21 = 0.51
+        assertEquals(0.51f, nextChasingProgressTick(0.3f, 1f, 0.3f), 0.0001f)
+        // 0.5 + (1.0 - 0.5) * 0.5 = 0.5 + 0.25 = 0.75
+        assertEquals(0.75f, nextChasingProgressTick(0.5f, 1f, 0.5f), 0.0001f)
     }
 
     @Test
-    fun `nextProgressTick - current equals target no change`() {
-        assertEquals(0.7f, nextProgressTick(0.7f, 0.7f, 0.1f))
-        assertEquals(1f, nextProgressTick(1f, 1f, 0.5f))
+    fun `nextChasingProgressTick - lerpFactor 1 snaps immediately`() {
+        assertEquals(1f, nextChasingProgressTick(0.3f, 1f, 1f), 0f)
+        assertEquals(0.5f, nextChasingProgressTick(0.1f, 0.5f, 1f), 0f)
     }
 
     @Test
-    fun `nextProgressTick - zero rate no advancement`() {
-        assertEquals(0.1f, nextProgressTick(0.1f, 1f, 0f))
-        assertEquals(0f, nextProgressTick(0.1f, 0f, 0f))
+    fun `nextChasingProgressTick - lerpFactor 0 stays put`() {
+        assertEquals(0.3f, nextChasingProgressTick(0.3f, 1f, 0f), 0f)
+        assertEquals(0.5f, nextChasingProgressTick(0.5f, 0.5f, 0f), 0f)
     }
 
     @Test
-    fun `nextProgressTick - clamps target and rate outside 0-1`() {
-        assertEquals(0.6f, nextProgressTick(0.5f, 1.5f, 0.1f))
-        assertEquals(0.5f, nextProgressTick(0.5f, 1f, -0.1f))
-        assertEquals(1f, nextProgressTick(0.9f, 2.0f, 0.1f))
+    fun `nextChasingProgressTick - snap threshold prevents float never-converge`() {
+        // 差距 < 0.001 时精确 snap
+        assertEquals(1f, nextChasingProgressTick(0.9995f, 1f, 0.3f), 0f)
+        assertEquals(0.5f, nextChasingProgressTick(0.4999f, 0.5f, 0.3f), 0f)
     }
 
     @Test
-    fun `nextProgressTick - multiple ticks accumulate to target`() {
+    fun `nextChasingProgressTick - multiple ticks converge to target`() {
         var c = 0f
-        val rate = 0.15f
         val ticks = mutableListOf<Float>()
-        repeat(10) { c = nextProgressTick(c, 1f, rate); ticks.add(c) }
-        assertEquals(0.15f, ticks[0], 0.001f)
-        assertEquals(0.45f, ticks[2], 0.001f)
-        assertEquals(1f, ticks[6], 0.001f)
-        assertEquals(1f, ticks.last(), 0.001f)
-    }
-
-    // ========== progressRateForMonthsDuration ==========
-
-    @Test
-    fun `rateForMonths - 3 months at 1x`() {
-        assertEquals(0.0055555f, progressRateForMonthsDuration(3, 1), 0.0001f)
+        repeat(30) {
+            c = nextChasingProgressTick(c, 1f, 0.3f)
+            ticks.add(c)
+        }
+        // 10 ticks (~1s): >= 97%
+        assertTrue("tick 10 should converge >= 97%, but was ${ticks[9]}",
+            ticks[9] >= 0.97f)
+        // 30 ticks (~3s): 必然已 snap 到 1.0
+        assertEquals(1f, ticks[29], 0f)
     }
 
     @Test
-    fun `rateForMonths - 2x doubles`() {
-        val r1 = progressRateForMonthsDuration(3, 1)
-        val r2 = progressRateForMonthsDuration(3, 2)
-        assertEquals(r1 * 2f, r2, 0.0001f)
-    }
-
-    @Test
-    fun `rateForMonths - zero or negative returns zero`() {
-        assertEquals(0f, progressRateForMonthsDuration(0, 1))
-        assertEquals(0f, progressRateForMonthsDuration(-1, 1))
-    }
-
-    @Test
-    fun `rateForMonths - zero gameSpeed treated as 1`() {
-        assertEquals(
-            progressRateForMonthsDuration(3, 1),
-            progressRateForMonthsDuration(3, 0), 0.0001f
-        )
-    }
-
-    // ========== progressRateForPerSecond ==========
-
-    @Test
-    fun `ratePerSec - basic`() {
-        assertEquals(0.001f, progressRateForPerSecond(10.0, 1000.0), 0.0001f)
-    }
-
-    @Test
-    fun `ratePerSec - zero or negative returns zero`() {
-        assertEquals(0f, progressRateForPerSecond(10.0, 0.0))
-        assertEquals(0f, progressRateForPerSecond(0.0, 100.0))
-        assertEquals(0f, progressRateForPerSecond(-1.0, 100.0))
-        assertEquals(0f, progressRateForPerSecond(10.0, -1.0))
-    }
-
-    @Test
-    fun `ratePerSec - clamps to 1f`() {
-        assertEquals(1f, progressRateForPerSecond(10000.0, 10.0), 0f)
+    fun `nextChasingProgressTick - clamps target and lerpFactor to 0-1`() {
+        // target > 1 clamped to 1
+        assertEquals(0.65f, nextChasingProgressTick(0.5f, 1.5f, 0.3f), 0.0001f)
+        // negative lerpFactor treated as 0
+        assertEquals(0.5f, nextChasingProgressTick(0.5f, 1f, -0.1f), 0f)
     }
 
     // ========== Constants ==========
@@ -116,6 +82,6 @@ class ProgressAnimationTest {
     fun `PROGRESS_TICK_MS equals 100`() = assertEquals(100L, PROGRESS_TICK_MS)
 
     @Test
-    fun `PROGRESS_MS_PER_PHASE_1X equals 2000`() =
-        assertEquals(2000L, PROGRESS_MS_PER_PHASE_1X)
+    fun `CHASE_LERP_FACTOR_DEFAULT equals 0_3`() =
+        assertEquals(0.3f, CHASE_LERP_FACTOR_DEFAULT)
 }

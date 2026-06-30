@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game.components.detail
 
-import com.xianxia.sect.ui.components.PROGRESS_MS_PER_PHASE_1X
-import com.xianxia.sect.ui.components.PROGRESS_TICK_MS
-import com.xianxia.sect.ui.components.rememberAnimatedProgress
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -302,16 +300,9 @@ fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    // 修为进度条 — 100ms 递增动画，与游戏 tick 对齐
-                    val cultivationPerTick = if (disciple.maxCultivation > 0 && gameSpeed > 0) {
-                        (cultivationSpeed / disciple.maxCultivation).toFloat()
-                            .coerceIn(0f, 1f) *
-                            (PROGRESS_TICK_MS.toFloat() /
-                            (PROGRESS_MS_PER_PHASE_1X / gameSpeed.toFloat()))
-                    } else 0f
-                    val animatedCultivationProgress by rememberAnimatedProgress(
+                    // 修为进度条 — 100ms lerp 追赶动画
+                    val animatedCultivationProgress by rememberChasingProgress(
                         target = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f),
-                        progressPerTick = cultivationPerTick,
                         paused = gameSpeed == 0
                     )
 
@@ -389,18 +380,13 @@ fun HpMpBars(
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
-    // 动画状态 — 统一 100ms 递增，下降时自动 snap
-    val hpChaseRate = if (gameSpeed > 0) {
-        1f / (PROGRESS_MS_PER_PHASE_1X / gameSpeed.toFloat() / PROGRESS_TICK_MS.toFloat())
-    } else 0f
-    val animatedHpProgress by rememberAnimatedProgress(
+    // 动画状态 — 统一 100ms lerp 追赶，下降时自动 snap
+    val animatedHpProgress by rememberChasingProgress(
         target = hpFraction,
-        progressPerTick = hpChaseRate,
         paused = gameSpeed == 0
     )
-    val animatedMpProgress by rememberAnimatedProgress(
+    val animatedMpProgress by rememberChasingProgress(
         target = mpFraction,
-        progressPerTick = hpChaseRate,
         paused = gameSpeed == 0
     )
 
