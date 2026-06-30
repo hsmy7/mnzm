@@ -74,6 +74,12 @@ object GameColors {
     val QuadRoot = Color(0xFF27AE60)
     val PentaRoot = Color(0xFF95A5A6)
 
+    // 天赋品级颜色
+    val TalentGradeLow = Color(0xFF4CAF50)     // 下品 绿色
+    val TalentGradeMid = Color(0xFF2196F3)     // 中品 蓝色
+    val TalentGradeHigh = Color(0xFFE74C3C)    // 上品 红色
+    val TalentNegative = Color(0xFF9E9E9E)     // 负面 灰色
+
     val HpBar = Color(0xFFE74C3C)
     val MpBar = Color(0xFF3498DB)
     val ExpBar = Color(0xFF4CAF50)

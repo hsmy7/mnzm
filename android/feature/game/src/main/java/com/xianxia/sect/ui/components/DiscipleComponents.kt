@@ -667,13 +667,10 @@ internal fun BattleParticipantSlot(
 }
 
 fun getTalentRarityColor(rarity: Int): Color = when (rarity) {
-    1 -> GameColors.RarityTextCommon
-    2 -> GameColors.RarityTextSpirit
-    3 -> GameColors.RarityTextTreasure
-    4 -> GameColors.RarityTextMystic
-    5 -> GameColors.RarityTextEarth
-    6 -> GameColors.RarityTextHeaven
-    else -> GameColors.RarityTextCommon
+    1 -> GameColors.TalentGradeLow
+    2 -> GameColors.TalentGradeMid
+    3 -> GameColors.TalentGradeHigh
+    else -> GameColors.TalentNegative
 }
 
 @Composable

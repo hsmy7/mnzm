@@ -1,15 +1,22 @@
 [
 	{
+		"date": "2026-06-30",
+		"version": "4.0.28",
+		"changes": [
+			"优化：天赋系统重构——天赋品级从六级稀有度（凡品/灵品/宝品/玄品/地品/天品）简化为三品级（下品/中品/上品），颜色对应绿色/蓝色/红色，负面天赋统一为灰色。所有天赋增益数值降低约40-50%，天赋间差异更加均衡"
+		]
+	},
+	{
 		"date": "2026-06-29",
 		"version": "4.0.27",
 		"changes": [
 			"修复：偷盗后叛逃缺少通知——弟子偷盗得手后叛逃时未弹出叛逃通知，仅显示仓库失窃提示，导致玩家以为弟子无故消失。修复后弹出弟子槽位小卡片通知显示名称+境界+偷盗后叛逃。同时将叛逃/偷盗筛选逻辑改用组件表直接读取，新增防御性二次校验防止误移除",
 			"重构：功法熟练度与装备孕养结算路径优化——从月度结算迁至批量轨/实时轨统一处理，打开功法详情或装备详情界面时进入实时轨（每100ms更新进度条），关闭详情后回到批量轨，进度≥80%的槽位自动切入实时轨，清理旧月度结算路径约150行冗余代码",
 			"修复：游戏时间停止——年度结算期间bypass模式仅执行TimeSystem跳过所有领域系统，forceCompleteSettlement改为每tick检查并增加CultivationTickSystem同步执行，看门狗重启时清理残留结算状态",
-				"修复：仓库驻守弟子关闭界面重进变空闲——assignWarehouseGarrison改为suspend同步写入+updateGameDataAndSync确保原子写入和状态同步，UI层await完成后再关闭弹窗；DiscipleService增加warehouseGarrisons状态同步",
-				"修复：驻守弟子选择界面不显示弟子卡片和筛选栏——自定义实现替换为项目标准的DiscipleSelectorDialog，增加PortraitDiscipleCard卡片和SpiritRootAttributeFilterBar三维护筛选",
-				"删除：紧急存档系统——游戏不需要紧急存档且冻结时保存不一致状态导致大退重进闪退，移除CrashHandler/GameActivity/MainActivity/StorageEngine/StorageFacade/SaveLoadViewModel/SavePipeline/BackupStrategy/RecoveryManager中所有紧急存档代码",
-				"修复：部分机型宗门地图和世界地图显示白边——根因为系统层面display cutout letterbox（仅theme XML设置shortEdges，MIUI/ColorOS/EMUI等OEM可能忽略）。改用enableEdgeToEdge()程序化设置cutout mode=ALWAYS从根本上消除letterbox，同时设置windowBackground为透明防御极端情况，清理Theme.kt中每次重组合重复执行全屏设置的冗余SideEffect"
+			"修复：仓库驻守弟子关闭界面重进变空闲——assignWarehouseGarrison改为suspend同步写入+updateGameDataAndSync确保原子写入和状态同步，UI层await完成后再关闭弹窗；DiscipleService增加warehouseGarrisons状态同步",
+			"修复：驻守弟子选择界面不显示弟子卡片和筛选栏——自定义实现替换为项目标准的DiscipleSelectorDialog，增加PortraitDiscipleCard卡片和SpiritRootAttributeFilterBar三维护筛选",
+			"删除：紧急存档系统——游戏不需要紧急存档且冻结时保存不一致状态导致大退重进闪退，移除CrashHandler/GameActivity/MainActivity/StorageEngine/StorageFacade/SaveLoadViewModel/SavePipeline/BackupStrategy/RecoveryManager中所有紧急存档代码",
+			"修复：部分机型宗门地图和世界地图显示白边——根因为系统层面display cutout letterbox（仅theme XML设置shortEdges，MIUI/ColorOS/EMUI等OEM可能忽略）。改用enableEdgeToEdge()程序化设置cutout mode=ALWAYS从根本上消除letterbox，同时设置windowBackground为透明防御极端情况，清理Theme.kt中每次重组合重复执行全屏设置的冗余SideEffect"
 		]
 	},
 	{

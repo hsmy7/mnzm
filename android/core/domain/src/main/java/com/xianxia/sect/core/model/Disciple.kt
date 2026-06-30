@@ -358,8 +358,19 @@ data class Talent(
     val effects: Map<String, Double>,
     val isNegative: Boolean = false
 ) {
-    val color: String get() = GameConfig.Rarity.getColor(rarity)
-    val rarityName: String get() = GameConfig.Rarity.getName(rarity)
+    val color: String get() = when {
+        isNegative -> "#9E9E9E"
+        rarity == 1 -> "#4CAF50"
+        rarity == 2 -> "#2196F3"
+        rarity == 3 -> "#E74C3C"
+        else -> "#4CAF50"
+    }
+    val rarityName: String get() = when (rarity) {
+        1 -> "下品"
+        2 -> "中品"
+        3 -> "上品"
+        else -> "下品"
+    }
 }
 
 @Keep

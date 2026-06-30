@@ -21,9 +21,9 @@ class TalentDatabaseTest {
     }
 
     @Test
-    fun `all talents have valid rarity 1 to 6`() {
+    fun `all talents have valid rarity 0 to 3`() {
         TalentDatabase.talents.values.forEach { talent ->
-            assertTrue("talent ${talent.id} rarity ${talent.rarity} not in 1-6", talent.rarity in 1..6)
+            assertTrue("talent ${talent.id} rarity ${talent.rarity} not in 0-3", talent.rarity in 0..3)
         }
     }
 
@@ -53,10 +53,10 @@ class TalentDatabaseTest {
 
     // 5. getByRarity returns talents of specific rarity
     @Test
-    fun `getByRarity returns talents for each rarity 1 to 6`() {
-        for (rarity in 1..6) {
+    fun `getByRarity returns talents for each grade 1 to 3`() {
+        for (rarity in 1..3) {
             val talents = TalentDatabase.getByRarity(rarity)
-            assertTrue("rarity $rarity should have talents", talents.isNotEmpty())
+            assertTrue("grade $rarity should have talents", talents.isNotEmpty())
             talents.forEach { talent ->
                 assertEquals(rarity, talent.rarity)
             }
@@ -64,8 +64,16 @@ class TalentDatabaseTest {
     }
 
     @Test
+    fun `getByRarity returns negative talents for rarity 0`() {
+        val negativeTalents = TalentDatabase.getByRarity(0)
+        assertTrue("rarity 0 should have negative talents", negativeTalents.isNotEmpty())
+        negativeTalents.forEach { talent ->
+            assertTrue("rarity 0 talent should be negative", talent.isNegative)
+        }
+    }
+
+    @Test
     fun `getByRarity returns empty for invalid rarity`() {
-        assertTrue(TalentDatabase.getByRarity(0).isEmpty())
         assertTrue(TalentDatabase.getByRarity(99).isEmpty())
     }
 
@@ -75,14 +83,14 @@ class TalentDatabaseTest {
         val talentId = "r1_cult_speed"
         val effects = TalentDatabase.calculateTalentEffects(listOf(talentId))
         assertTrue("effects should contain cultivationSpeed", effects.containsKey("cultivationSpeed"))
-        assertEquals(0.08, effects["cultivationSpeed"]!!, 0.001)
+        assertEquals(0.06, effects["cultivationSpeed"]!!, 0.001)
     }
 
     @Test
     fun `calculateTalentEffects accumulates effects from multiple talents`() {
         val effects = TalentDatabase.calculateTalentEffects(listOf("r1_cult_speed", "r2_cult_speed"))
         assertTrue("effects should contain cultivationSpeed", effects.containsKey("cultivationSpeed"))
-        assertEquals(0.08 + 0.14, effects["cultivationSpeed"]!!, 0.001)
+        assertEquals(0.06 + 0.10, effects["cultivationSpeed"]!!, 0.001)
     }
 
     // 7. calculateTalentEffects returns empty map for empty list
@@ -107,6 +115,46 @@ class TalentDatabaseTest {
             talent.effects.keys.forEach { key ->
                 assertTrue("talent ${talent.id} effect key should not be blank", key.isNotBlank())
             }
+        }
+    }
+
+    // 10. 正天赋品级名验证
+    @Test
+    fun `positive talents have correct grade name`() {
+        TalentDatabase.talents.values.filter { !it.isNegative }.forEach { talent ->
+            when (talent.rarity) {
+                1 -> assertEquals("下品", talent.rarityName)
+                2 -> assertEquals("中品", talent.rarityName)
+                3 -> assertEquals("上品", talent.rarityName)
+            }
+        }
+    }
+
+    // 11. 正天赋颜色验证
+    @Test
+    fun `positive talents have correct grade color`() {
+        TalentDatabase.talents.values.filter { !it.isNegative }.forEach { talent ->
+            when (talent.rarity) {
+                1 -> assertEquals("#4CAF50", talent.color)
+                2 -> assertEquals("#2196F3", talent.color)
+                3 -> assertEquals("#E74C3C", talent.color)
+            }
+        }
+    }
+
+    // 12. 负天赋颜色为灰色
+    @Test
+    fun `negative talents have gray color`() {
+        TalentDatabase.talents.values.filter { it.isNegative }.forEach { talent ->
+            assertEquals("#9E9E9E", talent.color)
+        }
+    }
+
+    // 13. 负天赋无品级名
+    @Test
+    fun `negative talents have no grade name`() {
+        TalentDatabase.talents.values.filter { it.isNegative }.forEach { talent ->
+            assertEquals("下品", talent.rarityName)
         }
     }
 }

@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.registry
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Talent
 import java.util.Locale
 import kotlin.math.abs
@@ -13,13 +12,18 @@ object TalentDatabase {
     private const val NEGATIVE_TALENT_CHANCE = 0.14
 
     private val POSITIVE_RARITY_DISTRIBUTION = listOf(
-        1 to 0.419,
-        2 to 0.272,
-        3 to 0.168,
-        4 to 0.084,
-        5 to 0.037,
-        6 to 0.020
+        1 to 0.69,
+        2 to 0.25,
+        3 to 0.06
     )
+
+    /** 将旧版 rarity 序号(1-6)映射为品级(1-3) */
+    private fun talentGrade(indexRarity: Int): Int = when (indexRarity) {
+        1, 2 -> 1
+        3, 4 -> 2
+        5, 6 -> 3
+        else -> 1
+    }
 
     enum class TalentType {
         CULT_SPEED,
@@ -60,15 +64,12 @@ object TalentDatabase {
         fun toTalent(): Talent = Talent(id, name, description, rarity, effects, isNegative)
     }
 
-    private fun rarityPrefix(rarity: Int): String {
-        return when (rarity) {
-            1 -> "凡品"
-            2 -> "灵品"
-            3 -> "宝品"
-            4 -> "玄品"
-            5 -> "地品"
-            6 -> "天品"
-            else -> "凡品"
+    private fun gradeName(grade: Int): String {
+        return when (grade) {
+            1 -> "下品"
+            2 -> "中品"
+            3 -> "上品"
+            else -> "下品"
         }
     }
 
@@ -79,60 +80,60 @@ object TalentDatabase {
     private data class BaseFlatConfig(val rarity: Int, val value: Int)
 
     private val cultSpeedConfigs = listOf(
-        CultSpeedConfig(1, 0.08),
-        CultSpeedConfig(2, 0.14),
-        CultSpeedConfig(3, 0.22),
-        CultSpeedConfig(4, 0.31),
-        CultSpeedConfig(5, 0.42),
-        CultSpeedConfig(6, 0.56)
+        CultSpeedConfig(1, 0.06),
+        CultSpeedConfig(2, 0.10),
+        CultSpeedConfig(3, 0.15),
+        CultSpeedConfig(4, 0.22),
+        CultSpeedConfig(5, 0.25),
+        CultSpeedConfig(6, 0.32)
     )
 
     private val breakChanceConfigs = listOf(
         BreakChanceConfig(1, 0.01),
-        BreakChanceConfig(2, 0.02),
+        BreakChanceConfig(2, 0.015),
         BreakChanceConfig(3, 0.03),
-        BreakChanceConfig(4, 0.05),
-        BreakChanceConfig(5, 0.07),
-        BreakChanceConfig(6, 0.10)
+        BreakChanceConfig(4, 0.04),
+        BreakChanceConfig(5, 0.05),
+        BreakChanceConfig(6, 0.07)
     )
 
     private val lifespanConfigs = listOf(
-        LifespanConfig(1, 0.12),
-        LifespanConfig(2, 0.20),
-        LifespanConfig(3, 0.32),
-        LifespanConfig(4, 0.46),
-        LifespanConfig(5, 0.64),
-        LifespanConfig(6, 0.88)
+        LifespanConfig(1, 0.10),
+        LifespanConfig(2, 0.16),
+        LifespanConfig(3, 0.25),
+        LifespanConfig(4, 0.35),
+        LifespanConfig(5, 0.45),
+        LifespanConfig(6, 0.60)
     )
 
     private val batPhyAtkConfigs = listOf(
-        BattlePctConfig(1, 0.05), BattlePctConfig(2, 0.08), BattlePctConfig(3, 0.12),
-        BattlePctConfig(4, 0.17), BattlePctConfig(5, 0.23), BattlePctConfig(6, 0.30)
+        BattlePctConfig(1, 0.05), BattlePctConfig(2, 0.07), BattlePctConfig(3, 0.12),
+        BattlePctConfig(4, 0.15), BattlePctConfig(5, 0.20), BattlePctConfig(6, 0.25)
     )
     private val batMagAtkConfigs = batPhyAtkConfigs
     private val batPhyDefConfigs = batPhyAtkConfigs
     private val batMagDefConfigs = batPhyAtkConfigs
 
     private val batHpConfigs = listOf(
-        BattlePctConfig(1, 0.08), BattlePctConfig(2, 0.12), BattlePctConfig(3, 0.18),
-        BattlePctConfig(4, 0.25), BattlePctConfig(5, 0.34), BattlePctConfig(6, 0.45)
+        BattlePctConfig(1, 0.08), BattlePctConfig(2, 0.10), BattlePctConfig(3, 0.16),
+        BattlePctConfig(4, 0.20), BattlePctConfig(5, 0.28), BattlePctConfig(6, 0.35)
     )
     private val batMpConfigs = listOf(
-        BattlePctConfig(1, 0.04), BattlePctConfig(2, 0.06), BattlePctConfig(3, 0.09),
-        BattlePctConfig(4, 0.13), BattlePctConfig(5, 0.17), BattlePctConfig(6, 0.23)
+        BattlePctConfig(1, 0.04), BattlePctConfig(2, 0.06), BattlePctConfig(3, 0.08),
+        BattlePctConfig(4, 0.11), BattlePctConfig(5, 0.14), BattlePctConfig(6, 0.18)
     )
     private val batSpeedConfigs = listOf(
-        BattlePctConfig(1, 0.03), BattlePctConfig(2, 0.05), BattlePctConfig(3, 0.07),
-        BattlePctConfig(4, 0.10), BattlePctConfig(5, 0.13), BattlePctConfig(6, 0.17)
+        BattlePctConfig(1, 0.03), BattlePctConfig(2, 0.04), BattlePctConfig(3, 0.06),
+        BattlePctConfig(4, 0.08), BattlePctConfig(5, 0.10), BattlePctConfig(6, 0.13)
     )
     private val batCritConfigs = listOf(
-        BattlePctConfig(1, 0.008), BattlePctConfig(2, 0.012), BattlePctConfig(3, 0.018),
-        BattlePctConfig(4, 0.026), BattlePctConfig(5, 0.036), BattlePctConfig(6, 0.050)
+        BattlePctConfig(1, 0.006), BattlePctConfig(2, 0.010), BattlePctConfig(3, 0.015),
+        BattlePctConfig(4, 0.020), BattlePctConfig(5, 0.028), BattlePctConfig(6, 0.038)
     )
 
     private val baseFlatConfigs = listOf(
-        BaseFlatConfig(1, 2), BaseFlatConfig(2, 4), BaseFlatConfig(3, 6),
-        BaseFlatConfig(4, 9), BaseFlatConfig(5, 13), BaseFlatConfig(6, 18)
+        BaseFlatConfig(1, 2), BaseFlatConfig(2, 3), BaseFlatConfig(3, 5),
+        BaseFlatConfig(4, 7), BaseFlatConfig(5, 10), BaseFlatConfig(6, 13)
     )
 
     private val positiveTalentsData: List<TalentData> = buildList {
@@ -141,7 +142,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_cult_speed",
                 name = "灵脉流转",
                 description = "修炼速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("cultivationSpeed" to cfg.value),
                 isNegative = false,
                 type = TalentType.CULT_SPEED,
@@ -153,7 +154,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_break_chance",
                 name = "悟道通玄",
                 description = "突破概率+${String.format(Locale.ROOT, "%.1f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("breakthroughChance" to cfg.value),
                 isNegative = false,
                 type = TalentType.BREAK_CHANCE,
@@ -165,7 +166,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_lifespan",
                 name = "寿元绵长",
                 description = "寿命+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("lifespan" to cfg.value),
                 isNegative = false,
                 type = TalentType.LIFESPAN,
@@ -177,7 +178,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_phy_atk",
                 name = "力破千军",
                 description = "物理攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("physicalAttack" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_PHY_ATK,
@@ -189,7 +190,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_mag_atk",
                 name = "法贯长虹",
                 description = "法术攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("magicAttack" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_MAG_ATK,
@@ -201,7 +202,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_phy_def",
                 name = "铁壁铜墙",
                 description = "物理防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("physicalDefense" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_PHY_DEF,
@@ -213,7 +214,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_mag_def",
                 name = "灵护元神",
                 description = "法术防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("magicDefense" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_MAG_DEF,
@@ -225,7 +226,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_hp",
                 name = "气血充盈",
                 description = "生命上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("maxHp" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_HP,
@@ -237,7 +238,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_mp",
                 name = "灵海浩瀚",
                 description = "法力上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("maxMp" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_MP,
@@ -249,7 +250,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_speed",
                 name = "身轻如燕",
                 description = "速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("speed" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_SPEED,
@@ -261,7 +262,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_bat_crit",
                 name = "杀意凛然",
                 description = "暴击率+${String.format(Locale.ROOT, "%.1f", cfg.value * 100)}%",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("critRate" to cfg.value),
                 isNegative = false,
                 type = TalentType.BAT_CRIT,
@@ -273,7 +274,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_int",
                 name = "天资聪颖",
                 description = "智力+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("intelligenceFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_INT,
@@ -285,7 +286,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_charm",
                 name = "风华绝代",
                 description = "魅力+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("charmFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_CHARM,
@@ -297,7 +298,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_loyal",
                 name = "赤胆忠心",
                 description = "忠诚+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("loyaltyFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_LOYAL,
@@ -309,7 +310,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_comp",
                 name = "慧根深植",
                 description = "悟性+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("comprehensionFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_COMP,
@@ -321,7 +322,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_arti",
                 name = "巧夺天工",
                 description = "炼器+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("artifactRefiningFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_ARTI,
@@ -333,7 +334,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_pill",
                 name = "丹心妙手",
                 description = "炼丹+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("pillRefiningFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_PILL,
@@ -345,7 +346,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_plant",
                 name = "灵植亲和",
                 description = "种植+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("spiritPlantingFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_PLANT,
@@ -357,7 +358,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_teach",
                 name = "循循善诱",
                 description = "传道+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("teachingFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_TEACH,
@@ -369,7 +370,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_moral",
                 name = "正气浩然",
                 description = "道德+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("moralityFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_MORAL,
@@ -381,7 +382,7 @@ object TalentDatabase {
                 id = "r${cfg.rarity}_base_mining",
                 name = "地脉感应",
                 description = "采矿+${cfg.value}",
-                rarity = cfg.rarity,
+                rarity = talentGrade(cfg.rarity),
                 effects = mapOf("miningFlat" to cfg.value.toDouble()),
                 isNegative = false,
                 type = TalentType.BASE_MINING,
@@ -393,7 +394,7 @@ object TalentDatabase {
             id = "r6_manual_slot",
             name = "天衍道藏",
             description = "功法槽位+1",
-            rarity = 6,
+            rarity = 3,
             effects = mapOf("manualSlot" to 1.0),
             isNegative = false,
             type = TalentType.MANUAL_SLOT,
@@ -404,7 +405,7 @@ object TalentDatabase {
             id = "r6_win_growth",
             name = "百战通神",
             description = "每胜利一场战斗后，随机一个属性+1（无上限）",
-            rarity = 6,
+            rarity = 3,
             effects = mapOf("winBattleRandomAttrPlus" to 1.0),
             isNegative = false,
             type = TalentType.WIN_GROWTH,
@@ -416,9 +417,9 @@ object TalentDatabase {
         TalentData(
             id = "neg_cultivation",
             name = "灵脉紊乱",
-            description = "修炼速度-28%，突破概率-5%",
-            rarity = 3,
-            effects = mapOf("cultivationSpeed" to -0.28, "breakthroughChance" to -0.05),
+            description = "修炼速度-15%，突破概率-3%",
+            rarity = 0,
+            effects = mapOf("cultivationSpeed" to -0.15, "breakthroughChance" to -0.03),
             isNegative = true,
             type = TalentType.CULT_SPEED,
             template = "neg_cultivation"
@@ -426,9 +427,9 @@ object TalentDatabase {
         TalentData(
             id = "neg_lifespan",
             name = "寿元亏损",
-            description = "寿命-35%",
-            rarity = 3,
-            effects = mapOf("lifespan" to -0.35),
+            description = "寿命-20%",
+            rarity = 0,
+            effects = mapOf("lifespan" to -0.20),
             isNegative = true,
             type = TalentType.LIFESPAN,
             template = "neg_lifespan"
@@ -436,9 +437,9 @@ object TalentDatabase {
         TalentData(
             id = "neg_base_comprehension",
             name = "神识迟钝",
-            description = "悟性/智力/传道 -14",
-            rarity = 3,
-            effects = mapOf("comprehensionFlat" to -14.0, "intelligenceFlat" to -14.0, "teachingFlat" to -14.0),
+            description = "悟性/智力/传道 -8",
+            rarity = 0,
+            effects = mapOf("comprehensionFlat" to -8.0, "intelligenceFlat" to -8.0, "teachingFlat" to -8.0),
             isNegative = true,
             type = TalentType.BASE_COMP,
             template = "neg_base_comprehension"
@@ -446,9 +447,9 @@ object TalentDatabase {
         TalentData(
             id = "neg_base_craft",
             name = "百艺生疏",
-            description = "炼器/炼丹/种植 -12",
-            rarity = 3,
-            effects = mapOf("artifactRefiningFlat" to -12.0, "pillRefiningFlat" to -12.0, "spiritPlantingFlat" to -12.0),
+            description = "炼器/炼丹/种植 -6",
+            rarity = 0,
+            effects = mapOf("artifactRefiningFlat" to -6.0, "pillRefiningFlat" to -6.0, "spiritPlantingFlat" to -6.0),
             isNegative = true,
             type = TalentType.BASE_ARTI,
             template = "neg_base_craft"
@@ -456,9 +457,9 @@ object TalentDatabase {
         TalentData(
             id = "neg_base_social",
             name = "心性偏执",
-            description = "魅力/忠诚/道德 -12",
-            rarity = 3,
-            effects = mapOf("charmFlat" to -12.0, "loyaltyFlat" to -12.0, "moralityFlat" to -12.0),
+            description = "魅力/忠诚/道德 -6",
+            rarity = 0,
+            effects = mapOf("charmFlat" to -6.0, "loyaltyFlat" to -6.0, "moralityFlat" to -6.0),
             isNegative = true,
             type = TalentType.BASE_CHARM,
             template = "neg_base_social"
@@ -467,8 +468,8 @@ object TalentDatabase {
             id = "neg_battle_offense",
             name = "怯战失锋",
             description = "物攻/法攻/暴击下降",
-            rarity = 3,
-            effects = mapOf("physicalAttack" to -0.18, "magicAttack" to -0.18, "critRate" to -0.03),
+            rarity = 0,
+            effects = mapOf("physicalAttack" to -0.10, "magicAttack" to -0.10, "critRate" to -0.02),
             isNegative = true,
             type = TalentType.BAT_PHY_ATK,
             template = "neg_battle_offense"
@@ -477,13 +478,13 @@ object TalentDatabase {
             id = "neg_battle_survival",
             name = "体魄亏空",
             description = "生存属性下降",
-            rarity = 3,
+            rarity = 0,
             effects = mapOf(
-                "maxHp" to -0.24,
-                "maxMp" to -0.12,
-                "physicalDefense" to -0.16,
-                "magicDefense" to -0.16,
-                "speed" to -0.10
+                "maxHp" to -0.15,
+                "maxMp" to -0.08,
+                "physicalDefense" to -0.10,
+                "magicDefense" to -0.10,
+                "speed" to -0.06
             ),
             isNegative = true,
             type = TalentType.BAT_HP,
@@ -508,7 +509,7 @@ object TalentDatabase {
 
     fun getNegativeTalents(): List<Talent> = talents.values.filter { it.isNegative }
 
-    fun generateRandomTalents(count: Int, maxRarity: Int = 6): List<Talent> {
+    fun generateRandomTalents(count: Int, maxRarity: Int = 3): List<Talent> {
         val result = mutableListOf<Talent>()
         val availableTalents = allTalentsData.values.filter { it.rarity <= maxRarity && !it.isNegative }.toMutableList()
         val selectedTemplates = mutableSetOf<String>()
@@ -609,8 +610,7 @@ object TalentDatabase {
 
     fun getTalentDisplayInfo(talentId: String): TalentDisplayInfo? {
         val talent = talents[talentId] ?: return null
-        val color = if (talent.isNegative) "#000000" else GameConfig.Rarity.getColor(talent.rarity)
-        return TalentDisplayInfo(talent, color)
+        return TalentDisplayInfo(talent, talent.color)
     }
 }
 

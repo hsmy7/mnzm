@@ -70,12 +70,9 @@ class TalentRegistry : BaseTemplateRegistry<com.xianxia.sect.core.model.Talent>(
      * 正天赋稀有度分布配置
      */
     private val positiveRarityDistribution = listOf(
-        1 to 0.419,
-        2 to 0.272,
-        3 to 0.168,
-        4 to 0.084,
-        5 to 0.037,
-        6 to 0.020
+        1 to 0.69,
+        2 to 0.25,
+        3 to 0.06
     )
 
     /**
@@ -120,7 +117,7 @@ class TalentRegistry : BaseTemplateRegistry<com.xianxia.sect.core.model.Talent>(
      * @param maxRarity 最高稀有度限制
      * @return 生成的天赋列表
      */
-    fun generateRandomTalents(count: Int, maxRarity: Int = 6): List<com.xianxia.sect.core.model.Talent> {
+    fun generateRandomTalents(count: Int, maxRarity: Int = 3): List<com.xianxia.sect.core.model.Talent> {
         return TalentDatabase.generateRandomTalents(count, maxRarity)
     }
 
