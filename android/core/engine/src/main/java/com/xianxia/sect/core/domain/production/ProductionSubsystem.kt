@@ -9,10 +9,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 
 @SystemPriority(order = 205)
 @Singleton
@@ -69,12 +65,14 @@ class ProductionSubsystem @Inject constructor(
 
     /** 单月完整生产周期（批量轨） */
     private suspend fun processMonthlyProduction(state: MutableGameState) {
-        // 组 A（并行）：autoAlchemy + autoForge
-        coroutineScope {
-            val alchemyJob = async(Dispatchers.Default) { cultivationService.processAutoAlchemy() }
-            val forgeJob = async(Dispatchers.Default) { cultivationService.processAutoForge() }
-            awaitAll(alchemyJob, forgeJob)
-        }
+        // 注意：此方法在 transactionMutex 锁内调用，processAutoAlchemy/Forge
+        // 内部会调用 stateStore.update() 修改丹药/装备状态。
+        // 禁止使用 async(Dispatchers.Default)，否则 Dispatchers.Default 线程
+        // 尝试获取同一把 Mutex 时会造成协程级死锁：
+        // GAME_DISPATCHER 持锁等 Default → Default 等锁 ← 永远解不开。
+        // 红米K80 (HyperOS 2.0) 上 Dispatchers.Default 线程易被挂起，死锁概率更高。
+        cultivationService.processAutoAlchemy()
+        cultivationService.processAutoForge()
 
         // 组 B（串行）：buildingProduction + herbGardenGrowth
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)

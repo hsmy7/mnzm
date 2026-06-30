@@ -82,10 +82,14 @@ class GameEngineCore @Inject constructor(
         private const val DOMAIN_EXECUTE_INTERVAL_MS = 30_000L
         private const val TICK_TIME_BUDGET_MS = 50L
 
+        // 游戏引擎线程 — 非守护线程 + 最高优先级。
+        // 红米K80 (HyperOS 2.0) 实测：守护线程会被电源管理挂起，
+        // 导致触摸后游戏时间冻结。与看门狗线程对齐为非守护线程，
+        // 优先级从 NORM-1 提升至 MAX，防止主线程重组抢占导致 delay() 续体饥饿。
         private val gameThreadFactory = ThreadFactory {
             val thread = Thread(it, "GameEngine-Thread")
-            thread.priority = Thread.NORM_PRIORITY - 1  // 略低于正常优先级，避免抢占 UI
-            thread.isDaemon = true
+            thread.priority = Thread.MAX_PRIORITY
+            thread.isDaemon = false
             thread
         }
 
@@ -247,28 +251,18 @@ class GameEngineCore @Inject constructor(
         gameLoopJob = engineScope.launch {
             DomainLog.i(TAG, "Starting game loop")
 
-            // ADPF Hint Session 必须在游戏线程内创建，确保 myTid() 返回
-            // 游戏引擎线程的 TID（而非调用 startGameLoop 的线程）
-
-            // 提升游戏线程优先级以对抗 OEM 省电策略
-            // （华为 PowerGenie、小米神隐模式等会对低优先级线程进行 CPU 挂起）
-            // Android 12+ 需要 RAISED_THREAD_PRIORITY 权限（signature 级别），
-            // 普通应用无法获得；改用 Process.setThreadPriority 作为替代
-            val originalPriority = Thread.currentThread().priority
+            // 双重保险：线程工厂已设 MAX_PRIORITY，但部分 OEM 覆盖线程优先级。
+            // Process.setThreadPriority(THREAD_PRIORITY_URGENT_AUDIO) 是 Linux
+            // nice 值 -19（最高实时优先级），独立于 Java Thread.priority 体系，
+            // 即使 OEM 修改了 Thread.priority 映射也依然生效。
             try {
-                Thread.currentThread().priority = Thread.NORM_PRIORITY + 1
-                DomainLog.d(TAG, "Game thread priority: $originalPriority → ${Thread.NORM_PRIORITY + 1}")
-            } catch (e: SecurityException) {
-                // Android 12+ 会静默失败，改用 Process API（不需要特殊权限）
-                try {
-                    android.os.Process.setThreadPriority(
-                        android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY
-                    )
-                    DomainLog.d(TAG, "Game thread priority set via Process API: URGENT_DISPLAY")
-                } catch (e: CancellationException) { throw e }
-                  catch (e2: Exception) {
-                    DomainLog.w(TAG, "Cannot raise thread priority: ${e2.message}")
-                }
+                android.os.Process.setThreadPriority(
+                    android.os.Process.THREAD_PRIORITY_URGENT_AUDIO
+                )
+                DomainLog.d(TAG, "Game thread priority: URGENT_AUDIO (-19)")
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                DomainLog.w(TAG, "Cannot set thread priority: ${e.message}")
             }
 
             try {
@@ -636,6 +630,10 @@ class GameEngineCore @Inject constructor(
 
         _tickCount.value++
 
+        // 诊断：仅 Xiaomi 设备记录 tick 起始时间，用于检测 OEM 电源管理冻结
+        val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
+            System.currentTimeMillis() else 0L
+
         // ── 基于 GameTimeClock 的固定步长旬推进 ──
         val tickResult = gameClock.tick(
             isSettlementPending = settlementCoordinator.hasPendingWork
@@ -734,6 +732,18 @@ class GameEngineCore @Inject constructor(
         val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
+        }
+
+        // 诊断日志：Xiaomi 设备记录超预算 tick，辅助定位 OEM 电源管理导致的冻结
+        if (tickStartDiagnostic > 0) {
+            val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
+            if (tickDuration > TICK_TIME_BUDGET_MS) {
+                DomainLog.w(TAG,
+                    "tick over budget: ${tickDuration}ms " +
+                    "(budget=${TICK_TIME_BUDGET_MS}ms, " +
+                    "month=${stateStore.gameData.value.gameMonth}, " +
+                    "year=${stateStore.gameData.value.gameYear})")
+            }
         }
     }
 

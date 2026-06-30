@@ -97,11 +97,15 @@ object OemPowerProfileProvider {
             watchdogIntervalMs = 3000L,
         ),
         OemManufacturer.XIAOMI to OemPowerProfile(
-            // 小米 MIUI 神隐模式空闲检测窗口中等激进
+            // 小米 HyperOS 2.0 (红米K80) 空闲检测窗口 ~20-30ms，
+            // 比 MIUI 更窄。红米K80实测：32/3（4.7%占空比）不足以突破
+            // HyperOS 空闲检测，触摸后游戏线程被挂起导致时间冻结。
+            // 调至与 Honor/Vivo 同级激进参数（~14% 占空比）。
+            // 来源：dontkillmyapp.com/xiaomi + 红米K80实测
             manufacturer = OemManufacturer.XIAOMI,
-            antiFreezeBusyInterval = 32L,
-            antiFreezeBusyDuration = 3L,
-            watchdogIntervalMs = 4000L,
+            antiFreezeBusyInterval = 12L,
+            antiFreezeBusyDuration = 4L,
+            watchdogIntervalMs = 3000L,
         ),
         OemManufacturer.OPPO to OemPowerProfile(
             // OPPO ColorOS 14/15 空闲检测窗口 ~15-30ms，需更激进的忙等。

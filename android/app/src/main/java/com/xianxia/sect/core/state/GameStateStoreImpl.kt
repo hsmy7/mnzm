@@ -638,6 +638,8 @@ class GameStateStoreImpl @Inject constructor(
             return
         }
 
+        var disciplesNeedReassemble = false
+
         transactionMutex.withLock {
             transactionOwnerThread.set(Thread.currentThread())
             val curGame = _gameDataFlow.value
@@ -701,13 +703,15 @@ class GameStateStoreImpl @Inject constructor(
                 if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
                 val mutated = reusableMutableState.discipleTables.mutationVersion
-                if (disciplesChanged || mutated != lastAssembledMutationVersion) {
-                    _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
+                disciplesNeedReassemble = disciplesChanged || mutated != lastAssembledMutationVersion
+                if (disciplesNeedReassemble) {
+                    // 锁内仅标记 mutationVersion，实际 assembleAll() 在锁外执行
+                    // 减少 transactionMutex 持有时间，降低游戏循环锁争用
                     lastAssembledMutationVersion = mutated
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
-                    disciples = disciplesChanged || mutated != lastAssembledMutationVersion,
+                    disciples = disciplesNeedReassemble,
                     equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
                     equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
                     manualStacks = reusableMutableState.manualStacks.items !== curMS,
@@ -722,7 +726,7 @@ class GameStateStoreImpl @Inject constructor(
                 )
                 // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
                 val anyFieldChanged = reusableMutableState.gameData !== curGame
-                    || disciplesChanged || mutated != lastAssembledMutationVersion
+                    || disciplesNeedReassemble
                     || reusableMutableState.equipmentStacks.items !== curES
                     || reusableMutableState.equipmentInstances.items !== curEI
                     || reusableMutableState.manualStacks.items !== curMS
@@ -744,6 +748,14 @@ class GameStateStoreImpl @Inject constructor(
                 currentTransactionState = null
                 transactionOwnerThread.set(null)
             }
+        }
+
+        // 在锁外执行 assembleAll()，减少 transactionMutex 持有时间。
+        // discipleTables 已在锁内通过 _discipleTables 原子更新，
+        // assembleAll() 仅用于构建 UI 投影（_disciplesFlow），
+        // 不在锁内执行不会影响数据一致性。
+        if (disciplesNeedReassemble) {
+            _disciplesFlow.value = _discipleTables.assembleAll()
         }
     }
 
