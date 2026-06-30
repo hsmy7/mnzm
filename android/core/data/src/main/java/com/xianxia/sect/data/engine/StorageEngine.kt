@@ -6,14 +6,9 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.fixStorageBagReferences
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.data.archive.DataArchiver
-import com.xianxia.sect.data.cache.CacheLayer
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.config.SaveLimitsConfig
-import com.xianxia.sect.data.concurrent.SlotLockManager
-import com.xianxia.sect.data.crypto.IntegrityReport
 import com.xianxia.sect.data.incremental.ChangeLogOperation
-import com.xianxia.sect.data.incremental.ChangeLogPersistence
-import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
@@ -21,24 +16,16 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.StorageConstants
-import com.xianxia.sect.data.unified.BackupInfo
 import com.xianxia.sect.data.unified.SlotMetadata
-import com.xianxia.sect.data.validation.StorageValidator
-import com.xianxia.sect.data.wal.WALProvider
-import com.xianxia.sect.core.util.BackgroundTaskScheduler
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Immutable
 import androidx.room.withTransaction
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -76,22 +63,11 @@ enum class SavePriority {
 
 @Singleton
 class StorageEngine @Inject constructor(
-    private val database: GameDatabase,
-    private val cache: CacheLayer,
-    private val lockManager: SlotLockManager,
-    private val wal: WALProvider,
+    private val core: StorageCoreFacade,
     private val saveLimitsConfig: SaveLimitsConfig,
-    private val changeLogPersistence: ChangeLogPersistence,
     private val dataArchiver: DataArchiver,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val circuitBreaker: StorageCircuitBreaker,
-    private val pruningScheduler: DataPruningScheduler,
-    private val archiveScheduler: DataArchiveScheduler,
-    private val memoryGuard: ProactiveMemoryGuard,
-    private val taskScheduler: BackgroundTaskScheduler,
-    private val storageIntegrity: StorageIntegrity,
-    private val storageBackup: StorageBackup,
-    private val storageMetrics: StorageMetrics,
+    private val infra: StorageInfraFacade,
+    private val maintenanceFacade: StorageMaintenanceFacade,
     private val stateStore: GameStateSnapshotProvider,
     private val repository: GameStateRepository
 ) {
@@ -124,7 +100,7 @@ class StorageEngine @Inject constructor(
         }
     }
 
-    private val scope get() = scopeProvider.ioScope
+    private val scope get() = infra.scopeProvider.ioScope
 
     private val _progress = MutableStateFlow(EngineProgress(EngineProgress.Stage.IDLE, 0f))
     val progress: StateFlow<EngineProgress> = _progress.asStateFlow()
@@ -133,11 +109,11 @@ class StorageEngine @Inject constructor(
     val currentSlot: StateFlow<Int> = _currentSlot.asStateFlow()
 
     suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
-        if (!lockManager.isValidSlot(slot)) {
+        if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withWriteLockLight(slot) {
+        return core.lockManager.withWriteLockLight(slot) {
             try {
                 val startTime = System.currentTimeMillis()
 
@@ -155,17 +131,7 @@ class StorageEngine @Inject constructor(
                     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
                     logSaveChanges(slot, dataWithTimestamp)
 
-
-
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            storageBackup.createBackup(slot)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Auto-backup failed for slot $slot (non-fatal)", e)
-                        }
-                    }
-
-                    storageMetrics.recordSave()
+                    infra.storageMetrics.recordSave()
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
                 }
 
@@ -189,29 +155,29 @@ class StorageEngine @Inject constructor(
     }
 
     suspend fun load(slot: Int): StorageResult<SaveData> {
-        if (!lockManager.isValidSlot(slot)) {
+        if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withReadLockLight(slot) {
+        return core.lockManager.withReadLockLight(slot) {
             try {
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
 
                 val cachedData = loadFromCache(slot)
                 if (cachedData != null) {
-                    storageMetrics.recordCacheHit()
-                    storageMetrics.recordLoad()
+                    infra.storageMetrics.recordCacheHit()
+                    infra.storageMetrics.recordLoad()
                     Log.d(TAG, "Cache hit for slot $slot")
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
                     return@withReadLockLight StorageResult.success(cachedData)
                 }
 
-                storageMetrics.recordCacheMiss()
+                infra.storageMetrics.recordCacheMiss()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
                 val dbData = loadFromDatabase(slot)
 
                 if (dbData != null) {
-                    storageMetrics.recordLoad()
+                    infra.storageMetrics.recordLoad()
                     clearCacheForSlot(slot)
                     updateCacheAfterSave(slot, dbData)
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
@@ -231,59 +197,53 @@ class StorageEngine @Inject constructor(
     }
 
     suspend fun delete(slot: Int): StorageResult<Unit> {
-        if (!lockManager.isValidSlot(slot)) {
+        if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
         val isAutoSave = StorageConstants.isAutoSaveSlot(slot)
         Log.i(TAG, "Deleting slot $slot (isAutoSave=$isAutoSave)")
 
-        return lockManager.withWriteLockLight(slot) {
+        return core.lockManager.withWriteLockLight(slot) {
             try {
                 clearCacheForSlot(slot)
 
-                database.withTransaction {
-                    database.gameDataDao().deleteAll(slot)
-                    database.discipleDao().deleteAll(slot)
-                    database.discipleCoreDao().deleteAll(slot)
-                    database.discipleCombatStatsDao().deleteAll(slot)
-                    database.discipleEquipmentDao().deleteAll(slot)
-                    database.discipleExtendedDao().deleteAll(slot)
-                    database.discipleAttributesDao().deleteAll(slot)
-                    database.equipmentStackDao().deleteAll(slot)
-                    database.equipmentInstanceDao().deleteAll(slot)
-                    database.manualStackDao().deleteAll(slot)
-                    database.manualInstanceDao().deleteAll(slot)
-                    database.pillDao().deleteAll(slot)
-                    database.materialDao().deleteAll(slot)
-                    database.seedDao().deleteAll(slot)
-                    database.herbDao().deleteAll(slot)
-                    database.explorationTeamDao().deleteAll(slot)
-                    database.buildingSlotDao().deleteAll(slot)
-                    database.recipeDao().deleteAll(slot)
-                    database.forgeSlotDao().deleteAll(slot)
-                    database.alchemySlotDao().deleteAll(slot)
-                    database.productionSlotDao().deleteBySlot(slot)
-                    database.battleLogDao().deleteAll(slot)
-                    database.mailDao().deleteAllForSlot(slot)
-                    database.saveSlotMetadataDao().deleteBySlotId(slot)
-                    database.storageBagDao().deleteAll(slot)
-                    database.gameHeavyDataDao().deleteAllForSlot(slot)
-                    database.diplomacyStateDao().deleteBySlot(slot)
-                    database.productionStateDao().deleteBySlot(slot)
-                    database.patrolStateDao().deleteBySlot(slot)
-                    database.worldMapStateDao().deleteBySlot(slot)
-                    database.sectPolicyStateDao().deleteBySlot(slot)
-                    database.discipleCompactDao().deleteAll(slot)
+                core.database.withTransaction {
+                    core.database.gameDataDao().deleteAll(slot)
+                    core.database.discipleDao().deleteAll(slot)
+                    core.database.discipleCoreDao().deleteAll(slot)
+                    core.database.discipleCombatStatsDao().deleteAll(slot)
+                    core.database.discipleEquipmentDao().deleteAll(slot)
+                    core.database.discipleExtendedDao().deleteAll(slot)
+                    core.database.discipleAttributesDao().deleteAll(slot)
+                    core.database.equipmentStackDao().deleteAll(slot)
+                    core.database.equipmentInstanceDao().deleteAll(slot)
+                    core.database.manualStackDao().deleteAll(slot)
+                    core.database.manualInstanceDao().deleteAll(slot)
+                    core.database.pillDao().deleteAll(slot)
+                    core.database.materialDao().deleteAll(slot)
+                    core.database.seedDao().deleteAll(slot)
+                    core.database.herbDao().deleteAll(slot)
+                    core.database.explorationTeamDao().deleteAll(slot)
+                    core.database.buildingSlotDao().deleteAll(slot)
+                    core.database.recipeDao().deleteAll(slot)
+                    core.database.forgeSlotDao().deleteAll(slot)
+                    core.database.alchemySlotDao().deleteAll(slot)
+                    core.database.productionSlotDao().deleteBySlot(slot)
+                    core.database.battleLogDao().deleteAll(slot)
+                    core.database.mailDao().deleteAllForSlot(slot)
+                    core.database.saveSlotMetadataDao().deleteBySlotId(slot)
+                    core.database.storageBagDao().deleteAll(slot)
+                    core.database.gameHeavyDataDao().deleteAllForSlot(slot)
+                    core.database.diplomacyStateDao().deleteBySlot(slot)
+                    core.database.productionStateDao().deleteBySlot(slot)
+                    core.database.patrolStateDao().deleteBySlot(slot)
+                    core.database.worldMapStateDao().deleteBySlot(slot)
+                    core.database.sectPolicyStateDao().deleteBySlot(slot)
+                    core.database.discipleCompactDao().deleteAll(slot)
                 }
 
                 clearCacheForSlot(slot)
-
-                try {
-                    storageBackup.deleteBackupVersions(slot)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Backup cleanup failed for slot $slot (non-fatal)", e)
-                }
 
                 Log.i(TAG, "Deleted all data for slot $slot (isAutoSave=$isAutoSave)")
                 StorageResult.success(Unit)
@@ -297,10 +257,10 @@ class StorageEngine @Inject constructor(
     }
 
     suspend fun hasData(slot: Int): Boolean {
-        if (!lockManager.isValidSlot(slot)) return false
+        if (!core.lockManager.isValidSlot(slot)) return false
 
         return try {
-            database.gameDataDao().existsBySlot(slot) != null
+            core.database.gameDataDao().existsBySlot(slot) != null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -309,57 +269,18 @@ class StorageEngine @Inject constructor(
         }
     }
 
-    suspend fun exportToFile(slot: Int, file: File): StorageResult<Unit> {
-        return storageBackup.exportToFile(slot, file)
-    }
-
-    suspend fun createBackup(slot: Int): com.xianxia.sect.data.unified.SaveResult<String> {
-        return storageBackup.createBackup(slot)
-    }
-
-    fun getBackupVersions(slot: Int): List<BackupInfo> {
-        return storageBackup.getBackupVersions(slot)
-    }
-
-    suspend fun restoreBackup(slot: Int, backupId: String): com.xianxia.sect.data.unified.SaveResult<SaveData> {
-        val loadFunc: suspend (Int) -> com.xianxia.sect.data.unified.SaveResult<SaveData> = { restoreSlot ->
-            val storageResult = load(restoreSlot)
-            when (storageResult) {
-                is StorageResult.Success -> com.xianxia.sect.data.unified.SaveResult.success(storageResult.data)
-                is StorageResult.Failure -> com.xianxia.sect.data.unified.SaveResult.failure(
-                    when (storageResult.error) {
-                        StorageError.INVALID_SLOT -> com.xianxia.sect.data.unified.SaveError.INVALID_SLOT
-                        StorageError.SLOT_EMPTY -> com.xianxia.sect.data.unified.SaveError.SLOT_EMPTY
-                        StorageError.SLOT_CORRUPTED -> com.xianxia.sect.data.unified.SaveError.SLOT_CORRUPTED
-                        StorageError.LOAD_FAILED -> com.xianxia.sect.data.unified.SaveError.LOAD_FAILED
-                        else -> com.xianxia.sect.data.unified.SaveError.UNKNOWN
-                    },
-                    storageResult.message,
-                    storageResult.cause
-                )
-            }
-        }
-        val restoreResult = storageBackup.restoreBackup(slot, backupId, loadFunc)
-
-        if (restoreResult.isSuccess) {
-            clearCacheForSlot(slot)
-        }
-
-        return restoreResult
-    }
-
     suspend fun getSlotMetadata(slot: Int): SlotMetadata? {
-        if (!lockManager.isValidSlot(slot)) return null
+        if (!core.lockManager.isValidSlot(slot)) return null
 
         return try {
-            val meta = database.gameDataDao().getMetadataBySlot(slot) ?: return null
+            val meta = core.database.gameDataDao().getMetadataBySlot(slot) ?: return null
             SlotMetadata(
                 slot = slot,
                 timestamp = meta.lastSaveTime,
                 gameYear = meta.gameYear,
                 gameMonth = meta.gameMonth,
                 sectName = meta.sectName,
-                discipleCount = database.discipleDao().getAllAliveSync(slot).size,
+                discipleCount = core.database.discipleDao().getAllAliveSync(slot).size,
                 spiritStones = meta.spiritStones,
                 fileSize = 0,
                 customName = meta.sectName
@@ -374,7 +295,7 @@ class StorageEngine @Inject constructor(
 
     suspend fun listSlots(): StorageResult<List<SlotMetadata>> {
         return try {
-            val slots = (1..lockManager.getMaxSlots()).mapNotNull { slot ->
+            val slots = (1..core.lockManager.getMaxSlots()).mapNotNull { slot ->
                 getSlotMetadata(slot)
             }
             StorageResult.success(slots)
@@ -383,25 +304,6 @@ class StorageEngine @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "listSlots failed", e)
             StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Failed to list slots")
-        }
-    }
-
-    suspend fun validateIntegrity(slot: Int): StorageResult<IntegrityReport> {
-        val slotValidation = StorageValidator.validateSlotRange(slot, lockManager.getMaxSlots())
-        if (!slotValidation.isValid) {
-            return StorageResult.failure(StorageError.VALIDATION_ERROR, slotValidation.errors.map { it.message }.joinToString())
-        }
-
-        return try {
-            val saveData = loadFromDatabase(slot)
-                ?: return StorageResult.failure(StorageError.SLOT_EMPTY, "No data found for slot $slot")
-
-            storageIntegrity.validateIntegrity(slot, saveData)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Integrity validation failed for slot $slot", e)
-            StorageResult.failure(StorageError.SLOT_CORRUPTED, e.message ?: "Integrity check failed")
         }
     }
 
@@ -417,7 +319,7 @@ class StorageEngine @Inject constructor(
             slots.add(SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true))
         }
 
-        for (slot in 1..lockManager.getMaxSlots()) {
+        for (slot in 1..core.lockManager.getMaxSlots()) {
             try {
                 slots.add(querySingleSlot(slot))
             } catch (e: CancellationException) {
@@ -432,7 +334,7 @@ class StorageEngine @Inject constructor(
     }
 
     fun setCurrentSlot(slot: Int) {
-        if (lockManager.isValidSlot(slot)) {
+        if (core.lockManager.isValidSlot(slot)) {
             _currentSlot.value = slot
         }
     }
@@ -440,11 +342,11 @@ class StorageEngine @Inject constructor(
     fun getCurrentSlot(): Int = _currentSlot.value
 
     suspend fun incrementalSave(slot: Int): StorageResult<SaveOperationStats> {
-        if (!lockManager.isValidSlot(slot)) {
+        if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withWriteLockLight(slot) {
+        return core.lockManager.withWriteLockLight(slot) {
             try {
                 val startTime = System.currentTimeMillis()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Incremental save")
@@ -468,7 +370,7 @@ class StorageEngine @Inject constructor(
 
                 val gameDataWithTimestamp = gameData.copy(lastSaveTime = System.currentTimeMillis())
 
-                database.withTransaction {
+                core.database.withTransaction {
                     repository.flushDirtyState(
                         gameData = gameDataWithTimestamp,
                         disciples = disciples,
@@ -508,28 +410,20 @@ class StorageEngine @Inject constructor(
     }
 
     fun startMaintenance() {
-        // 10s: 内存压力检查
-        taskScheduler.register("MemoryGuard", 10) { memoryGuard.performCheck() }
-        // 300s: 数据修剪
-        taskScheduler.register("DataPruning", 300) { pruningScheduler.performPruning() }
-        // 600s: 数据归档
-        taskScheduler.register("DataArchive", 600) { archiveScheduler.performArchive() }
-        taskScheduler.start()
-        Log.i(TAG, "Storage maintenance started via BackgroundTaskScheduler")
+        maintenanceFacade.startMaintenance()
+        Log.i(TAG, "Storage maintenance started")
     }
 
     fun stopMaintenance() {
-        taskScheduler.stop()
+        maintenanceFacade.stopMaintenance()
         Log.i(TAG, "Storage maintenance stopped")
     }
 
     fun shutdown() {
-        memoryGuard.shutdown()
-        pruningScheduler.shutdown()
-        archiveScheduler.shutdown()
-        cache.shutdown()
-        wal.shutdown()
-        lockManager.shutdown()
+        maintenanceFacade.shutdown()
+        core.cache.shutdown()
+        core.wal.shutdown()
+        core.lockManager.shutdown()
         Log.i(TAG, "StorageEngine shutdown completed")
     }
 
@@ -550,12 +444,12 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
-        database.withTransaction {
+        core.database.withTransaction {
             writeAllDataToDatabase(slot, data)
         }
 
         try {
-            database.performPostSaveCheckpoint()
+            core.database.performPostSaveCheckpoint()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -597,7 +491,7 @@ class StorageEngine @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        val heavyDao = database.gameHeavyDataDao()
+        val heavyDao = core.database.gameHeavyDataDao()
 
         // ── 清除旧重型数据（按前缀批量删除）──
         val allPrefixes = listOf(
@@ -655,56 +549,56 @@ class StorageEngine @Inject constructor(
             recruitList = emptyList(),
             worldMapSects = emptyList()
         )
-        database.withTransaction {
+        core.database.withTransaction {
             // ── 先清空所有旧数据，再写入新数据 ──
             // 防止重新开始游戏时，旧存档的高 ID 行残留在数据库中
-            database.discipleDao().deleteAll(slot)
-            database.discipleCoreDao().deleteAll(slot)
-            database.discipleCombatStatsDao().deleteAll(slot)
-            database.discipleEquipmentDao().deleteAll(slot)
-            database.discipleExtendedDao().deleteAll(slot)
-            database.discipleAttributesDao().deleteAll(slot)
-            database.equipmentStackDao().deleteAll(slot)
-            database.equipmentInstanceDao().deleteAll(slot)
-            database.manualStackDao().deleteAll(slot)
-            database.manualInstanceDao().deleteAll(slot)
-            database.pillDao().deleteAll(slot)
-            database.materialDao().deleteAll(slot)
-            database.herbDao().deleteAll(slot)
-            database.seedDao().deleteAll(slot)
-            database.storageBagDao().deleteAll(slot)
-            database.explorationTeamDao().deleteAll(slot)
-            database.battleLogDao().deleteAll(slot)
-            database.recipeDao().deleteAll(slot)
-            database.productionSlotDao().deleteBySlot(slot)
+            core.database.discipleDao().deleteAll(slot)
+            core.database.discipleCoreDao().deleteAll(slot)
+            core.database.discipleCombatStatsDao().deleteAll(slot)
+            core.database.discipleEquipmentDao().deleteAll(slot)
+            core.database.discipleExtendedDao().deleteAll(slot)
+            core.database.discipleAttributesDao().deleteAll(slot)
+            core.database.equipmentStackDao().deleteAll(slot)
+            core.database.equipmentInstanceDao().deleteAll(slot)
+            core.database.manualStackDao().deleteAll(slot)
+            core.database.manualInstanceDao().deleteAll(slot)
+            core.database.pillDao().deleteAll(slot)
+            core.database.materialDao().deleteAll(slot)
+            core.database.herbDao().deleteAll(slot)
+            core.database.seedDao().deleteAll(slot)
+            core.database.storageBagDao().deleteAll(slot)
+            core.database.explorationTeamDao().deleteAll(slot)
+            core.database.battleLogDao().deleteAll(slot)
+            core.database.recipeDao().deleteAll(slot)
+            core.database.productionSlotDao().deleteBySlot(slot)
 
             // ── 轻型 GameData ──
-            database.gameDataDao().insert(lightGameData)
+            core.database.gameDataDao().insert(lightGameData)
 
             data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
                 val withSlot = batch.map { d -> d.copy(slotId = slot) }
-                database.discipleDao().upsertAll(withSlot)
-                database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
-                database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
-                database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
-                database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
-                database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleDao().upsertAll(withSlot)
+                core.database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
             }
 
-            data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-            data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-            data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
-            data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
-            data.seeds.chunked(MAX_BATCH_SIZE).forEach { database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
+            data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+            data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+            data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.pills.chunked(MAX_BATCH_SIZE).forEach { core.database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
+            data.materials.chunked(MAX_BATCH_SIZE).forEach { core.database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+            data.herbs.chunked(MAX_BATCH_SIZE).forEach { core.database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
+            data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
 
-            data.storageBags.chunked(MAX_BATCH_SIZE).forEach { database.storageBagDao().upsertAll(it) }
+            data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it) }
 
-            data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
+            data.teams.chunked(MAX_BATCH_SIZE).forEach { core.database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
 
-            data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
+            data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
 
             val productionSlotsToSave = data.productionSlots
             if (productionSlotsToSave.isEmpty()) {
@@ -712,18 +606,18 @@ class StorageEngine @Inject constructor(
                     "data.productionSlots.size=${data.productionSlots.size}")
             }
             productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
+                core.database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
             }
 
             data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
-                database.recipeDao().upsertAll(recipes)
+                core.database.recipeDao().upsertAll(recipes)
             }
 
             syncSlotMetadata(slot, data)
 
             // ── 领域实体表写入（Phase B：细粒度读取路径）──
             val gd = data.gameData
-            database.diplomacyStateDao().upsert(DiplomacyState(
+            core.database.diplomacyStateDao().upsert(DiplomacyState(
                 slotId = slot,
                 sectRelations = gd.sectRelations,
                 alliances = gd.alliances,
@@ -735,21 +629,21 @@ class StorageEngine @Inject constructor(
                 exploredSects = gd.exploredSects,
                 scoutInfo = gd.scoutInfo
             ))
-            database.productionStateDao().upsert(ProductionState(
+            core.database.productionStateDao().upsert(ProductionState(
                 slotId = slot,
                 spiritFieldPlants = gd.spiritFieldPlants,
                 unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
                 unlockedManuals = gd.unlockedManuals ?: emptyList(),
                 manualProficiencies = gd.manualProficiencies
             ))
-            database.patrolStateDao().upsert(PatrolStateEntity(
+            core.database.patrolStateDao().upsert(PatrolStateEntity(
                 slotId = slot,
                 patrolSlots = gd.patrolSlots,
                 patrolConfig = gd.patrolConfig,
                 patrolConfigs = gd.patrolConfigs,
                 patrolBattleResultPopup = gd.patrolBattleResultPopup
             ))
-            database.worldMapStateDao().upsert(WorldMapStateEntity(
+            core.database.worldMapStateDao().upsert(WorldMapStateEntity(
                 slotId = slot,
                 worldMapSects = gd.worldMapSects,
                 aiSectDisciples = gd.aiSectDisciples,
@@ -758,7 +652,7 @@ class StorageEngine @Inject constructor(
                 aiCaveTeams = gd.aiCaveTeams,
                 worldLevels = gd.worldLevels
             ))
-            database.sectPolicyStateDao().upsert(SectPolicyState(
+            core.database.sectPolicyStateDao().upsert(SectPolicyState(
                 slotId = slot,
                 sectPolicies = gd.sectPolicies,
                 autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
@@ -792,12 +686,12 @@ class StorageEngine @Inject constructor(
             lastSaveTime = data.timestamp,
             discipleCount = data.disciples.count { it.isAlive }
         )
-        database.saveSlotMetadataDao().upsert(metadata)
+        core.database.saveSlotMetadataDao().upsert(metadata)
     }
 
     private suspend fun logSaveChanges(slot: Int, data: SaveData) {
         try {
-            changeLogPersistence.logChange(
+            infra.changeLogPersistence.logChange(
                 tableName = "game_data",
                 recordId = "game_data_$slot",
                 operation = ChangeLogOperation.UPDATE
@@ -812,7 +706,7 @@ class StorageEngine @Inject constructor(
     private suspend fun loadFromCache(slot: Int): SaveData? = withContext(Dispatchers.IO) {
         try {
             val gameDataKey = CacheKey.forGameData(slot)
-            cache.getOrNull<SaveData>(gameDataKey)
+            core.cache.getOrNull<SaveData>(gameDataKey)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -823,7 +717,7 @@ class StorageEngine @Inject constructor(
 
     private suspend fun loadFromDatabase(slot: Int): SaveData? {
         return try {
-            database.withTransaction {
+            core.database.withTransaction {
                 loadFromDatabaseInternal(slot, loadHeavyData = true)
             }
         } catch (e: CancellationException) {
@@ -835,7 +729,7 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData? {
-        val gameData = database.gameDataDao().getGameDataSync(slot) ?: return null
+        val gameData = core.database.gameDataDao().getGameDataSync(slot) ?: return null
 
         if (loadHeavyData) {
             val merged = mergeHeavyData(gameData, slot)
@@ -967,7 +861,7 @@ class StorageEngine @Inject constructor(
      */
     private suspend fun loadHeavyDataSafe(slot: Int): List<GameHeavyData> {
         val keys = try {
-            database.gameHeavyDataDao().getLoadedKeys(slot)
+            core.database.gameHeavyDataDao().getLoadedKeys(slot)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -978,14 +872,14 @@ class StorageEngine @Inject constructor(
         val result = mutableListOf<GameHeavyData>()
         for (key in keys) {
             try {
-                val row = database.gameHeavyDataDao().getByKey(slot, key)
+                val row = core.database.gameHeavyDataDao().getByKey(slot, key)
                 if (row != null) result.add(row)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, will be regenerated on next save", e)
                 // 删除超大行，下次保存时会分块重写
-                try { database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: CancellationException) {
+                try { core.database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to delete oversized heavy data key '$key'", e)
@@ -996,19 +890,19 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData = withContext(Dispatchers.IO) {
-        val deferredDisciples = async { database.discipleDao().getAllSync(slot) }
-        val deferredEquipmentStacks = async { database.equipmentStackDao().getAllSync(slot) }
-        val deferredEquipmentInstances = async { database.equipmentInstanceDao().getAllSync(slot) }
-        val deferredManualStacks = async { database.manualStackDao().getAllSync(slot) }
-        val deferredManualInstances = async { database.manualInstanceDao().getAllSync(slot) }
-        val deferredPills = async { database.pillDao().getAllSync(slot) }
-        val deferredMaterials = async { database.materialDao().getAllSync(slot) }
-        val deferredHerbs = async { database.herbDao().getAllSync(slot) }
-        val deferredSeeds = async { database.seedDao().getAllSync(slot) }
-        val deferredStorageBags = async { database.storageBagDao().getAll(slot) }
-        val deferredTeams = async { database.explorationTeamDao().getAllSync(slot) }
-        val deferredBattleLogs = async { database.battleLogDao().getAllSync(slot) }
-        var deferredProductionSlots = async { database.productionSlotDao().getBySlotSync(slot) }
+        val deferredDisciples = async { core.database.discipleDao().getAllSync(slot) }
+        val deferredEquipmentStacks = async { core.database.equipmentStackDao().getAllSync(slot) }
+        val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync(slot) }
+        val deferredManualStacks = async { core.database.manualStackDao().getAllSync(slot) }
+        val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync(slot) }
+        val deferredPills = async { core.database.pillDao().getAllSync(slot) }
+        val deferredMaterials = async { core.database.materialDao().getAllSync(slot) }
+        val deferredHerbs = async { core.database.herbDao().getAllSync(slot) }
+        val deferredSeeds = async { core.database.seedDao().getAllSync(slot) }
+        val deferredStorageBags = async { core.database.storageBagDao().getAll(slot) }
+        val deferredTeams = async { core.database.explorationTeamDao().getAllSync(slot) }
+        val deferredBattleLogs = async { core.database.battleLogDao().getAllSync(slot) }
+        var deferredProductionSlots = async { core.database.productionSlotDao().getBySlotSync(slot) }
 
         val disciples = deferredDisciples.await()
         val equipmentStacks = deferredEquipmentStacks.await()
@@ -1066,7 +960,7 @@ class StorageEngine @Inject constructor(
     private fun updateCacheAfterSave(slot: Int, data: SaveData) {
         try {
             val cacheKey = CacheKey.forGameData(slot)
-            cache.putWithoutTracking(cacheKey, data)
+            core.cache.putWithoutTracking(cacheKey, data)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to update cache for slot $slot", e)
         }
@@ -1075,7 +969,7 @@ class StorageEngine @Inject constructor(
     private fun clearCacheForSlot(slot: Int) {
         try {
             val cacheKey = CacheKey.forGameData(slot)
-            cache.remove(cacheKey)
+            core.cache.remove(cacheKey)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to clear cache for slot $slot", e)
         }
@@ -1084,7 +978,7 @@ class StorageEngine @Inject constructor(
     private suspend fun querySingleSlot(slot: Int): SaveSlot {
         val isAutoSave = slot == StorageConstants.AUTO_SAVE_SLOT
         return try {
-            val meta = database.gameDataDao().getMetadataBySlot(slot)
+            val meta = core.database.gameDataDao().getMetadataBySlot(slot)
             if (meta != null) {
                 SaveSlot(
                     slot = slot,
@@ -1093,7 +987,7 @@ class StorageEngine @Inject constructor(
                     gameYear = meta.gameYear,
                     gameMonth = meta.gameMonth,
                     sectName = meta.sectName,
-                    discipleCount = database.discipleDao().getAllAliveSync(slot).size,
+                    discipleCount = core.database.discipleDao().getAllAliveSync(slot).size,
                     spiritStones = meta.spiritStones,
                     isEmpty = false,
                     customName = meta.sectName,

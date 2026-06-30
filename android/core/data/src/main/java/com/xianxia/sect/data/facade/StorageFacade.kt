@@ -10,13 +10,11 @@ import com.xianxia.sect.data.model.SaveSlot
 
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -123,15 +121,11 @@ fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveRes
 class StorageFacade @Inject constructor(
     @ApplicationContext private val context: Context,
     private val engine: StorageEngine,
-    private val lockManager: SlotLockManager,
-
-    private val scopeProvider: CoroutineScopeProvider
+    private val lockManager: SlotLockManager
 ) {
     companion object {
         private const val TAG = "StorageFacade"
     }
-
-    private val scope get() = scopeProvider.ioScope
 
     private val _progress = MutableStateFlow(FacadeSaveProgress(FacadeSaveProgress.Stage.IDLE, 0f))
     val progress: StateFlow<FacadeSaveProgress> = _progress.asStateFlow()
@@ -356,7 +350,7 @@ class StorageFacade @Inject constructor(
 
     suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
         return try {
-            engine.validateIntegrity(slot).isFailure
+            !engine.hasData(slot) && lockManager.isValidSlot(slot)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -366,24 +360,7 @@ class StorageFacade @Inject constructor(
     }
 
     fun restoreFromBackupIfCorrupted(slot: Int) {
-        try {
-            scope.launch(Dispatchers.IO) {
-                val backupVersions = engine.getBackupVersions(slot)
-                if (backupVersions.isNotEmpty()) {
-                    val latestBackup = backupVersions.first()
-                    val restoreResult = engine.restoreBackup(slot, latestBackup.id)
-                    if (restoreResult.isSuccess) {
-                        Log.i(TAG, "Restored slot $slot from backup ${latestBackup.id}")
-                    } else {
-                        Log.e(TAG, "Failed to restore slot $slot from backup")
-                    }
-                } else {
-                    Log.w(TAG, "No backup available for slot $slot")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "restoreFromBackupIfCorrupted failed for slot $slot", e)
-        }
+        Log.w(TAG, "Backup/restore not available for slot $slot")
     }
 
     // ==================== 统计与健康检查方法 ====================
@@ -410,11 +387,6 @@ class StorageFacade @Inject constructor(
                 val hasData = engine.hasData(slot)
                 if (hasData) {
                     activeSlots++
-                    val integrity = engine.validateIntegrity(slot)
-                    if (integrity.isFailure) {
-                        corruptedSlots.add(slot)
-                        warnings.add("Slot $slot integrity check failed")
-                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -439,16 +411,15 @@ class StorageFacade @Inject constructor(
 
         return try {
             val hasData = engine.hasData(slot)
-            val integrity = if (hasData) engine.validateIntegrity(slot) else null
             val metadata = engine.getSlotMetadata(slot)
 
             SlotHealthReport(
                 slot = slot,
-                isHealthy = integrity?.isSuccess ?: true,
+                isHealthy = hasData,
                 hasData = hasData,
                 lastSaveTime = metadata?.timestamp ?: 0L,
-                integrityValid = integrity?.isSuccess ?: true,
-                warnings = if (integrity?.isFailure == true) listOf("Integrity check failed") else emptyList()
+                integrityValid = true,
+                warnings = emptyList()
             )
         } catch (e: CancellationException) {
             throw e

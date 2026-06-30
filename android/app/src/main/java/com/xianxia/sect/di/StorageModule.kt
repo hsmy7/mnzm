@@ -2,25 +2,17 @@ package com.xianxia.sect.di
 
 import android.content.Context
 import com.xianxia.sect.data.archive.DataArchiver
-import com.xianxia.sect.data.cache.CacheLayer
 import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.crypto.KeyRotationManager
-import com.xianxia.sect.data.engine.DataArchiveScheduler
-import com.xianxia.sect.data.engine.DataPruningScheduler
-import com.xianxia.sect.data.engine.ProactiveMemoryGuard
-import com.xianxia.sect.core.util.BackgroundTaskScheduler
-import com.xianxia.sect.data.engine.StorageBackup
-import com.xianxia.sect.data.engine.StorageCircuitBreaker
+import com.xianxia.sect.data.engine.StorageCoreFacade
 import com.xianxia.sect.data.engine.StorageEngine
-import com.xianxia.sect.data.engine.StorageIntegrity
-import com.xianxia.sect.data.engine.StorageMetrics
+import com.xianxia.sect.data.engine.StorageInfraFacade
+import com.xianxia.sect.data.engine.StorageMaintenanceFacade
 
 import com.xianxia.sect.data.facade.StorageFacade
-import com.xianxia.sect.data.incremental.ChangeLogPersistence
-import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 
 import com.xianxia.sect.data.serialization.unified.SerializationModule
@@ -104,42 +96,20 @@ object StorageModule {
     @Provides
     @Singleton
     internal fun provideStorageEngine(
-        database: GameDatabase,
-        cache: CacheLayer,
-        lockManager: SlotLockManager,
-        wal: WALProvider,
+        core: StorageCoreFacade,
         saveLimitsConfig: SaveLimitsConfig,
-        changeLogPersistence: ChangeLogPersistence,
         dataArchiver: DataArchiver,
-        applicationScopeProvider: ApplicationScopeProvider,
-        circuitBreaker: StorageCircuitBreaker,
-        pruningScheduler: DataPruningScheduler,
-        archiveScheduler: DataArchiveScheduler,
-        memoryGuard: ProactiveMemoryGuard,
-        storageIntegrity: StorageIntegrity,
-        storageBackup: StorageBackup,
-        storageMetrics: StorageMetrics,
-        taskScheduler: BackgroundTaskScheduler,
+        infra: StorageInfraFacade,
+        maintenanceFacade: StorageMaintenanceFacade,
         stateStore: com.xianxia.sect.core.state.GameStateStore,
         repository: com.xianxia.sect.data.GameStateRepository
     ): StorageEngine {
         return StorageEngine(
-            database = database,
-            cache = cache,
-            lockManager = lockManager,
-            wal = wal,
+            core = core,
             saveLimitsConfig = saveLimitsConfig,
-            changeLogPersistence = changeLogPersistence,
             dataArchiver = dataArchiver,
-            scopeProvider = applicationScopeProvider,
-            circuitBreaker = circuitBreaker,
-            pruningScheduler = pruningScheduler,
-            archiveScheduler = archiveScheduler,
-            memoryGuard = memoryGuard,
-            taskScheduler = taskScheduler,
-            storageIntegrity = storageIntegrity,
-            storageBackup = storageBackup,
-            storageMetrics = storageMetrics,
+            infra = infra,
+            maintenanceFacade = maintenanceFacade,
             stateStore = stateStore,
             repository = repository
         )
