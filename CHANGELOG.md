@@ -13,6 +13,7 @@
 
 ### 修复
 
+- **世界地图宗门全消失 + 外交界面无宗门** — 存档时将宗门列表等重型数据分离存储以避Room单行2MB限制，但读档时未从重型数据表合并回主数据，导致`worldMapSects`为空。修复为`loadFromDatabase`调用时传入`loadHeavyData = true`，根治宗门批量消失。红米K80因HyperOS杀后台频繁导致缓存命中率低而率先暴露。
 - **进度条与实际数值不同步** — 修为满值时进度条仍停留在约60%，根因是动画采用速率预测模式（UI层独立计算每tick增量），与引擎实际增长速率不同步导致永远追不上目标。重构为lerp追赶模式（`rememberChasingProgress`），动画直接追踪真实数据，删除所有速率计算代码约40行。同时修复生产/血炼/任务进度条在倍速下遗漏gameSpeed参数的问题
 - **红米K80触摸后游戏冻结** — 红米K80 (HyperOS 2.0) 实测：触摸操作后游戏时间停止不推进。根因有两层：（1）游戏引擎守护线程被HyperOS电源管理挂起，修复为线程改非守护+最高优先级、Xiaomi防冻结忙等参数与Honor/Vivo对齐（占空比4.7%→14%）、`assembleAll()`弟子装配移出`transactionMutex`减少锁争用；（2）`ProductionSubsystem`在`transactionMutex`锁内使用`async(Dispatchers.Default)`派发自动炼器/锻造任务，而任务内部又调`stateStore.update()`尝试获取同一把锁，形成协程级死锁——修复为删除跨线程`async`改为串行调用。死锁影响全机型，不限于红米
 

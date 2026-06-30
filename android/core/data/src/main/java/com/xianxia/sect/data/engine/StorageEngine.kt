@@ -824,7 +824,7 @@ class StorageEngine @Inject constructor(
     private suspend fun loadFromDatabase(slot: Int): SaveData? {
         return try {
             database.withTransaction {
-                loadFromDatabaseInternal(slot)
+                loadFromDatabaseInternal(slot, loadHeavyData = true)
             }
         } catch (e: CancellationException) {
             throw e
