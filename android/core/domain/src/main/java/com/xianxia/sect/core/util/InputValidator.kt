@@ -3,7 +3,7 @@ package com.xianxia.sect.core.util
 object InputValidator {
     
     const val MIN_SECT_NAME_LENGTH = 2
-    const val MAX_SECT_NAME_LENGTH = 20
+    const val MAX_SECT_NAME_LENGTH = 6
     const val MIN_DISCIPLE_NAME_LENGTH = 2
     const val MAX_DISCIPLE_NAME_LENGTH = 10
     const val MAX_REDEEM_CODE_LENGTH = 64
@@ -37,6 +37,11 @@ object InputValidator {
 
         if (!VALID_SECT_NAME_PATTERN.matches(trimmed)) {
             return "宗门名称只能包含中文、英文和数字"
+        }
+
+        if (BannedWords.containsBannedWord(trimmed)) {
+            val found = BannedWords.findFirstBannedWord(trimmed)
+            return "宗门名称包含违禁词（$found）"
         }
 
         return null

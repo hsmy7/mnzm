@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
@@ -55,6 +56,7 @@ fun SaveSelectScreen(
     var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
     var sectNameInput by remember { mutableStateOf("") }
+    var sectNameError by remember { mutableStateOf<String?>(null) }
     val locale = LocalLocale.current.platformLocale
     val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
 
@@ -86,7 +88,7 @@ fun SaveSelectScreen(
                     slot = slot,
                     dateFormat = dateFormat,
                     onLoad = { onLoadSlot(slot.slot) },
-                    onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = "" }},
+                    onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = ""; sectNameError = null }},
                     onDelete = { showDeleteConfirm = slot.slot }
                 )
             }
@@ -124,36 +126,43 @@ fun SaveSelectScreen(
     }
     
     if (showSectNameDialog != null) {
-        AlertDialog(
+        StandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
-            title = { Text("创建宗门") },
-            text = {
-                Column {
-                    Text("请输入宗门名称：", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sectNameInput,
-                        onValueChange = { sectNameInput = it },
-                        placeholder = { Text("青云宗") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            title = "创建宗门",
+            text = "请输入宗门名称：",
+            confirmLabel = "创建",
+            onConfirm = {
+                if (sectNameError == null) {
+                    val name = sectNameInput.trim().ifEmpty { "青云宗" }
+                    showSectNameDialog?.let { onNewGame(it, name) }
+                    showSectNameDialog = null
                 }
             },
-            confirmButton = {
-                GameButton(
-                    text = "创建",
-                    onClick = {
-                        val name = sectNameInput.trim().ifEmpty { "青云宗" }
-                        showSectNameDialog?.let { onNewGame(it, name) }
-                        showSectNameDialog = null
-                    }
+            content = {
+                Spacer(Modifier.weight(1f))
+                OutlinedTextField(
+                    value = sectNameInput,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 6) {
+                            sectNameInput = newValue
+                            sectNameError = newValue.takeIf { it.isNotBlank() }
+                                ?.let { InputValidator.validateSectName(it) }
+                        }
+                    },
+                    placeholder = { Text("青云宗") },
+                    singleLine = true,
+                    isError = sectNameError != null,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showSectNameDialog = null }
+                Text(
+                    text = sectNameError ?: "${sectNameInput.length}/6",
+                    fontSize = 11.sp,
+                    color = if (sectNameError != null)
+                        Color(0xFFEF5350) else Color.Black,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    textAlign = TextAlign.End
                 )
             }
         )

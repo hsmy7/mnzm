@@ -269,7 +269,7 @@ class InputValidatorTest {
     @Test
     fun constants_sectNameLengthBounds() {
         assertEquals(2, InputValidator.MIN_SECT_NAME_LENGTH)
-        assertEquals(20, InputValidator.MAX_SECT_NAME_LENGTH)
+        assertEquals(6, InputValidator.MAX_SECT_NAME_LENGTH)
     }
 
     @Test
