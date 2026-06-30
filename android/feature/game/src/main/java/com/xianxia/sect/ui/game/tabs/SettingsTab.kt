@@ -839,6 +839,7 @@ internal fun SaveSlotDialog(
     val pendingSlot = saveLoadState.pendingSlot
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
     var saveCompleted by remember { mutableStateOf(false) }
+    var loadCompleted by remember { mutableStateOf(false) }
 
     val selectedSlotInfo = remember(saveSlots, selectedSlot) {
         saveSlots.find { it.slot == selectedSlot }
@@ -848,6 +849,10 @@ internal fun SaveSlotDialog(
     LaunchedEffect(isBusy) {
         if (!isBusy && saveCompleted) {
             saveCompleted = false
+            onDismiss()
+        }
+        if (!isBusy && loadCompleted) {
+            loadCompleted = false
             onDismiss()
         }
     }
@@ -993,6 +998,7 @@ internal fun SaveSlotDialog(
                                 if (loadEnabled) {
                                     Modifier.clickable {
                                         saveSlots.find { it.slot == selectedSlot }?.let { slot ->
+                                            loadCompleted = true
                                             saveLoadViewModel.loadGame(slot)
                                         }
                                     }
