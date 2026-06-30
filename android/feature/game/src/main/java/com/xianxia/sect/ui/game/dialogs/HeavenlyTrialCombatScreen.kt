@@ -774,150 +774,10 @@ fun HeavenlyTrialCombatScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        currentCombatant.skills.forEach { skill ->
-                            val canUse = currentCombatant.mp >= skill.mpCost && skill.currentCooldown <= 0
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, if (canUse) GameColors.Gold else GameColors.Border, CircleShape)
-                                    .background(Color.White.copy(alpha = if (canUse) 1f else 0.5f))
-                                    .clickable(enabled = canUse &&
-                                        phase == BattlePhase.PLAYER_TURN &&
-                                        !isAnimating
-                                    ) {
-                                        coroutineScope.launch {
-                                            isAnimating = true
-                                            // 先扣 MP
-                                            val attackerIdx = playerTeam
-                                                .indexOfFirst {
-                                                    it.id == currentCombatant.id
-                                                }
-                                            if (attackerIdx >= 0) {
-                                                playerTeam = playerTeam.mapIndexed { i, c ->
-                                                    if (i == attackerIdx) c.copy(
-                                                        mp = (c.mp - skill.mpCost)
-                                                            .coerceAtLeast(0)
-                                                    ) else c
-                                                }
-                                            }
-                                            val isAttackSkill = skill.skillType ==
-                                                com.xianxia.sect.core.SkillType.ATTACK ||
-                                                skill.damageMultiplier > 0
-                                            if (skill.isAoe) {
-                                                if (isAttackSkill) {
-                                                    val targets = enemyTeam
-                                                        .filter { !it.isDead }
-                                                    if (targets.isNotEmpty()) {
-                                                        // AoE：一次飞行 + 全体同时受击
-                                                        val results = targets.associate { t ->
-                                                            t.id to computeSkillDamage(
-                                                                currentCombatant, t,
-                                                                skill, false
-                                                            )
-                                                        }
-                                                        playAoeAttackSequence(
-                                                            AoeAnimationEvent(
-                                                                attackerId = currentCombatant.id,
-                                                                targetIds = targets.map { it.id },
-                                                                damages = results.mapValues { it.value.damage },
-                                                                crits = results.mapValues { it.value.isCrit },
-                                                                isPhysical = skill.damageType ==
-                                                                    DamageType.PHYSICAL,
-                                                                skillName = skill.name
-                                                            ),
-                                                            cellPositions,
-                                                            { currentAnimState },
-                                                            { currentAnimState = it },
-                                                            { shakingTargetIds = it },
-                                                            { activeDamageNumbers =
-                                                                activeDamageNumbers + it },
-                                                            { e -> applyAoeResult(e) }
-                                                        )
-                                                    }
-                                                }
-                                            } else {
-                                                if (isAttackSkill) {
-                                                    val target = if (
-                                                        !selectedIsAlly &&
-                                                        selectedTargetId != null
-                                                    )
-                                                        enemyTeam.find {
-                                                            it.id == selectedTargetId
-                                                        }
-                                                    else enemyTeam
-                                                        .filter { !it.isDead }
-                                                        .randomOrNull()
-                                                    if (target != null) {
-                                                        val result = computeSkillDamage(
-                                                            currentCombatant, target,
-                                                            skill, false
-                                                        )
-                                                        playAttackSequence(
-                                                            AttackAnimationEvent(
-                                                                attackerId = currentCombatant.id,
-                                                                targetId = target.id,
-                                                                damage = result.damage,
-                                                                isCrit = result.isCrit,
-                                                                isPhysical = skill.damageType ==
-                                                                    DamageType.PHYSICAL,
-                                                                skillName = skill.name,
-                                                                isKill = target.hp - result.damage <= 0
-                                                            ),
-                                                            cellPositions,
-                                                            { currentAnimState },
-                                                            { currentAnimState = it },
-                                                            { shakingTargetIds = it },
-                                                            { activeDamageNumbers =
-                                                                activeDamageNumbers + it },
-                                                            { e -> applyAnimationResult(e) }
-                                                        )
-                                                    }
-                                                } else {
-                                                    // Buff/Heal 技能：立即应用
-                                                    val result = executePlayerSkill(
-                                                        currentCombatant, skill,
-                                                        selectedTargetId, selectedIsAlly,
-                                                        playerTeam, enemyTeam, isDefending
-                                                    )
-                                                    playerTeam = result.first
-                                                    enemyTeam = result.second
-                                                }
-                                            }
-                                            selectedTargetId = null
-                                            selectedIsAlly = false
-                                            isAnimating = false
-                                            advanceTurn(
-                                                alivePlayers, aliveEnemies,
-                                                currentPlayerIdx, isDefending
-                                            ) { ni, np, nd ->
-                                                currentPlayerIdx = ni
-                                                phase = np
-                                                isDefending = nd
-                                            }
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(skill.name.take(2), fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                                    Text("${skill.mpCost}灵力", fontSize = 6.sp, color = Color.Black)
-                                }
-                            }
-                            Spacer(Modifier.width(4.dp))
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 防御（左侧，向内 5dp）
+                        // 防御（左侧）
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(start = 15.dp)
@@ -945,7 +805,146 @@ fun HeavenlyTrialCombatScreen(
                             }
                             Text("防御", fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                         }
-                        // 普攻（右侧，向内 5dp）
+
+                        // 技能图标（居中）
+                        Row(
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            currentCombatant.skills.forEach { skill ->
+                                val canUse = currentCombatant.mp >= skill.mpCost && skill.currentCooldown <= 0
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, if (canUse) GameColors.Gold else GameColors.Border, CircleShape)
+                                        .background(Color.White.copy(alpha = if (canUse) 1f else 0.5f))
+                                        .clickable(enabled = canUse &&
+                                            phase == BattlePhase.PLAYER_TURN &&
+                                            !isAnimating
+                                        ) {
+                                            coroutineScope.launch {
+                                                isAnimating = true
+                                                // 先扣 MP
+                                                val attackerIdx = playerTeam
+                                                    .indexOfFirst {
+                                                        it.id == currentCombatant.id
+                                                    }
+                                                if (attackerIdx >= 0) {
+                                                    playerTeam = playerTeam.mapIndexed { i, c ->
+                                                        if (i == attackerIdx) c.copy(
+                                                            mp = (c.mp - skill.mpCost)
+                                                                .coerceAtLeast(0)
+                                                        ) else c
+                                                    }
+                                                }
+                                                val isAttackSkill = skill.skillType ==
+                                                    com.xianxia.sect.core.SkillType.ATTACK ||
+                                                    skill.damageMultiplier > 0
+                                                if (skill.isAoe) {
+                                                    if (isAttackSkill) {
+                                                        val targets = enemyTeam
+                                                            .filter { !it.isDead }
+                                                        if (targets.isNotEmpty()) {
+                                                            // AoE：一次飞行 + 全体同时受击
+                                                            val results = targets.associate { t ->
+                                                                t.id to computeSkillDamage(
+                                                                    currentCombatant, t,
+                                                                    skill, false
+                                                                )
+                                                            }
+                                                            playAoeAttackSequence(
+                                                                AoeAnimationEvent(
+                                                                    attackerId = currentCombatant.id,
+                                                                    targetIds = targets.map { it.id },
+                                                                    damages = results.mapValues { it.value.damage },
+                                                                    crits = results.mapValues { it.value.isCrit },
+                                                                    isPhysical = skill.damageType ==
+                                                                        DamageType.PHYSICAL,
+                                                                    skillName = skill.name
+                                                                ),
+                                                                cellPositions,
+                                                                { currentAnimState },
+                                                                { currentAnimState = it },
+                                                                { shakingTargetIds = it },
+                                                                { activeDamageNumbers =
+                                                                    activeDamageNumbers + it },
+                                                                { e -> applyAoeResult(e) }
+                                                            )
+                                                        }
+                                                    }
+                                                } else {
+                                                    if (isAttackSkill) {
+                                                        val target = if (
+                                                            !selectedIsAlly &&
+                                                            selectedTargetId != null
+                                                        )
+                                                            enemyTeam.find {
+                                                                it.id == selectedTargetId
+                                                            }
+                                                        else enemyTeam
+                                                            .filter { !it.isDead }
+                                                            .randomOrNull()
+                                                        if (target != null) {
+                                                            val result = computeSkillDamage(
+                                                                currentCombatant, target,
+                                                                skill, false
+                                                            )
+                                                            playAttackSequence(
+                                                                AttackAnimationEvent(
+                                                                    attackerId = currentCombatant.id,
+                                                                    targetId = target.id,
+                                                                    damage = result.damage,
+                                                                    isCrit = result.isCrit,
+                                                                    isPhysical = skill.damageType ==
+                                                                        DamageType.PHYSICAL,
+                                                                    skillName = skill.name,
+                                                                    isKill = target.hp - result.damage <= 0
+                                                                ),
+                                                                cellPositions,
+                                                                { currentAnimState },
+                                                                { currentAnimState = it },
+                                                                { shakingTargetIds = it },
+                                                                { activeDamageNumbers =
+                                                                    activeDamageNumbers + it },
+                                                                { e -> applyAnimationResult(e) }
+                                                            )
+                                                        }
+                                                    } else {
+                                                        // Buff/Heal 技能：立即应用
+                                                        val result = executePlayerSkill(
+                                                            currentCombatant, skill,
+                                                            selectedTargetId, selectedIsAlly,
+                                                            playerTeam, enemyTeam, isDefending
+                                                        )
+                                                        playerTeam = result.first
+                                                        enemyTeam = result.second
+                                                    }
+                                                }
+                                                selectedTargetId = null
+                                                selectedIsAlly = false
+                                                isAnimating = false
+                                                advanceTurn(
+                                                    alivePlayers, aliveEnemies,
+                                                    currentPlayerIdx, isDefending
+                                                ) { ni, np, nd ->
+                                                    currentPlayerIdx = ni
+                                                    phase = np
+                                                    isDefending = nd
+                                                }
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(skill.name.take(2), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text("${skill.mpCost}灵力", fontSize = 6.sp, color = Color.Black)
+                                    }
+                                }
+                                Spacer(Modifier.width(4.dp))
+                            }
+                        }
+
+                        // 普攻（右侧）
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(end = 15.dp)
