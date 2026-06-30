@@ -68,7 +68,13 @@ class SerializationHelperTest {
             serializationTimeMs = 10,
             compressionTimeMs = 5
         )
-        whenever(serializationEngine.serialize(any<SerializableSaveData>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(serializationResult)
+        whenever(
+            serializationEngine.serialize(
+                any<SerializableSaveData>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(serializationResult)
 
         val result = helper.serializeAndCompressSaveData(saveData)
 
@@ -79,7 +85,8 @@ class SerializationHelperTest {
     @Test(expected = SerializationException::class)
     fun `serializeAndCompressSaveData - throws SerializationException on failure`() {
         val saveData = createMinimalSaveData()
-        whenever(saveDataConverter.toSerializable(saveData)).thenThrow(RuntimeException("Conversion failed"))
+        whenever(saveDataConverter.toSerializable(saveData))
+            .thenThrow(RuntimeException("Conversion failed"))
 
         helper.serializeAndCompressSaveData(saveData)
     }
@@ -98,8 +105,15 @@ class SerializationHelperTest {
             deserializationTimeMs = 10,
             decompressionTimeMs = 5
         )
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(deserializationResult)
-        whenever(saveDataConverter.fromSerializable(serializable)).thenReturn(saveData)
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(deserializationResult)
+        whenever(saveDataConverter.fromSerializable(serializable))
+            .thenReturn(saveData)
 
         val result = helper.deserializeSaveData(data)
 
@@ -107,7 +121,7 @@ class SerializationHelperTest {
     }
 
     @Test(expected = SerializationException::class)
-    fun `deserializeSaveData - throws SerializationException when deserialization returns null`() {
+    fun `deserializeSaveData - throws when deserialization returns null`() {
         val data = ByteArray(50) { it.toByte() }
         val deserializationResult = DeserializationResult<SerializableSaveData>(
             data = null,
@@ -118,16 +132,27 @@ class SerializationHelperTest {
             decompressionTimeMs = 5,
             error = RuntimeException("Corrupted")
         )
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(deserializationResult)
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(deserializationResult)
 
         helper.deserializeSaveData(data)
     }
 
     @Test(expected = SerializationException::class)
-    fun `deserializeSaveData - throws SerializationException on engine exception`() {
+    fun `deserializeSaveData - throws on engine exception`() {
         val data = ByteArray(50) { it.toByte() }
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>()))
-            .thenThrow(RuntimeException("Engine error"))
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenThrow(RuntimeException("Engine error"))
 
         helper.deserializeSaveData(data)
     }
@@ -146,13 +171,20 @@ class SerializationHelperTest {
             deserializationTimeMs = 10,
             decompressionTimeMs = 5
         )
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(deserializationResult)
-        whenever(saveDataConverter.fromSerializable(serializable)).thenReturn(saveData)
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(deserializationResult)
+        whenever(saveDataConverter.fromSerializable(serializable))
+            .thenReturn(saveData)
 
         val result = helper.deserializeProtobufData(data)
 
-        assertNotNull(result)
-        assertEquals(saveData.version, result!!.version)
+        requireNotNull(result)
+        assertEquals(saveData.version, result.version)
     }
 
     @Test
@@ -167,7 +199,13 @@ class SerializationHelperTest {
             decompressionTimeMs = 5,
             error = RuntimeException("Corrupted")
         )
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(deserializationResult)
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(deserializationResult)
 
         val result = helper.deserializeProtobufData(data)
 
@@ -177,8 +215,13 @@ class SerializationHelperTest {
     @Test
     fun `deserializeProtobufData - returns null on exception`() {
         val data = ByteArray(50) { it.toByte() }
-        whenever(serializationEngine.deserialize<SerializableSaveData>(any<ByteArray>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>()))
-            .thenThrow(RuntimeException("Parse error"))
+        whenever(
+            serializationEngine.deserialize<SerializableSaveData>(
+                any<ByteArray>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenThrow(RuntimeException("Parse error"))
 
         val result = helper.deserializeProtobufData(data)
 
@@ -202,10 +245,11 @@ class SerializationHelperTest {
     }
 
     @Test
-    fun `serializeAndCompressSaveData - uses PROTOBUF format and LZ4 compression`() {
+    fun `serializeAndCompressSaveData - uses PROTOBUF format`() {
         val saveData = createMinimalSaveData()
         val serializable = createMinimalSerializable()
-        whenever(saveDataConverter.toSerializable(saveData)).thenReturn(serializable)
+        whenever(saveDataConverter.toSerializable(saveData))
+            .thenReturn(serializable)
 
         val serializationResult = SerializationResult(
             data = ByteArray(10),
@@ -217,14 +261,22 @@ class SerializationHelperTest {
             serializationTimeMs = 1,
             compressionTimeMs = 1
         )
-        whenever(serializationEngine.serialize(any<SerializableSaveData>(), any<SerializationContext>(), any<KSerializer<SerializableSaveData>>())).thenReturn(serializationResult)
+        whenever(
+            serializationEngine.serialize(
+                any<SerializableSaveData>(),
+                any<SerializationContext>(),
+                any<KSerializer<SerializableSaveData>>()
+            )
+        ).thenReturn(serializationResult)
 
         helper.serializeAndCompressSaveData(saveData)
 
         verify(serializationEngine).serialize(
             any<SerializableSaveData>(),
             argThat { ctx ->
-                ctx.format == SerializationFormat.PROTOBUF && ctx.compression == CompressionType.LZ4 && ctx.includeChecksum
+                ctx.format == SerializationFormat.PROTOBUF &&
+                    ctx.compression == CompressionType.LZ4 &&
+                    ctx.includeChecksum
             },
             any<KSerializer<SerializableSaveData>>()
         )
