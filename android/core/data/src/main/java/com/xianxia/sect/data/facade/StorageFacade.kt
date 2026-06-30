@@ -7,7 +7,7 @@ import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
-import com.xianxia.sect.data.recovery.RecoveryManager
+
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -124,7 +124,7 @@ class StorageFacade @Inject constructor(
     @ApplicationContext private val context: Context,
     private val engine: StorageEngine,
     private val lockManager: SlotLockManager,
-    private val recoveryManager: RecoveryManager,
+
     private val scopeProvider: CoroutineScopeProvider
 ) {
     companion object {

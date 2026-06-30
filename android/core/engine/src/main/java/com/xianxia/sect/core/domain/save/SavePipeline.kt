@@ -19,8 +19,7 @@ import javax.inject.Singleton
  * - 使用 Channel<SaveRequest>(capacity = 2) 作为缓冲队列
  * - 后台消费者协程从 Channel 中消费并执行存档
  * - 不停止游戏循环，直接通过 StateFlow.value 获取快照（线程安全 O(1) 操作）
- * - 支持两种模式：AUTO（自动存档）和 MANUAL（手动存档）
- * - 自动存档使用超时较短(15s)，手动存档使用较长超时(30s)
+ * - 仅支持自动存档模式，使用 15 秒超时
  * - 存档完成后刷新 slot 列表
  */
 @Singleton
@@ -35,8 +34,6 @@ class SavePipeline @Inject constructor(
         /** 自动存档超时：15秒 */
         private const val AUTO_SAVE_TIMEOUT_MS = 15_000L
 
-        /** 手动存档超时：30秒 */
-        private const val MANUAL_SAVE_TIMEOUT_MS = 30_000L
     }
 
     /**
@@ -44,7 +41,7 @@ class SavePipeline @Inject constructor(
      *
      * @param slot 存档槽位
      * @param snapshot 游戏状态快照（不可变引用）
-     * @param source 存档来源（自动/手动/后台）
+     * @param source 存档来源
      * @param timestamp 请求时间戳
      */
     data class SaveRequest(
@@ -57,7 +54,7 @@ class SavePipeline @Inject constructor(
     /**
      * 存档来源枚举
      */
-    enum class SaveSource { AUTO, MANUAL }
+    enum class SaveSource { AUTO }
 
     /**
      * 存档执行结果
@@ -164,7 +161,7 @@ class SavePipeline @Inject constructor(
      *
      * 1. 通过 saveLoadCoordinator.executeSaveWithMonitoring 包装存档操作
      * 2. 调用 storageFacade.save(slot, saveData)（异步版本，避免阻塞死锁）
-     * 3. 根据 source 类型设置不同的超时（AUTO=15s, MANUAL/BG=30s）
+     * 3. 使用自动存档超时（15s）
      * 4. 返回 SavePipelineResult
      *
      * @param request 存档请求
@@ -172,10 +169,7 @@ class SavePipeline @Inject constructor(
      */
     private suspend fun executeSave(request: SaveRequest): SavePipelineResult {
         val startTime = System.currentTimeMillis()
-        val timeoutMs = when (request.source) {
-            SaveSource.AUTO -> AUTO_SAVE_TIMEOUT_MS
-            else -> MANUAL_SAVE_TIMEOUT_MS
-        }
+        val timeoutMs = AUTO_SAVE_TIMEOUT_MS
 
         // 从快照构建 SaveSnapshot（域类型）
         val updatedGameData = request.snapshot.gameData.copy(currentSlot = request.slot)
@@ -197,10 +191,7 @@ class SavePipeline @Inject constructor(
             storageBags = request.snapshot.storageBags
         )
 
-        val operationType = when (request.source) {
-            SaveSource.AUTO -> SaveLoadCoordinator.OperationType.AUTO_SAVE
-            SaveSource.MANUAL -> SaveLoadCoordinator.OperationType.MANUAL_SAVE
-        }
+        val operationType = SaveLoadCoordinator.OperationType.AUTO_SAVE
 
         val result = try {
             val monitoringResult = saveLoadCoordinator.executeSaveWithMonitoring(

@@ -191,7 +191,7 @@
     <ID>CyclomaticComplexMethod:ProductionSubsystem.kt$ProductionSubsystem$suspend fun processBuildingProduction(year: Int, month: Int)</ID>
     <ID>CyclomaticComplexMethod:ProductionSubsystem.kt$ProductionSubsystem$suspend fun processSpiritFieldHarvest()</ID>
     <ID>CyclomaticComplexMethod:ProductionViewModel.kt$ProductionViewModel$fun addReserveDisciples(discipleIds: List&lt;String&gt;)</ID>
-    <ID>CyclomaticComplexMethod:RecoveryManager.kt$RecoveryManager$suspend fun recoverSlot(slot: Int): RecoveryReport</ID>
+
     <ID>CyclomaticComplexMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set&lt;String&gt; = emptySet()): Disciple</ID>
     <ID>CyclomaticComplexMethod:RedeemCodeService.kt$RedeemCodeService$private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List&lt;RedeemApiReward&gt;)</ID>
     <ID>CyclomaticComplexMethod:RedeemCodeService.kt$RedeemCodeService$private suspend fun localRedeem( code: String, usedCodes: List&lt;String&gt;, currentYear: Int, currentMonth: Int ): RedeemResult</ID>
@@ -275,7 +275,7 @@
     <ID>ImplicitDefaultLocale:SettlementMetrics.kt$SettlementMetricsCollector$String.format("%.2f", avgTotal)</ID>
     <ID>ImplicitDefaultLocale:UnifiedPerformanceMonitor.kt$UnifiedPerformanceMonitor$String.format("%.1f", frameStats.fps)</ID>
     <ID>ImplicitDefaultLocale:UnifiedPerformanceMonitor.kt$UnifiedPerformanceMonitor$String.format("%.2f", frameStats.averageFrameTime / 1_000_000)</ID>
-    <ID>InstanceOfCheckForException:RecoveryManager.kt$RecoveryManager$e is TimeoutCancellationException</ID>
+
     <ID>InvalidPackageDeclaration:GameConfigTest.kt$package com.xianxia.sect</ID>
     <ID>InvalidRange:GameRandomTest.kt$GameRandomTest$5..4</ID>
     <ID>LargeClass:AISectAttackManager.kt$AISectAttackManager</ID>
@@ -486,7 +486,7 @@
     <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
     <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProductionByBuildingId( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
     <ID>LongMethod:QingyunPeakDialog.kt$@Composable fun QingyunPeakDialog( disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, )</ID>
-    <ID>LongMethod:RecoveryManager.kt$RecoveryManager$suspend fun recoverSlot(slot: Int): RecoveryReport</ID>
+
     <ID>LongMethod:RecruitDialog.kt$@Composable fun RecruitDialog( recruitList: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:RecruitDialog.kt$@Composable private fun AutoRecruitFilterDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set&lt;String&gt; = emptySet()): Disciple</ID>
@@ -610,7 +610,7 @@
     <ID>LoopWithTooManyJumpStatements:ProductionSlotRepository.kt$ProductionSlotRepository$for</ID>
     <ID>LoopWithTooManyJumpStatements:ProductionSubsystem.kt$ProductionSubsystem$for</ID>
     <ID>LoopWithTooManyJumpStatements:ProductionViewModel.kt$ProductionViewModel$for</ID>
-    <ID>LoopWithTooManyJumpStatements:RecoveryManager.kt$RecoveryManager$for</ID>
+
     <ID>LoopWithTooManyJumpStatements:WorldMapGenerator.kt$WorldMapGenerator$for</ID>
     <ID>MatchingDeclarationName:CultivationSystem.kt$CultivationTickSystem : GameSystem</ID>
     <ID>MatchingDeclarationName:DiplomacyState.kt$DiplomacyDomainState</ID>
@@ -1394,7 +1394,7 @@
     <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e2: Exception</ID>
     <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e: Throwable</ID>
-    <ID>TooGenericExceptionCaught:RecoveryManager.kt$RecoveryManager$e: Exception</ID>
+
     <ID>TooGenericExceptionCaught:RedeemCodeManager.kt$RedeemCodeManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RedeemCodeService.kt$RedeemCodeService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RequestSigner.kt$RequestSigner$e: Exception</ID>
@@ -1552,7 +1552,7 @@
     <ID>TooManyFunctions:ProductionSubsystem.kt$ProductionSubsystem</ID>
     <ID>TooManyFunctions:ProductionViewModel.kt$ProductionViewModel : BaseViewModel</ID>
     <ID>TooManyFunctions:ProtobufConverters.kt$ProtobufConverters</ID>
-    <ID>TooManyFunctions:RecoveryManager.kt$RecoveryManager</ID>
+
     <ID>TooManyFunctions:RedeemCodeManager.kt$RedeemCodeManager</ID>
     <ID>TooManyFunctions:RequestSigner.kt$RequestSigner</ID>
     <ID>TooManyFunctions:RewardVideoAdManager.kt$RewardVideoAdManager$RewardVideoCallback</ID>
@@ -1841,9 +1841,9 @@
     <ID>UnusedPrivateProperty:ProductionSubsystem.kt$ProductionSubsystem$private val sharedState: CultivationSharedState</ID>
     <ID>UnusedPrivateProperty:ProductionViewModel.kt$ProductionViewModel$val currentGameData = gameEngine.gameDataSnapshot ?: return false</ID>
     <ID>UnusedPrivateProperty:ProductionViewModel.kt$ProductionViewModel.Companion$private const val TAG = "ProductionViewModel"</ID>
-    <ID>UnusedPrivateProperty:RecoveryManager.kt$RecoveryManager$private val recoveryDir: File by lazy { File(context.filesDir, RECOVERY_DIR).apply { if (!exists()) mkdirs() } }</ID>
-    <ID>UnusedPrivateProperty:RecoveryManager.kt$RecoveryManager.Companion$private const val FULL_RECOVERY_TIMEOUT_MS = 30_000L</ID>
-    <ID>UnusedPrivateProperty:RecoveryManager.kt$RecoveryManager.Companion$private const val RECOVERY_LOG_FILE = "recovery_log.pb"</ID>
+
+
+
     <ID>UnusedPrivateProperty:RequestSigner.kt$RequestSigner$i</ID>
     <ID>UnusedPrivateProperty:SaveCrypto.kt$SaveCrypto$/** * 历史版本 PBKDF2 迭代次数�?0,000（OWASP 2021 推荐值，已过时） * * 用途：仅作为版本化记录�? * 若迭代次数再次变更，需根据此常量实现兼容解密逻辑�? * * 版本化策略详见文件头�?"迭代次数版本化策�? 章节�? */ private const val PBKDF2_LEGACY_ITERATIONS = 60_000</ID>
     <ID>UnusedPrivateProperty:SaveCrypto.kt$SaveCrypto$val specClass = Class.forName("javax.crypto.spec.Argon2ParameterSpec")</ID>
@@ -1864,7 +1864,7 @@
     <ID>UnusedPrivateProperty:StorageEngine.kt$StorageEngine$private val circuitBreaker: StorageCircuitBreaker</ID>
     <ID>UnusedPrivateProperty:StorageEngine.kt$StorageEngine$val now = System.currentTimeMillis()</ID>
     <ID>UnusedPrivateProperty:StorageFacade.kt$StorageFacade$@ApplicationContext private val context: Context</ID>
-    <ID>UnusedPrivateProperty:StorageFacade.kt$StorageFacade$private val recoveryManager: RecoveryManager</ID>
+
     <ID>UnusedPrivateProperty:StorageMetrics.kt$StorageMetrics.Companion$private const val TAG = "StorageMetrics"</ID>
     <ID>UnusedPrivateProperty:StorageSystemBenchmark.kt$StorageSystemBenchmark$val deResult = serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())</ID>
     <ID>UnusedPrivateProperty:TalentRegistry.kt$TalentRegistry$/** * 天赋原始数据（包含额外的元信息） */ private val allTalentData: Map&lt;String, TalentDatabase.TalentData&gt; by lazy { // 从 TalentDatabase 的 talents 映射构建 TalentData val talentDataMap = mutableMapOf&lt;String, TalentDatabase.TalentData&gt;() TalentDatabase.talents.forEach { (id, talent) -&gt; val type = inferTalentType(talent.effects, talent.isNegative) talentDataMap[id] = TalentDatabase.TalentData( id = talent.id, name = talent.name, description = talent.description, rarity = talent.rarity, effects = talent.effects, isNegative = talent.isNegative, type = type, template = id ) } talentDataMap }</ID>

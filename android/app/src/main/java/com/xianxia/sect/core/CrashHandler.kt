@@ -102,10 +102,7 @@ class CrashHandler @Inject constructor(
             // 1. 记录崩溃日志到文件
             val crashLogFile = writeCrashLogToFile(thread, throwable)
 
-            // 2. 保存崩溃状态
-            saveCrashState(throwable, crashLogFile)
-
-            // 3. 上传崩溃日志到远程服务器
+            // 2. 上传崩溃日志到远程服务器
             tryUploadCrashLog(crashLogFile)
 
             Log.i(TAG, "Crash handling completed, crash log saved to: ${crashLogFile?.absolutePath}")
@@ -244,24 +241,6 @@ class CrashHandler @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cleanup old crash logs", e)
-        }
-    }
-
-    /**
-     * 保存崩溃状态到 SharedPreferences
-     */
-    private fun saveCrashState(throwable: Throwable, crashLogFile: File?) {
-        try {
-            val stackTrace = getStackTraceString(throwable)
-            prefs.edit()
-                .putBoolean(KEY_CRASH_FLAG, true)
-                .putLong(KEY_CRASH_TIME, System.currentTimeMillis())
-                .putString(KEY_CRASH_MESSAGE, throwable.message)
-                .putString(KEY_CRASH_STACK_TRACE, stackTrace.take(4000)) // 限制长度
-                .apply()
-            Log.d(TAG, "Crash state saved to SharedPreferences")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save crash state", e)
         }
     }
 

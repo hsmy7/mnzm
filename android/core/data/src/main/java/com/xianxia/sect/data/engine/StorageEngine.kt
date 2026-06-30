@@ -439,10 +439,6 @@ class StorageEngine @Inject constructor(
 
     fun getCurrentSlot(): Int = _currentSlot.value
 
-    suspend fun autoSave(data: SaveData): StorageResult<SaveOperationStats> {
-        return save(StorageConstants.AUTO_SAVE_SLOT, data)
-    }
-
     suspend fun incrementalSave(slot: Int): StorageResult<SaveOperationStats> {
         if (!lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")

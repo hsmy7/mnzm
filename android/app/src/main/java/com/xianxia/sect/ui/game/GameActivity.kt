@@ -607,9 +607,9 @@ class GameActivity : ComponentActivity() {
             stopService(Intent(this, GameForegroundService::class.java))
         }
         // 注意：不在此处调用 gameEngineCore.shutdown()
-        // shutdown 会取消协程作用域和释放系统，可能干扰 ViewModel.onCleared() 中的保存操作。
+        // shutdown 会取消协程作用域和释放系统。
         // GameEngineCore 是 @Singleton，其生命周期绑定到应用进程，由 Application 统一管理。
-        // ViewModel.onCleared() 中会调用 clearResources() -> stopGameLoop() 来停止游戏循环。
+        // ViewModel.onCleared() 中会调用 stopGameLoopAndWait() 来停止游戏循环。
     }
 
     override fun onLowMemory() {

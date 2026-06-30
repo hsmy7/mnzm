@@ -735,11 +735,6 @@ fun MainScreen(
     }
 }
 
-/**
- * 崩溃恢复对话框
- * 当检测到上次游戏异常退出时显示，询问用户是否恢复数据
- *
- */
 
 @Composable
 fun ComplianceVerificationScreen(

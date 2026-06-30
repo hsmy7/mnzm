@@ -22,7 +22,7 @@ import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
-import com.xianxia.sect.data.recovery.RecoveryManager
+
 import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
 import com.tencent.bugly.crashreport.CrashReport
@@ -53,9 +53,6 @@ class XianxiaApplication : Application() {
 
     @Inject
     lateinit var storageFacade: StorageFacade
-
-    @Inject
-    lateinit var recoveryManager: RecoveryManager
 
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
 
@@ -524,19 +521,8 @@ class XianxiaApplication : Application() {
 
         Log.i(TAG, "Application initialized with monitoring systems")
 
-        applicationScopeProvider.ioScope.launch(Dispatchers.IO) {
-            try {
-                val report = recoveryManager.startupRecovery()
-                if (report.recoveredSlots.isNotEmpty()) {
-                    Log.i("AppStartup", "Crash recovery: recovered slots=${report.recoveredSlots}")
-                }
-                recoveryManager.scheduleDeferredWarmup(applicationScopeProvider.scope)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Startup recovery failed", e)
-            }
-        }
+
+
     }
 
     @Suppress("DEPRECATION")

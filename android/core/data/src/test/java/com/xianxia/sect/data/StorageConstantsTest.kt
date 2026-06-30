@@ -20,10 +20,6 @@ class StorageConstantsTest {
         assertEquals(0, StorageConstants.AUTO_SAVE_SLOT)
     }
 
-    @Test
-    fun `EMERGENCY_SLOT is -1`() {
-        assertEquals(-1, StorageConstants.EMERGENCY_SLOT)
-    }
 
     // ==================== Cache constants ====================
 

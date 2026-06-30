@@ -22,7 +22,7 @@ import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.memory.DynamicMemoryManager
-import com.xianxia.sect.data.recovery.RecoveryManager
+
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.wal.FunctionalWAL
 import com.xianxia.sect.data.wal.WALProvider
@@ -142,22 +142,6 @@ object StorageModule {
             storageMetrics = storageMetrics,
             stateStore = stateStore,
             repository = repository
-        )
-    }
-
-    @Provides
-    @Singleton
-    fun provideRecoveryManager(
-        @ApplicationContext context: Context,
-        wal: WALProvider,
-        lockManager: SlotLockManager,
-        database: GameDatabase
-    ): RecoveryManager {
-        return RecoveryManager(
-            context = context,
-            wal = wal,
-            lockManager = lockManager,
-            database = database
         )
     }
 

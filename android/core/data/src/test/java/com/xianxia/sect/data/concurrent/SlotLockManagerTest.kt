@@ -22,10 +22,6 @@ class SlotLockManagerTest {
         assertTrue(lockManager.isValidSlot(StorageConstants.AUTO_SAVE_SLOT))
     }
 
-    @Test
-    fun `isValidSlot - slot -1 is valid (EMERGENCY_SLOT)`() {
-        assertTrue(lockManager.isValidSlot(StorageConstants.EMERGENCY_SLOT))
-    }
 
     @Test
     fun `isValidSlot - slots 1 to maxSlots are valid`() {
@@ -77,11 +73,6 @@ class SlotLockManagerTest {
         assertEquals("auto_save", result)
     }
 
-    @Test
-    fun `withReadLockLight - executes block for EMERGENCY_SLOT`() = runTest {
-        val result = lockManager.withReadLockLight(-1) { "emergency" }
-        assertEquals("emergency", result)
-    }
 
     @Test(expected = IllegalArgumentException::class)
     fun `withReadLockLight - throws for invalid slot`() = runTest {
@@ -221,10 +212,6 @@ class SlotLockManagerTest {
         assertEquals(0, StorageConstants.AUTO_SAVE_SLOT)
     }
 
-    @Test
-    fun `EMERGENCY_SLOT is -1`() {
-        assertEquals(-1, StorageConstants.EMERGENCY_SLOT)
-    }
 
     // ==================== LockStats data class ====================
 

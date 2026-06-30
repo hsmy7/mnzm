@@ -35,11 +35,9 @@ class SaveLoadCoordinator @Inject constructor(
     )
     
     enum class OperationType {
-        QUICK_SAVE,
         MANUAL_SAVE,
         AUTO_SAVE,
-        LOAD,
-        EMERGENCY_SAVE
+        LOAD
     }
     
     interface SaveLoadListener {
@@ -147,27 +145,6 @@ class SaveLoadCoordinator @Inject constructor(
             
             notifyOperationEnd(context, result)
             Pair(result, null)
-        }
-    }
-    
-    inline fun <T> executeEmergencySave(
-        saveOperation: () -> T
-    ): SaveLoadResult {
-        val startTime = System.currentTimeMillis()
-        
-        return try {
-            saveOperation()
-            
-            val durationMs = System.currentTimeMillis() - startTime
-            SaveLoadResult(success = true, durationMs = durationMs)
-        } catch (e: Exception) {
-            val durationMs = System.currentTimeMillis() - startTime
-            Log.e("SaveLoadCoordinator", "Emergency save failed", e)
-            SaveLoadResult(
-                success = false,
-                durationMs = durationMs,
-                errorMessage = e.message
-            )
         }
     }
     

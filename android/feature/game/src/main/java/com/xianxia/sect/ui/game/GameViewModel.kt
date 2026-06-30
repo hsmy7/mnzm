@@ -1995,7 +1995,6 @@ class GameViewModel @Inject constructor(
         Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")
 
         // 停止游戏循环并释放资源
-        // 保存逻辑由 SaveLoadViewModel.onCleared() 统一负责，避免重复保存导致竞态条件
         clearResources()
 
         super.onCleared()

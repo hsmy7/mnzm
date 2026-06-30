@@ -1021,72 +1021,6 @@ class SaveLoadViewModel @Inject constructor(
         gameEngineCore.pauseForBackground()
     }
 
-    fun pauseAndSaveForBackground() {
-        // 关键修复：先获取快照，再停游戏循环
-        // 之前的逻辑先 stopGameLoop() 再获取快照，游戏循环停止后
-        // 如果有异步操作修改了状态，快照可能为空
-        val snapshot = try {
-            gameEngine.getStateSnapshotSync()
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.e(TAG, "pauseAndSaveForBackground: failed to get snapshot: ${e.message}")
-            null
-        }
-
-        stopGameLoop()
-
-        if (!_isGameLoaded) {
-            Log.d(TAG, "pauseAndSaveForBackground: game not loaded, skipping")
-            return
-        }
-
-        if (snapshot == null || snapshot.gameData.sectName.isBlank()) {
-            Log.w(TAG, "pauseAndSaveForBackground: snapshot is null or not initialized, skipping")
-            return
-        }
-
-        // 使用 ApplicationScopeProvider 确保保存协程不被 ViewModel 生命周期取消
-        // 保存数据的构建必须在协程启动前同步完成，确保数据快照在协程启动前已捕获
-        try {
-            val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-            val saveData = SaveData(
-                gameData = snapshot.gameData,
-                disciples = snapshot.disciples,
-                equipmentStacks = snapshot.equipmentStacks,
-                equipmentInstances = snapshot.equipmentInstances,
-                manualStacks = snapshot.manualStacks,
-                manualInstances = snapshot.manualInstances,
-                pills = snapshot.pills,
-                materials = snapshot.materials,
-                herbs = snapshot.herbs,
-                seeds = snapshot.seeds,
-                teams = snapshot.teams,
-                battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances,
-                productionSlots = snapshot.productionSlots,
-                storageBags = snapshot.storageBags
-            )
-            coroutineScopeProvider.ioScope.launch {
-                try {
-                    withTimeoutOrNull(5_000L) {
-                        storageFacade.save(autoSaveSlot, saveData)
-                    } ?: run {
-                        Log.w(TAG, "pauseAndSaveForBackground: save timeout, slot: $autoSaveSlot")
-                    }
-                } catch (e: CancellationException) {
-                    Log.w(TAG, "pauseAndSaveForBackground: save cancelled")
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "pauseAndSaveForBackground: save error: ${e.message}", e)
-                } finally {
-                    gameEngineCore.clearActiveSaveJob()
-                }
-            }.also { gameEngineCore.registerActiveSaveJob(it) }
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
-        }
-    }
 
     fun restartGame() {
         if (!saveLock.compareAndSet(false, true)) {
@@ -1295,18 +1229,6 @@ class SaveLoadViewModel @Inject constructor(
     override fun onCleared() {
         Log.i(TAG, "SaveLoadViewModel cleared")
 
-        var snapshotToSave: com.xianxia.sect.core.engine.GameStateSnapshot? = null
-        try {
-            val snapshot = gameEngine.getStateSnapshotSync()
-            if (snapshot.gameData.sectName.isNotBlank()) {
-                snapshotToSave = snapshot
-                Log.d(TAG, "Captured game snapshot for exit save in SaveLoadViewModel")
-            }
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
-        }
-
         if (stateStore.unifiedState.value.isSaving) {
             Log.i(TAG, "Waiting for current save operation to complete before exit")
             val waitStartTime = System.currentTimeMillis()
@@ -1315,7 +1237,7 @@ class SaveLoadViewModel @Inject constructor(
                 Thread.sleep(100)
             }
             if (stateStore.unifiedState.value.isSaving) {
-                Log.w(TAG, "Save operation did not complete within ${maxWaitTime}ms, proceeding with exit save")
+                Log.w(TAG, "Save operation did not complete within ${maxWaitTime}ms, proceeding")
             }
         }
 
@@ -1332,50 +1254,6 @@ class SaveLoadViewModel @Inject constructor(
         _pendingSlot.value = null
         _pendingAction.value = null
         _loadingProgress.value = PROGRESS_START
-
-        if (snapshotToSave != null) {
-            try {
-                val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-                val saveData = SaveData(
-                    gameData = snapshotToSave.gameData,
-                    disciples = snapshotToSave.disciples,
-                    equipmentStacks = snapshotToSave.equipmentStacks,
-                    equipmentInstances = snapshotToSave.equipmentInstances,
-                    manualStacks = snapshotToSave.manualStacks,
-                    manualInstances = snapshotToSave.manualInstances,
-                    pills = snapshotToSave.pills,
-                    materials = snapshotToSave.materials,
-                    herbs = snapshotToSave.herbs,
-                    seeds = snapshotToSave.seeds,
-                    teams = snapshotToSave.teams,
-                    battleLogs = snapshotToSave.battleLogs,
-                    alliances = snapshotToSave.alliances,
-                    productionSlots = snapshotToSave.productionSlots,
-                    storageBags = snapshotToSave.storageBags
-                )
-                var exitSaveResult: SaveResult<Unit> = SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
-                val saveLatch = java.util.concurrent.CountDownLatch(1)
-                coroutineScopeProvider.ioScope.launch {
-                    try {
-                        exitSaveResult = withTimeoutOrNull(2_000L) {
-                            storageFacade.save(autoSaveSlot, saveData)
-                        } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
-                    } finally {
-                        saveLatch.countDown()
-                    }
-                }
-                saveLatch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-                val result = exitSaveResult
-                if (result.isSuccess) {
-                    Log.i(TAG, "Exit save completed in SaveLoadViewModel, slot: $autoSaveSlot")
-                } else {
-                    Log.w(TAG, "Exit save failed in SaveLoadViewModel, slot: $autoSaveSlot")
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                Log.e(TAG, "Exit save failed in SaveLoadViewModel: ${e.message}")
-            }
-        }
 
         stateStore.setPausedDirect(true)
         super.onCleared()

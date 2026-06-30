@@ -175,7 +175,7 @@ class BackupStrategy {
      */
     fun parseBackupFileName(fileName: String): ParsedBackupName? {
         // 匹配格式: {type}_slot_{slot}_{timestamp}.bak
-        val regex = Regex("""^(auto|manual|critical|emergency)_slot_(\d+)_(\d+)\.bak$""")
+        val regex = Regex("""^(auto|manual|critical)_slot_(\d+)_(\d+)\.bak$""")
         val match = regex.find(fileName) ?: return null
 
         val typeStr = match.groupValues[1]
@@ -339,7 +339,7 @@ class BackupStrategy {
         type: BackupType,
         context: Map<String, Any>? = null
     ): BackupImportance {
-        // CRITICAL 和 EMERGENCY 类型默认为 PERMANENT
+        // CRITICAL 类型默认为 PERMANENT
         if (type == BackupType.CRITICAL) {
             return BackupImportance.PERMANENT
         }
