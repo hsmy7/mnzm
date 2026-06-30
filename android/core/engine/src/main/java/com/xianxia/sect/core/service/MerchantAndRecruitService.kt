@@ -45,7 +45,7 @@ class MerchantAndRecruitService @Inject constructor(
         private const val TRAVELING_MERCHANT_ITEM_COUNT = 40
         private const val MERCHANT_PITY_THRESHOLD = 10
         private const val ACQUISITION_ITEM_COUNT_MIN = 1
-        private const val ACQUISITION_ITEM_COUNT_MAX = 6
+        private const val ACQUISITION_ITEM_COUNT_MAX = 9
 
         private val RARITY_PROBABILITIES = mapOf(
             6 to 0.003,
