@@ -54,7 +54,7 @@ interface DiscipleStatsProvider {
     fun getBreakthroughChance(
         disciple: Disciple,
         innerElderComprehension: Int = 0,
-        outerElderComprehensionBonus: Double = 0.0,
+        outerElderComprehension: Int = 0,
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
@@ -63,7 +63,7 @@ interface DiscipleStatsProvider {
     fun getBreakthroughChance(
         aggregate: DiscipleAggregate,
         innerElderComprehension: Int = 0,
-        outerElderComprehensionBonus: Double = 0.0,
+        outerElderComprehension: Int = 0,
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,

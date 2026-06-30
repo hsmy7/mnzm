@@ -647,7 +647,9 @@ object GameConfig {
 
         // 长老技能基线 / 加成除数
         const val ELDER_SKILL_BASELINE = 80
-        const val ELDER_BONUS_DIVISOR = 4
+        const val ELDER_BONUS_DIVISOR = 5
+        /** 内外门长老突破率加成最大步数（每次1%），即最多+5% */
+        const val ELDER_BREAKTHROUGH_MAX_STEPS = 5
         const val SPEED_REDUCTION_DIVISOR = 4.0
         const val HERB_GARDEN_ELDER_MAX = 0.20
         const val HERB_GARDEN_DISCIPLE_SPIRIT_BASE = 50

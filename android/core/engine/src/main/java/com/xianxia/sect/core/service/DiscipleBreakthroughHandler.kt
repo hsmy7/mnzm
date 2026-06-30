@@ -228,16 +228,13 @@ class DiscipleBreakthroughHandler @Inject constructor(
         } else { 0 }
 
         val outerElderId = data.elderSlots.outerElder
-        val outerElderComprehensionBonus = if (disciple.discipleType == "outer" && outerElderId.isNotEmpty()) {
+        val outerElderComprehension = if (disciple.discipleType == "outer" && outerElderId.isNotEmpty()) {
             val oid = outerElderId.toIntOrNull()
             if (oid != null && tables.isAlive[oid] == 1
                 && disciple.realm >= tables.realms[oid]) {
-                val comp = tables.comprehensions[oid]
-                if (comp >= GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) {
-                    ((comp - GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) / GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR) * 0.01
-                } else { 0.0 }
-            } else { 0.0 }
-        } else { 0.0 }
+                tables.comprehensions[oid]
+            } else { 0 }
+        } else { 0 }
 
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
@@ -259,7 +256,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
             innerElderComprehension = innerElderComprehension,
-            outerElderComprehensionBonus = outerElderComprehensionBonus,
+            outerElderComprehension = outerElderComprehension,
             pillBonus = pillBonus,
             adBonus = adBonus,
             griefBreakthroughPenalty = griefBreakthroughPenalty,

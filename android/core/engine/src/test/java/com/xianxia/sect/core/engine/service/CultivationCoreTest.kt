@@ -110,18 +110,18 @@ class CultivationCoreTest {
             )
             override fun getBreakthroughChance(
                 disciple: Disciple, innerElderComprehension: Int,
-                outerElderComprehensionBonus: Double, pillBonus: Double,
+                outerElderComprehension: Int, pillBonus: Double,
                 adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
-                disciple, innerElderComprehension, outerElderComprehensionBonus,
+                disciple, innerElderComprehension, outerElderComprehension,
                 pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
             )
             override fun getBreakthroughChance(
                 aggregate: DiscipleAggregate, innerElderComprehension: Int,
-                outerElderComprehensionBonus: Double, pillBonus: Double,
+                outerElderComprehension: Int, pillBonus: Double,
                 adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(
-                aggregate, innerElderComprehension, outerElderComprehensionBonus,
+                aggregate, innerElderComprehension, outerElderComprehension,
                 pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
             )
         }

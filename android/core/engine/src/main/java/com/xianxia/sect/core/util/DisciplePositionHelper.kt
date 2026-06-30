@@ -11,10 +11,10 @@ object DisciplePositionHelper {
         if (elderSlots.herbGardenElder == discipleId) return "灵植阁长老"
         if (elderSlots.alchemyElder == discipleId) return "炼丹炉长老"
         if (elderSlots.forgeElder == discipleId) return "锻造坊长老"
-        if (elderSlots.outerElder == discipleId) return "外门执事"
+        if (elderSlots.outerElder == discipleId) return "外门长老"
         if (elderSlots.preachingElder == discipleId) return "问道塔传道长老"
         if (elderSlots.lawEnforcementElder == discipleId) return "执法长老"
-        if (elderSlots.innerElder == discipleId) return "内门执事"
+        if (elderSlots.innerElder == discipleId) return "内门长老"
         if (elderSlots.recruitingElder == discipleId) return "纳徒长老"
         if (elderSlots.qingyunPreachingElder == discipleId) return "青云塔传道长老"
 

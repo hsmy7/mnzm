@@ -196,7 +196,7 @@ data class DiscipleAggregate(
     /**
      * 计算突破成功率
      */
-    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehensionBonus, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
+    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
     
     fun toDisciple(): Disciple {
         return Disciple(
@@ -344,8 +344,8 @@ data class DiscipleAggregate(
             override fun getFinalStats(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>) = DiscipleStats()
             override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = 0.0
             override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = 0.0
-            override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int, outerElderComprehensionBonus: Double, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = 0.0
-            override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehensionBonus: Double, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = 0.0
+            override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = 0.0
+            override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = 0.0
         }
 
         fun fromDisciple(disciple: Disciple): DiscipleAggregate {

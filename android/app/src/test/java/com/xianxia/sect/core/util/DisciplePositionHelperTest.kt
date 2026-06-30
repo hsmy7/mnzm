@@ -56,11 +56,11 @@ class DisciplePositionHelperTest {
     }
 
     @Test
-    fun getDisciplePosition_outerElder_returns外门执事() {
+    fun getDisciplePosition_outerElder_returns外门长老() {
         val gameData = buildGameData(
             elderSlots = ElderSlots(outerElder = "d5")
         )
-        assertEquals("外门执事", DisciplePositionHelper.getDisciplePosition("d5", gameData))
+        assertEquals("外门长老", DisciplePositionHelper.getDisciplePosition("d5", gameData))
     }
 
     @Test
@@ -80,11 +80,11 @@ class DisciplePositionHelperTest {
     }
 
     @Test
-    fun getDisciplePosition_innerElder_returns内门执事() {
+    fun getDisciplePosition_innerElder_returns内门长老() {
         val gameData = buildGameData(
             elderSlots = ElderSlots(innerElder = "d8")
         )
-        assertEquals("内门执事", DisciplePositionHelper.getDisciplePosition("d8", gameData))
+        assertEquals("内门长老", DisciplePositionHelper.getDisciplePosition("d8", gameData))
     }
 
     @Test
