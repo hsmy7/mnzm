@@ -40,6 +40,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
@@ -49,8 +50,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1012,21 +1015,60 @@ private fun SectInfoCard(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                val combatPowerBrush = Brush.verticalGradient(
-                    colors = listOf(Color.Red, Color(0xFFFFD700))
-                )
-                Text(
-                    text = "战斗力",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(brush = combatPowerBrush)
-                )
-                Text(
-                    text = "$combatPower",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Red
-                )
+                Box(modifier = Modifier.size(width = 150.dp, height = 38.dp)) {
+                    val powerResId = SpriteResRegistry
+                        .resolve("combat_power_bg")
+                    if (powerResId != null) {
+                        Image(
+                            painter = painterResource(id = powerResId),
+                            contentDescription = "战斗力",
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                    }
+                    // 右侧78%居中，字号自适应（最大12sp）
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth(0.78f)
+                            .fillMaxHeight()
+                            .align(Alignment.CenterEnd)
+                    ) {
+                        val text = "$combatPower"
+                        val textMeasurer = rememberTextMeasurer()
+                        val density = LocalDensity.current
+                        val fontSize = remember(text, maxWidth, density) {
+                            val measured = textMeasurer.measure(
+                                text = AnnotatedString(text),
+                                style = TextStyle(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                ),
+                                constraints = Constraints(
+                                    maxWidth = Int.MAX_VALUE
+                                )
+                            )
+                            val textWidthPx = measured.size.width.toFloat()
+                            val availablePx = with(density) {
+                                maxWidth.toPx()
+                            }
+                            val fits = textWidthPx <= availablePx
+                            if (fits || availablePx <= 0f) {
+                                12.sp
+                            } else {
+                                12.sp * (availablePx / textWidthPx)
+                            }
+                        }
+                        Text(
+                            text = text,
+                            fontSize = fontSize,
+                            fontWeight = FontWeight.Normal,
+                            color = Color.Red,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .offset(y = 4.dp)
+                        )
+                    }
+                }
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)

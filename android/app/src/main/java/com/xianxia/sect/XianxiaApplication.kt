@@ -462,7 +462,8 @@ class XianxiaApplication : Application() {
             "ui_settings_button" to R.drawable.ui_settings_button,
             "ui_start_button" to R.drawable.ui_start_button,
             "loading_background" to R.drawable.loading_background,
-            "ui_sysmsg" to R.drawable.ui_sysmsg
+            "ui_sysmsg" to R.drawable.ui_sysmsg,
+            "combat_power_bg" to R.drawable.combat_power_bg
         ))
 
         SpriteResRegistry.register(SpriteCategory.BEAST, mapOf(
