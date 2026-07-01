@@ -530,6 +530,13 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
+        is DialogRoute.RenameSect -> {
+            RenameSectDialog(
+                currentName = gameData.sectName,
+                onConfirm = { newName -> viewModel.renameSect(newName) },
+                onDismiss = onDismiss
+            )
+        }
         is DialogRoute.GameOver -> {
             GameOverDialog(
                 onRestartGame = {

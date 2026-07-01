@@ -33,6 +33,7 @@ import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.state.UnifiedGameState
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.ui.navigation.GameRoute
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -648,6 +649,59 @@ class GameViewModelTest {
 
         val result = lambdaSlot.captured(GameData())
         assertTrue("daoCompanionConsentRequired 应为 true", result.daoCompanionConsentRequired)
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 场景 4：宗门改名逻辑（renameSect）
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `renameSect - 更新 sectName 和玩家宗门名称，不影响其他宗门`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        val playerSect = WorldSect(id = "player", name = "青云宗", isPlayerSect = true)
+        val aiSect = WorldSect(id = "ai-1", name = "血煞宗", isPlayerSect = false)
+        val originalData = GameData(
+            sectName = "青云宗",
+            worldMapSects = listOf(playerSect, aiSect)
+        )
+
+        viewModel.renameSect("太虚宗")
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(originalData)
+        assertEquals("GameData.sectName 应更新为新名称", "太虚宗", result.sectName)
+        assertEquals("玩家宗门名称应更新", "太虚宗", result.worldMapSects.find { it.isPlayerSect }?.name)
+        assertEquals("AI 宗门名称不应被修改", "血煞宗", result.worldMapSects.find { !it.isPlayerSect }?.name)
+    }
+
+    @Test
+    fun `renameSect - 同名更新仍传递到 updateGameData`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        val playerSect = WorldSect(id = "player", name = "青云宗", isPlayerSect = true)
+        val originalData = GameData(sectName = "青云宗", worldMapSects = listOf(playerSect))
+
+        viewModel.renameSect("青云宗")
+        advanceUntilIdle()
+
+        val result = lambdaSlot.captured(originalData)
+        assertEquals("同名更新应保持不变", "青云宗", result.sectName)
+        assertEquals("玩家宗门名称应保持不变", "青云宗", result.worldMapSects.find { it.isPlayerSect }?.name)
+    }
+
+    @Test
+    fun `renameSect - 调用 dismissDialog`() = runTest(testDispatcher) {
+        val lambdaSlot = slot<(GameData) -> GameData>()
+        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+
+        viewModel.renameSect("太虚宗")
+        advanceUntilIdle()
+
+        coVerify { gameEngine.updateGameData(any()) }
+        verify { gameEngine.setActiveDialog(null) }
     }
 
     // ════════════════════════════════════════════════════════════════

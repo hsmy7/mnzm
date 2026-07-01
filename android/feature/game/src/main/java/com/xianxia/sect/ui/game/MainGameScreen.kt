@@ -842,7 +842,8 @@ fun MainGameScreen(
                         combatPower = sectCombatPower,
                         sectLevel = currentSectLevel,
                         showRewardBadge = showRewardBadge,
-                        onSectIconClick = { viewModel.navigateToSectLevelDetail() }
+                        onSectIconClick = { viewModel.navigateToSectLevelDetail() },
+                        onSectNameClick = { viewModel.navigateToDialog(DialogRoute.RenameSect) }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -961,7 +962,8 @@ private fun SectInfoCard(
     combatPower: Long,
     sectLevel: Int = SectLevel.MEDIUM,
     showRewardBadge: Boolean = false,
-    onSectIconClick: () -> Unit = {}
+    onSectIconClick: () -> Unit = {},
+    onSectNameClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -1005,6 +1007,7 @@ private fun SectInfoCard(
                 }
                 Text(
                     text = sectName,
+                    modifier = Modifier.clickable { onSectNameClick() },
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black

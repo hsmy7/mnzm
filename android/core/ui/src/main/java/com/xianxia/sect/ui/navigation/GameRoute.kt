@@ -96,6 +96,7 @@ sealed class DialogRoute {
     data class WarehouseBuilding(val buildingInstanceId: String) : DialogRoute()
     object GameOver : DialogRoute()
     object SectLevelDetail : DialogRoute()
+    object RenameSect : DialogRoute()
 }
 
 fun GameRoute.toDialogRoute(buildingInstanceId: String = ""): DialogRoute = when (this) {

@@ -569,6 +569,22 @@ class GameViewModel @Inject constructor(
         navigateToDialog(DialogRoute.SectLevelDetail)
     }
 
+    /** 修改宗门名称。原子更新 GameData.sectName 和 WorldSect 中玩家宗门的 name。 */
+    fun renameSect(newName: String) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                data.copy(
+                    sectName = newName,
+                    worldMapSects = data.worldMapSects.map { ws ->
+                        if (ws.isPlayerSect) ws.copy(name = newName) else ws
+                    }
+                )
+            }
+            dismissDialog()
+            showSuccess("宗门已更名为「${newName}」")
+        }
+    }
+
     /** 领取宗门等级每周奖励（成功时由 RewardCardHost 播放飞出动画，不弹 toast） */
     fun claimSectLevelReward(level: Int) {
         viewModelScope.launch {
