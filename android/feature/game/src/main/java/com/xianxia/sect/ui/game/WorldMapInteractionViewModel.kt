@@ -31,6 +31,8 @@ class WorldMapInteractionViewModel @Inject constructor(
     val sectTradeItems: StateFlow<List<MerchantItem>> = dialogs.map { it.tradeItems }.stateIn(viewModelScope, sharingStarted, emptyList())
     val showGiftDialog: StateFlow<Boolean> = dialogs.map { it.showGift }.stateIn(viewModelScope, sharingStarted, false)
     val selectedGiftSectId: StateFlow<String?> = dialogs.map { it.selectedGiftSectId }.stateIn(viewModelScope, sharingStarted, null)
+    val showSectDiplomacyDialog: StateFlow<Boolean> = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope, sharingStarted, false)
+    val selectedSectDiplomacySectId: StateFlow<String?> = dialogs.map { it.selectedSectDiplomacySectId }.stateIn(viewModelScope, sharingStarted, null)
 
     fun openScoutDialog(sectId: String) {
         _dialogs.value = _dialogs.value.copy(showScout = true, selectedScoutSectId = sectId)
@@ -153,5 +155,13 @@ class WorldMapInteractionViewModel @Inject constructor(
 
     fun closeGiftDialog() {
         _dialogs.value = _dialogs.value.copy(showGift = false, selectedGiftSectId = null)
+    }
+
+    fun openSectDiplomacyDialog(sectId: String) {
+        _dialogs.value = _dialogs.value.copy(showSectDiplomacy = true, selectedSectDiplomacySectId = sectId)
+    }
+
+    fun closeSectDiplomacyDialog() {
+        _dialogs.value = _dialogs.value.copy(showSectDiplomacy = false, selectedSectDiplomacySectId = null)
     }
 }

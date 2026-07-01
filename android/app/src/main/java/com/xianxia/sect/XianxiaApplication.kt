@@ -473,7 +473,10 @@ class XianxiaApplication : Application() {
             "dialog_box" to R.drawable.dialog_box,
             "bg_dialog_mail" to R.drawable.bg_dialog_mail,
             "bg_screen" to R.drawable.bg_screen,
-            "map_zhongzhou" to R.drawable.map_zhongzhou
+            "map_zhongzhou" to R.drawable.map_zhongzhou,
+            "dialogue_bg" to R.drawable.dialogue_bg,
+            "dialogue_bubble_left" to R.drawable.dialogue_bubble_left,
+            "dialogue_bubble_right" to R.drawable.dialogue_bubble_right
         ))
 
         SpriteResRegistry.register(SpriteCategory.PORTRAIT, mapOf(

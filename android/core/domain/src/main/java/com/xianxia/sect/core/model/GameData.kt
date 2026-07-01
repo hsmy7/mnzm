@@ -826,7 +826,9 @@ data class WorldMapDialogState(
     val selectedTradeSectId: String? = null,
     val tradeItems: List<MerchantItem> = emptyList(),
     val showGift: Boolean = false,
-    val selectedGiftSectId: String? = null
+    val selectedGiftSectId: String? = null,
+    val showSectDiplomacy: Boolean = false,
+    val selectedSectDiplomacySectId: String? = null
 )
 
 enum class WorldMapDialogType { SCOUT, TRADE, ALLIANCE, GIFT, ENVOY }
@@ -881,7 +883,8 @@ data class SectDetail(
     val tradeLastRefreshYear: Int = 0,
     val lastGiftYear: Int = 0,
     val warehouse: SectWarehouse = SectWarehouse(),
-    val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
+    val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE,
+    val portraitRes: String = ""
 )
 
 @Keep

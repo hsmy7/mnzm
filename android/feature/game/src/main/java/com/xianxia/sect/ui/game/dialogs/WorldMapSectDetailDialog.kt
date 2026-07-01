@@ -56,6 +56,7 @@ import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.GameColors
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 internal fun WorldMapSectDetailDialog(
@@ -282,24 +283,11 @@ internal fun WorldMapSectDetailDialog(
                     )
 
                     GameButton(
-                        text = if (hasGiftedThisYear) "已送礼" else "送礼",
+                        text = "外交",
                         onClick = {
-                            if (hasGiftedThisYear) {
-                                showGiftedMessage = true
-                            } else {
-                                interactionViewModel.openGiftDialog(sect.id)
-                                onDismiss()
-                            }
-                        }
-                    )
-
-                    GameButton(
-                        text = if (isAlly) "盟约" else "结盟",
-                        onClick = {
-                            interactionViewModel.openAllianceDialog(sect.id)
+                            interactionViewModel.openSectDiplomacyDialog(sect.id)
                             onDismiss()
-                        },
-                        enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
+                        }
                     )
 
                     GameButton(
@@ -438,6 +426,21 @@ internal fun WorldMapSectDetailDialog(
                 showGarrisonSelection = null
             },
             onDismiss = { showGarrisonSelection = null }
+        )
+    }
+
+    // 外交对话界面
+    val showSectDiplomacyDialog by interactionViewModel.showSectDiplomacyDialog.collectAsStateWithLifecycle()
+    val selectedSectDiplomacySectId by interactionViewModel.selectedSectDiplomacySectId.collectAsStateWithLifecycle()
+
+    if (showSectDiplomacyDialog && selectedSectDiplomacySectId == sect.id) {
+        SectDiplomacyDialog(
+            sect = sect,
+            relation = relation,
+            gameData = gameData,
+            disciples = disciples,
+            interactionViewModel = interactionViewModel,
+            onDismiss = { interactionViewModel.closeSectDiplomacyDialog() }
         )
     }
 

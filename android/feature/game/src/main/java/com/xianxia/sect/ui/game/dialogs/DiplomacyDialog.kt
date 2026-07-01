@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -37,7 +36,6 @@ fun DiplomacyDialog(
 ) {
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val worldSects = gameData?.worldMapSects?.filter { !it.isPlayerSect } ?: emptyList()
-    val currentYear = gameData?.gameYear ?: 1
     val sectRelations = gameData?.sectRelations
 
     val sectFavors = remember(playerSect, worldSects, sectRelations) {
@@ -56,14 +54,14 @@ fun DiplomacyDialog(
 
     val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
 
-    var showGiftedMessage by remember { mutableStateOf(false) }
-
     val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
     val showAllianceDialog by interactionViewModel.showAllianceDialog.collectAsStateWithLifecycle()
     val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
+    val showSectDiplomacyDialog by interactionViewModel.showSectDiplomacyDialog.collectAsStateWithLifecycle()
     val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
     val selectedAllianceSectId by interactionViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
     val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
+    val selectedSectDiplomacySectId by interactionViewModel.selectedSectDiplomacySectId.collectAsStateWithLifecycle()
     val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
 
     UnifiedGameDialog(
@@ -93,20 +91,13 @@ fun DiplomacyDialog(
                             DiplomacySectCard(
                                 sect = sect,
                                 relation = sectFavors[sect] ?: 0,
-                                currentYear = currentYear,
                                 gameData = gameData,
                                 isAlly = interactionViewModel.isAlly(sect.id),
-                                onGift = {
-                                    interactionViewModel.openGiftDialog(sect.id)
-                                },
-                                onFormAlliance = {
-                                    interactionViewModel.openAllianceDialog(sect.id)
+                                onOpenDiplomacyDialogue = {
+                                    interactionViewModel.openSectDiplomacyDialog(sect.id)
                                 },
                                 onTrade = {
                                     interactionViewModel.openSectTradeDialog(sect.id)
-                                },
-                                onShowGiftedMessage = {
-                                    showGiftedMessage = true
                                 }
                             )
                         }
@@ -114,13 +105,6 @@ fun DiplomacyDialog(
             }
         }
     }
-    }
-
-    if (showGiftedMessage) {
-        GiftedMessageToast(
-            message = "今年已送过礼品等明年再来吧",
-            onDismiss = { showGiftedMessage = false }
-        )
     }
 
     if (showSectTradeDialog) {
@@ -156,24 +140,33 @@ fun DiplomacyDialog(
             onDismiss = { interactionViewModel.closeAllianceDialog() }
         )
     }
+
+    if (showSectDiplomacyDialog) {
+        val sect = gameData?.worldMapSects?.find { it.id == selectedSectDiplomacySectId }
+        if (sect != null) {
+            SectDiplomacyDialog(
+                sect = sect,
+                relation = sectFavors[sect] ?: 0,
+                gameData = gameData,
+                disciples = emptyList(),
+                interactionViewModel = interactionViewModel,
+                onDismiss = { interactionViewModel.closeSectDiplomacyDialog() }
+            )
+        }
+    }
 }
 
 @Composable
 internal fun DiplomacySectCard(
     sect: WorldSect,
     relation: Int,
-    currentYear: Int,
     gameData: GameData?,
     isAlly: Boolean,
-    onGift: () -> Unit,
-    onFormAlliance: () -> Unit,
-    onTrade: () -> Unit,
-    onShowGiftedMessage: () -> Unit
+    onOpenDiplomacyDialogue: () -> Unit,
+    onTrade: () -> Unit
 ) {
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
-
-    val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
 
     Row(
         modifier = Modifier
@@ -228,21 +221,8 @@ internal fun DiplomacySectCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     GameButton(
-                        text = "送礼",
-                        onClick = {
-                            if (hasGiftedThisYear) {
-                                onShowGiftedMessage()
-                            } else {
-                                onGift()
-                            }
-                        },
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-
-                    GameButton(
-                        text = if (isAlly) "盟约" else "结盟",
-                        onClick = onFormAlliance,
-                        enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
+                        text = "外交",
+                        onClick = onOpenDiplomacyDialogue,
                         modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
 

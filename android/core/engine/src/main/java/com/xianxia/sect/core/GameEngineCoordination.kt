@@ -236,8 +236,24 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
     cultivationService.refreshTravelingMerchant(1, 1)
     cultivationService.refreshRecruitList(1)
     cultivationService.refreshMerchantAcquisition(1, 1)
+
+    // 为每个 AI 宗门分配唯一弟子头像
+    val aiSects = generationResult.sects.filter { !it.isPlayerSect }
+    val allPortraitNames = com.xianxia.sect.core.util.PortraitPool.allPortraitNames()
+    val sectDetailsMap = aiSects.mapIndexed { index, sect ->
+        val portraitRes = allPortraitNames[index % allPortraitNames.size]
+        sect.id to com.xianxia.sect.core.model.SectDetail(sectId = sect.id, portraitRes = portraitRes)
+    }.toMap()
+
     stateStore.update {
-        gameData = gameData.copy(sectName = sectName, worldMapSects = generationResult.sects, sectRelations = sectRelations, aiSectDisciples = generationResult.aiSectDisciples, availableMissions = emptyList())
+        gameData = gameData.copy(
+            sectName = sectName,
+            worldMapSects = generationResult.sects,
+            sectRelations = sectRelations,
+            aiSectDisciples = generationResult.aiSectDisciples,
+            availableMissions = emptyList(),
+            sectDetails = sectDetailsMap
+        )
     }
 }
 
