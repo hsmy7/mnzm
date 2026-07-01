@@ -411,7 +411,6 @@
     <ID>LongMethod:GameStateStore.kt$GameStateStore$suspend fun update(block: suspend MutableGameState.() -&gt; Unit)</ID>
     <ID>LongMethod:GameViewModel.kt$GameViewModel$fun bulkSellItems( selectedRarities: Set&lt;Int&gt;, selectedTypes: Set&lt;String&gt; )</ID>
     <ID>LongMethod:GameViewModel.kt$GameViewModel$fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3)</ID>
-    <ID>LongMethod:GiftDialog.kt$@Composable fun GiftDialog( sect: WorldSect?, gameData: GameData?, viewModel: GameViewModel, worldMapViewModel: WorldMapViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:HerbGardenDialog.kt$@Composable private fun SeedPlantingDialog( seeds: List&lt;Seed&gt;, onDismiss: () -&gt; Unit, onSelect: ((Seed) -&gt; Unit)? = null, onConfirmOverride: ((Seed) -&gt; Unit)? = null )</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun bulkSellItems(operations: List&lt;InventoryFacade.BulkSellOperation&gt;): InventoryFacade.BulkSellResult</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun buyMerchantItem(itemId: String, quantity: Int)</ID>
@@ -1660,7 +1659,6 @@
     <ID>UnusedParameter:GameStateStore.kt$GameStateStore$origin: SkillStats</ID>
     <ID>UnusedParameter:GameViewModel.kt$GameViewModel$height: Int = 3</ID>
     <ID>UnusedParameter:GameViewModel.kt$GameViewModel$width: Int = 2</ID>
-    <ID>UnusedParameter:GiftDialog.kt$viewModel: GameViewModel</ID>
     <ID>UnusedParameter:ItemCard.kt$showPrice: Boolean = false</ID>
     <ID>UnusedParameter:LawEnforcementHallDialog.kt$viewModel: GameViewModel</ID>
     <ID>UnusedParameter:LibraryDialog.kt$manuals: List&lt;ManualInstance&gt;</ID>
@@ -2125,10 +2123,6 @@
     <ID>WildcardImport:GameViewModel.kt$import kotlinx.coroutines.*</ID>
     <ID>WildcardImport:GameViewModel.kt$import kotlinx.coroutines.flow.*</ID>
     <ID>WildcardImport:GiftConfigTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GiftDialog.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:GiftDialog.kt$import androidx.compose.material3.*</ID>
-    <ID>WildcardImport:GiftDialog.kt$import androidx.compose.runtime.*</ID>
-    <ID>WildcardImport:GiftDialog.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:GridSystemTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:HerbDatabaseTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:HerbGardenAuraService.kt$import com.xianxia.sect.core.model.*</ID>

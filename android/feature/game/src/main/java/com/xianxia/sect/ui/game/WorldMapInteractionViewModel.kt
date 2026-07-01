@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapDialogState
 import com.xianxia.sect.core.model.WorldMapDialogType
@@ -26,8 +27,6 @@ class WorldMapInteractionViewModel @Inject constructor(
     val showSectTradeDialog: StateFlow<Boolean> = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted, false)
     val selectedTradeSectId: StateFlow<String?> = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope, sharingStarted, null)
     val sectTradeItems: StateFlow<List<MerchantItem>> = dialogs.map { it.tradeItems }.stateIn(viewModelScope, sharingStarted, emptyList())
-    val showGiftDialog: StateFlow<Boolean> = dialogs.map { it.showGift }.stateIn(viewModelScope, sharingStarted, false)
-    val selectedGiftSectId: StateFlow<String?> = dialogs.map { it.selectedGiftSectId }.stateIn(viewModelScope, sharingStarted, null)
     val showSectDiplomacyDialog: StateFlow<Boolean> = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope, sharingStarted, false)
     val selectedSectDiplomacySectId: StateFlow<String?> = dialogs.map { it.selectedSectDiplomacySectId }.stateIn(viewModelScope, sharingStarted, null)
 
@@ -51,14 +50,14 @@ class WorldMapInteractionViewModel @Inject constructor(
         }
     }
 
-    fun giftSpiritStones(sectId: String, tier: Int) {
-        viewModelScope.launch {
-            try {
-                gameEngine.giftSpiritStones(sectId, tier)
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "送礼失败")
-            }
+    /** 送礼并返回结果（聊天式送礼使用） */
+    suspend fun performGiftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult? {
+        return try {
+            gameEngine.giftSpiritStones(sectId, tier)
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+            showError(e.message ?: "送礼失败")
+            null
         }
     }
 
@@ -101,14 +100,6 @@ class WorldMapInteractionViewModel @Inject constructor(
                 showError(e.message ?: "购买失败")
             }
         }
-    }
-
-    fun openGiftDialog(sectId: String) {
-        _dialogs.value = _dialogs.value.copy(showGift = true, selectedGiftSectId = sectId)
-    }
-
-    fun closeGiftDialog() {
-        _dialogs.value = _dialogs.value.copy(showGift = false, selectedGiftSectId = null)
     }
 
     fun openSectDiplomacyDialog(sectId: String) {

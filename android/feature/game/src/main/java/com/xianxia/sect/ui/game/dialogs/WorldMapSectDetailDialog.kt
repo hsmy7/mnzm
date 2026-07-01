@@ -71,7 +71,6 @@ internal fun WorldMapSectDetailDialog(
     val currentYear = gameData?.gameYear ?: 1
     val isAlly = interactionViewModel.isAlly(sect.id)
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
-    var showGiftedMessage by remember { mutableStateOf(false) }
     var showAttackDialog by remember { mutableStateOf(false) }
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
 
@@ -385,13 +384,6 @@ internal fun WorldMapSectDetailDialog(
                 }
             }
         }
-    }
-
-    if (showGiftedMessage) {
-        GiftedMessageToast(
-            message = "今年已送过礼品等明年再来吧",
-            onDismiss = { showGiftedMessage = false }
-        )
     }
 
     if (showAttackDialog) {

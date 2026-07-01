@@ -38,8 +38,6 @@ internal fun WorldMapDialog(
     val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
     val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
     val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
-    val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
-    val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
     val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
     val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
@@ -125,17 +123,6 @@ internal fun WorldMapDialog(
             viewModel = viewModel,
             interactionViewModel = interactionViewModel,
             onDismiss = { interactionViewModel.closeSectTradeDialog() }
-        )
-    }
-
-    if (showGiftDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedGiftSectId }
-        GiftDialog(
-            sect = sect,
-            gameData = gameData,
-            viewModel = viewModel,
-            interactionViewModel = interactionViewModel,
-            onDismiss = { interactionViewModel.closeGiftDialog() }
         )
     }
 

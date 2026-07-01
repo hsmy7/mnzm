@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
@@ -66,6 +67,40 @@ internal fun SectDiplomacyDialog(
     var skipped by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // 送礼选项状态
+    var showGiftOptions by remember { mutableStateOf(false) }
+
+    // 送礼档位点击处理
+    val onGiftTierClick: (Int) -> Unit = { tier ->
+        showGiftOptions = false
+        isChatDone = false
+        isChatting = true
+        visibleCount = 0
+        skipped = false
+        chatMessages = emptyList()
+        scope.launch {
+            val result = interactionViewModel.performGiftSpiritStones(sect.id, tier)
+            val playerGiftText = buildPlayerGiftText(sect.name, tier)
+            if (result != null) {
+                val aiResponseText = if (result.success) {
+                    getGiftAiAcceptText(relationLevel)
+                } else {
+                    getGiftAiRejectText(relationLevel)
+                }
+                val playerReplyText = buildPlayerReplyText(result.success)
+                chatMessages = listOf(
+                    ChatMessage(text = playerGiftText, isPlayer = true),
+                    ChatMessage(text = aiResponseText, isPlayer = false),
+                    ChatMessage(text = playerReplyText, isPlayer = true)
+                )
+            } else {
+                chatMessages = listOf(
+                    ChatMessage(text = playerGiftText, isPlayer = true)
+                )
+            }
+        }
+    }
+
     // 对话背景图资源
     val bgRes = SpriteResRegistry.resolve("dialogue_bg")
         ?: R.drawable.dialogue_bg
@@ -116,11 +151,13 @@ internal fun SectDiplomacyDialog(
                 isAlly = isAlly,
                 hasGiftedThisYear = hasGiftedThisYear,
                 relationLevel = relationLevel,
+                spiritStones = gameData?.spiritStones ?: 0,
                 chatMessages = chatMessages,
                 visibleCount = visibleCount,
                 isChatting = isChatting,
                 isChatDone = isChatDone,
                 skipped = skipped,
+                showGiftOptions = showGiftOptions,
                 onAllianceClick = {
                     isChatDone = false
                     isChatting = true
@@ -182,8 +219,10 @@ internal fun SectDiplomacyDialog(
                 },
                 onSkipClick = { skipped = true },
                 onGiftClick = {
-                    interactionViewModel.openGiftDialog(sect.id)
+                    showGiftOptions = true
                 },
+                onGiftTierClick = onGiftTierClick,
+                onCancelGiftClick = { showGiftOptions = false },
                 modifier = Modifier.weight(0.8f).fillMaxHeight()
             )
         }
@@ -233,15 +272,19 @@ private fun RightPanel(
     isAlly: Boolean,
     hasGiftedThisYear: Boolean,
     relationLevel: SectRelationLevel,
+    spiritStones: Long = 0,
     chatMessages: List<ChatMessage>,
     visibleCount: Int,
     isChatting: Boolean,
     isChatDone: Boolean,
     skipped: Boolean,
+    showGiftOptions: Boolean = false,
     onAllianceClick: () -> Unit,
     onDissolveClick: () -> Unit,
     onSkipClick: () -> Unit,
     onGiftClick: () -> Unit,
+    onGiftTierClick: (Int) -> Unit,
+    onCancelGiftClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -304,7 +347,14 @@ private fun RightPanel(
         }
 
         // ═══════════ 底部按钮区 ═══════════
-        if (isChatting && !isChatDone) {
+        if (showGiftOptions && !isChatting) {
+            // 送礼选项 → 显示四个档位 + 取消
+            GiftOptionsPanel(
+                spiritStones = spiritStones,
+                onGiftTierClick = onGiftTierClick,
+                onCancelClick = onCancelGiftClick
+            )
+        } else if (isChatting && !isChatDone) {
             // 聊天动画中 → 跳过按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -475,3 +525,178 @@ internal fun getAiResponseText(favor: Int, success: Boolean): String {
         }
     }
 }
+
+// ═══════════ 送礼选项面板 ═══════════
+
+@Composable
+private fun GiftOptionsPanel(
+    spiritStones: Long,
+    onGiftTierClick: (Int) -> Unit,
+    onCancelClick: () -> Unit
+) {
+    val tiers = GiftConfig.SpiritStoneGiftConfig.getAllTiers().sortedByDescending { it.tier }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        tiers.forEachIndexed { index, tier ->
+            if (index > 0) {
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = Color.Gray.copy(alpha = 0.3f)
+                )
+            }
+            val canAfford = spiritStones >= tier.spiritStones
+            val displayText = if (canAfford) {
+                "${tier.name} - ${GameUtils.formatNumber(tier.spiritStones)}"
+            } else {
+                "${tier.name} - 灵石不足"
+            }
+            Text(
+                text = displayText,
+                fontSize = 16.sp,
+                color = if (canAfford) Color.Black else Color.Gray,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = canAfford) { onGiftTierClick(tier.tier) }
+                    .padding(vertical = 12.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Color.Gray.copy(alpha = 0.3f)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        GameButton(
+            text = "取消",
+            onClick = onCancelClick,
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
+    }
+}
+
+// ═══════════ 送礼聊天文本 ═══════════
+
+/**
+ * 玩家送礼描述文本
+ * @param sectName 目标宗门名称
+ * @param tier 送礼档位 (1-4)
+ */
+internal fun buildPlayerGiftText(sectName: String, tier: Int): String {
+    val texts = GIFTS_TEMPLATES[tier] ?: listOf("${sectName}的道友，这是我宗的一点心意，还请笑纳。")
+    return texts.random().replace("{S}", sectName)
+}
+
+/**
+ * AI接受送礼文本
+ * @param relationLevel 当前关系等级
+ */
+internal fun getGiftAiAcceptText(relationLevel: SectRelationLevel): String {
+    return (GIFT_AI_ACCEPT_TEXTS[relationLevel] ?: listOf("多谢道友厚礼。")).random()
+}
+
+/**
+ * AI拒绝送礼文本
+ * @param relationLevel 当前关系等级
+ */
+internal fun getGiftAiRejectText(relationLevel: SectRelationLevel): String {
+    return (GIFT_AI_REJECT_TEXTS[relationLevel] ?: listOf("本宗不能接受。")).random()
+}
+
+/**
+ * 玩家回应送礼文本
+ * @param success 送礼是否成功（接受=true，拒绝=false）
+ */
+internal fun buildPlayerReplyText(success: Boolean): String {
+    return (if (success) PLAYER_REPLY_ACCEPT_TEXTS else PLAYER_REPLY_REJECT_TEXTS).random()
+}
+
+// ═══════════ 送礼文本常量表（只需创建一次） ═══════════
+
+private val GIFTS_TEMPLATES = mapOf(
+    1 to listOf(
+        "{S}的道友，我宗备薄礼一份（20,000灵石），聊表心意，还望笑纳。",
+        "{S}的道友，些许薄礼不成敬意，还望贵宗收下。",
+        "道友，我宗备了一点薄礼（20,000灵石），望贵宗莫要嫌弃。"
+    ),
+    2 to listOf(
+        "{S}的道友，我宗备厚礼一份（200,000灵石），愿贵宗收下，增进两宗情谊。",
+        "道友，我宗备了份厚礼（200,000灵石），特来表达对贵宗的敬意。",
+        "{S}的道友，这份厚礼是我宗的一点心意，还望贵宗笑纳。"
+    ),
+    3 to listOf(
+        "{S}的诸位道友，我宗备重礼一份（800,000灵石），特来表达诚意，恳请收纳。",
+        "诸位道友，我宗精心备置重礼（800,000灵石），以表诚心，万望收下。",
+        "{S}的道友，这份重礼代表我宗对贵宗的重视，还请收下。"
+    ),
+    4 to listOf(
+        "{S}的道友！我宗备大礼一份（4,000,000灵石），以表对贵宗的重视，万望收下！",
+        "道兄！我宗备了一份大礼（4,000,000灵石），贵宗乃我宗最重要的朋友，请务必收下！",
+        "{S}的诸位道兄！这份大礼是我宗倾力准备，愿两宗情谊天长地久！"
+    )
+)
+
+private val GIFT_AI_ACCEPT_TEXTS = mapOf(
+    SectRelationLevel.HOSTILE to listOf(
+        "哼……既然你们这么诚恳，那我就代本宗收下了。",
+        "……算你们有心，东西留下吧。"
+    ),
+    SectRelationLevel.ANTAGONISTIC to listOf(
+        "……罢了，东西留下吧。",
+        "哼，既然送来了，本宗也不好驳你面子。"
+    ),
+    SectRelationLevel.NORMAL to listOf(
+        "道友客气了，这份礼物我宗就收下了。",
+        "多谢道友美意，我宗便却之不恭了。"
+    ),
+    SectRelationLevel.FRIENDLY to listOf(
+        "哈哈哈！道友太客气了！这份情谊我宗记下了！",
+        "道友盛情难却，我宗便收下了，愿两宗友谊长存！"
+    ),
+    SectRelationLevel.INTIMATE to listOf(
+        "哈哈哈！你我之间还送什么礼！不过既然是你送的，我宗自然欢喜收下！",
+        "老友太见外了！不过这份心意我宗领了，哈哈哈！"
+    )
+)
+
+private val GIFT_AI_REJECT_TEXTS = mapOf(
+    SectRelationLevel.HOSTILE to listOf(
+        "滚！本宗不稀罕！",
+        "哼，带着你的东西滚出本宗地界！"
+    ),
+    SectRelationLevel.ANTAGONISTIC to listOf(
+        "哼，拿回去，本宗不缺这个。",
+        "不必了，本宗不领你们的情。"
+    ),
+    SectRelationLevel.NORMAL to listOf(
+        "道友美意心领了，只是此礼我宗不便收下，还请见谅。",
+        "多谢道友好意，但我宗有规矩，不能收此重礼。"
+    ),
+    SectRelationLevel.FRIENDLY to listOf(
+        "唉，道友何必如此客气？这份礼太重了，我宗受之有愧啊。",
+        "道友厚爱，我宗心领了。但此礼确实不便收下，还望见谅。"
+    ),
+    SectRelationLevel.INTIMATE to listOf(
+        "你我之间何需这些俗物？快收回去，心意到了就行！",
+        "哈哈哈！老友你这是做什么？快收回去，你我还用这些虚礼？"
+    )
+)
+
+private val PLAYER_REPLY_ACCEPT_TEXTS = listOf(
+    "哈哈，道友喜欢便好！愿两宗友谊长存！",
+    "太好了！愿两宗情谊日久弥深！",
+    "贵宗喜欢便好，日后还望多多往来！"
+)
+
+private val PLAYER_REPLY_REJECT_TEXTS = listOf(
+    "既然贵宗不便收，那在下也不勉强，告辞。",
+    "是在下唐突了，这便收回，告辞。",
+    "既然贵宗看不上，那便算了，告辞。"
+)

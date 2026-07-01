@@ -26,7 +26,9 @@
 
 ### 技术
 
-- **移除旧代码** — 删除 AllianceDialog、EnvoyDiscipleSelectDialog 及所有旧版结盟/散盟业务逻辑代码，新增简化版结盟/散盟方法及单元测试覆盖
+- **送礼改为聊天交互** — 宗门外交对话界面中点击送礼按钮后，底部按钮区变为四个档位选项（大礼→薄礼）+取消，选择档位后三段聊天消息逐条显示（玩家送礼描述→AI接受/拒绝描述→玩家回应），取消按钮恢复按钮区
+- **清理旧代码** — 删除 GiftDialog、GiftedMessageToast、GiftSpiritStonesUseCase 及 WorldMapDialogState 中的 showGift 字段
+- **送礼文本独立设计** — 与结盟文本完全分离，玩家送礼每档3句、AI接受/拒绝各5级每级2句、玩家回应接受/拒绝各3句，均随机选取
 
 ## [4.0.31] - 2026-07-01（versionCode=4031）
 

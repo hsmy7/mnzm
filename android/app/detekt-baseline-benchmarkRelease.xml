@@ -475,7 +475,6 @@
     <ID>MaxLineLength:GameUtils.kt$GameUtils$value &gt;= 1_000_000_000 -&gt; String.format(Locale.getDefault(), "%.1f亿", value / 1_000_000_000.0)</ID>
     <ID>MaxLineLength:GameUtils.kt$SectRelationLevel$enum</ID>
     <ID>MaxLineLength:GetSectTradeItemsUseCase.kt$GetSectTradeItemsUseCase$operator</ID>
-    <ID>MaxLineLength:GiftSpiritStonesUseCase.kt$GiftSpiritStonesUseCase$operator</ID>
     <ID>MaxLineLength:MailRepositoryImpl.kt$MailRepositoryImpl$override</ID>
     <ID>MaxLineLength:MailRepositoryImpl.kt$MailRepositoryImpl$override suspend</ID>
     <ID>MaxLineLength:MainActivity.kt$&lt;no name provided&gt;$Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()</ID>
