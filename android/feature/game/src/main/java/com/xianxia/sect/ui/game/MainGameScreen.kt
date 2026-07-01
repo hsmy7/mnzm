@@ -358,24 +358,27 @@ fun MainGameScreen(
             cropBitmaps = withContext(Dispatchers.IO) {
                 val map = mutableMapOf<String, ImageBitmap>()
                 val resources = context.resources
-                for ((herbId, seedResId) in SpriteResRegistry.seedSprites) {
-                    // 种子图
-                    val seedBmp = BitmapFactory.decodeResource(resources, seedResId)
-                    if (seedBmp != null) {
-                        map["seed_$herbId"] = seedBmp.asImageBitmap()
-                    }
-                    // 成长期图
-                    SpriteResRegistry.growingSprites[herbId]?.let { growResId ->
-                        val growBmp = BitmapFactory.decodeResource(resources, growResId)
-                        if (growBmp != null) {
-                            map["growing_$herbId"] = growBmp.asImageBitmap()
+                for (herb in com.xianxia.sect.core.registry.HerbDatabase.getAllHerbs()) {
+                    // 种子图 — 查 ITEM 分类中的种子中文名
+                    com.xianxia.sect.core.registry.HerbDatabase.getSeedById(
+                        "${herb.id}Seed"
+                    )?.let { seed ->
+                        SpriteResRegistry.resolve(seed.name)?.let { resId ->
+                            BitmapFactory.decodeResource(resources, resId)?.let {
+                                map["seed_${herb.id}"] = it.asImageBitmap()
+                            }
                         }
                     }
-                    // 成熟（草药成品）图
-                    SpriteResRegistry.herbSprites[herbId]?.let { herbResId ->
-                        val herbBmp = BitmapFactory.decodeResource(resources, herbResId)
-                        if (herbBmp != null) {
-                            map["herb_$herbId"] = herbBmp.asImageBitmap()
+                    // 成长期图 — 查 ITEM 分类中的 growing_{herbId}
+                    SpriteResRegistry.resolve("growing_${herb.id}")?.let { resId ->
+                        BitmapFactory.decodeResource(resources, resId)?.let {
+                            map["growing_${herb.id}"] = it.asImageBitmap()
+                        }
+                    }
+                    // 草药图 — 查 ITEM 分类中的中文名
+                    SpriteResRegistry.resolve(herb.name)?.let { resId ->
+                        BitmapFactory.decodeResource(resources, resId)?.let {
+                            map["herb_${herb.id}"] = it.asImageBitmap()
                         }
                     }
                 }

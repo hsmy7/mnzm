@@ -264,7 +264,7 @@ fun SectMapCanvas(
                     val herbId = HerbDatabase.getHerbIdFromSeedId(plant.seedId)
                         ?: continue
                     // 无种子图片的植物不显示（含 tier2-6 回退）
-                    val displayHerbId = if (SpriteResRegistry.seedSprites[herbId] != null) herbId
+                    val displayHerbId = if (SpriteResRegistry.resolve("growing_$herbId") != null) herbId
                         else fallbackToTier1(herbId) ?: continue
 
                     val cropBmpKey = when (stage) {

@@ -51,9 +51,6 @@ object SpriteResRegistry {
         // 回退到旧版分类映射
         equipmentSprites[name]?.let { return it }
         materialSprites[name]?.let { return it }
-        herbSprites[name]?.let { return it }
-        seedSprites[name]?.let { return it }
-        growingSprites[name]?.let { return it }
         return null
     }
 
@@ -85,12 +82,6 @@ object SpriteResRegistry {
         private set
     var allEquipmentResIds: List<Int> = emptyList()
         private set
-    var herbSprites: Map<String, Int> = emptyMap()
-        private set
-    var seedSprites: Map<String, Int> = emptyMap()
-        private set
-    var growingSprites: Map<String, Int> = emptyMap()
-        private set
 
     fun initialize(
         equipmentSprites: Map<String, Int>,
@@ -100,10 +91,7 @@ object SpriteResRegistry {
         materialSprites: Map<String, Int>,
         storageBagSprites: Map<Int, Int>,
         sectIconSprites: Map<Int, Int>,
-        allEquipmentResIds: List<Int>,
-        herbSprites: Map<String, Int> = emptyMap(),
-        seedSprites: Map<String, Int> = emptyMap(),
-        growingSprites: Map<String, Int> = emptyMap()
+        allEquipmentResIds: List<Int>
     ) {
         this.equipmentSprites = equipmentSprites
         this.manualSprites = manualSprites
@@ -113,9 +101,6 @@ object SpriteResRegistry {
         this.storageBagSprites = storageBagSprites
         this.sectIconSprites = sectIconSprites
         this.allEquipmentResIds = allEquipmentResIds
-        this.herbSprites = herbSprites
-        this.seedSprites = seedSprites
-        this.growingSprites = growingSprites
     }
 }
 
@@ -144,41 +129,58 @@ fun fallbackToTier1(herbId: String): String? {
     val digits = herbId.takeLastWhile { it.isDigit() }
     if (digits.isEmpty()) return null
     val num = digits.toIntOrNull() ?: return null
-    if (num > 6) return null  // Tier 3+ 无专属精灵图，不回退，返回 null → UI 显示"敬请期待"
+    if (num > 9) return null  // Tier 4+ 无专属精灵图，不回退，返回 null → UI 显示"敬请期待"
     val tier1Num = ((num - 1) % 3) + 1
     return herbId.dropLast(digits.length) + tier1Num
 }
 
 /**
  * 通过草药中文名查找草药精灵图资源ID。
+ * 优先级：统一注册(ITEM分类,中文名) > fallbackToTier1 回退
  * 例如 "聚灵草" → R.drawable.herb_spiritgrass1
  */
 fun herbSpriteRes(name: String): Int? {
     val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(name)
         ?: return null
-    return SpriteResRegistry.herbSprites[herb.id]
-        ?: SpriteResRegistry.herbSprites[fallbackToTier1(herb.id) ?: return null]
+    return SpriteResRegistry.resolve(name)
+        ?: run {
+            val fallbackId = fallbackToTier1(herb.id) ?: return null
+            val fallbackHerb = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(fallbackId)
+                ?: return null
+            SpriteResRegistry.resolve(fallbackHerb.name)
+        }
 }
 
 /**
  * 通过种子中文名查找种子精灵图资源ID。
+ * 优先级：统一注册(ITEM分类,中文名) > fallbackToTier1 回退
  * 例如 "聚灵草种" → R.drawable.seed_spiritgrass1
  */
 fun seedSpriteRes(seedName: String): Int? {
     val seed = com.xianxia.sect.core.registry.HerbDatabase.getSeedByName(seedName)
         ?: return null
-    val herbId = com.xianxia.sect.core.registry.HerbDatabase.getHerbIdFromSeedId(seed.id)
-        ?: return null
-    return SpriteResRegistry.seedSprites[herbId]
-        ?: SpriteResRegistry.seedSprites[fallbackToTier1(herbId) ?: return null]
+    return SpriteResRegistry.resolve(seedName)
+        ?: run {
+            val herbId = com.xianxia.sect.core.registry.HerbDatabase.getHerbIdFromSeedId(seed.id)
+                ?: return null
+            val fallbackId = fallbackToTier1(herbId) ?: return null
+            val fallbackSeedName = com.xianxia.sect.core.registry.HerbDatabase.getSeedById(
+                "${fallbackId}Seed"
+            )?.name ?: return null
+            SpriteResRegistry.resolve(fallbackSeedName)
+        }
 }
 
 /**
  * 通过 herbId 直接查找成长期精灵图资源ID（地图渲染用）。
+ * 优先级：统一注册(ITEM分类,"growing_{herbId}") > fallbackToTier1 回退
  */
 fun growingSpriteRes(herbId: String): Int? {
-    return SpriteResRegistry.growingSprites[herbId]
-        ?: SpriteResRegistry.growingSprites[fallbackToTier1(herbId) ?: return null]
+    return SpriteResRegistry.resolve("growing_$herbId")
+        ?: run {
+            val fallbackId = fallbackToTier1(herbId) ?: return null
+            SpriteResRegistry.resolve("growing_$fallbackId")
+        }
 }
 
 fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }

@@ -242,10 +242,8 @@ class ResourcePreloader @Inject constructor(
         // 妖兽材料精灵图
         SpriteResRegistry.materialSprites.values.forEach { allRemaining.add(it) }
 
-        // 草药/种子精灵图
-        SpriteResRegistry.herbSprites.values.forEach { allRemaining.add(it) }
-        SpriteResRegistry.seedSprites.values.forEach { allRemaining.add(it) }
-        SpriteResRegistry.growingSprites.values.forEach { allRemaining.add(it) }
+        // 草药/种子/成长期精灵图（已通过 SpriteCategory.ITEM 注册）
+        SpriteResRegistry.categoryResIds(SpriteCategory.ITEM).forEach { allRemaining.add(it) }
 
         // 储物袋精灵图
         SpriteResRegistry.storageBagSprites.values.forEach { allRemaining.add(it) }
