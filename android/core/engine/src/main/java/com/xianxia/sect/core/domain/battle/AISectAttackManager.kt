@@ -16,7 +16,7 @@ import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleStatus
+
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -320,6 +320,8 @@ object AISectAttackManager {
 
         val survivorHpMap = result.attackers.associate { it.id to it.hp }
         val survivorMpMap = result.attackers.associate { it.id to it.mp }
+        val defenderSurvivorHpMap = result.defenders.associate { it.id to it.hp }
+        val defenderSurvivorMpMap = result.defenders.associate { it.id to it.mp }
 
         return AIBattleResult(
             winner = result.winner,
@@ -329,6 +331,8 @@ object AISectAttackManager {
             turns = result.turns,
             survivorHpMap = survivorHpMap,
             survivorMpMap = survivorMpMap,
+            defenderSurvivorHpMap = defenderSurvivorHpMap,
+            defenderSurvivorMpMap = defenderSurvivorMpMap,
             rounds = result.rounds
         )
     }
@@ -413,7 +417,7 @@ object AISectAttackManager {
 
     fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
         return defenderDisciples
-            .filter { it.isAlive && it.status == DiscipleStatus.IDLE }
+            .filter { it.isAlive }
             .sortedBy { it.realm }
             .take(TEAM_SIZE)
     }
@@ -1158,7 +1162,7 @@ object AISectAttackManager {
         disciples: List<Disciple>
     ): List<Disciple> {
         return disciples
-            .filter { it.isAlive && it.status == DiscipleStatus.IDLE }
+            .filter { it.isAlive }
             .sortedBy { it.realm }
             .take(TEAM_SIZE)
     }
@@ -1286,6 +1290,8 @@ data class AIBattleResult(
     val turns: Int = 0,
     val survivorHpMap: Map<String, Int> = emptyMap(),
     val survivorMpMap: Map<String, Int> = emptyMap(),
+    val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
+    val defenderSurvivorMpMap: Map<String, Int> = emptyMap(),
     val rounds: List<BattleLogRound> = emptyList(),
     val teamMembers: List<BattleLogMember> = emptyList(),
     val enemies: List<BattleLogEnemy> = emptyList()

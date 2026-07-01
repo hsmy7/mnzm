@@ -753,7 +753,7 @@ object GameConfig {
         const val MIN_DISCIPLES_FOR_ATTACK = 10
         const val POWER_RATIO_THRESHOLD = 0.8
         const val TEAM_SIZE = 10
-        const val MAX_BATTLE_TURNS = 25
+        const val MAX_BATTLE_TURNS = 200
         
         object PowerWeights {
             const val REALM_BASE = 100.0

@@ -186,7 +186,7 @@ internal fun WorldMapSectDetailDialog(
                 }
             }
 
-            if (!sect.isPlayerSect) {
+            if (!sect.isPlayerSect && !sect.isPlayerOccupied) {
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                 Text(
@@ -266,124 +266,118 @@ internal fun WorldMapSectDetailDialog(
                         }
                     }
                 }
-            }
 
-            if (!sect.isPlayerSect) {
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
-                Column(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (!sect.isPlayerOccupied) {
-                            GameButton(
-                                text = "探查",
-                                onClick = {
-                                    interactionViewModel.openScoutDialog(sect.id)
-                                }
-                            )
-
-                            GameButton(
-                                text = if (hasGiftedThisYear) "已送礼" else "送礼",
-                                onClick = {
-                                    if (hasGiftedThisYear) {
-                                        showGiftedMessage = true
-                                    } else {
-                                        interactionViewModel.openGiftDialog(sect.id)
-                                        onDismiss()
-                                    }
-                                }
-                            )
-
-                            GameButton(
-                                text = if (isAlly) "盟约" else "结盟",
-                                onClick = {
-                                    interactionViewModel.openAllianceDialog(sect.id)
-                                    onDismiss()
-                                },
-                                enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
-                            )
-
-                            GameButton(
-                                text = "交易",
-                                onClick = {
-                                    interactionViewModel.openSectTradeDialog(sect.id)
-                                    onDismiss()
-                                }
-                            )
-
-                            GameButton(
-                                text = "进攻",
-                                onClick = {
-                                    showAttackDialog = true
-                                }
-                            )
-                        } else {
-                            GameButton(
-                                text = "进入",
-                                onClick = {
-                                    viewModel.enterSect(sect.id)
-                                    viewModel.closeAllDialogs()
-                                }
-                            )
+                    GameButton(
+                        text = "探查",
+                        onClick = {
+                            interactionViewModel.openScoutDialog(sect.id)
                         }
-                    }
+                    )
 
-                    if (sect.isPlayerOccupied) {
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                    GameButton(
+                        text = if (hasGiftedThisYear) "已送礼" else "送礼",
+                        onClick = {
+                            if (hasGiftedThisYear) {
+                                showGiftedMessage = true
+                            } else {
+                                interactionViewModel.openGiftDialog(sect.id)
+                                onDismiss()
+                            }
+                        }
+                    )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                    GameButton(
+                        text = if (isAlly) "盟约" else "结盟",
+                        onClick = {
+                            interactionViewModel.openAllianceDialog(sect.id)
+                            onDismiss()
+                        },
+                        enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
+                    )
 
-                        Text(
-                            text = "驻守弟子",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                    GameButton(
+                        text = "交易",
+                        onClick = {
+                            interactionViewModel.openSectTradeDialog(sect.id)
+                            onDismiss()
+                        }
+                    )
 
-                        val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
-                        val garrisonSlots = latestSect.garrisonSlots
+                    GameButton(
+                        text = "进攻",
+                        onClick = {
+                            showAttackDialog = true
+                        }
+                    )
+                }
+            }
 
-                        for (row in 0..1) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-                            ) {
-                                for (col in 0..4) {
-                                    val slotIndex = row * 5 + col
-                                    if (slotIndex < garrisonSlots.size) {
-                                        val gSlot = garrisonSlots[slotIndex]
-                                        val gDisciple = if (gSlot.isActive) discipleMap[gSlot.discipleId] else null
-                                        GarrisonSlotBox(
-                                            disciple = gDisciple,
-                                            spiritRootColor = gSlot.discipleSpiritRootColor,
-                                            portraitRes = gSlot.portraitRes,
-                                            onClick = {
-                                                if (gDisciple != null) {
-                                                    viewModel.showDiscipleDetail(DiscipleDetailRequest(gDisciple, disciples))
-                                                } else {
-                                                    showGarrisonSelection = slotIndex
-                                                }
-                                            },
-                                            onSwap = {
-                                                showGarrisonSelection = slotIndex
-                                            },
-                                            onRemoveClick = {
-                                                garrisonViewModel.removeGarrisonDisciple(sect.id, slotIndex)
-                                            }
-                                        )
+            if (sect.isPlayerOccupied) {
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "驻守弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
+                val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
+                val garrisonSlots = latestSect.garrisonSlots
+
+                for (row in 0..1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                    ) {
+                        for (col in 0..4) {
+                            val slotIndex = row * 5 + col
+                            if (slotIndex < garrisonSlots.size) {
+                                val gSlot = garrisonSlots[slotIndex]
+                                val gDisciple = if (gSlot.isActive) discipleMap[gSlot.discipleId] else null
+                                GarrisonSlotBox(
+                                    disciple = gDisciple,
+                                    spiritRootColor = gSlot.discipleSpiritRootColor,
+                                    portraitRes = gSlot.portraitRes,
+                                    onClick = {
+                                        if (gDisciple != null) {
+                                            viewModel.showDiscipleDetail(DiscipleDetailRequest(gDisciple, disciples))
+                                        } else {
+                                            showGarrisonSelection = slotIndex
+                                        }
+                                    },
+                                    onSwap = {
+                                        showGarrisonSelection = slotIndex
+                                    },
+                                    onRemoveClick = {
+                                        garrisonViewModel.removeGarrisonDisciple(sect.id, slotIndex)
                                     }
-                                }
+                                )
                             }
                         }
                     }
                 }
-            } else {
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                GameButton(
+                    text = "进入",
+                    onClick = {
+                        viewModel.enterSect(sect.id)
+                        viewModel.closeAllDialogs()
+                    }
+                )
+            }
+            if (sect.isPlayerSect) {
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                 Spacer(modifier = Modifier.height(4.dp))

@@ -51,7 +51,7 @@ class AISectAttackManagerTest {
     }
 
     @Test
-    fun `createDefenseTeam - 仅选IDLE存活弟子`() {
+    fun `createDefenseTeam - 所有存活弟子入选不再按IDLE过滤`() {
         val disciples = listOf(
             makeDisciple("d1", realm = 0, status = DiscipleStatus.IDLE),
             makeDisciple("d2", realm = 1, status = DiscipleStatus.ON_MISSION),
@@ -60,18 +60,16 @@ class AISectAttackManagerTest {
             makeDisciple("d5", realm = 4, status = DiscipleStatus.IDLE)
         )
         val team = AISectAttackManager.createDefenseTeam(disciples)
-        // 只有3个IDLE弟子入选
-        assertEquals(3, team.size)
-        assertEquals(listOf(0, 2, 4), team.map { it.realm })
-        // ON_MISSION和REFLECTING被排除
-        assertTrue(team.none { it.id == "d2" || it.id == "d4" })
+        // 所有5名存活弟子按realm排序入选
+        assertEquals(5, team.size)
+        assertEquals(listOf(0, 1, 2, 3, 4), team.map { it.realm })
     }
 
     @Test
     fun `createDefenseTeam - 已死亡弟子被排除`() {
         val disciples = listOf(
             makeDisciple("d1", realm = 0, isAlive = false),
-            makeDisciple("d2", realm = 1, isAlive = true, status = DiscipleStatus.IDLE)
+            makeDisciple("d2", realm = 1, isAlive = true)
         )
         val team = AISectAttackManager.createDefenseTeam(disciples)
         assertEquals(1, team.size)
@@ -79,15 +77,16 @@ class AISectAttackManagerTest {
     }
 
     @Test
-    fun `createPlayerDefenseTeam - 仅选IDLE弟子`() {
+    fun `createPlayerDefenseTeam - 所有存活弟子入选不再按IDLE过滤`() {
         val disciples = listOf(
             makeDisciple("d1", realm = 0, status = DiscipleStatus.IDLE),
             makeDisciple("d2", realm = 1, status = DiscipleStatus.GARRISONING),
             makeDisciple("d3", realm = 2, status = DiscipleStatus.IDLE)
         )
         val team = AISectAttackManager.createPlayerDefenseTeam(disciples)
-        assertEquals(2, team.size)
-        assertTrue(team.all { it.status == DiscipleStatus.IDLE })
+        // 所有3名存活弟子按realm排序入选
+        assertEquals(3, team.size)
+        assertEquals(listOf(0, 1, 2), team.map { it.realm })
     }
 
     // ── 战力计算 ──

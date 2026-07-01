@@ -953,18 +953,54 @@ class CaveExplorationProcessor @Inject constructor(
                         ?: emptyList()
                     val updatedAttacker = attackerDisc
                         .filter { it.id !in result.deadAttackerIds }
-                    val defenderDisc = currentGameData
-                        .aiSectDisciples[result.defenderSectId]
-                        ?: emptyList()
-                    val updatedDefender = defenderDisc
-                        .filter { it.id !in result.deadDefenderIds }
+
+                    // 被AI占领宗门：防守方驻军来自占领者池，死亡应从占领者池移除
+                    val isAiOccupied = defenderSect != null &&
+                        defenderSect.occupierSectId.isNotEmpty() &&
+                        !isPlayerOccupied
+                    val occupierId = defenderSect?.occupierSectId ?: ""
+                    val (updatedDefender, updatedOccupier, updatedSects) =
+                        if (isAiOccupied && result.deadDefenderIds.isNotEmpty()) {
+                            val occupierDisc = currentGameData
+                                .aiSectDisciples[occupierId]
+                                ?: emptyList()
+                            val filteredOccupier = occupierDisc
+                                .filter { it.id !in result.deadDefenderIds }
+                            val clearedGarrisonSects = gameData.worldMapSects.map { s ->
+                                if (s.id == result.defenderSectId) s.copy(
+                                    garrisonSlots = s.garrisonSlots.map { slot ->
+                                        if (slot.discipleId in result.deadDefenderIds)
+                                            GarrisonSlot(index = slot.index) else slot
+                                    }
+                                ) else s
+                            }
+                            Triple(
+                                currentGameData.aiSectDisciples[result.defenderSectId] ?: emptyList(),
+                                filteredOccupier,
+                                clearedGarrisonSects
+                            )
+                        } else {
+                            val defenderDisc = currentGameData
+                                .aiSectDisciples[result.defenderSectId]
+                                ?: emptyList()
+                            Triple(
+                                defenderDisc.filter { it.id !in result.deadDefenderIds },
+                                null,
+                                gameData.worldMapSects
+                            )
+                        }
 
                     var updatedData = gameData.copy(
                         aiSectDisciples = gameData.aiSectDisciples
                             .toMutableMap().apply {
                                 this[result.attackerSectId] = updatedAttacker
                                 this[result.defenderSectId] = updatedDefender
+                                if (updatedOccupier != null &&
+                                    occupierId.isNotEmpty()) {
+                                    this[occupierId] = updatedOccupier
+                                }
                             },
+                        worldMapSects = updatedSects,
                         sectRelations = gameData.sectRelations.map { r ->
                             val relevant =
                                 (r.sectId1 == result.attackerSectId &&

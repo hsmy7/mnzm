@@ -41,6 +41,7 @@ class DiscipleFactory @Inject constructor() {
         val nameResult: NameService.NameResult,
         val spiritRootType: String,
         val age: Int,
+        val realm: Int = 9,
         val realmLayer: Int,
         val social: SocialData,
         val nextInt: (Int, Int) -> Int
@@ -80,7 +81,7 @@ class DiscipleFactory @Inject constructor() {
             gender = seed.gender,
             portraitRes = PortraitPool.getRandomPortrait(seed.gender),
             age = seed.age,
-            realm = 9,
+            realm = seed.realm,
             realmLayer = seed.realmLayer,
             spiritRootType = seed.spiritRootType,
             status = DiscipleStatus.IDLE,

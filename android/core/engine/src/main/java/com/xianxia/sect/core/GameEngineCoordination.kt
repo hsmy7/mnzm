@@ -182,7 +182,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
             librarySlots = emptyList(),
             spiritFieldPlants = emptyList()
         )
-        repeat(3) { discipleService.recruitDisciple() }
+        repeat(3) { discipleService.recruitDisciple(realm = 9) }
     }
     addInitialManual()
     // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
@@ -217,7 +217,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 librarySlots = emptyList(),
                 spiritFieldPlants = emptyList()
             )
-            repeat(3) { discipleService.recruitDisciple() }
+            repeat(3) { discipleService.recruitDisciple(realm = 9) }
         }
         addInitialManual()
         // 2. 世界初始化完成后才加载邮件

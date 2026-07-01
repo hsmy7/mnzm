@@ -67,7 +67,20 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         )
     }
     val teamMembers = attackers.map { d -> BattleLogMember(id = d.id, name = d.name, realm = d.realm, realmName = d.realmName, hp = battleResult.survivorHpMap[d.id] ?: 0, maxHp = d.maxHp, mp = battleResult.survivorMpMap[d.id] ?: 0, maxMp = d.maxMp, isAlive = d.id !in deadPlayerIds, portraitRes = d.portraitRes) }
-    val enemyMembers = defenderDisciples.map { d -> BattleLogEnemy(name = "${targetSect.name}弟子", realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes) }
+    val enemyMembers = defenderDisciples.map { d ->
+        val survivorHp = battleResult.defenderSurvivorHpMap[d.id]
+        val isDead = d.id in deadDefenderIds
+        BattleLogEnemy(
+            id = d.id,
+            name = "${targetSect.name}弟子",
+            realm = d.realm,
+            realmName = d.realmName,
+            hp = if (isDead) 0 else (survivorHp ?: d.maxHp),
+            maxHp = d.maxHp,
+            isAlive = !isDead,
+            portraitRes = d.portraitRes
+        )
+    }
     val winResult = when (battleResult.winner) { AIBattleWinner.ATTACKER -> BattleResult.WIN; AIBattleWinner.DEFENDER -> BattleResult.LOSE; AIBattleWinner.DRAW -> BattleResult.DRAW }
 
     // 预计算战利品（用于日志 drops 显示）
@@ -220,7 +233,14 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val deadIds = stateStore.discipleTables.ids.filter { it.toString() in combatDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
     if (deadIds.isNotEmpty()) { try { combatService.processBattleCasualties(deadIds, emptyMap(), emptyMap(), isOutsideSect = true) } catch (e: Exception) { DomainLog.e("GameEngine", "processBattleCasualties failed for deadIds=$deadIds, continuing", e) } }
     val teamMembers = result.battle.team.map { m -> BattleLogMember(id = m.id, name = m.name, realm = m.realm, realmName = m.realmName, hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp, isAlive = !m.isDead, portraitRes = m.portraitRes) }
-    val enemies = result.battle.beasts.map { b -> BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }
+    val enemies = result.battle.beasts.map { b ->
+        BattleLogEnemy(
+            id = b.id, name = b.name,
+            realm = b.realm, realmName = b.realmName,
+            hp = b.hp, maxHp = b.maxHp,
+            isAlive = !b.isDead, portraitRes = b.portraitRes
+        )
+    }
     val rounds = result.log.rounds.map { r -> BattleLogRound(roundNumber = r.roundNumber, actions = r.actions.map { a -> BattleLogAction(type = a.type, attacker = a.attacker, attackerType = a.attackerType, target = a.target, damage = a.damage, damageType = a.damageType, isCrit = a.isCrit, isKill = a.isKill, message = a.message) }) }
     val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.PVE, attackerName = "玩家队伍", defenderName = if (level.isBeast) level.beastName else level.guardianName, result = if (result.victory) BattleResult.WIN else BattleResult.LOSE, teamMembers = teamMembers, enemies = enemies, rounds = rounds, turns = result.turnCount, teamCasualties = teamMembers.count { !survivorIds.contains(it.name) }, beastsDefeated = if (result.victory) level.count else result.battle.beasts.count { it.isDead }, details = if (result.victory) "击败了${if (level.isBeast) level.beastName else level.guardianName}" else "被${if (level.isBeast) level.beastName else level.guardianName}击败")
     val existingLogs = stateStore.battleLogsSnapshot
@@ -338,7 +358,20 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     val scoutDeadIds = stateStore.discipleTables.ids.filter { it.toString() in scoutDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
     if (scoutDeadIds.isNotEmpty()) combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)
     val teamMembers = result.battle.team.map { m -> BattleLogMember(id = m.id, name = m.name, realm = m.realm, realmName = m.realmName, hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp, isAlive = !m.isDead, portraitRes = m.portraitRes) }
-    val enemies = aiCombatants.map { b -> BattleLogEnemy(name = "${targetSect.name}弟子", realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes) }
+    val postBattleBeasts = result.battle.beasts.associateBy { it.id }
+    val enemies = aiCombatants.map { b ->
+        val postState = postBattleBeasts[b.id]
+        BattleLogEnemy(
+            id = b.id,
+            name = "${targetSect.name}弟子",
+            realm = b.realm,
+            realmName = b.realmName,
+            hp = postState?.hp ?: 0,
+            maxHp = b.maxHp,
+            isAlive = postState?.isDead != true,
+            portraitRes = b.portraitRes
+        )
+    }
     val rounds = result.log.rounds.map { r -> BattleLogRound(roundNumber = r.roundNumber, actions = r.actions.map { a -> BattleLogAction(type = a.type, attacker = a.attacker, attackerType = a.attackerType, target = a.target, damage = a.damage, damageType = a.damageType, isCrit = a.isCrit, isKill = a.isKill, message = a.message) }) }
     val victory = result.victory
     val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SCOUT, attackerName = "探查队伍", defenderName = targetSect.name, result = if (victory) BattleResult.WIN else BattleResult.LOSE, teamMembers = teamMembers, enemies = enemies, rounds = rounds, turns = result.turnCount, teamCasualties = teamMembers.size - survivorIds.size, beastsDefeated = if (victory) aiCombatants.count { result.battle.beasts.any { b -> b.id == it.id && b.isDead } } else 0, details = if (victory) "成功探查了${targetSect.name}" else "探查${targetSect.name}失败")
