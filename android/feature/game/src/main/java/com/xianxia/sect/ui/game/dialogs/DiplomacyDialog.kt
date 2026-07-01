@@ -12,12 +12,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.GameUtils
@@ -177,85 +175,56 @@ internal fun DiplomacySectCard(
 
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
 
-    Box(
-        modifier = Modifier.fillMaxWidth(),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(GameColors.CardBackground, RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_horizontal),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
+            // 左侧：等级图标 + 宗门名称 + 好感度
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(sect.level)
-                        if (sectIconResId != null) {
-                            Image(
-                                painter = painterResource(id = sectIconResId),
-                                contentDescription = sect.levelName,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Text(
-                            text = sect.name,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        if (isAlly) {
-                            Text(
-                                text = "盟友",
-                                fontSize = 10.sp,
-                                color = Color(0xFF4CAF50),
-                                modifier = Modifier
-                                    .background(
-                                        Color(0xFFE8F5E9),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = sect.levelName,
-                        fontSize = 11.sp,
-                        color = Color.Black
+                val sectIconResId = com.xianxia.sect.ui.components.sectIconRes(sect.level)
+                if (sectIconResId != null) {
+                    Image(
+                        painter = painterResource(id = sectIconResId),
+                        contentDescription = sect.levelName,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
-
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
+                Text(
+                    text = sect.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Text(
+                    text = "${relationLevel.displayName}: $relation",
+                    fontSize = 10.sp,
+                    color = relationColor
+                )
+                if (isAlly) {
                     Text(
-                        text = relationLevel.displayName,
+                        text = "盟友",
                         fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "$relation",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = relationColor
+                        color = Color(0xFF4CAF50),
+                        modifier = Modifier
+                            .background(
+                                Color(0xFFE8F5E9),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
+            // 右侧：操作按钮
             if (!sect.isPlayerOccupied) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     GameButton(
@@ -284,6 +253,5 @@ internal fun DiplomacySectCard(
                     )
                 }
             }
-        }
     }
 }
