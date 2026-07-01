@@ -23,7 +23,6 @@ import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
-import kotlin.math.roundToInt
 import java.util.UUID
 
 @Singleton
@@ -43,7 +42,7 @@ class DiplomacyService @Inject constructor(
         private const val TAG = "DiplomacyService"
     }
 
-    // ==================== 数据类定义 ====================
+        // ==================== 数据类定义 ====================
 
     /**
      * 送礼结果数据类
@@ -197,25 +196,21 @@ class DiplomacyService @Inject constructor(
     }
 
     /**
-     * 请求结盟
-     *
-     * @param sectId 目标宗门ID
-     * @param envoyDiscipleId 使者弟子ID
-     * @return 结盟结果（是否成功，消息）
+     * 简化版结盟请求（聊天流使用）
+     * 无灵石费用、无需envoyDiscipleId、无需游说弟子
+     * 仅检查好感度 + 已有盟约 + 概率随机判定
      */
-    suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> {
-        val (canAlliance, message, cost) = checkAllianceConditions(sectId, envoyDiscipleId)
-
-        if (!canAlliance) {
-            return Pair(false, message)
-        }
-
+    suspend fun requestAllianceSimple(sectId: String): Boolean {
         val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId }
-            ?: return Pair(false, "未找到目标宗门")
-        val envoyId = envoyDiscipleId.toIntOrNull()
-        if (envoyId == null || !discipleTables.ids.contains(envoyId)) return Pair(false, "未找到使者弟子")
-        val envoy = discipleTables.assemble(envoyId)
+            ?: return false
+
+        if (sect.isPlayerSect) return false
+        if (sect.allianceId.isNotEmpty()) return false
+
+        // 检查玩家是否已有盟约
+        val existingAlliance = data.alliances.any { it.sectIds.contains("player") }
+        if (existingAlliance) return false
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val favor = if (playerSect != null) {
@@ -225,84 +220,63 @@ class DiplomacyService @Inject constructor(
             }?.favor ?: 0
         } else 0
 
-        val envoyStats = envoy.getBaseStats()
-        val successRate = calculatePersuasionSuccessRate(favor, envoyStats.intelligence, envoyStats.charm)
-        val roll = Random.nextDouble()
+        // 按好感度计算成功概率
+        val successChance = when {
+            favor >= 90 -> 0.90
+            favor >= 80 -> 0.75
+            favor >= 60 -> 0.60
+            favor >= 40 -> 0.45
+            favor >= 20 -> 0.25
+            else -> 0.10
+        }
 
-        if (roll < successRate) {
+        val success = Random.nextDouble() < successChance
+
+        if (success) {
             val alliance = Alliance(
+                id = UUID.randomUUID().toString(),
                 sectIds = listOf("player", sectId),
                 startYear = data.gameYear,
-                initiatorId = "player",
-                envoyDiscipleId = envoyDiscipleId
+                initiatorId = "player"
             )
-
-            // 在 update 块内基于当前 gameData 读取最新状态，避免使用外部快照 data
-            // 导致陈旧数据覆盖并发修改
             stateStore.update {
                 gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones - cost,
                     alliances = gameData.alliances + alliance,
                     worldMapSects = gameData.worldMapSects.map { s ->
                         when {
-                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
-                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
+                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
                             else -> s
                         }
                     }
                 )
             }
-
-            return Pair(true, "结盟成功！")
-        } else {
-            stateStore.update {
-                gameData = gameData.copy(spiritStones = gameData.spiritStones - cost / 2)
-            }
-            return Pair(false, "游说失败，关系不足以达成结盟")
         }
+
+        return success
     }
 
     /**
-     * 解除结盟
-     *
-     * @param sectId 目标宗门ID
-     * @return 解除结果（是否成功，消息）
+     * 简化版解除结盟（聊天流使用）
+     * 无灵石惩罚
      */
-    fun dissolveAlliance(sectId: String): Pair<Boolean, String> {
+    suspend fun dissolveAllianceSimple(sectId: String): Boolean {
         val data = stateStore.gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId }
+        val sect = data.worldMapSects.find { it.id == sectId } ?: return false
+        if (sect.allianceId.isEmpty()) return false
 
-        if (sect == null) {
-            return Pair(false, "未找到目标宗门")
+        val alliance = data.alliances.find { it.id == sect.allianceId } ?: return false
+
+        stateStore.update {
+            gameData = gameData.copy(
+                worldMapSects = gameData.worldMapSects.map { s ->
+                    if (alliance.sectIds.contains(s.id)) s.copy(allianceId = "", allianceStartYear = 0)
+                    else s
+                },
+                alliances = gameData.alliances.filter { it.id != alliance.id }
+            )
         }
-
-        if (sect.allianceId.isEmpty()) {
-            return Pair(false, "该宗门未与您结盟")
-        }
-
-        val alliance = data.alliances.find { it.id == sect.allianceId }
-        if (alliance == null) {
-            return Pair(false, "未找到结盟记录")
-        }
-
-        val allianceCost = getAllianceCost(sect.level)
-        val spiritStonePenalty = (allianceCost * GameConfig.Diplomacy.BreakPenalty.SPIRIT_STONE_PENALTY_RATIO).toLong()
-        val newSpiritStones = (data.spiritStones - spiritStonePenalty).coerceAtLeast(0L)
-
-        val updatedSects = data.worldMapSects.map { s ->
-            if (alliance.sectIds.contains(s.id)) s.copy(allianceId = "", allianceStartYear = 0)
-            else s
-        }
-
-        val updatedAlliances = data.alliances.filter { it.id != alliance.id }
-
-        scope.launch { stateStore.update { gameData = data.copy(
-            worldMapSects = updatedSects,
-            alliances = updatedAlliances,
-            spiritStones = newSpiritStones
-        ) } }
-
-        return Pair(true, "已解除结盟，消耗灵石${spiritStonePenalty}")
+        return true
     }
 
     // ==================== 公开查询方法 ====================
@@ -316,118 +290,6 @@ class DiplomacyService @Inject constructor(
      */
     fun getRejectProbability(sectLevel: Int, rarity: Int): Int {
         return GiftConfig.SectRejectConfig.getRejectProbability(sectLevel, rarity)
-    }
-
-    /**
-     * 检查结盟条件
-     *
-     * @param sectId 目标宗门ID
-     * @param envoyDiscipleId 使者弟子ID
-     * @return 三元组（是否满足条件，消息，费用）
-     */
-    fun checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> {
-        val data = stateStore.gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId }
-        val envoyId = envoyDiscipleId.toIntOrNull()
-        val envoy = if (envoyId != null && discipleTables.ids.contains(envoyId)) discipleTables.assemble(envoyId) else null
-
-        if (sect == null) {
-            return Triple(false, "未找到目标宗门", 0)
-        }
-
-        if (sect.isPlayerSect) {
-            return Triple(false, "不能与自己的宗门结盟", 0)
-        }
-
-        if (sect.allianceId.isNotEmpty()) {
-            return Triple(false, "该宗门已有结盟", 0)
-        }
-
-        if (envoy == null) {
-            return Triple(false, "未找到游说弟子", 0)
-        }
-
-        if (!envoy.isAlive || envoy.status != DiscipleStatus.IDLE) {
-            return Triple(false, "游说弟子必须处于空闲状态", 0)
-        }
-
-        val requiredRealm = getEnvoyRealmRequirement(sect.level)
-        if (envoy.realm > requiredRealm) {
-            val realmName = GameConfig.Realm.get(requiredRealm)?.name ?: "未知"
-            return Triple(false, "游说弟子境界需要达到${realmName}及以上", 0)
-        }
-
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val favor = if (playerSect != null) {
-            data.sectRelations.find {
-                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
-                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
-            }?.favor ?: 0
-        } else 0
-
-        if (favor < GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) {
-            return Triple(false, "关系需达到至交(${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", 0)
-        }
-
-        // 检查玩家是否已有结盟
-        val existingAlliance = data.alliances.any { it.sectIds.contains("player") }
-        if (existingAlliance) {
-            return Triple(false, "您已有其他结盟，请先解除现有结盟", 0)
-        }
-
-        val cost = getAllianceCost(sect.level)
-        if (data.spiritStones < cost) {
-            return Triple(false, "灵石不足，需要${cost}灵石", 0)
-        }
-
-        return Triple(true, "", cost.toInt())
-    }
-
-    /**
-     * 计算游说成功率
-     *
-     * @param favorability 好感度
-     * @param intelligence 智力
-     * @param charm 魅力
-     * @return 成功率（0.0-1.0）
-     */
-    fun calculatePersuasionSuccessRate(favorability: Int, intelligence: Int, charm: Int): Double {
-        val favorBonus = if (favorability >= GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) (favorability - GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) * 0.05 else 0.0
-        val intBonus = (intelligence - 50) / 5.0 * 0.01
-        val charmBonus = (charm - 50) / 5.0 * 0.01
-        return (favorBonus + intBonus + charmBonus).coerceIn(0.0, 1.0)
-    }
-
-    /**
-     * 获取游说弟子境界要求
-     *
-     * @param sectLevel 宗门等级
-     * @return 所需境界等级
-     */
-    fun getEnvoyRealmRequirement(sectLevel: Int): Int {
-        return when (sectLevel) {
-            0 -> 7  // 金丹
-            1 -> 5  // 化神
-            2 -> 4  // 炼虚
-            3 -> 3  // 合体
-            else -> 7
-        }
-    }
-
-    /**
-     * 获取结盟费用
-     *
-     * @param sectLevel 宗门等级
-     * @return 结盟所需灵石
-     */
-    fun getAllianceCost(sectLevel: Int): Long {
-        return when (sectLevel) {
-            0 -> 50_000L
-            1 -> 200_000L
-            2 -> 800_000L
-            3 -> 2_000_000L
-            else -> 50_000L
-        }
     }
 
     // ==================== 私有辅助方法 ====================

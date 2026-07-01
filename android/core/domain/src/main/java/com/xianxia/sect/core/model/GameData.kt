@@ -819,9 +819,6 @@ data class WorldMapRenderData(
 data class WorldMapDialogState(
     val showScout: Boolean = false,
     val selectedScoutSectId: String? = null,
-    val showAlliance: Boolean = false,
-    val selectedAllianceSectId: String? = null,
-    val showEnvoyDiscipleSelect: Boolean = false,
     val showTrade: Boolean = false,
     val selectedTradeSectId: String? = null,
     val tradeItems: List<MerchantItem> = emptyList(),
@@ -831,7 +828,7 @@ data class WorldMapDialogState(
     val selectedSectDiplomacySectId: String? = null
 )
 
-enum class WorldMapDialogType { SCOUT, TRADE, ALLIANCE, GIFT, ENVOY }
+enum class WorldMapDialogType { SCOUT, TRADE, GIFT }
 
 // 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）
 @Immutable

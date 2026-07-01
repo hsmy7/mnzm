@@ -13,13 +13,13 @@ class ManageAllianceUseCase @Inject constructor(
         val message: String
     )
 
-    suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): AllianceResult {
-        val (success, message) = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
-        return AllianceResult(success, message)
+    suspend fun requestAllianceSimple(sectId: String): AllianceResult {
+        val success = diplomacyFacade.requestAllianceSimple(sectId)
+        return AllianceResult(success, if (success) "结盟成功" else "结盟失败")
     }
 
-    fun dissolveAlliance(sectId: String): AllianceResult {
-        val (success, message) = diplomacyFacade.dissolveAlliance(sectId)
-        return AllianceResult(success, message)
+    suspend fun dissolveAllianceSimple(sectId: String): AllianceResult {
+        val success = diplomacyFacade.dissolveAllianceSimple(sectId)
+        return AllianceResult(success, if (success) "已解除结盟" else "解除结盟失败")
     }
 }

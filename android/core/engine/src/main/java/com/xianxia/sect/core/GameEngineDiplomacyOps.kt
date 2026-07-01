@@ -5,7 +5,6 @@ import com.xianxia.sect.core.util.DomainLog
 
 fun GameEngine.generateSectTradeItems(year: Int): List<MerchantItem> = diplomacyFacade.generateSectTradeItems(year)
 fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> = diplomacyFacade.getOrRefreshSectTradeItems(sectId)
-fun GameEngine.buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTrade(sectId, itemId, quantity)
 suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTradeSync(sectId, itemId, quantity)
 fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult = diplomacyFacade.giftSpiritStones(sectId, tier, bypassYearLimit)
 
@@ -40,14 +39,27 @@ suspend fun GameEngine.markWarningStageShown(stageKey: String) {
         data.copy(shownWarningStageIds = data.shownWarningStageIds + stageKey)
     }
 }
-suspend fun GameEngine.requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> = diplomacyFacade.requestAlliance(sectId, envoyDiscipleId)
-fun GameEngine.dissolveAlliance(sectId: String): Pair<Boolean, String> = diplomacyFacade.dissolveAlliance(sectId)
-fun GameEngine.getRejectProbability(sectLevel: Int, rarity: Int): Int = diplomacyFacade.getRejectProbability(sectLevel, rarity)
-fun GameEngine.checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> = diplomacyFacade.checkAllianceConditions(sectId, envoyDiscipleId)
-fun GameEngine.calculatePersuasionSuccessRate(favorability: Int, intelligence: Int, charm: Int): Double = diplomacyFacade.calculatePersuasionSuccessRate(favorability, intelligence, charm)
-fun GameEngine.getEnvoyRealmRequirement(sectLevel: Int): Int = diplomacyFacade.getEnvoyRealmRequirement(sectLevel)
-fun GameEngine.getAllianceCost(sectLevel: Int): Long = diplomacyFacade.getAllianceCost(sectLevel)
+
+/** 简化版结盟请求（聊天流使用） */
+suspend fun GameEngine.requestAllianceSimple(sectId: String): Boolean = diplomacyFacade.requestAllianceSimple(sectId)
+
+/** 简化版解除结盟（聊天流使用） */
+suspend fun GameEngine.dissolveAllianceSimple(sectId: String): Boolean = diplomacyFacade.dissolveAllianceSimple(sectId)
+
+/** 获取玩家第一个弟子的名字（用于聊天显示） */
+fun GameEngine.getFirstPlayerDiscipleName(): String {
+    val tables = stateStore.discipleTables
+    val firstId = tables.ids.firstOrNull() ?: return "掌门"
+    return tables.names[firstId] ?: "掌门"
+}
+
+/** 获取玩家第一个弟子的头像资源名（用于聊天头像） */
+fun GameEngine.getFirstPlayerDisciplePortrait(): String {
+    val tables = stateStore.discipleTables
+    val firstId = tables.ids.firstOrNull() ?: return ""
+    return tables.portraitRes.getOrNull(firstId) ?: ""
+}
+
 fun GameEngine.isAlly(sectId: String): Boolean = diplomacyFacade.isAlly(sectId)
-fun GameEngine.getAllianceRemainingYears(sectId: String): Int = diplomacyFacade.getAllianceRemainingYears(sectId)
 fun GameEngine.getPlayerAllies(): List<String> = diplomacyFacade.getPlayerAllies()
 fun GameEngine.interactWithSect(sectId: String, action: String) { DomainLog.w("GameEngine", "interactWithSect 尚未实现: sectId=$sectId, action=$action") }

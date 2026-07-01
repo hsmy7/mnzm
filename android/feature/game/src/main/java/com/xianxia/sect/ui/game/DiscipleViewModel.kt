@@ -114,7 +114,13 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun getEligibleEnvoyDisciples(sectLevel: Int): List<DiscipleAggregate> {
-        val requiredRealm = gameEngine.getEnvoyRealmRequirement(sectLevel)
+        val requiredRealm = when (sectLevel) {
+            0 -> 7  // 金丹
+            1 -> 5  // 化神
+            2 -> 4  // 炼虚
+            3 -> 3  // 合体
+            else -> 7
+        }
         return disciples.value.filter { 
             it.isAlive && 
             it.status == DiscipleStatus.IDLE &&

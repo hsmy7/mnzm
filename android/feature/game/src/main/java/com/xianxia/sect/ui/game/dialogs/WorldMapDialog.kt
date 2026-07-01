@@ -40,9 +40,6 @@ internal fun WorldMapDialog(
     val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
     val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
     val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
-    val showAllianceDialog by interactionViewModel.showAllianceDialog.collectAsStateWithLifecycle()
-    val selectedAllianceSectId by interactionViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
-    val showEnvoyDiscipleSelectDialog by interactionViewModel.showEnvoyDiscipleSelectDialog.collectAsStateWithLifecycle()
     val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
     val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
@@ -139,32 +136,6 @@ internal fun WorldMapDialog(
             viewModel = viewModel,
             interactionViewModel = interactionViewModel,
             onDismiss = { interactionViewModel.closeGiftDialog() }
-        )
-    }
-
-    if (showAllianceDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-        AllianceDialog(
-            sect = sect,
-            gameData = gameData,
-            viewModel = viewModel,
-            interactionViewModel = interactionViewModel,
-            onDismiss = { interactionViewModel.closeAllianceDialog() }
-        )
-    }
-
-    if (showEnvoyDiscipleSelectDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-        val eligible = remember(disciples, sect?.level) {
-            val req = sect?.level?.let { interactionViewModel.getEnvoyRealmRequirement(it) } ?: 0
-            disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.realm <= req }
-        }
-        EnvoyDiscipleSelectDialog(
-            sect = sect,
-            disciples = eligible,
-            viewModel = viewModel,
-            interactionViewModel = interactionViewModel,
-            onDismiss = { interactionViewModel.closeEnvoyDiscipleSelectDialog() }
         )
     }
 

@@ -55,11 +55,9 @@ fun DiplomacyDialog(
     val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
 
     val showGiftDialog by interactionViewModel.showGiftDialog.collectAsStateWithLifecycle()
-    val showAllianceDialog by interactionViewModel.showAllianceDialog.collectAsStateWithLifecycle()
     val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
     val showSectDiplomacyDialog by interactionViewModel.showSectDiplomacyDialog.collectAsStateWithLifecycle()
     val selectedGiftSectId by interactionViewModel.selectedGiftSectId.collectAsStateWithLifecycle()
-    val selectedAllianceSectId by interactionViewModel.selectedAllianceSectId.collectAsStateWithLifecycle()
     val selectedTradeSectId by interactionViewModel.selectedTradeSectId.collectAsStateWithLifecycle()
     val selectedSectDiplomacySectId by interactionViewModel.selectedSectDiplomacySectId.collectAsStateWithLifecycle()
     val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
@@ -127,17 +125,6 @@ fun DiplomacyDialog(
             viewModel = viewModel,
             interactionViewModel = interactionViewModel,
             onDismiss = { interactionViewModel.closeGiftDialog() }
-        )
-    }
-
-    if (showAllianceDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-        AllianceDialog(
-            sect = sect,
-            gameData = gameData,
-            viewModel = viewModel,
-            interactionViewModel = interactionViewModel,
-            onDismiss = { interactionViewModel.closeAllianceDialog() }
         )
     }
 

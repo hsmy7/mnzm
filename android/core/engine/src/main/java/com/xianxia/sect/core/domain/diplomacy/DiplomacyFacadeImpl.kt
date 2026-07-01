@@ -15,55 +15,15 @@ class DiplomacyFacadeImpl @Inject constructor(
     override fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean): DiplomacyService.GiftResult =
         diplomacyService.giftSpiritStones(sectId, tier, bypassYearLimit)
 
-    override suspend fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> =
-        diplomacyService.requestAlliance(sectId, envoyDiscipleId)
+    override suspend fun requestAllianceSimple(sectId: String): Boolean =
+        diplomacyService.requestAllianceSimple(sectId)
 
-    override fun dissolveAlliance(sectId: String): Pair<Boolean, String> =
-        diplomacyService.dissolveAlliance(sectId)
-
-    override fun getRejectProbability(sectLevel: Int, rarity: Int): Int =
-        diplomacyService.getRejectProbability(sectLevel, rarity)
-
-    override fun checkAllianceConditions(sectId: String, envoyDiscipleId: String): Triple<Boolean, String, Int> =
-        diplomacyService.checkAllianceConditions(sectId, envoyDiscipleId)
-
-    override fun calculatePersuasionSuccessRate(favorability: Int, intelligence: Int, charm: Int): Double =
-        diplomacyService.calculatePersuasionSuccessRate(favorability, intelligence, charm)
-
-    override fun getEnvoyRealmRequirement(sectLevel: Int): Int =
-        diplomacyService.getEnvoyRealmRequirement(sectLevel)
-
-    override fun getAllianceCost(sectLevel: Int): Long =
-        diplomacyService.getAllianceCost(sectLevel)
-
-    override fun generateSectTradeItems(year: Int): List<MerchantItem> =
-        diplomacyService.generateSectTradeItems(year)
-
-    override fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
-        diplomacyService.getOrRefreshSectTradeItems(sectId)
-
-    override fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int) =
-        diplomacyService.buyFromSectTrade(sectId, itemId, quantity)
-
-    override suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int) =
-        diplomacyService.buyFromSectTradeSync(sectId, itemId, quantity)
+    override suspend fun dissolveAllianceSimple(sectId: String): Boolean =
+        diplomacyService.dissolveAllianceSimple(sectId)
 
     override fun isAlly(sectId: String): Boolean {
         val data = stateStore.gameData.value
         return data.alliances.any { it.sectIds.contains("player") && it.sectIds.contains(sectId) }
-    }
-
-    override fun getAllianceRemainingYears(sectId: String): Int {
-        val data = stateStore.gameData.value
-        val alliance = data.alliances.find { it.sectIds.contains("player") && it.sectIds.contains(sectId) } ?: return 0
-        val sect = data.worldMapSects.find { it.id == sectId }
-        val startYear = if (sect?.allianceStartYear != null && sect.allianceStartYear > 0) {
-            sect.allianceStartYear
-        } else {
-            alliance.startYear
-        }
-        val elapsed = data.gameYear - startYear
-        return (GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS - elapsed).coerceAtLeast(0)
     }
 
     override fun getPlayerAllies(): List<String> {
@@ -71,4 +31,13 @@ class DiplomacyFacadeImpl @Inject constructor(
         val playerAlliance = data.alliances.find { it.sectIds.contains("player") } ?: return emptyList()
         return playerAlliance.sectIds.filter { it != "player" }
     }
+
+    override fun generateSectTradeItems(year: Int): List<MerchantItem> =
+        diplomacyService.generateSectTradeItems(year)
+
+    override fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
+        diplomacyService.getOrRefreshSectTradeItems(sectId)
+
+    override suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int) =
+        diplomacyService.buyFromSectTradeSync(sectId, itemId, quantity)
 }

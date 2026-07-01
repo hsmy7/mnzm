@@ -35,7 +35,6 @@
     <ID>CyclomaticComplexMethod:AISectGarrisonManager.kt$AISectGarrisonManager$fun fillEmptyGarrisonSlots(gameData: GameData): GameData</ID>
     <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, onDismiss: () -&gt; Unit )</ID>
-    <ID>CyclomaticComplexMethod:AllianceDialog.kt$@Composable fun AllianceDialog( sect: WorldSect?, gameData: com.xianxia.sect.core.model.GameData?, viewModel: GameViewModel, worldMapViewModel: WorldMapViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:AppError.kt$AppError.Companion$fun fromException(e: Throwable): AppError</ID>
     <ID>CyclomaticComplexMethod:AppError.kt$fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
     <ID>CyclomaticComplexMethod:AppError.kt$fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
@@ -312,8 +311,6 @@
     <ID>LongMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillSelectionDialog( materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -&gt; Unit)? = null )</ID>
-    <ID>LongMethod:AllianceDialog.kt$@Composable fun AllianceDialog( sect: WorldSect?, gameData: com.xianxia.sect.core.model.GameData?, viewModel: GameViewModel, worldMapViewModel: WorldMapViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:AllianceDialog.kt$@Composable fun EnvoyDiscipleSelectDialog( sect: WorldSect?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, worldMapViewModel: WorldMapViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AttackDiscipleDialog.kt$@Composable internal fun AttackDiscipleDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, onAttack: (List&lt;Pair&lt;Int, DiscipleAggregate&gt;&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AttackDiscipleDialog.kt$@Composable private fun AttackDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String? = null, alreadySelectedIds: Set&lt;String&gt; = emptySet(), onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AutoManagementDialog.kt$@Composable fun AutoManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
@@ -1597,7 +1594,6 @@
     <ID>UnusedParameter:AlchemyDialog.kt$onDismiss: () -&gt; Unit</ID>
     <ID>UnusedParameter:AlchemyDialog.kt$productionViewModel: ProductionViewModel</ID>
     <ID>UnusedParameter:AlchemyDialog.kt$viewModel: GameViewModel</ID>
-    <ID>UnusedParameter:AllianceDialog.kt$viewModel: GameViewModel</ID>
     <ID>UnusedParameter:AttackDiscipleDialog.kt$gameData: GameData?</ID>
     <ID>UnusedParameter:AttackDiscipleDialog.kt$sectName: String</ID>
     <ID>UnusedParameter:BackupStrategy.kt$BackupStrategy$additionalContext: Map&lt;String, Any&gt;? = null</ID>
@@ -1718,7 +1714,6 @@
     <ID>UnusedParameter:WenDaoPeakDialog.kt$gameData: GameData?</ID>
     <ID>UnusedParameter:WorldMapGenerator.kt$WorldMapGenerator$prefix: String</ID>
     <ID>UnusedParameter:WorldMapSectDetailDialog.kt$portraitRes: String</ID>
-    <ID>UnusedPrivateMember:AllianceDialog.kt$@Composable private fun AllySelectCard( ally: WorldSect, relation: Int, isSelected: Boolean, onClick: () -&gt; Unit )</ID>
     <ID>UnusedPrivateMember:BuildingService.kt$BuildingService$private fun getBuildingName(buildingId: String): String</ID>
     <ID>UnusedPrivateMember:CultivationSettlement.kt$CultivationSettlement$private suspend fun updateHerbsSync(value: List&lt;Herb&gt;)</ID>
     <ID>UnusedPrivateMember:CultivationSettlement.kt$CultivationSettlement$private suspend fun updateMaterialsSync(value: List&lt;Material&gt;)</ID>
@@ -1928,9 +1923,6 @@
     <ID>WildcardImport:AlchemySystemTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:AlchemyViewModel.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:AlchemyViewModel.kt$import kotlinx.coroutines.flow.*</ID>
-    <ID>WildcardImport:AllianceDialog.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:AllianceDialog.kt$import androidx.compose.material3.*</ID>
-    <ID>WildcardImport:AllianceDialog.kt$import androidx.compose.runtime.*</ID>
     <ID>WildcardImport:AppErrorTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:AppModule.kt$import com.xianxia.sect.data.local.*</ID>
     <ID>WildcardImport:AtomicStateFlowUpdatesTest.kt$import org.junit.Assert.*</ID>

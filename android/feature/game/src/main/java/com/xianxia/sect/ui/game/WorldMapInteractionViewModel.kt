@@ -23,9 +23,6 @@ class WorldMapInteractionViewModel @Inject constructor(
     // Convenience accessors for backward compatibility
     val showScoutDialog: StateFlow<Boolean> = dialogs.map { it.showScout }.stateIn(viewModelScope, sharingStarted, false)
     val selectedScoutSectId: StateFlow<String?> = dialogs.map { it.selectedScoutSectId }.stateIn(viewModelScope, sharingStarted, null)
-    val showAllianceDialog: StateFlow<Boolean> = dialogs.map { it.showAlliance }.stateIn(viewModelScope, sharingStarted, false)
-    val selectedAllianceSectId: StateFlow<String?> = dialogs.map { it.selectedAllianceSectId }.stateIn(viewModelScope, sharingStarted, null)
-    val showEnvoyDiscipleSelectDialog: StateFlow<Boolean> = dialogs.map { it.showEnvoyDiscipleSelect }.stateIn(viewModelScope, sharingStarted, false)
     val showSectTradeDialog: StateFlow<Boolean> = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted, false)
     val selectedTradeSectId: StateFlow<String?> = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope, sharingStarted, null)
     val sectTradeItems: StateFlow<List<MerchantItem>> = dialogs.map { it.tradeItems }.stateIn(viewModelScope, sharingStarted, emptyList())
@@ -65,62 +62,19 @@ class WorldMapInteractionViewModel @Inject constructor(
         }
     }
 
-    fun openAllianceDialog(sectId: String) {
-        _dialogs.value = _dialogs.value.copy(showAlliance = true, selectedAllianceSectId = sectId)
-    }
+    /** 获取玩家第一个弟子名（用于聊天显示） */
+    fun getFirstPlayerDiscipleName(): String = gameEngine.getFirstPlayerDiscipleName()
 
-    fun closeAllianceDialog() {
-        _dialogs.value = _dialogs.value.copy(showAlliance = false, selectedAllianceSectId = null)
-    }
+    /** 获取玩家第一个弟子头像资源名（用于聊天头像） */
+    fun getFirstPlayerDisciplePortrait(): String = gameEngine.getFirstPlayerDisciplePortrait()
 
-    fun openEnvoyDiscipleSelectDialog() {
-        _dialogs.value = _dialogs.value.copy(showEnvoyDiscipleSelect = true)
-    }
+    /** 简化版结盟请求 */
+    suspend fun requestAllianceSimple(sectId: String): Boolean = gameEngine.requestAllianceSimple(sectId)
 
-    fun closeEnvoyDiscipleSelectDialog() {
-        _dialogs.value = _dialogs.value.copy(showEnvoyDiscipleSelect = false)
-    }
-
-    fun requestAlliance(sectId: String, envoyDiscipleId: String) {
-        viewModelScope.launch {
-            try {
-                val (success, message) = gameEngine.requestAlliance(sectId, envoyDiscipleId)
-                if (success) {
-                    closeEnvoyDiscipleSelectDialog()
-                    closeAllianceDialog()
-                } else {
-                    showError(message)
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "结盟失败")
-            }
-        }
-    }
-
-    fun dissolveAlliance(sectId: String) {
-        viewModelScope.launch {
-            try {
-                val (success, message) = gameEngine.dissolveAlliance(sectId)
-                if (success) {
-                    closeAllianceDialog()
-                } else {
-                    showError(message)
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "解除结盟失败")
-            }
-        }
-    }
-
-    fun getAllianceCost(sectLevel: Int): Long = gameEngine.getAllianceCost(sectLevel)
-
-    fun getEnvoyRealmRequirement(sectLevel: Int): Int = gameEngine.getEnvoyRealmRequirement(sectLevel)
+    /** 简化版解除结盟 */
+    suspend fun dissolveAllianceSimple(sectId: String): Boolean = gameEngine.dissolveAllianceSimple(sectId)
 
     fun isAlly(sectId: String): Boolean = gameEngine.isAlly(sectId)
-
-    fun getAllianceRemainingYears(sectId: String): Int = gameEngine.getAllianceRemainingYears(sectId)
 
     fun openSectTradeDialog(sectId: String) {
         _dialogs.value = _dialogs.value.copy(
