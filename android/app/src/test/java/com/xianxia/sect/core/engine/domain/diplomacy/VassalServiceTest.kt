@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.di.ApplicationScopeProvider

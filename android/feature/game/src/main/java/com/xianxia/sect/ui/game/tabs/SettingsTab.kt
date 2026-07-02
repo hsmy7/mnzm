@@ -841,6 +841,16 @@ internal fun SaveSlotDialog(
     var saveCompleted by remember { mutableStateOf(false) }
     var loadCompleted by remember { mutableStateOf(false) }
 
+    // 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复
+    LaunchedEffect(Unit) {
+        delay(1000) // 给正常操作 1 秒宽限期
+        // 重新读取最新状态（避免竞态条件）
+        val currentState = saveLoadViewModel.saveLoadState.value
+        if (currentState.isSaving || currentState.isLoading) {
+            saveLoadViewModel.cancelSaveLoad()
+        }
+    }
+
     val selectedSlotInfo = remember(saveSlots, selectedSlot) {
         saveSlots.find { it.slot == selectedSlot }
     }
@@ -937,7 +947,7 @@ internal fun SaveSlotDialog(
                         SaveSlotCard(
                             slot = slot,
                             isSelected = selectedSlot == slot.slot,
-                            onClick = { if (!isBusy) selectedSlot = slot.slot }
+                            onClick = { selectedSlot = slot.slot }
                         )
                     }
                 }

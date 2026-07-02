@@ -37,68 +37,20 @@ class EquipmentSpriteTest {
             materialSprites = emptyMap(),
             storageBagSprites = emptyMap(),
             sectIconSprites = emptyMap(),
-            allEquipmentResIds = emptyList(),
-            herbSprites = mapOf(
-                "spiritGrass1" to FAKE_HERB_GRASS1,
-                "spiritGrass2" to 1002,
-                "spiritGrass3" to 1003,
-                "spiritGrass4" to FAKE_HERB_GRASS4,
-                "spiritGrass5" to 1005,
-                "spiritGrass6" to 1006,
-                "spiritFlower1" to 1101,
-                "spiritFlower2" to 1102,
-                "spiritFlower3" to 1103,
-                "spiritFlower4" to 1104,
-                "spiritFlower5" to 1105,
-                "spiritFlower6" to 1106,
-                "spiritFruit1" to 1201,
-                "spiritFruit2" to 1202,
-                "spiritFruit3" to 1203,
-                "spiritFruit4" to 1204,
-                "spiritFruit5" to 1205,
-                "spiritFruit6" to 1206
-            ),
-            seedSprites = mapOf(
-                "spiritGrass1" to FAKE_SEED_GRASS1,
-                "spiritGrass2" to 2002,
-                "spiritGrass3" to 2003,
-                "spiritGrass4" to FAKE_SEED_GRASS4,
-                "spiritGrass5" to 2005,
-                "spiritGrass6" to 2006,
-                "spiritFlower1" to 2101,
-                "spiritFlower2" to 2102,
-                "spiritFlower3" to 2103,
-                "spiritFlower4" to 2104,
-                "spiritFlower5" to 2105,
-                "spiritFlower6" to 2106,
-                "spiritFruit1" to 2201,
-                "spiritFruit2" to 2202,
-                "spiritFruit3" to 2203,
-                "spiritFruit4" to 2204,
-                "spiritFruit5" to 2205,
-                "spiritFruit6" to 2206
-            ),
-            growingSprites = mapOf(
-                "spiritGrass1" to FAKE_GROWING_GRASS1,
-                "spiritGrass2" to 3002,
-                "spiritGrass3" to 3003,
-                "spiritGrass4" to FAKE_GROWING_GRASS4,
-                "spiritGrass5" to 3005,
-                "spiritGrass6" to 3006,
-                "spiritFlower1" to 3101,
-                "spiritFlower2" to 3102,
-                "spiritFlower3" to 3103,
-                "spiritFlower4" to 3104,
-                "spiritFlower5" to 3105,
-                "spiritFlower6" to 3106,
-                "spiritFruit1" to 3201,
-                "spiritFruit2" to 3202,
-                "spiritFruit3" to 3203,
-                "spiritFruit4" to 3204,
-                "spiritFruit5" to 3205,
-                "spiritFruit6" to 3206
-            )
+            allEquipmentResIds = emptyList()
         )
+        // 通过 register API 注册测试用的精灵图数据（herb/seed/growing 均通过 resolve(name) 查找）
+        SpriteResRegistry.register(SpriteCategory.ITEM, mapOf(
+            "聚灵草" to FAKE_HERB_GRASS1,
+            "寒霜草" to FAKE_HERB_GRASS4,
+            "云雾花" to 1101,
+            "五行果" to 1206,
+            "聚灵草种" to FAKE_SEED_GRASS1,
+            "寒霜草种" to FAKE_SEED_GRASS4,
+            "五行果核" to 2206,
+            "growing_spiritGrass1" to FAKE_GROWING_GRASS1,
+            "growing_spiritGrass4" to FAKE_GROWING_GRASS4
+        ))
     }
 
     @After
