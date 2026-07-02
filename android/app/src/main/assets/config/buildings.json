@@ -1,6 +1,52 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "buildings": {
+    "spirit_field": {
+      "id": "spirit_field",
+      "displayName": "灵田",
+      "buildingType": "SPIRIT_FIELD",
+      "slotCount": 1,
+      "cost": 200,
+      "gridWidth": 1,
+      "gridHeight": 1,
+      "description": "种植灵草的田地"
+    },
+    "mining": {
+      "id": "mining",
+      "displayName": "灵矿场",
+      "buildingType": "MINING",
+      "slotCount": 3,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 1500,
+      "gridWidth": 2,
+      "gridHeight": 2,
+      "description": "开采灵石和矿石"
+    },
+    "warehouse": {
+      "id": "warehouse",
+      "displayName": "仓库",
+      "buildingType": "WAREHOUSE",
+      "slotCount": 1,
+      "cost": 1500,
+      "gridWidth": 3,
+      "gridHeight": 2,
+      "description": "储存宗门物资，每座+50格容量"
+    },
+    "herb_garden": {
+      "id": "herb_garden",
+      "displayName": "灵植阁",
+      "buildingType": "HERB_GARDEN",
+      "slotCount": 3,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 3000,
+      "gridWidth": 2,
+      "gridHeight": 2,
+      "description": "种植灵草的园地"
+    },
     "alchemy": {
       "id": "alchemy",
       "displayName": "炼丹炉",
@@ -9,7 +55,7 @@
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
-      "cost": 3000,
+      "cost": 4000,
       "gridWidth": 2,
       "gridHeight": 2,
       "description": "用于炼制各种丹药的场所"
@@ -22,118 +68,23 @@
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
-      "cost": 3000,
+      "cost": 4000,
       "gridWidth": 2,
       "gridHeight": 2,
       "description": "锻造装备的场所"
     },
-    "mining": {
-      "id": "mining",
-      "displayName": "灵矿场",
-      "buildingType": "MINING",
-      "slotCount": 3,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 500,
-      "gridWidth": 2,
-      "gridHeight": 2,
-      "description": "开采灵石和矿石"
-    },
-    "herb_garden": {
-      "id": "herb_garden",
-      "displayName": "灵植阁",
-      "buildingType": "HERB_GARDEN",
-      "slotCount": 3,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 2000,
-      "gridWidth": 2,
-      "gridHeight": 2,
-      "description": "种植灵草的园地"
-    },
-    "spirit_field": {
-      "id": "spirit_field",
-      "displayName": "灵田",
-      "buildingType": "SPIRIT_FIELD",
-      "slotCount": 1,
-      "cost": 200,
-      "gridWidth": 1,
-      "gridHeight": 1,
-      "description": "种植灵草的田地"
-    },
-    "warehouse": {
-      "id": "warehouse",
-      "displayName": "仓库",
-      "buildingType": "WAREHOUSE",
-      "slotCount": 1,
-      "cost": 1000,
-      "gridWidth": 3,
-      "gridHeight": 2,
-      "description": "储存宗门物资"
-    },
-    "patrol_tower": {
-      "id": "patrol_tower",
-      "displayName": "巡视楼",
-      "buildingType": "PATROL",
-      "slotCount": 8,
-      "cost": 50000,
-      "gridWidth": 2,
-      "gridHeight": 3,
-      "description": "驻守弟子自动巡视地图攻击妖兽"
-    },
-    "tianshu_hall": {
-      "id": "tianshu_hall",
-      "displayName": "天枢殿",
-      "buildingType": "ADMINISTRATION",
-      "slotCount": 2,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 20000,
-      "gridWidth": 3,
-      "gridHeight": 2,
-      "description": "处理宗门事务的核心建筑"
-    },
-    "library": {
-      "id": "library",
-      "displayName": "藏经阁",
-      "buildingType": "LIBRARY",
-      "slotCount": 3,
+    "reflection_cliff": {
+      "id": "reflection_cliff",
+      "displayName": "监牢",
+      "buildingType": "REFLECTION_CLIFF",
+      "slotCount": 6,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 5000,
-      "gridWidth": 3,
+      "gridWidth": 2,
       "gridHeight": 2,
-      "description": "弟子修习功法的场所，提升修炼速度"
-    },
-    "wen_dao_peak": {
-      "id": "wen_dao_peak",
-      "displayName": "问道塔",
-      "buildingType": "WEN_DAO_PEAK",
-      "slotCount": 5,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 4000,
-      "gridWidth": 2,
-      "gridHeight": 3,
-      "description": "管理外门弟子与传道授业"
-    },
-    "qingyun_peak": {
-      "id": "qingyun_peak",
-      "displayName": "青云塔",
-      "buildingType": "QINGYUN_PEAK",
-      "slotCount": 5,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 4000,
-      "gridWidth": 2,
-      "gridHeight": 3,
-      "description": "管理内门弟子与精英培养"
+      "description": "悔过自新之地，关押违规弟子"
     },
     "law_enforcement_hall": {
       "id": "law_enforcement_hall",
@@ -143,7 +94,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 3000,
+      "cost": 6000,
       "gridWidth": 3,
       "gridHeight": 2,
       "description": "维护宗门纪律，执行奖惩"
@@ -156,23 +107,49 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 3000,
+      "cost": 6000,
       "gridWidth": 2,
       "gridHeight": 2,
       "description": "派遣弟子执行宗门任务"
     },
-    "reflection_cliff": {
-      "id": "reflection_cliff",
-      "displayName": "监牢",
-      "buildingType": "REFLECTION_CLIFF",
-      "slotCount": 6,
+    "wen_dao_peak": {
+      "id": "wen_dao_peak",
+      "displayName": "问道塔",
+      "buildingType": "WEN_DAO_PEAK",
+      "slotCount": 5,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 4000,
+      "cost": 8000,
       "gridWidth": 2,
+      "gridHeight": 3,
+      "description": "管理外门弟子与传道授业"
+    },
+    "qingyun_peak": {
+      "id": "qingyun_peak",
+      "displayName": "青云塔",
+      "buildingType": "QINGYUN_PEAK",
+      "slotCount": 5,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 8000,
+      "gridWidth": 2,
+      "gridHeight": 3,
+      "description": "管理内门弟子与精英培养"
+    },
+    "library": {
+      "id": "library",
+      "displayName": "藏经阁",
+      "buildingType": "LIBRARY",
+      "slotCount": 3,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 8000,
+      "gridWidth": 3,
       "gridHeight": 2,
-      "description": "悔过自新之地，关押违规弟子"
+      "description": "弟子修习功法的场所，提升修炼速度"
     },
     "single_residence": {
       "id": "single_residence",
@@ -182,10 +159,23 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 20000,
+      "cost": 12000,
       "gridWidth": 3,
       "gridHeight": 2,
       "description": "为弟子提供清修之所，修炼速度+20%，可升级"
+    },
+    "tianshu_hall": {
+      "id": "tianshu_hall",
+      "displayName": "天枢殿",
+      "buildingType": "ADMINISTRATION",
+      "slotCount": 2,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 15000,
+      "gridWidth": 3,
+      "gridHeight": 2,
+      "description": "处理宗门事务的核心建筑"
     },
     "multi_residence": {
       "id": "multi_residence",
@@ -195,23 +185,10 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 30000,
+      "cost": 24000,
       "gridWidth": 3,
       "gridHeight": 2,
       "description": "供多名弟子共同修炼，修炼速度+10%"
-    },
-    "blood_refining_pool": {
-      "id": "blood_refining_pool",
-      "displayName": "血炼池",
-      "buildingType": "BLOOD_REFINING_POOL",
-      "slotCount": 1,
-      "baseSuccessRate": 1.0,
-      "maxQueueLength": 1,
-      "autoRestartEnabled": false,
-      "cost": 50000,
-      "gridWidth": 2,
-      "gridHeight": 2,
-      "description": "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
     },
     "single_residence_upgraded": {
       "id": "single_residence_upgraded",
@@ -221,10 +198,33 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
-      "cost": 50000,
+      "cost": 30000,
       "gridWidth": 3,
       "gridHeight": 2,
       "description": "单人修炼之所，修炼速度+40%"
+    },
+    "patrol_tower": {
+      "id": "patrol_tower",
+      "displayName": "巡视楼",
+      "buildingType": "PATROL",
+      "slotCount": 8,
+      "cost": 35000,
+      "gridWidth": 2,
+      "gridHeight": 3,
+      "description": "驻守弟子自动巡视地图攻击妖兽"
+    },
+    "blood_refining_pool": {
+      "id": "blood_refining_pool",
+      "displayName": "血炼池",
+      "buildingType": "BLOOD_REFINING_POOL",
+      "slotCount": 1,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "cost": 40000,
+      "gridWidth": 2,
+      "gridHeight": 2,
+      "description": "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
     }
   },
   "buildingAliases": {

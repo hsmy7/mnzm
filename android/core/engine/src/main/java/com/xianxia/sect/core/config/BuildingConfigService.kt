@@ -182,8 +182,53 @@ class BuildingConfigService @Inject constructor(
     
     private fun createDefaultConfig(): BuildingsConfig {
         return BuildingsConfig(
-            version = "1.0.0",
+            version = "2.0.0",
             buildings = mapOf(
+                // ─── 初创期（0~3月，200~1,500 灵石）───
+                "spirit_field" to BuildingConfigModel(
+                    id = "spirit_field",
+                    displayName = "灵田",
+                    buildingType = "SPIRIT_FIELD",
+                    slotCount = 1,
+                    cost = 200,
+                    gridWidth = 1,
+                    gridHeight = 1,
+                    description = "种植灵草的田地"
+                ),
+                "mining" to BuildingConfigModel(
+                    id = "mining",
+                    displayName = "灵矿场",
+                    buildingType = "MINING",
+                    slotCount = 3,
+                    baseSuccessRate = 1.0,
+                    cost = 1500,
+                    gridWidth = 2,
+                    gridHeight = 2,
+                    description = "开采灵石和矿石"
+                ),
+                "warehouse" to BuildingConfigModel(
+                    id = "warehouse",
+                    displayName = "仓库",
+                    buildingType = "WAREHOUSE",
+                    slotCount = 1,
+                    cost = 1500,
+                    gridWidth = 3,
+                    gridHeight = 2,
+                    description = "储存宗门物资，每座+50格容量"
+                ),
+
+                // ─── 发展期（3~6月，3,000~5,000 灵石）───
+                "herb_garden" to BuildingConfigModel(
+                    id = "herb_garden",
+                    displayName = "灵植阁",
+                    buildingType = "HERB_GARDEN",
+                    slotCount = 3,
+                    baseSuccessRate = 1.0,
+                    cost = 3000,
+                    gridWidth = 2,
+                    gridHeight = 2,
+                    description = "种植灵草的园地"
+                ),
                 "alchemy" to BuildingConfigModel(
                     id = "alchemy",
                     displayName = "炼丹炉",
@@ -191,7 +236,7 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
-                    cost = 3000,
+                    cost = 4000,
                     gridWidth = 2,
                     gridHeight = 2,
                     description = "用于炼制各种丹药的场所"
@@ -203,76 +248,23 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
-                    cost = 3000,
+                    cost = 4000,
                     gridWidth = 2,
                     gridHeight = 2,
                     description = "锻造装备的场所"
                 ),
-                "mining" to BuildingConfigModel(
-                    id = "mining",
-                    displayName = "灵矿场",
-                    buildingType = "MINING",
-                    slotCount = 3,
-                    baseSuccessRate = 1.0,
-                    cost = 500,
-                    gridWidth = 2,
-                    gridHeight = 2,
-                    description = "开采灵石和矿石"
-                ),
-                "herb_garden" to BuildingConfigModel(
-                    id = "herb_garden",
-                    displayName = "灵植阁",
-                    buildingType = "HERB_GARDEN",
-                    slotCount = 3,
-                    baseSuccessRate = 1.0,
-                    cost = 2000,
-                    gridWidth = 2,
-                    gridHeight = 2,
-                    description = "种植灵草的园地"
-                ),
-                "tianshu_hall" to BuildingConfigModel(
-                    id = "tianshu_hall",
-                    displayName = "天枢殿",
-                    buildingType = "ADMINISTRATION",
-                    slotCount = 2,
-                    baseSuccessRate = 1.0,
-                    cost = 20000,
-                    gridWidth = 3,
-                    gridHeight = 2,
-                    description = "处理宗门事务的核心建筑"
-                ),
-                "library" to BuildingConfigModel(
-                    id = "library",
-                    displayName = "藏经阁",
-                    buildingType = "LIBRARY",
-                    slotCount = 3,
+
+                // ─── 管理期（6~12月，5,000~10,000 灵石）───
+                "reflection_cliff" to BuildingConfigModel(
+                    id = "reflection_cliff",
+                    displayName = "监牢",
+                    buildingType = "REFLECTION_CLIFF",
+                    slotCount = 6,
                     baseSuccessRate = 1.0,
                     cost = 5000,
-                    gridWidth = 3,
+                    gridWidth = 2,
                     gridHeight = 2,
-                    description = "弟子修习功法的场所，提升修炼速度"
-                ),
-                "wen_dao_peak" to BuildingConfigModel(
-                    id = "wen_dao_peak",
-                    displayName = "问道塔",
-                    buildingType = "WEN_DAO_PEAK",
-                    slotCount = 5,
-                    baseSuccessRate = 1.0,
-                    cost = 4000,
-                    gridWidth = 2,
-                    gridHeight = 3,
-                    description = "管理外门弟子与传道授业"
-                ),
-                "qingyun_peak" to BuildingConfigModel(
-                    id = "qingyun_peak",
-                    displayName = "青云塔",
-                    buildingType = "QINGYUN_PEAK",
-                    slotCount = 5,
-                    baseSuccessRate = 1.0,
-                    cost = 4000,
-                    gridWidth = 2,
-                    gridHeight = 3,
-                    description = "管理内门弟子与精英培养"
+                    description = "悔过自新之地，关押违规弟子"
                 ),
                 "law_enforcement_hall" to BuildingConfigModel(
                     id = "law_enforcement_hall",
@@ -280,7 +272,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "LAW_ENFORCEMENT_HALL",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
-                    cost = 3000,
+                    cost = 6000,
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "维护宗门纪律，执行奖惩"
@@ -291,32 +283,67 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "MISSION_HALL",
                     slotCount = 4,
                     baseSuccessRate = 1.0,
-                    cost = 3000,
+                    cost = 6000,
                     gridWidth = 2,
                     gridHeight = 2,
                     description = "派遣弟子执行宗门任务"
                 ),
-                "reflection_cliff" to BuildingConfigModel(
-                    id = "reflection_cliff",
-                    displayName = "监牢",
-                    buildingType = "REFLECTION_CLIFF",
-                    slotCount = 6,
+                "wen_dao_peak" to BuildingConfigModel(
+                    id = "wen_dao_peak",
+                    displayName = "问道塔",
+                    buildingType = "WEN_DAO_PEAK",
+                    slotCount = 5,
                     baseSuccessRate = 1.0,
-                    cost = 4000,
+                    cost = 8000,
                     gridWidth = 2,
-                    gridHeight = 2,
-                    description = "悔过自新之地，关押违规弟子"
+                    gridHeight = 3,
+                    description = "管理外门弟子与传道授业"
                 ),
+                "qingyun_peak" to BuildingConfigModel(
+                    id = "qingyun_peak",
+                    displayName = "青云塔",
+                    buildingType = "QINGYUN_PEAK",
+                    slotCount = 5,
+                    baseSuccessRate = 1.0,
+                    cost = 8000,
+                    gridWidth = 2,
+                    gridHeight = 3,
+                    description = "管理内门弟子与精英培养"
+                ),
+                "library" to BuildingConfigModel(
+                    id = "library",
+                    displayName = "藏经阁",
+                    buildingType = "LIBRARY",
+                    slotCount = 3,
+                    baseSuccessRate = 1.0,
+                    cost = 8000,
+                    gridWidth = 3,
+                    gridHeight = 2,
+                    description = "弟子修习功法的场所，提升修炼速度"
+                ),
+
+                // ─── 飞跃期（12~24月，10,000~25,000 灵石）───
                 "single_residence" to BuildingConfigModel(
                     id = "single_residence",
                     displayName = "单人住所",
                     buildingType = "SINGLE_RESIDENCE",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 20000,
+                    cost = 12000,
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "为弟子提供清修之所，修炼速度+20%，可升级"
+                ),
+                "tianshu_hall" to BuildingConfigModel(
+                    id = "tianshu_hall",
+                    displayName = "天枢殿",
+                    buildingType = "ADMINISTRATION",
+                    slotCount = 2,
+                    baseSuccessRate = 1.0,
+                    cost = 15000,
+                    gridWidth = 3,
+                    gridHeight = 2,
+                    description = "处理宗门事务的核心建筑"
                 ),
                 "multi_residence" to BuildingConfigModel(
                     id = "multi_residence",
@@ -324,48 +351,30 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "MULTI_RESIDENCE",
                     slotCount = 4,
                     baseSuccessRate = 1.0,
-                    cost = 30000,
+                    cost = 24000,
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "供多名弟子共同修炼，修炼速度+10%"
                 ),
+
+                // ─── 鼎盛期（24月+，30,000~50,000 灵石）───
                 "single_residence_upgraded" to BuildingConfigModel(
                     id = "single_residence_upgraded",
                     displayName = "中级单人住所",
                     buildingType = "SINGLE_RESIDENCE",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 50000,
+                    cost = 30000,
                     gridWidth = 3,
                     gridHeight = 2,
                     description = "单人修炼之所，修炼速度+40%"
-                ),
-                "spirit_field" to BuildingConfigModel(
-                    id = "spirit_field",
-                    displayName = "灵田",
-                    buildingType = "SPIRIT_FIELD",
-                    slotCount = 1,
-                    cost = 200,
-                    gridWidth = 1,
-                    gridHeight = 1,
-                    description = "种植灵草的田地"
-                ),
-                "warehouse" to BuildingConfigModel(
-                    id = "warehouse",
-                    displayName = "仓库",
-                    buildingType = "WAREHOUSE",
-                    slotCount = 1,
-                    cost = 1000,
-                    gridWidth = 3,
-                    gridHeight = 2,
-                    description = "储存宗门物资，每座+50格容量"
                 ),
                 "patrol_tower" to BuildingConfigModel(
                     id = "patrol_tower",
                     displayName = "巡视楼",
                     buildingType = "PATROL",
                     slotCount = 8,
-                    cost = 50000,
+                    cost = 35000,
                     gridWidth = 2,
                     gridHeight = 3,
                     description = "驻守弟子自动巡视地图攻击妖兽"
@@ -376,7 +385,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "BLOOD_REFINING_POOL",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 50000,
+                    cost = 40000,
                     gridWidth = 2,
                     gridHeight = 2,
                     description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
