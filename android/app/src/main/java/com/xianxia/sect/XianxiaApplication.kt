@@ -463,7 +463,11 @@ class XianxiaApplication : Application() {
             "ui_start_button" to R.drawable.ui_start_button,
             "loading_background" to R.drawable.loading_background,
             "ui_sysmsg" to R.drawable.ui_sysmsg,
-            "combat_power_bg" to R.drawable.combat_power_bg
+            "combat_power_bg" to R.drawable.combat_power_bg,
+            // 灵石精灵图（宗门信息卡片、物品卡片使用）
+            "spirit_stone_low" to R.drawable.spirit_stone_low,
+            "spirit_stone_mid" to R.drawable.spirit_stone_mid,
+            "spirit_stone_high" to R.drawable.spirit_stone_high
         ))
 
         SpriteResRegistry.register(SpriteCategory.BEAST, mapOf(

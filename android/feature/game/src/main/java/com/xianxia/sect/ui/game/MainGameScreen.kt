@@ -840,7 +840,6 @@ fun MainGameScreen(
                         lowStones = gameData?.spiritStones ?: 0L,
                         midStones = gameData?.midGradeSpiritStones ?: 0L,
                         highStones = gameData?.highGradeSpiritStones ?: 0L,
-                        totalStones = gameData?.totalSpiritStonesSellValue() ?: 0L,
                         discipleCount = aliveDisciples.value.size,
                         combatPower = sectCombatPower,
                         sectLevel = currentSectLevel,
@@ -960,7 +959,6 @@ private fun SectInfoCard(
     lowStones: Long,
     midStones: Long,
     highStones: Long,
-    totalStones: Long,
     discipleCount: Int,
     combatPower: Long,
     sectLevel: Int = SectLevel.MEDIUM,
@@ -1071,7 +1069,8 @@ private fun SectInfoCard(
                 }
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Text(
                     text = "${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}",
@@ -1083,17 +1082,40 @@ private fun SectInfoCard(
                     fontSize = 12.sp,
                     color = Color.Black
                 )
-                Text(
-                    text = "灵石 ${GameUtils.formatNumber(totalStones)}",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
                 val lowText = GameUtils.formatNumber(lowStones)
                 val midText = GameUtils.formatNumber(midStones)
                 val highText = GameUtils.formatNumber(highStones)
+                // 下品灵石精灵图 + 数量
+                SpriteImage(
+                    name = "spirit_stone_low",
+                    contentDescription = "下品灵石",
+                    modifier = Modifier.size(12.dp)
+                )
                 Text(
-                    text = "下:$lowText 中:$midText 上:$highText",
-                    fontSize = 10.sp,
+                    text = lowText,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                // 中品灵石精灵图 + 数量
+                SpriteImage(
+                    name = "spirit_stone_mid",
+                    contentDescription = "中品灵石",
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = midText,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                // 上品灵石精灵图 + 数量
+                SpriteImage(
+                    name = "spirit_stone_high",
+                    contentDescription = "上品灵石",
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = highText,
+                    fontSize = 12.sp,
                     color = Color.Black
                 )
             }
