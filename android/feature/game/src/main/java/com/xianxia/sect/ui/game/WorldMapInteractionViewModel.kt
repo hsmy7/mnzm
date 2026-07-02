@@ -75,6 +75,12 @@ class WorldMapInteractionViewModel @Inject constructor(
 
     fun isAlly(sectId: String): Boolean = gameEngine.isAlly(sectId)
 
+    // ═══ 附属宗门 ═══
+    suspend fun requestVassalContract(sectId: String): Boolean = gameEngine.requestVassalContract(sectId)
+    suspend fun dissolveVassalContract(sectId: String): Boolean = gameEngine.dissolveVassalContract(sectId)
+    fun isPlayerVassal(sectId: String): Boolean = gameEngine.isPlayerVassal(sectId)
+    fun getPlayerVassals(): List<String> = gameEngine.getPlayerVassals()
+
     fun openSectTradeDialog(sectId: String) {
         _dialogs.value = _dialogs.value.copy(
             showTrade = true,

@@ -9,6 +9,7 @@ import javax.inject.Singleton
 @Singleton
 class DiplomacyFacadeImpl @Inject constructor(
     private val diplomacyService: DiplomacyService,
+    private val vassalService: VassalService,
     private val stateStore: GameStateStore
 ) : DiplomacyFacade {
 
@@ -40,4 +41,18 @@ class DiplomacyFacadeImpl @Inject constructor(
 
     override suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int) =
         diplomacyService.buyFromSectTradeSync(sectId, itemId, quantity)
+
+    // ═══ 附属宗门 ═══
+
+    override suspend fun requestVassalContract(sectId: String): Boolean =
+        vassalService.requestVassalContract(sectId)
+
+    override suspend fun dissolveVassalContract(sectId: String): Boolean =
+        vassalService.dissolveVassalContract(sectId)
+
+    override fun isPlayerVassal(sectId: String): Boolean =
+        vassalService.isPlayerVassal(sectId)
+
+    override fun getPlayerVassals(): List<String> =
+        vassalService.getPlayerVassals()
 }

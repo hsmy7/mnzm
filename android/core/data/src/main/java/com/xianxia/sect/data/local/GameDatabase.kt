@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 10  // v10: 弟子社交新增 masterId（师徒关系）
+    version = 11  // v11: 新增附属宗门 vassalContracts
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -510,6 +510,25 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /** v10→v11: 新增附属宗门 vassalContracts + 宗门战记录 */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "vassalContracts")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN vassalContracts TEXT " +
+                        "NOT NULL DEFAULT '[]'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "sectBattleRecords")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN sectBattleRecords TEXT " +
+                        "NOT NULL DEFAULT '[]'"
+                    )
+                }
+                Log.i(TAG, "Migration 10→11: added vassalContracts, sectBattleRecords")
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
@@ -549,7 +568,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

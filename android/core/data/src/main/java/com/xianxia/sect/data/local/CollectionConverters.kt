@@ -502,4 +502,28 @@ object CollectionConverters {
     @JvmStatic
     fun toSectLevelClaimRecordList(value: String): List<SectLevelClaimRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(SectLevelClaimRecord.serializer()), value) { emptyList() }
+
+    // ==================== 附属宗门转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromVassalContractList(value: List<VassalContract>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(VassalContract.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toVassalContractList(value: String): List<VassalContract> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(VassalContract.serializer()), value) { emptyList() }
+
+    // ==================== 宗门战记录转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSectBattleRecordList(value: List<SectBattleRecord>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(SectBattleRecord.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSectBattleRecordList(value: String): List<SectBattleRecord> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(SectBattleRecord.serializer()), value) { emptyList() }
 }

@@ -838,4 +838,17 @@ object GameConfig {
             const val SPIRIT_STONE_PENALTY_RATIO = 0.1
         }
     }
+
+    /** 附属宗门配置 */
+    object Vassal {
+        /** 年贡金额（按宗门等级 0=小型, 1=中型, 2=大型, 3=顶级） */
+        val TRIBUTE_BY_SECT_LEVEL: Map<Int, Long> = mapOf(
+            0 to 200_000L,
+            1 to 800_000L,
+            2 to 3_000_000L,
+            3 to 10_000_000L,
+        )
+        /** 战力比低于此值AI直接拒绝 */
+        const val POWER_RATIO_MIN = 1.5
+    }
 }

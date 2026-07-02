@@ -269,6 +269,10 @@ data class GameData(
     @SettlementStrategy(Strategy.THREE_WAY_ID)
     var alliances: List<Alliance> = emptyList(),
 
+    // 附属契约：玩家为宗主，AI为附属宗门
+    @SettlementStrategy(Strategy.THREE_WAY_ID)
+    var vassalContracts: List<VassalContract> = emptyList(),
+
     // AI 宗门间关系
     @SettlementStrategy(Strategy.CUSTOM)
     var sectRelations: List<SectRelation> = emptyList(),
@@ -422,7 +426,11 @@ data class GameData(
 
     // AI宗门攻击冷却追踪（sectId → 下次可攻击的游戏绝对月份）
     @SettlementStrategy(Strategy.USE_SHADOW)
-    var sectAttackCooldowns: Map<String, Int> = emptyMap()
+    var sectAttackCooldowns: Map<String, Int> = emptyMap(),
+
+    // 玩家宗门战记录（仅宗门攻占/丢失，用于附属决策，统计近3年）
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var sectBattleRecords: List<SectBattleRecord> = emptyList()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
@@ -999,6 +1007,39 @@ data class Alliance(
     val startYear: Int = 0,
     val initiatorId: String = "",
     val envoyDiscipleId: String = ""
+)
+
+/**
+ * 宗门战结果类型
+ */
+@Keep
+@Serializable
+enum class SectBattleType {
+    CONQUEST,      // 玩家攻占AI宗门（占领）
+    LOST_SECT,     // 玩家被AI攻占宗门（丢失）
+    BATTLE_WIN,    // 玩家战胜AI宗门（未占领）
+    BATTLE_LOSS    // 玩家战败给AI宗门（未丢失）
+}
+
+/**
+ * 玩家宗门战记录（仅记录宗门对宗门，不计妖兽和洞府）
+ */
+@Keep
+@Serializable
+data class SectBattleRecord(
+    val year: Int,
+    val type: SectBattleType
+)
+
+/**
+ * 附属契约：玩家为宗主，AI为附属宗门
+ */
+@Keep
+@Serializable
+data class VassalContract(
+    val vassalSectId: String,
+    val establishedYear: Int,
+    val lastTributeYear: Int = 0
 )
 
 /**

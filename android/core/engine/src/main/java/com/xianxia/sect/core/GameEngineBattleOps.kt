@@ -31,6 +31,10 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+
+    // 不能攻击自己的附属宗门
+    if (data.vassalContracts.any { it.vassalSectId == sectId }) return
+
     val combatIds = attackSlots.map { it.second.id }
     if (combatIds.isNotEmpty()) {
         stateStore.update {
@@ -103,7 +107,21 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SECT_WAR, attackerName = "玩家队伍", defenderName = targetSect.name, result = winResult, teamMembers = teamMembers, enemies = enemyMembers, rounds = battleResult.rounds, turns = battleResult.turns, teamCasualties = deadPlayerIds.size, drops = drops, details = when (battleResult.winner) { AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) "攻占了${targetSect.name}" else "击溃了${targetSect.name}的守军"; AIBattleWinner.DEFENDER -> "进攻${targetSect.name}失败"; AIBattleWinner.DRAW -> "与${targetSect.name}打成平手" })
     val existingLogs = stateStore.battleLogsSnapshot
     val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
-    stateStore.update { battleLogs = updatedLogs }
+
+    // 记录宗门战战绩（近3年内，用于附属决策算法）
+    val battleType = when (battleResult.winner) {
+        AIBattleWinner.ATTACKER -> if (battleResult.canOccupy) SectBattleType.CONQUEST else SectBattleType.BATTLE_WIN
+        else -> SectBattleType.BATTLE_LOSS
+    }
+    stateStore.update {
+        gameData = gameData.copy(
+            sectBattleRecords = gameData.sectBattleRecords + SectBattleRecord(
+                year = data.gameYear,
+                type = battleType
+            )
+        )
+        battleLogs = updatedLogs
+    }
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
         val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
         stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables.isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }

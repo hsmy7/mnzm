@@ -63,3 +63,9 @@ fun GameEngine.getFirstPlayerDisciplePortrait(): String {
 fun GameEngine.isAlly(sectId: String): Boolean = diplomacyFacade.isAlly(sectId)
 fun GameEngine.getPlayerAllies(): List<String> = diplomacyFacade.getPlayerAllies()
 fun GameEngine.interactWithSect(sectId: String, action: String) { DomainLog.w("GameEngine", "interactWithSect 尚未实现: sectId=$sectId, action=$action") }
+
+// ═══ 附属宗门 ═══
+suspend fun GameEngine.requestVassalContract(sectId: String): Boolean = diplomacyFacade.requestVassalContract(sectId)
+suspend fun GameEngine.dissolveVassalContract(sectId: String): Boolean = diplomacyFacade.dissolveVassalContract(sectId)
+fun GameEngine.isPlayerVassal(sectId: String): Boolean = diplomacyFacade.isPlayerVassal(sectId)
+fun GameEngine.getPlayerVassals(): List<String> = diplomacyFacade.getPlayerVassals()

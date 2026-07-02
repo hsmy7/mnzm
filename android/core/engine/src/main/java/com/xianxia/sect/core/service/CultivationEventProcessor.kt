@@ -401,6 +401,7 @@ class CultivationEventProcessor @Inject constructor(
         checkGameOverCondition()
         processScoutInfoExpiryLazy(year, month)
         diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
+        vassalService.processMonthlyBreakawayCheck(year, month)
         processLawEnforcementMonthly()
         processTheftIfNeeded()
         processMissionRefreshIfDue(month)
@@ -417,6 +418,8 @@ class CultivationEventProcessor @Inject constructor(
     suspend fun processYearlyEvents(year: Int) {
         // 附庸年贡（每年一月扣除上年灵石收入的50%）
         vassalService.processYearlyTribute()
+        // 附属年贡（AI附属宗门每年上贡灵石）
+        vassalService.processYearlyVassalTribute(year)
         discipleLifecycleProcessor.processDiscipleAging(year)
         caveExplorationProcessor.get().processSectDisciplesAging(year)
         caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)

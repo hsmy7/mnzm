@@ -70,6 +70,7 @@ internal fun WorldMapSectDetailDialog(
 ) {
     val currentYear = gameData?.gameYear ?: 1
     val isAlly = interactionViewModel.isAlly(sect.id)
+    val isPlayerVassal = interactionViewModel.isPlayerVassal(sect.id)
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     var showAttackDialog by remember { mutableStateOf(false) }
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
@@ -298,10 +299,11 @@ internal fun WorldMapSectDetailDialog(
                     )
 
                     GameButton(
-                        text = "进攻",
+                        text = if (isPlayerVassal) "附属宗门" else "进攻",
                         onClick = {
                             showAttackDialog = true
-                        }
+                        },
+                        enabled = !isPlayerVassal
                     )
                 }
             }

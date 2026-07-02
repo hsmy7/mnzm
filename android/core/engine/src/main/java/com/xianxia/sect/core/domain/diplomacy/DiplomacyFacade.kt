@@ -11,4 +11,10 @@ interface DiplomacyFacade {
     fun generateSectTradeItems(year: Int): List<MerchantItem>
     fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem>
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1)
+
+    // ═══ 附属宗门 ═══
+    suspend fun requestVassalContract(sectId: String): Boolean
+    suspend fun dissolveVassalContract(sectId: String): Boolean
+    fun isPlayerVassal(sectId: String): Boolean
+    fun getPlayerVassals(): List<String>
 }
