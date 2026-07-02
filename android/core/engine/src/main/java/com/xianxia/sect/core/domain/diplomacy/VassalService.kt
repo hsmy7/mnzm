@@ -147,8 +147,7 @@ class VassalService @Inject constructor(
         // 好感度 15%
         val favorScore = (favor.toDouble() / 100.0) * 0.15
 
-        val total = powerScore + occupyScore
-            + skirmishScore + favorScore
+        val total = powerScore + occupyScore + skirmishScore + favorScore
         return total.coerceIn(0.0, 0.95)
     }
 

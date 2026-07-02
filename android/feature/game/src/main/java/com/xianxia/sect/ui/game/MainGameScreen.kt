@@ -453,6 +453,11 @@ fun MainGameScreen(
         // 已清除装饰物的格子（避免反复清除同一格）
         val clearedDecorationCells = remember { mutableSetOf<Long>() }
 
+        // 被拆除建筑的格点集合（步骤 2 已从 backBuffer 擦除过的区域）
+        // 这些格点在 buffer swap 后的 backBuffer 上可能残留旧建筑像素，
+        // 新建筑放置时若覆盖这些格点，需先从 fullMapBmp 恢复地形再绘制
+        val erasedCells = remember { mutableSetOf<Long>() }
+
         // 烘焙触发器 — 双缓冲重建时递增，强制 LaunchedEffect 全量重绘
         var bakeTrigger by remember { mutableIntStateOf(0) }
 
@@ -472,6 +477,7 @@ fun MainGameScreen(
             backBufferBmp = null
             previousBuildings.clear()
             clearedDecorationCells.clear()
+            erasedCells.clear()
 
             if (shouldBakeBuildings) {
                 val src = fullMapBmp.asAndroidBitmap()
@@ -493,19 +499,16 @@ fun MainGameScreen(
             val backBmp = backBufferBmp?.takeIf { !it.isRecycled }
                 ?: return@LaunchedEffect
 
-            // 检测是否全量重绘（缓冲重建或 bakeTrigger 递增）
-            if (previousBuildings.isEmpty() && clearedDecorationCells.isEmpty()
-                && effectivePlacedBuildings.isNotEmpty()) {
-                // 全量重绘：无需额外操作，previousBuildings 已清空
-                // 步骤 2/2.5 自动跳过，步骤 3 绘制所有建筑
-            }
-
             val canvas = android.graphics.Canvas(backBmp)
             // Canvas 缩放到渲染分辨率，建筑绘制坐标仍基于世界空间
             // 来源: docs/gpu-tier-fairness-plan.md §3 — 内部位图可能低于世界分辨率
             val renderScale = backBmp.width.toFloat() / worldPixelWidth.toFloat()
             canvas.scale(renderScale, renderScale)
             val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
+
+            // 使用 rawTileData 的工作拷贝进行装饰物检测与清除，
+            // 避免原地修改损坏原始数据导致下次建筑放置时树检测失败
+            val workingTileData = Array(rawTileData.size) { rawTileData[it].copyOf() }
 
             // === 1. 清除新增建筑覆盖的装饰物 ===
             val buildingCells = mutableSetOf<Long>()
@@ -529,11 +532,11 @@ fun MainGameScreen(
                     for (dy in -1..1) {
                         val tx = bx + dx
                         val ty = by + dy
-                        if (ty in rawTileData.indices && tx in rawTileData[ty].indices
-                            && rawTileData[ty][tx] == TILE_TREE) {
+                        if (ty in workingTileData.indices && tx in workingTileData[ty].indices
+                            && workingTileData[ty][tx] == TILE_TREE) {
                             for (ex in tx - 1..tx + 1) {
                                 for (ey in ty - 1..ty + 1) {
-                                    if (ey in rawTileData.indices && ex in rawTileData[ey].indices) {
+                                    if (ey in workingTileData.indices && ex in workingTileData[ey].indices) {
                                         cellsToClear.add(
                                             (ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
                                     }
@@ -548,7 +551,7 @@ fun MainGameScreen(
                     clearedDecorationCells.add(cellKey)
                     val cx = (cellKey shr 32).toInt()
                     val cy = (cellKey and 0xFFFF_FFFF).toInt()
-                    rawTileData[cy][cx] = TILE_GROUND
+                    workingTileData[cy][cx] = TILE_GROUND
                     // srcRect 必须使用渲染分辨率坐标
                     val srcX = (cx * tileSize * renderScale).toInt()
                     val srcY = (cy * tileSize * renderScale).toInt()
@@ -579,6 +582,19 @@ fun MainGameScreen(
                     )
                     val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
                     canvas.drawBitmap(srcBmp, srcRect, dstRect, null)
+
+                    // 记录已擦除的建筑格点
+                    // 这些格点在 buffer swap 后会出现在 backBuffer 上成为残影
+                    for (cx in oldBuilding.gridX until oldBuilding.gridX + oldBuilding.width) {
+                        for (cy in oldBuilding.gridY until oldBuilding.gridY + oldBuilding.height) {
+                            erasedCells.add(
+                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
+                            // 同步清理 clearedDecorationCells，确保下次放置时
+                            // 步骤 1 能重新清除该位置的装饰物（fullMapBmp 恢复的树等）
+                            clearedDecorationCells.remove(
+                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
+                        }
+                    }
                 }
             }
 
@@ -624,6 +640,36 @@ fun MainGameScreen(
                             ), p)
                     }
                 }
+            }
+
+            // === 2.75. 清除残影：恢复 erasedCells 中被新建筑覆盖的格点 ===
+            // 这些格点在 backBuffer 上残留了已拆除建筑的像素，
+            // 从 fullMapBmp 恢复原始地形后再由步骤 3 绘制新建筑
+            if (erasedCells.isNotEmpty()) {
+                val srcBmp = fullMapBmp.asAndroidBitmap()
+                val processedKeys = mutableListOf<Long>()
+                for (building in effectivePlacedBuildings) {
+                    for (cx in building.gridX until building.gridX + building.width) {
+                        for (cy in building.gridY until building.gridY + building.height) {
+                            val key = (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF)
+                            if (key in erasedCells) {
+                                val px = cx * tileSize
+                                val py = cy * tileSize
+                                canvas.drawBitmap(srcBmp,
+                                    android.graphics.Rect(
+                                        (px * renderScale).toInt(),
+                                        (py * renderScale).toInt(),
+                                        ((px + tileSize) * renderScale).toInt(),
+                                        ((py + tileSize) * renderScale).toInt()),
+                                    android.graphics.Rect(px, py, px + tileSize, py + tileSize),
+                                    null)
+                                processedKeys.add(key)
+                            }
+                        }
+                    }
+                }
+                // 已处理的格点从残影集合中移除
+                erasedCells.removeAll(processedKeys)
             }
 
             // === 3. 绘制所有建筑（全量重绘，避免增量更新导致的双缓冲交替丢失） ===
