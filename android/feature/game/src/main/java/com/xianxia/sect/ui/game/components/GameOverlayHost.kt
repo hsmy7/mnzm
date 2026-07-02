@@ -292,7 +292,8 @@ fun GameOverlayHost(
             val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             Surface(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                color = Color.Transparent
             ) {
                 WorldMapDialog(
                     worldSects = mapRenderData.worldMapSects,

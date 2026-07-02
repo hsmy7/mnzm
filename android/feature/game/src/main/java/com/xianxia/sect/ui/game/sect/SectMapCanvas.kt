@@ -243,7 +243,11 @@ fun SectMapCanvas(
 
         clipRect(0f, 0f, size.width, size.height) {
         withTransform({
-            translate(-renderCamX, -renderCamY)
+            translate(
+                -renderCamX * config.cameraState.scale,
+                -renderCamY * config.cameraState.scale
+            )
+            scale(config.cameraState.scale, config.cameraState.scale)
         }) {
             // 1. 静态背景层（含已烘焙建筑，或纯地形背景）
             // 来源: docs/gpu-tier-fairness-plan.md §3 — 始终拉伸到世界尺寸，内部位图可能低于世界分辨率

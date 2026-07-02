@@ -360,6 +360,7 @@ fun MainGameScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Transparent)
             .onSizeChanged { size ->
                 screenWidthPx = size.width.toFloat()
                 screenHeightPx = size.height.toFloat()

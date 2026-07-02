@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -9,6 +10,7 @@ import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
@@ -58,7 +60,7 @@ internal fun WorldMapDialog(
     }
 
     BackHandler(onBack = onDismiss)
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
     WorldMapScreen(
         items = mapItems,
         focusWorldX = playerSectX,

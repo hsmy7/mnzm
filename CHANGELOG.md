@@ -5,11 +5,17 @@
 ### 修复
 
 - **修复存档对话框点击无响应** — 修复在自动存档进行时打开存档/读档对话框，点击存档卡片和保存按钮无响应的问题。对话框打开后自动检测卡住状态并恢复，存档卡片在忙状态也可正常选中
+- **修复宗门地图和世界地图大屏白边问题** — 宗门地图新增视口缩放（Fill 适配），当视口尺寸超过世界尺寸时自动缩放填满屏幕，大屏/折叠屏/外接屏不再出现白边。世界地图容器背景透明化，防止透白
 
 ### 技术
 
 - 移除存档卡片点击的 `isBusy` 守卫（SettingsTab.kt）
 - 新增对话框打开时 1 秒卡住状态检测自动恢复机制
+- 宗门地图：`SectCameraState` 新增 `scale` 属性，条件 Fill 公式 `scale = maxOf(viewportW/worldW, viewportH/worldH)`，仅当视口大于世界时激活
+- 宗门地图：`SectMapCanvas` 渲染适配 scale，`withTransform` 添加 scale 变换
+- 容器透明化：世界地图和宗门地图外层容器设 `Color.Transparent`，防止白色透出
+- 新增 `SectCameraStateTest` 单元测试覆盖 20 个场景（缩放计算/坐标转换/平移/居中/可见性检测）
+- 行业调研：调研 Unity/libGDX/Godot/Cocos 等引擎视口适配方案，23 条参考来源
 
 ## [4.0.34] - 2026-07-02（versionCode=4034）
 
