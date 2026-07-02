@@ -235,6 +235,18 @@ fun MainGameScreen(
         mutableStateOf<GridSnapHelper.PlacementValidity>(GridSnapHelper.PlacementValidity.Valid)
     }
 
+    // 金手指批量建造状态
+    var goldFingerState by remember { mutableStateOf(GoldFingerState()) }
+    val goldFingerBuildingCost = remember {
+        derivedStateOf {
+            val name = goldFingerState.buildingName
+            if (name.isNotEmpty()) viewModel.getBuildingCost(name) else 0L
+        }
+    }
+    val goldFingerAvailableStones = remember {
+        derivedStateOf { gameData?.spiritStones ?: 0L }
+    }
+
     val worldWidthCells = mapPreloadData.worldWidthCells
     val worldHeightCells = mapPreloadData.worldHeightCells
 
@@ -333,9 +345,13 @@ fun MainGameScreen(
         }
     }
 
-    // 移动模式下按返回键取消移动
-    BackHandler(enabled = movingBuilding != null) {
-        movingBuilding = null
+    // 移动模式/金手指模式下按返回键取消
+    BackHandler(enabled = movingBuilding != null || goldFingerState.isActive) {
+        if (goldFingerState.isActive) {
+            goldFingerState = GoldFingerState()
+        } else {
+            movingBuilding = null
+        }
     }
 
     val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
@@ -353,9 +369,22 @@ fun MainGameScreen(
         val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
             else rememberBuildingBitmaps()
 
+        val context = LocalContext.current
+
+        // 金手指图标位图
+        val goldenFingerBmp = remember {
+            val resId = SpriteResRegistry.resolve("golden_finger")
+            if (resId != null) {
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = 1
+                }
+                android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
+                    ?.asImageBitmap()
+            } else null
+        }
+
         // 灵田作物图片预加载 — 以 "stage_herbId" 为 key 缓存三种生长阶段位图
         // 异步加载避免首次 composition 阻塞主线程（BitmapFactory.decodeResource 是阻塞 I/O）
-        val context = LocalContext.current
         var cropBitmaps by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
         LaunchedEffect(Unit) {
             cropBitmaps = withContext(Dispatchers.IO) {
@@ -666,7 +695,8 @@ fun MainGameScreen(
                 spiritFieldPlants = gameData.spiritFieldPlants,
                 cropBitmaps = cropBitmaps,
                 currentGameYear = gameData.gameYear,
-                currentGameMonth = gameData.gameMonth
+                currentGameMonth = gameData.gameMonth,
+                goldenFingerBmp = goldenFingerBmp
             ),
             placement = if (isPlacingBuilding) PlacementModeState(
                 isActive = true,
@@ -688,6 +718,7 @@ fun MainGameScreen(
                 size = movingBuildingSize,
                 validity = movingValid
             ) else MoveModeState.INACTIVE,
+            goldFinger = goldFingerState,
             buildingIndex = buildingIndex,
             onBuildingClick = { building ->
                 val def = BuildingRegistry.findByDisplayName(building.displayName)
@@ -750,21 +781,81 @@ fun MainGameScreen(
                 if (screenY < edgePx) cameraState.pan(0f, panSpeed)
                 if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
             },
+            onGoldFingerStart = {
+                // 金手指模式启动：记录金手指起始格，初始化 state
+                val initialCost = viewModel.getBuildingCost(placingBuildingName)
+                val initialValidity = computeGoldFingerCellValidities(
+                    startGridX = placingSnappedGridX,
+                    startGridY = placingSnappedGridY,
+                    endGridX = placingSnappedGridX,
+                    endGridY = placingSnappedGridY,
+                    buildingW = placingBuildingSize.width,
+                    buildingH = placingBuildingSize.height,
+                    existingBuildings = effectivePlacedBuildings,
+                    worldWidthCells = worldWidthCells,
+                    worldHeightCells = worldHeightCells
+                )
+                val initCanBuildCount = initialValidity.count { it.value }
+                goldFingerState = goldFingerState.copy(
+                    isActive = true,
+                    startGridX = placingSnappedGridX,
+                    startGridY = placingSnappedGridY,
+                    endGridX = placingSnappedGridX,
+                    endGridY = placingSnappedGridY,
+                    buildingName = placingBuildingName,
+                    buildingSize = placingBuildingSize,
+                    buildingCost = initialCost,
+                    totalCost = initCanBuildCount * initialCost,
+                    canAfford = (gameData?.spiritStones ?: 0L) >= initCanBuildCount * initialCost,
+                    canBuildCount = initCanBuildCount,
+                    cellValidity = initialValidity
+                )
+            },
+            onGoldFingerDrag = { endGridX, endGridY ->
+                val startX = goldFingerState.startGridX
+                val startY = goldFingerState.startGridY
+                val newValidity = computeGoldFingerCellValidities(
+                    startGridX = startX,
+                    startGridY = startY,
+                    endGridX = endGridX,
+                    endGridY = endGridY,
+                    buildingW = goldFingerState.buildingSize.width,
+                    buildingH = goldFingerState.buildingSize.height,
+                    existingBuildings = effectivePlacedBuildings,
+                    worldWidthCells = worldWidthCells,
+                    worldHeightCells = worldHeightCells
+                )
+                val canBuildCount = newValidity.count { it.value }
+                val totalCost = canBuildCount * goldFingerState.buildingCost
+                val canAfford = (gameData?.spiritStones ?: 0L) >= totalCost
+                goldFingerState = goldFingerState.copy(
+                    endGridX = endGridX,
+                    endGridY = endGridY,
+                    totalCost = totalCost,
+                    canAfford = canAfford,
+                    canBuildCount = canBuildCount,
+                    cellValidity = newValidity
+                )
+            },
             onUserInteraction = viewModel::onUserInteraction,
             modifier = Modifier.fillMaxSize()
         )
 
         // 放置模式确认按钮
         if (isPlacingBuilding) {
+            val isGf = goldFingerState.isActive
             PlacementConfirmButtons(
                 snappedGridX = placingSnappedGridX,
                 snappedGridY = placingSnappedGridY,
                 buildingSize = placingBuildingSize,
                 cameraState = cameraState,
                 tileSize = tileSize,
-                validity = placementValidity,
+                validity = if (isGf && !goldFingerState.canAfford) GridSnapHelper.PlacementValidity.OutOfBounds else placementValidity,
                 onConfirm = {
-                    if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
+                    if (isGf) {
+                        viewModel.batchPlaceBuilding(goldFingerState)
+                        goldFingerState = GoldFingerState()
+                    } else if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
                         viewModel.placeBuilding(
                             name = placingBuildingName,
                             gridX = placingSnappedGridX,
@@ -777,8 +868,11 @@ fun MainGameScreen(
                     placingBuildingName = ""
                 },
                 onCancel = {
-                    isPlacingBuilding = false
-                    placingBuildingName = ""
+                    if (isGf) goldFingerState = GoldFingerState()
+                    else {
+                        isPlacingBuilding = false
+                        placingBuildingName = ""
+                    }
                 }
             )
         }
@@ -869,6 +963,7 @@ fun MainGameScreen(
                         buildingBarExpanded = !buildingBarExpanded
                         isPlacingBuilding = false
                         movingBuilding = null
+                        goldFingerState = GoldFingerState()
                     },
                     onCancelPlacement = {
                         isPlacingBuilding = false
@@ -1208,6 +1303,51 @@ private fun createFallbackBuildingBitmap(): androidx.compose.ui.graphics.ImageBi
 /**
  * 建筑放置确认/取消按钮 — 固定出现在建筑上方居中，不受地图方格尺寸限制。
  */
+/**
+ * 计算金手指框选区内每格有效性。
+ * 以 buildingW×buildingH 为步长遍历，每个地块不重叠。
+ */
+internal fun computeGoldFingerCellValidities(
+    startGridX: Int, startGridY: Int,
+    endGridX: Int, endGridY: Int,
+    buildingW: Int, buildingH: Int,
+    existingBuildings: List<GridBuildingData>,
+    worldWidthCells: Int, worldHeightCells: Int
+): Map<Long, Boolean> {
+    val minX = minOf(startGridX, endGridX).coerceIn(0, worldWidthCells - 1)
+    val maxX = maxOf(startGridX, endGridX).coerceIn(0, worldWidthCells - 1)
+    val minY = minOf(startGridY, endGridY).coerceIn(0, worldHeightCells - 1)
+    val maxY = maxOf(startGridY, endGridY).coerceIn(0, worldHeightCells - 1)
+
+    // 预计算已有建筑占用格
+    val occupiedCells = mutableSetOf<Long>()
+    for (b in existingBuildings) {
+        for (cx in b.gridX until b.gridX + b.width) {
+            for (cy in b.gridY until b.gridY + b.height) {
+                occupiedCells.add(GridSystem.packCell(cx, cy))
+            }
+        }
+    }
+
+    val result = mutableMapOf<Long, Boolean>()
+    var gx = minX
+    while (gx + buildingW - 1 <= maxX && gx + buildingW <= worldWidthCells) {
+        var gy = minY
+        while (gy + buildingH - 1 <= maxY && gy + buildingH <= worldHeightCells) {
+            val startCellKey = GridSystem.packCell(gx, gy)
+            val noOverlap = (gx until gx + buildingW).all { cx ->
+                (gy until gy + buildingH).all { cy ->
+                    GridSystem.packCell(cx, cy) !in occupiedCells
+                }
+            }
+            result[startCellKey] = noOverlap
+            gy += buildingH
+        }
+        gx += buildingW
+    }
+    return result
+}
+
 @Composable
 private fun PlacementConfirmButtons(
     snappedGridX: Int,

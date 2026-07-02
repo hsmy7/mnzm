@@ -32,11 +32,14 @@ import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.fallbackToTier1
 import com.xianxia.sect.ui.game.building.BuildingDef
+import kotlin.math.min
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.util.GridSystem
 
-private enum class DragTarget { CAMERA, BUILDING_MOVE, BUILDING_PLACE }
+private enum class DragTarget { CAMERA, BUILDING_MOVE, BUILDING_PLACE, GOLD_FINGER }
 
 /** 灵田作物生长阶段 */
 private enum class GrowthStage { SEED, GROWING, MATURE }
@@ -69,11 +72,14 @@ fun SectMapCanvas(
     staticData: SectMapStaticData,
     placement: PlacementModeState,
     move: MoveModeState,
+    goldFinger: GoldFingerState = GoldFingerState.INACTIVE,
     buildingIndex: BuildingSpatialIndex,
     onBuildingClick: (GridBuildingData) -> Unit,
     onBuildingLongPress: (GridBuildingData) -> Unit,
     onPlacementDrag: (Float, Float) -> Unit,
     onMovingDrag: (Float, Float) -> Unit,
+    onGoldFingerStart: () -> Unit = {},
+    onGoldFingerDrag: (endGridX: Int, endGridY: Int) -> Unit = { _, _ -> },
     onUserInteraction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -83,15 +89,18 @@ fun SectMapCanvas(
     val currentOnBuildingLongPress by rememberUpdatedState(onBuildingLongPress)
     val currentOnPlacementDrag by rememberUpdatedState(onPlacementDrag)
     val currentOnMovingDrag by rememberUpdatedState(onMovingDrag)
+    val currentOnGoldFingerStart by rememberUpdatedState(onGoldFingerStart)
+    val currentOnGoldFingerDrag by rememberUpdatedState(onGoldFingerDrag)
     val currentOnUserInteraction by rememberUpdatedState(onUserInteraction)
     val currentIsMoving by rememberUpdatedState(move.isActive)
     val currentIsPlacing by rememberUpdatedState(placement.isActive)
+    val currentIsGoldFinger by rememberUpdatedState(goldFinger.isActive)
     val currentMovingWorldX by rememberUpdatedState(move.worldX)
     val currentMovingWorldY by rememberUpdatedState(move.worldY)
     val currentPreviewWorldX by rememberUpdatedState(placement.worldX)
     val currentPreviewWorldY by rememberUpdatedState(placement.worldY)
-    val currentMovingSize by rememberUpdatedState(move.size)
     val currentPreviewSize by rememberUpdatedState(placement.size)
+    val currentMovingSize by rememberUpdatedState(move.size)
     val currentMovingInstanceId by rememberUpdatedState(move.building?.instanceId)
     val longPressScope = rememberCoroutineScope()
 
@@ -129,6 +138,16 @@ fun SectMapCanvas(
                             wy >= currentPreviewWorldY && wy < currentPreviewWorldY + bh
                     }
 
+                    // 金手指区域判定：建筑预览框外部右下角单格（与图标绘制位置一致）
+                    val onGoldFingerArea = currentIsPlacing && !currentIsGoldFinger && run {
+                        val ts = config.tileSize
+                        val bGridX = (currentPreviewWorldX / ts).roundToInt()
+                        val bGridY = (currentPreviewWorldY / ts).roundToInt()
+                        val gfWx = (bGridX + currentPreviewSize.width) * ts
+                        val gfWy = (bGridY + currentPreviewSize.height) * ts
+                        wx >= gfWx && wx < gfWx + ts && wy >= gfWy && wy < gfWy + ts
+                    }
+
                     var longPressTriggered = false
                     var dragStarted = false
                     var dragTarget = DragTarget.CAMERA
@@ -136,12 +155,18 @@ fun SectMapCanvas(
 
                     val longPressJob = longPressScope.launch {
                         delay(viewConfiguration.longPressTimeoutMillis)
-                        if (!dragStarted && touchedBuilding != null &&
-                            !currentIsMoving && !currentIsPlacing
-                        ) {
-                            longPressTriggered = true
-                            currentOnBuildingLongPress(touchedBuilding)
-                            dragTarget = DragTarget.BUILDING_MOVE
+                        if (!dragStarted && !currentIsMoving) {
+                            if (currentIsPlacing && onGoldFingerArea && !currentIsGoldFinger) {
+                                // 金手指长按 → 进入金手指模式
+                                longPressTriggered = true
+                                dragTarget = DragTarget.GOLD_FINGER
+                                currentOnGoldFingerStart()
+                            } else if (touchedBuilding != null && !currentIsPlacing) {
+                                // 已有建筑长按 → 移动模式
+                                longPressTriggered = true
+                                currentOnBuildingLongPress(touchedBuilding)
+                                dragTarget = DragTarget.BUILDING_MOVE
+                            }
                         }
                     }
 
@@ -165,6 +190,12 @@ fun SectMapCanvas(
                                 dragStarted = true
                                 longPressJob.cancel()
                                 dragTarget = when {
+                                    currentIsGoldFinger -> DragTarget.GOLD_FINGER
+                                    onGoldFingerArea -> {
+                                        currentOnGoldFingerStart()
+                                        DragTarget.GOLD_FINGER
+                                    }
+                                    longPressTriggered && currentIsGoldFinger -> DragTarget.GOLD_FINGER
                                     longPressTriggered -> DragTarget.BUILDING_MOVE
                                     currentIsMoving && onMovingBuilding -> DragTarget.BUILDING_MOVE
                                     currentIsPlacing && onPlacingBuilding -> DragTarget.BUILDING_PLACE
@@ -180,6 +211,15 @@ fun SectMapCanvas(
                             when (dragTarget) {
                                 DragTarget.BUILDING_MOVE -> currentOnMovingDrag(dragAmountX, dragAmountY)
                                 DragTarget.BUILDING_PLACE -> currentOnPlacementDrag(dragAmountX, dragAmountY)
+                                DragTarget.GOLD_FINGER -> {
+                                    // 金手指拖拽：实时更新 endGrid 坐标
+                                    val newWx = config.cameraState.screenToWorldX(change.position.x)
+                                    val newWy = config.cameraState.screenToWorldY(change.position.y)
+                                    val newGridX = (newWx / config.tileSize).toInt()
+                                    val newGridY = (newWy / config.tileSize).toInt()
+                                    currentOnGoldFingerDrag(newGridX, newGridY)
+                                    currentOnUserInteraction()
+                                }
                                 DragTarget.CAMERA -> {
                                     config.cameraState.pan(dragAmountX, dragAmountY)
                                     currentOnUserInteraction()
@@ -400,6 +440,17 @@ fun SectMapCanvas(
                     Offset((placement.gridX * config.tileSize).toFloat(), (placement.gridY * config.tileSize).toFloat()),
                     Size((placement.size.width * config.tileSize).toFloat(), (placement.size.height * config.tileSize).toFloat())
                 )
+
+                // 金手指图标（建筑预览框外部右下角，非金手指模式时始终显示）
+                if (!goldFinger.isActive) {
+                    val gfBmp = staticData.goldenFingerBmp
+                    if (gfBmp != null) {
+                        val ts = config.tileSize
+                        val gfX = (placement.gridX + placement.size.width) * ts
+                        val gfY = (placement.gridY + placement.size.height) * ts
+                        drawImage(gfBmp, dstOffset = IntOffset(gfX, gfY), dstSize = IntSize(ts, ts))
+                    }
+                }
             }
 
             // 5. 移动预览
@@ -429,7 +480,51 @@ fun SectMapCanvas(
                 )
             }
 
-            // 6. 灵植阁光环范围圈
+            // 6. 金手指框选区域渲染
+            if (goldFinger.isActive) {
+                val ts = config.tileSize
+                val gMinX = minOf(goldFinger.startGridX, goldFinger.endGridX)
+                    .coerceIn(0, config.worldWidthCells - 1)
+                val gMaxX = maxOf(goldFinger.startGridX, goldFinger.endGridX)
+                    .coerceIn(0, config.worldWidthCells - 1)
+                val gMinY = minOf(goldFinger.startGridY, goldFinger.endGridY)
+                    .coerceIn(0, config.worldHeightCells - 1)
+                val gMaxY = maxOf(goldFinger.startGridY, goldFinger.endGridY)
+                    .coerceIn(0, config.worldHeightCells - 1)
+
+                // 逐个地块渲染颜色
+                val bW = goldFinger.buildingSize.width
+                val bH = goldFinger.buildingSize.height
+                var gx = gMinX
+                while (gx + bW - 1 <= gMaxX && gx + bW <= config.worldWidthCells) {
+                    var gy = gMinY
+                    while (gy + bH - 1 <= gMaxY && gy + bH <= config.worldHeightCells) {
+                        val cellKey = GridSystem.packCell(gx, gy)
+                        val valid = goldFinger.cellValidity[cellKey] ?: false
+                        val canAfford = goldFinger.canAfford
+                        val color = if (valid && canAfford) Color(0x404CAF50) else Color(0x40F44336)
+                        drawRect(color = color, topLeft = Offset((gx * ts).toFloat(), (gy * ts).toFloat()), size = Size((bW * ts).toFloat(), (bH * ts).toFloat()))
+                        gy += bH
+                    }
+                    gx += bW
+                }
+
+                // 框选边框
+                val borderColor = if (goldFinger.canAfford) Color(0xFF4CAF50) else Color(0xFFF44336)
+                val bx1 = (gMinX * ts).toFloat(); val by1 = (gMinY * ts).toFloat()
+                val bx2 = ((gMaxX + 1) * ts).toFloat(); val by2 = ((gMaxY + 1) * ts).toFloat()
+                drawRect(color = borderColor, topLeft = Offset(bx1, by1), size = Size(bx2 - bx1, 2f))
+                drawRect(color = borderColor, topLeft = Offset(bx1, by2 - 2f), size = Size(bx2 - bx1, 2f))
+                drawRect(color = borderColor, topLeft = Offset(bx1, by1), size = Size(2f, by2 - by1))
+                drawRect(color = borderColor, topLeft = Offset(bx2 - 2f, by1), size = Size(2f, by2 - by1))
+
+                // 金手指图标（跟随拖拽，画在 endGrid 位置）
+                val gfBmp = staticData.goldenFingerBmp
+                if (gfBmp != null) {
+                    drawImage(gfBmp, dstOffset = IntOffset(goldFinger.endGridX * ts, goldFinger.endGridY * ts), dstSize = IntSize(ts, ts))
+                }
+            }
+            // 7. 灵植阁光环范围圈
             if (showHerbGardenAura) {
                 val centerX: Float
                 val centerY: Float
@@ -440,12 +535,7 @@ fun SectMapCanvas(
                     centerX = move.worldX + (move.size.width * config.tileSize) / 2f
                     centerY = move.worldY + (move.size.height * config.tileSize) / 2f
                 }
-                drawCircle(
-                    color = Color(0x404CAF50),
-                    radius = (GameConfig.HerbGarden.AURA_RADIUS_TILES * config.tileSize).toFloat(),
-                    center = Offset(centerX, centerY),
-                    style = Stroke(width = 2.dp.toPx())
-                )
+                drawCircle(color = Color(0x404CAF50), radius = (GameConfig.HerbGarden.AURA_RADIUS_TILES * config.tileSize).toFloat(), center = Offset(centerX, centerY), style = Stroke(width = 2.dp.toPx()))
             }
         }
         }

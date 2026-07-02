@@ -24,7 +24,8 @@ data class SectMapStaticData(
     val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
     val cropBitmaps: Map<String, ImageBitmap> = emptyMap(),
     val currentGameYear: Int = 1,
-    val currentGameMonth: Int = 1
+    val currentGameMonth: Int = 1,
+    val goldenFingerBmp: ImageBitmap? = null
 )
 
 data class PlacementModeState(
@@ -62,5 +63,39 @@ data class MoveModeState(
             worldX = 0f, worldY = 0f,
             size = GridSnapHelper.BuildingSize(2, 3), validity = GridSnapHelper.PlacementValidity.Valid
         )
+    }
+}
+
+/**
+ * 金手指模式状态 — 一键批量建造。
+ *
+ * [isActive] — 是否处于金手指模式
+ * [startGridX/Y] — 长按起始格（金手指图标所在格）
+ * [endGridX/Y] — 当前拖拽末端格
+ * [buildingName] — 所选建筑名
+ * [buildingSize] — 所选建筑尺寸
+ * [buildingCost] — 单座建筑灵石消耗
+ * [totalCost] — 框选区内总灵石消耗（= canBuildCount × buildingCost）
+ * [canAfford] — 剩余灵石是否足够支付 totalCost
+ * [canBuildCount] — 框选区内可建造数量
+ * [cellValidity] — 每格有效性，键=packedCell(x,y)，值=true(可建)/false(被占)
+ */
+data class GoldFingerState(
+    val isActive: Boolean = false,
+    val startGridX: Int = 0,
+    val startGridY: Int = 0,
+    val endGridX: Int = 0,
+    val endGridY: Int = 0,
+    val buildingName: String = "",
+    val buildingSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 2),
+    val buildingCost: Long = 0L,
+    val totalCost: Long = 0L,
+    val canAfford: Boolean = true,
+    val canBuildCount: Int = 0,
+    /** 键=packedCell, 值=true(可建)/false(已被占) */
+    val cellValidity: Map<Long, Boolean> = emptyMap()
+) {
+    companion object {
+        val INACTIVE = GoldFingerState()
     }
 }

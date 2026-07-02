@@ -467,7 +467,8 @@ class XianxiaApplication : Application() {
             // 灵石精灵图（宗门信息卡片、物品卡片使用）
             "spirit_stone_low" to R.drawable.spirit_stone_low,
             "spirit_stone_mid" to R.drawable.spirit_stone_mid,
-            "spirit_stone_high" to R.drawable.spirit_stone_high
+            "spirit_stone_high" to R.drawable.spirit_stone_high,
+            "golden_finger" to R.drawable.golden_finger
         ))
 
         SpriteResRegistry.register(SpriteCategory.BEAST, mapOf(

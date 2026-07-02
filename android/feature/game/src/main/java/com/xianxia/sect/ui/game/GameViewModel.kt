@@ -440,6 +440,37 @@ class GameViewModel @Inject constructor(
     }
 
     /**
+     * 金手指一键批量建造 — 在框选区域内所有有效格放置同一种建筑。
+     *
+     * @param goldFingerState 金手指状态，含框选范围和每格有效性
+     */
+    fun batchPlaceBuilding(goldFingerState: com.xianxia.sect.ui.game.sect.GoldFingerState) {
+        if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return
+        viewModelScope.launch {
+            val name = goldFingerState.buildingName
+            val (gw, gh) = buildingConfigService.getBuildingGridSize(name)
+            val cost = goldFingerState.buildingCost
+            var placed = 0
+            var actualCost = 0L
+
+            for ((cellKey, valid) in goldFingerState.cellValidity) {
+                if (!valid) continue
+                val gx = (cellKey shr 32).toInt()
+                val gy = (cellKey and 0xFFFF_FFFF).toInt()
+
+                // 尝试在该格放置建筑，使用平铺 placement 逻辑
+                placeBuilding(name = name, gridX = gx, gridY = gy, width = gw, height = gh)
+                placed++
+                actualCost += cost
+            }
+
+            if (placed > 0) {
+                // 建造完成，无文本提示
+            }
+        }
+    }
+
+    /**
      * 移动已放置的建筑到新坐标。
      *
      * @param instanceId 建筑实例 ID
