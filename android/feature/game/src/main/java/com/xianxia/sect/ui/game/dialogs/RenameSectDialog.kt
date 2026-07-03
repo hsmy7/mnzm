@@ -39,7 +39,6 @@ fun RenameSectDialog(
     InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "修改宗门名称",
-        text = "请输入新的宗门名称：",
         confirmLabel = "确定",
         dismissLabel = "取消",
         onConfirm = {
@@ -60,7 +59,7 @@ fun RenameSectDialog(
                             ?.let { InputValidator.validateSectName(it) }
                     }
                 },
-                placeholder = { Text("青云宗") },
+                placeholder = { Text("青云宗", color = Color(0xFF999999)) },
                 singleLine = true,
                 isError = error != null,
                 textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),

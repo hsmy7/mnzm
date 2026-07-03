@@ -130,7 +130,6 @@ fun SaveSelectScreen(
         InlineStandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
             title = "创建宗门",
-            text = "请输入宗门名称：",
             confirmLabel = "创建",
             dismissLabel = "取消",
             dismissOnClickOutside = false,
@@ -153,7 +152,7 @@ fun SaveSelectScreen(
                                 ?.let { InputValidator.validateSectName(it) }
                         }
                     },
-                    placeholder = { Text("青云宗") },
+                    placeholder = { Text("青云宗", color = Color(0xFF999999)) },
                     singleLine = true,
                     isError = sectNameError != null,
                     modifier = Modifier.fillMaxWidth()
