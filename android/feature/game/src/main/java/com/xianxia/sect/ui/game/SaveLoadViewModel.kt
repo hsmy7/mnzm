@@ -15,6 +15,9 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
+import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
+import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -38,6 +41,13 @@ class SaveLoadViewModel @Inject constructor(
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     private val resourcePreloader: ResourcePreloader
 ) : BaseViewModel() {
+
+    // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
+    private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, storageFacade, stateStore, savePipeline) }
+    private val loadDelegate by lazy {
+        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, savePipeline, buildingConfigService)
+    }
+    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, storageFacade, stateStore) }
 
     companion object {
         private const val TAG = SaveLoadViewModelConstants.TAG
