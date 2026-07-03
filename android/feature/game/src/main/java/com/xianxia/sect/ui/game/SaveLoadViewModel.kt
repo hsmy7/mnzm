@@ -1243,28 +1243,34 @@ class SaveLoadViewModel @Inject constructor(
     override fun onCleared() {
         Log.i(TAG, "SaveLoadViewModel cleared")
 
-        if (stateStore.unifiedState.value.isSaving) {
-            Log.i(TAG, "Waiting for current save operation to complete before exit")
-            val waitStartTime = System.currentTimeMillis()
-            val maxWaitTime = 2000L
-            while (stateStore.unifiedState.value.isSaving && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
-                Thread.sleep(100)
+        // ★ 异步清理协程（NonCancellable 确保即使 viewModelScope 取消也执行完成）
+        viewModelScope.launch(NonCancellable + Dispatchers.IO) {
+            try {
+                // 等待保存完成（最长 2 秒，挂起式等待不阻塞主线程）
+                withTimeout(2000) {
+                    while (stateStore.unifiedState.value.isSaving) {
+                        delay(100)
+                    }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.w(TAG, "Save did not complete within 2s timeout, proceeding")
             }
-            if (stateStore.unifiedState.value.isSaving) {
-                Log.w(TAG, "Save operation did not complete within ${maxWaitTime}ms, proceeding")
+
+            try {
+                // 停止游戏循环（最长 3 秒）
+                withTimeout(3000) {
+                    gameEngineCore.stopGameLoopAndWait(2000)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.w(TAG, "Game loop did not stop within 3s timeout, force proceeding")
             }
+
+            gameEngineCore.forceResetStuckStates()
         }
 
-        val stopLatch = java.util.concurrent.CountDownLatch(1)
-        coroutineScopeProvider.ioScope.launch {
-            try {
-                gameEngineCore.stopGameLoopAndWait(2000)
-            } finally {
-                stopLatch.countDown()
-            }
-        }
-        stopLatch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-        gameEngineCore.forceResetStuckStates()
+        // ★ 轻量同步清理：只清理内存状态，不等 I/O
         _pendingSlot.value = null
         _pendingAction.value = null
         _loadingProgress.value = PROGRESS_START

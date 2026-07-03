@@ -70,16 +70,17 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt kove
 - **Auth**: TapTap SDK (login, compliance, analytics)
 - **Build**: AGP 8.8.0, Gradle with Aliyun mirrors for China
 
-## Architecture: Two-Layer State Model
+## Architecture: Two-Layer State Model + Frame-Driven Game Loop
 
 ```
 ┌──────────────────────────────────────────────────┐
 │ Layer 2: UI (ViewModel + Compose)                │
 │   - Subscribes to GameStateStore.unifiedState    │
 │   - Dialogs managed by DialogStateManager        │
+│   - Smooth animations via Animatable + withFrameNanos (R20)
 ├──────────────────────────────────────────────────┤
 │ Layer 1: GameEngineCore + GameEngine             │
-│   - EngineCore: game loop (100ms tick)           │
+│   - EngineCore: frame-driven game loop (accumulator pattern, R1)
 │   - Engine: business logic (cultivation, battle, │
 │     production, diplomacy, exploration, etc.)    │
 │   - Writes to GameStateStore._state MutableFlow  │
@@ -99,8 +100,36 @@ User Action (Compose UI)
 ```
 
 - **GameEngine** is the single entry point for all state mutations from the UI layer. ViewModels never write to `GameStateStore` directly.
-- **GameEngineCore** runs on a 100ms tick via `SystemManager`, driving autonomous systems (TimeSystem, BuildingSubsystem, etc.) that also write to `GameStateStore`.
+- **GameEngineCore** drives a frame-driven accumulator game loop (R1), advancing game logic at 100ms fixed steps via deltaTime accumulation.
 - **GameStateStore** is the single source of truth — one `MutableStateFlow<UnifiedGameState>` containing all game state. Individual `StateFlow` projections are derived via `.map {}`.
+
+### Game Loop Architecture: Frame-Driven Accumulator Pattern
+
+游戏循环从 v4.0.38 起从 **timer-driven**（`delay(100ms)` 固定频率循环）重构为 **frame-driven accumulator 模式**。
+
+```
+while (isActive) {
+    deltaNs = nanoTime() - lastFrameTime                 // 实际流逝时间
+    accumulatorNs += deltaNs.coerceAtMost(MAX_ACCUM)     // 累加（防爆炸）
+
+    while (accumulatorNs >= LOGIC_DT_NS) {               // 固定步长消费
+        tickInternal()                                    // 100ms 逻辑步
+        accumulatorNs -= LOGIC_DT_NS
+    }
+
+    currentAlpha = accumulatorNs / LOGIC_DT_NS            // 插值因子 (0~1)
+    delay(waitMs)                                         // 空闲时让出 CPU
+}
+```
+
+| 维度 | 旧 (timer-driven) | 新 (frame-driven) |
+|------|-------------------|------------------|
+| 循环频率 | 固定 10Hz (delay 100ms) | 可变，最快每帧 |
+| 逻辑步长 | 每循环固定 1 步 | accumulator 控制 (0/1/N 步) |
+| 追赶卡顿 | 自适应降速×1.5（恶性降频） | accumulator clamp（自动限制） |
+| 插值因子 | 无 | `currentAlpha` 供 UI 平滑渲染 |
+| 空闲功耗 | 高（2ms微延迟+忙等） | 低（无事 delay 让出 CPU） |
+| delay抖动 | 直接影响 tick 间隔 | deltaTime 补偿，不影响精度 |
 
 ### Settlement Architecture: Four-Track Model
 
@@ -134,7 +163,7 @@ tickInternal() 每 100ms
 | 路径 | 频率 | 结算方式 | 覆盖系统 |
 |------|------|---------|---------|
 | 实时轨 | 100ms (每旬) | `onPhaseTick(state, 1)` — 增量1旬 | 活跃域声明的系统 + 进度≥80%槽位 |
-| 批量轨 | 30s | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非活跃域声明的系统 |
+| 批量轨 | 动态 5-15s (R12) | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非活跃域声明的系统；Tab切换后加速5s，稳定态10s |
 | 月度事件 | 游戏月变时 | 一次性 | 外交/盗窃/任务/商人 |
 | 年度结算 | 游戏年变时 | 一次性 | 老化/死亡/招募/盟约 |
 
@@ -238,18 +267,54 @@ tickInternal() 每 100ms
 - **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
 - **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
 
-### Component Table Architecture (v4.0.01)
+### Component Table Architecture (v4.0.01) / EntityStore 增量更新 (v4.0.38)
 
-Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. Each column is a `SparseArray` keyed by disciple ID (Int). Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>` which wraps `List<T>` with a `HashMap<String, T>` index.
+Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. Each column is a `SparseArray` keyed by disciple ID (Int). Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>`.
+
+**EntityStore 变更 (R6, v4.0.38)：**
+- 从写时复制（每次 `update` 分配新 `List`）改为 `MutableList` 原地修改 + `freeze()` 快照
+- 写操作零分配，仅在 `freeze()` 时重建不可变快照
+- `isDirty` 标记供 GameStateStoreImpl 检测变化
+- GC 分配量降低 80%+
 
 **Key rules:**
 - **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(log n), no allocation
 - **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(log n)
 - **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class — ONLY for UI/Serialization, NEVER in hot path
-- **Non-Disciple lookup**: `entityStore.get(id)` — O(1)
-- **Non-Disciple traversal**: `entityStore.items` or `entityStore.forEach {}` — still List-backed
+- **Non-Disciple lookup**: `entityStore.get(id)` — O(1) via HashMap index
+- **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配
+- **EntityStore snapshot**: `entityStore.freeze()` before StateFlow emission — 仅在 dirty 时分配新 List
 - **Shadow copies**: `DiscipleTables.deepCopy()` copies each table directly (value types: int/double are value-copied; List/Map types are deep-copied via .toList()/.toMap())
 - **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, etc.
+
+### 并发模型：可重入 Mutex 显式计数 (R5, v4.0.38)
+
+原实现通过 `transactionOwnerThread: AtomicReference<Thread?>` 检测重入，依赖"所有引擎代码在同一线程"的约定。
+从 v4.0.38 起改为显式重入计数：
+
+| 维度 | 旧 (thread identity) | 新 (reentrant count) |
+|------|-------------------|---------------------|
+| 检测方式 | `Thread.currentThread()` 比较 | `reentrantCount.get() > 0` |
+| 调度器切换 | 死锁风险 | 安全 |
+| 重入路径 | 跳过 Mutex 直接操作 buffer | 跳过 Mutex 直接操作 buffer |
+| 异常回滚 | 无 | 支持（不发射 StateFlow） |
+
+### 抗冻结架构：自适应忙等 (R3, v4.0.38)
+
+原实现每 tick 都执行分片忙等（小米设备 45% CPU 占空比）。从 v4.0.38 起忙等自适应化：
+
+- 正常运行 → 纯 `delay()`，零忙等 CPU 消耗
+- 检测到 tick 间隔异常（可能被 OEM 挂起）→ 自动启用忙等
+- 恢复正常（连续 20 tick 正常）→ 自动禁用忙等
+- OEM 参数从 6 组独立配置简化为 3 档（AGGRESSIVE/MODERATE/LIGHT）
+
+### 帧预算监控 (R17, v4.0.38)
+
+`UnifiedPerformanceMonitor` 新增帧质量追踪：
+
+- `FrameQuality` 枚举：SMOOTH / ACCEPTABLE / JANKY / FREEZE
+- 连续 3 帧 jank 自动触发 `loadReductionRequested`
+- 引擎可据此降低 `maxAccumulatedPhases` 或暂停非关键渲染
 
 ### Mail & Reward System
 

@@ -100,14 +100,16 @@ class SettlementCoordinator @Inject constructor(
     // ── 累积与指纹检测 ──────────────────────────────────────────
 
     /**
-     * 每帧指纹检测。
+     * 每帧指纹检测（使用动态批量间隔）。
      *
      * 执行指纹检测 + 80% 槽位分类，在结构或进度变化时重建缓存。
      * 临时影子只读即弃，不持有持久状态。
+     *
+     * @param batchIntervalMs 当前批量间隔（ms），由 GameEngineCore 动态管理
      */
-    fun accumulateBatch() {
+    fun accumulateBatch(batchIntervalMs: Long = 30_000L) {
         val now = System.currentTimeMillis()
-        if (now - lastBatchSettleWallMs < 30_000L) return
+        if (now - lastBatchSettleWallMs < batchIntervalMs) return
 
         lastBatchSettleWallMs = now
 

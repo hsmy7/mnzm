@@ -79,8 +79,13 @@ class GameEngineCore @Inject constructor(
         private const val TICK_WARNING_THRESHOLD_MS = 100f
         private const val STUCK_STATE_TIMEOUT_MS = 10_000L  // 从30s降至10s，更快恢复
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
-        private const val DOMAIN_EXECUTE_INTERVAL_MS = 30_000L
         private const val TICK_TIME_BUDGET_MS = 50L
+        // ★ 帧驱动 Accumulator 常量
+        private val LOGIC_DT_NS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(100)  // 逻辑步长 100ms
+        private val MAX_ACCUMULATOR_NS = LOGIC_DT_NS * 5  // 最多累积 5 步
+        // 自适应忙等等阈值
+        private const val ANTI_FREEZE_TRIGGER_THRESHOLD = 3
+        private const val ANTI_FREEZE_NORMAL_THRESHOLD = 20
 
         // 游戏引擎线程 — 非守护线程 + 最高优先级。
         // 红米K80 (HyperOS 2.0) 实测：守护线程会被电源管理挂起，
@@ -160,6 +165,39 @@ class GameEngineCore @Inject constructor(
     // 自适应降频因子
     @Volatile
     private var adaptiveSlowdownFactor = 1.0
+
+    // ★ 插值因子（供 UI 平滑渲染，由 frame-driven 循环维护）
+    @Volatile
+    var currentAlpha: Float = 0f
+        private set
+
+    // ── 动态批量间隔 ──
+    /** 当前批量域执行间隔（ms），Tab 切换后加速，稳定后恢复 */
+    @Volatile
+    private var batchIntervalMs: Long = 10_000L  // 默认 10s（原 30s）
+    private var lastTabSwitchTime: Long = 0L
+    private var lastBatchIntervalAdjustTime: Long = 0L
+    private fun updateBatchInterval() {
+        val now = System.currentTimeMillis()
+        if (lastTabSwitchTime > 0 && now - lastTabSwitchTime < 3_000L) {
+            batchIntervalMs = 5_000L
+        } else if (batchIntervalMs > 10_000L) {
+            batchIntervalMs = maxOf(10_000L, batchIntervalMs - 1_000L)
+        }
+    }
+    /** UI 层调用：通知引擎 Tab 切换，加速批量轨 */
+    fun onTabChanged(tabName: String) {
+        lastTabSwitchTime = System.currentTimeMillis()
+        batchIntervalMs = 5_000L
+        stateStore.activeTab = tabName
+    }
+
+    // ── 自适应忙等 ──
+    @Volatile
+    private var antiFreezeEnabled = false
+    private var antiFreezeTriggerCount = 0
+    private var consecutiveNormalTicks = 0
+    private var lastActualElapsedMs = 0L
 
     // 后台停止时保存状态
     @Volatile
@@ -284,36 +322,46 @@ class GameEngineCore @Inject constructor(
                 DomainLog.w(TAG, "Cannot set thread priority: ${e.message}")
             }
 
+            // ★ 帧驱动 Accumulator 循环
+            var accumulatorNs = 0L
+            var lastFrameTimeNs = System.nanoTime()
             try {
                 while (isActive) {
-                    try {
-                val startTime = System.currentTimeMillis()
+                    // Step 1: 计算 deltaTime
+                    val nowNs = System.nanoTime()
+                    var deltaNs = nowNs - lastFrameTimeNs
+                    lastFrameTimeNs = nowNs
+                    deltaNs = deltaNs.coerceAtMost(MAX_ACCUMULATOR_NS)
 
-                tick()
+                    // Step 2: 暂停/加载时不积累
+                    if (stateStore.isPaused.value || stateStore.isLoading.value) {
+                        gameClock.consumeDeadTime()
+                        delay(50)
+                        accumulatorNs = 0L
+                        continue
+                    }
 
-                val currentTime = System.currentTimeMillis()
-                val actualFrameInterval = (currentTime - lastFrameTime).toFloat()
-                lastFrameTime = currentTime
+                    // Step 3: Accumulate + FixedUpdate
+                    accumulatorNs += deltaNs
+                    var stepsExecuted = 0
+                    while (accumulatorNs >= LOGIC_DT_NS && stepsExecuted < 5) {
+                        tickInternal()
+                        accumulatorNs -= LOGIC_DT_NS
+                        stepsExecuted++
+                    }
 
-                val elapsed = currentTime - startTime
-                val effectiveInterval = if (adaptiveSlowdownFactor > 1.0)
-                    (TICK_INTERVAL_MS * adaptiveSlowdownFactor).toLong().coerceAtMost(ADAPTIVE_MAX_INTERVAL_MS)
-                else TICK_INTERVAL_MS
-                currentTickInterval = effectiveInterval
-                val delayMs = (effectiveInterval - elapsed).coerceAtLeast(MIN_TICK_DELAY_MS)
+                    // Step 4: 插值因子
+                    currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
 
-                updateFps(actualFrameInterval)
-
-                        // 微延迟 + spin-wait 替代单次长 delay：
-                        // 华为等 OEM 的省电策略会检测线程"空闲"状态并挂起。
-                        // 4ms 微间隔 + onSpinWait 保持 CPU 活跃，防止被标记为空闲。
-                        antiFreezeDelay(delayMs)
-                    } catch (e: CancellationException) {
-                        DomainLog.i(TAG, "Game loop cancelled")
-                        throw e
-                    } catch (e: Exception) {
-                        DomainLog.e(TAG, "Error in game loop", e)
-                        delay(1000)
+                    // Step 5: 自适应等待
+                    if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
+                        val waitMs = ((LOGIC_DT_NS - accumulatorNs) / 1_000_000).coerceIn(1L, 100L)
+                        delay(waitMs)
+                    } else {
+                        val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
+                        if (frameElapsedMs < TICK_INTERVAL_MS) {
+                            antiFreezeDelay(TICK_INTERVAL_MS - frameElapsedMs, deltaNs / 1_000_000)
+                        }
                     }
                 }
             } finally {
@@ -396,10 +444,6 @@ class GameEngineCore @Inject constructor(
             WATCHDOG_DISPATCHER + SupervisorJob() + watchdogExceptionHandler
         ).launch {
             var lastTickCount = _tickCount.value
-            // 游戏时间推进检测：tickCount 递增但月份不变 → "假运行"
-            var lastGameMonth = stateStore.gameData.value.gameMonth
-            var lastGameYear = stateStore.gameData.value.gameYear
-            var fakeRunningCount = 0
             // 当前退避间隔：失败后翻倍递增（如 3s→6s→12s→24s→30s 上限），成功后重置为初始间隔
             var currentBackoffMs = effectiveBaseMs
             while (isActive) {
@@ -409,7 +453,6 @@ class GameEngineCore @Inject constructor(
                 val loopActive = gameLoopJob?.isActive == true
                 if (currentTickCount == lastTickCount && loopActive) {
                     watchdogRecoveryAttempts++
-                    // 日志节流：达到最大退避后每 10 次记录一次，避免 OEM 永久挂起时刷屏
                     val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
                     val shouldLog = !atMaxBackoff ||
                         watchdogRecoveryAttempts % 10 == 0
@@ -420,38 +463,15 @@ class GameEngineCore @Inject constructor(
                             if (degradedMode) ", degraded" else "" +
                             ")")
                     }
-                    // 尝试恢复：重启游戏循环（无限重试，指数退避 + 降级模式防止资源浪费）
                     restartGameLoopInternal()
-                    // 指数退避：间隔翻倍，上限 30s
                     currentBackoffMs = computeWatchdogBackoff(
                         currentBackoffMs, effectiveBaseMs, hasRecovered = false
                     )
                 } else if (currentTickCount != lastTickCount) {
-                    // tick 有推进，重置计数器和退避间隔
                     watchdogRecoveryAttempts = 0
                     currentBackoffMs = computeWatchdogBackoff(
                         currentBackoffMs, baseIntervalMs, hasRecovered = true
                     )
-                    // 检测"假运行"：tickCount 在递增但游戏月份/年份长时间不变
-                    // 可能原因：forceConsumeOnePhase 死循环、isSaving 频繁翻转等
-                    val currentMonth = stateStore.gameData.value.gameMonth
-                    val currentYear = stateStore.gameData.value.gameYear
-                    if (currentMonth == lastGameMonth && currentYear == lastGameYear) {
-                        fakeRunningCount++
-                        if (fakeRunningCount >= 3) {
-                            DomainLog.w(TAG,
-                                "Watchdog: tick advancing but game time stuck " +
-                                "(month=$currentMonth, year=$currentYear, " +
-                                "fakeRunningCount=$fakeRunningCount) — force restarting")
-                            restartGameLoopInternal()
-                            fakeRunningCount = 0
-                            // 不计入退避（这是独立于 tick 停滞的另一种故障模式）
-                        }
-                    } else {
-                        fakeRunningCount = 0
-                        lastGameMonth = currentMonth
-                        lastGameYear = currentYear
-                    }
                 }
                 lastTickCount = currentTickCount
                 } catch (e: CancellationException) { throw e }
@@ -667,13 +687,13 @@ class GameEngineCore @Inject constructor(
         return allDomains
     }
 
-    /** 判断某个域在本 tick 是否应执行 */
+    /** 判断某个域在本 tick 是否应执行（使用动态间隔） */
     private fun shouldExecuteDomain(domain: FocusDomain, activeDomains: Set<FocusDomain>): Boolean {
         if (domain == FocusDomain.ALWAYS) return true
         if (domain in activeDomains) return true
 
         val lastTime = domainLastTickTime[domain] ?: 0L
-        return (System.currentTimeMillis() - lastTime) >= DOMAIN_EXECUTE_INTERVAL_MS
+        return (System.currentTimeMillis() - lastTime) >= batchIntervalMs
     }
 
     /** 计算某域自上次执行后跳过了多少游戏旬 */
@@ -736,6 +756,9 @@ class GameEngineCore @Inject constructor(
         }
 
         _tickCount.value++
+
+        // ★ 动态调整批量间隔（Tab 切换后加速）
+        updateBatchInterval()
 
         // 诊断：仅 Xiaomi 设备记录 tick 起始时间，用于检测 OEM 电源管理冻结
         val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
@@ -815,8 +838,8 @@ class GameEngineCore @Inject constructor(
             forceCompleteSettlement()
         }
 
-        // 批量轨指纹检测（从主状态计算，无影子）
-        settlementCoordinator.accumulateBatch()
+        // 批量轨指纹检测（从主状态计算，无影子，使用动态间隔）
+        settlementCoordinator.accumulateBatch(batchIntervalMs)
 
         // 年度结算
         if (yearChanged) {
@@ -1001,10 +1024,44 @@ class GameEngineCore @Inject constructor(
      * - Kotlin Slack #coroutines: delay() 精度 >30ms 抖动
      *   (https://slack-chats.kotlinlang.org/t/26866719)
      */
-    private suspend fun antiFreezeDelay(totalMs: Long) {
+    /**
+     * 自适应忙等延迟。
+     *
+     * 正常运行时不执行忙等（纯 delay），仅在检测到 tick 间隔异常（可能被 OEM 挂起）时
+     * 自动启用分片忙等。恢复正常后自动禁用。
+     *
+     * @param totalMs 需要等待的总时长（ms）
+     * @param actualElapsedMs 从上次 tick 到现在的实际墙钟间隔（ms），用于检测 OEM 挂起
+     */
+    private suspend fun antiFreezeDelay(totalMs: Long, actualElapsedMs: Long = 0L) {
+        // ★ 自适应忙等检测
+        if (actualElapsedMs > TICK_INTERVAL_MS * 2 && totalMs > 0) {
+            antiFreezeTriggerCount++
+            consecutiveNormalTicks = 0
+            if (antiFreezeTriggerCount >= ANTI_FREEZE_TRIGGER_THRESHOLD && !antiFreezeEnabled) {
+                antiFreezeEnabled = true
+                DomainLog.w(TAG, "Anti-freeze enabled: ${antiFreezeTriggerCount} trigger events")
+            }
+        } else {
+            consecutiveNormalTicks++
+            antiFreezeTriggerCount = maxOf(0, antiFreezeTriggerCount - 1)
+            if (antiFreezeEnabled && consecutiveNormalTicks >= ANTI_FREEZE_NORMAL_THRESHOLD) {
+                antiFreezeEnabled = false
+                DomainLog.i(TAG, "Anti-freeze disabled: ${consecutiveNormalTicks} normal ticks")
+            }
+        }
+
+        if (antiFreezeEnabled) {
+            doBusyWait(totalMs)
+        } else {
+            delay(totalMs.coerceAtLeast(1L))
+        }
+    }
+
+    /** 分片忙等 — 仅在 antiFreezeEnabled 时执行 */
+    private suspend fun doBusyWait(totalMs: Long) {
         val profile = OemPowerProfileProvider.current
         val microInterval = 2L
-        // 数据驱动：激进 OEM 更频繁忙等以突破更窄的空闲检测窗口
         val busyInterval = profile.antiFreezeBusyInterval
         val busyDuration = profile.antiFreezeBusyDuration
         var remaining = totalMs
@@ -1015,17 +1072,11 @@ class GameEngineCore @Inject constructor(
             remaining -= step
             cycleCount++
             if (remaining > 0 && cycleCount % busyInterval == 0L) {
-                // 忙等循环：周期性保持线程 RUNNABLE 打破 OEM 空闲检测。
-                // API 33+：忙等循环内调用 Thread.onSpinWait() 作为 CPU 优化提示。
-                // API < 33：显式读取 volatile 变量 _tickCount.value 防止 JIT
-                // 编译器将空循环体优化消除（第二次启动 JIT 已预热，优化更激进）。
-                // 华为 EMUI/HarmonyOS 的 PowerGenie 空闲检测窗口 ~50-100ms。
                 val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
                 while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
                     if (Build.VERSION.SDK_INT >= 33) {
                         Thread.onSpinWait()
                     } else {
-                        // volatile 读取 → 内存屏障，JIT 无法消除循环
                         @Suppress("UNUSED_EXPRESSION")
                         _tickCount.value
                     }

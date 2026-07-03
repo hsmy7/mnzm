@@ -35,14 +35,13 @@ class ApplicationScopeProvider @Inject constructor() : Closeable, CoroutineScope
         private const val ACTIVE_COROUTINE_WARN_THRESHOLD = 200
     }
 
-    private val supervisorJob = SupervisorJob()
+    /** Default 调度器 SupervisorJob — 独立取消 */
+    private val defaultJob = SupervisorJob()
+    /** IO 调度器 SupervisorJob — 独立取消 */
+    private val ioJob = SupervisorJob()
 
     /**
      * 全局协程异常处理器
-     *
-     * 捕获协程中未处理的异常，防止静默失败导致状态不一致。
-     * 仅处理 [kotlinx.coroutines.CoroutineException] 以外的异常
-     * （CancellationException 不应被拦截）。
      */
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is kotlinx.coroutines.CancellationException) {
@@ -51,10 +50,10 @@ class ApplicationScopeProvider @Inject constructor() : Closeable, CoroutineScope
     }
 
     /** 应用级默认 Scope (Dispatchers.Default) */
-    override val scope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.Default + exceptionHandler)
+    override val scope: CoroutineScope = CoroutineScope(defaultJob + Dispatchers.Default + exceptionHandler)
 
-    /** IO 密集型 Scope (Dispatchers.IO)，共享同一 SupervisorJob 以便统一取消 */
-    override val ioScope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.IO + exceptionHandler)
+    /** IO 密集型 Scope (Dispatchers.IO)，独立 SupervisorJob，取消不影响 scope */
+    override val ioScope: CoroutineScope = CoroutineScope(ioJob + Dispatchers.IO + exceptionHandler)
 
     /** 活跃子 Job 计数器（用于监控） */
     private val activeChildrenCount = AtomicInteger(0)
@@ -65,14 +64,13 @@ class ApplicationScopeProvider @Inject constructor() : Closeable, CoroutineScope
 
     /**
      * 取消所有由本 Provider 管理的协程。
-     *
-     * 由于 scope 和 ioScope 共享同一个 supervisorJob，
-     * 调用此方法会同时取消两个 Scope 下所有子协程。
+     * 分别取消 scope 和 ioScope，互不影响。
      */
     fun cancel() {
         if (!closed) {
             Log.i(TAG, "Cancelling all application-scoped coroutines")
-            supervisorJob.cancel()
+            defaultJob.cancel()
+            ioJob.cancel()
         }
     }
 

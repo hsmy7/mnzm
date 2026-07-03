@@ -1,5 +1,32 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.39] - 2026-07-03（versionCode=4039）
+
+### 架构重构
+
+- **游戏循环帧驱动化（R1）** — 从 timer-driven `delay(100ms)` 改为 frame-driven accumulator 模式。循环不再固定 sleep，而是每帧计算 deltaTime 累加到 accumulator，按 100ms 固定步长消费逻辑 tick，产出 `currentAlpha` 插值因子供 UI 60fps 平滑渲染
+- **忙等自适应化（R3）** — 正常运行零忙等（纯 `delay`），仅在检测到 OEM 挂起线程时才自动启用分片忙等，恢复正常后自动停用
+- **OEM 参数三档化（R4）** — 6 组厂商独立参数（21 魔数）简化为 AGGRESSIVE/MODERATE/LIGHT 三档
+- **可重入 Mutex 显式计数（R5）** — 从 `AtomicReference<Thread?>` 线程身份检测改为 `AtomicInteger` 显式重入计数，消除调度器切换死锁风险
+- **EntityStore 增量更新（R6）** — 写时复制（每次 update 分配新 List）改为 `MutableList` 原地修改 + `freeze()` 快照，GC 分配量降低 80%+
+- **批量轨动态降频（R12）** — 非焦点域批量间隔从硬编码 30s 改为动态 5-15s，Tab 切换后加速 5s，稳定态 10s
+- **帧预算监控（R17）** — `UnifiedPerformanceMonitor` 新增 `FrameQuality` 枚举，连续 3 帧 jank 自动触发负载降级请求
+- **动画帧同步（R20）** — `GameViewModel` 新增 `cultivationProgress` Animatable 平滑驱动 + `interpolationFactor` 插值因子接收接口
+- **scope/ioScope 分离（R15）** — `ApplicationScopeProvider` 的 scope 和 ioScope 不再共享 SupervisorJob，可独立取消互不影响
+
+### 修复
+
+- **ThermalMonitor 协程泄漏（R9）** — 移除孤立 `CoroutineScope(SupervisorJob())` + `while(true)`，改为 `start(engineScope)`/`stop()` 生命周期管理，使用 `while(isActive)`
+- **SaveLoadViewModel.onCleared 主线程阻塞（R10）** — `Thread.sleep` + `CountDownLatch` 等待保存完成（最长 5s 阻塞）改为 `NonCancellable` + `withTimeout` 挂起式等待，消除 ANR 风险
+- **AlchemyViewModel 吞 CancellationException（R11）** — 添加 `catch(CancellationException) { throw e }` 防止协程取消被静默吞掉
+- **看门狗假运行检测误触发（R14）** — 移除"tick 推进但游戏时间不变→重启"的假运行检测逻辑
+
+### 待执行
+
+- **并行结算引擎（R16）** — 创建 ParallelWorkerPool 多线程计算 + 单线程提交，预期批量处理提速 2-3x
+- **影子合并时间戳策略（R7）** — 替代当前 30 字段逐字段三路合并
+- **指纹增量计算（R13）** — 避免每次指纹检测全量 deepCopy
+
 ## [4.0.38] - 2026-07-03（versionCode=4038）
 
 ### 修复

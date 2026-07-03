@@ -6,9 +6,9 @@ import android.os.PerformanceHintManager
 import android.os.PowerManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +32,6 @@ class ThermalMonitor @Inject constructor(
     @ApplicationContext context: Context
 ) : ThermalStatusProvider {
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val hintManager by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -46,18 +45,35 @@ class ThermalMonitor @Inject constructor(
     @Volatile
     private var lastTargetDurationNanos: Long = 0L
 
+    private var monitorJob: Job? = null
+
     private val _thermalState = MutableStateFlow(ThermalState.NORMAL)
     /** 当前热状态，以 StateFlow 形式暴露，供 UI 层收集 */
     val thermalState: StateFlow<ThermalState> = _thermalState.asStateFlow()
 
-    init {
-        // 每 2 秒轮询一次热状态，避免高频查询
-        scope.launch {
-            while (true) {
+    /**
+     * 启动热状态监控。绑定到引擎作用域，引擎关闭时自动取消。
+     * 由 GameEngineCore.startGameLoop() 调用。
+     */
+    fun start(engineScope: CoroutineScope) {
+        if (monitorJob?.isActive == true) return
+        monitorJob = engineScope.launch {
+            // 立即读取一次初始状态
+            _thermalState.value = mapStatusToState(currentThermalStatus)
+            // 每 2 秒轮询一次热状态，避免高频查询
+            while (isActive) {
                 _thermalState.value = mapStatusToState(currentThermalStatus)
                 delay(2000L)
             }
         }
+    }
+
+    /**
+     * 停止热状态监控。由 GameEngineCore.shutdown() 调用。
+     */
+    fun stop() {
+        monitorJob?.cancel()
+        monitorJob = null
     }
 
     /** 当前热状态 (0=NONE, 1=LIGHT, 2=MODERATE, 3=SEVERE, 4=Critical, 5=Emergency, 6=Shutdown)

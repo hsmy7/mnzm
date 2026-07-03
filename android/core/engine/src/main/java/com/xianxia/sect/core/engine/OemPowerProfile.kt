@@ -3,143 +3,87 @@ package com.xianxia.sect.core.engine
 import android.os.Build
 
 /**
- * ## OEM 电源管理配置文件
+ * OEM 省电策略等级 — 数据驱动，每厂商映射到三档之一。
  *
- * 将各厂商电源管理特征参数集中为数据驱动配置，消除引擎代码中的
- * `if (isHonor)` / `if (isHuawei)` 硬编码分支。新增厂商只需在
- * [PROFILES] 中追加一个 [OemPowerProfile] 实例。
+ * | 等级 | 典型厂商 | 忙等占空比 | 看门狗间隔 |
+ * |------|---------|-----------|-----------|
+ * | AGGRESSIVE | 小米/红米 HyperOS | ~45% | 2s |
+ * | MODERATE | 华为/荣耀/vivo/OPPO | ~12-17% | 3s |
+ * | LIGHT | Samsung/原生 | ~3% | 5s |
+ */
+enum class OemPowerTier(val label: String) {
+    AGGRESSIVE("激进"),
+    MODERATE("中等"),
+    LIGHT("保守");
+
+    /** 防挂起忙等周期：每 N 个微周期做一次忙等（值越小越频繁） */
+    val antiFreezeBusyInterval: Long get() = when(this) {
+        AGGRESSIVE -> 6L; MODERATE -> 16L; LIGHT -> 64L
+    }
+
+    /** 每次忙等持续时长 (ms) */
+    val antiFreezeBusyDuration: Long get() = when(this) {
+        AGGRESSIVE -> 5L; MODERATE -> 3L; LIGHT -> 2L
+    }
+
+    /** 看门狗检查间隔 (ms) */
+    val watchdogIntervalMs: Long get() = when(this) {
+        AGGRESSIVE -> 2000L; MODERATE -> 3000L; LIGHT -> 5000L
+    }
+}
+
+/**
+ * ## OEM 电源管理配置文件（简化为三档）
  *
- * ### 设计动机
- * 原实现中 `antiFreezeDelay` 和 `startWatchdog` 仅对 Honor 调参，
- * vivo/iQOO(OriginOS)、小米(MIUI 神隐模式)、OPPO(ColorOS) 等激进
- * 电源管理厂商走默认参数，导致游戏线程被挂起、时间停止。
- *
- * ### 参数依据
- * 来源：dontkillmyapp.com 实测、各厂商电源管理机制分析。
+ * 原各厂商独立 6 组配置（21 个魔数），现按省电激进程度归为 3 档。
+ * 新增厂商只需在 [MANUFACTURER_TIERS] 中映射到三档之一。
  *
  * @see GameEngineCore.antiFreezeDelay
  * @see GameEngineCore.startWatchdog
  */
 data class OemPowerProfile(
-    /** 厂商枚举 */
     val manufacturer: OemManufacturer,
-    /**
-     * 防挂起忙等补偿周期：每多少个微周期做一次忙等。
-     *
-     * 值越小，忙等越频繁，CPU 越活跃，越能对抗 OEM 空闲检测。
-     * - 激进 OEM（Honor MagicOS / vivo OriginOS）：16
-     * - 中等 OEM（Xiaomi MIUI / OPPO ColorOS）：32
-     * - 保守 OEM（Samsung / 原生）：64
-     */
-    val antiFreezeBusyInterval: Long,
-    /**
-     * 防挂起忙等时长（ms）。每次忙等持续该时长保持线程 RUNNABLE。
-     *
-     * 激进 OEM 需更长忙等（4ms）突破更窄的空闲检测窗口。
-     */
-    val antiFreezeBusyDuration: Long,
-    /**
-     * 看门狗检查间隔（ms）。
-     *
-     * 激进 OEM 需更短间隔（3000ms），以便线程被挂起后更快检测并重启循环。
-     * 保守 OEM 用 5000ms 即可，降低误判与开销。
-     */
-    val watchdogIntervalMs: Long,
-)
+    val tier: OemPowerTier,
+) {
+    val antiFreezeBusyInterval: Long get() = tier.antiFreezeBusyInterval
+    val antiFreezeBusyDuration: Long get() = tier.antiFreezeBusyDuration
+    val watchdogIntervalMs: Long get() = tier.watchdogIntervalMs
+}
 
 /**
  * 支持的 OEM 厂商枚举。
- *
- * 与 app 模块的 [com.xianxia.sect.core.util.ManufacturerAdapter.Manufacturer]
- * 保持语义一致，但独立存在于 core/engine 模块以遵守模块边界
- *（core/engine 不依赖 app 模块）。
  */
 enum class OemManufacturer {
     HUAWEI, HONOR, XIAOMI, OPPO, VIVO, SAMSUNG, OTHER
 }
 
 /**
- * OEM 电源管理配置单例。
+ * OEM 电源管理配置单例（三档映射）。
  *
  * 通过 [Build.MANUFACTURER] / [Build.BRAND] 识别当前设备厂商，
- * 返回对应的 [OemPowerProfile]。识别逻辑仅在此处维护一份。
+ * 映射到三档 [OemPowerTier] 之一。
  */
 object OemPowerProfileProvider {
 
-    private val PROFILES: Map<OemManufacturer, OemPowerProfile> = mapOf(
-        OemManufacturer.HUAWEI to OemPowerProfile(
-            // 华为 EMUI/HarmonyOS PowerGenie 空闲检测窗口 ~50-100ms。
-            // busyInterval=64 需 128ms 累积延迟才触发一次忙等，但 tick 间隔仅
-            // 100ms（实际延迟 60-80ms），忙等条件 cycleCount%64==0 永不为真，
-            // 防挂起机制完全禁用。采用与 vivo OriginOS 同级的激进参数（占空比~15%），
-            // 确保每次 tick 间至少触发 3 次忙等，突破 PowerGenie 空闲检测。
-            // 参考：commit ea245e33 漏改 busyInterval，后续 vivo(01a9118b) 和
-            // OPPO(86535e01) 均已修正，华为本次补齐。
-            manufacturer = OemManufacturer.HUAWEI,
-            antiFreezeBusyInterval = 12L,
-            antiFreezeBusyDuration = 4L,
-            watchdogIntervalMs = 3000L,
-        ),
-        OemManufacturer.HONOR to OemPowerProfile(
-            manufacturer = OemManufacturer.HONOR,
-            // 荣耀 MagicOS 空闲检测窗口 ~10-30ms，更激进地保持 CPU 活跃
-            antiFreezeBusyInterval = 16L,
-            antiFreezeBusyDuration = 4L,
-            watchdogIntervalMs = 3000L,
-        ),
-        OemManufacturer.VIVO to OemPowerProfile(
-            // vivo/iQOO OriginOS 5 空闲检测窗口 ~10-20ms，
-            // 比 OriginOS 4 更窄，需比 Honor(16/4) 稍激进的忙等。
-            // 占空比 4ms/24ms=16.7%，单核约14% CPU，不会明显发热。
-            manufacturer = OemManufacturer.VIVO,
-            antiFreezeBusyInterval = 12L,
-            antiFreezeBusyDuration = 4L,
-            watchdogIntervalMs = 3000L,
-        ),
-        OemManufacturer.XIAOMI to OemPowerProfile(
-            // 小米 HyperOS 2.0 (红米K80) 空闲检测窗口 ~20-30ms，
-            // 比 MIUI 更窄。红米K80实测：12/4（14%占空比）仍不足以突破
-            // HyperOS 空闲检测，游戏线程持续被挂起导致时间冻结。
-            // 调至 6/5（~45%占空比），最大连续 WAITING 窗口仅 12ms，
-            // 远低于 20-30ms 检测阈值。来源：dontkillmyapp.com/xiaomi + K80实测
-            manufacturer = OemManufacturer.XIAOMI,
-            antiFreezeBusyInterval = 6L,
-            antiFreezeBusyDuration = 5L,
-            watchdogIntervalMs = 2000L,
-        ),
-        OemManufacturer.OPPO to OemPowerProfile(
-            // OPPO ColorOS 14/15 空闲检测窗口 ~15-30ms，需更激进的忙等。
-            // 占空比 4ms/32ms=12.5%，与 Honor MagicOS 同级。
-            // Reno12 实测时间停止，根因为 32/3（4.7% 占空比）不足以突破
-            // ColorOS 空闲检测。来源：dontkillmyapp.com/oppo
-            manufacturer = OemManufacturer.OPPO,
-            antiFreezeBusyInterval = 16L,
-            antiFreezeBusyDuration = 4L,
-            watchdogIntervalMs = 3000L,
-        ),
-        OemManufacturer.SAMSUNG to OemPowerProfile(
-            // 三星最接近原生 Android，保守参数
-            manufacturer = OemManufacturer.SAMSUNG,
-            antiFreezeBusyInterval = 64L,
-            antiFreezeBusyDuration = 2L,
-            watchdogIntervalMs = 5000L,
-        ),
-        OemManufacturer.OTHER to OemPowerProfile(
-            manufacturer = OemManufacturer.OTHER,
-            antiFreezeBusyInterval = 64L,
-            antiFreezeBusyDuration = 2L,
-            watchdogIntervalMs = 5000L,
-        ),
+    /** 厂商 → 三级映射表 */
+    private val MANUFACTURER_TIERS: Map<OemManufacturer, OemPowerTier> = mapOf(
+        OemManufacturer.XIAOMI to OemPowerTier.AGGRESSIVE,
+        OemManufacturer.HUAWEI to OemPowerTier.MODERATE,
+        OemManufacturer.HONOR to OemPowerTier.MODERATE,
+        OemManufacturer.VIVO to OemPowerTier.MODERATE,
+        OemManufacturer.OPPO to OemPowerTier.MODERATE,
+        OemManufacturer.SAMSUNG to OemPowerTier.LIGHT,
+        OemManufacturer.OTHER to OemPowerTier.LIGHT,
     )
-
-    private val DEFAULT_PROFILE: OemPowerProfile =
-        PROFILES.getValue(OemManufacturer.OTHER)
 
     /** 当前设备厂商（从 Build 识别，仅计算一次） */
     val currentManufacturer: OemManufacturer by lazy { detect() }
 
     /** 当前设备的电源管理配置 */
-    val current: OemPowerProfile by lazy { PROFILES[currentManufacturer] ?: DEFAULT_PROFILE }
+    val current: OemPowerProfile by lazy {
+        val mfr = currentManufacturer
+        OemPowerProfile(mfr, MANUFACTURER_TIERS[mfr] ?: OemPowerTier.LIGHT)
+    }
 
     private fun detect(): OemManufacturer {
         val m = Build.MANUFACTURER.lowercase()

@@ -146,6 +146,8 @@ class AlchemyViewModel @Inject constructor(
                     if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
                         startBestAlchemyRecipe(slot.slotIndex)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     // Best-effort immediate start; monthly tick will retry
                 }

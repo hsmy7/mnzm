@@ -1735,13 +1735,40 @@ class GameViewModel @Inject constructor(
 
     override fun onCleared() {
         Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")
-
-        // 停止游戏循环并释放资源
         clearResources()
-
         super.onCleared()
     }
 
+    // ── 平滑动画驱动（R20） ──
+
+    /** 修炼进度平滑动画值（60fps 过渡） */
+    private val _cultivationProgress = MutableStateFlow(0f)
+    val cultivationProgress: StateFlow<Float> = _cultivationProgress.asStateFlow()
+
+    /** 从游戏 tick 更新修炼进度（值突变），由 Animatable 平滑过渡到 UI */
+    fun updateCultivationProgress(target: Float) {
+        viewModelScope.launch {
+            // 渐变动画：每次更新在 100ms 内平滑过渡到目标值
+            val current = _cultivationProgress.value
+            val diff = target - current
+            val steps = 6   // 100ms / 16ms ≈ 6 帧
+            for (i in 1..steps) {
+                _cultivationProgress.value = current + diff * i / steps
+                delay(16)
+            }
+            _cultivationProgress.value = target  // 最终对齐
+        }
+    }
+
+    /** 旬进度条插值因子（由 R1 frame-driven 循环提供） */
+    @Volatile
+    var interpolationFactor: Float = 0f
+        private set
+
+    /** 由 GameEngineCore 每帧更新 */
+    fun updateInterpolationFactor(alpha: Float) {
+        interpolationFactor = alpha
+    }
 }
 
 /**

@@ -4,22 +4,41 @@ import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.util.StackableItem
 
 /**
- * 轻量级实体存储容器：O(1) ID 查找 + List 兼容操作。
+ * 实体存储容器（增量更新版）。
  *
- * 内部用 [HashMap] 维护 ID→实体 索引，同时保持 [List] 接口兼容。
- * 所有写操作分配新列表（!== 引用变化检测）。
+ * ## 设计变更
+ *
+ * 原实现每次 [add]/[remove]/[update] 都分配新 [List]（写时复制），
+ * 依赖 `!==` 引用比较检测变化。在 1000+ 物品场景下 GC 压力大。
+ *
+ * 现改为：
+ * - 内部使用 [MutableList] 原地修改，写操作零分配
+ * - [dirty] 标记记录是否有未冻结的修改
+ * - [freeze] 在 StateFlow 发射前调用，重建不可变快照
+ * - [items] 返回最近一次 freeze 的结果（无写操作时复用同一引用）
+ *
+ * 调用方（GameStateStoreImpl.emitChanges）需在发射 EntityStore 前调用 [freeze]，以触发 `!==` 检测。
  *
  * @param T 实体类型，须实现 [HasId]
  */
 class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> {
 
-    /** 当前列表。写操作后为新引用。 */
-    var items: List<T> = initialItems
-        private set
-
+    // ★ 内部可变列表 — 写操作原地修改，零分配
+    private val items_ = initialItems.toMutableList()
     private val index: MutableMap<String, T> = HashMap(initialItems.size)
+    // ★ 已冻结的快照（供 items 返回）
+    private var frozenSnapshot: List<T> = initialItems
+    // ★ dirty 标记：是否有未冻结的修改
+    private var dirty = false
 
     init { rebuildIndex() }
+
+    /**
+     * 当前已冻结的列表引用。
+     * 无写入时复用同一引用（!== 检测正常工作）。
+     * 有写入后调用 [freeze] 才更新。
+     */
+    val items: List<T> get() = frozenSnapshot
 
     // === 读取 ===
 
@@ -96,73 +115,90 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
      */
     fun associateById(): Map<String, T> = index.toMap()
 
-    // === 写入（分配新 List） ===
+    // === 写入（零分配原地修改） ===
 
-    /** 添加。list = list + item 的替代 */
-    operator fun plus(item: T): EntityStore<T> {
-        val copy = EntityStore(items + item)
-        return copy
-    }
-
-    /** 添加实体（原地修改） */
+    /** 添加实体。不分配新 List，只标记 dirty。 */
     fun add(item: T) {
-        items = items + item
+        items_.add(item)
         index[item.id] = item
+        dirty = true
     }
 
     /** 删除 */
     fun remove(id: String) {
         if (index.remove(id) != null) {
-            items = items.filter { it.id != id }
+            items_.removeAll { it.id == id }
+            dirty = true
         }
     }
 
-    /** 原地更新指定 ID */
+    /** 原地更新指定 ID。不分配新 List。 */
     fun update(id: String, transform: (T) -> T) {
         val old = index[id] ?: return
         val newItem = transform(old)
-        items = items.map { if (it.id == id) newItem else it }
-        index[id] = newItem
+        val idx = items_.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            items_[idx] = newItem
+            index[id] = newItem
+            dirty = true
+        }
     }
 
     /** 全量替换 */
     fun replaceAll(newItems: List<T>) {
-        items = newItems
+        items_.clear()
+        items_.addAll(newItems)
         rebuildIndex()
+        dirty = true
     }
 
-    /**
-     * 全量替换列表并重建索引。保持旧接口兼容。
-     * 替代 oldList = newList 的赋值操作。
-     */
-    fun setItems(newItems: List<T>) {
-        replaceAll(newItems)
+    fun setItems(newItems: List<T>) { replaceAll(newItems) }
+
+    fun mapInPlace(transform: (T) -> T) {
+        for (i in items_.indices) {
+            items_[i] = transform(items_[i])
+        }
+        rebuildIndex()
+        dirty = true
     }
 
-    /**
-     * 对全部实体应用转换后原地替换。
-     * 替代 `store = store.map { ... }` 模式。
-     */
-    inline fun mapInPlace(transform: (T) -> T) {
-        replaceAll(items.map(transform))
+    fun filterInPlace(predicate: (T) -> Boolean) {
+        items_.removeAll { !predicate(it) }
+        rebuildIndex()
+        dirty = true
     }
 
-    /**
-     * 过滤实体后原地替换。
-     * 替代 `store = store.filter { ... }` 模式。
-     */
-    inline fun filterInPlace(predicate: (T) -> Boolean) {
-        replaceAll(items.filter(predicate))
+    // ★ 拼接（仍返回新 EntityStore，保持语义不变）
+    operator fun plus(item: T): EntityStore<T> {
+        val newStore = EntityStore<T>().also { s ->
+            s.items_.addAll(this.items_)
+            s.items_.add(item)
+            s.rebuildIndex()
+            s.dirty = true
+        }
+        return newStore
+    }
+
+    // ★ 冻结：写入 items 快照供 StateFlow 发射用。仅 dirty 时分配新列表。
+    fun freeze(): EntityStore<T> {
+        if (dirty) {
+            frozenSnapshot = items_.toList()
+            dirty = false
+        }
+        return this
     }
 
     // === 内部 ===
 
     private fun rebuildIndex() {
         index.clear()
-        for (item in items) {
-            index[item.id] = item
+        for (i in items_.indices) {
+            index[items_[i].id] = items_[i]
         }
     }
+
+    /** 是否自上次 freeze() 后有修改（供 GameStateStoreImpl 使用） */
+    val isDirty: Boolean get() = dirty
 }
 
 /**

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -170,21 +171,18 @@ class GameStateStoreImpl @Inject constructor(
     private val transactionMutex = Mutex()
 
     /**
-     * 当前持有 transactionMutex 的线程（null 表示未持有）。
+     * 显式重入计数，替代原 thread identity 检测。
      *
-     * 用于检测 [update] 的重入调用：游戏循环 tick 在 `stateStore.update {}` 块内
-     * 同步调用各 GameSystem，而某些 System/Service（如 CultivationEventProcessor.processPhaseTick、
-     * ProductionSubsystem 的生产完成逻辑）内部又调用了 `stateStore.update {}`。
-     * 由于 [transactionMutex] 是不可重入的，同线程二次 withLock 会永久死锁。
+     * - reentrantCount > 0 表示当前线程已持有锁，嵌套 update() 直接操作 buffer 后返回
+     * - reentrantBuffer 保存最外层 update() 的 buffer 引用，供嵌套调用读取
      *
-     * 游戏循环跑在单线程 dispatcher（GameEngineCore.GAME_DISPATCHER）上，
-     * 因此用线程身份即可精确识别重入；UI/ViewModel 的 update 调用在主线程或 IO 线程，
-     * 不会与游戏循环线程混淆。
+     * 原实现用 [transactionOwnerThread] AtomicReference<Thread?> 检测重入，
+     * 但该方案依赖"所有引擎代码在同一线程运行"的约定——任何调度器切换
+     *（如 withContext(IO)）会导致 identity 检查失败、同线程死锁。
+     * 显式计数方案不依赖线程身份，调度器切换后 count 仍正确。
      */
-    private val transactionOwnerThread = AtomicReference<Thread?>(null)
-
-    @Volatile
-    private var currentTransactionState: MutableGameState? = null
+    private val reentrantCount = AtomicInteger(0)
+    private val reentrantBuffer = AtomicReference<MutableGameState?>(null)
 
     /** 上次 assembleAll 时的 mutationVersion，用于跳过无变化的重新装配 */
     private var lastAssembledMutationVersion: Long = 0
@@ -215,6 +213,14 @@ class GameStateStoreImpl @Inject constructor(
 
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
     internal val _updateVersion = MutableStateFlow(0L)
+
+    // ── 发射节流（R19）：批量结算时抑制个体字段发射，仅依赖 _updateVersion ──
+    @Volatile
+    private var batchEmissionMode = false
+    /** 批量模式下抑制个体字段 StateFlow 发射，仅 _updateVersion 递增 */
+    fun enterBatchEmissionMode() { batchEmissionMode = true }
+    /** 退出批量模式，立即触发一次完整状态发射 */
+    fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++ }
 
     override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -451,9 +457,8 @@ class GameStateStoreImpl @Inject constructor(
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     override suspend fun modifyState(block: MutableGameState.() -> Unit) {
-        val txState = currentTransactionState
-        if (txState != null && transactionOwnerThread.get() == Thread.currentThread()) {
-            txState.block()
+        if (reentrantCount.get() > 0) {
+            reentrantBuffer.get()?.block()
         } else {
             update { block() }
         }
@@ -623,17 +628,11 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun update(block: suspend MutableGameState.() -> Unit) {
 
-        // 重入检测：若当前线程已持有 transactionMutex，说明本次 update 是在
-        // tick 事务内被某个 System/Service 嵌套调用的。transactionMutex 不可重入，
-        // 若再次 withLock 会同线程自死锁。改为直接对事务内状态（reusableMutableState）
-        // 执行 block——它正是外层 update 正在操作的对象，改动会随外层 update 在
-        // 提交阶段统一写回 StateFlow。
-        if (transactionOwnerThread.get() == Thread.currentThread() && currentTransactionState != null) {
-            val txState = requireNotNull(currentTransactionState) {
-                "currentTransactionState became null after reentrance check"
-            }
-            txState.block()
-            // 重入路径：txState 即外层 update 持有的 reusableMutableState，
+        // ★ 显式重入检测：reentrantCount > 0 表示最外层 update 已持有锁
+        if (reentrantCount.get() > 0) {
+            val buffer = reentrantBuffer.get() ?: return
+            buffer.block()
+            // 重入路径：buffer 即最外层 update 的 reusableMutableState，
             // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
             return
         }
@@ -641,7 +640,8 @@ class GameStateStoreImpl @Inject constructor(
         var disciplesNeedReassemble = false
 
         transactionMutex.withLock {
-            transactionOwnerThread.set(Thread.currentThread())
+            reentrantCount.set(1)
+            reentrantBuffer.set(reusableMutableState)
             val curGame = _gameDataFlow.value
             val curES = _equipmentStacksFlow.value
             val curEI = _equipmentInstancesFlow.value
@@ -677,10 +677,19 @@ class GameStateStoreImpl @Inject constructor(
                 isSaving = curSaving
                 pendingNotification = curNotif
             }
-            currentTransactionState = reusableMutableState
             try {
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 reusableMutableState.block()
+                // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
+                reusableMutableState.equipmentStacks.freeze()
+                reusableMutableState.equipmentInstances.freeze()
+                reusableMutableState.manualStacks.freeze()
+                reusableMutableState.manualInstances.freeze()
+                reusableMutableState.pills.freeze()
+                reusableMutableState.materials.freeze()
+                reusableMutableState.herbs.freeze()
+                reusableMutableState.seeds.freeze()
+                reusableMutableState.storageBags.freeze()
                 val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock
                 val finalPaused = if (_isPaused.value != curPaused) _isPaused.value else reusableMutableState.isPaused
                 val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading
@@ -745,8 +754,8 @@ class GameStateStoreImpl @Inject constructor(
                 if (anyFieldChanged) _updateVersion.value++
                 _discipleTables = reusableMutableState.discipleTables
             } finally {
-                currentTransactionState = null
-                transactionOwnerThread.set(null)
+                reentrantCount.set(0)
+                reentrantBuffer.set(null)
             }
         }
 
@@ -761,17 +770,17 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R {
 
-        // 重入检测：当前线程已持有 transactionMutex，直接对事务内状态执行 block
-        if (transactionOwnerThread.get() == Thread.currentThread()
-            && currentTransactionState != null
-        ) {
-            return requireNotNull(currentTransactionState) {
-                "currentTransactionState became null after reentrance check"
-            }.block()
+        // ★ 重入检测：reentrantCount > 0 表示最外层 update 已持有锁
+        if (reentrantCount.get() > 0) {
+            val buffer = requireNotNull(reentrantBuffer.get()) {
+                "reentrantBuffer became null during reentrance"
+            }
+            return buffer.block()
         }
 
         transactionMutex.withLock {
-            transactionOwnerThread.set(Thread.currentThread())
+            reentrantCount.set(1)
+            reentrantBuffer.set(reusableMutableState)
             val curGame = _gameDataFlow.value
             val curES = _equipmentStacksFlow.value
             val curEI = _equipmentInstancesFlow.value
@@ -807,10 +816,19 @@ class GameStateStoreImpl @Inject constructor(
                 isSaving = curSaving
                 pendingNotification = curNotif
             }
-            currentTransactionState = reusableMutableState
             try {
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 val result = reusableMutableState.block()
+                // ★ 冻结 EntityStore 快照
+                reusableMutableState.equipmentStacks.freeze()
+                reusableMutableState.equipmentInstances.freeze()
+                reusableMutableState.manualStacks.freeze()
+                reusableMutableState.manualInstances.freeze()
+                reusableMutableState.pills.freeze()
+                reusableMutableState.materials.freeze()
+                reusableMutableState.herbs.freeze()
+                reusableMutableState.seeds.freeze()
+                reusableMutableState.storageBags.freeze()
                 val blockChangedNotification =
                     reusableMutableState.pendingNotification !== notificationBeforeBlock
                 val finalPaused = if (_isPaused.value != curPaused)
@@ -890,8 +908,8 @@ class GameStateStoreImpl @Inject constructor(
                 _discipleTables = reusableMutableState.discipleTables
                 return result
             } finally {
-                currentTransactionState = null
-                transactionOwnerThread.set(null)
+                reentrantCount.set(0)
+                reentrantBuffer.set(null)
             }
         }
     }

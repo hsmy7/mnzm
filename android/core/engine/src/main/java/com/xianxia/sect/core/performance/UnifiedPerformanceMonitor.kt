@@ -87,6 +87,38 @@ class UnifiedPerformanceMonitor @Inject constructor(
     private val performanceListeners = CopyOnWriteArrayList<PerformanceListener>()
     private val _performanceWarnings = mutableListOf<PerformanceWarning>()
 
+    // ── 帧质量追踪（R17 新增） ──
+    enum class FrameQuality { SMOOTH, ACCEPTABLE, JANKY, FREEZE }
+    private var consecutiveJankyFrames = 0
+    @Volatile private var _loadReductionRequested = false
+    @Volatile private var _frameQuality: FrameQuality = FrameQuality.SMOOTH
+    val frameQuality: FrameQuality get() = _frameQuality
+    val loadReductionRequested: Boolean get() = _loadReductionRequested
+
+    /** 帧完成后由 Choreographer 回调调用，更新质量追踪和降级请求 */
+    fun onFrameCompleted(frameDurationMs: Float) {
+        val quality = when {
+            frameDurationMs < 16.67f -> FrameQuality.SMOOTH
+            frameDurationMs < 33.33f -> FrameQuality.ACCEPTABLE
+            frameDurationMs < 50f -> FrameQuality.JANKY
+            else -> FrameQuality.FREEZE
+        }
+        _frameQuality = quality
+        if (quality >= FrameQuality.JANKY) {
+            consecutiveJankyFrames++
+            if (consecutiveJankyFrames >= 3 && !_loadReductionRequested) {
+                _loadReductionRequested = true
+                DomainLog.w(TAG, "3 consecutive janky frames — requesting load reduction")
+            }
+        } else {
+            consecutiveJankyFrames = 0
+            _loadReductionRequested = false
+        }
+    }
+
+    /** 清除降级请求（引擎已响应降级后调用） */
+    fun clearLoadReductionRequest() { _loadReductionRequested = false }
+
     private inner class MonitorFrameCallback : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!isFrameMonitoringActive) return
