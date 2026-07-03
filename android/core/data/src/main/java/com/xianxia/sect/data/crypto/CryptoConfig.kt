@@ -125,10 +125,10 @@ object CryptoConstants {
     // ==================== 缓存配置 ====================
 
     /** 缓存 TTL (毫秒) */
-    const val UNIFIED_CACHE_TTL_MS = TimeUnit.MINUTES.toMillis(5)
+    val UNIFIED_CACHE_TTL_MS = TimeUnit.MINUTES.toMillis(5)
 
     /** 缓存清理间隔 (毫秒) */
-    const val CACHE_CLEANUP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5)
+    val CACHE_CLEANUP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5)
 
     // ==================== 编码配置 ====================
 
