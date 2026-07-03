@@ -11,10 +11,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 妖兽进攻预警弹窗（半屏）。
@@ -28,9 +28,6 @@ internal fun BeastAttackWarningDialog(
     onFight: () -> Unit
 ) {
     val canPay = currentSpiritStones >= GameConfig.WorldMap.BEAST_TRIBUTE_MIN
-    val tributeAmount = (currentSpiritStones *
-        GameConfig.WorldMap.BEAST_TRIBUTE_RATIO).toLong()
-        .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
 
     UnifiedGameDialog(
         onDismissRequest = onFight,
@@ -52,7 +49,7 @@ internal fun BeastAttackWarningDialog(
             Text(
                 text = "妖兽朝【${attack.targetSectName}】移动",
                 fontSize = 20.sp,
-                color = Color.Black,
+                color = GameColors.TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -76,22 +73,16 @@ internal fun BeastAttackWarningDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 GameButton(
-                    text = "上交宝物\n(${GameUtils.formatNumber(tributeAmount)}灵石)",
+                    text = "上交宝物",
                     onClick = onPayTribute,
-                    enabled = canPay,
-                    modifier = Modifier
-                        .width(120.dp)
-                        .height(56.dp)
+                    enabled = canPay
                 )
 
                 Spacer(modifier = Modifier.width(24.dp))
 
                 GameButton(
                     text = "知道了",
-                    onClick = onFight,
-                    modifier = Modifier
-                        .width(120.dp)
-                        .height(56.dp)
+                    onClick = onFight
                 )
             }
 

@@ -3,6 +3,7 @@
 		"date": "2026-07-03",
 		"version": "4.0.36",
 		"changes": [
+			"修复：妖兽警告界面按钮标准化——妖兽来袭弹窗按钮尺寸从硬编码120x56dp改为标准84x38dp(ButtonSizes)，修复按钮文本因换行符被截断显示省略号的问题",
 			"技术：MainGameScreen拆分——1509行降至1086行，提取5个leaf组件到main/子目录(SectInfoCard/HideUiToggleButton/MapBitmapUtils/GoldFingerSection/PlacementConfirmButtons)",
 			"技术：HeavenlyTrialCombatScreen拆分——1674行降至848行，提取4个子模块(Models/Animation/CombatLogic/Components)到heavenlytrial/",
 			"技术：AISectAttackManager拆分——1313行降至1144行，提取数据类+队伍编成到aiattack/子目录",
