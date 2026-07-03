@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-07-03 (Phase 0: 统一批量结算模式标记已完成)
+> 最后更新：2026-07-03 (Phase 1 大文件重构完成：6个 P1 文件均已完成拆分或提取)
 
 ## 目录
 
@@ -1615,7 +1615,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| P1 | **大文件重构** — MainGameScreen已拆(1509→1086)、HeavenlyTrial已拆(1674→848)、AISectAttack已拆(1313→1144)、InventorySystem容量已提(1328→1288)，尚余MerchantDialog(1331)、SaveCrypto(1373) | 可维护性 | 部分完成 |
+| P1 | **大文件重构** — 6个P1文件均已完成拆分 | 可维护性 | ✅ 已完成 |
 | P2 | SaveLoadViewModel 继续拆分（尚余 1314 行，已建 Delegate 框架） | 可维护性 | 部分完成 |
 | P2 | **DI 模块集成测试**（8 个 DI 文件） | 编译期回归拦截 | Konsist 测试增强 |
 | P2 | **引擎核心层测试**补齐（CultivationCore、DiscipleService 等） | 回归拦截 | 待实施 |
@@ -1628,9 +1628,11 @@ cd android && ./gradlew.bat testDebugUnitTest \
 > - ✅ **v4.0.36 — HeavenlyTrialCombatScreen拆分**：1674→848行，提取4个子模块到heavenlytrial/
 > - ✅ **v4.0.36 — AISectAttackManager拆分**：1313→1144行，提取数据类+队伍编成到aiattack/
 > - ✅ **v4.0.36 — InventorySystem容量提取**：容量/槽位计算提取到inventory/
+> - ✅ **v4.0.36 — MerchantDialog拆分**：1331→320行，提取2个子文件(MerchantListingDialog+MerchantInventoryDialog)
+> - ✅ **v4.0.36 — SaveCrypto常量提取**：CryptoConfig.kt(KeyVersion+CryptoConstants)
 > - ✅ **v4.0.36 — SaveLoadViewModel Delegate框架**：saveload/目录+SaveDelegate
-> - ✅ **v4.0.36 — DI测试增强**：Konsist测试修复+GoldFingerBuildTest导入修复
-> - ✅ **v4.0.36 — 统一批量结算模式**：移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md)
+> - ✅ **v4.0.36 — DI测试增强**：Konsist测试修复+测试编译通过
+> - ✅ **v4.0.36 — 统一批量结算模式**：移除活跃/空闲双模式。详见 [ADR](docs/adr/unified-batch-settlement.md)
 > - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
 > - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
 > - ✅ **v4.0.35 — Detekt违规数降84%**：1,245→195
