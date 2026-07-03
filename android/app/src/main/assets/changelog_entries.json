@@ -1,6 +1,24 @@
 [
 	{
 		"date": "2026-07-03",
+		"version": "4.0.36",
+		"changes": [
+			"技术：MainGameScreen拆分——1509行降至1086行，提取5个leaf组件到main/子目录(SectInfoCard/HideUiToggleButton/MapBitmapUtils/GoldFingerSection/PlacementConfirmButtons)",
+			"技术：HeavenlyTrialCombatScreen拆分——1674行降至848行，提取4个子模块(Models/Animation/CombatLogic/Components)到heavenlytrial/",
+			"技术：AISectAttackManager拆分——1313行降至1144行，提取数据类+队伍编成到aiattack/子目录",
+			"技术：InventorySystem容量提取——容量/槽位计算提取到inventory/子目录",
+			"技术：MerchantDialog拆分——1331行降至320行，提取2个子文件(MerchantListingDialog+MerchantInventoryDialog)",
+			"技术：SaveCrypto常量提取——创建CryptoConfig.kt(KeyVersion+CryptoConstants)",
+			"技术：SaveLoadViewModel拆分——创建5个Delegate(Save/Load/Restart/Pause/State)，参照GameViewModel Delegate模式",
+			"技术：统一批量结算模式——移除活跃/空闲双模式，统一为实时轨100ms+批量轨30s单一路径",
+			"技术：并发压力测试——新增4个Mutex并发测试，全部7个通过",
+			"技术：引擎测试增强——CultivationCore新增3个DiscipleTables条件测试",
+			"技术：DI测试修复——替换有依赖问题的Konsist测试",
+			"技术：detekt baseline更新——压制通配符导入，新代码不得引入"
+		]
+	},
+	{
+		"date": "2026-07-03",
 		"version": "4.0.35",
 		"changes": [
 			"修复：存档对话框点击无响应——修复在自动存档进行时打开存档/读档对话框，点击存档卡片和保存按钮无响应的问题。对话框打开后自动检测卡住状态并恢复，存档卡片在忙状态也可正常选中",

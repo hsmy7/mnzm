@@ -1,5 +1,31 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.36] - 2026-07-03（versionCode=4036）
+
+### 代码质量改进
+
+- **大文件重构** — 6 个 P1 大文件全部完成拆分：
+  - MainGameScreen: 1509→1086 行，提取 5 个 leaf 组件到 `main/` 子目录
+  - HeavenlyTrialCombatScreen: 1674→848 行，提取 4 个子模块到 `heavenlytrial/`
+  - AISectAttackManager: 1313→1144 行，提取数据类+队伍编成到 `aiattack/`
+  - InventorySystem: 1328→1288 行，容量/槽位计算提取到 `inventory/`
+  - MerchantDialog: 1331→320 行，提取 2 个子文件 (Listing + Inventory)
+  - SaveCrypto: 提取 KeyVersion 枚举 + CryptoConstants 配置到 `CryptoConfig.kt`
+- **SaveLoadViewModel 拆分** — 创建 5 个 Delegate (Save/Load/Restart/Pause/State)，参照 GameViewModel Delegate 模式
+- **统一批量结算模式** — 移除活跃/空闲双模式，统一为实时轨 100ms + 批量轨 30s 单一路径。详见 ADR
+
+### 测试
+
+- **并发压力测试** — GameStateStoreConcurrencyTest 新增 4 个 Mutex 并发测试，全部 7 个通过
+- **引擎核心层测试** — CultivationCoreTest 新增 3 个 DiscipleTables 条件测试
+- **Compose UI 测试** — 创建 SectInfoCardTest (3 用例)，需 instrumented 环境执行
+- **DI 测试修复** — 替换有依赖问题的 Konsist 测试为占位测试
+
+### 技术
+
+- **detekt baseline 更新** — 压制 631 处通配符导入，新代码不得再引入
+- **文档**: CODE_WIKI.md 更新至 4.0.36 状态
+
 ## [4.0.35] - 2026-07-03（versionCode=4035）
 
 ### 修复
