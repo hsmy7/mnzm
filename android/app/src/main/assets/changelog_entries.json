@@ -1,45 +1,32 @@
 [
 	{
 		"date": "2026-07-03",
-		"version": "4.0.40",
-		"changes": [
-			"架构：影子合并简化(R7)——mergeDiscipleTables从100行逐字段三路比较简化为15行声明式合并，消除shadowOrigin全量快照",
-			"架构：指纹增量计算(R13)——accumulateBatch指纹检测从每次全量deepCopy改为FingerprintSnapshot.take零分配引用拷贝",
-			"架构：并行结算引擎(R16)——新增ParallelWorkerPool类，指纹计算和进度分类两路async并行化",
-			"架构：Compose稳定性标注(R18)——UnifiedGameState/HighFreqState/EntityState/ConfigState补齐@Immutable注解",
-			"架构：批量发射模式(R19)——结算路径激活batchEmissionMode，减少重组雪崩",
-			"修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
-			"修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
-			"清理：删除5份v3.x时期过时架构分析文档",
-			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding",
-			"修复：游戏内宗门改名对话框键盘不稳定——GameOverlayHost中onConfirm lambda用remember稳定引用"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.39",
+		"version": "4.0.38",
 		"changes": [
 			"架构：游戏循环帧驱动化(R1)——从timer-driven delay(100ms)改为frame-driven accumulator模式，每帧计算deltaTime累加后按固定步长消费，产出currentAlpha插值因子供60fps平滑渲染",
 			"架构：忙等自适应化(R3)——正常运行零忙等(纯delay)，仅检测到OEM挂起线程时自动启用分片忙等，恢复后自动停用",
 			"架构：OEM参数三档化(R4)——6组厂商独立参数(21魔数)简化为AGGRESSIVE/MODERATE/LIGHT三档",
 			"架构：可重入Mutex显式计数(R5)——从AtomicReference线程身份检测改为AtomicInteger显式重入计数，消除调度器切换死锁风险",
 			"架构：EntityStore增量更新(R6)——写时复制改为MutableList原地修改+freeze()快照，GC分配量降低80%+",
-			"架构：批量轨动态降频(R12)——非焦点域批量间隔从硬编码30s改为动态5-15s，Tab切换后加速5s",
-			"架构：帧预算监控(R17)——UnifiedPerformanceMonitor新增FrameQuality枚举，连续3帧jank自动触发负载降级",
-			"架构：动画帧同步(R20)——GameViewModel新增cultivationProgress Animatable平滑驱动+interpolationFactor插值因子接口",
-			"架构：scope/ioScope分离(R15)——ApplicationScopeProvider不再共享SupervisorJob，可独立取消",
+			"架构：影子合并简化(R7)——mergeDiscipleTables从100行逐字段三路比较简化为15行声明式合并，消除shadowOrigin全量快照",
 			"修复：ThermalMonitor协程泄漏(R9)——移除孤立CoroutineScope+while(true)，改为start/stop生命周期绑定engineScope",
 			"修复：SaveLoadViewModel.onCleared主线程阻塞(R10)——Thread.sleep+CountDownLatch改为NonCancellable挂起式等待，消除ANR风险",
 			"修复：AlchemyViewModel吞CancellationException(R11)——添加catch(CancellationException)重新抛出",
-			"修复：看门狗假运行检测误触发(R14)——移除假运行检测逻辑"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.38",
-		"changes": [
-			"修复：红米K80(HyperOS 2.0)游戏时间停止——游戏循环线程被HyperOS电源管理挂起后时间不再推进，UI可操作但时间冻结。新增主线程健康监控器(绕过后台线程冻结)、紧急重启机制(创建全新调度器线程)、看门狗自愈、forceCompleteSettlement超时保护",
-			"修复：Xiaomi HyperOS防挂起参数增强——antiFreeze占空比从14%提升至45%，看门狗检查间隔缩短至2s"
+			"架构：批量轨动态降频(R12)——非焦点域批量间隔从硬编码30s改为动态5-15s，Tab切换后加速5s",
+			"架构：指纹增量计算(R13)——accumulateBatch指纹检测从每次全量deepCopy改为FingerprintSnapshot.take零分配引用拷贝",
+			"修复：看门狗假运行检测误触发(R14)——移除假运行检测逻辑",
+			"架构：scope/ioScope分离(R15)——ApplicationScopeProvider不再共享SupervisorJob，可独立取消",
+			"架构：并行结算引擎(R16)——新增ParallelWorkerPool类，指纹计算和进度分类两路async并行化",
+			"架构：帧预算监控(R17)——UnifiedPerformanceMonitor新增FrameQuality枚举，连续3帧jank自动触发负载降级",
+			"架构：Compose稳定性标注(R18)——UnifiedGameState/HighFreqState/EntityState/ConfigState补齐@Immutable注解",
+			"架构：批量发射模式(R19)——结算路径激活batchEmissionMode，减少重组雪崩",
+			"架构：动画帧同步(R20)——GameViewModel新增cultivationProgress Animatable平滑驱动+interpolationFactor插值因子接口",
+			"修复：红米K80(HyperOS 2.0)游戏时间停止——游戏循环线程被HyperOS电源管理挂起后时间不再推进，UI可操作但时间冻结。新增主线程健康监控器、紧急重启机制、看门狗自愈、forceCompleteSettlement超时保护",
+			"修复：Xiaomi HyperOS防挂起参数增强——antiFreeze占空比提升，看门狗检查间隔缩短",
+			"修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
+			"修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
+			"清理：删除5份v3.x时期过时架构分析文档",
+			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding，GameOverlayHost中onConfirm lambda用remember稳定引用，SaveSelectScreen设置dismissOnClickOutside=false"
 		]
 	},
 	{

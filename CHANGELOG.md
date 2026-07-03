@@ -1,23 +1,6 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.40] - 2026-07-03（versionCode=4040）
-
-### 架构重构
-
-- **影子合并简化（R7）** — `mergeDiscipleTables` 从 100 行逐字段三路值比较简化为 15 行声明式合并：基于 shadow 保留结算结果、current 无条件覆盖生命周期字段。消除 `shadowOrigin` 全量快照，仅保留轻量 `shadowOriginAliveIds` 区分死亡/新生儿
-- **指纹增量计算（R13）** — `accumulateBatch` 指纹检测从每次全量 `createSettlementShadow()` deepCopy 改为 `FingerprintSnapshot.take()`（零分配引用拷贝）。新增 `FingerprintSnapshot` 轻量快照类，仅指纹变化时回退到完整 deepCopy。稳定态下消除 100% 的非必要 deepCopy
-- **并行结算引擎（R16）** — 新增 `ParallelWorkerPool` 类，利用 `async(Dispatchers.Default)` 将 `accumulateBatch` 中的指纹计算和进度分类两路并行化。配合 R13 的 `FingerprintSnapshot` 零拷贝快照，批量结算管道实现全链路并行：零拷贝读取 → 并行计算 → 单线程提交
-- **Compose 稳定性标注（R18）** — `UnifiedGameState`、`HighFreqState`、`EntityState`、`ConfigState` 补齐 `@Immutable` 注解，与已有的 `stability_config.conf` 形成双保险，确保 Compose 编译器正确跳过不变参数的重组
-- **批量发射模式激活（R19）** — 已有的 `batchEmissionMode` 标志位在结算路径中激活，`onSettlementComplete` 期间抑制个体 StateFlow 发射，仅通过 `_updateVersion` 触发统一状态重建，减少一次性 13+ Flow 同时发射导致的重组雪崩
-
-### 修复
-
-- **修复宗门命名对话框键盘反复弹出收起问题** — 根因：`InlineStandardPromptDialog` 外层 `Box` 未添加 `imePadding()`，键盘弹出时 `adjustResize` 导致窗口内容区缩小、布局震荡，部分设备触发焦点循环。修复：`InlineStandardPromptDialog` 外层 Box 添加 `Modifier.imePadding()` 正确处理 IME 插入值；`GameOverlayHost` 中 `onConfirm` lambda 用 `remember` 稳定引用，减少游戏循环(100ms)驱动的不必要重组；`SaveSelectScreen` 创建宗门对话框设置 `dismissOnClickOutside=false`，防止键盘弹出时布局变化意外触发关闭
-- **InventorySystem 合并后查找失败** — `EntityStore.plus()` 构造函数 `frozenSnapshot` 未正确初始化，导致合并后 `find` 返回空。修复为 `EntityStore(newItems)` 直接构造，确保 `items` 正确反映所有内容
-- **GameViewModel 主线程健康检查 Log 崩溃** — `launchMainThreadHealthCheck` 中 `Log.e()` 在单元测试中抛出 `RuntimeException`（Android SDK stub）。替换为 `DomainLog.e()`（纯 Kotlin `println`），消除 31 个测试预存失败
-- **过时架构文档清理** — 删除 5 份 v3.x 时期的历史分析文档（PROBLEM_REPORT / VERIFICATION_REPORT / findings / ADR / optimization-summary）
-
-## [4.0.39] - 2026-07-03（versionCode=4039）
+## [4.0.38] - 2026-07-03（versionCode=4038）
 
 ### 架构重构
 
@@ -26,24 +9,28 @@
 - **OEM 参数三档化（R4）** — 6 组厂商独立参数（21 魔数）简化为 AGGRESSIVE/MODERATE/LIGHT 三档
 - **可重入 Mutex 显式计数（R5）** — 从 `AtomicReference<Thread?>` 线程身份检测改为 `AtomicInteger` 显式重入计数，消除调度器切换死锁风险
 - **EntityStore 增量更新（R6）** — 写时复制（每次 update 分配新 List）改为 `MutableList` 原地修改 + `freeze()` 快照，GC 分配量降低 80%+
+- **影子合并简化（R7）** — `mergeDiscipleTables` 从 100 行逐字段三路值比较简化为 15 行声明式合并。消除 `shadowOrigin` 全量快照，仅保留轻量 `shadowOriginAliveIds` 区分死亡/新生儿
 - **批量轨动态降频（R12）** — 非焦点域批量间隔从硬编码 30s 改为动态 5-15s，Tab 切换后加速 5s，稳定态 10s
-- **帧预算监控（R17）** — `UnifiedPerformanceMonitor` 新增 `FrameQuality` 枚举，连续 3 帧 jank 自动触发负载降级请求
-- **动画帧同步（R20）** — `GameViewModel` 新增 `cultivationProgress` Animatable 平滑驱动 + `interpolationFactor` 插值因子接收接口
+- **指纹增量计算（R13）** — `accumulateBatch` 指纹检测从每次全量 `createSettlementShadow()` deepCopy 改为 `FingerprintSnapshot.take()`（零分配引用拷贝）。仅指纹变化时回退到完整 deepCopy
 - **scope/ioScope 分离（R15）** — `ApplicationScopeProvider` 的 scope 和 ioScope 不再共享 SupervisorJob，可独立取消互不影响
+- **并行结算引擎（R16）** — 新增 `ParallelWorkerPool` 类，指纹计算和进度分类两路 async 并行化
+- **帧预算监控（R17）** — `UnifiedPerformanceMonitor` 新增 `FrameQuality` 枚举，连续 3 帧 jank 自动触发负载降级请求
+- **Compose 稳定性标注（R18）** — `UnifiedGameState`、`HighFreqState`、`EntityState`、`ConfigState` 补齐 `@Immutable` 注解
+- **批量发射模式激活（R19）** — 结算路径中激活 `batchEmissionMode`，抑制个体 StateFlow 发射，减少一次性 13+ Flow 同时发射导致的重组雪崩
+- **动画帧同步（R20）** — `GameViewModel` 新增 `cultivationProgress` Animatable 平滑驱动 + `interpolationFactor` 插值因子接收接口
 
 ### 修复
 
-- **ThermalMonitor 协程泄漏（R9）** — 移除孤立 `CoroutineScope(SupervisorJob())` + `while(true)`，改为 `start(engineScope)`/`stop()` 生命周期管理，使用 `while(isActive)`
-- **SaveLoadViewModel.onCleared 主线程阻塞（R10）** — `Thread.sleep` + `CountDownLatch` 等待保存完成（最长 5s 阻塞）改为 `NonCancellable` + `withTimeout` 挂起式等待，消除 ANR 风险
+- **红米K80（HyperOS 2.0）游戏时间停止** — 游戏循环线程被 HyperOS 电源管理挂起后时间不再推进。新增主线程健康监控器（绕过后台线程冻结）、紧急重启机制（创建全新调度器线程）、看门狗自愈、forceCompleteSettlement 超时保护
+- **Xiaomi HyperOS 防挂起参数增强** — antiFreeze 占空比提升，看门狗检查间隔缩短
+- **ThermalMonitor 协程泄漏（R9）** — 移除孤立 `CoroutineScope(SupervisorJob())` + `while(true)`，改为 `start(engineScope)`/`stop()` 生命周期管理
+- **SaveLoadViewModel.onCleared 主线程阻塞（R10）** — `Thread.sleep` + `CountDownLatch` 改为 `NonCancellable` + `withTimeout` 挂起式等待，消除 ANR 风险
 - **AlchemyViewModel 吞 CancellationException（R11）** — 添加 `catch(CancellationException) { throw e }` 防止协程取消被静默吞掉
 - **看门狗假运行检测误触发（R14）** — 移除"tick 推进但游戏时间不变→重启"的假运行检测逻辑
-
-## [4.0.38] - 2026-07-03（versionCode=4038）
-
-### 修复
-
-- **红米K80（HyperOS 2.0）游戏时间停止** — 游戏循环线程被 HyperOS 电源管理挂起后时间不再推进，UI 可操作但时间冻结。新增主线程健康监控器（绕过后台线程冻结）、紧急重启机制（创建全新调度器线程）、看门狗自愈（异常处理器+自动恢复）、forceCompleteSettlement 超时保护
-- **Xiaomi HyperOS 防挂起参数增强** — antiFreeze 占空比从 14% 提升至 45%，看门狗检查间隔缩短至 2s
+- **EntityStore.plus 合并后查找失败** — `EntityStore.plus()` 构造函数 `frozenSnapshot` 未正确初始化，导致合并后 `find` 返回空。修复为 `EntityStore(newItems)` 直接构造
+- **GameViewModel 主线程健康检查 Log 崩溃** — 替换为 `DomainLog.e()`，消除 31 个测试预存失败
+- **宗门命名对话框键盘反复弹出收起** — `InlineStandardPromptDialog` 外层 Box 添加 `Modifier.imePadding()`；`GameOverlayHost` 中 `onConfirm` lambda 用 `remember` 稳定引用；`SaveSelectScreen` 创建宗门对话框设置 `dismissOnClickOutside=false`，新增取消按钮
+- **过时架构文档清理** — 删除 5 份 v3.x 时期的历史分析文档
 
 ## [4.0.37] - 2026-07-03（versionCode=4037）
 
