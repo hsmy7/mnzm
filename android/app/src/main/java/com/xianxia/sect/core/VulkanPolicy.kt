@@ -39,6 +39,29 @@ object VulkanPolicy {
 
     private const val TAG = "VulkanPolicy"
 
+    /**
+     * 硬件加速禁用决策缓存。
+     * 在 XianxiaApplication.onCreate 中计算，GameActivity.onCreate 中读取。
+     * 使用 @Volatile 保证多线程可见性。
+     */
+    @Volatile
+    private var _disableAcceleration: Boolean = false
+
+    /**
+     * 初始化策略并缓存决策。
+     * 必须在 Application.onCreate 中调用，在任何 Activity 启动之前。
+     */
+    fun initialize(context: Context) {
+        _disableAcceleration = shouldDisableHardwareAcceleration(context)
+        Log.i(TAG, "VulkanPolicy initialized: disable=$_disableAcceleration")
+    }
+
+    /**
+     * 是否应禁用硬件加速（读取缓存的决策，无需 Context）。
+     * 在 GameActivity.super.onCreate() 之前安全调用。
+     */
+    fun isAccelerationDisabled(): Boolean = _disableAcceleration
+
     // ── 已知问题机型列表（持续扩充） ──
     // 基于 Bugly 崩溃数据和行业报告维护
     private val KNOWN_PROBLEM_MODELS = setOf(
@@ -119,16 +142,18 @@ object VulkanPolicy {
             socManufacturer.startsWith(prefix)
         }
         if (isMediatek) {
-            Log.w(TAG, "MediaTek SoC detected: board=$board hw=$hardware soc=$socManufacturer")
+            Log.w(TAG, "MediaTek SoC: board=$board hw=$hardware")
             return DeviceTier.PROBLEMATIC
         }
 
         // 3. 检测国产厂商 + Android 15+ → WARNING
         val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
-        val isChineseManufacturer = KNOWN_PROBLEM_MANUFACTURERS.any { manufacturer.contains(it) }
+        val isChineseManufacturer = KNOWN_PROBLEM_MANUFACTURERS.any {
+            manufacturer.contains(it)
+        }
 
         if (isChineseManufacturer && isAndroid15Plus) {
-            Log.w(TAG, "Chinese OEM ($manufacturer) on Android 15+ — potential Vulkan issues")
+            Log.w(TAG, "Chinese OEM $manufacturer on Android 15+ — Vulkan risk")
             // 进一步检测是否非高通芯片（高通驱动相对较好）
             val isQualcomm = COMPATIBLE_SOC_PREFIXES.any { prefix ->
                 board.startsWith(prefix) ||
@@ -145,11 +170,14 @@ object VulkanPolicy {
         // 4. 检查 Vulkan 功能级别
         try {
             val pm = context.packageManager
-            if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION)) {
+            if (pm.hasSystemFeature(
+                    PackageManager.FEATURE_VULKAN_HARDWARE_VERSION)) {
                 Log.d(TAG, "Vulkan hardware feature detected")
             } else {
-                Log.d(TAG, "No Vulkan hardware feature — system already uses OpenGL")
+                Log.d(TAG, "No Vulkan feature — system uses OpenGL")
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to query Vulkan feature", e)
         }
@@ -165,18 +193,18 @@ object VulkanPolicy {
     fun shouldDisableHardwareAcceleration(context: Context): Boolean {
         // 1. 崩溃自愈安全模式 → 强制降级
         if (CrashRecoveryEngine.isSafeMode()) {
-            Log.w(TAG, "Crash recovery safe mode active — disabling HW acceleration")
+            Log.w(TAG, "Safe mode active — disabling HW acceleration")
             return true
         }
 
         // 2. 设备分级检测
         return when (detectTier(context)) {
             DeviceTier.PROBLEMATIC -> {
-                Log.w(TAG, "Problematic device detected — disabling HW acceleration")
+                Log.w(TAG, "Problematic device — disabling HW acceleration")
                 true
             }
             DeviceTier.WARNING -> {
-                Log.w(TAG, "Warning tier device — keeping HW acceleration but monitoring")
+                Log.w(TAG, "Warning tier — keeping HW acceleration, monitoring")
                 false
             }
             DeviceTier.SAFE -> false
@@ -198,10 +226,13 @@ object VulkanPolicy {
         sb.appendLine("Device: ${Build.DEVICE}")
         sb.appendLine("SOC Manufacturer: ${Build.SOC_MANUFACTURER ?: "N/A"}")
         sb.appendLine("SOC Model: ${Build.SOC_MODEL ?: "N/A"}")
-        sb.appendLine("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+        val sdk = Build.VERSION.SDK_INT
+        val release = Build.VERSION.RELEASE
+        sb.appendLine("Android: $release (SDK $sdk)")
         sb.appendLine("Tier: ${detectTier(context)}")
         sb.appendLine("Safe Mode: ${CrashRecoveryEngine.isSafeMode()}")
-        sb.appendLine("Consecutive Crashes: ${CrashRecoveryEngine.getConsecutiveCrashCount()}")
+        val crashCount = CrashRecoveryEngine.getConsecutiveCrashCount()
+        sb.appendLine("Consecutive Crashes: $crashCount")
         sb.appendLine("==========================================")
         Log.i(TAG, sb.toString())
     }

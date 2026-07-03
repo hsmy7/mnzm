@@ -166,11 +166,16 @@ class GameActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // ── 渲染安全模式检测 ──
-        // 必须在 super.onCreate() 之前切换主题，确保主题中的 hardwareAccelerated 生效
-        // CrashRecoveryEngine 在 XianxiaApplication.onCreate 中已初始化，此处可直接使用
-        if (CrashRecoveryEngine.isSafeMode()) {
+        // 在 super.onCreate() 前切换主题，使 hardwareAccelerated 生效
+        // CrashRecoveryEngine + VulkanPolicy 在 Application.onCreate 中已初始化，
+        // 此处直接读取缓存的决策，无需 Context
+        val disableAccel = CrashRecoveryEngine.isSafeMode() ||
+            VulkanPolicy.isAccelerationDisabled()
+        if (disableAccel) {
             setTheme(R.style.Theme_XianxiaSect_GameSafe)
-            Log.w(TAG, "Render safe mode active: using software rendering theme")
+            val msg = "HW accel disabled: safeMode=${CrashRecoveryEngine.isSafeMode()}, " +
+                "vulkan=${VulkanPolicy.isAccelerationDisabled()}"
+            Log.w(TAG, msg)
         }
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")

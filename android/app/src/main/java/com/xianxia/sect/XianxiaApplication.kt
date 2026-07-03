@@ -124,6 +124,8 @@ class XianxiaApplication : Application() {
         // ── 崩溃自愈引擎初始化 ──
         // 必须在任何 Activity 启动前完成，GameActivity.onCreate 中会读取安全模式状态
         CrashRecoveryEngine.initialize(this)
+        // 渲染策略初始化——缓存硬件加速决策，供 GameActivity 在 super.onCreate() 前读取
+        VulkanPolicy.initialize(this)
         // 渲染策略诊断（记录到日志供 Bugly 分析）
         VulkanPolicy.logDeviceDiagnostics(this)
         // 渲染相关崩溃计数器 + 设备分级 → 决定是否进入安全模式

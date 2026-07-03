@@ -2,8 +2,6 @@ package com.xianxia.sect.core
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Build
-import android.os.Process
 import android.util.Log
 
 /**
@@ -42,9 +40,6 @@ object CrashRecoveryEngine {
     /** 触发安全模式的连续崩溃阈值 */
     private const val SAFE_MODE_THRESHOLD = 3
 
-    /** 安全模式持续的游戏版本数（递增后自动重置） */
-    private const val SAFE_MODE_VERSION_SPAN = 2
-
     // ── 初始化状态 ──
 
     @Volatile
@@ -61,8 +56,8 @@ object CrashRecoveryEngine {
 
     private fun requirePrefs(): SharedPreferences {
         return prefs ?: throw IllegalStateException(
-            "CrashRecoveryEngine not initialized. Call initialize(context) first."
-        )
+            "CrashRecoveryEngine not initialized. Call initialize() first.")
+
     }
 
     // ── 公共 API ──
@@ -103,21 +98,11 @@ object CrashRecoveryEngine {
 
     /**
      * 应用正常启动时调用，重置连续崩溃计数器。
-     *
-     * 如果安全模式已激活且当前版本号变化了 [SAFE_MODE_VERSION_SPAN] 个版本，
-     * 自动解除安全模式。
      */
     fun onCleanLaunch() {
         val p = requirePrefs()
-
-        // 重置连续崩溃计数
         p.edit().remove(KEY_CONSECUTIVE_CRASHES).apply()
         Log.d(TAG, "Consecutive crash counter reset on clean launch")
-
-        // 安全模式自动解除策略：版本迭代后自动退出安全模式
-        if (p.getBoolean(KEY_RENDER_SAFE_MODE, false)) {
-            Log.i(TAG, "Render safe mode is active. Will persist for $SAFE_MODE_VERSION_SPAN versions.")
-        }
     }
 
     /**
@@ -163,49 +148,4 @@ object CrashRecoveryEngine {
         """.trimIndent())
     }
 
-    // ── 设备信息记录（配合 Bugly 分析） ──
-
-    /**
-     * 记录当前设备信息到日志（用于崩溃分析）
-     */
-    fun logDeviceInfo() {
-        Log.i(TAG, """
-            Device Info:
-              Manufacturer: ${Build.MANUFACTURER}
-              Model: ${Build.MODEL}
-              Board: ${Build.BOARD}
-              Hardware: ${Build.HARDWARE}
-              SOC: ${Build.SOC_MANUFACTURER ?: "unknown"}
-              Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})
-              Fingerprint: ${Build.FINGERPRINT}
-        """.trimIndent())
-    }
-
-    /**
-     * 检测崩溃是否与 GPU/渲染相关（基于堆栈关键词）
-     */
-    fun isRenderRelatedCrash(stackTrace: String?): Boolean {
-        if (stackTrace == null) return false
-        val renderKeywords = listOf(
-            "libhwui.so",
-            "RenderThread",
-            "SIGSEGV",
-            "SEGV_MAPERR",
-            "OpenGL",
-            "GLES",
-            "vkEnumerate",
-            "vkGetDeviceQueue",
-            "libvulkan",
-            "GrContext",
-            "Skia",
-            "GPU",
-            "EGL",
-            "SurfaceFlinger",
-            "ComposeView",
-            "Canvas"
-        )
-        return renderKeywords.any { keyword ->
-            stackTrace.contains(keyword, ignoreCase = true)
-        }
-    }
 }
