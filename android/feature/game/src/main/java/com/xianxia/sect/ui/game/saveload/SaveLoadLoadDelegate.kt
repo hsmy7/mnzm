@@ -4,6 +4,9 @@ import android.util.Log
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.ensureHeavyDataLoaded
+import com.xianxia.sect.core.engine.loadData
+import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.data.StorageConstants
