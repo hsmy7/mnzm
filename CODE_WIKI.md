@@ -1615,20 +1615,21 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| P1 | **大文件重构** — MainGameScreen(1509行)、HeavenlyTrialCombatScreen(1674行)、AISectAttackManager(1313行)、InventorySystem(1328行) 等 6 个 >1100 行文件 | 可维护性 | 待实施 |
-| P2 | SaveLoadViewModel 继续拆分（尚余 1314 行） | 可维护性 | 待实施 |
-| P2 | **DI 模块集成测试**（8 个 DI 文件） | 编译期回归拦截 | 基础 Konsist 测试已建 |
+| P1 | **大文件重构** — MainGameScreen已拆(1509→1086)、HeavenlyTrial已拆(1674→848)、AISectAttack已拆(1313→1144)、InventorySystem容量已提(1328→1288)，尚余MerchantDialog(1331)、SaveCrypto(1373) | 可维护性 | 部分完成 |
+| P2 | SaveLoadViewModel 继续拆分（尚余 1314 行，已建 Delegate 框架） | 可维护性 | 部分完成 |
+| P2 | **DI 模块集成测试**（8 个 DI 文件） | 编译期回归拦截 | Konsist 测试增强 |
 | P2 | **引擎核心层测试**补齐（CultivationCore、DiscipleService 等） | 回归拦截 | 待实施 |
 | P3 | **Compose UI 测试**补充（核心交互路径） | UI 正确性 | 依赖已加，待编写 |
 | P4 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
-| P4 | 通配符导入修复（618 处 → 0） | 代码规范 | 全部逐文件修复，detekt 配置预防复发 |
+| P4 | 通配符导入修复（626 处 → 0） | 代码规范 | detekt 已配置，需逐文件 IDE 批量处理 |
 
 > 已完成项：
 > - ✅ **v4.0.36 — MainGameScreen拆分**：1509→1086行，提取6个leaf组件到main/子目录
 > - ✅ **v4.0.36 — HeavenlyTrialCombatScreen拆分**：1674→848行，提取4个子模块到heavenlytrial/
 > - ✅ **v4.0.36 — AISectAttackManager拆分**：1313→1144行，提取数据类+队伍编成到aiattack/
 > - ✅ **v4.0.36 — InventorySystem容量提取**：容量/槽位计算提取到inventory/
-> - ✅ **v4.0.36 — SaveLoadViewModel Delegate结构建立**：saveload/目录+SaveDelegate框架
+> - ✅ **v4.0.36 — SaveLoadViewModel Delegate框架**：saveload/目录+SaveDelegate
+> - ✅ **v4.0.36 — DI测试增强**：Konsist测试修复+GoldFingerBuildTest导入修复
 > - ✅ **v4.0.36 — 统一批量结算模式**：移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md)
 > - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
 > - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
