@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.39] - 2026-07-04（versionCode=4039）
+
+### Bug 修复
+
+- **暂停按钮无效** — 设置界面和主界面暂停按钮点击后 2-3 秒自动恢复运行。原因为看门狗和主线程健康监控在暂停时检测到 tick 无推进，误判为死机并触发紧急重启（`emergencyRestartGameLoop` → `setPausedDirect(false)`）。修复：两处检测均增加暂停状态跳过逻辑。
+
+### 新功能
+
+- **暂停/继续按钮精灵图切换** — 暂停状态显示 ▶ 播放按钮，运行状态显示 ⏸ 暂停按钮，直观区分
+- **暂停按钮接入主界面** — 在 UI 显隐切换按钮下方增加圆形暂停/继续按钮，无需进入设置即可暂停
+
+---
+
 ## [4.0.38] - 2026-07-03（versionCode=4038）
 
 ### 架构重构
@@ -18,6 +31,22 @@
 - **Compose 稳定性标注（R18）** — `UnifiedGameState`、`HighFreqState`、`EntityState`、`ConfigState` 补齐 `@Immutable` 注解
 - **批量发射模式激活（R19）** — 结算路径中激活 `batchEmissionMode`，抑制个体 StateFlow 发射，减少一次性 13+ Flow 同时发射导致的重组雪崩
 - **动画帧同步（R20）** — `GameViewModel` 新增 `cultivationProgress` Animatable 平滑驱动 + `interpolationFactor` 插值因子接收接口
+
+### Bug 修复
+
+- **红米 K80 HyperOS 2.0 游戏时间停止** — 游戏循环线程被 HyperOS 电源管理挂起后时间不再推进，UI 可操作但时间冻结。新增主线程健康监控器、紧急重启机制、看门狗自愈、`forceCompleteSettlement` 超时保护（2026-07-03 追加）
+- **小米 HyperOS 防挂起参数增强** — antiFreeze 占空比提升，看门狗检查间隔缩短（2026-07-03 追加）
+- **EntityStore.plus frozenSnapshot 未正确初始化** — 合并后的 `find` 操作返回空结果，修复为 `EntityStore(newItems)` 直接构造
+- **GameViewModel 主线程健康检查 Log 崩溃** — 替换为 `DomainLog.e`，消除 31 个测试预存失败
+- **命名对话框键盘反复弹出收起** — `InlineStandardPromptDialog` 外层 Box 添加 `imePadding`，`GameOverlayHost` 中 `onConfirm` lambda 用 `remember` 稳定引用，`SaveSelectScreen` 设置 `dismissOnClickOutside=false`
+
+### 崩溃防御（新增）
+
+- **Android 15 libhwui.so RenderThread SIGSEGV 防御** — 新增 `CrashRecoveryEngine` 崩溃自愈引擎，追踪连续崩溃并自动进入安全模式
+- **VulkanPolicy 设备分级** — 检测联发科 SoC / 国产定制 ROM，在已知问题设备上自动禁用 Vulkan 渲染路径
+- **HWUI 渲染后端提示** — `AndroidManifest.xml` 中设置 `android.graphics.renderer=skiagl`，提示系统使用 OpenGL 后端
+- **安全模式主题** — `Theme.XianxiaSect.GameSafe` 在连续崩溃后禁用硬件加速，回退软件渲染
+- **架构文档** — `android/docs/render-thread-crash-strategy.md` 记录三层防御方案（止血/净化/跨平台）
 
 ### 修复
 

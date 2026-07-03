@@ -7,6 +7,7 @@ import com.xianxia.sect.core.util.DomainLog
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -159,9 +160,18 @@ class GameViewModel @Inject constructor(
     }
 
     init {
-        viewModelScope.launch {
+        // 系统异常收集 — 运行在 Default 调度器上，避免 BufferedChannel.hasNext()
+        // 在主线程上挂起导致 ANR（见 Bugly #5011）。
+        viewModelScope.launch(Dispatchers.Default) {
             systemManager.errors.collect { error ->
-                Log.e(TAG, "System error in ${error.systemName} (${error.tickType}): ${error.error.message}")
+                val msg = error.error.stackTraceToString()
+                Log.e(TAG, "System error in ${error.systemName} (${error.tickType}): $msg")
+                // 主动上报 Bugly，避免已捕获异常不可见
+                try {
+                    val crashReport = Class.forName("com.tencent.bugly.crashreport.CrashReport")
+                    crashReport.getMethod("postCatchedException", Throwable::class.java)
+                        .invoke(null, error.error)
+                } catch (_: Exception) { /* Bugly 不可用（测试环境等），忽略 */ }
                 showError("系统异常：${error.systemName}")
             }
         }
@@ -184,6 +194,12 @@ class GameViewModel @Inject constructor(
                 delay(1000)
                 try {
                     val currentTick = gameEngineCore.tickCount.value
+                    // ★ 暂停中 tick 不推进属正常行为，不触发紧急重启
+                    if (gameEngineCore.isPausedDirect) {
+                        stallCount = 0
+                        lastTick = currentTick
+                        continue
+                    }
                     if (currentTick == lastTick && gameEngineCore.isGameLoopRunning) {
                         stallCount++
                         if (stallCount >= 3) {

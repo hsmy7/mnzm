@@ -1,5 +1,14 @@
 [
 	{
+		"date": "2026-07-04",
+		"version": "4.0.39",
+		"changes": [
+			"修复：设置界面和主界面暂停按钮无效——看门狗和主线程健康监控在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
+			"新增：暂停/继续按钮精灵图切换——暂停时显示▶播放按钮，运行时显示⏸暂停按钮",
+			"新增：暂停按钮接入主界面——在UI显隐切换按钮下方增加暂停/继续按钮，随时可操作"
+		]
+	},
+	{
 		"date": "2026-07-03",
 		"version": "4.0.38",
 		"changes": [
@@ -26,7 +35,11 @@
 			"修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
 			"修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
 			"清理：删除5份v3.x时期过时架构分析文档",
-			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding，GameOverlayHost中onConfirm lambda用remember稳定引用，SaveSelectScreen设置dismissOnClickOutside=false"
+			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding，GameOverlayHost中onConfirm lambda用remember稳定引用，SaveSelectScreen设置dismissOnClickOutside=false",
+			"防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
+			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
+			"防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
+			"防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
 		]
 	},
 	{

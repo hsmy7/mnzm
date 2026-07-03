@@ -27,7 +27,8 @@ class SaveLoadPauseDelegate(
     var wasRunningBeforeBackground = false
 
     suspend fun togglePause() {
-        if (gameEngineCore.state.value.isPaused) {
+        // 直接读取 gameEngineCore 的 isPaused（即 stateStore.isPaused），绕过 unifiedState 的 50ms 采样延迟
+        if (gameEngineCore.isPausedDirect) {
             gameEngineCore.resume()
             if (!gameEngineCore.isGameLoopRunning) {
                 gameEngineCore.startGameLoop()
@@ -35,7 +36,7 @@ class SaveLoadPauseDelegate(
         } else {
             gameEngineCore.pause()
         }
-        Log.d(TAG, "Pause toggled: paused=${gameEngineCore.state.value.isPaused}")
+        Log.d(TAG, "Pause toggled: paused=${gameEngineCore.isPausedDirect}")
     }
 
     fun setTimeSpeed(speed: Int) {

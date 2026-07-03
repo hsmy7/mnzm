@@ -451,7 +451,7 @@ class GameEngineCore @Inject constructor(
                 delay(currentBackoffMs)
                 val currentTickCount = _tickCount.value
                 val loopActive = gameLoopJob?.isActive == true
-                if (currentTickCount == lastTickCount && loopActive) {
+                if (currentTickCount == lastTickCount && loopActive && !stateStore.isPaused.value) {
                     watchdogRecoveryAttempts++
                     val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
                     val shouldLog = !atMaxBackoff ||
@@ -472,6 +472,10 @@ class GameEngineCore @Inject constructor(
                     currentBackoffMs = computeWatchdogBackoff(
                         currentBackoffMs, baseIntervalMs, hasRecovered = true
                     )
+                } else if (loopActive && stateStore.isPaused.value) {
+                    // 游戏暂停中 tick 不推进，不触发重启，仅刷新基准计数
+                    lastTickCount = currentTickCount
+                    continue
                 }
                 lastTickCount = currentTickCount
                 } catch (e: CancellationException) { throw e }
@@ -604,6 +608,9 @@ class GameEngineCore @Inject constructor(
     }
 
     val isGameLoopRunning: Boolean get() = gameLoopJob?.isActive == true
+
+    /** 直接读取暂停状态，绕过 unifiedState 的 50ms 采样延迟 */
+    val isPausedDirect: Boolean get() = stateStore.isPaused.value
 
     suspend fun pause() {
         stateStore.update { isPaused = true }

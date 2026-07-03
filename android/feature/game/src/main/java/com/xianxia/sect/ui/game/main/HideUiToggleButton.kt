@@ -17,13 +17,13 @@ import com.xianxia.sect.ui.components.SpriteImage
 @Composable
 internal fun HideUiToggleButton(
     isUiVisible: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val spriteName = if (isUiVisible) "ui_hide_button" else "ui_show_button"
     val description = if (isUiVisible) "隐藏UI" else "显示UI"
     Box(
-        modifier = Modifier
-            .size(35.dp)
+        modifier = modifier
             .clip(CircleShape)
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center

@@ -1281,7 +1281,8 @@ class SaveLoadViewModel @Inject constructor(
 
     fun togglePause() {
         viewModelScope.launch {
-            if (gameEngineCore.state.value.isPaused) {
+            // 直接读取 stateStore.isPaused，绕过 unifiedState 的 50ms 采样延迟
+            if (stateStore.isPaused.value) {
                 gameEngineCore.resume()
                 if (!gameEngineCore.isGameLoopRunning) {
                     startGameLoop()

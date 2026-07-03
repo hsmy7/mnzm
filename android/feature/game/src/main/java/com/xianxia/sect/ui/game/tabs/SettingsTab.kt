@@ -258,12 +258,21 @@ internal fun SettingsTab(
                             .clickable { saveLoadViewModel.togglePause() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_pause_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
+                        if (isPaused) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_play_button),
+                                contentDescription = "继续",
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_pause_button),
+                                contentDescription = "暂停",
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                        }
                     }
 
                     listOf(1, 2).forEach { speed ->

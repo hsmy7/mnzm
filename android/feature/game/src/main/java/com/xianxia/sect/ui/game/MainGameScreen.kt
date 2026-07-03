@@ -4,7 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import kotlin.math.roundToInt
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -983,10 +985,32 @@ fun MainGameScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                HideUiToggleButton(
-                    isUiVisible = isUiVisible,
-                    onToggle = { isUiVisible = !isUiVisible }
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    HideUiToggleButton(
+                        isUiVisible = isUiVisible,
+                        onToggle = { isUiVisible = !isUiVisible },
+                        modifier = Modifier.size(28.dp)
+                    )
+                    // 暂停/继续按钮（根据 isPaused 切换精灵图）
+                    val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .clickable { saveLoadViewModel.togglePause() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SpriteImage(
+                            name = if (isPaused) "ui_play_button" else "ui_pause_button",
+                            contentDescription = if (isPaused) "继续" else "暂停",
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                    }
+                }
             }
 
             // 仅 UI 可见时显示侧边按钮
