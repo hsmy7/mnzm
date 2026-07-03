@@ -10,7 +10,11 @@
 			"新增：系统异常主动上报 Bugly——已捕获的游戏系统异常通过 CrashReport.postCatchedException 主动上报",
 			"新增：弟子详情界面加入焦点域 DISCIPLE_DETAIL——打开详情时 CultivationTickSystem 进入实时轨",
 			"修复：弟子肖像预加载改用资源 ID 映射——避免运行时 getIdentifier 字符串查找失败导致兜底图",
-			"修复：肖像名为空的旧存档弟子自动兜底——从 PortraitPool 预加载映射获取默认肖像"
+			"修复：肖像名为空的旧存档弟子自动兜底——从 PortraitPool 预加载映射获取默认肖像",
+			"防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
+			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
+			"防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
+			"防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
 		]
 	},
 	{

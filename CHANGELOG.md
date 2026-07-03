@@ -16,6 +16,14 @@
 - **暂停/继续按钮精灵图切换** — 暂停状态显示 ▶ 播放按钮，运行状态显示 ⏸ 暂停按钮，直观区分
 - **暂停按钮接入主界面** — 在 UI 显隐切换按钮下方增加圆形暂停/继续按钮，无需进入设置即可暂停
 
+### 崩溃防御
+
+- **Android 15 libhwui.so RenderThread SIGSEGV 防御** — 新增 `CrashRecoveryEngine` 崩溃自愈引擎，追踪连续 Native 崩溃，N 次后自动进入安全模式
+- **VulkanPolicy 设备分级** — 检测联发科 SoC / 国产定制 ROM / 已知问题机型，按 SAFE/WARNING/PROBLEMATIC 三级决策，问题设备自动禁用 Vulkan 渲染路径
+- **HWUI 渲染后端提示** — `AndroidManifest.xml` 设置 `android.graphics.renderer=skiagl`，提示系统使用 OpenGL 后端而非 Vulkan
+- **安全模式主题** — `Theme.XianxiaSect.GameSafe` 在连续崩溃后禁用硬件加速，回退软件渲染
+- **架构文档** — `android/docs/render-thread-crash-strategy.md` 记录三层防御方案（止血/净化/跨平台）及 3 条 ADR
+
 ---
 
 ## [4.0.38] - 2026-07-03（versionCode=4038）
