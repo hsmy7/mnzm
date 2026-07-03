@@ -1,6 +1,13 @@
 [
 	{
 		"date": "2026-07-03",
+		"version": "4.0.37",
+		"changes": [
+			"修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版，SettingsTab全部废弃HalfScreenDialog替换为内联覆盖层"
+		]
+	},
+	{
+		"date": "2026-07-03",
 		"version": "4.0.36",
 		"changes": [
 			"修复：妖兽警告界面按钮标准化——妖兽来袭弹窗按钮尺寸从硬编码120x56dp改为标准84x38dp(ButtonSizes)，修复按钮文本因换行符被截断显示省略号的问题",

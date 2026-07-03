@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.37] - 2026-07-03（versionCode=4037）
+
+### 修复
+
+- **新建游戏宗门命名对话框背景频闪** — `StandardPromptDialog` 使用平台 `Dialog` 窗口 + `adjustResize` 导致键盘弹出时窗口尺寸震荡，背景图和键盘持续频闪。新增 `InlineStandardPromptDialog`（内联 Box 覆盖层，屏幕尺寸 `remember` 缓存不受键盘影响），宗门命名和宗门改名对话框改用内联版。同步替换 `SettingsTab.kt` 全部 5 处已废弃的 `HalfScreenDialog` 为内联覆盖层
+
 ## [4.0.36] - 2026-07-03（versionCode=4036）
 
 ### 修复

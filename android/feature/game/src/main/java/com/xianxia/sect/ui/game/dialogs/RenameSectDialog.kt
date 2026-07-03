@@ -16,11 +16,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.InputValidator
-import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 
 /**
  * 宗门改名对话框。
- * 复用 [StandardPromptDialog] + [OutlinedTextField] 模式，
+ * 复用 [InlineStandardPromptDialog] + [OutlinedTextField] 模式，
  * 与新建宗门时 [com.xianxia.sect.ui.SaveSelectScreen] 中的输入框一致。
  *
  * @param currentName 当前宗门名称（预填到输入框）
@@ -36,7 +36,7 @@ fun RenameSectDialog(
     var input by remember { mutableStateOf(currentName) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    StandardPromptDialog(
+    InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "修改宗门名称",
         text = "请输入新的宗门名称：",

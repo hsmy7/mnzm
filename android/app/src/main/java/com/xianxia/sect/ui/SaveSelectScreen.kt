@@ -22,6 +22,7 @@ import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
@@ -126,7 +127,7 @@ fun SaveSelectScreen(
     }
     
     if (showSectNameDialog != null) {
-        StandardPromptDialog(
+        InlineStandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
             title = "创建宗门",
             text = "请输入宗门名称：",
