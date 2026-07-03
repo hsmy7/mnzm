@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.util.GridSystem
+import com.xianxia.sect.ui.game.main.computeGoldFingerCellValidities
 import org.junit.Assert.*
 import org.junit.Test
 
