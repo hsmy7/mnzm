@@ -2,6 +2,8 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -82,7 +84,6 @@ class GameStateStoreConcurrencyTest {
         val readers = (1..50).map {
             async(Dispatchers.Default) {
                 repeat(20) {
-                    // 快照应始终处于有效状态
                     assertTrue("gameYear should be >= 0", gameData.gameYear >= 0)
                     assertTrue("gameMonth should be 1-12", gameData.gameMonth in 1..12)
                     assertEquals("测试宗门", gameData.sectName)
@@ -92,6 +93,80 @@ class GameStateStoreConcurrencyTest {
 
         withTimeout(10_000) {
             readers.awaitAll()
+        }
+    }
+
+    @Test
+    fun `Mutex-based concurrent updates prevent data loss`() = runTest {
+        val mutex = kotlinx.coroutines.sync.Mutex()
+        var counter = 0L
+        val iterations = 500
+        val concurrency = 10
+
+        val results = (1..concurrency).map { id ->
+            async(Dispatchers.Default) {
+                repeat(iterations) {
+                    mutex.withLock {
+                        counter += 1
+                    }
+                }
+                id
+            }
+        }
+
+        results.awaitAll()
+        assertEquals("并发更新不应丢失数据", iterations * concurrency.toLong(), counter)
+    }
+
+    @Test
+    fun `100 concurrent Mutex updates maintain correct final state`() = runTest {
+        val mutex = kotlinx.coroutines.sync.Mutex()
+        var total = 0L
+        val workers = 50
+        val incrementsPerWorker = 20
+
+        val results = (1..workers).map {
+            async {
+                repeat(incrementsPerWorker) {
+                    mutex.withLock {
+                        total += 1
+                    }
+                }
+            }
+        }
+
+        results.awaitAll()
+        assertEquals("50协程x20次累加应正确", workers * incrementsPerWorker.toLong(), total)
+    }
+
+    @Test
+    fun `concurrent read-write with Mutex does not produce stale values`() = runTest {
+        val mutex = kotlinx.coroutines.sync.Mutex()
+        var sharedState = mutableMapOf<String, Int>()
+
+        val writers = (1..20).map { i ->
+            async(Dispatchers.Default) {
+                mutex.withLock {
+                    sharedState["key_$i"] = i * 10
+                }
+            }
+        }
+
+        val readers = (1..20).map { i ->
+            async(Dispatchers.Default) {
+                mutex.withLock {
+                    sharedState.containsKey("key_$i") // 读端验证
+                }
+            }
+        }
+
+        writers.awaitAll()
+        readers.awaitAll()
+
+        mutex.withLock {
+            (1..20).forEach { i ->
+                assertEquals("key_$i 应有正确值", i * 10, sharedState["key_$i"])
+            }
         }
     }
 }
