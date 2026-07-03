@@ -1624,6 +1624,11 @@ cd android && ./gradlew.bat testDebugUnitTest \
 | P4 | 通配符导入修复（618 处 → 0） | 代码规范 | 全部逐文件修复，detekt 配置预防复发 |
 
 > 已完成项：
+> - ✅ **v4.0.36 — MainGameScreen拆分**：1509→1086行，提取6个leaf组件到main/子目录
+> - ✅ **v4.0.36 — HeavenlyTrialCombatScreen拆分**：1674→848行，提取4个子模块到heavenlytrial/
+> - ✅ **v4.0.36 — AISectAttackManager拆分**：1313→1144行，提取数据类+队伍编成到aiattack/
+> - ✅ **v4.0.36 — InventorySystem容量提取**：容量/槽位计算提取到inventory/
+> - ✅ **v4.0.36 — SaveLoadViewModel Delegate结构建立**：saveload/目录+SaveDelegate框架
 > - ✅ **v4.0.36 — 统一批量结算模式**：移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md)
 > - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
 > - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
