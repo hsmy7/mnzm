@@ -1615,30 +1615,39 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
+| 优先级 | 描述 | 预估收益 | 状态 |
+|--------|------|---------|------|
 | P1 | **统一批量结算模式** — 移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md) | 简化 ~150 行 tickInternal、消除模式切换 bug、清理热控分批死代码 | 方案已评审，待实施 |
-| P2 | MainGameScreen 继续拆分（尚余 1311 行） | 可维护性 | 待实施 |
-| P2 | SaveLoadViewModel 继续拆分（尚余 1437 行，协调器复杂度高） | 可维护性 | 待实施 |
-| P3 | 核心引擎层测试覆盖率从 ~5% 提升至 60% | 回归拦截 | 待实施 |
-| P3 | ViewModel 层测试（当前为零） | UI 正确性 | 待实施 |
+| P1 | **大文件重构** — MainGameScreen(1509行)、HeavenlyTrialCombatScreen(1674行)、AISectAttackManager(1313行)、InventorySystem(1328行) 等 6 个 >1100 行文件 | 可维护性 | 待实施 |
+| P2 | SaveLoadViewModel 继续拆分（尚余 1314 行） | 可维护性 | 待实施 |
+| P2 | **DI 模块集成测试**（8 个 DI 文件） | 编译期回归拦截 | 基础 Konsist 测试已建 |
+| P2 | **引擎核心层测试**补齐（CultivationCore、DiscipleService 等） | 回归拦截 | 待实施 |
+| P3 | **Compose UI 测试**补充（核心交互路径） | UI 正确性 | 依赖已加，待编写 |
 | P4 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
 | P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
+| P4 | 通配符导入修复（439 处 → 0） | 代码规范 | detekt 不支持 auto-correct，待逐文件处理 |
 
-> 已删除/已完成项：
+> 已完成项：
+> - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
+> - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
+> - ✅ **v4.0.35 — Detekt违规数降84%**：1,245→195
+> - ✅ **v4.0.35 — GameViewModel拆分**：2,069→1,728行，新建5个Delegate(共9个)
+> - ✅ **v4.0.35 — Daos拆分**：1,223行→18个领域文件
+> - ✅ **v4.0.35 — UseCase测试全覆盖**：38个Mockito测试覆盖14/14
+> - ✅ **v4.0.35 — 网络层测试**：22个
+> - ✅ **v4.0.35 — Room迁移测试**：14个
+> - ✅ **v4.0.35 — Kover覆盖率工具集成**：根+app+core/data
+> - ✅ **v4.0.35 — CI管道**：.github/workflows/ci.yml
+> - ✅ **v4.0.35 — CLAUDE.md+CODE_WIKI.md更新**
 > - ✅ **v4.0.01 — 模块化依赖根治**：6 模块架构，13 个域接口，engine→data 依赖完全移除，domain 提纯为零 Android Framework 模块
 > - ✅ **v4.0.02 — 背包系统重构**：物品卡片交互统一（点击选中+长按详情+右上角快捷操作），仓库底部三按钮统一布局
 > - ✅ **v4.0.02 — 商店改版**：云游商人「购买」+「收购」双标签布局，收购物品持久化 + 出售数量调节 + 实时总价
 > - ✅ **v4.0.02 — 每日签到奖励多样化**：3 天固定奖励改为随机品种（材料/种子/丹药），增加签到惊喜感
 > - ✅ **v4.0.02 — DB v5 迁移**：新增 merchantAcquisitionItems + merchantAcquisitionLastRefreshYear 列
 > - ✅ **v4.0.01 — 世界地图重构**：预烘焙 Bitmap + 视口裁剪 + 连接线缓存 + 固定宗门坐标，消除地图抖动
-> - ✅ **v4.0.01 — GPU 全覆盖分级渲染**：检测 80+ SoC 型号、40+ 品牌，四级画质自动适配（地图精度/渲染缩放/贴图质量/装饰密度）
+> - ✅ **v4.0.01 — GPU 全覆盖分级渲染**：检测 80+ SoC 型号、40+ 品牌，四级画质自动适配
 > - ✅ **v4.0.01 — Canvas Overdraw 大幅优化**：网格线 LOW 模式 ~100→4 条，预览框 ~50→1 次 drawRect
-> - ✅ **v4.0.01 — 活动系统 + 每日签到**
-> - ✅ **v4.0.00 — 架构重构**：
-> - ✅ **巨型文件拆分**：CultivationService(3804→拆10文件)、GameEngine(3000→拆9文件)、DiscipleDetailScreen(2647→542)、SaveDataConverter(2002→拆7文件)、ItemDetailDialog(1548→拆3文件)、WarehouseTab(1568→拆8文件)、ChangelogData(1999→44)、ProtobufConverters(1145→544)
-> - ✅ **反模式清零**：!! 110→0、runBlocking 17→0、TODO 14→0、@Suppress 60+→15
-> - ✅ **静态分析工具链**：Detekt + Lint 集成 + Baseline 生成
-> - ✅ **DB 重置**：版本号 → 1，9 个历史 Migration 全部移除，旧 db 文件直接删除
-> - ✅ **BUGLY 密钥防泄漏**：硬编码默认值从 build.gradle 移除
-> - ✅ **R8 日志剥离**：release 构建自动去除 Log.d/v/i
+> - ✅ **v4.0.00 — 架构重构 + 巨型文件拆分**：CultivationService(3804→拆10文件)、GameEngine(3000→拆9文件) 等
+> - ✅ **反模式清零**：!! 110→0、runBlocking 17→0、@Suppress 60+→15
 > - ~~Disciple 字段注解驱动合并~~ → ✅ 已完成（v3.2.21）
 > - ~~`updateXxxDirect` 方法移除~~ → ✅ 已完成（v3.2.21）
