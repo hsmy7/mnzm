@@ -76,6 +76,22 @@ class GameViewModel @Inject constructor(
     )
     val inventory = com.xianxia.sect.ui.game.delegate.InventoryDelegate(gameEngine, viewModelScope)
 
+    // ── 新提取的 Delegate (Phase 2) ──
+    val beastAttack = com.xianxia.sect.ui.game.delegate.BeastAttackDelegate(gameEngine, viewModelScope)
+    val warnings = com.xianxia.sect.ui.game.delegate.WarningDelegate(gameEngine, viewModelScope)
+    val buildingDelegate = com.xianxia.sect.ui.game.delegate.BuildingDelegate(
+        gameEngine, buildingFacade, buildingConfigService, viewModelScope,
+        onDemolishSuccess = { msg -> showSuccess(msg) }
+    )
+    val sectDelegate = com.xianxia.sect.ui.game.delegate.SectDelegate(
+        gameEngine, viewModelScope,
+        onShowSuccess = { msg -> showSuccess(msg) },
+        onShowError = { msg -> showError(msg) },
+        onNavigateToDialog = { route -> navigateToDialog(route) },
+        onDismissDialog = { dismissDialog() }
+    )
+    val autoAssign = com.xianxia.sect.ui.game.delegate.AutoAssignDelegate(gameEngine, viewModelScope)
+
     companion object {
         private const val TAG = "GameViewModel"
     }
@@ -223,82 +239,29 @@ class GameViewModel @Inject constructor(
     /** 关闭战斗结果展示，委托给 [NavigationDelegate] */
     fun dismissBattleResult() = navigation.dismissBattleResult()
 
-    /**
-     * 处理兽袭事件 — 选择进贡物资以平息该兽袭。
-     *
-     * @param beastLevelId 兽袭关卡 ID
-     */
-    fun resolveBeastAttackPayTribute(beastLevelId: String) {
-        gameEngine.resolveBeastAttackPayTribute(beastLevelId)
-    }
+    /** @see [BeastAttackDelegate.resolveBeastAttackPayTribute] */
+    fun resolveBeastAttackPayTribute(beastLevelId: String) = beastAttack.resolveBeastAttackPayTribute(beastLevelId)
 
-    /**
-     * 处理兽袭事件 — 选择战斗抵抗。
-     *
-     * @param beastLevelId 兽袭关卡 ID
-     */
-    fun resolveBeastAttackFight(beastLevelId: String) {
-        viewModelScope.launch {
-            gameEngine.resolveBeastAttackFight(beastLevelId)
-        }
-    }
+    /** @see [BeastAttackDelegate.resolveBeastAttackFight] */
+    fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)
 
-    /** 清空所有待处理的兽袭事件 */
-    fun clearPendingBeastAttacks() {
-        gameEngine.clearPendingBeastAttacks()
-    }
+    /** @see [BeastAttackDelegate.clearPendingBeastAttacks] */
+    fun clearPendingBeastAttacks() = beastAttack.clearPendingBeastAttacks()
 
-    // AI宗门进攻预警
-    val attackWarnings: StateFlow<List<AttackWarning>> = gameEngine.gameData
-        .map { it.activeAttackWarnings }
-        .distinctUntilChanged()
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
+    /** @see [WarningDelegate.attackWarnings] */
+    val attackWarnings: StateFlow<List<AttackWarning>> get() = warnings.attackWarnings
 
-    val shownWarningStageIds: StateFlow<List<String>> = gameEngine.gameData
-        .map { it.shownWarningStageIds }
-        .distinctUntilChanged()
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
+    /** @see [WarningDelegate.shownWarningStageIds] */
+    val shownWarningStageIds: StateFlow<List<String>> get() = warnings.shownWarningStageIds
 
-    /**
-     * 处理 AI 宗门进攻预警 — 选择安抚（支付资源）以避免进攻。
-     *
-     * @param sectId 进攻方宗门 ID
-     */
-    fun resolveAttackWarningAppease(sectId: String) {
-        viewModelScope.launch {
-            gameEngine.appeaseAttackingSect(sectId)
-        }
-    }
+    /** @see [WarningDelegate.resolveAttackWarningAppease] */
+    fun resolveAttackWarningAppease(sectId: String) = warnings.resolveAttackWarningAppease(sectId)
 
-    /**
-     * 处理 AI 宗门进攻预警 — 选择成为附庸以避免进攻。
-     *
-     * @param sectId 进攻方宗门 ID
-     */
-    fun resolveAttackWarningVassal(sectId: String) {
-        viewModelScope.launch {
-            gameEngine.becomeVassalOfAttacker(sectId)
-        }
-    }
+    /** @see [WarningDelegate.resolveAttackWarningVassal] */
+    fun resolveAttackWarningVassal(sectId: String) = warnings.resolveAttackWarningVassal(sectId)
 
-    /**
-     * 标记某预警阶段已展示过，避免重复弹出。
-     *
-     * @param stageKey 预警阶段标识
-     */
-    fun markWarningStageShown(stageKey: String) {
-        viewModelScope.launch {
-            gameEngine.markWarningStageShown(stageKey)
-        }
-    }
+    /** @see [WarningDelegate.markWarningStageShown] */
+    fun markWarningStageShown(stageKey: String) = warnings.markWarningStageShown(stageKey)
 
     /** 将待处理的战斗奖励卡片入队签到服务，触发飞出动画 */
     fun enqueueBattleRewardCards() {
@@ -318,197 +281,30 @@ class GameViewModel @Inject constructor(
      * @param width 网格宽度（已废弃，实际尺寸由配置决定）
      * @param height 网格高度（已废弃，实际尺寸由配置决定）
      */
-    fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
-        viewModelScope.launch {
-            val config = buildingConfigService.getBuildingConfigByDisplayName(name)
-            val cost = config?.cost ?: 1000L
-            val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
+    /** @see [BuildingDelegate.placeBuilding] */
+    fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) =
+        buildingDelegate.placeBuilding(name, gridX, gridY, width, height)
 
-            // Pre-compute new building instance ID so production slot can reference it
-            val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
+    /** @see [BuildingDelegate.getBuildingCost] */
+    fun getBuildingCost(displayName: String): Long = buildingDelegate.getBuildingCost(displayName)
 
-            // 在 updateGameData 闭包外保留对新 ProductionSlot 的引用，
-            // 但其 idx 在闭包内基于当前 data 计算以保证原子性
-            var newProductionSlot: ProductionSlot? = null
+    /** @see [BuildingDelegate.getBuildingGridSize] */
+    fun getBuildingGridSize(displayName: String): Pair<Int, Int> = buildingDelegate.getBuildingGridSize(displayName)
 
-            val activeId = gameEngine.currentActiveSectId()
-            gameEngine.updateGameData { data ->
-                when {
-                    BuildingRegistry.hasNoLimit(name) -> {
-                        // No build limit
-                    }
-                    else -> {
-                        if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
-                    }
-                }
-                if (data.spiritStones < cost) return@updateGameData data
+    /** @see [BuildingDelegate.batchPlaceBuilding] */
+    fun batchPlaceBuilding(goldFingerState: com.xianxia.sect.ui.game.sect.GoldFingerState) =
+        buildingDelegate.batchPlaceBuilding(goldFingerState)
 
-                val newBuilding = GridBuildingData(
-                    buildingId = name,
-                    displayName = name,
-                    gridX = gridX,
-                    gridY = gridY,
-                    width = gridW,
-                    height = gridH,
-                    sectId = activeId,
-                    instanceId = newBuildingInstanceId
-                )
+    /** @see [BuildingDelegate.moveBuilding] */
+    fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) =
+        buildingDelegate.moveBuilding(instanceId, newGridX, newGridY)
 
-                // 在事务闭包内基于当前 data 计算 idx，避免并发放置同类型建筑时
-                // idx 重复（历史 bug：idx 在闭包外基于快照计算，与闭包内 data 非原子）
-                newProductionSlot = when (name) {
-                    BuildingDef.ALCHEMY.displayName -> {
-                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName }
-                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
-                            .copy(buildingInstanceId = newBuildingInstanceId)
-                    }
-                    BuildingDef.FORGE.displayName -> {
-                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName }
-                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
-                            .copy(buildingInstanceId = newBuildingInstanceId)
-                    }
-                    else -> null
-                }
+    /** @see [BuildingDelegate.demolishBuilding] */
+    fun demolishBuilding(instanceId: String) = buildingDelegate.demolishBuilding(instanceId)
 
-                // 创建灵矿场槽位时写入 buildingInstanceId，用于建筑移除时精确匹配
-                val newSlots = if (name == BuildingDef.SPIRIT_MINE.displayName) {
-                    val nextIndex = data.spiritMineSlots.size
-                    (0 until 3).map { SpiritMineSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
-                } else emptyList()
-
-                // 创建巡视楼槽位时写入 buildingInstanceId
-                val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    val nextIndex = data.patrolSlots.size
-                    val slotCount = buildingConfigService.getSlotCountByDisplayName(name)
-                    (0 until slotCount).map { PatrolSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
-                } else emptyList()
-
-                val newPatrolConfigs = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    data.patrolConfigs + PatrolConfig()
-                } else emptyList()
-
-                val newResidenceSlots = when (name) {
-                    BuildingDef.SINGLE_RESIDENCE.displayName -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
-                    BuildingDef.MULTI_RESIDENCE.displayName -> (0 until 4).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
-                    else -> emptyList()
-                }
-
-                val newSpiritFieldPlants = if (name == BuildingDef.SPIRIT_FIELD.displayName) {
-                    listOf(SpiritFieldPlant(buildingInstanceId = newBuilding.instanceId, sectId = activeId))
-                } else emptyList()
-
-                @Suppress("DEPRECATION")
-                val slot = newProductionSlot
-                val updatedProductionSlots = if (slot != null)
-                    data.productionSlots + slot else data.productionSlots
-                data.copy(
-                    spiritStones = data.spiritStones - cost,
-                    placedBuildings = data.placedBuildings + newBuilding,
-                    spiritFieldPlants = data.spiritFieldPlants + newSpiritFieldPlants,
-                    spiritMineSlots = data.spiritMineSlots + newSlots,
-                    patrolSlots = if (newPatrolSlots.isNotEmpty()) data.patrolSlots + newPatrolSlots else data.patrolSlots,
-                    patrolConfigs = if (newPatrolConfigs.isNotEmpty()) newPatrolConfigs else data.patrolConfigs,
-                    residenceSlots = data.residenceSlots + newResidenceSlots,
-                    productionSlots = updatedProductionSlots
-                )
-            }
-
-            newProductionSlot?.let { slot ->
-                buildingFacade.addProductionSlot(slot)
-            }
-        }
-    }
-
-    /**
-     * 查询建筑放置所需灵石。
-     *
-     * @param displayName 建筑显示名
-     * @return 灵石消耗；查无配置时返回默认值 1000
-     */
-    fun getBuildingCost(displayName: String): Long {
-        return buildingConfigService.getBuildingConfigByDisplayName(displayName)?.cost ?: 1000L
-    }
-
-    /**
-     * 查询建筑网格尺寸。
-     *
-     * @param displayName 建筑显示名
-     * @return (宽, 高) 的网格单元数
-     */
-    fun getBuildingGridSize(displayName: String): Pair<Int, Int> {
-        return buildingConfigService.getBuildingGridSize(displayName)
-    }
-
-    /**
-     * 金手指一键批量建造 — 在框选区域内所有有效格放置同一种建筑。
-     *
-     * @param goldFingerState 金手指状态，含框选范围和每格有效性
-     */
-    fun batchPlaceBuilding(goldFingerState: com.xianxia.sect.ui.game.sect.GoldFingerState) {
-        if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return
-        viewModelScope.launch {
-            val name = goldFingerState.buildingName
-            val (gw, gh) = buildingConfigService.getBuildingGridSize(name)
-            val cost = goldFingerState.buildingCost
-            var placed = 0
-            var actualCost = 0L
-
-            for ((cellKey, valid) in goldFingerState.cellValidity) {
-                if (!valid) continue
-                val gx = (cellKey shr 32).toInt()
-                val gy = (cellKey and 0xFFFF_FFFF).toInt()
-
-                // 尝试在该格放置建筑，使用平铺 placement 逻辑
-                placeBuilding(name = name, gridX = gx, gridY = gy, width = gw, height = gh)
-                placed++
-                actualCost += cost
-            }
-
-            if (placed > 0) {
-                // 建造完成，无文本提示
-            }
-        }
-    }
-
-    /**
-     * 移动已放置的建筑到新坐标。
-     *
-     * @param instanceId 建筑实例 ID
-     * @param newGridX 新网格 X 坐标
-     * @param newGridY 新网格 Y 坐标
-     */
-    fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
-        viewModelScope.launch { buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY) }
-    }
-
-    /**
-     * 拆除建筑，返还一半造价并提示。
-     *
-     * @param instanceId 建筑实例 ID
-     */
-    fun demolishBuilding(instanceId: String) {
-        viewModelScope.launch {
-            val snapshot = gameEngine.gameDataSnapshot
-            val building = snapshot.placedBuildings.find { it.instanceId == instanceId } ?: return@launch
-            val config = buildingConfigService.getBuildingConfigByDisplayName(building.displayName)
-            val cost = config?.cost ?: 1000L
-            val refund = cost / 2
-
-            gameEngine.removeBuilding(instanceId, refund)
-            showSuccess("已拆除${building.displayName}，返还灵石×$refund")
-        }
-    }
-
-    /** 修正已有存档中的建筑尺寸（存档加载后调用） */
-    fun fixupBuildingSizesIfNeeded() {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
-                if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
-            }
-        }
-    }
+    /** @see [BuildingDelegate.fixupBuildingSizesIfNeeded] */
+    fun fixupBuildingSizesIfNeeded() = buildingDelegate.fixupBuildingSizesIfNeeded()
+            // (已提取到 BuildingDelegate)
 
     val gameData: StateFlow<GameData> get() = gameEngine.gameData
 
@@ -595,60 +391,17 @@ class GameViewModel @Inject constructor(
     }.distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, false)
 
-    /** 打开宗门等级详情界面 */
-    fun navigateToSectLevelDetail() {
-        navigateToDialog(DialogRoute.SectLevelDetail)
-    }
+    /** @see [SectDelegate.navigateToSectLevelDetail] */
+    fun navigateToSectLevelDetail() = sectDelegate.navigateToSectLevelDetail()
 
-    /** 修改宗门名称。原子更新 GameData.sectName 和 WorldSect 中玩家宗门的 name。 */
-    fun renameSect(newName: String) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                data.copy(
-                    sectName = newName,
-                    worldMapSects = data.worldMapSects.map { ws ->
-                        if (ws.isPlayerSect) ws.copy(name = newName) else ws
-                    }
-                )
-            }
-            dismissDialog()
-            showSuccess("宗门已更名为「${newName}」")
-        }
-    }
+    /** @see [SectDelegate.renameSect] */
+    fun renameSect(newName: String) = sectDelegate.renameSect(newName)
 
-    /** 领取宗门等级每周奖励（成功时由 RewardCardHost 播放飞出动画，不弹 toast） */
-    fun claimSectLevelReward(level: Int) {
-        viewModelScope.launch {
-            val result = gameEngine.claimSectLevelReward(level)
-            when (result) {
-                is com.xianxia.sect.core.engine.SectLevelClaimResult.Success -> {
-                    // 奖励已通过 GameEngine 入队 rewardCardQueue，
-                    // RewardCardHost 在 MainGameScreen 中自动播放飞出动画
-                }
-                is com.xianxia.sect.core.engine.SectLevelClaimResult.AlreadyClaimed ->
-                    showError("本周已领取过该等级奖励")
-                is com.xianxia.sect.core.engine.SectLevelClaimResult.Error ->
-                    showError(result.message)
-            }
-        }
-    }
+    /** @see [SectDelegate.claimSectLevelReward] */
+    fun claimSectLevelReward(level: Int) = sectDelegate.claimSectLevelReward(level)
 
-    /** 手动升级宗门等级 */
-    fun upgradeSectLevel() {
-        viewModelScope.launch {
-            val result = gameEngine.upgradeSectLevel()
-            when (result) {
-                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.Success ->
-                    showSuccess("宗门晋升至${SectLevel.levelName(result.newLevel)}!")
-                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.AlreadyMaxLevel ->
-                    showSuccess("已达最高等级")
-                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.ConditionsNotMet ->
-                    showError("条件未满足: ${result.unmetConditions.joinToString("、")}")
-                is com.xianxia.sect.core.engine.SectLevelUpgradeResult.Error ->
-                    showError(result.message)
-            }
-        }
-    }
+    /** @see [SectDelegate.upgradeSectLevel] */
+    fun upgradeSectLevel() = sectDelegate.upgradeSectLevel()
 
     /**
      * 可招募弟子聚合数据 - 响应式数据流
@@ -1055,22 +808,16 @@ class GameViewModel @Inject constructor(
      *
      * @param counts 禁止的灵根数集合
      */
-    fun setDaoCompanionBannedRootCounts(counts: Set<Int>) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(daoCompanionBannedRootCounts = counts) }
-        }
-    }
+    /** @see [AutoAssignDelegate.setDaoCompanionBannedRootCounts] */
+    fun setDaoCompanionBannedRootCounts(counts: Set<Int>) = autoAssign.setDaoCompanionBannedRootCounts(counts)
 
     /**
      * 设置道侣结成是否需要玩家同意。
      *
      * @param required true 表示需要玩家同意
      */
-    fun setDaoCompanionConsentRequired(required: Boolean) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(daoCompanionConsentRequired = required) }
-        }
-    }
+    /** @see [AutoAssignDelegate.setDaoCompanionConsentRequired] */
+    fun setDaoCompanionConsentRequired(required: Boolean) = autoAssign.setDaoCompanionConsentRequired(required)
 
     /**
      * 批量设置各生产建筑的自动分配策略（聚焦/灵根过滤/境界阈值）。
@@ -1088,29 +835,16 @@ class GameViewModel @Inject constructor(
      * @param forgeRootCounts 炼器允许的灵根数
      * @param forgeThreshold 炼器境界阈值
      */
+    /** @see [AutoAssignDelegate.setAutoAssignSettings] */
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
         plantFocused: Boolean, plantRootCounts: List<Int>, plantThreshold: Int,
         alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
         forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
-    ) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(
-                autoMineFocused = mineFocused,
-                autoMineRootCounts = mineRootCounts,
-                autoMineThreshold = mineThreshold,
-                autoPlantFocused = plantFocused,
-                autoPlantRootCounts = plantRootCounts,
-                autoPlantThreshold = plantThreshold,
-                autoAlchemyFocused = alchemyFocused,
-                autoAlchemyRootCounts = alchemyRootCounts,
-                autoAlchemyThreshold = alchemyThreshold,
-                autoForgeFocused = forgeFocused,
-                autoForgeRootCounts = forgeRootCounts,
-                autoForgeThreshold = forgeThreshold
-            )) }
-        }
-    }
+    ) = autoAssign.setAutoAssignSettings(mineFocused, mineRootCounts, mineThreshold,
+        plantFocused, plantRootCounts, plantThreshold,
+        alchemyFocused, alchemyRootCounts, alchemyThreshold,
+        forgeFocused, forgeRootCounts, forgeThreshold)
 
     /**
      * 设置突破时自动使用丹药的策略。
@@ -1118,11 +852,9 @@ class GameViewModel @Inject constructor(
      * @param focused 是否聚焦
      * @param rootCounts 允许自动使用丹药的灵根数集合
      */
-    fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(breakthroughAutoPillFocused = focused, breakthroughAutoPillRootCounts = rootCounts) }
-        }
-    }
+    /** @see [AutoAssignDelegate.setBreakthroughAutoPillSettings] */
+    fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) =
+        autoAssign.setBreakthroughAutoPillSettings(focused, rootCounts)
 
     /**
      * 设置自动从仓库装备的策略。
@@ -1130,11 +862,8 @@ class GameViewModel @Inject constructor(
      * @param focused 是否聚焦
      * @param rootCounts 允许自动装备的灵根数集合
      */
-    fun setAutoEquipSettings(focused: Boolean, rootCounts: Set<Int>) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(autoEquipFromWarehouseFocused = focused, autoEquipFromWarehouseRootCounts = rootCounts) }
-        }
-    }
+    /** @see [AutoAssignDelegate.setAutoEquipSettings] */
+    fun setAutoEquipSettings(focused: Boolean, rootCounts: Set<Int>) = autoAssign.setAutoEquipSettings(focused, rootCounts)
 
     /**
      * 设置自动从仓库学习功法的策略。
@@ -1142,11 +871,8 @@ class GameViewModel @Inject constructor(
      * @param focused 是否聚焦
      * @param rootCounts 允许自动学习的灵根数集合
      */
-    fun setAutoLearnSettings(focused: Boolean, rootCounts: Set<Int>) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(autoLearnFromWarehouseFocused = focused, autoLearnFromWarehouseRootCounts = rootCounts) }
-        }
-    }
+    /** @see [AutoAssignDelegate.setAutoLearnSettings] */
+    fun setAutoLearnSettings(focused: Boolean, rootCounts: Set<Int>) = autoAssign.setAutoLearnSettings(focused, rootCounts)
 
     /**
      * 设置巡视战斗结果弹窗开关。
@@ -1953,88 +1679,21 @@ class GameViewModel @Inject constructor(
      * @param slotIndex 槽位序号
      * @param discipleId 弟子 ID
      */
-    fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
-            val discipleName = gameEngine.getDiscipleAggregate(discipleId)?.name ?: ""
-            gameEngine.updateGameData { data ->
-                // Remove disciple from any other residence slot first
-                val cleared = data.residenceSlots.map { slot ->
-                    if (slot.discipleId == discipleId) slot.copy(discipleId = "", discipleName = "") else slot
-                }.toMutableList()
+    /** @see [BuildingDelegate.assignToResidence] */
+    fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) =
+        buildingDelegate.assignToResidence(buildingInstanceId, slotIndex, discipleId)
 
-                // Find and update the target slot (or add it)
-                val existingIndex = cleared.indexOfFirst {
-                    it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex
-                }
-                val newSlot = ResidenceSlot(
-                    buildingInstanceId = buildingInstanceId,
-                    slotIndex = slotIndex,
-                    discipleId = discipleId,
-                    discipleName = discipleName
-                )
-                if (existingIndex >= 0) {
-                    cleared[existingIndex] = newSlot
-                } else {
-                    cleared.add(newSlot)
-                }
-                data.copy(residenceSlots = cleared)
-            }
-        }
-    }
+    /** @see [BuildingDelegate.removeFromResidence] */
+    fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) =
+        buildingDelegate.removeFromResidence(buildingInstanceId, slotIndex)
 
-    /**
-     * 从指定住所槽位移除弟子。
-     *
-     * @param buildingInstanceId 住所建筑实例 ID
-     * @param slotIndex 槽位序号
-     */
-    fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                data.copy(
-                    residenceSlots = data.residenceSlots.map { slot ->
-                        if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex)
-                            slot.copy(discipleId = "", discipleName = "")
-                        else slot
-                    }
-                )
-            }
-        }
-    }
+    /** @see [BuildingDelegate.canUpgradeResidence] */
+    fun canUpgradeResidence(buildingInstanceId: String): Boolean =
+        buildingDelegate.canUpgradeResidence(buildingInstanceId)
 
-    /**
-     * 判断指定住所是否可升级（仅"单人住所"可升级）。
-     *
-     * @param buildingInstanceId 住所建筑实例 ID
-     * @return true 表示可升级
-     */
-    fun canUpgradeResidence(buildingInstanceId: String): Boolean {
-        val data = gameEngine.gameData.value ?: return false
-        val building = data.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return false
-        return building.displayName == "单人住所"
-    }
-
-    /**
-     * 将"单人住所"升级为"中级单人住所"，消耗 50000 灵石。
-     *
-     * @param buildingInstanceId 住所建筑实例 ID
-     */
-    fun upgradeSingleResidence(buildingInstanceId: String) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                val canAfford = data.spiritStones >= 50000L
-                if (!canAfford) return@updateGameData data
-                data.copy(
-                    spiritStones = data.spiritStones - 50000L,
-                    placedBuildings = data.placedBuildings.map { b ->
-                        if (b.instanceId == buildingInstanceId && b.displayName == "单人住所")
-                            b.copy(displayName = "中级单人住所")
-                        else b
-                    }
-                )
-            }
-        }
-    }
+    /** @see [BuildingDelegate.upgradeSingleResidence] */
+    fun upgradeSingleResidence(buildingInstanceId: String) =
+        buildingDelegate.upgradeSingleResidence(buildingInstanceId)
 
     // endregion
 

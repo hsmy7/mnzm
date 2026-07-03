@@ -45,7 +45,18 @@ cd android && ./gradlew.bat lintRelease
 cd android && ./gradlew.bat clean
 ```
 
-Tests live in `android/app/src/test/`. They use JUnit 4, Mockito, Robolectric, and `kotlinx-coroutines-test`. Robolectric tests need `includeAndroidResources = true`.
+Tests live in `android/app/src/test/` and module-level `src/test/` dirs. They use JUnit 4, Mockito, Robolectric, and `kotlinx-coroutines-test`. Robolectric tests need `includeAndroidResources = true`.
+
+```bash
+# Code coverage (Kover)
+cd android && ./gradlew.bat koverHtmlReport
+
+# Static analysis
+cd android && ./gradlew.bat detekt
+
+# Full CI check (compile + test + detekt + coverage)
+cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport
+```
 
 ## Tech Stack
 
@@ -141,9 +152,9 @@ tickInternal() 每 100ms
 | Directory | Purpose |
 |-----------|---------|
 | `core/engine/` | Game loop (100ms tick), services, systems, production, scheduling |
-| `core/engine/service/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
+| `core/engine/domain/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
 | `core/engine/system/` | ECS-like systems: Inventory, Building, Time, SystemManager |
-| `core/model/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, etc. |
+| `core/domain/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, domain interfaces |
 | `core/state/` | GameStateStore (central state), UnifiedGameState, UnifiedGameStateManager |
 | `core/registry/` | Static game data: Equipment, Manuals, Herbs, ForgeRecipes, Items |
 | `core/config/` | JSON-driven config: buildings, gifts, diplomatic events, inventory |
@@ -154,7 +165,9 @@ tickInternal() 每 100ms
 | `data/` | Storage layer: Room DB, serialization, compression, encryption, WAL, backup |
 | `data/facade/` | StorageFacade — single external API for save/load/delete |
 | `data/engine/` | StorageEngine — internal storage orchestration |
-| `data/local/` | Room database, DAOs, migrations, type converters |
+| `data/local/` | Room database, DAOs (**已拆分为 18 个领域文件**), migrations, type converters |
+
+> DAO 拆分：原 `Daos.kt`（1223 行）已按领域拆分为 18 个独立文件（`GameDataDao.kt`, `DiscipleDataDao.kt`, `EquipmentDaos.kt`, `ManualDaos.kt`, `InventoryDaos.kt`, `ProductionDaos.kt`, `BattleLogDao.kt`, `DiscipleSubDaos.kt`, `MiscDaos.kt` 等）。Room KSP 自动发现同包下的所有 `@Dao` 接口。
 
 **UI — Compose screens, components, and theming**
 | Directory | Purpose |
@@ -165,12 +178,20 @@ tickInternal() 每 100ms
 | `ui/components/` | Shared Compose components (GameButton, ItemCard, DialogManager) |
 | `ui/theme/` | Colors, typography, shapes, button sizes |
 
+**Domain — UseCase layer (app module)**
+| Directory | Purpose |
+|-----------|---------|
+| `app/.../core/usecase/` | 14 UseCase classes bridging ViewModel ↔ Facades |
+| `app/.../core/state/` | GameStateStoreImpl (GameStateStore 实现) |
+| `app/.../core/util/` | Utilities: ObjectPool, CircularBuffer, StateFlowListUtils |
+| `app/.../core/CrashHandler.kt` | Uncaught exception handler |
+
 **Infrastructure — DI, networking, and third-party SDKs**
 | Directory | Purpose |
 |-----------|---------|
-| `di/` | Hilt modules: AppModule, CoreModule, RepositoryModule, StorageModule |
-| `network/` | Retrofit API interfaces |
-| `taptap/` | TapTap SDK wrappers (auth, compliance) |
+| `app/.../di/` | Hilt modules (AppModule, CoreModule, RepositoryModule, StorageModule) |
+| `app/.../network/` | Retrofit API interfaces, RequestSigner, SecureHttpClient |
+| `taptap/` | TapTap SDK wrappers (auth, compliance, tracking) |
 
 ### Key Classes
 
@@ -178,7 +199,11 @@ tickInternal() 每 100ms
 - **`SettlementCoordinator`** — Fingerprint detection + annual settlement. No persistent shadow. Every 30s creates a temporary shadow from main state for cultivation fingerprint computation and 80% progress classification. Annual settlement handled via `scheduleYearly` → `SettlementScheduler`.
 - **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
 - **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
-- **`GameViewModel`** — Primary ViewModel (Hilt). Bridges UI to engine. Owns `DialogStateManager`.
+- **`GameViewModel`** — Primary ViewModel (Hilt, 1,728 行). Bridges UI to engine. Owns `DialogStateManager`.
+- **ViewModel Delegate 模式** — `GameViewModel` 通过 **9 个 Delegate** 类拆分领域逻辑：
+  `DiscipleDelegate`, `InventoryDelegate`, `NavigationDelegate`, `PlantingDelegate`,
+  `BuildingDelegate`, `BeastAttackDelegate`, `WarningDelegate`, `SectDelegate`, `AutoAssignDelegate`。
+  每个 Delegate 接收 `GameEngine` + `CoroutineScope`，通过回调与 ViewModel 通信（`showSuccess`/`showError`/`dismissDialog`）。
 - **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
 - **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
 
@@ -235,6 +260,22 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - Each feature gets its own ViewModel (e.g., `AlchemyViewModel`, `ForgeViewModel`, `ProductionViewModel`, `DiscipleViewModel`).
 - ViewModels read from `GameStateStore.unifiedState` via `collectAsState()` or direct `.value` reads for snapshots.
 - Mutations go through `GameEngine` methods, never directly to `GameStateStore` from the UI layer.
+
+### UseCase / Facade Pattern
+
+Business logic is organized as **UseCase** classes (in `app/.../core/usecase/`) that wrap **Facade** interfaces
+(in `core/engine/domain/`). Each UseCase follows:
+
+- Single `operator fun invoke()` as the entry point (or named methods for multi-operation cases)
+- `suspend` for async operations, `StateFlow` for reactive streams
+- `Result<T>` or `DomainResult<T>` for error handling — never bare exceptions
+
+```
+ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateStore
+```
+
+Large ViewModels (e.g., `GameViewModel`) can be split into **Delegate** classes (in `ui/game/delegate/`)
+for domain groupings: `BuildingDelegate`, `DisciplineDelegate`, `BeastAttackDelegate`, etc.
 
 ## 编码规范 (Coding Standards)
 

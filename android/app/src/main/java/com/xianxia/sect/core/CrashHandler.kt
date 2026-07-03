@@ -90,15 +90,6 @@ class CrashHandler @Inject constructor(
         Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
 
         try {
-            // Feature: agconnect-crash pending SDK integration
-            //   阻塞项：需在 build.gradle 添加 com.huawei.agconnect:crash 依赖并配置 agconnect-services.json
-            //   当前状态：Bugly 已作为主崩溃收集 SDK，此处为华为设备补充上报
-            // if (DeviceCompatibilityHelper.isHuaweiOrHonor) {
-            //     try {
-            //         AGConnectCrash.getInstance().recordException(throwable)
-            //     } catch (_: Exception) { }
-            // }
-
             // 1. 记录崩溃日志到文件
             val crashLogFile = writeCrashLogToFile(thread, throwable)
 

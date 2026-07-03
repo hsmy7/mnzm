@@ -111,9 +111,10 @@ class SettlementCache(state: MutableGameState) {
                 flags += DiscipleDirtyFlag.PILL_EFFECT
             }
             // 丧亲状态中 → dirty（影响修炼速率计算）
-            if (d.social.griefEndYear != null &&
+            val griefEndYear = d.social.griefEndYear
+            if (griefEndYear != null &&
                 com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-                    .isGrieving(d.social.griefEndYear!!, currentYear)) {
+                    .isGrieving(griefEndYear, currentYear)) {
                 flags += DiscipleDirtyFlag.GRIEF
             }
             if (flags.isEmpty()) setOf(DiscipleDirtyFlag.NONE) else flags

@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.protobuf)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
     // 决策：保留。AGConnect Crash 在 CrashHandler.kt/XianxiaApplication.kt 已预留集成点，待凭证就绪后启用。
     // id 'com.huawei.agconnect'
     // 决策：保留。与下方 Firebase 依赖配套，待 google-services.json 就绪后启用。

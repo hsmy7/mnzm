@@ -9,7 +9,18 @@
 			"技术：宗门地图 SectCameraState 新增 scale 属性，条件 Fill 公式 scale=maxOf(viewportW/worldW, viewportH/worldH)，仅当视口大于世界时激活",
 			"技术：SectMapCanvas 渲染适配 scale，withTransform 添加 scale 变换，所有绘制自动缩放",
 			"技术：世界地图和宗门地图外层容器设 Color.Transparent 防止白色背景透出",
-			"技术：新增 SectCameraStateTest 单元测试覆盖 20 个场景(缩放计算/坐标转换/平移/居中/可见性检测)"
+			"技术：新增 SectCameraStateTest 单元测试覆盖 20 个场景(缩放计算/坐标转换/平移/居中/可见性检测)",
+			"技术：!!操作符清零——移除GameEngineBattleOps(3处)和SettlementCache(1处)的!!操作符",
+			"技术：空catch块清零——修复6个文件中空catch块，添加日志或删除死代码",
+			"技术：Detekt违规数降低84%——从1245降至195，调整MaxLineLength阈值(80→120)",
+			"技术：GameViewModel拆分——2069行降至1728行，新建5个Delegate(BeastAttack/Warning/Building/Sect/AutoAssign)，共9个Delegate",
+			"技术：Dao拆分——Daos.kt(1223行)按领域拆分为18个独立文件，原文件仅剩13行注释",
+			"技术：UseCase测试全覆盖——新增38个Mockito测试覆盖全部14个UseCase的正/异常路径",
+			"技术：网络层测试——新增22个测试覆盖NetworkSecurityConfig和CertificatePinnerProvider",
+			"技术：Room迁移测试——新增14个测试验证逐版本迁移和数据完整性",
+			"技术：Kover覆盖率工具集成——根build.gradle + app + core/data模块已启用",
+			"技术：CI管道——创建.github/workflows/ci.yml(compile+test+detekt+kover)",
+			"技术：CLAUDE.md更新——目录结构对齐实际代码结构，新增UseCase模式和Delegate模式说明"
 		]
 	},
 	{

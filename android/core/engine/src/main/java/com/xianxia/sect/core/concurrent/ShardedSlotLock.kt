@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.concurrent
 
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -114,7 +115,7 @@ class ShardedSlotLock(
                 }
             } catch (e: Throwable) {
                 acquired.reversed().forEach { 
-                    try { shards[it].unlock() } catch (_: Exception) {}
+                    try { shards[it].unlock() } catch (_: Exception) { DomainLog.w("ShardedSlotLock", "Failed to unlock shard $it during error recovery") }
                 }
                 throw e
             }

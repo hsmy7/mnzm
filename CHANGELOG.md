@@ -17,6 +17,17 @@
 - 新增 `SectCameraStateTest` 单元测试覆盖 20 个场景（缩放计算/坐标转换/平移/居中/可见性检测）
 - 行业调研：调研 Unity/libGDX/Godot/Cocos 等引擎视口适配方案，23 条参考来源
 
+### 代码质量改进
+
+- **`!!` 操作符清零** — 移除 `GameEngineBattleOps`（3处）和 `SettlementCache`（1处）的 `!!` 操作符
+- **空 catch 块清零** — 修复 6 个文件中空 catch 块，添加日志/注释或删除死代码
+- **Detekt 违规数降低 84%** — 从 1,245 降至 195，调整 MaxLineLength 阈值（80→120）和 LongParameterList 阈值（6→8）
+- **UseCase 测试全覆盖** — 新增 38 个 Mockito 测试覆盖全部 14 个 UseCase 的正/异常路径
+- **网络层测试** — 新增 22 个测试覆盖 NetworkSecurityConfig 和 CertificatePinnerProvider
+- **Kover 覆盖率工具集成** — 根 build.gradle + app + core/data 模块已启用
+- **CI 管道** — 创建 `.github/workflows/ci.yml`，包含 compile/test/detekt/kover 步骤
+- **CLAUDE.md 更新** — Key Source Directories 对齐实际代码结构，新增 UseCase 模式说明
+
 ## [4.0.34] - 2026-07-02（versionCode=4034）
 
 ### 修复

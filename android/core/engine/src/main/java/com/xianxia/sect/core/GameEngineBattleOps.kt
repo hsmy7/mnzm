@@ -123,6 +123,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         battleLogs = updatedLogs
     }
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
+        val rewards = requireNotNull(warRewards) { "warRewards must be set when ATTACKER wins" }
         val sectSurvivorIds = attackers.filter { it.id !in deadPlayerIds }.map { it.id }.toSet()
         stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables.isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }
         if (battleResult.canOccupy) {
@@ -137,21 +138,21 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                     recruitList = gameData.recruitList.toList() + capturedDisciples,
                     aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() }
                 )
-                addSpiritStones(warRewards!!.spiritStones)
-                warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
-                warRewards.pills.forEach { inventorySystem.addPill(it) }; warRewards.materials.forEach { inventorySystem.addMaterial(it) }
-                warRewards.herbs.forEach { inventorySystem.addHerb(it) }; warRewards.seeds.forEach { inventorySystem.addSeed(it) }
+                addSpiritStones(rewards.spiritStones)
+                rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
+                rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
             }
         } else {
             stateStore.update {
-                addSpiritStones(warRewards!!.spiritStones)
-                warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
-                warRewards.pills.forEach { inventorySystem.addPill(it) }; warRewards.materials.forEach { inventorySystem.addMaterial(it) }
-                warRewards.herbs.forEach { inventorySystem.addHerb(it) }; warRewards.seeds.forEach { inventorySystem.addSeed(it) }
+                addSpiritStones(rewards.spiritStones)
+                rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
+                rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
             }
         }
-        stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(warRewards!!)))
-        stateStore.setPendingBattleRewardCards(buildBattleRewardCards(warRewards))
+        stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(rewards)))
+        stateStore.setPendingBattleRewardCards(buildBattleRewardCards(rewards))
     } else {
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = false, teamMembers = teamMembers, rewards = emptyList()))
     }

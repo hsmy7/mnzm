@@ -320,7 +320,7 @@ class ChangeTracker {
                 field.isAccessible = true
                 val value = field.get(data) ?: return@forEach
                 digest.update(value.toString().toByteArray(Charsets.UTF_8))
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.w(TAG, "Reflective checksum failed for field: ${field.name}", e) }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }

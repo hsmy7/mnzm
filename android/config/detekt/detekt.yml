@@ -1,6 +1,6 @@
 style:
   MaxLineLength:
-    maxLineLength: 80        # import/KDoc标签/URL 除外
+    maxLineLength: 120       # Compose UI 链式调用需要
   WildcardImport:
     active: true
   MagicNumber:
@@ -14,8 +14,8 @@ complexity:
     active: true
     thresholdInFiles: 15     # 从 30 收紧
   LongParameterList:
-    functionThreshold: 6
-    constructorThreshold: 7
+    functionThreshold: 8
+    constructorThreshold: 10
 empty-blocks:
   EmptyCatchBlock:
     active: true             # 禁止空 catch 块

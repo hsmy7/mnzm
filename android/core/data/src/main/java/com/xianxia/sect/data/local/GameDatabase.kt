@@ -598,7 +598,7 @@ abstract class GameDatabase : RoomDatabase() {
                     try {
                         db.openHelper.writableDatabase.query("PRAGMA synchronous = NORMAL", emptyArray()).close()
                         Log.d(TAG, "PRAGMA synchronous = NORMAL applied via query")
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { Log.w(TAG, "PRAGMA synchronous query fallback also failed: ${e.message}") }
                 } else {
                     Log.w(TAG, "Failed to apply PRAGMA synchronous: ${e.message}")
                 }

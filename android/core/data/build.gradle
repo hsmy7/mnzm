@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -15,6 +16,7 @@ android {
 
     testOptions {
         unitTests {
+            includeAndroidResources = true
             returnDefaultValues = true
         }
     }
@@ -22,6 +24,10 @@ android {
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -65,4 +71,9 @@ dependencies {
 
     testImplementation libs.junit
     testImplementation libs.coroutines.test
+    testImplementation libs.robolectric
+    testImplementation libs.test.core
+    testImplementation libs.test.ext.junit
+    testImplementation libs.test.runner
+    testImplementation libs.room.testing
 }

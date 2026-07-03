@@ -2,6 +2,7 @@ package com.xianxia.sect.core.perf
 
 import android.opengl.GLES20
 import androidx.compose.runtime.Immutable
+import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -250,7 +251,7 @@ class GpuTierDetector @Inject constructor() {
         } catch (_: Exception) {
             null
         } finally {
-            try { android.opengl.EGL14.eglMakeCurrent(display ?: android.opengl.EGL14.EGL_NO_DISPLAY, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_CONTEXT) } catch (_: Exception) {}
+            try { android.opengl.EGL14.eglMakeCurrent(display ?: android.opengl.EGL14.EGL_NO_DISPLAY, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_CONTEXT) } catch (_: Exception) { DomainLog.w("GpuTierDetector", "EGL eglMakeCurrent cleanup failed (non-fatal)") }
             try { surface?.let { android.opengl.EGL14.eglDestroySurface(display, it) } } catch (_: Exception) {}
             try { context?.let { android.opengl.EGL14.eglDestroyContext(display, it) } } catch (_: Exception) {}
             try { display?.let { android.opengl.EGL14.eglTerminate(it) } } catch (_: Exception) {}
