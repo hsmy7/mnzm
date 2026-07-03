@@ -162,6 +162,16 @@ class DiscipleTables {
     // === 弟子总数 ===
     val count: Int get() = ids.size
 
+    /**
+     * 从另一个 [DiscipleTables] 中复制一个弟子的全部组件到当前表。
+     * 如果 id 已存在则更新，否则插入。
+     * 用于 [GameStateStoreImpl.mergeDiscipleTables] 的简化合并。
+     */
+    fun copyRowFrom(source: DiscipleTables, id: Int) {
+        val disciple = source.assemble(id)
+        if (id in ids) update(disciple) else insert(disciple)
+    }
+
     init { bindAllOnWrite() }
 
     /* ================================================================

@@ -136,6 +136,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(any()) } returns Unit
         coEvery { gameEngine.updateDisciple(any<String>(), any()) } returns Unit
 
+
         viewModel = GameViewModel(
             gameEngine, gameEngineCore, appContext, systemManager,
             disciplePositionQuery, buildingConfigService, mailService,

@@ -48,117 +48,53 @@ class GameStateStoreImpl @Inject constructor(
         private const val TAG = "GameStateStore"
 
         /**
-         * 三路合并 discipleTables — 影子为基础，生命周期字段取真实 store 的值。
+         * 合并 discipleTables — 影子保留结算结果，current 覆盖生命周期字段。
          *
-         * 问题：空闲模式下 processYearlyEvents() 将老化/反思释放/哀悼到期等
-         * 写入真实 store 的 discipleTables，但后续 swapFromShadow 会用影子的旧
-         * 副本整体覆盖，导致年龄回退。
-         *
-         * 合并规则：
-         * - 以 shadow 为基础（保留修炼/生产进度）
-         * - 生命周期字段（age/isAlive/status/griefEndYear 等）如与 origin
-         *   不同，说明被年度事件修改过，取 current 的值
-         * - origin 有但 current 没有的弟子已死亡，从结果中移除
-         * - shadow 独有的弟子（子嗣出生）保留
+         * 规则：
+         * - 以 shadow 为基础（保留修炼/生产结算结果 + 子嗣出生）
+         * - shared ID：生命周期字段无条件取 current（影子不修改这些字段）
+         * - current-only ID：新招募/新加入 → 复制到结果
+         * - shadow 有但 origin 有 → 死亡 → 移除
+         * - shadow 有但 origin 无 → 新生儿 → 保留
          */
         internal fun mergeDiscipleTables(
-            originDisciples: List<Disciple>,
             shadow: DiscipleTables,
-            current: DiscipleTables
+            current: DiscipleTables,
+            originAliveIds: Set<Int>? = null
         ): DiscipleTables {
             val result = shadow.deepCopy()
-            val originMap = originDisciples.associateBy { it.id }
             val currentIds = current.ids.toSet()
 
-            // 1. 移除已死亡的弟子（origin 有，current 没有）
-            for (oDisciple in originDisciples) {
-                val id = oDisciple.id.toInt()
-                if (id !in currentIds && id in result.ids) {
-                    result.remove(id)
+            // 1. 处理 current 中的 ID（shared + current-only）
+            for (id in currentIds) {
+                if (id in result.ids) {
+                    // shared ID：生命周期字段取 current
+                    result.ages[id] = current.ages.getOrDefault(id, 0)
+                    result.currentHps[id] = current.currentHps.getOrDefault(id, 0)
+                    result.currentMps[id] = current.currentMps.getOrDefault(id, 0)
+                    result.realms[id] = current.realms.getOrDefault(id, 0)
+                    result.realmLayers[id] = current.realmLayers.getOrDefault(id, 0)
+                    result.isAlive[id] = current.isAlive.getOrDefault(id, 0)
+                    result.lifespans[id] = current.lifespans.getOrDefault(id, 0)
+                    result.statuses[id] = current.statuses.getOrDefault(id, DiscipleStatus.IDLE)
+                    result.statusData[id] = current.statusData.getOrDefault(id, emptyMap())
+                    result.moralities[id] = current.moralities.getOrDefault(id, 0)
+                    result.loyalties[id] = current.loyalties.getOrDefault(id, 0)
+                    result.griefEndYears[id] = current.griefEndYears.getOrNull(id)
+                    result.partnerIds[id] = current.partnerIds.getOrNull(id)
+                    result.masterIds[id] = current.masterIds.getOrNull(id)
+                } else {
+                    // current-only ID（新招募）：复制到结果
+                    result.copyRowFrom(current, id)
                 }
             }
 
-            // 2. 生存弟子：生命周期字段若被年度/实时轨修改，取 current 的值
-            for (id in current.ids) {
-                val oDisciple = originMap[id.toString()] ?: continue
-
-                // -- processDiscipleAging --
-                val currentAge = current.ages.getOrDefault(id, 0)
-                if (currentAge != oDisciple.age)
-                    result.ages[id] = currentAge
-
-                // -- 实时轨 HP/MP 恢复 --
-                // 实时轨每旬恢复，批量轨不持有，影子 swap 时从主状态保留
-                val currentHp = current.currentHps.getOrDefault(id, 0)
-                if (currentHp != oDisciple.currentHp)
-                    result.currentHps[id] = currentHp
-
-                val currentMp = current.currentMps.getOrDefault(id, 0)
-                if (currentMp != oDisciple.currentMp)
-                    result.currentMps[id] = currentMp
-
-                // -- 实时轨突破：大境界变更 --
-                // 突破改变大境界，影子未参与，从主状态保留
-                val currentRealm = current.realms.getOrDefault(id, 0)
-                if (currentRealm != oDisciple.realm)
-                    result.realms[id] = currentRealm
-
-                val currentIsAlive = current.isAlive.getOrDefault(id, 0)
-                val originAlive = if (oDisciple.isAlive) 1 else 0
-                if (currentIsAlive != originAlive)
-                    result.isAlive[id] = currentIsAlive
-
-                val currentRealmLayer = current.realmLayers.getOrDefault(id, 0)
-                if (currentRealmLayer != oDisciple.realmLayer)
-                    result.realmLayers[id] = currentRealmLayer
-
-                val currentLifespan = current.lifespans.getOrDefault(id, 0)
-                if (currentLifespan != oDisciple.lifespan)
-                    result.lifespans[id] = currentLifespan
-
-                // -- processReflectionRelease --
-                val currentStatus = current.statuses.getOrDefault(
-                    id, DiscipleStatus.IDLE
-                )
-                if (currentStatus != oDisciple.status)
-                    result.statuses[id] = currentStatus
-
-                val currentStatusData = current.statusData.getOrDefault(
-                    id, emptyMap()
-                )
-                if (currentStatusData != oDisciple.statusData)
-                    result.statusData[id] = currentStatusData
-
-                val currentMorality = current.moralities.getOrDefault(id, 0)
-                if (currentMorality != oDisciple.skills.morality)
-                    result.moralities[id] = currentMorality
-
-                val currentLoyalty = current.loyalties.getOrDefault(id, 0)
-                if (currentLoyalty != oDisciple.skills.loyalty)
-                    result.loyalties[id] = currentLoyalty
-
-                // -- processGriefExpiry --
-                // 注：nullable 字段 null 时不 insert，须用 getOrNull 防 NoSuchElementException
-                val currentGriefEnd = current.griefEndYears.getOrNull(id)
-                if (currentGriefEnd != oDisciple.social.griefEndYear)
-                    result.griefEndYears[id] = currentGriefEnd
-
-                // -- handleDiscipleDeath 连锁 --
-                val currentPartnerId = current.partnerIds.getOrNull(id)
-                if (currentPartnerId != oDisciple.social.partnerId)
-                    result.partnerIds[id] = currentPartnerId
-
-                val currentMasterId = current.masterIds.getOrNull(id)
-                if (currentMasterId != oDisciple.social.masterId)
-                    result.masterIds[id] = currentMasterId
-
-                // -- 实时轨修炼进度保留 --
-                // 焦点域（如 DISCIPLES）在空闲模式下仍 100ms 实时结算，
-                // 直接写真实 store。批量结算 shadow 走 30s 非焦点域轨道。
-                // 取 max 确保实时轨更快的进展不被批量影子覆盖。
-                val currentCult = current.cultivations.getOrDefault(id, 0.0)
-                if (currentCult > result.cultivations.getOrDefault(id, 0.0))
-                    result.cultivations[id] = currentCult
+            // 2. 移除死亡弟子（在 origin 中有、但不在 current 中）
+            val originIds = originAliveIds ?: currentIds // fallback: current-only
+            for (id in result.ids.toList()) {
+                if (id !in currentIds && id in originIds) {
+                    result.remove(id)
+                }
             }
 
             return result
@@ -218,9 +154,9 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     private var batchEmissionMode = false
     /** 批量模式下抑制个体字段 StateFlow 发射，仅 _updateVersion 递增 */
-    fun enterBatchEmissionMode() { batchEmissionMode = true }
+    override fun enterBatchEmissionMode() { batchEmissionMode = true }
     /** 退出批量模式，立即触发一次完整状态发射 */
-    fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++ }
+    override fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++ }
 
     override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -464,14 +400,11 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
-    private var shadowOrigin: UnifiedGameState? = null
-
-    // CUSTOM 字段的合并函数（origin, shadow, oldState → 合并后的值）
-    // 策略声明见 GameData.kt 各字段的 @SettlementStrategy 注解
+    /** 影子创建时的存活弟子 ID 集合，用于合并时区分"死亡"与"新生儿" */
+    private var shadowOriginAliveIds: Set<Int>? = null
 
     override fun createSettlementShadow(): MutableGameState {
         val gd = _gameDataFlow.value
-        val disc = _disciplesFlow.value
         val ei = _equipmentInstancesFlow.value
         val mi = _manualInstancesFlow.value
         val p = _pillsFlow.value
@@ -481,27 +414,8 @@ class GameStateStoreImpl @Inject constructor(
         val mat = _materialsFlow.value
         val h = _herbsFlow.value
         val s = _seedsFlow.value
-        val snapshot = UnifiedGameState(
-            gameData = gd,
-            disciples = disc,
-            equipmentStacks = es,
-            equipmentInstances = ei,
-            manualStacks = ms,
-            manualInstances = mi,
-            pills = p,
-            materials = mat,
-            herbs = h,
-            seeds = s,
-            storageBags = emptyList(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
-            alliances = gd.alliances,
-            isPaused = _isPaused.value,
-            isLoading = _isLoading.value,
-            isSaving = _isSaving.value,
-            pendingNotification = _pendingNotificationFlow.value
-        )
-        shadowOrigin = snapshot
+        // 记录影子创建时的存活弟子 ID（用于区分"死亡"与"新生儿"）
+        shadowOriginAliveIds = _discipleTables.ids.filter { _discipleTables.isAlive[it] == 1 }.toSet()
         return MutableGameState(
             gameData = gd,
             discipleTables = _discipleTables.deepCopy(),
@@ -525,17 +439,13 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     override suspend fun swapFromShadow(shadow: MutableGameState) {
-        val origin = shadowOrigin
+        val originIds = shadowOriginAliveIds
         update {
-            // gameData 和物品永不被影子修改 — 全部走 phase loop 的 stateStore.update
-            // 只需合并 discipleTables（修炼值/HP/MP/子嗣出生）
-            this.discipleTables = if (origin != null) {
-                mergeDiscipleTables(origin.disciples, shadow.discipleTables, this.discipleTables)
-            } else {
-                shadow.discipleTables
-            }
+            this.discipleTables = mergeDiscipleTables(
+                shadow.discipleTables, this.discipleTables, originIds
+            )
         }
-        shadowOrigin = null
+        shadowOriginAliveIds = null
     }
 
     private val reusableMutableState = MutableGameState(
@@ -697,19 +607,21 @@ class GameStateStoreImpl @Inject constructor(
                 _isPaused.value = finalPaused
                 _isLoading.value = finalLoading
                 _isSaving.value = finalSaving
-                if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
-                if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
-                if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
-                if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
-                if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
-                if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
-                if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
-                if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
-                if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
-                if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
-                if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
-                if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
-                if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                if (!batchEmissionMode) {
+                    if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
+                    if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
+                    if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
+                    if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
+                    if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
+                    if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
+                    if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
+                    if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
+                    if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
+                    if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
+                    if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
+                    if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
+                    if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                }
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
                 val mutated = reusableMutableState.discipleTables.mutationVersion
                 disciplesNeedReassemble = disciplesChanged || mutated != lastAssembledMutationVersion

@@ -532,9 +532,12 @@ fun GameOverlayHost(
             )
         }
         is DialogRoute.RenameSect -> {
+            val onConfirm = remember(viewModel) {
+                { newName: String -> viewModel.renameSect(newName) }
+            }
             RenameSectDialog(
                 currentName = gameData.sectName,
-                onConfirm = { newName -> viewModel.renameSect(newName) },
+                onConfirm = onConfirm,
                 onDismiss = onDismiss
             )
         }

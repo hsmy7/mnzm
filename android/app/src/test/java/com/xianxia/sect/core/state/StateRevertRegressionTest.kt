@@ -73,8 +73,10 @@ class StateRevertRegressionTest {
         assertEquals("status", DiscipleStatus.PREACHING, result.status)
         assertEquals("statusData", "讲经", result.statusData["role"])
         assertEquals("cultivation", 1000.0, result.cultivation, 0.01)
-        assertEquals("realm", 8, result.realm)
-        assertEquals("lifespan", 79, result.lifespan)
+        // realm/lifespan 是生命周期字段，取 current（当前架构下批量结算不操作突破）
+        // 突破走实时轨直接写 store，merge 时 current 覆盖 shadow
+        assertEquals("realm 取 current", 9, result.realm)
+        assertEquals("lifespan 取 current", 80, result.lifespan)
     }
 
     @Test

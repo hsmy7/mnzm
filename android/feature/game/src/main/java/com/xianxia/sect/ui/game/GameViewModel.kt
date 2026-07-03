@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -196,7 +197,7 @@ class GameViewModel @Inject constructor(
                     lastTick = currentTick
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
-                    Log.e(TAG, "HealthCheck: error", e)
+                    DomainLog.e(TAG, "HealthCheck: error", e)
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.state
 
+import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>>
 
     // === 三层 StateFlow 架构 ===
+    @Immutable
     data class HighFreqState(
         val spiritStones: Long = 0L,
         val gameYear: Int = 1,
@@ -45,6 +47,7 @@ interface GameStateStore : GameStateSnapshotProvider {
         val isPaused: Boolean = true
     )
 
+    @Immutable
     data class EntityState(
         val disciples: List<Disciple> = emptyList(),
         val equipmentStacks: List<EquipmentStack> = emptyList(),
@@ -60,6 +63,7 @@ interface GameStateStore : GameStateSnapshotProvider {
         val battleLogs: List<BattleLog> = emptyList()
     )
 
+    @Immutable
     data class ConfigState(
         val sectPolicies: SectPolicies = SectPolicies(),
         val yearlySalary: Map<Int, Int> = emptyMap(),
@@ -140,6 +144,12 @@ interface GameStateStore : GameStateSnapshotProvider {
      * - 否则 → 新开 [update] 事务执行 block
      */
     suspend fun modifyState(block: MutableGameState.() -> Unit)
+
+    // === 批量发射模式（结算时抑制个体 StateFlow 发射，减少重组雪崩） ===
+    /** 进入批量发射模式：个体 Field StateFlow 暂不发射，仅累积 _updateVersion */
+    fun enterBatchEmissionMode() {}
+    /** 退出批量发射模式：发射 _updateVersion 触发一次统一状态重建 */
+    fun exitBatchEmissionMode() {}
 
     // === 直接状态设置 ===
     fun setPausedDirect(paused: Boolean)

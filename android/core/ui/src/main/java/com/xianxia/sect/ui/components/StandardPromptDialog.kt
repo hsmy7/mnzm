@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -127,43 +128,46 @@ fun StandardPromptDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Content area fills remaining space, pushing buttons to bottom
+                // Content area: 输入框优先，按钮在底部且空间不足时折叠
                 Column(modifier = Modifier.weight(1f)) {
                     content()
-                }
 
-                // Bottom buttons (only when not in close-button-only mode)
-                if (!showCloseButton) {
-                    if (customButtons != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            customButtons()
-                        }
-                    } else if (dismissLabel != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            GameButton(
-                                text = dismissLabel,
-                                onClick = { (onDismiss ?: onDismissRequest)() },
-                                buttonBackgroundRes = buttonBackgroundRes
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
+                    // 弹性空间：有富余空间时把按钮推到底部，空间不足时率先折叠
+                    if (!showCloseButton) {
+                        if (customButtons != null) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                customButtons()
+                            }
+                        } else if (dismissLabel != null) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                GameButton(
+                                    text = dismissLabel,
+                                    onClick = { (onDismiss ?: onDismissRequest)() },
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                GameButton(
+                                    text = confirmLabel,
+                                    onClick = onConfirm,
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
                             GameButton(
                                 text = confirmLabel,
                                 onClick = onConfirm,
                                 buttonBackgroundRes = buttonBackgroundRes
                             )
                         }
-                    } else {
-                        GameButton(
-                            text = confirmLabel,
-                            onClick = onConfirm,
-                            buttonBackgroundRes = buttonBackgroundRes
-                        )
                     }
                 }
             }
@@ -212,6 +216,7 @@ fun InlineStandardPromptDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .background(Color(0x80000000)) // 半透明遮罩
             .then(
                 if (dismissOnClickOutside) {
@@ -287,43 +292,46 @@ fun InlineStandardPromptDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Content area fills remaining space, pushing buttons to bottom
+                // Content area: 输入框优先，按钮在底部且空间不足时折叠
                 Column(modifier = Modifier.weight(1f)) {
                     content()
-                }
 
-                // Bottom buttons (only when not in close-button-only mode)
-                if (!showCloseButton) {
-                    if (customButtons != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            customButtons()
-                        }
-                    } else if (dismissLabel != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            GameButton(
-                                text = dismissLabel,
-                                onClick = { (onDismiss ?: onDismissRequest)() },
-                                buttonBackgroundRes = buttonBackgroundRes
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
+                    // 弹性空间：有富余空间时把按钮推到底部，空间不足时率先折叠
+                    if (!showCloseButton) {
+                        if (customButtons != null) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                customButtons()
+                            }
+                        } else if (dismissLabel != null) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                GameButton(
+                                    text = dismissLabel,
+                                    onClick = { (onDismiss ?: onDismissRequest)() },
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                GameButton(
+                                    text = confirmLabel,
+                                    onClick = onConfirm,
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
                             GameButton(
                                 text = confirmLabel,
                                 onClick = onConfirm,
                                 buttonBackgroundRes = buttonBackgroundRes
                             )
                         }
-                    } else {
-                        GameButton(
-                            text = confirmLabel,
-                            onClick = onConfirm,
-                            buttonBackgroundRes = buttonBackgroundRes
-                        )
                     }
                 }
             }

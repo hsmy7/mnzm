@@ -132,6 +132,9 @@ fun SaveSelectScreen(
             title = "创建宗门",
             text = "请输入宗门名称：",
             confirmLabel = "创建",
+            dismissLabel = "取消",
+            dismissOnClickOutside = false,
+            onDismiss = { showSectNameDialog = null },
             onConfirm = {
                 if (sectNameError == null) {
                     val name = sectNameInput.trim().ifEmpty { "青云宗" }

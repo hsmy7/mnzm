@@ -170,13 +170,9 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
 
     // ★ 拼接（仍返回新 EntityStore，保持语义不变）
     operator fun plus(item: T): EntityStore<T> {
-        val newStore = EntityStore<T>().also { s ->
-            s.items_.addAll(this.items_)
-            s.items_.add(item)
-            s.rebuildIndex()
-            s.dirty = true
-        }
-        return newStore
+        val newItems = this.items_.toMutableList()
+        newItems.add(item)
+        return EntityStore(newItems)
     }
 
     // ★ 冻结：写入 items 快照供 StateFlow 发射用。仅 dirty 时分配新列表。

@@ -277,6 +277,20 @@ Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow 
 - `isDirty` 标记供 GameStateStoreImpl 检测变化
 - GC 分配量降低 80%+
 
+**EntityStore 注意事项 (v4.0.40 修复)：**
+- `plus(item)` 运算符必须通过 `EntityStore(newItems)` 构造新实例。`EntityStore()` + `items_.addAll()` 的模式会导致 `frozenSnapshot` 未正确初始化，使得 `find`/`iterator` 操作返回错误结果
+
+**FingerprintSnapshot (R13, v4.0.40)：**
+- `FingerprintSnapshot` 是只读的轻量指纹快照，直接从 `GameStateStore` 的当前可读 API 取值
+- 零 deepCopy 开销，全部为引用拷贝
+- 仅指纹变化时（罕见）回退到完整 `createSettlementShadow()` 构建 SettlementCache
+- `take(store)` 工厂方法从 `store.discipleTables`、`store.gameData.value`、`store.equipmentInstances.value` 取值
+
+**ParallelWorkerPool (R16, v4.0.40)：**
+- 轻量并行计算辅助池，将两个独立计算任务分发到 `Dispatchers.Default` 并行执行
+- 所有 Worker 为纯函数（只读输入 → 值输出），禁止修改状态
+- 当前用于 `accumulateBatch`：指纹计算 + 进度分类两路并行
+
 **Key rules:**
 - **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(log n), no allocation
 - **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(log n)
@@ -298,6 +312,24 @@ Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow 
 | 调度器切换 | 死锁风险 | 安全 |
 | 重入路径 | 跳过 Mutex 直接操作 buffer | 跳过 Mutex 直接操作 buffer |
 | 异常回滚 | 无 | 支持（不发射 StateFlow） |
+
+### 批量发射模式 (R19, v4.0.40)
+
+`GameStateStoreImpl` 支持 `batchEmissionMode`，用于结算等批量更新场景：
+
+- `enterBatchEmissionMode()` — 进入批量模式，抑制个体字段 StateFlow 发射
+- `exitBatchEmissionMode()` — 退出批量模式，递增 `_updateVersion` 触发一次统一状态重建
+- 在批量模式下，个体 Flow（`_gameDataFlow`、`_pillsFlow` 等）的赋值被跳过，仅 `_updateVersion` 递增
+- `onSettlementComplete` 在 `swapFromShadow` 前后使用批量模式，避免 13+ Flow 同时发射导致 Compose 重组雪崩
+
+### mergeDiscipleTables 简化 (R7, v4.0.40)
+
+从 100 行逐字段三路值比较简化为声明式合并：
+
+- 以 `shadow.deepCopy()` 为基础（保留结算结果）
+- 对所有 shared ID：生命周期字段（age/status/realm/isAlive 等）无条件取 current 的值
+- 通过 `shadowOriginAliveIds`（轻量 Set&lt;Int&gt;）区分"死亡"（origin 有、current 无 → 移除）与"新生儿"（origin 无、shadow 有 → 保留）
+- current-only 弟子（新招募）通过 `copyRowFrom(current, id)` 复制到结果
 
 ### 抗冻结架构：自适应忙等 (R3, v4.0.38)
 

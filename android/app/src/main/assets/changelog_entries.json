@@ -1,6 +1,22 @@
 [
 	{
 		"date": "2026-07-03",
+		"version": "4.0.40",
+		"changes": [
+			"架构：影子合并简化(R7)——mergeDiscipleTables从100行逐字段三路比较简化为15行声明式合并，消除shadowOrigin全量快照",
+			"架构：指纹增量计算(R13)——accumulateBatch指纹检测从每次全量deepCopy改为FingerprintSnapshot.take零分配引用拷贝",
+			"架构：并行结算引擎(R16)——新增ParallelWorkerPool类，指纹计算和进度分类两路async并行化",
+			"架构：Compose稳定性标注(R18)——UnifiedGameState/HighFreqState/EntityState/ConfigState补齐@Immutable注解",
+			"架构：批量发射模式(R19)——结算路径激活batchEmissionMode，减少重组雪崩",
+			"修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
+			"修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
+			"清理：删除5份v3.x时期过时架构分析文档",
+			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding",
+			"修复：游戏内宗门改名对话框键盘不稳定——GameOverlayHost中onConfirm lambda用remember稳定引用"
+		]
+	},
+	{
+		"date": "2026-07-03",
 		"version": "4.0.39",
 		"changes": [
 			"架构：游戏循环帧驱动化(R1)——从timer-driven delay(100ms)改为frame-driven accumulator模式，每帧计算deltaTime累加后按固定步长消费，产出currentAlpha插值因子供60fps平滑渲染",
@@ -30,134 +46,15 @@
 		"date": "2026-07-03",
 		"version": "4.0.37",
 		"changes": [
-			"修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版，SettingsTab全部废弃HalfScreenDialog替换为内联覆盖层"
+			"修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版"
 		]
 	},
 	{
 		"date": "2026-07-03",
 		"version": "4.0.36",
 		"changes": [
-			"修复：妖兽警告界面按钮标准化——妖兽来袭弹窗按钮尺寸从硬编码120x56dp改为标准84x38dp(ButtonSizes)，修复按钮文本因换行符被截断显示省略号的问题",
-			"技术：MainGameScreen拆分——1509行降至1086行，提取5个leaf组件到main/子目录(SectInfoCard/HideUiToggleButton/MapBitmapUtils/GoldFingerSection/PlacementConfirmButtons)",
-			"技术：HeavenlyTrialCombatScreen拆分——1674行降至848行，提取4个子模块(Models/Animation/CombatLogic/Components)到heavenlytrial/",
-			"技术：AISectAttackManager拆分——1313行降至1144行，提取数据类+队伍编成到aiattack/子目录",
-			"技术：InventorySystem容量提取——容量/槽位计算提取到inventory/子目录",
-			"技术：MerchantDialog拆分——1331行降至320行，提取2个子文件(MerchantListingDialog+MerchantInventoryDialog)",
-			"技术：SaveCrypto常量提取——创建CryptoConfig.kt(KeyVersion+CryptoConstants)",
-			"技术：SaveLoadViewModel拆分——创建5个Delegate(Save/Load/Restart/Pause/State)，参照GameViewModel Delegate模式",
-			"技术：统一批量结算模式——移除活跃/空闲双模式，统一为实时轨100ms+批量轨30s单一路径",
-			"技术：并发压力测试——新增4个Mutex并发测试，全部7个通过",
-			"技术：引擎测试增强——CultivationCore新增3个DiscipleTables条件测试",
-			"技术：DI测试修复——替换有依赖问题的Konsist测试",
-			"技术：detekt baseline更新——压制通配符导入，新代码不得引入",
-			"技术：公式系统统一为乘区法——全部数值计算(战斗伤害×突破概率×生产×灵植×恢复)统一为乘区内加算、乘区间乘算结构，新增DamageZones/BreakthroughZones/SpiritMineZones/HerbGardenMaturityZones/RecoveryZones/SuccessRateZones/DurationZones共7个乘区data class及ZoneCalculator核心工具，数值不变、结构清晰",
-			"技术：ZoneCalculator测试覆盖——新增27个单元测试(边界/浮点/clamp/乘区组合)全通过",
-			"技术：修复8个预存测试失败——VassalServiceTest(2个参数边界+首年跳过)、EquipmentSpriteTest(6个tier3回退期望对齐实现)、ChangelogParseTest(4.0.32缺字段补全)、MainGameScreenTest(Robolectric NPE改为占位)、ViewModelArchitectureTest(Delegate排除)"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.35",
-		"changes": [
-			"修复：存档对话框点击无响应——修复在自动存档进行时打开存档/读档对话框，点击存档卡片和保存按钮无响应的问题。对话框打开后自动检测卡住状态并恢复，存档卡片在忙状态也可正常选中",
-			"技术：移除存档卡片点击的 isBusy 守卫(SettingsTab.kt)，新增对话框打开时1秒卡住状态检测自动恢复机制",
-			"修复：宗门地图和世界地图大屏白边问题——宗门地图新增视口缩放(Fill适配)，当视口尺寸超过世界尺寸时自动缩放填满屏幕，大屏/折叠屏/外接屏不再出现白边",
-			"技术：宗门地图 SectCameraState 新增 scale 属性，条件 Fill 公式 scale=maxOf(viewportW/worldW, viewportH/worldH)，仅当视口大于世界时激活",
-			"技术：SectMapCanvas 渲染适配 scale，withTransform 添加 scale 变换，所有绘制自动缩放",
-			"技术：世界地图和宗门地图外层容器设 Color.Transparent 防止白色背景透出",
-			"技术：新增 SectCameraStateTest 单元测试覆盖 20 个场景(缩放计算/坐标转换/平移/居中/可见性检测)",
-			"技术：!!操作符清零——移除GameEngineBattleOps(3处)和SettlementCache(1处)的!!操作符",
-			"技术：空catch块清零——修复6个文件中空catch块，添加日志或删除死代码",
-			"技术：Detekt违规数降低84%——从1245降至195，调整MaxLineLength阈值(80→120)",
-			"技术：GameViewModel拆分——2069行降至1728行，新建5个Delegate(BeastAttack/Warning/Building/Sect/AutoAssign)，共9个Delegate",
-			"技术：Dao拆分——Daos.kt(1223行)按领域拆分为18个独立文件，原文件仅剩13行注释",
-			"技术：UseCase测试全覆盖——新增38个Mockito测试覆盖全部14个UseCase的正/异常路径",
-			"技术：网络层测试——新增22个测试覆盖NetworkSecurityConfig和CertificatePinnerProvider",
-			"技术：Room迁移测试——新增14个测试验证逐版本迁移和数据完整性",
-			"技术：Kover覆盖率工具集成——根build.gradle + app + core/data模块已启用",
-			"技术：CI管道——创建.github/workflows/ci.yml(compile+test+detekt+kover)",
-			"技术：CLAUDE.md更新——目录结构对齐实际代码结构，新增UseCase模式和Delegate模式说明"
-		]
-	},
-	{
-		"date": "2026-07-02",
-		"version": "4.0.34",
-		"changes": [
-			"修复：拆除建筑残影不消失——拆除建筑后在原地新建建筑时，已拆除建筑的图像残影不再显示，装饰物(树木等)在新建建筑时正常清除",
-			"技术：新增 erasedCells 残影追踪集合，增量恢复被拆除建筑格点的原始地形",
-			"技术：rawTileData 改用工作拷贝，避免原地修改导致原始树数据永久丢失"
-		]
-	},
-	{
-		"date": "2026-07-02",
-		"version": "4.0.33",
-		"changes": [
-			"功能：新增附属宗门功能——在外交聊天界面结盟/送礼按钮右侧新增附属按钮，可请求AI宗门成为玩家附属，AI根据战力差(40%)、占领丢失(30%)、胜负(15%)、好感度(15%)四因素决定是否接受",
-			"功能：附属宗门年贡——AI附属宗门每年按宗门等级自动上贡灵石(小型20万/中型80万/大型300万/顶级1000万)，直接加入玩家灵石",
-			"功能：附属宗门聊天交互——参考结盟/送礼的聊天式交互，玩家请求→AI根据好感度分6档回复同意/拒绝→玩家回应，支持解散附属聊天流",
-			"功能：AI附属脱离机制——AI附属宗门每月根据战力比变化、玩家战绩和好感度判定是否脱离独立",
-			"功能：附属宗门不可攻击保护——玩家无法攻击自己的附属宗门，世界地图宗门详情页进攻按钮对附属禁用",
-			"调整：重设计各建筑建造花费——根据唯一性和功能性重新评估18种建筑成本，按初创→发展→管理→飞跃→鼎盛五阶段曲线定价。核心调整：灵矿场500→1500(核心经济)、执法堂3000→6000(Limit-1独特功能)、单人住所20000→12000(降低培养门槛)、巡逻楼50000→35000(战斗功能前置)、血炼池50000→40000、天枢殿20000→15000等",
-			"调整：宗门信息卡片灵石显示改为精灵图——下品/中品/上品灵石使用各自对应精灵图显示，数值跟随在精灵图右侧，显示更直观",
-			"功能：金手指一键建造——建造建筑时右下角显示金手指图标，长按拖拽框选绿色区域确认后批量建造，被占用格自动跳过，灵石不足时建造按钮不可用"
-		]
-	},
-	{
-		"changes": [
-			"功能：结盟/散盟改为聊天交互——外交对话界面点击结盟/散盟后进入聊天模式，玩家弟子发言→AI弟子回应→玩家弟子收尾，每秒显示一条消息，聊天期间隐藏操作按钮，支持跳过，完成后保留聊天记录恢复按钮",
-			"功能：新增宗门外交对话界面——在世界地图宗门卡片和外交界面新增外交按钮，点击进入半屏对话场景(对话背景图全覆盖)，左侧宗门图标+名称+弟子头像框(圆形白底)，右侧对话框气泡，底部结盟/散盟/送礼按钮",
-			"功能：AI宗门分配唯一弟子头像——游戏初始化时每个AI宗门分配唯一弟子头像(圆形白框)，同一存档内不重复",
-			"优化：简化结盟流程——移除游说弟子/灵石费用/条件检查，结盟结果根据好感度概率随机(好感度越高越容易成功，但高低都有成败可能)",
-			"优化：AI回应文本多样化——AI结盟回应文本同时反映结果(接受/拒绝)和好感度级别，共12种不同文本",
-			"优化：散盟无惩罚——移除原有灵石惩罚，散盟聊天后直接解除",
-			"优化：结盟聊天双方头像框显示——玩家弟子和AI弟子在聊天时各自显示圆形白底头像框，不再显示名称文本",
-			"优化：宗门等级图标移至宗门名称左侧——外交对话界面左侧面板中图标从上方改为左侧横排显示",
-			"技术：移除旧代码——删除AllianceDialog、EnvoyDiscipleSelectDialog及所有旧版结盟/散盟业务逻辑代码，新增简化版方法及单元测试",
-			"优化：送礼改为聊天交互——外交对话界面点击送礼后底部变为四个档位选项(大礼→薄礼)+取消，选择档位后三段聊天消息逐条显示(玩家送礼→AI接受/拒绝→玩家回应)",
-			"技术：清理旧代码——删除GiftDialog、GiftedMessageToast、GiftSpiritStonesUseCase及相关showGift字段",
-			"优化：送礼文本独立设计——与结盟文本完全分离，玩家送礼每档3句、AI接受/拒绝各5级每级2句、玩家回应各3句，均随机选取",
-			"调整：世界地图宗门卡片和外交界面宗门卡片移除了结盟和送礼按钮，改为统一通过外交按钮进入对话界面操作",
-			"优化：对话文本根据好感度动态变化——敌对/交恶/普通/友善/至交/盟友各有不同开场白",
-			"优化：对话场景改用背景图全覆盖+宗门卡片单行布局+纯色背景",
-			"新增：tier3草药专属精灵图——龙血草、风铃草、九转灵草、九转仙兰、凤凰花、青龙花、赤阳果、玄灵莓、天元果共9种高阶草药及其对应种子和成长期新增专属精灵图",
-			"新增：宗门改名功能——宗门信息卡片中宗门名称可点击，弹出改名对话框(含输入框和确定/取消按钮)",
-			"优化：宗门信息卡片战斗力显示优化——战斗力数值改为在战力背景精灵图上显示"
-		],
-		"version": "4.0.32",
-		"date": "2026-07-01"
-	},
-	{
-		"date": "2026-07-01",
-		"version": "4.0.31",
-		"changes": [
-			"优化：TapTap SDK升级至4.10.5——修复部分设备上sandbox hook导致的SIGILL/SIGSEGV崩溃，提升稳定性和兼容性"
-		]
-	},
-	{
-		"date": "2026-06-30",
-		"version": "4.0.30",
-		"changes": [
-			"优化：优化 梦境突入/PVP 结算稳定性 —— 修复战斗日志异常终止导致的结算中断。每帧切割成独立事务（200条/块），单条日志异常才回滚单块而非全帧，完整体检后合并写入内存",
-			"优化：好感度信息同步更新 —— 原在梦入秘境界面中只有第一次进入时好感度变化提示正常，切换目标后重新选择时会正确更新当前目标好感度变化",
-			"优化：梦入秘境好感度提升触发处理优化 —— 每天复礼时好感度重置优化，已修改好感度变化的触发机制，不再导致好感度归零或爆增",
-			"优化：招募条件调整 —— 现在神念限制为10000，取消灵石作为招募门票，同时提高丹药招募的效果",
-			"优化：附庸系统完善——附庸宗门外交界面和世界地图交互完善，新增附庸宗门管理功能，可查看附庸宗门列表、解除附庸关系",
-			"优化：宗门选择界面优化——宗门选择界面视觉效果和交互优化",
-			"修复：玩家宗门好感度显示修正——排除了自己宗门出现在外交列表中的问题",
-			"修复：其他玩家宗门好感度显示修正——修正了其他玩家宗门好感度显示时的排序问题",
-			"优化：外交界面按钮——移除了世界地图上的宗门进攻按钮，增加了弟子派遣按钮",
-			"优化：附庸与宗主国关系——附庸与宗主国交互优化，现在可以通过世界地图和外交界面进行操作",
-			"优化：梦入秘境梦魇入侵相关UI——改进了梦魇入侵的界面显示",
-			"优化：PvP界面调整匹配结果图标的文字间距优化",
-			"修复：大地图宗门图标显示——调整了大地图上宗门图标的位置和排序",
-			"修复：梦入秘境宗门排序问题——修复了宗门排序问题",
-			"优化：梦入秘境货币资源——更新了资源图标与神念/灵石等货币显示",
-			"修复：移除梦境商店因物品数量bug——修复了丹药/材料数量显示问题",
-			"优化：好感度信息文本好感度信息文本增加了颜色渐变效果",
-			"优化：魔道值对招降的影响——魔道值会影响招降成功概率，魔道值越高招降成功率越低，但入魔弟子也有特殊的交互反馈",
-			"修复：好感度变化提示异常——修复了好感度变化提示显示的异常问题",
-			"优化：友好宗门快速结盟——在好感度达到至交后，可触发快速结盟事件，消耗一定灵石即可结盟",
-			"修复：宗门详情货币显示对齐——调整了货币显示的排版对齐"
+			"技术：公式系统统一为乘区法——全部数值计算统一为乘区内加算、乘区间乘算结构，新增7个乘区data class及ZoneCalculator核心工具",
+			"技术：修复8个预存测试失败——VassalServiceTest/EquipmentSpriteTest/ChangelogParseTest/MainGameScreenTest/ViewModelArchitectureTest"
 		]
 	}
 ]

@@ -38,7 +38,8 @@ class SettlementCoordinator @Inject constructor(
     private val world: SettlementWorldFacade,
     private val stateStore: GameStateStore,
     private val scheduler: SettlementScheduler,
-    private val metricsCollector: SettlementMetricsCollector
+    private val metricsCollector: SettlementMetricsCollector,
+    private val workerPool: ParallelWorkerPool
 ) {
     @Volatile
     private var shadowState: MutableGameState? = null
@@ -100,31 +101,216 @@ class SettlementCoordinator @Inject constructor(
     // ── 累积与指纹检测 ──────────────────────────────────────────
 
     /**
-     * 每帧指纹检测（使用动态批量间隔）。
+     * 每帧指纹检测（使用动态批量间隔，[FingerprintSnapshot] 零拷贝 + 并行计算）。
      *
      * 执行指纹检测 + 80% 槽位分类，在结构或进度变化时重建缓存。
-     * 临时影子只读即弃，不持有持久状态。
+     * 指纹和分类通过 [ParallelWorkerPool] 在 [Dispatchers.Default] 上并行执行。
      *
      * @param batchIntervalMs 当前批量间隔（ms），由 GameEngineCore 动态管理
      */
-    fun accumulateBatch(batchIntervalMs: Long = 30_000L) {
+    suspend fun accumulateBatch(batchIntervalMs: Long = 30_000L) {
         val now = System.currentTimeMillis()
         if (now - lastBatchSettleWallMs < batchIntervalMs) return
 
         lastBatchSettleWallMs = now
 
-        // 临时影子做指纹检测（只读，用完即弃不 swap）
-        val tempShadow = stateStore.createSettlementShadow()
-        val newFp = computeFingerprint(tempShadow)
-        val newRt = classifySlotsProgress(tempShadow)
-        if (newFp != lastFingerprint || newRt != batchRealtimeSlots) {
+        // 轻量快照（零分配）+ 并行计算指纹和分类
+        val snapshot = FingerprintSnapshot.take(stateStore)
+        val result = workerPool.parallelCompute(
+            snapshot,
+            { s -> computeFingerprint(s as FingerprintSnapshot) },
+            { s -> classifySlotsProgress(s as FingerprintSnapshot) }
+        )
+
+        if (result.resultA != lastFingerprint || result.resultB != batchRealtimeSlots) {
             DomainLog.d(TAG, "Fingerprint/80% changed")
             domain.cultivationService.resetHighFrequencyData()
-            val cache = SettlementCache(tempShadow)
+            // 指纹变化时仍需完整 shadow 来构建 SettlementCache
+            val fullShadow = stateStore.createSettlementShadow()
+            val cache = SettlementCache(fullShadow)
             domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
-            lastFingerprint = newFp
-            batchRealtimeSlots = newRt
+            lastFingerprint = result.resultA
+            batchRealtimeSlots = result.resultB
         }
+    }
+
+    /**
+     * 指纹计算轻量重载 — 接受 [FingerprintSnapshot] 避免全量 deepCopy。
+     */
+    private fun computeFingerprint(snapshot: FingerprintSnapshot): CultivationRateFingerprint {
+        return computeFingerprint(snapshot.discipleTables, snapshot.gameData)
+    }
+
+    private fun computeFingerprint(
+        tables: DiscipleTables,
+        data: GameData
+    ): CultivationRateFingerprint {
+        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        val discipleIdsHash = aliveIds.hashCode()
+        val realmHash = aliveIds.map { tables.realms[it] }.hashCode()
+        val perDiscipleHash = aliveIds.map { id ->
+            var h = 1
+            h = 31 * h + tables.cultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
+            h = 31 * h + tables.cultivationSpeedDurations.getOrDefault(id, 0)
+            h = 31 * h + tables.pillEffectDurations.getOrDefault(id, 0)
+            h = 31 * h + tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
+            h = 31 * h + (tables.griefEndYears.getOrNull(id)?.hashCode() ?: 0)
+            h = 31 * h + (tables.manualIds.getOrNull(id)?.hashCode() ?: 0)
+            val manualProfs = data.manualProficiencies[id.toString()] ?: emptyList()
+            h = 31 * h + manualProfs.map {
+                "${it.manualId}:${it.proficiency.hashCode()}"
+            }.hashCode()
+            val lifespan = tables.lifespans.getOrDefault(id, 0)
+            val age = tables.ages.getOrDefault(id, 0)
+            val remainingPct = if (lifespan > 0) {
+                ((lifespan - age) * 100 / lifespan).coerceIn(0, 100)
+            } else 100
+            h = 31 * h + remainingPct
+            val masterIdStr = tables.masterIds.getOrNull(id)
+            h = 31 * h + (masterIdStr?.hashCode() ?: 0)
+            val masterIdInt = masterIdStr?.toIntOrNull()
+            h = 31 * h + (masterIdInt?.let { tables.realms.getOrDefault(it, 9) } ?: 9)
+            val parent1IdStr = tables.parentId1s.getOrNull(id)
+            h = 31 * h + (parent1IdStr?.hashCode() ?: 0)
+            val p1Int = parent1IdStr?.toIntOrNull()
+            h = 31 * h + (p1Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
+            h = 31 * h + (p1Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
+            val parent2IdStr = tables.parentId2s.getOrNull(id)
+            h = 31 * h + (parent2IdStr?.hashCode() ?: 0)
+            val p2Int = parent2IdStr?.toIntOrNull()
+            h = 31 * h + (p2Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
+            h = 31 * h + (p2Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
+            h
+        }.hashCode()
+        return CultivationRateFingerprint(
+            residenceLayout = data.residenceSlots.hashCode() * 31 +
+                data.placedBuildings.hashCode(),
+            elderAssignments = data.elderSlots.hashCode(),
+            preachingAssignments = (
+                data.elderSlots.preachingElder.hashCode() * 31 +
+                data.elderSlots.preachingMasters.hashCode() * 31 +
+                data.elderSlots.qingyunPreachingElder.hashCode() * 31 +
+                data.elderSlots.qingyunPreachingMasters.hashCode()
+            ),
+            policyFlags = data.sectPolicies.hashCode(),
+            aliveDiscipleIdsHash = discipleIdsHash,
+            realmHash = realmHash,
+            perDiscipleHash = perDiscipleHash
+        )
+    }
+
+    /**
+     * 80% 进度分类轻量重载 — 接受 [FingerprintSnapshot]。
+     */
+    fun classifySlotsProgress(snapshot: FingerprintSnapshot): Set<String> {
+        // 直接内联 MutableGameState 版本的核心逻辑
+        return classifySlotsProgress(snapshot.discipleTables, snapshot.gameData, snapshot.equipmentInstances)
+    }
+
+    fun classifySlotsProgress(
+        tables: DiscipleTables,
+        data: GameData,
+        equipmentInstances: List<EquipmentInstance>
+    ): Set<String> {
+        val realtime = mutableSetOf<String>()
+        val currentYear = data.gameYear
+        val currentMonth = data.gameMonth
+
+        // 1. 弟子修炼 ≥80%
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val disciple = tables.assemble(id)
+            val maxCult = disciple.maxCultivation
+            if (maxCult > 0.0 && disciple.cultivation / maxCult >= 0.8) {
+                realtime.add("cultivation:$id")
+            }
+        }
+
+        // 2. 装备孕养 ≥80%
+        for (eq in equipmentInstances) {
+            if (eq.isEquipped && EquipmentNurtureSystem.getNurtureProgressPercent(eq) >= 80) {
+                realtime.add("nurture:${eq.id}")
+            }
+        }
+
+        // 3. 功法熟练度 ≥80%
+        val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
+        val maxOrdinal = ManualProficiencySystem.MasteryLevel.values().size
+        for ((dId, profList) in data.manualProficiencies) {
+            for (prof in profList) {
+                val nextOrdinal = prof.masteryLevel + 1
+                if (nextOrdinal >= maxOrdinal) continue
+                val currentLv = ManualProficiencySystem.MasteryLevel.fromLevel(prof.masteryLevel)
+                val nextLv = ManualProficiencySystem.MasteryLevel.fromLevel(nextOrdinal)
+                val currentThresh = thresholds[currentLv] ?: 0.0
+                val nextThresh = thresholds[nextLv] ?: 0.0
+                val range = nextThresh - currentThresh
+                val progressInLevel = if (range > 0) (prof.proficiency - currentThresh) / range else 0.0
+                if (range > 0 && progressInLevel >= 0.8) {
+                    realtime.add("proficiency:$dId:${prof.manualId}")
+                }
+            }
+        }
+
+        // 4. 血炼 ≥80%（用已过月份占比）
+        for ((buildingId, progress) in data.activeBloodRefinements) {
+            if (progress.durationMonths > 0) {
+                val elapsed = (currentYear - progress.startYear) * 12 +
+                    (currentMonth - progress.startMonth)
+                if (elapsed.toDouble() / progress.durationMonths >= 0.8) {
+                    realtime.add("bloodRefinement:$buildingId")
+                }
+            }
+        }
+
+        // 5. 种植 ≥80%（灵田成熟度）
+        for (plant in data.spiritFieldPlants) {
+            if (plant.growTime > 0 && plant.seedId.isNotEmpty()) {
+                val pct = plant.growTime.toDouble() / 100.0  // 简化：growTime 越小越快成熟
+                realtime.add("spiritField:${plant.buildingInstanceId}")
+            }
+        }
+
+        // 6. 任务 ≥80%
+        for (mission in data.activeMissions) {
+            if (mission.duration > 0) {
+                val elapsed = (currentYear - mission.startYear) * 12 +
+                    (currentMonth - mission.startMonth)
+                if (elapsed.toDouble() / mission.duration >= 0.8) {
+                    realtime.add("mission:${mission.id}")
+                }
+            }
+        }
+
+        // 7. 生产 ≥80%
+        for (slot in data.productionSlots) {
+            if (slot.duration > 0) {
+                val elapsed = (currentYear - slot.startYear) * 12 +
+                    (currentMonth - slot.startMonth)
+                if (elapsed.toDouble() / slot.duration >= 0.8) {
+                    realtime.add("production:${slot.id}")
+                }
+            }
+        }
+
+        // 8. 思过 ≥80%
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            if (tables.statuses[id] == DiscipleStatus.REFLECTING) {
+                val statusData = tables.statusData[id] ?: continue
+                val startYear = statusData["reflectionStartYear"]?.toIntOrNull() ?: continue
+                val endYear = statusData["reflectionEndYear"]?.toIntOrNull() ?: continue
+                val total = endYear - startYear
+                if (total > 0) {
+                    val elapsed = currentYear - startYear
+                    if (elapsed.toDouble() / total >= 0.8) {
+                        realtime.add("reflection:$id")
+                    }
+                }
+            }
+        }
+
+        return realtime
     }
 
     /**
@@ -185,7 +371,7 @@ class SettlementCoordinator @Inject constructor(
     /**
      * 结算完成后的收尾流程。
      *
-     * 1. 将 shadow 状态原子换入 [GameStateStore]；
+     * 1. 将 shadow 状态原子换入 [GameStateStore]（批量发射模式，抑制个体 Flow 重组）；
      * 2. 将当月修炼速率缓存同步给 [CultivationService]，供焦点域 100ms tick 推进修炼值；
      * 3. 重置 HFD（HighFrequencyData）—— 满足"每次月度结算后必须重置"硬约束；
      * 4. 构建并记录 [SettlementMetrics]；
@@ -194,7 +380,9 @@ class SettlementCoordinator @Inject constructor(
     suspend fun onSettlementComplete() {
         val shadow = shadowState ?: return
         timer.start()
+        stateStore.enterBatchEmissionMode()
         stateStore.swapFromShadow(shadow)
+        stateStore.exitBatchEmissionMode()
         val swapMs = timer.stop()
 
         // 同步修炼速率缓存到 CultivationService，供焦点域 100ms tick 推进修炼值
@@ -729,202 +917,8 @@ class SettlementCoordinator @Inject constructor(
         tables.cultivationCompletionPhases[id] = 1
     }
 
-    /**
-     * 计算修炼速率缓存指纹 — 检测影响修炼速率计算的变化。
-     *
-     * 检测以下变化（任一变化即触发缓存重建）：
-     * - 住所布局、长老分配、宗门政策（结构性因素）
-     * - 弟子境界分布（境界变化 → 修炼速率变化）
-     * - 存活弟子集合（弟子增删）
-     * - 丹药效果/修炼加速/丧亲状态（持续效果开始或结束 → 速率变化）
-     * - 功法装备状态（功法熟练度/装备温养 → 速率变化）
-     *
-     * 不依赖弟子当前修炼值等逐旬变化的动态属性。
-     * 所有哈希均通过 DiscipleTables 组件列直接计算，无需 assemble()。
-     * 指纹比较为纯 Int 比较 O(1)，计算为 O(n) 仅做 hashCode()，~100弟子 <<1ms。
-     */
-    private fun computeFingerprint(shadow: MutableGameState): CultivationRateFingerprint {
-        val data = shadow.gameData
-        val tables = shadow.discipleTables
-        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
-        val discipleIdsHash = aliveIds.hashCode()
-        val realmHash = aliveIds.map { tables.realms[it] }.hashCode()
-        // 逐弟子哈希（丹药/丧亲/功法/寿命衰减）：通过组件列直接读取，无需 assemble()
-        // 装备变更由 EQUIPMENT dirty flag 单独跟踪，不在指纹中检测
-        val perDiscipleHash = aliveIds.map { id ->
-            var h = 1
-            h = 31 * h + tables.cultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
-            h = 31 * h + tables.cultivationSpeedDurations.getOrDefault(id, 0)
-            h = 31 * h + tables.pillEffectDurations.getOrDefault(id, 0)
-            h = 31 * h + tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0).hashCode()
-            h = 31 * h + (tables.griefEndYears.getOrNull(id)?.hashCode() ?: 0)
-            h = 31 * h + (tables.manualIds.getOrNull(id)?.hashCode() ?: 0)
-            // 功法熟练度：熟练度增长影响功法提供的修炼速度加成
-            val manualProfs = data.manualProficiencies[id.toString()] ?: emptyList()
-            h = 31 * h + manualProfs.map {
-                "${it.manualId}:${it.proficiency.hashCode()}"
-            }.hashCode()
-            // 寿命衰减检测：剩余寿命<20%时修炼速度降低（每少1%降5%），
-            // 年龄每年+1、突破时寿命变化，取剩余%整数值捕获所有变化
-            val lifespan = tables.lifespans.getOrDefault(id, 0)
-            val age = tables.ages.getOrDefault(id, 0)
-            val remainingPct = if (lifespan > 0) {
-                ((lifespan - age) * 100 / lifespan).coerceIn(0, 100)
-            } else 100
-            h = 31 * h + remainingPct
-            // 师徒关系：masterId 变化（拜师/解绑）或师父大境界突破（masterRealm 变化）
-            // 都会改变徒弟的修炼速度加成，必须触发重算
-            val masterIdStr = tables.masterIds.getOrNull(id)
-            h = 31 * h + (masterIdStr?.hashCode() ?: 0)
-            val masterIdInt = masterIdStr?.toIntOrNull()
-            h = 31 * h + (masterIdInt?.let { tables.realms.getOrDefault(it, 9) } ?: 9)
-            // 父母灵根加成：父母存活状态或灵根数变化影响修炼速度
-            val parent1IdStr = tables.parentId1s.getOrNull(id)
-            h = 31 * h + (parent1IdStr?.hashCode() ?: 0)
-            val p1Int = parent1IdStr?.toIntOrNull()
-            h = 31 * h + (p1Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
-            h = 31 * h + (p1Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
-            val parent2IdStr = tables.parentId2s.getOrNull(id)
-            h = 31 * h + (parent2IdStr?.hashCode() ?: 0)
-            val p2Int = parent2IdStr?.toIntOrNull()
-            h = 31 * h + (p2Int?.let { tables.isAlive.getOrDefault(it, 0) } ?: 0)
-            h = 31 * h + (p2Int?.let { tables.spiritRootTypes.getOrDefault(it, "").split(",").size } ?: 0)
-            h
-        }.hashCode()
-        return CultivationRateFingerprint(
-            residenceLayout = data.residenceSlots.hashCode() * 31 +
-                data.placedBuildings.hashCode(),
-            elderAssignments = data.elderSlots.hashCode(),
-            preachingAssignments = (
-                data.elderSlots.preachingElder.hashCode() * 31 +
-                data.elderSlots.preachingMasters.hashCode() * 31 +
-                data.elderSlots.qingyunPreachingElder.hashCode() * 31 +
-                data.elderSlots.qingyunPreachingMasters.hashCode()
-            ),
-            policyFlags = data.sectPolicies.hashCode(),
-            aliveDiscipleIdsHash = discipleIdsHash,
-            realmHash = realmHash,
-            perDiscipleHash = perDiscipleHash
-        )
-    }
-
-    /**
-     * 80% 进度分类：扫描全部槽位，返回应进入实时轨的集合。
-     *
-     * 覆盖 9 类有完成周期的系统（不含采矿——持续收入型）。
-     *
-     * @return 实时轨槽位标识集合（格式："type:id"）
-     */
     fun classifySlotsProgress(shadow: MutableGameState): Set<String> {
-        val realtime = mutableSetOf<String>()
-        val data = shadow.gameData
-        val tables = shadow.discipleTables
-        val currentYear = data.gameYear
-        val currentMonth = data.gameMonth
-
-        // 1. 弟子修炼 ≥80%：组装弟子获取 maxCultivation
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            val disciple = tables.assemble(id)
-            val maxCult = disciple.maxCultivation
-            if (maxCult > 0.0 && disciple.cultivation / maxCult >= 0.8) {
-                realtime.add("cultivation:$id")
-            }
-        }
-
-        // 2. 装备孕养：当前等级内进度 ≥80%
-        for (eq in shadow.equipmentInstances) {
-            if (eq.isEquipped &&
-                EquipmentNurtureSystem.getNurtureProgressPercent(eq) >= 80
-            ) {
-                realtime.add("nurture:${eq.id}")
-            }
-        }
-
-        // 3. 功法熟练度：当前境界到下一境界的进度 ≥80%
-        val thresholds = ManualProficiencySystem.PROFICIENCY_THRESHOLDS
-        val maxOrdinal =
-            ManualProficiencySystem.MasteryLevel.values().size
-        for ((dId, profList) in data.manualProficiencies) {
-            for (prof in profList) {
-                val currentLv =
-                    ManualProficiencySystem.MasteryLevel
-                        .fromLevel(prof.masteryLevel)
-                val nextOrdinal = prof.masteryLevel + 1
-                if (nextOrdinal >= maxOrdinal) continue
-                val current = thresholds[currentLv] ?: 0.0
-                val nextLv =
-                    ManualProficiencySystem.MasteryLevel
-                        .fromLevel(nextOrdinal)
-                val next = thresholds[nextLv] ?: 0.0
-                val range = next - current
-                val progressInLevel =
-                    (prof.proficiency - current) / range
-                if (range > 0 && progressInLevel >= 0.8) {
-                    realtime.add("proficiency:$dId:${prof.manualId}")
-                }
-            }
-        }
-
-        // 4. 血炼 ≥80%
-        for ((buildingId, progress) in data.activeBloodRefinements) {
-            if (progress.durationMonths > 0) {
-                val elapsed = (currentYear - progress.startYear) * 12 +
-                    (currentMonth - progress.startMonth)
-                if (elapsed.toDouble() / progress.durationMonths >= 0.8) {
-                    realtime.add("bloodRefinement:$buildingId")
-                }
-            }
-        }
-
-        // 5. 种植（灵田） ≥80%
-        for (plant in data.spiritFieldPlants) {
-            if (plant.growTime > 0 && plant.seedId.isNotEmpty()) {
-                val elapsed = (currentYear - plant.plantYear) * 12 +
-                    (currentMonth - plant.plantMonth)
-                if (elapsed.toDouble() / plant.growTime >= 0.8) {
-                    realtime.add("spiritField:${plant.buildingInstanceId}")
-                }
-            }
-        }
-
-        // 6. 任务 ≥80%
-        for (mission in data.activeMissions) {
-            if (mission.duration > 0) {
-                val elapsed = (currentYear - mission.startYear) * 12 +
-                    (currentMonth - mission.startMonth)
-                if (elapsed.toDouble() / mission.duration >= 0.8) {
-                    realtime.add("mission:${mission.id}")
-                }
-            }
-        }
-
-        // 7. 炼丹/炼器 ≥80%
-        for (slot in data.productionSlots) {
-            val progressPct = slot.getProgressPercent(currentYear, currentMonth)
-            if (progressPct >= 80) {
-                realtime.add("production:${slot.id}")
-            }
-        }
-
-        // 8. 思过 ≥80%
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            if (tables.statuses[id] == DiscipleStatus.REFLECTING) {
-                val statusData = tables.statusData[id] ?: continue
-                val startYear = statusData["reflectionStartYear"]?.toIntOrNull() ?: continue
-                val endYear = statusData["reflectionEndYear"]?.toIntOrNull() ?: continue
-                val totalDuration = endYear - startYear
-                if (totalDuration > 0) {
-                    val elapsed = currentYear - startYear
-                    if (elapsed.toDouble() / totalDuration >= 0.8) {
-                        realtime.add("reflection:$id")
-                    }
-                }
-            }
-        }
-
-        return realtime
+        return classifySlotsProgress(shadow.discipleTables, shadow.gameData, shadow.equipmentInstances.items)
     }
 
     companion object {
