@@ -229,51 +229,11 @@ class InventorySystem @Inject constructor(
 
     private fun currentSeeds(): List<Seed> = stateStore.seeds.value
 
-    private fun getTotalSlotCount(): Int {
-        return currentEquipmentStacks().size +
-               currentManualStacks().size +
-               currentPills().size +
-               currentMaterials().size +
-               currentHerbs().size +
-               currentSeeds().size
-    }
+    fun getCapacityInfo(): CapacityInfo = inventoryCapacityInfo(stateStore)
 
-    // ── MutableGameState helper（在 updateAndReturn 事务内使用）──
+    fun canAddItem(): Boolean = inventoryCanAddItem(stateStore)
 
-    private fun MutableGameState.computeSlotCount(): Int =
-        equipmentStacks.size + manualStacks.size + pills.size +
-            materials.size + herbs.size + seeds.size
-
-    private fun MutableGameState.computeMaxSlots(): Int {
-        val warehouseCount = gameData.placedBuildings.count {
-            it.displayName == BuildingType.WAREHOUSE.displayName
-        }
-        return GameConfig.Warehouse.BASE_CAPACITY +
-            warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
-    }
-
-    fun getCapacityInfo(): CapacityInfo {
-        val current = getTotalSlotCount()
-        val maxSlots = getMaxSlots()
-        return CapacityInfo(
-            currentSlots = current,
-            maxSlots = maxSlots,
-            remainingSlots = maxSlots - current,
-            isFull = current >= maxSlots
-        )
-    }
-
-    fun canAddItem(): Boolean {
-        val full = getTotalSlotCount() >= getMaxSlots()
-        if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
-        return !full
-    }
-
-    fun canAddItems(count: Int): Boolean {
-        val full = getTotalSlotCount() + count > getMaxSlots()
-        if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
-        return !full
-    }
+    fun canAddItems(count: Int): Boolean = inventoryCanAddItems(stateStore, count)
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val current = stateStore.equipmentStacks.value
