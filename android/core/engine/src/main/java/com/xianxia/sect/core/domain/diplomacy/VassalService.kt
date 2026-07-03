@@ -258,6 +258,8 @@ class VassalService @Inject constructor(
         val ite = updatedContracts.listIterator()
         while (ite.hasNext()) {
             val contract = ite.next()
+            // 新建立的契约当年不计贡
+            if (contract.establishedYear >= year) continue
             if (contract.lastTributeYear >= year) continue
 
             val aiSect = data.worldMapSects.find {

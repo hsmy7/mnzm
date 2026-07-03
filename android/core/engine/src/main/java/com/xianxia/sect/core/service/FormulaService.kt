@@ -9,6 +9,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.core.util.ZoneCalculator
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,6 +26,45 @@ class FormulaService @Inject constructor(
     // ==================== 数据类定义 ====================
 
     /**
+     * 生产成功率乘区（Success Rate Zone）。
+     *
+     * 公式：baseRate × (1 + realmZone + talentZone) × (1 + policyZone) × (1 + elderZone)
+     */
+    data class SuccessRateZones(
+        val baseRate: Double = 0.0,        // 配方基础成功率
+        val realmZone: Double = 0.0,       // 境界乘区
+        val talentZone: Double = 0.0,      // 天赋乘区
+        val policyZone: Double = 0.0,      // 政策乘区
+        val elderZone: Double = 0.0,       // 长老职位乘区
+    ) {
+        /** 使用乘区法计算最终成功率，clamp 到 [0, 1] */
+        fun calculate(): Double =
+            ZoneCalculator.calculateProbability(
+                baseProb = baseRate,
+                positiveSum = realmZone + talentZone + policyZone + elderZone
+            )
+    }
+
+    /**
+     * 生产持续时间乘区（Duration Zone）。
+     *
+     * 公式：effectiveDuration = baseDuration / Π(1 + speedZone_i)
+     * 各速度乘区（skill/policy/elder）以加速比例表示。
+     */
+    data class DurationZones(
+        val baseDuration: Int = 0,          // 基础持续时间（月）
+        val skillZone: Double = 0.0,        // 弟子技能乘区
+        val policyZone: Double = 0.0,       // 政策乘区
+        val elderZone: Double = 0.0,        // 长老职位乘区
+    ) {
+        /** 使用乘区法计算缩减后的持续时间 */
+        fun calculateReduced(): Int =
+            ZoneCalculator.calculateAcceleratedTime(
+                baseDuration, skillZone, policyZone, elderZone
+            )
+    }
+
+    /**
      * 长老加成数据类
      */
     data class ElderBonusData(
@@ -34,6 +74,27 @@ class FormulaService @Inject constructor(
     )
 
     // ==================== 成功率计算 ====================
+
+    /**
+     * 构建生产成功率乘区。
+     */
+    fun buildSuccessRateZones(
+        disciple: Disciple?,
+        buildingId: String,
+        baseRate: Double = 0.0,
+        policyBonus: Double = 0.0
+    ): SuccessRateZones {
+        if (disciple == null) {
+            return SuccessRateZones(baseRate = baseRate, policyZone = policyBonus)
+        }
+        return SuccessRateZones(
+            baseRate = baseRate,
+            realmZone = getRealmSuccessRateBonus(disciple.realm),
+            talentZone = getSuccessRateTalentBonus(disciple, buildingId),
+            policyZone = policyBonus,
+            elderZone = getElderPositionBonus(buildingId)
+        )
+    }
 
     /**
      * 计算生产成功率加成
@@ -128,28 +189,33 @@ class FormulaService @Inject constructor(
      * @return 实际持续时间（月）
      */
     fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
-        var totalSpeedBonus = 0.0
+        var skillSpeedBonus = 0.0
         val data = stateStore.gameData.value
 
         when (buildingId) {
             BuildingNames.ALCHEMY -> {
                 val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.ALCHEMY)
-                totalSpeedBonus += elderBonus.speedBonus
+                skillSpeedBonus += elderBonus.speedBonus
             }
             BuildingNames.FORGE -> {
                 val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.FORGE)
-                totalSpeedBonus += elderBonus.speedBonus
+                skillSpeedBonus += elderBonus.speedBonus
             }
             else -> {
                 val allBuildingSlots = productionSlotRepository.getSlotsByBuildingId(buildingId)
                 val assignedDiscipleIds = allBuildingSlots.mapNotNull { it.assignedDiscipleId }
                 if (assignedDiscipleIds.isNotEmpty()) {
-                    totalSpeedBonus += getElderPositionBonus(buildingId)
+                    skillSpeedBonus += getElderPositionBonus(buildingId)
                 }
             }
         }
 
-        return calculateReducedDuration(baseDuration, totalSpeedBonus)
+        val zones = DurationZones(
+            baseDuration = baseDuration,
+            skillZone = skillSpeedBonus,
+            elderZone = getElderPositionBonus(buildingId)
+        )
+        return zones.calculateReduced()
     }
 
     /**

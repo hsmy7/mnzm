@@ -19,9 +19,9 @@ enum class DamageType {
 enum class BuffType {
     HP_BOOST, MP_BOOST, SPEED_BOOST,
     PHYSICAL_ATTACK_BOOST, MAGIC_ATTACK_BOOST, PHYSICAL_DEFENSE_BOOST, MAGIC_DEFENSE_BOOST,
-    CRIT_RATE_BOOST,
+    CRIT_RATE_BOOST, CRIT_DAMAGE_BOOST,
     PHYSICAL_ATTACK_REDUCE, MAGIC_ATTACK_REDUCE, PHYSICAL_DEFENSE_REDUCE, MAGIC_DEFENSE_REDUCE,
-    SPEED_REDUCE, CRIT_RATE_REDUCE,
+    SPEED_REDUCE, CRIT_RATE_REDUCE, CRIT_DAMAGE_REDUCE,
     POISON, BURN,
     STUN, FREEZE, SILENCE, TAUNT,
     DAMAGE_BOOST, DAMAGE_REDUCTION,
@@ -37,12 +37,14 @@ enum class BuffType {
         PHYSICAL_DEFENSE_BOOST -> "物防加成"
         MAGIC_DEFENSE_BOOST -> "法防加成"
         CRIT_RATE_BOOST -> "暴击加成"
+        CRIT_DAMAGE_BOOST -> "暴伤加成"
         PHYSICAL_ATTACK_REDUCE -> "物攻降低"
         MAGIC_ATTACK_REDUCE -> "法攻降低"
         PHYSICAL_DEFENSE_REDUCE -> "物防降低"
         MAGIC_DEFENSE_REDUCE -> "法防降低"
         SPEED_REDUCE -> "速度降低"
         CRIT_RATE_REDUCE -> "暴击降低"
+        CRIT_DAMAGE_REDUCE -> "暴伤降低"
         POISON -> "中毒"
         BURN -> "灼烧"
         STUN -> "眩晕"
@@ -59,7 +61,8 @@ enum class BuffType {
 
     val isDebuff: Boolean get() = this in setOf(
         PHYSICAL_ATTACK_REDUCE, MAGIC_ATTACK_REDUCE, PHYSICAL_DEFENSE_REDUCE, MAGIC_DEFENSE_REDUCE,
-        SPEED_REDUCE, CRIT_RATE_REDUCE, POISON, BURN, STUN, FREEZE, SILENCE, TAUNT,
+        SPEED_REDUCE, CRIT_RATE_REDUCE, CRIT_DAMAGE_REDUCE,
+        POISON, BURN, STUN, FREEZE, SILENCE, TAUNT,
         DAMAGE_LINK
     )
 }
@@ -583,6 +586,10 @@ object GameConfig {
         const val MIN_BEAST_COUNT = 3
         const val MAX_BEAST_COUNT = 11
         const val MAX_TURNS = 25
+        /** 基础暴伤倍率（暴击时额外增加的伤害比例，0.5 = +50% 伤害） */
+        const val CRIT_BASE_MULTIPLIER: Double = 0.5
+        /** @deprecated 使用 CRIT_BASE_MULTIPLIER 代替 */
+        @Deprecated("使用 CRIT_BASE_MULTIPLIER 代替")
         const val CRIT_MULTIPLIER: Double = 1.5
         const val MAX_DODGE_CHANCE: Double = 0.5
         const val MAX_SKILL_DODGE_CHANCE: Double = 0.3

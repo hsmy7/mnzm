@@ -282,6 +282,31 @@ class CultivationCore @Inject constructor(
     }
 
     /**
+     * HP/MP 恢复乘区（Recovery Zone）。
+     *
+     * 公式：恢复量 = maxValue × baseRate × (1 + buildingZone + pillZone + realmZone) × multiplier
+     * 各乘区内加算，乘区间乘算（当前只有 baseRate × multiplier 活跃，其余乘区预留）。
+     */
+    data class RecoveryZones(
+        val baseRate: Double = GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE,
+        val buildingZone: Double = 0.0,   // 建筑恢复乘区（如丹药房，预留）
+        val pillZone: Double = 0.0,       // 丹药恢复乘区（预留）
+        val realmZone: Double = 0.0,      // 境界恢复乘区（预留）
+    ) {
+        /**
+         * 计算恢复量。
+         * @param maxValue 最大值（maxHp 或 maxMp）
+         * @param multiplier 时间倍率（phaseMultiplier × phasesToSettle）
+         * @return 恢复量，至少 1
+         */
+        fun calculateRecovery(maxValue: Int, multiplier: Double): Int {
+            val totalZone = 1.0 + buildingZone + pillZone + realmZone
+            return (maxValue.toDouble() * baseRate * totalZone * multiplier)
+                .toInt().coerceAtLeast(1)
+        }
+    }
+
+    /**
      * 为所有存活弟子恢复 HP 与 MP。
      *
      * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × phaseMultiplier × phasesToSettle，
@@ -289,8 +314,13 @@ class CultivationCore @Inject constructor(
      *
      * @param state 可变游戏状态
      * @param phasesToSettle 需结算的旬数（焦点域=1，批量轨=跳过旬数）
+     * @param zones 恢复乘区（可选，默认为无额外加成）
      */
-    fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 1) {
+    fun recoverHpMpForAllDisciples(
+        state: MutableGameState,
+        phasesToSettle: Int = 1,
+        zones: RecoveryZones = RecoveryZones()
+    ) {
         if (phasesToSettle <= 0) return
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
@@ -310,8 +340,8 @@ class CultivationCore @Inject constructor(
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
 
-            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)
+            val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
+            val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
             val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
             val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
 
@@ -609,8 +639,13 @@ class CultivationCore @Inject constructor(
      * 月度 HP/MP 恢复（月结制专用）。
      * 每旬 multiplier=10，每月 3 旬 → 月度 multiplier=30。
      * @param focusedPhaseCount 本月焦点域已处理的旬数，用于扣除已应用的恢复
+     * @param zones 恢复乘区（可选，默认为无额外加成）
      */
-    fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) {
+    fun recoverMonthlyHpMp(
+        tables: DiscipleTables, id: Int,
+        focusedPhaseCount: Int = 0,
+        zones: RecoveryZones = RecoveryZones()
+    ) {
         val curHp = tables.currentHps[id]
         val curMp = tables.currentMps[id]
         if (curHp < 0 && curMp < 0) return
@@ -622,10 +657,8 @@ class CultivationCore @Inject constructor(
         val maxHp = tables.baseHps[id]
         val maxMp = tables.baseMps[id]
 
-        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * monthlyMultiplier)
-            .toInt().coerceAtLeast(1)
-        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * monthlyMultiplier)
-            .toInt().coerceAtLeast(1)
+        val hpRecovery = zones.calculateRecovery(maxHp, monthlyMultiplier)
+        val mpRecovery = zones.calculateRecovery(maxMp, monthlyMultiplier)
         val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
         val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
 
@@ -691,8 +724,13 @@ class CultivationCore @Inject constructor(
      *
      * @param state 可变游戏状态
      * @param discipleIds 参与战斗的弟子 ID 字符串列表
+     * @param zones 恢复乘区（可选，默认为无额外加成）
      */
-    fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
+    fun recoverHpMpForBattleParticipants(
+        state: MutableGameState,
+        discipleIds: List<String>,
+        zones: RecoveryZones = RecoveryZones()
+    ) {
         val tables = state.discipleTables
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
@@ -713,8 +751,10 @@ class CultivationCore @Inject constructor(
             val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, discipleProficiencies)
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
-            curHp = if (curHp < 0) curHp else (curHp + (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxHp)
-            curMp = if (curMp < 0) curMp else (curMp + (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * multiplier).toInt().coerceAtLeast(1)).coerceAtMost(maxMp)
+            val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
+            val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
+            curHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+            curMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
             if (curHp != tables.currentHps[id]) tables.currentHps[id] = curHp
             if (curMp != tables.currentMps[id]) tables.currentMps[id] = curMp
         }
@@ -769,10 +809,9 @@ class CultivationCore @Inject constructor(
         val curHp = d.combat.currentHp
         val curMp = d.combat.currentMp
 
-        val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * params.time.multiplier)
-            .toInt().coerceAtLeast(1)
-        val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * params.time.multiplier)
-            .toInt().coerceAtLeast(1)
+        val recoveryZones = RecoveryZones()
+        val hpRecovery = recoveryZones.calculateRecovery(maxHp, params.time.multiplier)
+        val mpRecovery = recoveryZones.calculateRecovery(maxMp, params.time.multiplier)
 
         val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
         val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)

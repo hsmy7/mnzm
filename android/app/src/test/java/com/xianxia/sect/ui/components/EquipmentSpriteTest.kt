@@ -103,8 +103,9 @@ class EquipmentSpriteTest {
     }
 
     @Test
-    fun `fallbackToTier1 - num 7 returns null - tier 3 no fallback`() {
-        assertNull(fallbackToTier1("spiritGrass7"))
+    fun `fallbackToTier1 - num 7 returns tier1 equivalent`() {
+        // num 7-9 (Tier 3) 通过 (num-1)%3+1 回退到 tier1-3
+        assertEquals("spiritGrass1", fallbackToTier1("spiritGrass7"))
     }
 
     @Test
@@ -118,13 +119,13 @@ class EquipmentSpriteTest {
     }
 
     @Test
-    fun `fallbackToTier1 - fruit num 7 returns null`() {
-        assertNull(fallbackToTier1("spiritFruit7"))
+    fun `fallbackToTier1 - fruit num 7 returns tier1 equivalent`() {
+        assertEquals("spiritFruit1", fallbackToTier1("spiritFruit7"))
     }
 
     @Test
-    fun `fallbackToTier1 - flower num 9 returns null`() {
-        assertNull(fallbackToTier1("spiritFlower9"))
+    fun `fallbackToTier1 - flower num 9 returns tier3 equivalent`() {
+        assertEquals("spiritFlower3", fallbackToTier1("spiritFlower9"))
     }
 
     // ============================================================
@@ -146,9 +147,11 @@ class EquipmentSpriteTest {
     }
 
     @Test
-    fun `herbSpriteRes - tier3 unregistered returns null`() {
-        // 龙血草 (spiritGrass7) — Tier 3，未注册，不应回退
-        assertNull(herbSpriteRes("龙血草"))
+    fun `herbSpriteRes - tier3 unregistered falls back to tier1 sprite`() {
+        // 龙血草 (spiritGrass7) — Tier 3，未注册时通过 fallbackToTier1 回退到 tier1
+        val result = herbSpriteRes("龙血草")
+        assertNotNull(result)
+        assertEquals(FAKE_HERB_GRASS1, result)
     }
 
     @Test
@@ -189,9 +192,11 @@ class EquipmentSpriteTest {
     }
 
     @Test
-    fun `seedSpriteRes - tier3 unregistered returns null`() {
-        // 龙血草种 — Tier 3，不应回退
-        assertNull(seedSpriteRes("龙血草种"))
+    fun `seedSpriteRes - tier3 unregistered falls back to tier1 sprite`() {
+        // 龙血草种 (spiritGrass7Seed) — Tier 3，未注册时回退到 tier1
+        val result = seedSpriteRes("龙血草种")
+        assertNotNull(result)
+        assertEquals(FAKE_SEED_GRASS1, result)
     }
 
     @Test
@@ -220,9 +225,11 @@ class EquipmentSpriteTest {
     }
 
     @Test
-    fun `growingSpriteRes - tier3 unregistered returns null`() {
-        // spiritGrass7 — Tier 3，不应回退
-        assertNull(growingSpriteRes("spiritGrass7"))
+    fun `growingSpriteRes - tier3 unregistered falls back to tier1 sprite`() {
+        // spiritGrass7 — Tier 3，未注册时通过 growing_spiritGrass1 回退
+        val result = growingSpriteRes("spiritGrass7")
+        assertNotNull(result)
+        assertEquals(FAKE_GROWING_GRASS1, result)
     }
 
     @Test

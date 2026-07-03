@@ -576,6 +576,68 @@ object DiscipleStatCalculator {
     )
 
     /**
+     * 突破概率乘区（Breakthrough Zone）。
+     *
+     * 遵循"乘区内加算、乘区间乘算"原则。
+     * 基础概率作为 baseZone（本身就是概率值 0~1），其他乘区以 (1 + bonus) 形式乘算。
+     *
+     * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - penalty)
+     */
+    data class BreakthroughZones(
+        val baseZone: Double = 0.0,        // 基础概率（境界+灵根+层数）
+        val elderGuidance: Double = 0.0,   // 长老指导乘区：内门+外门
+        val selfBonus: Double = 0.0,       // 自身加成乘区：天赋+魂力+丹药+广告+师徒
+        val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲+寿命（正值 = 惩罚幅度）
+    )
+
+    /**
+     * 构建突破概率乘区（从 Disciple 对象提取各加成）。
+     */
+    fun buildBreakthroughZones(
+        disciple: Disciple,
+        innerElderComprehension: Int = 0,
+        outerElderComprehension: Int = 0,
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): BreakthroughZones {
+        val rootCount = disciple.spiritRoot.types.size
+        val baseZone = GameConfig.Realm.getBreakthroughChance(
+            disciple.realm, rootCount, disciple.realmLayer
+        )
+        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
+        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
+
+        val talentEffects = getTalentEffects(disciple)
+        val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
+
+        val lifespanPenalty = calculateLifespanBreakthroughPenalty(
+            disciple.age, disciple.lifespan
+        )
+
+        return BreakthroughZones(
+            baseZone = baseZone,
+            elderGuidance = innerElderBonus + outerElderBonus,
+            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
+            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
+        )
+    }
+
+    /**
+     * 使用乘区法计算最终突破概率。
+     *
+     * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - statusPenalty)
+     * 结果 clamp 到 [0, 1]。
+     */
+    fun calculateBreakthroughChance(zones: BreakthroughZones): Double {
+        val positiveMult = 1.0 + zones.elderGuidance + zones.selfBonus
+        val penaltyMult = (1.0 - zones.statusPenalty).coerceAtLeast(0.0)
+        return (zones.baseZone * positiveMult * penaltyMult).coerceIn(0.0, 1.0)
+    }
+
+    /**
      * 长老突破率加成（内外门共用）。
      * 悟性80基准，每5点+1%，最多+5%。
      */
@@ -601,28 +663,46 @@ object DiscipleStatCalculator {
         masterDiscipleBonus: Double = 0.0
     ): Double {
         if (disciple.realm < 0) return 0.0
+        val zones = buildBreakthroughZones(
+            disciple, innerElderComprehension, outerElderComprehension,
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+        )
+        return calculateBreakthroughChance(zones)
+    }
 
-        val rootCount = disciple.spiritRoot.types.size
-        val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount, disciple.realmLayer)
-
+    /**
+     * 构建突破概率乘区（从 DiscipleAggregate 对象提取各加成）。
+     */
+    fun buildBreakthroughZones(
+        aggregate: DiscipleAggregate,
+        innerElderComprehension: Int = 0,
+        outerElderComprehension: Int = 0,
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): BreakthroughZones {
+        val rootCount = aggregate.spiritRoot.types.size
+        val baseZone = GameConfig.Realm.getBreakthroughChance(
+            aggregate.realm, rootCount, aggregate.realmLayer
+        )
         val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
+        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
 
-        val talentEffects = getTalentEffects(disciple)
+        val talentEffects = getTalentEffects(aggregate)
         val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
 
-        val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
+        val lifespanPenalty = calculateLifespanBreakthroughPenalty(
+            aggregate.age, aggregate.lifespan
+        )
 
-        val totalBonus = innerElderBonus +
-            elderBreakthroughBonus(outerElderComprehension) +
-            pillBonus +
-            talentBreakthroughBonus +
-            soulPowerBonus +
-            adBonus +
-            masterDiscipleBonus -
-            griefBreakthroughPenalty -
-            calculateLifespanBreakthroughPenalty(disciple.age, disciple.lifespan)
-
-        return (baseChance + totalBonus).coerceIn(0.0, 1.0)
+        return BreakthroughZones(
+            baseZone = baseZone,
+            elderGuidance = innerElderBonus + outerElderBonus,
+            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
+            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
+        )
     }
 
     fun getBreakthroughChance(
@@ -635,27 +715,11 @@ object DiscipleStatCalculator {
         masterDiscipleBonus: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
-
-        val rootCount = aggregate.spiritRoot.types.size
-        val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
-
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
-
-        val talentEffects = getTalentEffects(aggregate)
-        val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-
-        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-
-        val totalBonus = innerElderBonus +
-            elderBreakthroughBonus(outerElderComprehension) +
-            pillBonus +
-            talentBreakthroughBonus +
-            soulPowerBonus +
-            adBonus +
-            masterDiscipleBonus -
-            griefBreakthroughPenalty -
-            calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
-        return (baseChance + totalBonus).coerceIn(0.0, 1.0)
+        val zones = buildBreakthroughZones(
+            aggregate, innerElderComprehension, outerElderComprehension,
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+        )
+        return calculateBreakthroughChance(zones)
     }
 
     fun getSoulPowerBreakthroughBonus(soulPower: Int): Double {
@@ -686,30 +750,23 @@ object DiscipleStatCalculator {
         masterDiscipleBonus: Double = 0.0
     ): BreakthroughBonusDetail {
         if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        val rootCount = aggregate.spiritRoot.types.size
-        val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
-        val talentEffects = getTalentEffects(aggregate)
-        val talentBonus = talentEffects["breakthroughChance"] ?: 0.0
-        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-        val lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan)
-        val positive = baseChance + innerElderBonus +
-                elderBreakthroughBonus(outerElderComprehension) + pillBonus + talentBonus +
-                soulPowerBonus + adBonus + masterDiscipleBonus
-        val penalties = griefBreakthroughPenalty + lifespanPenalty
-        val total = positive - penalties
+        val zones = buildBreakthroughZones(
+            aggregate, innerElderComprehension, outerElderComprehension,
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+        )
+        val total = calculateBreakthroughChance(zones)
         return BreakthroughBonusDetail(
-            baseChance = baseChance,
-            innerElderBonus = innerElderBonus,
+            baseChance = zones.baseZone,
+            innerElderBonus = elderBreakthroughBonus(innerElderComprehension),
             outerElderBonus = elderBreakthroughBonus(outerElderComprehension),
-            talentBonus = talentBonus,
-            soulPowerBonus = soulPowerBonus,
+            talentBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
+            soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower),
             pillBonus = pillBonus,
             adBonus = adBonus,
             masterDiscipleBonus = masterDiscipleBonus,
             griefPenalty = griefBreakthroughPenalty,
-            lifespanPenalty = lifespanPenalty,
-            total = total.coerceIn(0.0, 1.0)
+            lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan),
+            total = total
         )
     }
 

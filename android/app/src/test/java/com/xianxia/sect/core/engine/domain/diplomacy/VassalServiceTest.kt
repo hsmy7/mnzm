@@ -136,11 +136,15 @@ class VassalServiceTest {
 
     @Test
     fun `calculateVassalChance powerRatio below 1_5 returns 0`() {
+        // powerRatio=1.0(<1.5) → powerScore=0
+        // totalOccupy=1, occupyRatio=0/1=0 → occupyScore=0
+        // totalSkirmish=1, skirmishRatio=0/1=0 → skirmishScore=0
+        // favor=0 → favorScore=0
         val chance = service.calculateVassalChance(
             playerPower = 10.0, aiPower = 10.0,
-            conquestCount = 1, lostSectCount = 0,
-            battleWinCount = 1, battleLossCount = 0,
-            favor = 50
+            conquestCount = 0, lostSectCount = 1,
+            battleWinCount = 0, battleLossCount = 1,
+            favor = 0
         )
         assertEquals(0.0, chance, 0.001)
     }
@@ -265,6 +269,7 @@ class VassalServiceTest {
         stateStore.update {
             gameData = gameData.copy(
                 gameYear = 5,
+                spiritStones = 0L,
                 vassalContracts = listOf(
                     VassalContract(
                         vassalSectId = "sect_ai",
@@ -281,6 +286,7 @@ class VassalServiceTest {
         }
         service.processYearlyVassalTribute(5)
         delay(100)
+        // establishedYear(5) >= year(5) → 当年不计贡，灵石保持不变
         assertEquals(0L, stateStore.gameData.value.spiritStones)
     }
 

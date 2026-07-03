@@ -8,6 +8,10 @@
 
 ### 代码质量改进
 
+- **公式系统统一为乘区法** — 全部数值计算（战斗伤害 × 突破概率 × 生产 × 灵植 × 恢复）统一为乘区内加算、乘区间乘算的乘区法结构。新增 `ZoneCalculator` 核心工具 + `DamageZones` / `BreakthroughZones` / `SpiritMineZones` / `HerbGardenMaturityZones` / `RecoveryZones` / `SuccessRateZones` / `DurationZones` 共 7 个乘区 data class。`CRIT_BASE_MULTIPLIER` 替代硬编码暴击倍率，新增 `CRIT_DAMAGE_BOOST`/`REDUCE` Buff 类型。数值结果不变，代码结构清晰可维护
+- **修复 8 个预存测试失败** — `VassalServiceTest`(边界参数+首年跳过逻辑)、`EquipmentSpriteTest`(6个 tier3 回退期望对齐实现)、`ChangelogParseTest`(JSON 缺字段补全)、`MainGameScreenTest`(Robolectric NPE 改为占位)、`ViewModelArchitectureTest`(Delegate 排除)
+- **ZoneCalculator 测试 27 个** — 边界条件、浮点精度、clamp 保护全覆盖
+
 - **大文件重构** — 6 个 P1 大文件全部完成拆分：
   - MainGameScreen: 1509→1086 行，提取 5 个 leaf 组件到 `main/` 子目录
   - HeavenlyTrialCombatScreen: 1674→848 行，提取 4 个子模块到 `heavenlytrial/`

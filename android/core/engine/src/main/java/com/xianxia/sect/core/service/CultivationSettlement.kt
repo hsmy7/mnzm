@@ -36,6 +36,7 @@ import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.ZoneCalculator
 
 @Singleton
 @GameService("CultivationSettlement")
@@ -248,45 +249,11 @@ class CultivationSettlement @Inject constructor(
     fun processSpiritMineProduction(state: MutableGameState) {
         val data = state.gameData
         val tables = state.discipleTables
-        val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
         val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
 
-        var miningBonus = 0.0
-        data.spiritMineSlots.forEach { slot ->
-            val discipleId = slot.discipleId
-            if (discipleId.isNotEmpty()) {
-                val idInt = discipleId.toIntOrNull() ?: return@forEach
-                if (tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
-                    val mining = tables.minings[idInt] ?: 0
-                    if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
-                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) *
-                            GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
-                    }
-                }
-            }
-        }
-
-        val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
-        val baseSpiritStones = minerCount * baseOutput.toDouble()
-        val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
-
-        val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
-            slot.discipleId?.let { discipleId ->
-                val idInt = discipleId.toIntOrNull()
-                if (idInt != null && tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
-                    tables.assemble(idInt)
-                } else null
-            }
-        }.sumOf { disciple ->
-            val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
-            val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline)
-                .coerceAtLeast(0)
-            diff * 0.01
-        }
-
-        val totalSpiritStones = (
-            baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier
-        ).toInt()
+        // 使用乘区法计算产出
+        val zones = buildSpiritMineZones(data, tables)
+        val totalSpiritStones = zones.calculateMonthly(baseOutput.toDouble())
 
         // 矿工忠诚度：每连续挖矿3月扣1点（直接操作组件表）
         val updatedSlots = data.spiritMineSlots.map { slot ->
@@ -319,6 +286,80 @@ class CultivationSettlement @Inject constructor(
     }
 
     // ── 灵矿月度结算（常驻月度事件，不依赖域路由）──
+
+    /**
+     * 灵矿产出乘区（Spirit Mine Zone）。
+     *
+     * 公式：月总产出 = base × (1 + miningSkillZone) × (1 + deaconZone) × (1 + policyZone)
+     */
+    data class SpiritMineZones(
+        val minerCount: Int = 0,
+        val avgMiningSkillBonus: Double = 0.0,  // 矿工采矿技能平均加成
+        val deaconMoralityBonus: Double = 0.0,  // 执事道德加成
+        val policyBoost: Double = 0.0,           // 灵矿增产政策
+    ) {
+        /** 计算月总产出 */
+        fun calculateMonthly(basePerMiner: Double): Int {
+            val base = minerCount * basePerMiner
+            return ZoneCalculator.calculateInt(
+                base.toInt(),
+                avgMiningSkillBonus,
+                deaconMoralityBonus,
+                policyBoost
+            )
+        }
+
+        /** 计算日产出（月产出 / 30） */
+        fun calculateDaily(basePerMiner: Double): Long =
+            (calculateMonthly(basePerMiner).toDouble() / 30).toLong()
+    }
+
+    /**
+     * 从 GameData + DiscipleTables 构建灵矿产出乘区。
+     */
+    private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones {
+        val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
+        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+
+        var miningBonus = 0.0
+        data.spiritMineSlots.forEach { slot ->
+            val discipleId = slot.discipleId
+            if (discipleId.isNotEmpty()) {
+                val idInt = discipleId.toIntOrNull() ?: return@forEach
+                if (tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
+                    val mining = tables.minings[idInt] ?: 0
+                    if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
+                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) *
+                            GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
+                    }
+                }
+            }
+        }
+
+        val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
+        val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
+
+        val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
+            slot.discipleId?.let { discipleId ->
+                val idInt = discipleId.toIntOrNull()
+                if (idInt != null && tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
+                    tables.assemble(idInt)
+                } else null
+            }
+        }.sumOf { disciple ->
+            val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
+            val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline)
+                .coerceAtLeast(0)
+            diff * 0.01
+        }
+
+        return SpiritMineZones(
+            minerCount = minerCount,
+            avgMiningSkillBonus = avgMiningBonus,
+            deaconMoralityBonus = deaconBonus,
+            policyBoost = ZoneCalculator.multiplierToZone(boostMultiplier)
+        )
+    }
 
     /** 每 phase 的灵矿产出快照 */
     data class SpiritMinePhaseSnapshot(
@@ -373,43 +414,8 @@ class CultivationSettlement @Inject constructor(
         if (minerCount == 0) return 0L
 
         val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
-
-        var miningBonus = 0.0
-        data.spiritMineSlots.forEach { slot ->
-            val discipleId = slot.discipleId
-            if (discipleId.isNotEmpty()) {
-                val idInt = discipleId.toIntOrNull() ?: return@forEach
-                if (tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
-                    val mining = tables.minings[idInt] ?: 0
-                    if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
-                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) *
-                            GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
-                    }
-                }
-            }
-        }
-
-        val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
-        val baseSpiritStones = minerCount * baseOutput.toDouble()
-        val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
-
-        val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
-            slot.discipleId?.let { discipleId ->
-                val idInt = discipleId.toIntOrNull()
-                if (idInt != null && tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
-                    tables.assemble(idInt)
-                } else null
-            }
-        }.sumOf { disciple ->
-            val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
-            val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline)
-                .coerceAtLeast(0)
-            diff * 0.01
-        }
-
-        // 月总产出 / 30 = 日产出
-        val monthlyTotal = baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier
-        return (monthlyTotal / 30).toLong()
+        val zones = buildSpiritMineZones(data, tables)
+        return zones.calculateDaily(baseOutput.toDouble())
     }
 
     /**

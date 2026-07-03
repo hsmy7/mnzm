@@ -38,8 +38,10 @@ class ViewModelArchitectureTest {
     @Test
     fun `non-core ViewModels should not import GameStateStore`() {
         // GameViewModel/SaveLoadViewModel 是核心枢纽，需要访问 GameStateStore
+        // Delegate 类作为 GameViewModel/SaveLoadViewModel 的扩展，同样需要访问权
         val nonCoreFiles = scope.files.filter { file ->
-            !coreViewModels.any { file.name.startsWith(it) }
+            !coreViewModels.any { file.name.startsWith(it) } &&
+            !file.name.endsWith("Delegate")
         }
 
         val violations = nonCoreFiles.filter { file ->

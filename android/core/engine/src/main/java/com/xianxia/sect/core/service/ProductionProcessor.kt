@@ -18,6 +18,7 @@ import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -314,11 +315,37 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
+    /**
+     * 灵植成熟速度乘区（Herb Garden Maturity Zone）。
+     *
+     * 公式：有效生长时间 = ceil(baseGrowTime / ((1 + elderZone) × (1 + auraZone) × (1 + policyZone)))
+     */
+    data class HerbGardenMaturityZones(
+        val elderZone: Double = 0.0,   // 灵植长老乘区
+        val auraZone: Double = 0.0,    // 光环弟子乘区
+        val policyZone: Double = 0.0,  // 灵药培育政策乘区
+    ) {
+        /** 计算总加速倍率（用于传入 calculateEffectiveGrowTime） */
+        fun totalMultiplier(): Double =
+            ZoneCalculator.zoneToMultiplier(
+                ZoneCalculator.calculate(1.0, elderZone, auraZone, policyZone)
+            ) - 1.0
+    }
+
     fun calculateSpiritFieldMaturityBonus(
         plant: SpiritFieldPlant,
         gameData: GameData,
         allDisciples: List<Disciple>
     ): Double {
+        val zones = buildHerbGardenMaturityZones(plant, gameData, allDisciples)
+        return zones.totalMultiplier()
+    }
+
+    private fun buildHerbGardenMaturityZones(
+        plant: SpiritFieldPlant,
+        gameData: GameData,
+        allDisciples: List<Disciple>
+    ): HerbGardenMaturityZones {
         val elderBonus = HerbGardenAuraService.calculateElderMaturityBonus(
             gameData.elderSlots, allDisciples
         )
@@ -331,7 +358,11 @@ class ProductionProcessor @Inject constructor(
             HerbGardenAuraService.calculateAuraMaturityBonus(gameData.elderSlots, allDisciples)
         } else 0.0
 
-        return policyBonus + elderBonus + auraBonus
+        return HerbGardenMaturityZones(
+            elderZone = elderBonus,
+            auraZone = auraBonus,
+            policyZone = policyBonus
+        )
     }
 
     suspend fun processAutoAlchemy() {

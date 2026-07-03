@@ -775,23 +775,25 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `getBreakthroughChance - 内门长老加成正确计算`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
-        // 悟性90 → (90-80)/5*0.01 = 0.02（整数除法）
+        // 悟性90 → (90-80)/5*0.01 = 0.02
+        // 乘区法公式：base * (1 + elderBonus)，差值 = 0.42 * 0.02 = 0.0084
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
             disciple, innerElderComprehension = 90
         )
-        assertEquals(0.02, bonusChance - baseChance, 0.001)
+        assertEquals(0.0084, bonusChance - baseChance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 外门长老加成正确计算`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
         // 外门长老加成已预计算为Double，直接传入
+        // 乘区法公式：base * (1 + elderBonus)，差值 = 0.42 * 0.03 = 0.0126
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
             disciple, outerElderComprehension = 95
         )
-        assertEquals(0.03, bonusChance - baseChance, 0.001)
+        assertEquals(0.0126, bonusChance - baseChance, 0.001)
     }
 
     @Test
@@ -799,13 +801,14 @@ class DiscipleStatCalculatorTest {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
         // 内门长老悟性100 → (100-80)/5*0.01 = 0.04
         // 外门长老加成直接传入0.03
+        // 乘区法：elderGuidance = 0.07，差值 = 0.42 * 0.07 = 0.0294
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bothChance = DiscipleStatCalculator.getBreakthroughChance(
             disciple,
             innerElderComprehension = 100,
             outerElderComprehension = 95
         )
-        assertEquals(0.07, bothChance - baseChance, 0.001)
+        assertEquals(0.0294, bothChance - baseChance, 0.001)
     }
 
     @Test
@@ -830,8 +833,9 @@ class DiscipleStatCalculatorTest {
             disciple, innerElderComprehension = 130
         )
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.05, chance105 - baseChance, 0.001)
-        assertEquals(0.05, chance130 - baseChance, 0.001)
+        // 乘区法：差值 = 0.42 * 0.05 = 0.021
+        assertEquals(0.021, chance105 - baseChance, 0.001)
+        assertEquals(0.021, chance130 - baseChance, 0.001)
     }
 
     @Test
@@ -869,7 +873,8 @@ class DiscipleStatCalculatorTest {
             outerElderComprehension = 95
         )
         // 内门长老悟性100 → 0.04 + 外门长老 0.03 = 0.07
-        assertEquals(0.07, bothDetail.total - baseDetail.total, 0.001)
+        // 乘区法：base(0.42) * (1 + 0.07) - 0.42 = 0.0294
+        assertEquals(0.0294, bothDetail.total - baseDetail.total, 0.001)
         assertEquals(0.04, bothDetail.innerElderBonus, 0.001)
         assertEquals(0.03, bothDetail.outerElderBonus, 0.001)
     }
