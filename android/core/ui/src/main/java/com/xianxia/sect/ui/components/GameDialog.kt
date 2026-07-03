@@ -55,6 +55,7 @@ fun UnifiedGameDialog(
     scrollableContent: Boolean = true,
     titleColor: Color = Color.Black,
     titleFontSize: TextUnit = AppTypography.Title,
+    titleAlignment: Alignment = Alignment.Center,
     showCloseButton: Boolean = true,
     @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
         ?: R.drawable.bg_horizontal,
@@ -119,7 +120,7 @@ fun UnifiedGameDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = headerH, end = headerH, top = 4.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = titleAlignment
                 ) {
                     Text(
                         text = title,

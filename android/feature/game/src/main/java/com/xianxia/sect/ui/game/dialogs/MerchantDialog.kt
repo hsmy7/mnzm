@@ -99,6 +99,7 @@ fun MerchantDialog(
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "云游商人",
+        titleAlignment = Alignment.CenterStart,
         mode = DialogMode.Full,
         scrollableContent = false,
         headerActions = {
