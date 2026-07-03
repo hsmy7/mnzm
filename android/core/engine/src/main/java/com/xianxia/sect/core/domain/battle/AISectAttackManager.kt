@@ -26,6 +26,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.BattleCalculator
 import android.util.Log
 import kotlin.random.Random
+// top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
 object AISectAttackManager {
     private const val TAG = "AISectAttackManager"
@@ -34,20 +35,12 @@ object AISectAttackManager {
     private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
 
-    /**
-     * 玩家占领宗门的驻军防御信息。
-     * @param disciples 驻军弟子列表（用于战力评估和 canOccupy 判断）
-     * @param combatants 已转换为 Combatant 的战斗单元（用于实际战斗）
-     */
+    // PlayerOccupiedDefenseInfo 和 AIAttackResult 保留在 object 内（外部有引用）
     data class PlayerOccupiedDefenseInfo(
         val disciples: List<Disciple>,
         val combatants: List<Combatant>
     )
 
-    /**
-     * Result of an AI attack decision with immediate execution.
-     * The caller applies these changes to game state.
-     */
     data class AIAttackResult(
         val attackerSectId: String,
         val defenderSectId: String,
@@ -58,14 +51,10 @@ object AISectAttackManager {
         val deadDefenderIds: List<String>,
         val canOccupy: Boolean,
         val survivingAttackers: List<Disciple>,
-        /** 防守方幸存者 HP/MP（用于玩家宗门被攻时回写弟子状态） */
         val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
         val defenderSurvivorMpMap: Map<String, Int> = emptyMap(),
-        /** 战斗回合明细（用于写入 battleLogs） */
         val rounds: List<BattleLogRound> = emptyList(),
-        /** 我方弟子快照（战斗终态，用于日志展示） */
         val teamMembers: List<BattleLogMember> = emptyList(),
-        /** 敌方快照（战斗终态，用于日志展示） */
         val enemies: List<BattleLogEnemy> = emptyList()
     )
 
@@ -381,24 +370,18 @@ object AISectAttackManager {
 
         for (disciple in aliveDisciples) {
             val realmPower = (10 - disciple.realm) * weights.REALM_BASE
-
             val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
             val minRarity = AISectDiscipleManager.getMinRarityByRealm(disciple.realm)
             val avgEquipmentRarity = (minRarity + maxRarity) / 2.0
             val avgManualRarity = (minRarity + maxRarity) / 2.0
             val maxManuals = AISectDiscipleManager.getMaxManualsByRealm(disciple.realm)
-
             val equipmentPower = avgEquipmentRarity * 2.0 * weights.EQUIPMENT_RARITY
             val manualPower = avgManualRarity * (maxManuals / 2.0) * weights.MANUAL_RARITY
-
             val talentPower = disciple.talentIds.sumOf { talentId ->
                 TalentDatabase.getById(talentId)?.rarity?.times(weights.TALENT_RARITY) ?: 0.0
             }
-
-            val individualPower = realmPower + equipmentPower + manualPower + talentPower
-            totalPower += individualPower
+            totalPower += realmPower + equipmentPower + manualPower + talentPower
         }
-
         return totalPower
     }
 
@@ -406,22 +389,19 @@ object AISectAttackManager {
         attackerDisciples: List<Disciple>,
         existingBusyIds: Set<String> = emptySet()
     ): List<Disciple> {
+        val minCount = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
+        val teamSize = GameConfig.AI.TEAM_SIZE
         val availableDisciples = attackerDisciples
             .filter { it.isAlive && it.id !in existingBusyIds }
             .sortedBy { it.realm }
-
-        if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return emptyList()
-
-        return availableDisciples.take(TEAM_SIZE)
+        if (availableDisciples.size < minCount) return emptyList()
+        return availableDisciples.take(teamSize)
     }
 
     fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
-        return defenderDisciples
-            .filter { it.isAlive }
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
+        val teamSize = GameConfig.AI.TEAM_SIZE
+        return defenderDisciples.filter { it.isAlive }.sortedBy { it.realm }.take(teamSize)
     }
-
 
     /**
      * AI决定攻击玩家的结果——不再是立即执行战斗，
@@ -1158,156 +1138,7 @@ object AISectAttackManager {
         return core + supplements
     }
 
-    fun createPlayerDefenseTeam(
-        disciples: List<Disciple>
-    ): List<Disciple> {
-        return disciples
-            .filter { it.isAlive }
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
-    }
-
-    fun generateSectDestroyedEvent(attackerName: String, defenderName: String): String {
-        return "⚔️ $attackerName 攻破了 $defenderName！"
-    }
-
-    data class SectWarRewardConfig(
-        val minRarity: Int,
-        val maxRarity: Int,
-        val spiritStoneValue: Long
-    )
-
-    fun getSectWarRewardConfig(sectLevel: Int): SectWarRewardConfig {
-        return when (sectLevel) {
-            0 -> SectWarRewardConfig(minRarity = 1, maxRarity = 2, spiritStoneValue = 2000)
-            1 -> SectWarRewardConfig(minRarity = 2, maxRarity = 4, spiritStoneValue = 6000)
-            2 -> SectWarRewardConfig(minRarity = 3, maxRarity = 5, spiritStoneValue = 30000)
-            3 -> SectWarRewardConfig(minRarity = 4, maxRarity = 6, spiritStoneValue = 80000)
-            else -> SectWarRewardConfig(minRarity = 1, maxRarity = 2, spiritStoneValue = 2000)
-        }
-    }
-
-    fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
-        val config = getSectWarRewardConfig(sectLevel)
-        var spiritStones = 0L
-
-        val equipmentStacks = mutableListOf<com.xianxia.sect.core.model.EquipmentStack>()
-        val manualStacks = mutableListOf<com.xianxia.sect.core.model.ManualStack>()
-        val pills = mutableListOf<com.xianxia.sect.core.model.Pill>()
-        val materials = mutableListOf<com.xianxia.sect.core.model.Material>()
-        val herbs = mutableListOf<com.xianxia.sect.core.model.Herb>()
-        val seeds = mutableListOf<com.xianxia.sect.core.model.Seed>()
-
-        repeat(itemCount) {
-            val itemType = Random.nextInt(7)
-            when (itemType) {
-                0 -> spiritStones += config.spiritStoneValue
-                1 -> {
-                    if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
-                        try {
-                            equipmentStacks.add(
-                                com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
-                            )
-                        } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                    }
-                }
-                2 -> {
-                    if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
-                        try {
-                            manualStacks.add(
-                                com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
-                            )
-                        } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                    }
-                }
-                3 -> {
-                    try {
-                        pills.add(
-                            com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
-                        )
-                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                }
-                4 -> {
-                    try {
-                        materials.add(
-                            com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
-                        )
-                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                }
-                5 -> {
-                    try {
-                        val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
-                        herbs.add(
-                            com.xianxia.sect.core.model.Herb(
-                                name = herbTemplate.name,
-                                rarity = herbTemplate.rarity,
-                                description = herbTemplate.description,
-                                category = herbTemplate.category,
-                                quantity = 1
-                            )
-                        )
-                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                }
-                6 -> {
-                    try {
-                        val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
-                        seeds.add(
-                            com.xianxia.sect.core.model.Seed(
-                                name = seedTemplate.name,
-                                rarity = seedTemplate.rarity,
-                                description = seedTemplate.description,
-                                growTime = seedTemplate.growTime,
-                                yield = seedTemplate.yield,
-                                quantity = 1
-                            )
-                        )
-                    } catch (e: Exception) { Log.w(TAG, "随机物品生成失败", e) }
-                }
-            }
-        }
-
-        return WarRewards(
-            spiritStones = spiritStones,
-            equipmentStacks = equipmentStacks,
-            manualStacks = manualStacks,
-            pills = pills,
-            materials = materials,
-            herbs = herbs,
-            seeds = seeds
-        )
-    }
+    // 以下已提取为同包 top-level fun：
+    // supplementDisciples, createPlayerDefenseTeam, getGarrisonDisciples,
+    // getSectWarRewardConfig, generateWarRewards
 }
-
-enum class AIBattleWinner {
-    ATTACKER, DEFENDER, DRAW
-}
-
-data class AIBattleResult(
-    val winner: AIBattleWinner,
-    val deadAttackerIds: List<String>,
-    val deadDefenderIds: List<String>,
-    val canOccupy: Boolean,
-    val turns: Int = 0,
-    val survivorHpMap: Map<String, Int> = emptyMap(),
-    val survivorMpMap: Map<String, Int> = emptyMap(),
-    val defenderSurvivorHpMap: Map<String, Int> = emptyMap(),
-    val defenderSurvivorMpMap: Map<String, Int> = emptyMap(),
-    val rounds: List<BattleLogRound> = emptyList(),
-    val teamMembers: List<BattleLogMember> = emptyList(),
-    val enemies: List<BattleLogEnemy> = emptyList()
-)
-
-data class PlayerLootLossResult(
-    val lostSpiritStones: Long,
-    val lostMaterials: Map<String, Int>
-)
-
-data class WarRewards(
-    val spiritStones: Long,
-    val equipmentStacks: List<com.xianxia.sect.core.model.EquipmentStack>,
-    val manualStacks: List<com.xianxia.sect.core.model.ManualStack>,
-    val pills: List<com.xianxia.sect.core.model.Pill>,
-    val materials: List<com.xianxia.sect.core.model.Material>,
-    val herbs: List<com.xianxia.sect.core.model.Herb>,
-    val seeds: List<com.xianxia.sect.core.model.Seed>
-)

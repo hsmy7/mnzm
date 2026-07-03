@@ -83,7 +83,7 @@ class AISectAttackManagerTest {
             makeDisciple("d2", realm = 1, status = DiscipleStatus.GARRISONING),
             makeDisciple("d3", realm = 2, status = DiscipleStatus.IDLE)
         )
-        val team = AISectAttackManager.createPlayerDefenseTeam(disciples)
+        val team = createPlayerDefenseTeam(disciples)
         // 所有3名存活弟子按realm排序入选
         assertEquals(3, team.size)
         assertEquals(listOf(0, 1, 2), team.map { it.realm })
@@ -126,7 +126,7 @@ class AISectAttackManagerTest {
         val available = (0..12).map { i ->
             makeDisciple("a$i", realm = 2 + i)
         }
-        val result = AISectAttackManager.supplementDisciples(
+        val result = supplementDisciples(
             core, available)
         assertEquals(AISectAttackManager.TEAM_SIZE, result.size)
         // 前2个是核心弟子
@@ -158,7 +158,7 @@ class AISectAttackManagerTest {
                     index = 2, discipleId = "")
             )
         )
-        val result = AISectAttackManager.getGarrisonDisciples(
+        val result = getGarrisonDisciples(
             sect, allDisciples)
         // d1存活, d2已死, slot2为空
         assertEquals(1, result.size)

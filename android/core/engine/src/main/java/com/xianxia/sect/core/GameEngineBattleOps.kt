@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.battle.generateWarRewards
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
@@ -91,7 +92,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     var warRewards: WarRewards? = null
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
         val rewardCount = if (battleResult.canOccupy) (80..130).random() else (20..60).random()
-        warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+        warRewards = generateWarRewards(targetSect.level, rewardCount)
     }
     val drops = mutableListOf<String>()
     warRewards?.let { wr ->
