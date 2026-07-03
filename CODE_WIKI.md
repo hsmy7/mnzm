@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-06-26 (结算管线双模式文档化 + 统一批量结算 ADR)
+> 最后更新：2026-07-03 (代码质量改进：!!清零、Daos拆分、ViewModel Delegate模式、Kover+CI)
 
 ## 目录
 
@@ -328,26 +328,48 @@ ChangelogData（1999行 → 44行）：
   ChangelogData.kt 仅保留加载逻辑，条目数据外置到 assets/changelog_entries.json
 ```
 
-### 代码质量基础设施 (v4.0.00)
+### 代码质量基础设施 (v4.0.35)
 
 **反模式清零**：
 | 指标 | 改造前 | 改造后 |
 |------|--------|--------|
-| `!!` 强制解包 | 110 处 | 0 |
-| `runBlocking` | 17 处 | 0 |
-| TODO 遗留 | 14 处 | 0 |
-| `@Suppress` 抑制 | 60+ 处 | 15 处（5 文件） |
+| `!!` 强制解包 | 110 处 → **0 处** | ✅ |
+| `runBlocking` | 17 处 → **0 处** | ✅ |
+| 空 catch 块 | 6+ 处 → **0 处** | ✅ |
+| Detekt 违规 | 1,245 → **195** | ↓84% |
+
+**GameViewModel Delegate 模式**：
+VM 从 2,069 行降至 1,728 行，通过 **9 个 Delegate** 拆分领域逻辑：
+
+```
+delegate/
+├── DiscipleDelegate.kt        弟子管理（招募/驱逐/装备/道侣）
+├── InventoryDelegate.kt       物品管理（购买/出售/自动购买）
+├── NavigationDelegate.kt      导航/对话框
+├── PlantingDelegate.kt        种植
+├── BuildingDelegate.kt        建筑（建造/拆除/搬迁/住宅）
+├── BeastAttackDelegate.kt     凶兽袭击
+├── WarningDelegate.kt         进攻预警
+├── SectDelegate.kt            宗门等级/改名/奖励
+└── AutoAssignDelegate.kt      自动委派策略
+```
+
+**Dao 拆分**：
+`Daos.kt` 从 1,223 行拆分为 **18 个领域文件**（按实体类型分组），Room KSP 自动发现。
+
+**代码覆盖 & CI**：
+- **Kover** 覆盖率工具已集成（根 + app + core/data）
+- **CI 管道**：`.github/workflows/ci.yml`（compile + test + detekt + kover）
+- **测试扩展**：新增 74 个测试（UseCase 38 + 网络层 22 + Room 迁移 14）
 
 **静态分析工具链**：
 ```
 android/
-├── config/detekt/detekt.yml       Detekt 配置
-├── app/detekt-baseline.xml        基线（屏蔽历史问题）
-├── app/lint-baseline.xml          Lint 基线
+├── config/detekt/detekt.yml       Detekt 配置（MaxLineLength: 80→120）
 └── build.gradle                   lint.checkReleaseBuilds = true
 ```
 
-**构建检查**：`./gradlew lintRelease && ./gradlew detekt`
+**构建检查**：`./gradlew compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport`
 
 ### ViewModel Facade 直接注入 (v3.2.01)
 
