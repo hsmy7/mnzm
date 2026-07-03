@@ -1,6 +1,14 @@
 [
 	{
 		"date": "2026-07-03",
+		"version": "4.0.38",
+		"changes": [
+			"修复：红米K80(HyperOS 2.0)游戏时间停止——游戏循环线程被HyperOS电源管理挂起后时间不再推进，UI可操作但时间冻结。新增主线程健康监控器(绕过后台线程冻结)、紧急重启机制(创建全新调度器线程)、看门狗自愈、forceCompleteSettlement超时保护",
+			"修复：Xiaomi HyperOS防挂起参数增强——antiFreeze占空比从14%提升至45%，看门狗检查间隔缩短至2s"
+		]
+	},
+	{
+		"date": "2026-07-03",
 		"version": "4.0.37",
 		"changes": [
 			"修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版，SettingsTab全部废弃HalfScreenDialog替换为内联覆盖层"

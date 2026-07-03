@@ -137,7 +137,22 @@ class GameEngineCore @Inject constructor(
         }
     }
 
+    /** 看门狗异常处理器 — 防止看门狗因未处理异常静默死亡 */
+    private val watchdogExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        if (throwable !is CancellationException) {
+            DomainLog.e(TAG, "Watchdog: unhandled exception — watchdog may have died", throwable)
+        }
+    }
+
     private var currentTickInterval = TICK_INTERVAL_MS
+
+    /** 可变的游戏循环调度器，紧急重启时可替换为新线程 */
+    @Volatile
+    private var gameDispatcher: CoroutineDispatcher = GAME_DISPATCHER
+
+    /** 紧急重启中标志，防止重入 */
+    @Volatile
+    private var isEmergencyRestarting = false
 
     // 焦点分频：各域上次执行时间戳
     private val domainLastTickTime = java.util.concurrent.ConcurrentHashMap<FocusDomain, Long>()
@@ -156,7 +171,7 @@ class GameEngineCore @Inject constructor(
         }
     }
     private var engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
-    private var engineScope: CoroutineScope = CoroutineScope(engineJob + GAME_DISPATCHER + engineExceptionHandler)
+    private var engineScope: CoroutineScope = CoroutineScope(engineJob + gameDispatcher + engineExceptionHandler)
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
@@ -205,6 +220,10 @@ class GameEngineCore @Inject constructor(
 
     /** 看门狗恢复尝试次数（跨重启累计，仅在 tick 推进时重置） */
     private var watchdogRecoveryAttempts = 0
+
+    /** forceCompleteSettlement 开始时间戳，用于检测死锁超时 */
+    @Volatile
+    private var forceCompleteStartTime: Long = 0L
 
     /** 看门狗连续失败次数达到此阈值后使用更长间隔，避免 OEM 永久挂起时频繁重启 */
     private val watchdogDegradedThreshold = 10
@@ -336,7 +355,7 @@ class GameEngineCore @Inject constructor(
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
         // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
         engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
-        engineScope = CoroutineScope(engineJob + GAME_DISPATCHER + engineExceptionHandler)
+        engineScope = CoroutineScope(engineJob + gameDispatcher + engineExceptionHandler)
         isInitialized = false
         DomainLog.i(TAG, "GameEngineCore shutdown complete")
     }
@@ -373,7 +392,9 @@ class GameEngineCore @Inject constructor(
                 "Watchdog: entering degraded mode after $watchdogRecoveryAttempts " +
                 "consecutive failures — increasing check interval to ${effectiveBaseMs / 1000}s")
         }
-        watchdogJob = CoroutineScope(WATCHDOG_DISPATCHER + SupervisorJob()).launch {
+        watchdogJob = CoroutineScope(
+            WATCHDOG_DISPATCHER + SupervisorJob() + watchdogExceptionHandler
+        ).launch {
             var lastTickCount = _tickCount.value
             // 游戏时间推进检测：tickCount 递增但月份不变 → "假运行"
             var lastGameMonth = stateStore.gameData.value.gameMonth
@@ -382,6 +403,7 @@ class GameEngineCore @Inject constructor(
             // 当前退避间隔：失败后翻倍递增（如 3s→6s→12s→24s→30s 上限），成功后重置为初始间隔
             var currentBackoffMs = effectiveBaseMs
             while (isActive) {
+                try {
                 delay(currentBackoffMs)
                 val currentTickCount = _tickCount.value
                 val loopActive = gameLoopJob?.isActive == true
@@ -432,6 +454,11 @@ class GameEngineCore @Inject constructor(
                     }
                 }
                 lastTickCount = currentTickCount
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    DomainLog.e(TAG, "Watchdog: loop error, continuing", e)
+                    delay(1000)
+                }
             }
         }
     }
@@ -469,6 +496,86 @@ class GameEngineCore @Inject constructor(
         startGameLoop()
         // 恢复看门狗计数，使降级模式在下次看门狗启动时得以保持
         watchdogRecoveryAttempts = savedWatchdogAttempts
+    }
+
+    /**
+     * 从 UI 层（主线程）调用的游戏循环恢复。
+     * 包装 [restartGameLoopInternal] 以允许从 GameViewModel 访问。
+     */
+    fun forceRestartGameLoop() {
+        DomainLog.w(TAG, "External force restart requested")
+        restartGameLoopInternal()
+    }
+
+    /**
+     * 重启看门狗（如果已死亡）。
+     * 由主线程健康监控器调用。
+     */
+    fun restartWatchdog() {
+        if (watchdogJob?.isActive == true) return
+        DomainLog.w(TAG, "Watchdog: restarting (was active=${watchdogJob?.isActive})")
+        startWatchdog()
+    }
+
+    /**
+     * 创建一个全新的游戏调度器（新线程）。
+     * 用于 [emergencyRestartGameLoop]，当原 GAME_DISPATCHER 的线程被
+     * OEM 电源管理挂起时，用全新线程替代。
+     */
+    private fun recreateGameDispatcher(): CoroutineDispatcher {
+        val newDispatcher = Executors.newSingleThreadExecutor(ThreadFactory {
+            val thread = Thread(it, "GameEngine-Thread")
+            thread.priority = Thread.MAX_PRIORITY
+            thread.isDaemon = false
+            thread
+        }).asCoroutineDispatcher()
+        gameDispatcher = newDispatcher
+        DomainLog.w(TAG, "Created new game dispatcher (old thread may be suspended by OEM)")
+        return newDispatcher
+    }
+
+    /**
+     * 紧急重启游戏循环——创建全新调度器线程，绕过 OEM 线程挂起。
+     *
+     * 与 [restartGameLoopInternal] 不同，此方法从主线程调用，
+     * 创建一个全新的 GAME_DISPATCHER（新线程），确保不被
+     * HyperOS 等 OEM 电源管理挂起的旧线程影响。
+     */
+    fun emergencyRestartGameLoop() {
+        if (isEmergencyRestarting) {
+            DomainLog.w(TAG, "EMERGENCY restart already in progress, skipping")
+            return
+        }
+        isEmergencyRestarting = true
+        try {
+            DomainLog.w(TAG, "EMERGENCY restart triggered from main thread")
+
+            // 1. 取消旧游戏循环和看门狗
+            gameLoopJob?.cancel()
+            gameLoopJob = null
+            stopWatchdog()
+
+            // 2. 清除残留结算状态
+            settlementCoordinator.cancelPendingWork()
+            forceResetStuckStates()
+
+            // 3. 用全新调度器重建 engineScope
+            engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
+            engineScope = CoroutineScope(engineJob + recreateGameDispatcher() + engineExceptionHandler)
+
+            // 4. 消耗死区时间，防止时间跳变
+            gameClock.consumeDeadTime()
+            stateStore.setPausedDirect(false)
+
+            // 5. 保存看门狗累计计数并重启循环
+            val savedWatchdogAttempts = watchdogRecoveryAttempts
+            startGameLoop()
+            watchdogRecoveryAttempts = savedWatchdogAttempts
+
+            DomainLog.i(TAG, "EMERGENCY restart complete")
+        } finally {
+            isEmergencyRestarting = false
+        }
     }
 
     private fun stopWatchdog() {
@@ -750,8 +857,22 @@ class GameEngineCore @Inject constructor(
     private var isForceCompleting = false
 
     private suspend fun forceCompleteSettlement() {
-        if (isForceCompleting) return
+        if (isForceCompleting) {
+            // 超时检测：如果 isForceCompleting 卡住超过 5 秒，强制重置
+            if (forceCompleteStartTime > 0L &&
+                System.currentTimeMillis() - forceCompleteStartTime > 5000L
+            ) {
+                DomainLog.e(TAG,
+                    "forceCompleteSettlement: stale lock for " +
+                    "${System.currentTimeMillis() - forceCompleteStartTime}ms, force resetting")
+                isForceCompleting = false
+                forceCompleteStartTime = 0L
+            } else {
+                return
+            }
+        }
         isForceCompleting = true
+        forceCompleteStartTime = System.currentTimeMillis()
         try {
             while (settlementCoordinator.hasPendingWork) {
                 settlementCoordinator.executeStep()
@@ -759,6 +880,7 @@ class GameEngineCore @Inject constructor(
             settlementCoordinator.onSettlementComplete()
         } finally {
             isForceCompleting = false
+            forceCompleteStartTime = 0L
         }
     }
 

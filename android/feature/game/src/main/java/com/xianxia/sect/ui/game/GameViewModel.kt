@@ -164,6 +164,42 @@ class GameViewModel @Inject constructor(
                 showError("系统异常：${error.systemName}")
             }
         }
+
+        // 主线程健康监控：检测游戏循环是否被 OEM 电源管理挂起
+        // 当 HyperOS 等挂起后台线程后，此协程在主线程上运行不受影响，
+        // 可检测 tickCount 停滞并通过 emergencyRestartGameLoop 恢复。
+        launchMainThreadHealthCheck()
+    }
+
+    /**
+     * 在主线程上定期检查 tickCount 是否推进。若 6 秒无推进且游戏循环声称
+     * 运行中，触发紧急重启（创建全新调度器线程绕过 OEM 挂起）。
+     */
+    private fun launchMainThreadHealthCheck() {
+        viewModelScope.launch(Dispatchers.Main) {
+            var lastTick = 0L
+            var stallCount = 0
+            while (isActive) {
+                delay(1000)
+                try {
+                    val currentTick = gameEngineCore.tickCount.value
+                    if (currentTick == lastTick && gameEngineCore.isGameLoopRunning) {
+                        stallCount++
+                        if (stallCount >= 3) {
+                            Log.w(TAG, "HealthCheck: game loop stalled for ${stallCount}s, emergency restarting")
+                            gameEngineCore.emergencyRestartGameLoop()
+                            stallCount = 0
+                        }
+                    } else {
+                        stallCount = 0
+                    }
+                    lastTick = currentTick
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    Log.e(TAG, "HealthCheck: error", e)
+                }
+            }
+        }
     }
 
     /**
