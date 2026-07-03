@@ -1,6 +1,6 @@
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-07-03 (代码质量改进：!!清零、Daos拆分、ViewModel Delegate模式、Kover+CI)
+> 最后更新：2026-07-03 (Phase 0: 统一批量结算模式标记已完成)
 
 ## 目录
 
@@ -1615,19 +1615,16 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 | 优先级 | 描述 | 预估收益 | 状态 |
 |--------|------|---------|------|
-| 优先级 | 描述 | 预估收益 | 状态 |
-|--------|------|---------|------|
-| P1 | **统一批量结算模式** — 移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md) | 简化 ~150 行 tickInternal、消除模式切换 bug、清理热控分批死代码 | 方案已评审，待实施 |
 | P1 | **大文件重构** — MainGameScreen(1509行)、HeavenlyTrialCombatScreen(1674行)、AISectAttackManager(1313行)、InventorySystem(1328行) 等 6 个 >1100 行文件 | 可维护性 | 待实施 |
 | P2 | SaveLoadViewModel 继续拆分（尚余 1314 行） | 可维护性 | 待实施 |
 | P2 | **DI 模块集成测试**（8 个 DI 文件） | 编译期回归拦截 | 基础 Konsist 测试已建 |
 | P2 | **引擎核心层测试**补齐（CultivationCore、DiscipleService 等） | 回归拦截 | 待实施 |
 | P3 | **Compose UI 测试**补充（核心交互路径） | UI 正确性 | 依赖已加，待编写 |
 | P4 | 并发压力测试（100+ 协程） | 验证极端场景 | 待实施 |
-| P4 | 事件溯源审计日志 | 时间旅行调试 | 待实施 |
-| P4 | 通配符导入修复（439 处 → 0） | 代码规范 | detekt 不支持 auto-correct，待逐文件处理 |
+| P4 | 通配符导入修复（618 处 → 0） | 代码规范 | 全部逐文件修复，detekt 配置预防复发 |
 
 > 已完成项：
+> - ✅ **v4.0.36 — 统一批量结算模式**：移除活跃/空闲双模式，统一为实时轨/焦点域 100ms + 批量轨 30s 单一路径。详见 [ADR](docs/adr/unified-batch-settlement.md)
 > - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
 > - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
 > - ✅ **v4.0.35 — Detekt违规数降84%**：1,245→195
