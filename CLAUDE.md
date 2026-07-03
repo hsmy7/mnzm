@@ -146,6 +146,37 @@ tickInternal() 每 100ms
 - **焦点域 = 视角驱动 + 域声明系统** — 每个 UI 界面对应一个 FocusDomain，域通过 `systemClasses` 声明激活时需实时 tick 的系统。如在弟子 Tab 则 DISCIPLE_LIST 域激活 → CultivationTickSystem 实时 tick
 - **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
 
+### Formula Architecture: Zone Multiplier System（乘区法）
+
+所有数值计算遵循**"乘区内加算、乘区间乘算"**的乘区法设计：
+
+```
+最终值 = 基础值 × Π(1 + Σ(各乘区内部加成))
+```
+
+已统一为乘区法的系统：
+
+| 系统 | 乘区结构 | 所在文件 |
+|------|---------|---------|
+| 修炼速度 | `CultivationSpeedZones`（5乘区：资质/资源/社交/状态/临时） | `DiscipleStatCalculator.kt` |
+| 战斗伤害 | `DamageZones`（攻击Buff/防御穿透/暴伤/增伤/减伤） | `BattleCalculator.kt` |
+| 突破概率 | `BreakthroughZones`（长老指导/自身加成/状态惩罚） | `DiscipleStatCalculator.kt` |
+| 灵矿产出 | `SpiritMineZones`（采矿技能/执事道德/政策） | `CultivationSettlement.kt` |
+| 生产成功率 | `SuccessRateZones`（境界/天赋/政策/长老） | `FormulaService.kt` |
+| 生产速度 | `DurationZones`（技能/政策/长老） | `FormulaService.kt` |
+| 灵植成熟 | `HerbGardenMaturityZones`（长老/光环/政策） | `ProductionProcessor.kt` |
+| HP/MP恢复 | `RecoveryZones`（建筑/丹药/境界 预留） | `CultivationCore.kt` |
+
+**核心工具：** `ZoneCalculator`（`core/engine/.../util/ZoneCalculator.kt`）提供 `calculate()` / `calculateProbability()` / `calculateAcceleratedTime()` 等公共方法。
+
+**新增计算规则：**
+1. 每个乘区用一个 data class 表示，字段为各因子加算和
+2. 使用 `ZoneCalculator.calculate(base, zone1, zone2, ...)` 计算结果
+3. 概率型（突破率）使用 `calculateProbability(baseProb, positiveSum, penaltySum)` 自动 clamp [0,1]
+4. 时间型使用 `calculateAcceleratedTime(base, speedBonus1, speedBonus2, ...)`
+5. 新增影响数值的 buff/效果时，先确定它属于哪个乘区，在该乘区内加算
+6. 新增乘区时，参照 `CultivationSpeedZones` 模式：创建 data class → `buildZones()` → 公式引用 → 测试验证
+
 ### Key Source Directories
 
 **Core — Game logic, state, and static data**
