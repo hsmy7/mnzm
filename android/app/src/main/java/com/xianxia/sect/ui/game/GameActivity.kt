@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.xianxia.sect.R
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
+import com.xianxia.sect.core.CrashRecoveryEngine
+import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
@@ -163,11 +165,23 @@ class GameActivity : ComponentActivity() {
     private var mapPreloadDataRef: MapPreloadData? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // ── 渲染安全模式检测 ──
+        // 必须在 super.onCreate() 之前切换主题，确保主题中的 hardwareAccelerated 生效
+        // CrashRecoveryEngine 在 XianxiaApplication.onCreate 中已初始化，此处可直接使用
+        if (CrashRecoveryEngine.isSafeMode()) {
+            setTheme(R.style.Theme_XianxiaSect_GameSafe)
+            Log.w(TAG, "Render safe mode active: using software rendering theme")
+        }
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
 
         // 初始化并注册崩溃处理器
         setupCrashHandler()
+
+        // 记录设备诊断信息到日志（供 Bugly / 崩溃分析使用）
+        VulkanPolicy.logDeviceDiagnostics(this)
+        // 标记本次为干净启动，重置连续崩溃计数器
+        CrashRecoveryEngine.onCleanLaunch()
 
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 

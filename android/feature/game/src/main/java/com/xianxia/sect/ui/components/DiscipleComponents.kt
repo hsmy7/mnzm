@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -164,17 +163,19 @@ fun PortraitDiscipleCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.width(48.dp)
             ) {
-                val context = LocalContext.current
-                val portraitResId = remember(disciple.portraitRes) {
-                    PortraitPool.getResourceId(context, disciple.portraitRes)
+                val resId = remember(disciple.portraitRes) {
+                    val preloaded = PortraitPool.getResourceId(disciple.portraitRes)
+                    if (preloaded != 0) preloaded
+                    else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
                 }
-                Image(
-                    painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                              else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
-                    contentDescription = null,
-                    modifier = Modifier.width(44.dp).height(56.dp),
-                    contentScale = ContentScale.Fit
-                )
+                if (resId != 0) {
+                    Image(
+                        painter = painterResource(id = resId),
+                        contentDescription = null,
+                        modifier = Modifier.width(44.dp).height(56.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
                 Text(
                     text = disciple.name,
                     fontSize = 11.sp,
@@ -321,24 +322,25 @@ private fun SlotContent(
             overflow = TextOverflow.Ellipsis
         )
         if (isAlive) {
-            val context = LocalContext.current
             val isBeastPortrait = portraitRes.startsWith("beast_")
-            val portraitResId = remember(portraitRes) {
-                if (isBeastPortrait) {
+            val resId = remember(portraitRes) {
+                val id = if (isBeastPortrait) {
                     val suffix = portraitRes.removePrefix("beast_")
                     val index = suffix.toIntOrNull() ?: -1
                     if (index in 0..7) beastSpriteRes(index) ?: 0
                     else if (index > 0) index
                     else 0
-                } else PortraitPool.getResourceId(context, portraitRes)
+                } else PortraitPool.getResourceId(portraitRes)
+                if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
             }
-            Image(
-                painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                          else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
-                contentDescription = null,
-                modifier = Modifier.width(40.dp).height(48.dp),
-                contentScale = ContentScale.Fit
-            )
+            if (resId != 0) {
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.width(40.dp).height(48.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
         } else {
             // 阵亡：仅覆盖精灵图区域，名称和境界保持显示
             Box(
@@ -435,25 +437,26 @@ fun DiscipleSlot(
                         contentAlignment = Alignment.Center
                     ) {
                         if (disciple.isAlive) {
-                            val context = LocalContext.current
                             val portraitRes = disciple.portraitRes
                             val isBeastPortrait = portraitRes.startsWith("beast_")
-                            val portraitResId = remember(portraitRes) {
-                                if (isBeastPortrait) {
+                            val resId = remember(portraitRes) {
+                                val id = if (isBeastPortrait) {
                                     val suffix = portraitRes.removePrefix("beast_")
                                     val index = suffix.toIntOrNull() ?: -1
                                     if (index in 0..7) beastSpriteRes(index) ?: 0
                                     else if (index > 0) index
                                     else 0
-                                } else PortraitPool.getResourceId(context, portraitRes)
+                                } else PortraitPool.getResourceId(portraitRes)
+                                if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
                             }
-                            Image(
-                                painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                                          else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
-                                contentDescription = null,
-                                modifier = Modifier.width(40.dp).height(48.dp),
-                                contentScale = ContentScale.Fit
-                            )
+                            if (resId != 0) {
+                                Image(
+                                    painter = painterResource(id = resId),
+                                    contentDescription = null,
+                                    modifier = Modifier.width(40.dp).height(48.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         } else {
                             Text(
                                 text = "死亡",

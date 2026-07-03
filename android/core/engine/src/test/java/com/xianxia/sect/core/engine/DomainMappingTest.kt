@@ -597,6 +597,14 @@ class DomainMappingTest {
     }
 
     @Test
+    fun `subDialog DiscipleDetail — DISCIPLE_DETAIL（弟子详情进入实时轨）`() {
+        val domains = resolveDomainsFromView(
+            tab = null, dialog = null, subDialogs = setOf("DiscipleDetail")
+        )
+        assertDomains(domains, FocusDomain.DISCIPLE_DETAIL)
+    }
+
+    @Test
     fun `activeSystemsFor — MANUAL_DETAIL 包含 CultivationTickSystem`() {
         val systems = FocusDomain.activeSystemsFor(
             setOf(FocusDomain.MANUAL_DETAIL)

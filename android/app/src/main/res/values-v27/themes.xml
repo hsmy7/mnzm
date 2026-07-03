@@ -3,4 +3,8 @@
     <style name="Theme.XianxiaSect" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
+
+    <style name="Theme.XianxiaSect.GameSafe" parent="Theme.XianxiaSect">
+        <item name="android:hardwareAccelerated">false</item>
+    </style>
 </resources>

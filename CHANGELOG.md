@@ -4,10 +4,15 @@
 
 ### Bug 修复
 
+- **系统异常收集器导致 ANR（Bugly #5011）** — `systemManager.errors` 的 `BufferedChannel.hasNext()` 在主线程挂起超过 5 秒触发 ANR。修复：改为 `Dispatchers.Default` 后台线程收集。
+- **已捕获异常不可见** — 系统异常被 catch 后只弹 toast，Bugly 无记录。新增 `CrashReport.postCatchedException` 反射调用，所有系统异常主动上报 Bugly。
+- **弟子肖像退化到兜底图** — 运行时 `resources.getIdentifier` 字符串查找资源名可能失败（Release 构建/数据问题），导致肖像显示 `disciple_portrait` 默认图。修复：`PortraitPool` 预构建资源 ID 映射，应用启动时一次性加载所有肖像 ID，运行时直接 Int 查找零开销。
+- **旧存档弟子 portraitRes 为空** — 旧存档可能缺少 portraitRes 字段，通过 PortraitPool 预加载映射自动兜底。
+- **弟子详情无焦点域映射** — 打开弟子详情时 CultivationTickSystem 不在实时轨，界面数据刷新不及时。新增 `FocusDomain.DISCIPLE_DETAIL` 映射。
+
+### 新功能（来自上一版本）
+
 - **暂停按钮无效** — 设置界面和主界面暂停按钮点击后 2-3 秒自动恢复运行。原因为看门狗和主线程健康监控在暂停时检测到 tick 无推进，误判为死机并触发紧急重启（`emergencyRestartGameLoop` → `setPausedDirect(false)`）。修复：两处检测均增加暂停状态跳过逻辑。
-
-### 新功能
-
 - **暂停/继续按钮精灵图切换** — 暂停状态显示 ▶ 播放按钮，运行状态显示 ⏸ 暂停按钮，直观区分
 - **暂停按钮接入主界面** — 在 UI 显隐切换按钮下方增加圆形暂停/继续按钮，无需进入设置即可暂停
 

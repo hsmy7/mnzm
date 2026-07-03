@@ -118,11 +118,16 @@ fun DiscipleDetailDialog(
             viewModel?.deactivateSubDialogDomain("EquipmentDetail")
         }
     }
-    // 离开组合时清理子界面域
+    // 弟子详情覆盖自身进入组合时激活 DiscipleDetail 域
+    LaunchedEffect(disciple.id) {
+        viewModel?.activateSubDialogDomain("DiscipleDetail")
+    }
+    // 离开组合时清理所有子界面域
     DisposableEffect(Unit) {
         onDispose {
             viewModel?.deactivateSubDialogDomain("ManualDetail")
             viewModel?.deactivateSubDialogDomain("EquipmentDetail")
+            viewModel?.deactivateSubDialogDomain("DiscipleDetail")
         }
     }
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }

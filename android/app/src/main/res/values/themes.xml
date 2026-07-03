@@ -5,8 +5,14 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
-    
+
     <style name="Theme.XianxiaSect.Splash" parent="Theme.XianxiaSect">
         <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+
+    <!-- GameActivity 安全模式主题 — 禁用硬件加速，绕过 Vulkan 驱动 Bug -->
+    <!-- 由 GameActivity.onCreate 按 VulkanPolicy 动态选择 -->
+    <style name="Theme.XianxiaSect.GameSafe" parent="Theme.XianxiaSect">
+        <item name="android:hardwareAccelerated">false</item>
     </style>
 </resources>

@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,22 +49,24 @@ fun DetailRightPanel(
     actions: DetailActionCallbacks,
     viewModel: GameViewModel?
 ) {
-    val context = LocalContext.current
     val dismissDropdown = LocalDismissDropdown.current
 
     Column(
         modifier = Modifier.fillMaxHeight().fillMaxWidth(0.4f).padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val portraitResId = PortraitPool.getResourceId(context, disciple.portraitRes)
-        Image(
-            painter = if (portraitResId != 0) painterResource(id = portraitResId)
-            else painterResource(id = SpriteResRegistry.resolve("disciple_portrait") ?: 0),
-            contentDescription = null,
-            modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
-            contentScale = ContentScale.Fit
-        )
-        Spacer(modifier = Modifier.height(12.dp))
+        val resId = PortraitPool.getResourceId(disciple.portraitRes)
+            .takeIf { it != 0 }
+            ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
+        if (resId != 0) {
+            Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         // 提前计算翻页索引，用于名称两侧的翻页按钮
         val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
         val hasPrev = currentIndex > 0

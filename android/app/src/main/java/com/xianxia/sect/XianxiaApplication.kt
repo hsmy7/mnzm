@@ -5,6 +5,7 @@ import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -20,6 +21,8 @@ import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
+import com.xianxia.sect.core.CrashRecoveryEngine
+import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
 
@@ -117,6 +120,18 @@ class XianxiaApplication : Application() {
 
         // 全厂商适配：根据当前设备厂商执行差异化适配策略
         ManufacturerAdapter.apply(this)
+
+        // ── 崩溃自愈引擎初始化 ──
+        // 必须在任何 Activity 启动前完成，GameActivity.onCreate 中会读取安全模式状态
+        CrashRecoveryEngine.initialize(this)
+        // 渲染策略诊断（记录到日志供 Bugly 分析）
+        VulkanPolicy.logDeviceDiagnostics(this)
+        // 渲染相关崩溃计数器 + 设备分级 → 决定是否进入安全模式
+        if (CrashRecoveryEngine.isSafeMode()) {
+            android.util.Log.w(TAG, "Render safe mode is ACTIVE — HW acceleration disabled for next GameActivity launch")
+        } else if (VulkanPolicy.detectTier(this) == VulkanPolicy.DeviceTier.PROBLEMATIC) {
+            android.util.Log.w(TAG, "Problematic device detected — crash recovery will activate on consecutive crashes")
+        }
 
         // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
         try {
@@ -521,6 +536,9 @@ class XianxiaApplication : Application() {
         SpriteResRegistry.register(SpriteCategory.PORTRAIT, mapOf(
             "disciple_portrait" to R.drawable.disciple_portrait
         ))
+
+        // 预加载弟子肖像资源 ID 映射（避免运行时 getIdentifier 字符串查找）
+        PortraitPool.initialize(this)
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()

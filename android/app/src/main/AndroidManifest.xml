@@ -83,6 +83,15 @@
         android:extractNativeLibs="true"
         android:hardwareAccelerated="true">
 
+        <!-- HWUI 渲染后端提示（Android 15+ 生效）：
+             告诉系统优先使用 Skia OpenGL 后端而非 Vulkan 后端，
+             避免国产 ROM Mali GPU Vulkan 驱动在 RenderThread 触发 SIGSEGV。
+             这是一个 HINT（提示），系统可能根据实际情况忽略此设置。
+             参见 docs/render-thread-crash-strategy.md -->
+        <meta-data
+            android:name="android.graphics.renderer"
+            android:value="skiagl" />
+
         <!-- Game Mode API (Android 12+) -->
         <meta-data
             android:name="com.android.app.gamemode.performance.enabled"
@@ -126,6 +135,7 @@
         <activity
             android:name=".ui.game.GameActivity"
             android:exported="false"
+            android:theme="@style/Theme.XianxiaSect"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize"

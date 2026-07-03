@@ -171,7 +171,9 @@ class GameViewModel @Inject constructor(
                     val crashReport = Class.forName("com.tencent.bugly.crashreport.CrashReport")
                     crashReport.getMethod("postCatchedException", Throwable::class.java)
                         .invoke(null, error.error)
-                } catch (_: Exception) { /* Bugly 不可用（测试环境等），忽略 */ }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Bugly not available, skipping postCatchedException", e)
+                }
                 showError("系统异常：${error.systemName}")
             }
         }

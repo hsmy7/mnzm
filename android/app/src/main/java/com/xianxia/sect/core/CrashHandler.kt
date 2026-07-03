@@ -90,10 +90,17 @@ class CrashHandler @Inject constructor(
         Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
 
         try {
-            // 1. 记录崩溃日志到文件
+            // 1. 通知崩溃自愈引擎（用于安全模式判定）
+            CrashRecoveryEngine.recordCrash(getStackTraceString(throwable))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to notify CrashRecoveryEngine", e)
+        }
+
+        try {
+            // 2. 记录崩溃日志到文件
             val crashLogFile = writeCrashLogToFile(thread, throwable)
 
-            // 2. 上传崩溃日志到远程服务器
+            // 3. 上传崩溃日志到远程服务器
             tryUploadCrashLog(crashLogFile)
 
             Log.i(TAG, "Crash handling completed, crash log saved to: ${crashLogFile?.absolutePath}")
