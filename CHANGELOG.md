@@ -23,6 +23,11 @@
 - **命名对话框键盘反复弹出收起** — `InlineStandardPromptDialog` 外层 Box 添加
   `imePadding`，`GameOverlayHost` 中 `onConfirm` lambda 用 `remember` 稳定引用，
   `SaveSelectScreen` 设置 `dismissOnClickOutside=false`。
+- **文本选择工具栏 BadTokenException（Bugly #3026）** — 在包含输入框的对话框中
+  选中文本后快速关闭对话框，FloatingActionMode（复制/粘贴/全选工具栏）在窗口
+  token 失效后弹出 PopupWindow 导致崩溃。双层保护：`Window.Callback` 拦截
+  ActionMode 生命周期 + `StandardPromptDialog`/`SmallScreenDialog` 在
+  `onDispose` 时清除焦点。
 
 ### 架构重构
 

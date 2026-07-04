@@ -25,6 +25,7 @@
 			"引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
 			"引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算",
 			"新增：弟子改名——详情界面点击名称可弹出输入框修改，长度2-10个字符，支持违禁词过滤"
+				"修复：文本选择工具栏BadTokenException(Bugly #3026)——FloatingActionMode在窗口token失效后弹出PopupWindow。Activity级Window.Callback拦截+平台Dialog的onDispose清除焦点"
 		]
 	},
 	{

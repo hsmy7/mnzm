@@ -109,6 +109,18 @@ fun StandardPromptDialog(
         // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
         DialogSoftInputGuard()
 
+        // Dialog 窗口销毁前清除焦点，防止文本选择 FloatingActionMode
+        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException
+        val dialogView = LocalView.current
+        DisposableEffect(Unit) {
+            onDispose {
+                dialogView.clearFocus()
+                val imm = dialogView.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                    as? android.view.inputmethod.InputMethodManager
+                imm?.hideSoftInputFromWindow(dialogView.windowToken, 0)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .width(dialogWidth)

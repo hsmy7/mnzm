@@ -52,6 +52,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.GpuRenderConfig
+import android.view.ActionMode
+import android.view.Window
 import kotlin.random.Random
 import javax.inject.Inject
 
@@ -164,6 +166,12 @@ class GameActivity : ComponentActivity() {
     @Volatile
     private var mapPreloadDataRef: MapPreloadData? = null
 
+    /**
+     * ActionMode 跟踪器：拦截 FloatingActionMode 生命周期，确保在 Activity 销毁前清理。
+     * 防止文本选择工具栏在窗口 token 无效后弹出导致 BadTokenException。
+     */
+    private var actionModeTracker: ActionModeSafeCallback? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // ── 渲染安全模式检测 ──
         // 在 super.onCreate() 前切换主题，使 hardwareAccelerated 生效
@@ -182,6 +190,10 @@ class GameActivity : ComponentActivity() {
 
         // 初始化并注册崩溃处理器
         setupCrashHandler()
+
+        // 拦截和管理 ActionMode 生命周期，防止 FloatingActionMode（文本选择工具栏）
+        // 在 Activity 销毁时弹出 PopupWindow 导致 BadTokenException
+        installActionModeSafeCallback()
 
         // 记录设备诊断信息到日志（供 Bugly / 崩溃分析使用）
         VulkanPolicy.logDeviceDiagnostics(this)
@@ -540,6 +552,9 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        // 在 super.onStop() 前结束活跃的文本选择 ActionMode，防止窗口 token 失效后
+        // FloatingActionMode 尝试弹出 PopupWindow 导致 BadTokenException
+        actionModeTracker?.finishActiveActionMode()
         super.onStop()
         try {
             saveLoadViewModel.pauseForBackground()
@@ -606,7 +621,80 @@ class GameActivity : ComponentActivity() {
         Log.d(TAG, "onGameServiceBound: GameForegroundService bound, gameEngineCore available")
     }
 
+    // ── ActionMode 安全回调 ──
+
+    /**
+     * 安装 [ActionModeSafeCallback] 包装 Activity 的 [Window.Callback]，
+     * 拦截 [ActionMode]（FloatingActionMode/文本选择工具栏）生命周期，
+     * 确保在 Activity 销毁前结束活跃的 ActionMode，防止
+     * [android.view.WindowManager.BadTokenException]。
+     */
+    private fun installActionModeSafeCallback() {
+        val original = window.callback ?: return
+        if (original is ActionModeSafeCallback) return
+        ActionModeSafeCallback(original).also {
+            window.callback = it
+            actionModeTracker = it
+        }
+    }
+
+    /**
+     * 安全的 [Window.Callback] 包装器，跟踪当前活跃的 [ActionMode]。
+     *
+     * 当 Activity 开始销毁时，通过 [finishActiveActionMode] 提前结束文本选择
+     * ActionMode，并标记 [isTearingDown]。销毁过程中若系统尝试创建新的
+     * ActionMode（如视图销毁触发的文本选择回调），立即将其 finish，
+     * 阻止 FloatingActionMode 弹出 PopupWindow 时抛出 BadTokenException。
+     */
+    private class ActionModeSafeCallback(
+        private val delegate: Window.Callback
+    ) : Window.Callback by delegate {
+
+        @Volatile
+        var activeActionMode: ActionMode? = null
+            private set
+
+        @Volatile
+        var isTearingDown: Boolean = false
+            private set
+
+        override fun onActionModeStarted(mode: ActionMode) {
+            if (isTearingDown) {
+                // 窗口正在销毁，立即结束新创建的 ActionMode 防止崩溃
+                try {
+                    mode.finish()
+                } catch (_: Exception) {
+                    // 静默 — 尽力而为的清理
+                }
+                return
+            }
+            activeActionMode = mode
+            delegate.onActionModeStarted(mode)
+        }
+
+        override fun onActionModeFinished(mode: ActionMode) {
+            if (activeActionMode === mode) {
+                activeActionMode = null
+            }
+            delegate.onActionModeFinished(mode)
+        }
+
+        fun finishActiveActionMode() {
+            activeActionMode?.let { mode ->
+                isTearingDown = true
+                try {
+                    mode.finish()
+                } catch (e: Exception) {
+                    Log.w(TAG, "finishActiveActionMode failed: ${e.message}")
+                }
+                activeActionMode = null
+            }
+        }
+    }
+
     override fun onDestroy() {
+        actionModeTracker?.finishActiveActionMode()
+        actionModeTracker = null
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
         frameMetricsMonitor.stopMonitoring(window)
