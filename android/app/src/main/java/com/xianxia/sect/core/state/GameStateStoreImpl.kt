@@ -421,7 +421,9 @@ class GameStateStoreImpl @Inject constructor(
     /** 影子创建时的存活弟子 ID 集合，用于合并时区分"死亡"与"新生儿" */
     private var shadowOriginAliveIds: Set<Int>? = null
 
-    override fun createSettlementShadow(): MutableGameState {
+    override fun createSettlementShadow(
+        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot>
+    ): MutableGameState {
         val gd = _gameDataFlow.value
         val ei = _equipmentInstancesFlow.value
         val mi = _manualInstancesFlow.value
@@ -452,6 +454,7 @@ class GameStateStoreImpl @Inject constructor(
             isLoading = _isLoading.value,
             isSaving = _isSaving.value,
             pendingNotification = _pendingNotificationFlow.value,
+            productionSlots = productionSlots,
             isSettlementShadow = true
         )
     }
@@ -462,6 +465,8 @@ class GameStateStoreImpl @Inject constructor(
             this.discipleTables = mergeDiscipleTables(
                 shadow.discipleTables, this.discipleTables, originIds
             )
+            // 影子可能携带了批量生产结算后的槽位状态
+            this.productionSlots = shadow.productionSlots
         }
         shadowOriginAliveIds = null
     }

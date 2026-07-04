@@ -1,6 +1,14 @@
 [
 	{
 		"date": "2026-07-04",
+		"version": "4.0.42",
+		"changes": [
+			"引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
+			"引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算"
+		]
+	},
+	{
+		"date": "2026-07-04",
 		"version": "4.0.39",
 		"changes": [
 			"修复：Xiaomi HyperOS键盘频闪——宗门名称输入框键盘反复弹出收起。创建DialogSoftInputGuard可复用Composable，临时切换windowSoftInputMode=adjustNothing切断震荡回路，覆盖全部8个输入框",

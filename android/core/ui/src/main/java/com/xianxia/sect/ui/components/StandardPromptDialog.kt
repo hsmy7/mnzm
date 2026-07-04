@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -64,7 +65,7 @@ fun DialogSoftInputGuard(
         .firstOrNull()
         ?.window
     val targetWindow = dialogWindow
-        ?: (LocalContext.current as? Activity)?.window
+        ?: (LocalActivity.current as? Activity)?.window
         ?: return
     val originalMode = remember { targetWindow.attributes.softInputMode }
     DisposableEffect(targetWindow) {

@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.42] - 2026-07-04（versionCode=4042）
+
+### 引擎优化
+
+- **PartnerSystem 并行化** — 弟子配对结算从串行改为 compute/apply 模式。
+  列直读（maps）替代 `assembleAll()` 全量对象组装，配对循环在 ParallelDispatcher
+  上执行，主线程零等待。热控关闭并行时自动退化为串行兜底。
+- **ProductionSubsystem 并行化 — 影子状态方案** — 生产槽位加入 `MutableGameState`，
+  批量结算在影子状态上运行真实生产代码（`processAutoAlchemy`/`processAutoForge`/
+  `processBuildingProduction`/`processHerbGardenGrowth`等），与串行路径 100% 一致。
+  删除 540 行 `ProductionBatchSimulator` 模拟器代码。药园/炼丹/锻造政策加成完整计算。
+  热控关闭并行时自动退化为串行兜底。
+- **生产槽位统一状态管理** — 生产槽位加入 `MutableGameState`，`createSettlementShadow()`
+  自动包含槽位快照，`ProductionBatchResult.apply` 直接替换影子中的 EntityStore。
+
 ## [4.0.39] - 2026-07-04（versionCode=4039）
 
 ### Bug 修复

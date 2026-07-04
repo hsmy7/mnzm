@@ -4,6 +4,8 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.engine.system.InventoryFactories
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
@@ -581,5 +583,355 @@ class ProductionProcessor @Inject constructor(
 
     fun processSpiritMineProduction(state: MutableGameState) {
         cultivationSettlement.processSpiritMineProduction(state)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 影子状态批量生产方法
+    //
+    // 操作 [MutableGameState]（shadow）和 [MutableList]（productionSlots），
+    // 不走 Repository/stateStore，用于并行 computePhaseTick。
+    // 与现有同名方法的区别：所有 I/O 方向改为本地列表 + state 字段。
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 在影子状态上模拟 N 个月的生产循环。
+     * 可由 [ProductionSubsystem.computePhaseTick] 在 ParallelDispatcher 上调用。
+     */
+    suspend fun processMonthlyProductionOnSlots(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState,
+        months: Int
+    ) {
+        repeat(months) {
+            batchAutoAlchemy(slots, state)
+            batchAutoForge(slots, state)
+            batchBuildingCompletion(slots, state)
+            batchHerbGardenGrowth(slots, state)
+            batchSpiritFieldHarvest(slots, state)
+            batchAutoPlant(slots, state)
+        }
+    }
+
+    /** 影子版自动炼丹：从 state 读取政策/草药，直接修改 slots */
+    private suspend fun batchAutoAlchemy(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val gd = state.gameData
+        val policyBonus = if (gd.sectPolicies.alchemyIncentive)
+            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+
+        val idleSlotIndices = slots
+            .filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY }
+            .filter { it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
+                && !it.assignedDiscipleId.isNullOrEmpty() }
+            .map { it.slotIndex }
+
+        for (slotIndex in idleSlotIndices) {
+            val currentHerbs = state.herbs.all()
+            val recipeToStart = findRecipe(allRecipes, currentHerbs) ?: break
+            val slotIdx = slots.indexOfFirst { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY && it.slotIndex == slotIndex }
+            if (slotIdx < 0) continue
+
+            // 消耗材料
+            consumeHerbsForRecipeLocal(recipeToStart.materials, currentHerbs, state)
+            val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
+
+            val assignedId = slots[slotIdx].assignedDiscipleId
+            val assignedName = slots[slotIdx].assignedDiscipleName
+            slots[slotIdx] = slots[slotIdx].copy(
+                status = ProductionSlotStatus.WORKING,
+                recipeId = recipeToStart.id,
+                recipeName = recipeToStart.name,
+                startYear = gd.gameYear,
+                startMonth = gd.gameMonth,
+                duration = recipeToStart.duration,
+                successRate = (recipeToStart.successRate + policyBonus).coerceIn(0.0, 1.0),
+                completionMonth = absoluteMonth + recipeToStart.duration.coerceAtLeast(1),
+                completionPhase = 3,
+                outputItemId = recipeToStart.id,
+                outputItemName = recipeToStart.name,
+                outputItemRarity = recipeToStart.rarity
+            )
+        }
+    }
+
+    /** 影子版自动锻造 */
+    private suspend fun batchAutoForge(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val gd = state.gameData
+        val policyBonus = if (gd.sectPolicies.forgeIncentive)
+            GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+        val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+        val materialIndex = state.materials.all().groupBy { it.name to it.rarity }
+            .mapValues { (_, list) -> list.sumOf { it.quantity } }
+
+        val idleSlotIndices = slots
+            .filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE }
+            .filter { it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
+                && !it.assignedDiscipleId.isNullOrEmpty() }
+            .map { it.slotIndex }
+
+        for (slotIndex in idleSlotIndices) {
+            val recipeToStart = findForgeRecipe(allRecipes, materialIndex) ?: break
+            val slotIdx = slots.indexOfFirst { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE && it.slotIndex == slotIndex }
+            if (slotIdx < 0) continue
+
+            consumeMaterialsForRecipeLocal(recipeToStart.materials, state)
+            val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
+            val duration = ForgeRecipeDatabase.getDurationByTier(recipeToStart.tier)
+
+            slots[slotIdx] = slots[slotIdx].copy(
+                status = ProductionSlotStatus.WORKING,
+                recipeId = recipeToStart.id,
+                recipeName = recipeToStart.name,
+                startYear = gd.gameYear,
+                startMonth = gd.gameMonth,
+                duration = duration,
+                successRate = (recipeToStart.successRate + policyBonus).coerceIn(0.0, 1.0),
+                completionMonth = absoluteMonth + duration.coerceAtLeast(1),
+                completionPhase = 3,
+                outputItemId = recipeToStart.id,
+                outputItemName = recipeToStart.name,
+                outputItemRarity = recipeToStart.rarity
+            )
+        }
+    }
+
+    /** 影子版生产完成检测 */
+    private suspend fun batchBuildingCompletion(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val year = state.gameData.gameYear
+        val month = state.gameData.gameMonth
+
+        for (i in slots.indices) {
+            val slot = slots[i]
+            if (slot.status != ProductionSlotStatus.WORKING) continue
+            if (!slot.isFinished(year, month)) continue
+
+            when (slot.buildingType) {
+                com.xianxia.sect.core.model.production.BuildingType.FORGE -> {
+                    slot.recipeId?.let { rid ->
+                        val recipe = ForgeRecipeDatabase.getRecipeById(rid)
+                        if (recipe != null) {
+                            val equipment = InventoryFactories.createEquipmentFromRecipe(recipe)
+                            state.equipmentStacks.add(equipment)
+                        }
+                    }
+                    slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
+                        state.discipleTables.statuses[did] = DiscipleStatus.IDLE
+                    }
+                    slots[i] = ProductionSlot.createIdle(
+                        id = slot.id, slotIndex = slot.slotIndex,
+                        buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
+                        buildingId = slot.buildingId,
+                        autoRestartEnabled = slot.autoRestartEnabled,
+                        assignedDiscipleId = slot.assignedDiscipleId,
+                        assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                        recipeId = slot.recipeId
+                    )
+                }
+                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY -> {
+                    val success = kotlin.random.Random.nextDouble() <= slot.successRate
+                    if (success) {
+                        val grade = com.xianxia.sect.core.model.PillGrade.random()
+                        val baseId = slot.recipeId?.substringBeforeLast("_")
+                        val template = baseId?.let { ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}") }
+                        val pill = if (template != null) ItemDatabase.createPillFromTemplate(template)
+                        else com.xianxia.sect.core.model.Pill(
+                            name = slot.outputItemName, rarity = slot.outputItemRarity,
+                            grade = grade, category = PillCategory.CULTIVATION,
+                            description = "通过炼丹炉炼制而成",
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                            quantity = 1
+                        )
+                        state.pills.add(pill)
+                    }
+                    slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
+                        state.discipleTables.statuses[did] = DiscipleStatus.IDLE
+                    }
+                    slots[i] = ProductionSlot.createIdle(
+                        id = slot.id, slotIndex = slot.slotIndex,
+                        buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
+                        buildingId = slot.buildingId,
+                        autoRestartEnabled = slot.autoRestartEnabled,
+                        assignedDiscipleId = slot.assignedDiscipleId,
+                        assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                        recipeId = slot.recipeId
+                    )
+                }
+                else -> { }
+            }
+        }
+    }
+
+    /** 影子版药园生长完成 */
+    private suspend fun batchHerbGardenGrowth(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val year = state.gameData.gameYear
+        val month = state.gameData.gameMonth
+        val herbPolicyBonus = if (state.gameData.sectPolicies.herbCultivation)
+            GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
+
+        for (i in slots.indices) {
+            val slot = slots[i]
+            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN) continue
+            if (slot.status != ProductionSlotStatus.WORKING) continue
+            if (!slot.isFinished(year, month)) continue
+
+            val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
+                ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
+            if (herb != null) {
+                val baseYield = slot.expectedYield.coerceAtLeast(1)
+                val actualYield = if (herbPolicyBonus > 0.0)
+                    (baseYield + (baseYield * herbPolicyBonus).toInt()).coerceAtLeast(1)
+                else baseYield
+                state.herbs.add(Herb(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = herb.name, rarity = herb.rarity,
+                    description = herb.description, category = herb.category,
+                    quantity = actualYield
+                ))
+            }
+            slots[i] = ProductionSlot.createIdle(
+                id = slot.id, slotIndex = slot.slotIndex,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
+                buildingId = slot.buildingId,
+                autoRestartEnabled = slot.autoRestartEnabled,
+                recipeId = slot.recipeId
+            )
+        }
+    }
+
+    /** 影子版灵田收获（已用 state，直接复用） */
+    suspend fun batchSpiritFieldHarvest(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        // processSpiritFieldHarvest 已操作 state，只需确保 year/month 来自 state
+        processSpiritFieldHarvest(state)
+    }
+
+    /** 影子版自动种植 */
+    private suspend fun batchAutoPlant(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val gd = state.gameData
+        val idleSlots = slots.filter {
+            it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN &&
+                it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
+        }
+        if (idleSlots.isEmpty()) return
+
+        val sortedSeeds = state.seeds.all().filter { it.quantity > 0 }
+            .sortedByDescending { it.rarity }
+        val plantedIds = mutableSetOf<String>()
+
+        for (slot in idleSlots) {
+            val seed = sortedSeeds.firstOrNull { it.id !in plantedIds } ?: break
+            plantedIds.add(seed.id)
+            val idx = slots.indexOfFirst { it.id == slot.id }
+            if (idx < 0) continue
+
+            val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
+            val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
+            val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
+
+            slots[idx] = com.xianxia.sect.core.model.production.ProductionSlot(
+                id = slot.id, slotIndex = slot.slotIndex, slotId = slot.slotId,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
+                buildingId = slot.buildingId,
+                status = ProductionSlotStatus.WORKING,
+                recipeId = herbDbSeedId ?: seed.id, recipeName = seed.name,
+                startYear = gd.gameYear, startMonth = gd.gameMonth,
+                duration = seed.growTime,
+                outputItemId = herbId ?: "", outputItemName = seed.name,
+                expectedYield = seed.yield,
+                autoRestartEnabled = slot.autoRestartEnabled,
+                completionMonth = absoluteMonth + seed.growTime.coerceAtLeast(1),
+                completionPhase = 3
+            )
+            val newQty = seed.quantity - 1
+            state.seeds.remove(seed.id)
+            if (newQty > 0) state.seeds.add(seed.copy(quantity = newQty))
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 影子版工具方法
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun findRecipe(
+        recipes: List<PillRecipeDatabase.PillRecipe>,
+        herbs: List<Herb>
+    ): PillRecipeDatabase.PillRecipe? {
+        return recipes.firstOrNull { recipe ->
+            recipe.materials.all { (herbId, requiredQty) ->
+                val herbData = HerbDatabase.getHerbById(herbId) ?: return@all false
+                herbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
+                    .sumOf { it.quantity } >= requiredQty
+            }
+        }
+    }
+
+    private fun findForgeRecipe(
+        recipes: List<ForgeRecipeDatabase.ForgeRecipe>,
+        materialIndex: Map<Pair<String, Int>, Int>
+    ): ForgeRecipeDatabase.ForgeRecipe? {
+        return recipes.firstOrNull { recipe ->
+            recipe.materials.all { (materialId, requiredQty) ->
+                val matData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
+                matData != null && (materialIndex[matData.name to matData.rarity] ?: 0) >= requiredQty
+            }
+        }
+    }
+
+    private fun consumeHerbsForRecipeLocal(
+        materials: Map<String, Int>,
+        herbs: List<Herb>,
+        state: MutableGameState
+    ) {
+        for ((herbId, requiredQty) in materials) {
+            val herbData = HerbDatabase.getHerbById(herbId) ?: continue
+            var remaining = requiredQty
+            val iter = state.herbs.all().iterator()
+            while (iter.hasNext() && remaining > 0) {
+                val herb = iter.next()
+                if (herb.name != herbData.name || herb.rarity != herbData.rarity) continue
+                val consume = minOf(remaining, herb.quantity)
+                remaining -= consume
+                val newQty = herb.quantity - consume
+                if (newQty <= 0) state.herbs.remove(herb.id)
+                else state.herbs.update(herb.id) { it.copy(quantity = newQty) }
+            }
+        }
+    }
+
+    private fun consumeMaterialsForRecipeLocal(
+        materials: Map<String, Int>,
+        state: MutableGameState
+    ) {
+        for ((materialId, requiredQty) in materials) {
+            val matData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId) ?: continue
+            var remaining = requiredQty
+            val iter = state.materials.all().iterator()
+            while (iter.hasNext() && remaining > 0) {
+                val item = iter.next()
+                if (item.name != matData.name || item.rarity != matData.rarity) continue
+                val consume = minOf(remaining, item.quantity)
+                remaining -= consume
+                val newQty = item.quantity - consume
+                if (newQty <= 0) state.materials.remove(item.id)
+                else state.materials.update(item.id) { it.copy(quantity = newQty) }
+            }
+        }
     }
 }

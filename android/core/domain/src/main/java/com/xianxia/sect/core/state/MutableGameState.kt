@@ -2,6 +2,7 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.production.ProductionSlot
 
 data class MutableGameState(
     var gameData: GameData,
@@ -21,6 +22,7 @@ data class MutableGameState(
     var isLoading: Boolean,
     var isSaving: Boolean,
     var pendingNotification: GameNotification? = null,
+    var productionSlots: List<ProductionSlot> = emptyList(),
     var isSettlementShadow: Boolean = false
 )
 

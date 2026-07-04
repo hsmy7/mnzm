@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
@@ -330,6 +331,15 @@ class CultivationService @Inject constructor(
 
     internal suspend fun processAutoForge() {
         productionProcessor.processAutoForge()
+    }
+
+    /** 影子状态批量生产循环（委托 ProductionProcessor 的 shadow 版方法） */
+    internal suspend fun processMonthlyProductionOnSlots(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState,
+        months: Int
+    ) {
+        productionProcessor.processMonthlyProductionOnSlots(slots, state, months)
     }
 
     // ── 委托方法：MerchantAndRecruitService ────────────────────────────

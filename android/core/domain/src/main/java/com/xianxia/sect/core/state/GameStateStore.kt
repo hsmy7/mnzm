@@ -134,7 +134,9 @@ interface GameStateStore : GameStateSnapshotProvider {
     suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R
 
     // === Shadow/Transaction API ===
-    fun createSettlementShadow(): MutableGameState
+    fun createSettlementShadow(
+        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
+    ): MutableGameState
     suspend fun swapFromShadow(shadow: MutableGameState)
 
     /**

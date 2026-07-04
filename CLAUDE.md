@@ -170,7 +170,9 @@ tickInternal() 每 100ms
 **核心原则：**
 - **焦点域决定轨道** — 当前界面所在域声明的系统走实时轨，其他系统走批量轨
 - **单路径原则** — 每个系统只在一个结算路径上运行
-- **无影子** — 批量轨不持有持久影子，临时影子仅用于指纹检测（只读即弃）
+- **影子状态** — 批量轨不持有持久影子。生产结算在 `computePhaseTick` 中创建临时影子，
+    影子中包含 `productionSlots`（`MutableGameState.productionSlots`），在其上运行
+    真实生产代码，diff 出增量后 apply，只读即弃
 - **突破检测仅在实时轨** — `CultivationTickSystem.onPhaseTick` 中 `phasesToSettle==1` 时调用 `processBreakthroughs`
 - **焦点域 = 视角驱动 + 域声明系统** — 每个 UI 界面对应一个 FocusDomain，域通过 `systemClasses` 声明激活时需实时 tick 的系统。如在弟子 Tab 则 DISCIPLE_LIST 域激活 → CultivationTickSystem 实时 tick
 - **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
@@ -210,6 +212,15 @@ tickInternal() 每 100ms
 2. 实现 `suspend fun computePhaseTick(ctx, phases): ParallelPhaseResult`
 3. 返回的 `ParallelPhaseResult.apply()` 在 `stateStore.update` 块中被调用
 4. 原有 `onPhaseTick` 保留执行轻量操作（通过内部标志跳过已并行计算的重型部分）
+
+**影子状态模式（推荐用于有复杂业务逻辑的系统）：**
+对于生产结算这类需要运行真实业务代码的系统，采用影子状态模式替代纯函数模拟器：
+1. 确保所有结算所需状态在 `MutableGameState` 中（如 `productionSlots`）
+2. `computePhaseTick` 中调用 `stateStore.createSettlementShadow(slots)` 创建影子
+3. 在影子上运行真实的生产代码（不走 Repository/stateStore，操作本地列表）
+4. Diff 影子 vs 原始快照，生成增量 `ItemOp` / `ProductionBatchDelta`
+5. `apply` 中增量应用到真实状态，不整表替换 EntityStore
+6. 槽位等不在影子中的状态通过 `onPhaseTick` 写回 Repository
 
 ### Formula Architecture: Zone Multiplier System（乘区法）
 
@@ -371,7 +382,7 @@ Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T :
 - **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配
 - **EntityStore snapshot**: `entityStore.freeze()` before StateFlow emission — 仅在 dirty 时分配新 List
 - **Shadow copies**: `DiscipleTables.deepCopy()` copies each table directly (value types: int/double are value-copied; List/Map types are deep-copied via .toList()/.toMap())
-- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, etc.
+- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, `productionSlots: List<ProductionSlot>`（v4.0.42 新增，结算影子中自动包含槽位快照）
 
 ### 并发模型：可重入 Mutex 显式计数 (R5, v4.0.38)
 
@@ -821,8 +832,12 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
 | 🔴 | 新增/改动界面已重新评估焦点域映射（FocusDomain 枚举 + InterfaceDomainMap） |
+| 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
 | 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |
 | 🔴 | 新增 UI 界面使用 `SpriteImage()` 或 `SpriteResRegistry.resolve()` 而非直接 `R.drawable.xxx` |
+| 🔴 | 新增支持并行结算的系统按影子状态模式实施（或在 `computePhaseTick` 中实现纯函数模拟器） |
+| 🔴 | 影子状态 diff 必须包含完全消耗物品（`diffRemovedItems`），不得使用整表 EntityStore 替换 |
+| 🔴 | 批量结算中修改 `gameData` 字段（如 `spiritFieldPlants`）必须通过特定字段同步，不得整表替换 |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
