@@ -130,8 +130,10 @@ class XianxiaApplication : Application() {
         VulkanPolicy.logDeviceDiagnostics(this)
         // 渲染相关崩溃计数器 + 设备分级 → 决定是否进入安全模式
         if (CrashRecoveryEngine.isSafeMode()) {
-            android.util.Log.w(TAG, "Render safe mode is ACTIVE — HW acceleration disabled for next GameActivity launch")
-        } else if (VulkanPolicy.detectTier(this) == VulkanPolicy.DeviceTier.PROBLEMATIC) {
+            android.util.Log.w(TAG,
+                "Render safe mode is ACTIVE — HW acceleration disabled")
+        } else if (VulkanPolicy.detectTier(this)
+            == VulkanPolicy.DeviceTier.PROBLEMATIC) {
             android.util.Log.w(TAG, "Problematic device detected — crash recovery will activate on consecutive crashes")
         }
 

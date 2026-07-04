@@ -122,6 +122,7 @@ object VulkanPolicy {
     /**
      * 检测当前设备的渲染安全等级。
      */
+    @Suppress("ReturnCount")
     fun detectTier(context: Context): DeviceTier {
         val model = Build.MODEL.lowercase()
         val manufacturer = Build.MANUFACTURER.lowercase()
@@ -178,7 +179,7 @@ object VulkanPolicy {
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.w(TAG, "Failed to query Vulkan feature", e)
         }
 

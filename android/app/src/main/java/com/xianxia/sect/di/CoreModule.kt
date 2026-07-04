@@ -54,6 +54,7 @@ object CoreModule {
     @Singleton
     fun provideEventBusPort(eventBus: EventBus): EventBusPort = eventBus
 
+    @Suppress("LongParameterList")
     @Provides
     @Singleton
     fun provideSystemManager(

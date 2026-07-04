@@ -55,7 +55,7 @@ object CrashRecoveryEngine {
     }
 
     private fun requirePrefs(): SharedPreferences {
-        return prefs ?: throw IllegalStateException(
+        return prefs ?: error(
             "CrashRecoveryEngine not initialized. Call initialize() first.")
 
     }
