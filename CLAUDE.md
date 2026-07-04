@@ -175,6 +175,42 @@ tickInternal() 每 100ms
 - **焦点域 = 视角驱动 + 域声明系统** — 每个 UI 界面对应一个 FocusDomain，域通过 `systemClasses` 声明激活时需实时 tick 的系统。如在弟子 Tab 则 DISCIPLE_LIST 域激活 → CultivationTickSystem 实时 tick
 - **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
 
+### Threading Architecture: Four Dispatchers（四线程模型）
+
+```
+┌─ GameEngine-Thread（单线程，MAX_PRIORITY，非守护）────────────┐
+│  · frame-driven accumulator 游戏循环                           │
+│  · tickInternal() → stateStore.update { }（唯一写入口）         │
+├─────────────────────────────────────────────────────────────┤
+├─ ParallelDispatcher（线程池，N=大核数，MAX_PRIORITY-1）───────┤
+│  · computePhaseTick 只读计算（SystemManager.executeParallel） │
+│  · 弟子循环分块并行（CultivationCore.computeBatch）            │
+│  · 只读不写 → 结果在 GameThread 的 update 块中 apply           │
+├─────────────────────────────────────────────────────────────┤
+├─ BackgroundDispatcher（线程池，2 线程，MIN_PRIORITY+1）───────┤
+│  · BackgroundJobScheduler 后台 Job                            │
+│  · 存档压缩/序列化/IO                                         │
+├─────────────────────────────────────────────────────────────┤
+├─ Watchdog（独立单线程，NORM_PRIORITY，非守护）────────────────┤
+│  · 监控 GameThread 卡死（不变）                                │
+├─────────────────────────────────────────────────────────────┤
+└─ Compose UI Thread（Android Main）───────────────────────────┘
+```
+
+**关键设计决策：**
+
+- **compute/apply 分离** — 所有并行计算分两阶段：`compute`（只读，在 ParallelDispatcher 上 N 路并行）→ `apply`（在主线程的 `stateStore.update` 块中原子写入）
+- **`@Volatile forceSerialByThermal`** — `ThermalController` 检测到发热或低帧率时，通过 `DeviceCapabilityProfiler.forceSerialByThermal` 实时关闭并行，`enableParallelTick` 每次读取都检查此标志
+- **阈值保护** — 弟子数 < 50 时自动走串行（`CultivationCore.MIN_PARALLEL_THRESHOLD`），避免分块调度开销淹没计算收益
+- **不修改 `stateStore.update` 的 Mutex 模型** — 并行 compute 在外面跑，只有 apply 进锁，锁内路径不变
+- **`ParallelWorkerPool` 已废弃**（`@Deprecated`），新代码使用 `DeviceCapabilityProfiler.parallelDispatcher` + coroutineScope
+
+**GameSystem 迁移步骤：**
+1. 类上设置 `override val supportsParallelTick = true`
+2. 实现 `suspend fun computePhaseTick(ctx, phases): ParallelPhaseResult`
+3. 返回的 `ParallelPhaseResult.apply()` 在 `stateStore.update` 块中被调用
+4. 原有 `onPhaseTick` 保留执行轻量操作（通过内部标志跳过已并行计算的重型部分）
+
 ### Formula Architecture: Zone Multiplier System（乘区法）
 
 所有数值计算遵循**"乘区内加算、乘区间乘算"**的乘区法设计：
@@ -286,10 +322,31 @@ Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow 
 - 仅指纹变化时（罕见）回退到完整 `createSettlementShadow()` 构建 SettlementCache
 - `take(store)` 工厂方法从 `store.discipleTables`、`store.gameData.value`、`store.equipmentInstances.value` 取值
 
-**ParallelWorkerPool (R16, v4.0.40)：**
+**ParallelWorkerPool (R16, v4.0.40，已废弃)：**
 - 轻量并行计算辅助池，将两个独立计算任务分发到 `Dispatchers.Default` 并行执行
 - 所有 Worker 为纯函数（只读输入 → 值输出），禁止修改状态
 - 当前用于 `accumulateBatch`：指纹计算 + 进度分类两路并行
+- **新代码请使用 `DeviceCapabilityProfiler.parallelDispatcher` + coroutineScope**
+
+**并发基础设施（v4.0.40 新增）：**
+
+| 类 | 职责 | 所在文件 |
+|----|------|---------|
+| `DeviceCapabilityProfiler` | 设备能力检测 + 管理 `parallelDispatcher`/`backgroundDispatcher` 两个独立线程池 | `core/engine/.../concurrent/` |
+| `ParallelExecutionContext` | 并行 compute 阶段的只读状态快照 | 同上 |
+| `BackgroundJobScheduler` | 后台任务调度器，使用低优先级 `backgroundDispatcher` | 同上 |
+| `ThermalController` | 热控检测，发热/低帧率时关闭并行 | 同上 |
+| `CultivationBatchResult` | `CultivationTickSystem` 并行 compute 的结果容器 | 同上 |
+| `ParallelPhaseResult` | 并行计算结果的 apply 接口 | 同上 |
+
+**四线程调度模型：**
+
+| 调度器 | 线程数 | 优先级 | 用途 |
+|--------|--------|--------|------|
+| `GameDispatcher` (GameEngine-Thread) | 1 | MAX (-19) | 游戏循环 + stateStore 写入口 |
+| `parallelDispatcher` | 大核数 | MAX-1 | compute 阶段只读并行计算 |
+| `backgroundDispatcher` | 2 | MIN+1 | 批量结算/IO/存档 |
+| `Watchdog` | 1 | NORM | 监控卡死 |
 
 **Key rules:**
 - **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(log n), no allocation

@@ -1,5 +1,33 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.40] - 2026-07-04（versionCode=4040）
+
+### 架构重构
+
+- **游戏线程并行化** — 新增 `DeviceCapabilityProfiler` 设备能力分析器，8 核/6GB+ RAM 设备自动启用 4 路并行调度
+- **独立线程池隔离** — 新增高优先级 `parallelDispatcher`（tick 内并行计算，绑定大核）和低优先级 `backgroundDispatcher`（后台批量任务，绑定小核），不再与 App 其他代码抢占 `Dispatchers.Default`
+- **弟子循环分块并行** — `CultivationCore.computeBatchCultivationDelta` 在弟子数 > 50 时自动将 for 循环拆为多块，分发到 `parallelDispatcher` 并行计算后合并，3000 弟子预期 30ms → ~8ms
+- **并行计算框架** — `GameSystem` 新增 `computePhaseTick` 接口 + `ParallelPhaseResult.apply` 分离模式，`CultivationTickSystem` 首批迁移
+- **后台作业调度器** — `BackgroundJobScheduler` 使用独立低优先级线程池，承接后台批量计算/深拷贝/IO 任务
+- **热控动态降级** — `ThermalController` 检测到设备温度 > 45°C 或帧率连续低于 25fps 时自动关闭并行，退化为单线程防止过热降频；冷却后自动恢复
+
+### 新增文件
+
+| 文件 | 用途 |
+|------|------|
+| `concurrent/DeviceCapabilityProfiler.kt` | 设备能力检测与线程池管理 |
+| `concurrent/ParallelExecutionContext.kt` | 并行 compute 只读快照 + PhaseResult 接口 |
+| `concurrent/BackgroundJobScheduler.kt` | 后台作业调度器 |
+| `concurrent/ThermalController.kt` | 热控降级控制器 |
+| `concurrent/CultivationBatchResult.kt` | 修炼并行计算结果容器 |
+
+### 测试覆盖
+
+- 新增 `DeviceCapabilityProfilerTest`（8 个用例）— 硬件检测、线程池分发、日志摘要
+- 新增 `CultivationCoreConcurrencyTest`（4 个用例）— 串行计算正确性、确定性验证、零旬不变性、多旬累积
+
+---
+
 ## [4.0.39] - 2026-07-04（versionCode=4039）
 
 ### Bug 修复

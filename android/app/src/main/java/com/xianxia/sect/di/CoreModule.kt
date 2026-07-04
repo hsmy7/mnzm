@@ -65,7 +65,8 @@ object CoreModule {
         partnerSystem: PartnerSystem,
         childBirthSystem: ChildBirthSystem,
         productionSubsystem: ProductionSubsystem,
-        economySubsystem: EconomySubsystem
+        economySubsystem: EconomySubsystem,
+        profiler: com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
     ): SystemManager = SystemManager(
         setOf(
             timeSystem,
@@ -77,7 +78,8 @@ object CoreModule {
             childBirthSystem,
             productionSubsystem,
             economySubsystem
-        )
+        ),
+        profiler
     )
 
     @Provides

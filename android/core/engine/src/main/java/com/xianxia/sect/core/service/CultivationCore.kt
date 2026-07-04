@@ -16,7 +16,14 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.concurrent.CultivationBatchResult
+import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DomainLog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -115,7 +122,8 @@ class CultivationCore @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val pillManager: DisciplePillManager,
     private val equipmentManager: DiscipleEquipmentManager,
-    private val manualManager: DiscipleManualManager
+    private val manualManager: DiscipleManualManager,
+    private val profiler: DeviceCapabilityProfiler = DeviceCapabilityProfiler()
 ) {
 
     val phaseMultiplier: Int get() = 10
@@ -398,6 +406,254 @@ class CultivationCore @Inject constructor(
             state.gameData = gameData.copy(
                 manualProficiencies = updatedProficiencies
             )
+        }
+    }
+
+    /**
+     * 并行 compute 版批量结算 — 在 deepCopy 上计算，返回结果。
+     *
+     * 弟子数 ≥ [MIN_PARALLEL_THRESHOLD] 时自动将弟子循环拆分为多块，
+     * 分发到 [Dispatchers.Default] 并行执行，然后合并结果。
+     * 弟子数较少时保持串行（避免调度开销）。
+     *
+     * @param workingTables deepCopy 后的弟子表（计算在此副本上进行）
+     * @param gameData 快照时的 GameData
+     * @param equipmentInstances 快照时的装备实例列表
+     * @param manualInstances 快照时的功法实例列表
+     * @param phasesToSettle 需结算的旬数
+     */
+    suspend fun computeBatchCultivationDelta(
+        workingTables: DiscipleTables,
+        gameData: GameData,
+        equipmentInstances: List<EquipmentInstance>,
+        manualInstances: List<ManualInstance>,
+        phasesToSettle: Int
+    ): CultivationBatchResult {
+        if (phasesToSettle <= 0) {
+            return CultivationBatchResult(workingTables, null, null)
+        }
+
+        val aliveIds = workingTables.ids.filter { workingTables.isAlive[it] == 1 }
+        val equipmentMap = equipmentInstances.associateBy { it.id }
+        val manualMap = manualInstances.associateBy { it.id }
+        val nurtureGainPerPhase =
+            5.0 * GameTimeClock.MS_PER_PHASE_1X / 1000.0
+
+        // 判断是否需要并行
+        val useParallel = profiler.enableParallelTick && aliveIds.size >= MIN_PARALLEL_THRESHOLD
+
+        if (useParallel) {
+            return computeBatchParallel(
+                workingTables, gameData, equipmentMap, manualMap,
+                nurtureGainPerPhase, phasesToSettle, aliveIds
+            )
+        }
+
+        // 串行路径（与 batchSettleCultivation 相同逻辑，但不写 MutableGameState）
+        return computeBatchSerial(
+            workingTables, gameData, equipmentMap, manualMap,
+            nurtureGainPerPhase, phasesToSettle, aliveIds
+        )
+    }
+
+    /**
+     * 串行计算（单线程，与 [batchSettleCultivation] 逻辑一致）。
+     */
+    private fun computeBatchSerial(
+        workingTables: DiscipleTables,
+        gameData: GameData,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        nurtureGainPerPhase: Double,
+        phasesToSettle: Int,
+        aliveIds: List<Int>
+    ): CultivationBatchResult {
+        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+        var updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+
+        for (id in aliveIds) {
+            val disciple = workingTables.assemble(id)
+            settleCultivationInPlace(disciple, id, workingTables, gameData,
+                phasesToSettle)
+            settleProficiencyInPlace(disciple, gameData, manualMap,
+                phasesToSettle, updatedProficiencies)
+            settleNurtureInPlace(id, workingTables, equipmentMap,
+                nurtureGainPerPhase, phasesToSettle, equipmentUpdates)
+        }
+
+        val profResult = if (updatedProficiencies != gameData.manualProficiencies)
+            updatedProficiencies.toMap() else null
+        val equipResult = if (equipmentUpdates.isNotEmpty())
+            equipmentUpdates.toMap() else null
+        return CultivationBatchResult(workingTables, profResult, equipResult)
+    }
+
+    /**
+     * 并行计算 — 将弟子 ID 分块，每块在 [Dispatchers.Default] 上独立计算。
+     *
+     * 每个块使用独立的本地映射，避免线程安全问题。
+     * 所有块完成后在主线程合并结果。
+     */
+    private suspend fun computeBatchParallel(
+        workingTables: DiscipleTables,
+        gameData: GameData,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        nurtureGainPerPhase: Double,
+        phasesToSettle: Int,
+        aliveIds: List<Int>
+    ): CultivationBatchResult {
+        val parallelism = profiler.recommendedWorkerCount.coerceIn(2, 8)
+        val chunkSize = (aliveIds.size / parallelism).coerceAtLeast(CHUNK_SIZE)
+        val chunks = aliveIds.chunked(chunkSize)
+        val startTime = System.nanoTime()
+
+        // 在 Dispatchers.Default 上并行计算每块
+        val chunkResults = withContext(profiler.parallelDispatcher) {
+            coroutineScope {
+                chunks.map { chunk ->
+                    async {
+                        computeChunk(chunk, workingTables, gameData, equipmentMap,
+                            manualMap, nurtureGainPerPhase, phasesToSettle)
+                    }
+                }.mapNotNull { it.await() }
+            }
+        }
+
+        // 合并结果到 workingTables
+        val finalProfs = gameData.manualProficiencies.toMutableMap()
+        val finalEquips = mutableMapOf<String, EquipmentInstance>()
+
+        for (cr in chunkResults) {
+            if (cr == null) continue
+            for ((id, value) in cr.cultivationWrites) {
+                workingTables.cultivations[id] = value
+            }
+            for ((discipleId, profs) in cr.profWrites) {
+                finalProfs[discipleId] = profs
+            }
+            finalEquips.putAll(cr.equipWrites)
+        }
+
+        val elapsed = (System.nanoTime() - startTime) / 1_000_000
+        DomainLog.d(TAG,
+            "computeBatchParallel: ${aliveIds.size} disciples in " +
+            "${chunks.size} chunks × $parallelism workers, " +
+            "took ${elapsed}ms")
+
+        val profResult = if (finalProfs != gameData.manualProficiencies)
+            finalProfs.toMap() else null
+        val equipResult = if (finalEquips.isNotEmpty())
+            finalEquips.toMap() else null
+        return CultivationBatchResult(workingTables, profResult, equipResult)
+    }
+
+    /** 单个块的并行计算结果 */
+    private data class ChunkResult(
+        val cultivationWrites: Map<Int, Double>,
+        val profWrites: Map<String, List<ManualProficiencyData>>,
+        val equipWrites: Map<String, EquipmentInstance>
+    )
+
+    /**
+     * 计算一个弟子分块 — 纯函数，不修改任何共享状态。
+     * 每个弟子独立计算，结果写入本地映射。
+     */
+    private fun computeChunk(
+        ids: List<Int>,
+        tables: DiscipleTables,
+        gameData: GameData,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        nurtureGainPerPhase: Double,
+        phasesToSettle: Int
+    ): ChunkResult {
+        val cultWrites = mutableMapOf<Int, Double>()
+        val profWrites = mutableMapOf<String, List<ManualProficiencyData>>()
+        val equipWrites = mutableMapOf<String, EquipmentInstance>()
+        val baseProfs = gameData.manualProficiencies
+
+        for (id in ids) {
+            val disciple = tables.assemble(id)
+            // 修炼增量（纯计算，不写 tables）
+            computeCultivationDelta(disciple, id, tables, gameData,
+                phasesToSettle)?.let { newVal ->
+                cultWrites[id] = newVal
+            }
+            // 功法熟练度增量
+            if (disciple.manualIds.isNotEmpty()) {
+                computeProficiencyDelta(disciple, gameData, manualMap,
+                    phasesToSettle, baseProfs, profWrites)
+            }
+            // 装备孕养增量
+            computeNurtureDelta(id, tables, equipmentMap,
+                nurtureGainPerPhase, phasesToSettle, equipWrites)
+        }
+        return ChunkResult(cultWrites, profWrites, equipWrites)
+    }
+
+    /** 纯函数：计算单弟子修炼增量，返回新值或 null（无变化） */
+    private fun computeCultivationDelta(
+        disciple: Disciple, id: Int, tables: DiscipleTables,
+        gameData: GameData, phasesToSettle: Int
+    ): Double? {
+        val curCult = tables.cultivations[id]
+        if (curCult >= disciple.maxCultivation) return null
+        val rate = calculateDiscipleCultivationPerPhase(disciple, gameData, tables)
+        if (rate <= 0.0) return null
+        val newCult = (curCult + rate * phasesToSettle)
+            .coerceAtMost(disciple.maxCultivation)
+        return if (newCult != curCult) newCult else null
+    }
+
+    /** 纯函数：计算单弟子功法熟练度增量 */
+    private fun computeProficiencyDelta(
+        disciple: Disciple, gameData: GameData,
+        manualMap: Map<String, ManualInstance>, phasesToSettle: Int,
+        baseProficiencies: Map<String, List<ManualProficiencyData>>,
+        resultMap: MutableMap<String, List<ManualProficiencyData>>
+    ) {
+        val inLibrary = gameData.librarySlots.any { it.discipleId == disciple.id }
+        val libraryBonus = if (inLibrary)
+            ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+        val profGainPerPhase =
+            ManualProficiencySystem.calculateProficiencyGainPerPhase(
+                disciple.comprehension, libraryBonus
+            )
+        val totalProfGain = profGainPerPhase * phasesToSettle
+        if (totalProfGain <= 0.0) return
+
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+        val profList = baseProficiencies
+            .getOrDefault(disciple.id, emptyList())
+            .toMutableList()
+        for (manualId in disciple.manualIds) {
+            manualMap[manualId]?.let { manual ->
+                applyProficiencyGain(profList, manualId, manual.name,
+                    totalProfGain, maxProf)
+            }
+        }
+        resultMap[disciple.id] = profList
+    }
+
+    /** 纯函数：计算单弟子装备孕养增量 */
+    private fun computeNurtureDelta(
+        id: Int, tables: DiscipleTables,
+        equipmentMap: Map<String, EquipmentInstance>,
+        nurtureGainPerPhase: Double, phasesToSettle: Int,
+        resultMap: MutableMap<String, EquipmentInstance>
+    ) {
+        listOf(
+            tables.weaponIds[id], tables.armorIds[id],
+            tables.bootsIds[id], tables.accessoryIds[id]
+        ).filter { it.isNotEmpty() }.forEach { eqId ->
+            val eq = equipmentMap[eqId] ?: return@forEach
+            val result = EquipmentNurtureSystem.updateNurtureExp(
+                eq, nurtureGainPerPhase * phasesToSettle
+            )
+            if (result.equipment != eq) {
+                resultMap[eqId] = result.equipment
+            }
         }
     }
 
@@ -1102,6 +1358,10 @@ class CultivationCore @Inject constructor(
 
     companion object {
         private const val TAG = "CultivationCore"
+        /** 启用在 [Dispatchers.Default] 上分块并行的最小弟子数 */
+        private const val MIN_PARALLEL_THRESHOLD = 50
+        /** 分块大小基数（每块最多弟子数） */
+        private const val CHUNK_SIZE = 250
     }
 }
 

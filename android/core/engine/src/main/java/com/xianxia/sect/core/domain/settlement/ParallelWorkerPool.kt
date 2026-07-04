@@ -14,9 +14,13 @@ import javax.inject.Singleton
  * - 所有 Worker 为纯函数（只读输入 → 值输出），禁止修改状态
  * - 结果通过 [ParallelResult] 值对象返回
  *
- * 不创建额外线程池，复用 JVM 公共 ForkJoinPool（通过 Dispatchers.Default）。
+ * @deprecated 使用 [DeviceCapabilityProfiler.parallelDispatcher] + coroutineScope 替代。
+ * 此类仍保留用于兼容 SettlementCoordinator 中的现有调用。
+ * 新增并行计算应使用 parallelDispatcher 或 BackgroundJobScheduler。
  */
 @Singleton
+@Deprecated("使用 DeviceCapabilityProfiler.parallelDispatcher + coroutineScope 替代",
+    ReplaceWith("this@DeviceCapabilityProfiler.parallelDispatcher"))
 class ParallelWorkerPool @Inject constructor() {
 
     /**

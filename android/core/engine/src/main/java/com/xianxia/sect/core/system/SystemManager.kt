@@ -1,7 +1,12 @@
 package com.xianxia.sect.core.engine.system
 
+import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
+import com.xianxia.sect.core.concurrent.ParallelExecutionContext
+import com.xianxia.sect.core.concurrent.ParallelPhaseResult
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.state.MutableGameState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -10,6 +15,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.reflect.KClass
@@ -22,7 +28,8 @@ data class SystemError(
 
 @Singleton
 class SystemManager @Inject constructor(
-    systems: Set<@JvmSuppressWildcards GameSystem>
+    systems: Set<@JvmSuppressWildcards GameSystem>,
+    private val profiler: DeviceCapabilityProfiler = DeviceCapabilityProfiler()
 ) {
     companion object {
         private const val TAG = "SystemManager"
@@ -162,17 +169,25 @@ class SystemManager @Inject constructor(
         shouldExecute: (FocusDomain, Set<FocusDomain>) -> Boolean,
         markExecuted: (FocusDomain) -> Unit,
         currentPhase: Int,
-        getPhasesToSettle: (FocusDomain) -> Int = { 1 }
+        getPhasesToSettle: (FocusDomain) -> Int = { 1 },
+        /** 跳过已通过 [computePhaseTick] 并行执行过的系统 */
+        skipSystems: Set<KClass<out GameSystem>> = emptySet()
     ) {
-        // 反向声明：从活跃域集合计算活跃系统集合（只算一次）
         val activeSystemClasses = FocusDomain.activeSystemsFor(activeDomains)
+        val skipAll = skipSystems.isEmpty().not()
 
         for (group in priorityGroups) {
+            // 整组跳过：如果组内所有系统都要跳过，整组跳过以减少迭代
+            if (skipAll) {
+                val allSkipped = group.all { it::class in skipSystems }
+                if (allSkipped) continue
+            }
+
             if (group.size == 1) {
                 val system = group.first()
+                if (system::class in skipSystems) continue
                 val domain = FocusDomain.assignedDomainFor(system::class, activeDomains)
                 val isActiveDomain = system::class in activeSystemClasses
-                // 分旬调度：焦点域强制执行；非焦点域检查结算旬
                 val shouldSettleByPhase = if (isActiveDomain) {
                     true
                 } else {
@@ -192,6 +207,7 @@ class SystemManager @Inject constructor(
             } else {
                 coroutineScope {
                     group.forEach { system ->
+                        if (system::class in skipSystems) return@forEach
                         val domain = FocusDomain.assignedDomainFor(system::class, activeDomains)
                         val isActiveDomain = system::class in activeSystemClasses
                         val shouldSettleByPhase = if (isActiveDomain) {
@@ -256,6 +272,68 @@ class SystemManager @Inject constructor(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 1 新增：并行 compute/apply 执行
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 并行执行已迁移系统的 [computePhaseTick] 阶段。
+     *
+     * 在 tick 开始时创建只读快照 [ctx]，将所有 [supportsParallelTick] 系统的
+     * compute 阶段分发到 [Dispatchers.Default] 并行执行。
+     * 返回的结果列表在调用方通过 [stateStore.update] 串行 apply。
+     *
+     * @param ctx 只读上下文快照
+     * @param activeDomains 当前活跃域集合
+     * @param phasesToSettleByDomain 每个域的应结算旬数映射
+     */
+    suspend fun executeParallelCompute(
+        ctx: ParallelExecutionContext,
+        activeDomains: Set<FocusDomain>,
+        phasesToSettleByDomain: (FocusDomain) -> Int
+    ): List<ParallelPhaseResult> {
+        if (!profiler.enableParallelTick) return emptyList()
+
+        val activeSystemClasses = FocusDomain.activeSystemsFor(activeDomains)
+        val parallelSystems = mutableListOf<Pair<GameSystem, Int>>()
+
+        // 收集所有支持并行且应在本次 tick 执行的中系统
+        for (group in priorityGroups) {
+            for (system in group) {
+                if (!system.supportsParallelTick) continue
+                val domain = FocusDomain.assignedDomainFor(system::class, activeDomains)
+                if (domain !in activeDomains && domain != FocusDomain.ALWAYS) continue
+                val isActiveDomain = system::class in activeSystemClasses
+                if (!isActiveDomain) {
+                    // 分旬调度检查
+                    val phase = ctx.gamePhase + 1
+                    if (system.settlementPhase != 0 && system.settlementPhase != phase) continue
+                }
+                val phasesToSettle = phasesToSettleByDomain(domain)
+                parallelSystems.add(system to phasesToSettle)
+            }
+        }
+
+        if (parallelSystems.isEmpty()) return emptyList()
+
+        return withContext(profiler.parallelDispatcher) {
+            coroutineScope {
+                parallelSystems.map { (system, phases) ->
+                    async {
+                        try {
+                            system.computePhaseTick(ctx, phases)
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) {
+                            DomainLog.e(TAG, "Parallel compute error in ${system.systemName}", e)
+                            _errors.trySend(SystemError(system.systemName, "parallel_compute", e))
+                            null
+                        }
+                    }
+                }.mapNotNull { it.await() }
             }
         }
     }

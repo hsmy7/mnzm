@@ -13,6 +13,10 @@ import com.xianxia.sect.core.engine.system.FocusDomain
 import com.xianxia.sect.core.engine.system.InterfaceDomainMap
 import com.xianxia.sect.core.engine.system.CultivationTickSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
+import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
+import com.xianxia.sect.core.concurrent.ParallelExecutionContext
+import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.concurrent.BackgroundJobScheduler
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -62,7 +66,10 @@ class GameEngineCore @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
-    private val gameClock: GameTimeClock
+    private val gameClock: GameTimeClock,
+    private val profiler: DeviceCapabilityProfiler,
+    private val thermalController: ThermalController,
+    private val backgroundJobScheduler: BackgroundJobScheduler
 ) {
 
     /**
@@ -277,6 +284,7 @@ class GameEngineCore @Inject constructor(
         systemManager.initializeAll()
         isInitialized = true
         DomainLog.i(TAG, "GameEngineCore initialized")
+        DomainLog.i(TAG, profiler.summary)
     }
     
     fun startGameLoop() {
@@ -399,6 +407,7 @@ class GameEngineCore @Inject constructor(
         systemManager.releaseAll()
         _autoSaveTrigger.close()
         engineJob.cancel()
+        backgroundJobScheduler.shutdown()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
         // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
@@ -779,9 +788,23 @@ class GameEngineCore @Inject constructor(
         var monthChanged = false
         var yearChanged = false
 
+        // ★ 热控检查（每 tick 后执行 thermal check 间隔有 10s 冷却）
+        thermalController.checkAndAdjust(_fps.value)
+
         for (phaseIndex in 1..tickResult.phasesToAdvance) {
             val currentPhase = stateStore.gameData.value.gamePhase
             val activeDomainsPerPhase = getActiveDomains()  // 每旬重新计算焦域
+
+            // ★ Phase 1: 并行 pre-compute（在 stateStore.update 之前执行）
+            //   创建只读快照，分发到 Dispatchers.Default 并行计算
+            val parallelResults = if (profiler.enableParallelTick) {
+                val ctx = ParallelExecutionContext.snapshot(stateStore, activeDomainsPerPhase)
+                systemManager.executeParallelCompute(
+                    ctx, activeDomainsPerPhase, ::phasesSkippedForDomain
+                )
+            } else {
+                emptyList()
+            }
 
             when {
                 // 下旬 + 结算未完成 → 丢弃推进，等待结算
@@ -793,10 +816,18 @@ class GameEngineCore @Inject constructor(
                 // 正常旬推进
                 else -> {
                     stateStore.update {
+                        // ★ Phase 2: 应用并行计算结果（在系统执行之前写入）
+                        for (result in parallelResults) {
+                            result.apply(this)
+                        }
+
                         val prevMonth = this.gameData.gameMonth
                         val prevYear = this.gameData.gameYear
 
                         // 执行当前旬的 tick（两档制 + 分旬调度）
+                        // 注意：parallelResults 已为 supportsParallelTick 系统计算并写入了
+                        // batchSettle 等重型操作。这些系统的 onPhaseTick 仍会被调用以执行
+                        // 轻量操作（如突破检测、自动装备），它们通过内部标志跳过已完成的计算。
                         if (settlementCoordinator.hasPendingWork) {
                             systemManager.getSystem(TimeSystem::class)
                                 .onPhaseTick(this, phasesToSettle = 1)
