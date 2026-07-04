@@ -62,6 +62,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.game.GameViewModel
@@ -82,8 +83,6 @@ internal fun RedeemCodeDialog(
     var tipMessage by remember { mutableStateOf("") }
     var tipIsError by remember { mutableStateOf(false) }
     var rewardItems by remember { mutableStateOf<List<com.xianxia.sect.ui.game.dialogs.RewardItem>>(emptyList()) }
-
-    DialogSoftInputGuard()
 
     LaunchedEffect(redeemResult) {
         redeemResult?.let { result ->
@@ -114,75 +113,27 @@ internal fun RedeemCodeDialog(
         }
     }
 
-    // 内联覆盖层替代已废弃的 HalfScreenDialog（避免平台 Dialog 与键盘交互频闪）
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.83f)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {} // 阻止点击穿透
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                    Text(
-                        text = "兑换码",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = codeInput,
-                        onValueChange = { codeInput = it.uppercase(java.util.Locale.getDefault()) },
-                        label = { Text("请输入兑换码", fontSize = 12.sp) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        GameButton(
-                            text = "取消",
-                            onClick = onDismiss,
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                        GameButton(
-                            text = "兑换",
-                            onClick = {
-                                if (codeInput.isNotBlank()) {
-                                    viewModel.redeemCode(codeInput.trim())
-                                }
-                            },
-                            enabled = codeInput.isNotBlank(),
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
-                }
+    InlineStandardPromptDialog(
+        onDismissRequest = onDismiss,
+        title = "兑换码",
+        confirmLabel = "兑换",
+        onConfirm = {
+            if (codeInput.isNotBlank()) {
+                viewModel.redeemCode(codeInput.trim())
             }
-        }
+        },
+        dismissLabel = "取消",
+        onDismiss = onDismiss
+    ) {
+        OutlinedTextField(
+            value = codeInput,
+            onValueChange = { codeInput = it.uppercase(Locale.getDefault()) },
+            label = { Text("请输入兑换码", fontSize = 12.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp)
+        )
+    }
 
     if (showRewardDialog) {
         com.xianxia.sect.ui.game.dialogs.RewardDialog(

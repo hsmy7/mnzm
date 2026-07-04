@@ -24,7 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -55,7 +55,7 @@ internal fun SellConfirmDialog(
         }
     }
 
-    StandardPromptDialog(
+    InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "售卖物品",
         confirmLabel = "确认售卖",
