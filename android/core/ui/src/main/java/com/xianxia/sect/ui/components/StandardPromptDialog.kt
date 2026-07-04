@@ -257,7 +257,7 @@ fun InlineStandardPromptDialog(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .background(Color(0x80000000)) // 半透明遮罩
+            .background(Color(0x99000000)) // 半透明遮罩
             .then(
                 if (dismissOnClickOutside) {
                     Modifier.clickable(

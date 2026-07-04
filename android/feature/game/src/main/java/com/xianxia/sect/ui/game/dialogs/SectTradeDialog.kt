@@ -341,7 +341,7 @@ fun SectTradeDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0x88000000))
+                        .background(Color(0x99000000))
                         .clickable { showRelationWarning = false },
                     contentAlignment = Alignment.Center
                 ) {

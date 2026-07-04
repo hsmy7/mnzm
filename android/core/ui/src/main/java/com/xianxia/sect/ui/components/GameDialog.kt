@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -88,6 +89,7 @@ fun UnifiedGameDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0x99000000))
             .then(
                 if (dismissOnClickOutside) {
                     Modifier.clickable(
@@ -192,6 +194,7 @@ fun GameFullDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0x99000000))
             .then(
                 if (dismissOnClickOutside) {
                     Modifier.clickable(

@@ -118,7 +118,6 @@ internal fun RedeemCodeDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x80000000))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -377,7 +376,6 @@ internal fun SettingsTab(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color(0x80000000))
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -777,7 +775,6 @@ internal fun SettingsTab(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x80000000))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -788,6 +785,7 @@ internal fun SettingsTab(
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.83f)
+                    .fillMaxHeight(0.78f)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -803,7 +801,10 @@ internal fun SettingsTab(
                     contentScale = ContentScale.Crop
                 )
                 Column(
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp)
                 ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -970,7 +971,6 @@ internal fun SaveSlotDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x80000000))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1268,7 +1268,6 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x80000000))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
