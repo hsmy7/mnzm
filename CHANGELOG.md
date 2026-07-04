@@ -4,6 +4,12 @@
 
 ### Bug 修复
 
+- **设置界面子对话框不居中** — 其他设置/年俸/更新日志/存档管理等子对话框使用内联
+  Box overlay 渲染，居中相对于 SettingsTab 区域而非全屏幕。修复：统一改为 Compose
+  Dialog 平台窗口包裹，确保全屏居中。
+- **UnifiedGameDialog 全屏居中** — 80+ 对话框共用的 UnifiedGameDialog 外层包裹
+  Dialog 平台窗口，不再依赖父容器全屏约束。
+- **更新日志不显示** — `changelog_entries.json` JSON 格式错误（缺失逗号），已修复。
 - **Xiaomi HyperOS 键盘频闪** — 宗门名称输入框弹出键盘后反复闪烁收起。
   根因为 HyperOS 上 `adjustResize` + 布局变化触发 IME 状态误报的竞态条件。
   修复：创建 `DialogSoftInputGuard` 可复用 Composable，在对话框显示期间临时
