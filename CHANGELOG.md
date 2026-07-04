@@ -1,81 +1,89 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.41] - 2026-07-04（versionCode=4041）
-
-### 架构重构
-
-- **组件表底层优化** — `IntComponentTable`/`DoubleComponentTable` 从 SparseArray 迁移为 Packed Array（dense array + id→index 映射 + swap-on-remove），查询从 O(log N) 降至 O(1)，删除零移动
-- **重复代码消除** — DiscipleTables 的 remove/clear/bindAllOnWrite/deepCopy 从手工 450+ 行改为声明式列表驱动，新增列只需在 `buildCopyableRefs()` 加一行
-- **废弃代码清理** — 删除 `@Deprecated` 的 `ParallelWorkerPool`，全部统一使用 `DeviceCapabilityProfiler.parallelDispatcher`
-
-### 渲染优化
-
-- **Canvas 分层渲染** — SectMapCanvas 拆分为静态层（drawBehind，离屏 Bitmap 缓存）和动态层（交互态），相机平移不再触发静态内容重绘
-- **灵田渲染优化** — 建筑列表预过滤只保留灵田建筑，消除 O(n×m) 双层循环
-
-### 工程效能
-
-- **InterfaceDomainMap 加固** — DomainMappingTest 全覆盖验证所有 DialogRoute 的域映射，新增 dialog 忘记映射会编译失败
-- **存档脏标记** — GameStateStoreImpl 新增 `_stateDirty` 标志位，避免状态无变化时重复写库
-
-### 测试覆盖
-
-- 新增 `DomainMappingTest` 用例（3 个）— 聚焦/非聚焦 DialogRoute 全覆盖交叉验证
-- 全量 `compileReleaseKotlin` + `testReleaseUnitTest` 通过
-
----
-
-## [4.0.40] - 2026-07-04（versionCode=4040）
-
-### 架构重构
-
-- **游戏线程并行化** — 新增 `DeviceCapabilityProfiler` 设备能力分析器，8 核/6GB+ RAM 设备自动启用 4 路并行调度
-- **独立线程池隔离** — 新增高优先级 `parallelDispatcher`（tick 内并行计算，绑定大核）和低优先级 `backgroundDispatcher`（后台批量任务，绑定小核），不再与 App 其他代码抢占 `Dispatchers.Default`
-- **弟子循环分块并行** — `CultivationCore.computeBatchCultivationDelta` 在弟子数 > 50 时自动将 for 循环拆为多块，分发到 `parallelDispatcher` 并行计算后合并，3000 弟子预期 30ms → ~8ms
-- **并行计算框架** — `GameSystem` 新增 `computePhaseTick` 接口 + `ParallelPhaseResult.apply` 分离模式，`CultivationTickSystem` 首批迁移
-- **后台作业调度器** — `BackgroundJobScheduler` 使用独立低优先级线程池，承接后台批量计算/深拷贝/IO 任务
-- **热控动态降级** — `ThermalController` 检测到设备温度 > 45°C 或帧率连续低于 25fps 时自动关闭并行，退化为单线程防止过热降频；冷却后自动恢复
-
-### 新增文件
-
-| 文件 | 用途 |
-|------|------|
-| `concurrent/DeviceCapabilityProfiler.kt` | 设备能力检测与线程池管理 |
-| `concurrent/ParallelExecutionContext.kt` | 并行 compute 只读快照 + PhaseResult 接口 |
-| `concurrent/BackgroundJobScheduler.kt` | 后台作业调度器 |
-| `concurrent/ThermalController.kt` | 热控降级控制器 |
-| `concurrent/CultivationBatchResult.kt` | 修炼并行计算结果容器 |
-
-### 测试覆盖
-
-- 新增 `DeviceCapabilityProfilerTest`（8 个用例）— 硬件检测、线程池分发、日志摘要
-- 新增 `CultivationCoreConcurrencyTest`（4 个用例）— 串行计算正确性、确定性验证、零旬不变性、多旬累积
-
----
-
 ## [4.0.39] - 2026-07-04（versionCode=4039）
 
 ### Bug 修复
 
-- **系统异常收集器导致 ANR（Bugly #5011）** — `systemManager.errors` 的 `BufferedChannel.hasNext()` 在主线程挂起超过 5 秒触发 ANR。修复：改为 `Dispatchers.Default` 后台线程收集。
-- **已捕获异常不可见** — 系统异常被 catch 后只弹 toast，Bugly 无记录。新增 `CrashReport.postCatchedException` 反射调用，所有系统异常主动上报 Bugly。
-- **弟子肖像退化到兜底图** — 运行时 `resources.getIdentifier` 字符串查找资源名可能失败（Release 构建/数据问题），导致肖像显示 `disciple_portrait` 默认图。修复：`PortraitPool` 预构建资源 ID 映射，应用启动时一次性加载所有肖像 ID，运行时直接 Int 查找零开销。
-- **旧存档弟子 portraitRes 为空** — 旧存档可能缺少 portraitRes 字段，通过 PortraitPool 预加载映射自动兜底。
-- **弟子详情无焦点域映射** — 打开弟子详情时 CultivationTickSystem 不在实时轨，界面数据刷新不及时。新增 `FocusDomain.DISCIPLE_DETAIL` 映射。
+- **Xiaomi HyperOS 键盘频闪** — 宗门名称输入框弹出键盘后反复闪烁收起。
+  根因为 HyperOS 上 `adjustResize` + 布局变化触发 IME 状态误报的竞态条件。
+  修复：创建 `DialogSoftInputGuard` 可复用 Composable，在对话框显示期间临时
+  切换 `windowSoftInputMode=adjustNothing`，切断震荡回路。覆盖全部 8 个输入框
+  （宗门命名/改名/兑换码/售卖数量/自动管理阈值/巡视楼数量/种植数量）。
+- **系统异常收集器导致 ANR（Bugly #5011）** — `systemManager.errors` 的
+  `BufferedChannel.hasNext()` 在主线程挂起超过 5 秒触发 ANR。修复：改为
+  `Dispatchers.Default` 后台线程收集。
+- **已捕获异常不可见** — 系统异常被 catch 后只弹 toast，Bugly 无记录。
+  新增 `CrashReport.postCatchedException` 反射调用，主动上报 Bugly。
+- **弟子肖像退化到兜底图** — 运行时 `resources.getIdentifier` 字符串查找资源名
+  可能失败。修复：`PortraitPool` 预构建资源 ID 映射，启动时一次性加载，运行
+  时直接 Int 查找零开销。
+- **旧存档弟子 portraitRes 为空** — PortraitPool 预加载映射自动兜底。
+- **弟子详情无焦点域映射** — 打开弟子详情时 CultivationTickSystem 不在实时轨。
+  新增 `FocusDomain.DISCIPLE_DETAIL` 映射。
+- **命名对话框键盘反复弹出收起** — `InlineStandardPromptDialog` 外层 Box 添加
+  `imePadding`，`GameOverlayHost` 中 `onConfirm` lambda 用 `remember` 稳定引用，
+  `SaveSelectScreen` 设置 `dismissOnClickOutside=false`。
 
-### 新功能（来自上一版本）
+### 架构重构
 
-- **暂停按钮无效** — 设置界面和主界面暂停按钮点击后 2-3 秒自动恢复运行。原因为看门狗和主线程健康监控在暂停时检测到 tick 无推进，误判为死机并触发紧急重启（`emergencyRestartGameLoop` → `setPausedDirect(false)`）。修复：两处检测均增加暂停状态跳过逻辑。
-- **暂停/继续按钮精灵图切换** — 暂停状态显示 ▶ 播放按钮，运行状态显示 ⏸ 暂停按钮，直观区分
-- **暂停按钮接入主界面** — 在 UI 显隐切换按钮下方增加圆形暂停/继续按钮，无需进入设置即可暂停
+- **组件表 Packed Array** — `IntComponentTable`/`DoubleComponentTable` 从
+  SparseArray 迁移为 Packed Array（dense array + id→index + swap-on-remove），
+  查询 O(log N) → O(1)，删除零移动。
+- **DiscipleTables 重复代码消除** — remove/clear/bindAllOnWrite/deepCopy 从
+  手工 450+ 行改为声明式列表驱动，新增列只需在 `buildCopyableRefs()` 加一行。
+- **废弃代码清理** — 删除 `@Deprecated` 的 `ParallelWorkerPool`，全部统一使用
+  `DeviceCapabilityProfiler.parallelDispatcher`。
+- **游戏线程并行化** — 新增 `DeviceCapabilityProfiler` 设备能力分析器，8 核
+  /6GB+ RAM 设备自动启用 4 路并行调度。
+- **独立线程池隔离** — 新增高优先级 `parallelDispatcher`（tick 内并行计算，
+  绑定大核）和低优先级 `backgroundDispatcher`（后台批量任务，绑定小核）。
+- **热控动态降级** — `ThermalController` 检测到设备温度 > 45°C 或帧率连续
+  低于 25fps 时自动关闭并行，退化为单线程；冷却后自动恢复。
+- **弟子循环分块并行** — 弟子数 > 50 时自动拆块，分发到 `parallelDispatcher`
+  并行计算后合并。
+- **并行计算框架** — `GameSystem` 新增 `computePhaseTick` 接口 +
+  `ParallelPhaseResult.apply` 分离模式，`CultivationTickSystem` 首批迁移。
+- **BackgroundJobScheduler** — 独立低优先级线程池，承接后台批量计算/深拷贝/IO。
+
+### 渲染优化
+
+- **Canvas 分层渲染** — SectMapCanvas 拆分为静态层（drawBehind，离屏 Bitmap
+  缓存）和动态层（交互态），相机平移不再触发静态内容重绘。
+- **灵田渲染优化** — 建筑列表预过滤只保留灵田建筑，消除 O(n×m) 双层循环。
+
+### 工程效能
+
+- **InterfaceDomainMap 加固** — DomainMappingTest 全覆盖验证所有 DialogRoute
+  的域映射，新增 dialog 忘记映射会编译失败。
+- **存档脏标记** — GameStateStoreImpl 新增 `_stateDirty` 标志位，避免状态无
+  变化时重复写库。
+
+### 新功能
+
+- **暂停/继续按钮** — 设置界面和主界面新增暂停/继续按钮，暂停时显示 ▶ 播放
+  图标，运行时显示 ⏸ 暂停图标。修复暂停后 2-3 秒自动恢复运行的误判 bug
+  （看门狗在暂停时误判为死机触发紧急重启）。
 
 ### 崩溃防御
 
-- **Android 15 libhwui.so RenderThread SIGSEGV 防御** — 新增 `CrashRecoveryEngine` 崩溃自愈引擎，追踪连续 Native 崩溃，N 次后自动进入安全模式
-- **VulkanPolicy 设备分级** — 检测联发科 SoC / 国产定制 ROM / 已知问题机型，按 SAFE/WARNING/PROBLEMATIC 三级决策，问题设备自动禁用 Vulkan 渲染路径
-- **HWUI 渲染后端提示** — `AndroidManifest.xml` 设置 `android.graphics.renderer=skiagl`，提示系统使用 OpenGL 后端而非 Vulkan
-- **安全模式主题** — `Theme.XianxiaSect.GameSafe` 在连续崩溃后禁用硬件加速，回退软件渲染
-- **架构文档** — `android/docs/render-thread-crash-strategy.md` 记录三层防御方案（止血/净化/跨平台）及 3 条 ADR
+- **Android 15 libhwui.so RenderThread SIGSEGV** — 新增 `CrashRecoveryEngine`
+  崩溃自愈引擎，追踪连续 Native 崩溃，N 次后自动进入安全模式。
+- **VulkanPolicy 设备分级** — 检测联发科 SoC / 国产定制 ROM，按三级风险决策，
+  问题设备自动禁用 Vulkan 渲染路径。
+- **HWUI 渲染后端提示** — `AndroidManifest.xml` 设置
+  `android.graphics.renderer=skiagl`，提示系统使用 OpenGL 后端。
+- **安全模式主题** — `Theme.XianxiaSect.GameSafe` 在连续崩溃后禁用硬件加速，
+  回退软件渲染。
+- **架构文档** — `android/docs/render-thread-crash-strategy.md` 记录三层防御
+  方案及 3 条 ADR。
+
+### 测试覆盖
+
+- 新增 `DomainMappingTest`（3 个用例）— 聚焦/非聚焦 DialogRoute 全覆盖交叉验证。
+- 新增 `DeviceCapabilityProfilerTest`（8 个用例）— 硬件检测、线程池分发验证。
+- 新增 `CultivationCoreConcurrencyTest`（4 个用例）— 串行正确性、确定性验证、
+  零旬不变性、多旬累积。
+- 全量 `compileReleaseKotlin` + `testReleaseUnitTest` 通过。
 
 ---
 

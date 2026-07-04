@@ -37,6 +37,41 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import android.app.Activity
+import android.view.View
+import android.view.Window
+import android.view.WindowManager
+
+/**
+ * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
+ * 卸载时自动恢复。适用于 [Dialog] 内的平台 Dialog 窗口和 Activity 内的 Box overlay。
+ *
+ * 解决 Xiaomi HyperOS 上 [adjustResize] 导致的键盘反复弹出收起频闪问题。
+ */
+@Composable
+fun DialogSoftInputGuard(
+    mode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+) {
+    // 遍历 View 层级寻找 DialogWindowProvider（平台 Dialog 窗口）
+    val dialogWindow = generateSequence(LocalView.current) {
+        it.parent as? View
+    }
+        .filterIsInstance<DialogWindowProvider>()
+        .firstOrNull()
+        ?.window
+    val targetWindow = dialogWindow
+        ?: (LocalContext.current as? Activity)?.window
+        ?: return
+    val originalMode = remember { targetWindow.attributes.softInputMode }
+    DisposableEffect(targetWindow) {
+        targetWindow.setSoftInputMode(mode)
+        onDispose { targetWindow.setSoftInputMode(originalMode) }
+    }
+}
 
 @Composable
 fun StandardPromptDialog(
@@ -70,6 +105,9 @@ fun StandardPromptDialog(
             dismissOnClickOutside = dismissOnClickOutside
         )
     ) {
+        // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
+        DialogSoftInputGuard()
+
         Box(
             modifier = Modifier
                 .width(dialogWidth)
@@ -205,6 +243,7 @@ fun InlineStandardPromptDialog(
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
     // 在 composition 入口处读取屏幕尺寸并用 remember 缓存，之后不再变化
+    DialogSoftInputGuard()
     val screenConfig = LocalConfiguration.current
     val dialogWidth = remember { (screenConfig.screenWidthDp * 0.5f).dp }
     val dialogHeight = remember { (screenConfig.screenHeightDp * 0.55f).dp }

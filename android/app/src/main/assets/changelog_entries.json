@@ -1,45 +1,27 @@
 [
 	{
 		"date": "2026-07-04",
-		"version": "4.0.41",
-		"changes": [
-			"架构：组件表 Packed Array——IntComponentTable/DoubleComponentTable从SparseArray迁移为Packed Array，查询O(log N)→O(1)，零装箱",
-			"重构：DiscipleTables重复代码消除——remove/clear/bindAllOnWrite/deepCopy从手工450行改为声明式列表驱动，新增列只要加一行",
-			"重构：删除废弃ParallelWorkerPool——全部统一使用DeviceCapabilityProfiler.parallelDispatcher",
-			"优化：Canvas分层渲染——静态层离屏Bitmap缓存+drawBehind，拖拽不再触发静态内容重绘",
-			"优化：灵田建筑预过滤——消除O(n×m)双层循环",
-			"测试：InterfaceDomainMap全覆盖——新增DialogRoute遗忘域映射时测试失败",
-			"优化：存档脏标记——状态无变化时跳过重复写库"
-		]
-	},
-	{
-		"date": "2026-07-04",
-		"version": "4.0.40",
-		"changes": [
-			"架构：游戏线程并行化——新增DeviceCapabilityProfiler设备能力检测，8核/6GB+自动启用4路并行调度",
-			"架构：独立线程池——新增高优先级parallelDispatcher（tick内并行）和低优先级backgroundDispatcher（后台批量），不再与App抢占Dispatchers.Default",
-			"架构：热控降级反馈——ThermalController检测到发热45°C+或帧率连续低于25fps时自动关闭并行，退化为单线程防止降频",
-			"架构：弟子循环分块并行——CultivationCore.computeBatchCultivationDelta在弟子数>50时自动拆块，分派到parallelDispatcher并行计算后合并",
-			"架构：并行计算框架——GameSystem新增computePhaseTick接口，CultivationTickSystem迁移为pure compute/apply模式",
-			"架构：BackgroundJobScheduler后台作业调度器——独立低优先级线程池，承接存档/IO/后台计算任务"
-		]
-	},
-	{
-		"date": "2026-07-04",
 		"version": "4.0.39",
 		"changes": [
-			"修复：设置界面和主界面暂停按钮无效——看门狗和主线程健康监控在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
-			"新增：暂停/继续按钮精灵图切换——暂停时显示▶播放按钮，运行时显示⏸暂停按钮",
-			"新增：暂停按钮接入主界面——在UI显隐切换按钮下方增加暂停/继续按钮，随时可操作",
-			"修复：系统异常收集器 ANR——BufferedChannel.hasNext() 挂起主线程导致 ANR，改为 Dispatchers.Default 运行",
-			"新增：系统异常主动上报 Bugly——已捕获的游戏系统异常通过 CrashReport.postCatchedException 主动上报",
-			"新增：弟子详情界面加入焦点域 DISCIPLE_DETAIL——打开详情时 CultivationTickSystem 进入实时轨",
-			"修复：弟子肖像预加载改用资源 ID 映射——避免运行时 getIdentifier 字符串查找失败导致兜底图",
-			"修复：肖像名为空的旧存档弟子自动兜底——从 PortraitPool 预加载映射获取默认肖像",
-			"防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
-			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
-			"防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
-			"防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
+			"修复：Xiaomi HyperOS键盘频闪——宗门名称输入框键盘反复弹出收起。创建DialogSoftInputGuard可复用Composable，临时切换windowSoftInputMode=adjustNothing切断震荡回路，覆盖全部8个输入框",
+			"架构：组件表Packed Array——IntComponentTable/DoubleComponentTable从SparseArray迁Packed Array，查询O(log N)→O(1)，零装箱",
+			"重构：DiscipleTables重复代码消除——remove/clear等改声明式列表驱动，新增列只要加一行",
+			"架构：游戏线程并行化——新增DeviceCapabilityProfiler设备能力检测，8核/6GB+自动启用4路并行调度",
+			"架构：独立线程池——新增高优先级parallelDispatcher（tick内并行）和低优先级backgroundDispatcher（后台批量）",
+			"架构：热控降级反馈——45°C+或帧率低于25fps时自动关闭并行退化为单线程",
+			"优化：Canvas分层渲染——静态层离屏Bitmap缓存，相机平移不再触发重绘",
+			"优化：灵田建筑预过滤——消除O(n×m)双层循环",
+			"优化：存档脏标记——状态无变化时跳过重复写库",
+			"修复：暂停按钮无效——看门狗在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
+			"修复：系统异常收集器ANR——BufferedChannel.hasNext()挂起主线程，改为Dispatchers.Default运行",
+			"新增：系统异常主动上报Bugly——已捕获异常通过CrashReport.postCatchedException上报",
+			"新增：弟子详情加入焦点域DISCIPLE_DETAIL——CultivationTickSystem进入实时轨",
+			"修复：弟子肖像预加载改用资源ID映射——避免运行时getIdentifier字符串查找失败",
+			"测试：InterfaceDomainMap全覆盖——DialogRoute遗忘域映射时测试失败",
+			"测试：新增DeviceCapabilityProfilerTest(8个用例)和CultivationCoreConcurrencyTest(4个用例)",
+			"防御：Android 15 libhwui.so RenderThread SIGSEGV——CrashRecoveryEngine崩溃自愈引擎",
+			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，问题设备自动禁用Vulkan",
+			"防御：安全模式主题——Theme.XianxiaSect.GameSafe在连续崩溃后禁用硬件加速，回退软件渲染"
 		]
 	},
 	{

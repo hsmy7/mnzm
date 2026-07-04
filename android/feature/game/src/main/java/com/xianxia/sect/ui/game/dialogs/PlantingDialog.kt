@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -73,6 +74,9 @@ fun PlantingDialog(
     activeSectId: String,
     onDismiss: () -> Unit
 ) {
+    // 切换 softInputMode，防止 Xiaomi HyperOS 键盘频闪
+    DialogSoftInputGuard()
+
     // ── 本地状态 ───────────────────────────────────────────
     var selectedSeedId by remember { mutableStateOf<String?>(null) }
     var seedPage by remember { mutableIntStateOf(1) }

@@ -63,6 +63,7 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -81,6 +82,8 @@ internal fun RedeemCodeDialog(
     var tipMessage by remember { mutableStateOf("") }
     var tipIsError by remember { mutableStateOf(false) }
     var rewardItems by remember { mutableStateOf<List<com.xianxia.sect.ui.game.dialogs.RewardItem>>(emptyList()) }
+
+    DialogSoftInputGuard()
 
     LaunchedEffect(redeemResult) {
         redeemResult?.let { result ->
@@ -369,6 +372,7 @@ internal fun SettingsTab(
                     }
                     
                     if (showEditIntervalDialog) {
+                        DialogSoftInputGuard()
                         // 内联覆盖层替代已废弃的 HalfScreenDialog
                         Box(
                             modifier = Modifier
