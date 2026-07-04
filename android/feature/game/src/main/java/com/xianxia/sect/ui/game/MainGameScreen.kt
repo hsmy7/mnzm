@@ -95,7 +95,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
  * **原始问题**:
  * - 在单个 Composable 中收集 30+ 个 StateFlow
  * - 任何 StateFlow 变化都触发整个 MainGameScreen 重组
- * - 高频数据 (cultivation progress, resources) 每秒变化 5 次 (200ms tick)
+ * - 高频数据 (cultivation progress, resources) 每秒变化 10 次 (100ms tick)
  * - 导致每秒 5-25 次全量重组 (30+ StateFlow × 5 ticks)
  *
  * **优化策略**:
@@ -148,7 +148,7 @@ fun MainGameScreen(
     onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
-    // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
+    // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
     val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
     val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()

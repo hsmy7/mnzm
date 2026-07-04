@@ -43,7 +43,7 @@ interface GameSystem {
     ): ParallelPhaseResult = error("${this::class.simpleName} 未实现 computePhaseTick")
 
     /**
-     * 旬级 tick。焦点域每 100ms 执行，非焦点域每 30s 执行。
+     * 旬级 tick。焦点域随游戏时钟推进执行（phasesToSettle=1），非焦点域按批量轨动态节律执行（phasesToSettle=N）。
      *
      * 对于 [supportsParallelTick] = true 的系统，此方法不再被调用，
      * 框架会调用 [computePhaseTick] 和结果的 [apply] 替代。

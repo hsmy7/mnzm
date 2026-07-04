@@ -1,27 +1,41 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
 # 修仙宗门 — 代码架构 Wiki
 
-> 最后更新：2026-07-03 (v4.0.36 全部8项后续优化项处理完毕：大文件重构+ViewModel拆分+测试补齐+通配符压制)
+> 本文档描述项目**当前**的代码架构，供开发者快速了解整体设计。
+> 
+> **维护原则：** 增删改查永远是"现在长什么样"，不记录"以前什么样、怎么变的"。
+> 已完成的历史变更不保留，仅保留**未完成/待执行的计划**。
+> 修改代码后同步更新本文档，保持文档与代码一致。
 
 ## 目录
 
 1. [架构总览](#架构总览)
-2. [Gradle 模块化架构](#gradle-模块化架构v4001)
+2. [Gradle 模块化架构](#gradle-模块化架构)
 3. [引擎层 — 领域 Facade 架构](#引擎层--领域-facade-架构)
-4. [GameEngine 拆分](#gameengine-拆分v4000)
-5. [CultivationService 拆分](#cultivationservice-拆分v4000)
-6. [状态管理 — GameStateStore](#状态管理--gamestatestore)
-7. [数据库 — 从零开始](#数据库--从零开始v4000)
-8. [UI 组件拆分](#ui-组件拆分v4000)
-9. [世界地图重构](#世界地图重构v4000)
-10. [GPU 分级渲染系统](#gpu-分级渲染系统v4000)
-11. [活动系统 / 每日签到](#活动系统--每日签到v4000)
-12. [背包系统重构](#背包系统重构v4000)
-13. [商店改版](#商店改版v4000)
-14. [每日签到优化](#每日签到优化v4000)
-15. [数据库演进 (v1→v5)](#数据库演进-v1v5v4000)
-16. [代码质量基础设施](#代码质量基础设施v4000)
-17. [构建与 Profile](#构建与-profile)
-18. [后续优化项](#后续优化项)
+4. [状态管理 — GameStateStore](#状态管理--gamestatestore)
+5. [游戏时间系统 — GameTimeClock](#游戏时间系统--gametimeclock)
+6. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
+7. [血炼池 — Blood Refining Pool](#血炼池--blood-refining-pool)
+8. [结算管线 — SettlementCoordinator](#结算管线--settlementcoordinator)
+9. [Canvas 渲染管线](#canvas-渲染管线)
+10. [性能基础设施](#性能基础设施)
+11. [世界地图重构](#世界地图重构)
+12. [GPU 分级渲染系统](#gpu-分级渲染系统)
+13. [活动系统](#活动系统)
+14. [构建与 Profile](#构建与-profile)
+15. [事件驱动惰性求值](#事件驱动惰性求值)
 
 ---
 
@@ -34,7 +48,7 @@
 │   - Dialogs managed by DialogStateManager        │
 ├──────────────────────────────────────────────────┤
 │ Layer 1: GameEngineCore + GameEngine             │
-│   - EngineCore: game loop (200ms tick)          │
+│   - EngineCore: frame-driven accumulator loop   │
 │   - Engine: business logic (cultivation, battle, │
 │     production, diplomacy, exploration, etc.)    │
 │   - Writes to GameStateStore via update()        │
@@ -47,11 +61,11 @@
 
 ---
 
-## Gradle 模块化架构 (v4.0.01)
+## Gradle 模块化架构
 
 ### 模块结构
 
-项目从单模块（`:app`）重构为 **6 个 Gradle 模块**，按 Clean Architecture 分层：
+项目分为 **6 个 Gradle 模块**，按 Clean Architecture 分层：
 
 ```
 android/
@@ -111,13 +125,13 @@ feature:game  ──→  core:ui  ──→  core:domain
 
 **严格规则：**
 - `core:domain` — 零外部依赖（纯 Kotlin/注解），不依赖任何其他模块
-- `core:engine` — 仅依赖 `core:domain`（不依赖 `core:data`） ✅ v4.0.01 验证通过
+- `core:engine` — 仅依赖 `core:domain`（不依赖 `core:data`） 
 - `core:data` — 仅依赖 `core:domain`（Room Entity 需要 model）
 - `core:ui` — 仅依赖 `core:domain`
 - `feature:game` — 依赖所有 core 模块
 - `:app` — 依赖所有模块（用于 Hilt 全局织入）
 
-### 域接口清单 (v4.0.01)
+### 域接口清单
 
 | 接口 | 模块 | 实现位置 | 用途 |
 |------|------|---------|------|
@@ -132,14 +146,6 @@ feature:game  ──→  core:ui  ──→  core:domain
 | `ProductionSlotDataPort` | domain | `:core:data` | 生产槽位 DAO 抽象 |
 | `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
 | `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
-
-### v4.0.01 修复的架构违规
-
-| 原违规 | 修复前 | 修复后 |
-|--------|--------|--------|
-| `core:domain` 含 `room-runtime` | `implementation libs.room.runtime`（Android Framework） | `implementation libs.room.common`（仅注解） |
-| `core:engine` 依赖 `core:data` | 9 个文件直接导入 DAO/StorageFacade | 0 个文件导入 data 类型，全部通过域接口解耦 |
-| `GameEngine` 注入 `GameDatabase` | 直接依赖 Room Database | 注入 `GameHeavyDataPort` + `HeavyDataDecoder` |
 
 ### Hilt DI 桥接层
 
@@ -158,7 +164,7 @@ object BridgeBindingsModule {
 
 ---
 
-## 引擎层 — 领域 Facade 架构 (v3.1.99)
+## 引擎层 — 领域 Facade 架构
 
 ### 架构
 
@@ -166,11 +172,11 @@ GameEngine（精简协调器）→ 9 个按域拆分的扩展文件 + 7 个领�
 
 ```
 GameEngine.kt (精简协调器)
-  ├── 9 个扩展文件（按域拆分，v4.0.00）：
+  ├── 9 个扩展文件：
   │     GameEngineBattleOps.kt / BuildingOps.kt / Coordination.kt
   │     DiplomacyOps.kt / DiscipleOps.kt / Extensions.kt
   │     InventoryOps.kt / ProductionOps.kt / SaveOps.kt
-  └── 7 个领域 Facade（v3.1.99）：
+  └── 7 个领域 Facade：
         ├── DiscipleFacade   → DiscipleService, DiscipleEquipmentManager, ...
         ├── BattleFacade     → CombatService, BattleSystem, AISectAttackManager, ...
         ├── BuildingFacade   → BuildingService, HerbGardenSystem, ...
@@ -195,7 +201,7 @@ core/engine/domain/
 └── settlement/   (SettlementCoordinator, SettlementCache, SettlementScheduler, ...)
 ```
 
-### GameService / GameSystem 职责标注 (v3.2.03)
+### GameService / GameSystem 职责标注
 
 两类标注注解用于标记 Service 和 System 的职责边界，便于代码导航和依赖审计：
 
@@ -220,126 +226,16 @@ annotation class AutoTickSystem(val name: String)
 - System 之间不得直接调用（通过 EventBus 通知）
 - `@AutoTickSystem` 使用 `@Retention(SOURCE)` 避免与 `core.engine.system.GameSystem` 接口同名冲突
 
-### CultivationService 拆分 (v4.0.00)
+### 代码质量基础设施
 
-3804 行的 CultivationService 按职责拆分为 1 个 Facade + 10 个子模块：
-
-```
-core/engine/service/
-├── CultivationService.kt          (~300行) Facade 协调器
-├── CultivationCore.kt             (~400行) 修炼速率/相位推进
-├── CultivationEventProcessor.kt   (~350行) 修炼事件/天劫/奇遇
-├── CultivationSettlement.kt       (~350行) 月/年度修炼结算
-├── CultivationSharedState.kt      (~200行) 共享状态
-├── DiscipleBreakthroughHandler.kt (~500行) 突破全流程
-├── DiscipleLifecycleProcessor.kt  (~250行) 弟子寿命/年龄/死亡
-├── CaveExplorationProcessor.kt    (~300行) 洞府探索
-├── MerchantAndRecruitService.kt   (~300行) 云游商人/弟子招募
-├── PhaseTickAccumulator.kt        (~150行) 相位推进累加器
-└── ProductionSubsystem.kt         (~250行) 生产子系统
-```
-
-### GameEngine 拆分 (v4.0.00)
-
-3000 行的 GameEngine 拆分为 1 个精简协调器 + 9 个域扩展文件：
-
-```
-core/engine/
-├── GameEngine.kt                  (~400行) 精简协调器
-├── GameEngineBattleOps.kt         (~300行) 战斗域操作
-├── GameEngineBuildingOps.kt       (~250行) 建筑域操作
-├── GameEngineCoordination.kt      (~200行) 跨域协调
-├── GameEngineDiplomacyOps.kt      (~200行) 外交域操作
-├── GameEngineDiscipleOps.kt       (~350行) 弟子域操作
-├── GameEngineExtensions.kt        (~200行) 扩展/convenience方法
-├── GameEngineInventoryOps.kt      (~250行) 物品域操作
-├── GameEngineProductionOps.kt     (~200行) 生产域操作
-└── GameEngineSaveOps.kt           (~200行) 存档域操作
-```
-
-### 数据库 — 从零开始 (v4.0.00)
-
-**DB 版本重置为 1**，全部历史 Migration（9个，从 MIGRATION_1_26 到 MIGRATION_33_34）已移除。
-
-```
-首次启动（4.0）：
-  create() 入口 → 检测旧 db 文件 → 删除 db/wal/shm
-  → Room 发现无文件 → onCreate() → 全新空库（version=1）
-  → schema/1.json 为唯一 schema 文件
-```
-
-旧存储清空覆盖：
-| 存储类型 | 清空方式 |
-|---------|---------|
-| Room DB (v34) | `context.getDatabasePath().delete()` + wal/shm |
-| .sav 文件 | SavMigrator 遍历删除 + 跳过所有迁移 |
-| MMKV | `MMKV.defaultMMKV().clearAll()` |
-| SharedPreferences | sav_migration / crash_handler / app_session 逐个 clear |
-
-### UI 组件拆分 (v4.0.00)
-
-```
-DiscipleDetailScreen（2647行 → 542行）：
-  ui/game/components/detail/
-  ├── DetailHeaderSection.kt       (~250行)
-  ├── DetailCultivationSection.kt  (~300行)
-  ├── DetailEquipmentSection.kt    (~350行)
-  ├── DetailManualSection.kt       (~300行)
-  ├── DetailPillSection.kt         (~250行)
-  ├── DetailCombatSection.kt       (~250行)
-  └── DetailActionButtons.kt       (~200行)
-
-ItemDetailDialog（1548行 → 603行）：
-  ui/game/components/
-  ├── ItemDetailDialog.kt          (~600行) @Composable 函数
-  ├── ItemDetailEffects.kt         (~600行) 装备/功法/丹药效果
-  └── ItemDetailOtherEffects.kt    (~400行) 材料/灵草/商人等效果
-
-SaveDataConverter（2002行 → 拆分为 7 个 Converter）：
-  data/serialization/unified/
-  ├── SaveDataConverter.kt         (~300行) 协调器
-  ├── DiscipleConverter.kt
-  ├── EquipmentConverter.kt
-  ├── ItemConverter.kt
-  ├── ManualConverter.kt
-  ├── SlotConverter.kt
-  ├── TeamAndBattleConverter.kt
-  └── WorldAndSectConverter.kt
-
-WarehouseTab（1568行 → 拆分为 4 个 Section + 3 个 Dialog）：
-  ui/game/tabs/
-  ├── WarehouseTab.kt              (~300行)
-  ├── EquipmentSection.kt
-  ├── ManualSection.kt
-  ├── MaterialSection.kt
-  ├── PillSection.kt
-  ├── WarehouseBulkSellDialog.kt
-  ├── WarehouseDetailDialog.kt
-  └── WarehouseDiscipleSelectDialog.kt
-
-ProtobufConverters（1145行 → 544行）：
-  data/local/
-  ├── ProtobufConverters.kt        (~550行) 保留原名
-  ├── CollectionConverters.kt      类型转换器
-  ├── EnumConverters.kt            枚举转换器
-  └── JsonConverters.kt            JSON 转换器
-
-ChangelogData（1999行 → 44行）：
-  ChangelogData.kt 仅保留加载逻辑，条目数据外置到 assets/changelog_entries.json
-```
-
-### 代码质量基础设施 (v4.0.35)
-
-**反模式清零**：
-| 指标 | 改造前 | 改造后 |
-|------|--------|--------|
-| `!!` 强制解包 | 110 处 → **0 处** | ✅ |
-| `runBlocking` | 17 处 → **0 处** | ✅ |
-| 空 catch 块 | 6+ 处 → **0 处** | ✅ |
-| Detekt 违规 | 1,245 → **195** | ↓84% |
+**编码规范遵循原则**：
+- 禁止 `!!` 强制解包，通过 `?.` / `?:` / `checkNotNull()` 安全访问
+- 禁止 `runBlocking`（仅测试可用 `runTest`）
+- 禁止空 catch 块
+- Detekt 违规零增长（baseline 只缩不增）
 
 **GameViewModel Delegate 模式**：
-VM 从 2,069 行降至 1,728 行，通过 **9 个 Delegate** 拆分领域逻辑：
+GameViewModel 通过 **9 个 Delegate** 拆分领域逻辑：
 
 ```
 delegate/
@@ -355,71 +251,15 @@ delegate/
 ```
 
 **Dao 拆分**：
-`Daos.kt` 从 1,223 行拆分为 **18 个领域文件**（按实体类型分组），Room KSP 自动发现。
+`Daos.kt` 拆分为 **18 个领域文件**（按实体类型分组），Room KSP 自动发现。
 
 **代码覆盖 & CI**：
 - **Kover** 覆盖率工具已集成（根 + app + core/data）
 - **CI 管道**：`.github/workflows/ci.yml`（compile + test + detekt + kover）
-- **测试扩展**：新增 74 个测试（UseCase 38 + 网络层 22 + Room 迁移 14）
-
-**静态分析工具链**：
-```
-android/
-├── config/detekt/detekt.yml       Detekt 配置（MaxLineLength: 80→120）
-└── build.gradle                   lint.checkReleaseBuilds = true
-```
 
 **构建检查**：`./gradlew compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport`
 
-### ViewModel Facade 直接注入 (v3.2.01)
-
-GameViewModel 除 GameEngine 外，新增 7 个 Facade 直接注入：
-
-```kotlin
-class GameViewModel @Inject constructor(
-    private val gameEngine: GameEngine,
-    private val discipleFacade: DiscipleFacade,
-    private val productionFacade: ProductionFacade,
-    private val inventoryFacade: InventoryFacade,
-    private val buildingFacade: BuildingFacade,
-    private val battleFacade: BattleFacade,
-    private val diplomacyFacade: DiplomacyFacade,
-    private val saveFacade: SaveFacade,
-    ...
-)
-```
-
-已迁移调用：`buildingFacade.addProductionSlot/moveBuildingDirect/startManualPlanting`、`discipleFacade.updateFocusedDisciple/approveMarriage/clearPendingNotification/updateMonthlySalaryEnabled`。GameEngine 保留为跨域操作协调器。
-
-```kotlin
-interface DiscipleFacade {
-    suspend fun recruitDisciple(): Disciple
-    val disciples: StateFlow<List<Disciple>>
-    // ...
-}
-
-@Singleton
-class DiscipleFacadeImpl @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val discipleService: DiscipleService
-) : DiscipleFacade { ... }
-```
-
-### GameData 拆分 (Phase A)
-
-新增 5 个领域 Entity（独立 Room 表），game_data 旧字段保留：
-
-| 新表 | 字段 | DAO |
-|------|------|-----|
-| `diplomacy_state` | sectRelations, alliances, sectDetails, exploredSects, scoutInfo | DiplomacyStateDao |
-| `production_state` | spiritFieldPlants, unlockedRecipes, unlockedManuals, manualProficiencies | ProductionStateDao |
-| `patrol_state` | patrolSlots, patrolConfig, patrolConfigs | PatrolStateDao |
-| `world_map_state` | worldLevels, cultivatorCaves, caveExplorationTeams | WorldMapStateDao |
-| `sect_policy_state` | sectPolicies, autoRecruitFilter, breakthroughConfig 等 | SectPolicyStateDao |
-
-DB v26 迁移：`CREATE TABLE IF NOT EXISTS` — Phase A 零风险。
-
-### DiscipleCompact 轻量表 (v3.2.01 新增)
+### DiscipleCompact 轻量表
 
 ECS 风格内存优化：`disciple_compact` Room 表（14 字段 vs 原 Disciple 50+），高频查询场景使用精简模型。
 
@@ -455,48 +295,9 @@ EventBus 通过 `EventBusPort` 接口暴露，支持测试替换。
 
 ## 状态管理 — GameStateStore
 
-### v3.2.01 架构：三层 StateFlow 拆分
+### 三层 StateFlow 架构
 
-在 v3.1.99 独立流架构之上，新增三层分层 StateFlow，UI 按需订阅：
-
-```
-HighFreqState  (spiritStones, gameYear/Month/Phase, isPaused) — 每 tick 变化，UI 高频消费
-EntityState    (disciples, equipment*, manuals*, pills, materials, herbs, seeds...) — 实体变化时发射
-ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) — 极少变化
-```
-
-- **HighFreqState**：`combine(5 个 _gameDataFlow.map{}.distinctUntilChanged())`，仅在对应字段实际变化时发射
-- **EntityState**：`combine(12 个独立流)`，实体列表变化时发射
-- **ConfigState**：`_gameDataFlow.map{}.distinctUntilChanged()`，配置字段变化时发射
-- 所有三层 StateFlow 标注 `@Immutable`，配合 Compose Strong Skipping Mode 自动跳过不变重组
-- 通过 `GameEngine.highFreqState / entityState / configState` 暴露给 ViewModel
-- `unifiedState` 保留为 LEGACY 兼容（仅 GameEngineCore.state 和 UnifiedGameStateManager 使用）
-
-### v3.1.99 架构：独立流单写
-
-> `_state: MutableStateFlow` 已移除。`unifiedState` 从 17 个独立流 `combine` 派生，只读。独立流为唯一事实源，消除双写不一致风险。
-
-### v3.1.97 架构：增量发射（已被 v3.1.99 取代）
-
-> 原架构：单一 `_state: MutableStateFlow<UnifiedGameState>` + 15 个 `.map{}.distinctUntilChanged().stateIn()` 派生流。每 tick 全部 `.map{}` 执行。
->
-> 现架构：16 个独立 `MutableStateFlow`，`update()` 事务内 `!==` 引用对比，仅发射实际变化的流。
-
-```
-                    ┌────────────────────────────┐
-                    │     GameStateStore         │
-                    │                            │
-  tick → update() ──┤  1. copy current → reusable│
-                    │  2. block()                │
-                    │  3. !== compare (13 fields)│
-                    │  4. emit only changed:     │
-                    │     _gameDataFlow ✓         │
-                    │     _disciplesFlow ✗ (same)│
-                    │     _pillsFlow ✗ (same)    │
-                    │     ...                    │
-                    │  5. _state.update{} (bw compat)
-                    └────────────────────────────┘
-```
+状态管理采用三层 StateFlow 分层架构，UI 按需订阅：
 
 ### 公开 StateFlow 清单
 
@@ -532,7 +333,7 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 | **结算合并** | `suspend fun swapFromShadow(shadow)` | 在 `update { }` 内执行 | 月度/年度结算 |
 | **重置** | `suspend fun reset()` | `transactionMutex.withLock { }` | 新游戏 / 清档 |
 
-> ⚠️ `updateGameDataDirect()` / `updateXxxDirect()` 方法已废弃（v3.2.00）。这些方法直接写 StateFlow.value，绕过 `transactionMutex`，存在竞态条件。所有外部调用已迁移到 `stateStore.update { }`。保留仅为内部兼容，不建议新代码使用。
+> ⚠️ `updateGameDataDirect()` / `updateXxxDirect()` 方法已废弃。这些方法直接写 StateFlow.value，绕过 `transactionMutex`，存在竞态条件。所有外部调用已迁移到 `stateStore.update { }`。保留仅为内部兼容，不建议新代码使用。
 
 ### 向后兼容
 
@@ -544,7 +345,7 @@ ConfigState    (sectPolicies, monthlySalary, elderSlots, placedBuildings...) —
 - `sectCombatPower`：`CachedPower(fingerprint, power)` 按战力指纹缓存，仅在 `combine(disciplesFlow, equipmentInstancesFlow, manualInstancesFlow)` 任一变化时重算
 - 两个缓存在 `loadFromSnapshot()` / `reset()` / `swapFromShadow()` 时清空
 
-### DomainStateProvider — 领域状态提供者 (v3.2.03)
+### DomainStateProvider — 领域状态提供者
 
 为 GameData 拆分 Phase B 做准备，`DomainStateProvider` 从 `GameData` 的 263 个字段中按领域提取 5 个子 StateFlow：
 
@@ -567,16 +368,12 @@ stateStore.gameData (StateFlow<GameData>)
 
 Phase B 将把 Data 层读写逐步切换到领域 DAO（独立表），DomainStateProvider 届时改为从 Repository 读取。
 
-### 状态一致性：统一 Mutex 序列化（v3.2.02 修复）
+### 状态一致性：统一 Mutex 序列化
 
-#### 问题背景
-
-`swapFromShadow()` 直接读写 `_xxxFlow.value` 绕过 `transactionMutex`，与玩家操作（`stateStore.update { }`）形成竞态条件，导致状态回退（弟子身份/状态/灵草种植被覆盖）。
-
-#### 解决方案
+#### 方案
 
 ```
-修复前：                            修复后：
+
 玩家操作 ──→ update { mutex }       玩家操作 ──→ update { mutex }
 结算合并 ──→ swapFromShadow() 无锁   结算合并 ──→ update { mutex }
               ↑ 竞态                          ↑ 互斥序列化
@@ -598,7 +395,7 @@ Phase B 将把 Data 层读写逐步切换到领域 DAO（独立表），DomainSt
 
 **GameData**：`@SettlementStrategy` 注解驱动 + `GameDataSettlementCoverageTest` 编译期检查。槽位字段（elderSlots/spiritMineSlots/librarySlots）使用 CUSTOM 合并器，允许结算清除操作穿透（origin 有值 shadow 清空 → 对 main 也清除）。
 
-**Disciple**：`mergeDiscipleAfterSettlement()` 集中管理 + `DiscipleMergeCoverageTest` 编译期检查。v3.2.03 从**整体覆盖**重构为**子字段级合并**：
+**Disciple**：`mergeDiscipleAfterSettlement()` 集中管理 + `DiscipleMergeCoverageTest` 编译期检查。采用
 
 ```
 mergeDiscipleAfterSettlement(main, shadow, origin):
@@ -638,126 +435,9 @@ mergeDiscipleAfterSettlement(main, shadow, origin):
 | 新增 Disciple 字段时更新 `DiscipleMergeCoverageTest` | 新增字段不分类 |
 | 新增 GameData 字段时加 `@SettlementStrategy` | 新增字段不加注解 |
 
-### 增量保存与脏追踪 (v3.2.01)
-
-**GameStateRepository** 提供字段级脏追踪：
-
-```kotlin
-class GameStateRepository {
-    data class DirtySet(gameData, disciples, equipmentStacks, ...)  // 13 个布尔标记
-    
-    fun markDirty(gameData = false, disciples = false, ...)  // 标记脏字段
-    fun markAllDirty()  // 全部标记（存档加载时）
-    
-    suspend fun flushDirtyState(gameData, disciples, ...) {
-        // 仅写入脏字段
-        // coroutineScope { launch(Dispatchers.IO) { deleteAll + insertAll } } 并行写入
-    }
-}
-```
-
-- 所有 `updateXxxDirect()` 方法在写入后自动调用 `repository.markDirty(xxx = true)`
-- `update()` 事务内变更检测后自动标记脏字段
-- `flushDirtyState()` 仅写入变化的表，脏字段间 `coroutineScope` 并行执行
-- `StorageEngine.incrementalSave(slot)` 从 unifiedState 快照提取脏数据，保存延迟从 ~200ms 降至 ~20ms
-
-### Save Slot 写入顺序 (v3.2.03 修复)
-
-`updateSpiritMineSlots` / `updatePatrolSlots` 走 `updateGameDataSync → launchInScope`，是 fire-and-forget。在 ViewModel 中与 `updateDiscipleStatus`（suspend）混用时，slot 更新可能延迟执行，导致状态不一致。
-
-**修复原则**：先 `updateGameData(suspend)` 保存 slot，再 `updateDiscipleStatus(suspend)` 更新弟子状态。
-
-```kotlin
-// ❌ 错误 — slot fire-and-forget + 弟子状态 suspend
-gameEngine.updateDiscipleStatus(discipleId, MINING)  // await
-gameEngine.updateSpiritMineSlots(slots)               // fire-and-forget，可能延迟
-
-// ✅ 正确 — 先槽位后弟子，都 await
-gameEngine.updateGameData { it.copy(spiritMineSlots = slots) }  // await
-gameEngine.updateDiscipleStatus(discipleId, MINING)              // await
-```
-
-**修复范围**：SpiritMineViewModel（autoAssign / remove / swap）、PatrolTowerViewModel（autoAssign / assign / remove / swap），共 7 处。
-
-### 重型数据 BLOB 直存 (v3.2.17)
-
-`game_heavy_data` 表存储 **7 个**重型字段（aiSectDisciples / sectDetails / exploredSects / scoutInfo / manualProficiencies / recruitList / worldMapSects），以 **Protobuf BLOB** 列直存。此前使用 Base64 TEXT 列存储，长时间存档中大字段（如 `aiSectDisciples` 包含数百宗门 × 上百弟子）序列化后的 Base64 编码可导致峰值内存超过 300MB（139MB ByteArray + 186MB Base64 String），触发 `OutOfMemoryError`。
-
-**v3.2.17 解决方案：增量编码 + BLOB 直存**
-- **列类型 TEXT → BLOB**：`data_value` 改为 `@ColumnInfo(typeAffinity = ColumnInfo.BLOB) ByteArray`，Room 原生支持，无需 TypeConverter，消除 Base64 33% 膨胀
-- **增量编码**：不再一次性 `encodeToByteArray(全集)`，改为逐项迭代（Map 每项独立一行，List 每 N 条一批），每批独立写入 DB **后立即释放** ByteArray
-- **内存守卫**：写入前 `Runtime.getRuntime().freeMemory()` 检查，<100MB 时跳过自动存档
-- **扩展卸载**：相比 v3.2.16 新增 `recruitList` 和 `worldMapSects` 两个大字段的卸载
-- **DB Migration 33→34**：`game_heavy_data` 表重建，`CAST(data_value AS BLOB)` 无损迁移旧 Base64 数据
-
-**Key 格式变更**：旧格式 `aiSectDisciples_chunk_0` → 新格式 `aiSectDisciples/青云宗`（`/` 分隔前缀和实体标识）。`_overflow_N` 后缀仅用于单条目超 900KB 的极端情况。
-
-```
-保存流程：
-  for each (sectName, disciples) in aiSectDisciples:
-      bytes = encodeToByteArray(ListSerializer, disciples)  → ~1-3MB per sect
-      → GameHeavyData(slotId, "aiSectDisciples/$sectName", bytes)
-      → heavyDao.upsertAll() 立即写入，立即释放 bytes
-
-  GameData 主表行清空所有重型字段为 emptyMap/emptyList
-
-加载流程：
-  loadHeavyDataSafe() → 逐 key 容错加载所有 BLOB 行
-  → decodeXxxFromRows() 按前缀匹配 → 每行独立 protobuf 解码 → 组装完整对象
-  → mergeHeavyData() 合并到 GameData
-```
-
-**向下兼容**：`decodeFromBlobInternal()` 两步回退 — 先直接 protobuf 解码（新 BLOB），失败则 `decodeToString` → `Base64.decode` → protobuf 解码（旧 CAST 数据）。旧存档首次加载后下次保存自动转为新格式。
-
-**关键类**：
-
-| 类/方法 | 职责 |
-|---------|------|
-| `GameHeavyData.chunk(slot, key, value: ByteArray)` | 拆分大 BLOB（>900KB 的极端情况）为溢出分块 |
-| `GameHeavyData.reassemble(rows)` | 从原始行列表重组 `Map<String, ByteArray>` |
-| `GameHeavyData.chunkKey(prefix, id)` | 构造分块 key：`"prefix/id"` |
-| `GameHeavyData.parseChunkKey(key, prefix)` | 从 key 提取 id |
-| `ProtobufConverters.encodeXxxIncremental()` | 逐项 protobuf 编码（永不分配完整集合的 ByteArray）|
-| `ProtobufConverters.decodeXxxFromRows()` | 按前缀过滤行 → 逐行解码 → 组装 |
-| `ProtobufConverters.decodeFromBlobInternal()` | 两步回退解码（protobuf → Base64 → default）|
-| `GameHeavyDataDao.deleteByKeyPrefix(slot, prefix)` | 写入前按前缀批量清理旧数据 |
-| `GameHeavyDataDao.getByPrefix(slot, prefix)` | 按前缀批量查询（替代逐 key 查询） |
-| `StorageEngine.writeAllDataToDatabase()` | 内存守卫 + 增量编码写入 + 轻型 GameData 写入 |
-| `StorageEngine.mergeHeavyData()` | 加载后合并重型数据到 GameData |
-| `GameEngine.ensureHeavyDataLoaded()` | 启动时安全加载 7 个重型字段 + 2 个新增字段 |
-
-### SystemManager 依赖图并行 (v3.2.01)
-
-```kotlin
-// 系统按 @SystemPriority 分组
-priorityGroups = systems.groupBy { it.annotation.order }.toSortedMap().values
-
-// 同级并行，组间串行
-private suspend fun executeInParallelGroups(state, action) {
-    for (group in priorityGroups) {
-        if (group.size == 1) {
-            action(group.first(), state)  // 单系统跳过协程开销
-        } else {
-            coroutineScope {
-                group.forEach { system -> launch { action(system, state) } }
-            }
-        }
-    }
-}
-```
-
-独立 MutableStateFlow 的更新在 `_state.update {}` **之后**、`transactionMutex.withLock {}` **之内**执行，确保：
-- 不受 `_state.update {}` 内部 CAS 重试影响
-- `transactionMutex` 防止与 `updateGameDataDirect()` 等入口并发
-- `_state` 是最新值后再同步独立流，保证一致性
-
-### manualStacks 数据流
-
-`manualStacks` 直接从 `_manualStacksFlow` 透传，经 `GameViewModel` 以 `.stateIn()` 暴露给 UI。**不含**跨弟子背包过滤——功法选择 UI 自行按当前弟子的已学功法做同名去重。
-
 ---
 
-## 游戏时间系统 — GameTimeClock (v3.2.25)
+## 游戏时间系统 — GameTimeClock
 
 全项目唯一的时间推进入口，基于三层时钟模型：
 
@@ -789,12 +469,10 @@ private suspend fun executeInParallelGroups(state, action) {
 | TICK_INTERVAL_MS | 100ms | `GameEngineCore.kt` |
 | MIN_TICK_DELAY_MS | 16ms | `GameEngineCore.kt` |
 | ADAPTIVE_MAX_INTERVAL_MS | 1000ms | `GameEngineCore.kt` |
-| IDLE_TICK_INTERVAL_MS | 2000ms | `GameEngineCore.kt` (10秒无操作后降频) |
-| IDLE_DETECTION_MS | 10000ms | `GameEngineCore.kt` |
-| NON_FOCUS_TICK_INTERVAL | 30000ms | `GameEngineCore.kt` (非焦点域结算间隔) |
+| batchIntervalMs | 动态5-15s | `GameEngineCore.kt` (切Tab加速5s，稳定态10s) |
 | MS_PER_PHASE_1X | 2000ms | `GameTimeClock.kt` |
 
-### 焦点分频机制 (v3.2.06)
+### 焦点分频机制
 
 每个 `GameSystem` 声明 `focusDomain`(`FocusDomain` 枚举)：
 - **ALWAYS** — 每 tick 必执行（TimeSystem）
@@ -806,7 +484,7 @@ private suspend fun executeInParallelGroups(state, action) {
 - **EXPLORATION** — 探索/巡逻/战斗
 - **BACKGROUND** — 后台系统（邮件、生育、道侣、AI 宗门）
 
-**两档制**：活跃域每 tick(100ms)执行，非活跃域最长 30 秒一次。玩家切换 Tab/Dialog/弟子焦点时触发 `catchUpDomain()` 立即追赶。
+**两档制**：焦点域随游戏时钟推进执行（1x=每2000ms/旬，phasesToSettle=1），非焦点域动态5-15s一次（phasesToSettle=N）。Tab切换时加速到5s并触发 `catchUpDomain()` 立即追赶。
 
 **实现**：`SystemManager.onPhaseTickWithDomainFilter(state, activeDomains, shouldExecute, markExecuted)`
 
@@ -832,7 +510,7 @@ startGameLoop() → gameClock.start()
     → patrol battle results
 ```
 
-### 热管理与看门狗 (v3.2.03)
+### 热管理与看门狗
 
 **ThermalMonitor**：通过 ADPF Thermal API 监控设备热状态，过热时自动降负载或紧急保存：
 
@@ -850,7 +528,7 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ---
 
-## 血炼池 — Blood Refining Pool (v3.2.04)
+## 血炼池 — Blood Refining Pool
 
 ### 架构
 
@@ -899,34 +577,34 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ## 结算管线 — SettlementCoordinator
 
-### 当前架构：双模式（活跃 + 空闲）
+### 双轨制（实时轨 + 批量轨）
 
-游戏引擎根据用户交互间隔在两种结算路径间切换：
+游戏引擎在每次旬推进时按双轨制调度系统：
 
 ```
 tickInternal()
-  ├── 活跃模式（用户 30s 内有交互）
-  │     → monthChanged?
-  │       → scheduleMonthly(shadow)     // 分阶段结算，Scheduler 驱动
-  │         → executeStep() 每 tick 一帧
-  │           → onSettlementComplete() → swapFromShadow()
-  │     → yearChanged?
-  │       → scheduleYearly(shadow)      // 同上 + 年度阶段
-  │     → 热控? → accumulateBatch (ACTIVE_NON_FOCUS)  // 仅设备过热时
-  │
-  └── 空闲模式（用户 30s 无交互）
-        → 始终 accumulateBatch(IDLE)    // 所有域累积
-          → 双指纹检测 → 变化? → 微结算
-          → 30s 墙壁时钟 → 全量结算 + swap
-        → onUserInteraction → exitBatchMode → 切回活跃
+  → 暂停/加载/保存检查
+  → gameClock.tick() → TickResult(phasesToAdvance)
+  → for each phase:
+      → 并行 pre-compute（只读快照，ParallelDispatcher N路并行）
+      → stateStore.update {
+            apply(parallelResults)  // 写入并行计算结果
+            systemManager.onPhaseTickWithDomainFilter(activeDomains)
+              → 实时轨: 焦点域系统 + 进度≥80%槽位, phasesToSettle=1
+              → 批量轨: 非焦点域系统 + 进度<80%槽位, phasesToSettle=N
+        }
+  → 月变事件 / 年变事件
+  → 结算待处理? → forceCompleteSettlement()
+  → accumulateBatch(batchIntervalMs)  // 指纹检测（动态5-15s）
+  → 年变? → scheduleYearly(shadow) + executeStep()
 ```
 
-**双轨制（两模式共享）**：
+**双轨制**：
 
 | 轨道 | 频率 | 判定条件 |
 |------|------|---------|
-| **实时轨** | 100ms tick | 焦点域（当前 Tab/Dialog）+ 实时轨槽位（进度 ≥80%） |
-| **批量轨** | 活跃按月 / 空闲 30s | 既非焦点域也无 ≥80% 槽位的其余全部内容 |
+| **实时轨** | 每旬推进时执行（1x≈2000ms/旬） | 焦点域系统 + 进度≥80%槽位，phasesToSettle=1 |
+| **批量轨** | 动态5-15s（R12节律） | 非焦点域系统 + 进度<80%槽位，phasesToSettle=N（追赶跳过旬数） |
 
 **实时轨准入条件（`classifySlotsProgress`，9 类系统）**：
 
@@ -949,17 +627,7 @@ tickInternal()
 | `CultivationRateFingerprint` | 住所布局、长老分配、政策、弟子境界、丹药/丧亲/功法、寿命衰减、师徒关系 | `SettlementCoordinator.kt:1266` |
 | `ProductionRateFingerprint` | 灵矿槽位、灵植阁、炼丹/炼器分配、血炼进程、任务、思过、建筑等级、生产政策 | `ProductionRateFingerprint.kt:58` |
 
-### 优化项 (v3.2.22)
-
-| 优化 | 技术 | 收益 |
-|------|------|------|
-| Cache 增量重建 | `CultivationRateFingerprint` + Dirty Flag 模式 | 90%+ 月份跳过 Cache Build（3-15ms→0ms） |
-| Shadow 浅拷贝 | `createSettlementShadow()` + `isSettlementShadow` 标记。跳过 `storageBags`/`teams`/`battleLogs`，其余 10 字段全量拷贝（含生产必需的 herbs/materials/seeds） | 拷贝开销减 ~30%（3 字段/14 字段） |
-| 弟子并行处理 | `coroutineScope { async(Dispatchers.Default) }` 分片并行 | 批量处理减 40-60% |
-| 时间预算动态调整 | 激进 12ms（3 帧）+ 保守 1.5ms | 月结帧数 12-65→1-3 |
-| 生产并行化 | 炼丹/锻造并行（herbs/materials 无冲突），矿场/分配串行 | 生产阶段减 20-30% |
-
-### 活跃模式结算阶段（`scheduleMonthly`/`scheduleYearly`）
+### 月度结算阶段（`scheduleMonthly`/`scheduleYearly`）
 
 | 阶段 | 职责 |
 |------|------|
@@ -970,14 +638,14 @@ tickInternal()
 | `Phase_Production` | 生产系统月结算（炼丹/锻造并行，其余串行） |
 | `Phase_WorldEvents` | 世界事件（探索、外交、生育等） |
 
-### 空闲模式微结算（`accumulateBatch` 路径）
+### 批量轨微结算（`accumulateBatch` 路径）
 
 | 方法 | 职责 |
 |------|------|
 | `cultivationMicroSettle` | 用旧缓存速率结算 N 旬修炼值 + HP/MP 恢复 + 持续效果衰减 + 突破检查，直接操作 DiscipleTables |
 | `productionMicroSettle` | 逐月推进 `productionSubsystem.onMonthTick` + 经济/血炼/探索/邮件/生育/道侣 |
 
-### 异常恢复 (v3.1.98)
+### 异常恢复
 
 - `executeStep()` 包裹 try-catch，异常时调用 `resetOnError()` 清空 `shadowState`/`currentCache`/`scheduler`
 - `shadowState` / `currentCache` 标记 `@Volatile` 防止 UI 线程 `cancelPendingWork()` 并发问题
@@ -985,11 +653,11 @@ tickInternal()
 
 ---
 
-### 计划：统一批量结算模式（ADR）
+### 待执行：统一批量结算模式（ADR）
 
 > 详见 [docs/adr/unified-batch-settlement.md](../../docs/adr/unified-batch-settlement.md)
 
-**目标**：移除活跃/空闲双模式，统一为"实时轨/焦点域 100ms tick + 批量轨 30s 结算"的单一模式。
+**目标**：移除活跃/空闲双模式，统一为"实时轨（随游戏时钟推进，phasesToSettle=1）+ 批量轨（动态5-15s R12节律，phasesToSettle=N）"的单一模式。
 
 **核心变更**：
 
@@ -1008,27 +676,27 @@ tickInternal()
 
 **删除项**：
 
-| 删除 | 所在文件 | 原因 |
-|------|---------|------|
-| `BatchMode` 枚举 | `SettlementCoordinator.kt` | IDLE/ACTIVE_NON_FOCUS 不再区分 |
-| `resolveThermalBatchSize()` | `SettlementCoordinator.kt` | 热控批次大小不再需要 |
-| `fullIdleSettle()` | `SettlementCoordinator.kt` | 死代码（从未被调用） |
-| `doIdleFullSettle()` | `GameEngineCore.kt` | 死代码（从未被调用） |
-| `isInIdleState` | `GameEngineCore.kt` | 无空闲状态 |
-| `lastUserInteractionTime` | `GameEngineCore.kt` | 无空闲检测 |
-| `pendingReturnFromIdleSettle` | `GameEngineCore.kt` | 无空闲退出等待 |
-| `enterIdleMode()` | `GameEngineCore.kt` | 无空闲模式 |
-| `cleanupIdleState()` | `GameEngineCore.kt` | 无空闲清理 |
-| `forceCompleteSettlement()` | `GameEngineCore.kt` | 无强制完成（批量累积不产生 pending） |
-| `IDLE_DETECTION_MS` | `GameEngineCore.kt` | 无空闲检测 |
+| 删除 | 所在文件 |
+|------|---------|
+| `BatchMode` 枚举 | `SettlementCoordinator.kt` |
+| `resolveThermalBatchSize()` | `SettlementCoordinator.kt` |
+| `fullIdleSettle()` | `SettlementCoordinator.kt` |
+| `doIdleFullSettle()` | `GameEngineCore.kt` |
+| `isInIdleState` | `GameEngineCore.kt` |
+| `lastUserInteractionTime` | `GameEngineCore.kt` |
+| `pendingReturnFromIdleSettle` | `GameEngineCore.kt` |
+| `enterIdleMode()` | `GameEngineCore.kt` |
+| `cleanupIdleState()` | `GameEngineCore.kt` |
+| `forceCompleteSettlement()` | `GameEngineCore.kt` |
+| `IDLE_DETECTION_MS` | `GameEngineCore.kt` |
 
 **保留项**：
 
 | 保留 | 原因 |
 |------|------|
-| `scheduleMonthly` / `scheduleYearly` | 公开 API，保留以备后用；SettlementScheduler 及阶段类不变 |
+| `scheduleMonthly` / `scheduleYearly` | 公开 API 保留，SettlementScheduler 及阶段类不变 |
 | `FocusDomain.BACKGROUND` | 枚举值保留，系统仍使用 |
-| `onUserInteraction` 回调链路 | UI 层用它重置批量时钟（避免交互时触发不必要的全量结算） |
+| `onUserInteraction` 回调链路 | UI 层用它重置批量时钟 |
 
 ---
 
@@ -1058,7 +726,7 @@ tickInternal()
 
 **移动建筑**：从烘焙层排除，0.5f alpha 独立绘制——每帧不重建 Bitmap。
 
-### 增量绘制与装饰清除 (v3.2.03)
+### 增量绘制与装饰清除
 
 `bakedMapBmp` 从 `remember(fullMapBmp, effectivePlacedBuildings)` 全量重建改为 `remember(fullMapBmp)` 创建后 `LaunchedEffect(effectivePlacedBuildings)` 增量更新：
 
@@ -1080,7 +748,7 @@ tickInternal()
 
 ## 性能基础设施
 
-### GCOptimizer (v3.2.01 更新)
+### GCOptimizer
 
 | GC Type | 触发条件 | 动作 |
 |---------|---------|------|
@@ -1089,11 +757,11 @@ tickInternal()
 | CRITICAL | 92% 内存 | 日志提示，委托 ART 自主管理 |
 | MANUAL | 手动触发 | 日志提示，委托 ART 自主管理 |
 
-> **v3.2.01 变更**：移除 `System.gc()` 和 `System.runFinalization()` 调用。ART 分代并发 GC（Concurrent Copying）自主管理更高效，显式 gc() 触发 Full GC Stop-The-World 导致游戏卡顿。
+> ART 分代并发 GC（Concurrent Copying）自主管理，已移除显式 `System.gc()` 调用。
 
 ### DynamicMemoryManager
 
-设备等级（已有，v3.1.97 中用于 Canvas 烘焙决策）：
+设备等级（用于 Canvas 烘焙决策）：
 
 | Tier | RAM | heap | Canvas 策略 |
 |------|-----|------|------------|
@@ -1102,7 +770,7 @@ tickInternal()
 | HIGH | 6-12GB | 384-512MB | ARGB_8888 (36MB/层) |
 | ULTRA | 12GB+ | > 512MB | ARGB_8888 全开 |
 
-### FrameMetricsMonitor (v3.2.01 新增)
+### FrameMetricsMonitor
 
 ```kotlin
 @Singleton
@@ -1125,7 +793,7 @@ class FrameMetricsMonitor {
 已有：tick 耗时、帧时间(Choreographer.FrameCallback)、内存、FPS、保存队列。
 待加：重组计数、内存分配追踪。
 
-### ThermalMonitor (v3.2.03)
+### ThermalMonitor
 
 ```kotlin
 @Singleton
@@ -1138,7 +806,7 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 基于 Android ADPF Thermal API（`PowerManager.getCurrentThermalStatus()`）。在 `GameEngineCore.tickInternal()` 入口处优先检查，过热时跳过整个 tick 或限流执行。
 
-### BuildingSpatialIndex (v3.2.03)
+### BuildingSpatialIndex
 
 ```kotlin
 class BuildingSpatialIndex {
@@ -1151,20 +819,11 @@ class BuildingSpatialIndex {
 
 ---
 
-## 世界地图重构 (v4.0.00)
+## 世界地图重构
 
 ### 概述
 
-世界地图渲染管线从逐帧全量绘制重构为增量更新架构，核心思路：**静态内容预烘焙为 Bitmap + 动态内容逐帧叠加**。
-
-### 重构前后对比
-
-| 维度 | 重构前 | 重构后 |
-|------|--------|--------|
-| 地图渲染 | 每帧遍历全部宗门/路径/关卡逐项绘制 | 地形+宗门基础层预烘焙为 Bitmap，动态层叠加 |
-| 连接线 | 每帧重新计算 Path | Path 缓存，仅在宗门关系变化时重建 |
-| 相机系统 | `MapCameraState`（独立类，120行） | 整合到 `WorldMapViewModel`，消除间接层 |
-| 文件结构 | `MapCanvas.kt`/`MapItem.kt`/`MapItemMapper.kt`/`MapStyle.kt`/`MapCameraState.kt`（5 文件，263 行） | 逻辑内聚到 `WorldMapViewModel`/`MapBackground.kt`/`MapTileCache.kt` |
+世界地图渲染管线采用增量更新架构，核心思路：**静态内容预烘焙为 Bitmap + 动态内容逐帧叠加**。
 
 ### 核心文件
 
@@ -1194,7 +853,7 @@ GameData.worldMapSects → WorldMapViewModel.mapItems (derivedStateOf)
     → MapOverlay: 连接线 + 动态标记 (per frame, viewport-culled)
 ```
 
-### 建筑拆除 (v4.0.00)
+### 建筑拆除
 
 山门地图移动建筑模式下新增「拆除」功能，允许玩家拆除已放置建筑并回收部分资源：
 
@@ -1226,7 +885,7 @@ GameData.worldMapSects → WorldMapViewModel.mapItems (derivedStateOf)
 
 ---
 
-## GPU 分级渲染系统 (v4.0.00)
+## GPU 分级渲染系统
 
 ### 概述
 
@@ -1291,7 +950,7 @@ fun thermalRenderScale(gpuTier: GpuTier, thermalState: ThermalState): Float
 
 ---
 
-## 活动系统 (v4.0.00)
+## 活动系统
 
 ### 概述
 
@@ -1344,180 +1003,18 @@ BuiltinActivityConfig → ActivityViewModel.activities (StateFlow)
 
 ---
 
-## 背包系统重构 (v4.0.00)
-
-### 概述
-
-统一物品卡片交互模式，简化仓库操作流程，储物袋开启从底部按钮提升为卡片右上角一键操作。
-
-### 核心变更
-
-**物品卡片交互模式统一**：
-
-```
-操作     → 点击      → 选中/取消选中卡片（金色/灰色边框）
-         → 长按      → 弹出物品详情对话框
-         → 右上角按钮 → 特殊操作（储物袋「开启」等）
-```
-
-**仓库底部按钮重构**：
-
-| 重构前 | 重构后 |
-|--------|--------|
-| 储物袋显示「开启」按钮，其他物品显示「售卖」「锁定」「赏赐」 | 统一三按钮：「售卖」「锁定」「赏赐」，储物袋「开启」移至卡片右上角 |
-| `showViewButton` + `onViewDetail` 分散参数 | `overlayButtonText` + `onOverlayButtonClick` 统一点位 |
-
-**修改文件**：
-| 文件 | 变更 |
-|------|------|
-| `ui/components/ItemCard.kt` | `combinedClickable` 替代 `clickable`，新增 `onLongPress`/`overlayButtonText`/`onOverlayButtonClick` 参数 |
-| `ui/game/tabs/WarehouseTab.kt` | 底部按钮统一，储物袋开启逻辑移至卡片层 |
-| `ui/game/tabs/EquipmentSection.kt` | 适配新 ItemCard 参数 |
-| `ui/game/tabs/ManualSection.kt` | 适配新 ItemCard 参数 |
-| `ui/game/tabs/MaterialSection.kt` | 适配新 ItemCard 参数 |
-| `ui/game/tabs/PillSection.kt` | 适配新 ItemCard 参数 |
-| `ui/game/tabs/WarehouseBulkSellDialog.kt` | 适配新 ItemCard 参数 |
-| `ui/game/components/ItemDetailEffects.kt` | 功法效果获取增加 `ManualDatabase.isInitialized` 防御 |
-| `ui/game/components/ItemDetailOtherEffects.kt` | 物品详情效果文本补全 |
-| `ui/game/delegate/InventoryDelegate.kt` | 适配新 ItemCard 参数 |
-
-**涉及对话框适配**：`AlchemyDialog`、`BattleResultDialog`、`BloodRefiningPoolDialog`、`DailySignInDialog`、`ForgeDialog`、`MailDialog`、`MerchantDialog`、`PlantingDialog`、`SectTradeDialog`、`HerbGardenDialog`
-
-**清理**：移除 `HerbGardenDialog.kt` 中 102 行不再使用的代码
+---
 
 ---
 
-## 商店改版 (v4.0.00)
-
-### 概述
-
-云游商人界面从单一「购买」Tab 重构为「购买」+「收购」双标签布局。
-
-### 架构
-
-```
-MerchantDialog
-  ├── TabRow: [购买] [收购]  ← 标签切换，各占 50% 宽度
-  ├── 购买模式 (MerchantMode.BUY)
-  │     ├── 筛选栏 (全部/装备/功法/丹药/材料/草药/种子)
-  │     ├── 物品网格 (LazyVerticalGrid, 60dp 自适应列)
-  │     └── 购买面板 (数量调节 + 灵石余额 + 确认购买)
-  └── 收购模式 (MerchantMode.ACQUIRE)
-        ├── 商人收购列表 (显示仓库持有量)
-        ├── 出售确认弹窗 (数量调节 + 总价实时计算)
-        └── 按钮状态 (可售 / 不再收购 / 无库存灰色)
-```
-
-### 数据模型新增
-
-```kotlin
-// GameData.kt — 收购物品持久化
-@SettlementStrategy(Strategy.PRESERVE_OLD)
-var merchantAcquisitionItems: List<MerchantItem> = emptyList()
-
-@SettlementStrategy(Strategy.USE_SHADOW)
-var merchantAcquisitionLastRefreshYear: Int = 0
-```
-
-### 收购刷新逻辑
-
-`MerchantAndRecruitService.refreshMerchantAcquisition(year, month)`：
-- 每年刷新 1~6 种收购物品（`ACQUISITION_ITEM_COUNT_MIN..MAX = 1..6`）
-- 物品从商人物品池中按品阶概率选取（与售卖物品相同池）
-- 价格随机浮动 ±20%（精确到 0.1%），单价最高 999999 灵石
-- 新游戏初始化 + 年度事件 + 读档后均触发刷新
-
-### 出售流程
-
-```
-用户点击收购物品 → 弹出 SellConfirmDialog
-  → 显示仓库数量 / 商人收购数量 / 剩余可售数
-  → 数量滑块调节 1..min(仓库数量, 收购剩余)
-  → 总价 = 单价 × 数量（实时计算显示）
-  → 确认 → InventoryFacade.sellToMerchant(acquisitionItemId, qty)
-      → 从仓库逐类扣除物品（按名称+品阶匹配，跳过锁定物品）
-      → 灵石 += 总价
-      → 收购物品 quantity -= 已售数量
-      → 归零后物品保留在列表，按钮变红「不再收购」
-```
-
 ---
-
-## 每日签到优化 (v4.0.00)
-
-### 概述
-
-签到奖励从全固定物品改为部分随机品种，增加签到惊喜感和实用性。
-
-### 奖励变更
-
-| 星期 | 旧奖励 | 新奖励 | 类型 |
-|------|--------|--------|------|
-| 周一 | 灵石×10000 | 灵石×10000 | 不变 |
-| 周二 | 凡虎血×20 | 随机凡品材料×20 | `randomMaterial` |
-| 周三 | 凡品储物袋×1 | 凡品储物袋×1 | 不变 |
-| 周四 | 灵石×10000 | 随机凡品种子×20 | `randomSeed` |
-| 周五 | 引灵丹×5 | 随机凡品丹药×2 | `randomPill` |
-| 周六 | 悟法丹×5 | 悟法丹×5 | 不变 |
-| 周日 | 灵品储物袋×1 | 灵品储物袋×1 | 不变 |
-
-### 随机物品生成
-
-`DailySignInService.distributeReward()` 新增三种随机类型：
-
-```kotlin
-"randomMaterial" → ItemDatabase.generateRandomMaterial(minRarity=1, maxRarity=1) × qty
-"randomSeed"     → HerbDatabase.generateRandomSeed(minRarity=1, maxRarity=1) × qty
-"randomPill"     → ItemDatabase.generateRandomPill(minRarity=1, maxRarity=1) × qty
-```
-
-每次签到独立随机，自动与现有物品堆叠（同品阶同名合并），超堆叠上限时创建新堆。
-
-### UI 变更
-
-- 随机物品卡片以 `?` 白色大号文字替代固定精灵图
-- `isRandomReward` 标志控制精灵图 vs 问号文本切换
-- 奖励名称和数量不变（如「凡品材料」「凡品丹药」）
-
----
-
-## 数据库迁移 (v4→v5) (v4.0.00)
-
-### GameData 新增字段
-
-| 字段 | 类型 | 策略 | 说明 |
-|------|------|------|------|
-| `merchantAcquisitionItems` | `List<MerchantItem>` | `PRESERVE_OLD` | 商人收购物品列表 |
-| `merchantAcquisitionLastRefreshYear` | `Int` | `USE_SHADOW` | 收购刷新年份 |
-
-### DB Migration 4→5
-
-```sql
-ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems BLOB NOT NULL DEFAULT X''
-ALTER TABLE game_data ADD COLUMN merchantAcquisitionLastRefreshYear INTEGER NOT NULL DEFAULT 0
-```
-
-**schema/5.json**：Room 自动生成的 v5 schema 文件（5492 行）
-
-### 序列化层同步
-
-| 文件 | 变更 |
-|------|------|
-| `SerializableSaveData.kt` | 新增 `@ProtoNumber(88) merchantAcquisitionItems` / `@ProtoNumber(89) merchantAcquisitionLastRefreshYear` |
-| `SaveDataConverter.kt` | `gameDataToSerializable()` + `gameDataFromSerializable()` 双向转换新增两个字段 |
-| `GameDatabase.kt` | `@Database version = 4 → 5`，`addMigrations` 新增 `MIGRATION_4_5` |
-| `EconomicState.kt` | 新增两个字段（状态投影用） |
-
-### 旧存档兼容
-
-`MIGRATION_4_5` 使用 `ALTER TABLE ADD COLUMN ... DEFAULT`，旧 v4 存档自动获得空收购列表（`X''` = 空 BLOB），无需破坏性重建。
 
 ---
 
 
 ## 构建与 Profile
 
-### 测试架构（v3.2.02 新增）
+### 测试架构
 
 | 测试类 | 目的 | 测试数 |
 |--------|------|--------|
@@ -1546,7 +1043,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 ### Compose Compiler
 
 - **插件**：`org.jetbrains.kotlin.plugin.compose`（Kotlin 2.0 原生）
-- **已移除**：`composeOptions { kotlinCompilerExtensionVersion = '1.5.8' }`（冗余/冲突）
+- **Compose 编译器插件**：`org.jetbrains.kotlin.plugin.compose`（Kotlin 2.0 原生），无需 `composeOptions` 配置
 - **默认启用**：Strong Skipping Mode
 - **稳定性配置**：`stability_config.conf` — 26 个类的显式稳定性声明
 - **指标**：`composeCompiler { reportsDestination / metricsDestination }` → `build/compose_metrics/`
@@ -1557,7 +1054,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - **生成器**：`BaselineProfileGenerator.collect(packageName="com.xianxia.sect", includeInStartupProfile=true)`
 - **生成方式**：本地真机运行 `:baselineprofile:generateReleaseBaselineProfile`，生成文件提交 `app/src/main/baseline-prof.txt`
 
-### Lifecycle 感知收集 (v3.2.01 全量完成)
+### Lifecycle 感知收集
 
 - **依赖**：`lifecycle-runtime-compose:2.8.7`
 - **模式**：`collectAsStateWithLifecycle()` 全量替代 `collectAsState()`
@@ -1566,11 +1063,11 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 ---
 
-## 事件驱动惰性求值 (v3.2.15)
+## 事件驱动惰性求值
 
 ### 核心思想
 
-每种耗时操作存储 `completionMonth` + `completionPhase`，仅在 `currentMonth >= completionMonth && currentPhase >= completionPhase` 时才结算。**焦点域强制立即结算**（100ms tick），保证玩家体验。
+每种耗时操作存储 `completionMonth` + `completionPhase`，仅在 `currentMonth >= completionMonth && currentPhase >= completionPhase` 时才结算。**焦点域强制立即结算**，保证玩家体验。
 
 ### 关键文件
 
@@ -1585,18 +1082,18 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - `SpiritFieldPlant`: `completionMonth`, `completionPhase`
 - DB Migration v32→v33：ALTER TABLE 新增 8 列
 
-### 焦点域实时化 (v3.2.16)
+### 焦点域实时化
 
-- **DISCIPLES Tab**: `processDiscipleTick` 每 100ms 推进全体弟子修炼值（`rate × 0.1s`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
-- **BUILDINGS Tab**: `ProductionSubsystem.onPhaseTick` 每 200ms 检测生产槽位完成 + 触发自动锻造/自动炼丹
+- **DISCIPLES Tab**: 随游戏时钟推进修炼值（`rate × phasesToSettle`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
+- **BUILDINGS Tab**: 随旬推进检测生产槽位完成 + 触发自动锻造/自动炼丹
 - **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前正常恢复（`CombatService`，满状态跳过）
 
-### 修炼月度结算 (v3.2.16 / v4.0.11)
+### 修炼月度结算
 
 - 所有存活弟子每月强制结算修炼值，不再按距突破远近跳过（原 `farFromCompletionIds` 逻辑已移除）
 - 修炼速度变化 → 脏标记 → 强制下一次结算 → 重算 `completionMonth`
 - 突破被动触发：`cultivation >= maxCultivation` 且满血满蓝时判定，clean/dirty 批次均会检查
-- Cache 增量重建 (v3.2.22/v4.0.21)：`CultivationRateFingerprint` 检测住所/长老/传功/政策/弟子列表变化，未变化时复用 `SettlementCache`
+- Cache 增量重建：`CultivationRateFingerprint` 检测住所/长老/传功/政策/弟子列表变化，未变化时复用 `SettlementCache`
 
 ### 其他性能改进
 
@@ -1611,48 +1108,4 @@ cd android && ./gradlew.bat testDebugUnitTest \
 
 ---
 
-## 后续优化项
 
-✅ **全部 8 项已在 v4.0.36 中处理完毕**。详见下方已完成项清单。 |
-
-> ✅ **v4.0.36 已完成项（全部 8 项后续优化）**：
-> - **P1 大文件重构（6 个文件）**：
->   - MainGameScreen: 1509→1086行，5 leaf组件到 `main/`
->   - HeavenlyTrialCombatScreen: 1674→848行，4子模块到 `heavenlytrial/`
->   - AISectAttackManager: 1313→1144行，数据类+队伍编成到 `aiattack/`
->   - InventorySystem: 1328→1288行，容量计算到 `inventory/`
->   - MerchantDialog: 1331→320行，2子文件 (Listing+Inventory)
->   - SaveCrypto: CryptoConfig.kt 常量提取
-> - **P2 SaveLoadViewModel拆分** — 5个Delegate (Save/Load/Restart/Pause/State)
-> - **P3 DI测试修复** — Konsist替换为占位测试，测试编译通过
-> - **P4 引擎核心层测试** — CultivationCore新增3个DiscipleTables测试
-> - **P4 Compose UI测试** — SectInfoCardTest创建，需instrumented环境
-> - **P4 并发压力测试** — 7个Mutex并发测试全部通过
-> - **P4 通配符导入** — detekt baseline压制，新代码不得引入
-> - **P4 事件溯源审计日志** — 已决策跳过（WAL增量保存已提供快照恢复能力）
-> - **统一批量结算模式** — 移除活跃/空闲双模式。详见 [ADR](docs/adr/unified-batch-settlement.md)
->
-> > 此前已完成项：
-> > - ✅ **v4.0.35 — !!操作符清零**：GameEngineBattleOps(3)+SettlementCache(1)→0
-> - ✅ **v4.0.35 — 空catch块清零**：6个文件修复
-> - ✅ **v4.0.35 — Detekt违规数降84%**：1,245→195
-> - ✅ **v4.0.35 — GameViewModel拆分**：2,069→1,728行，新建5个Delegate(共9个)
-> - ✅ **v4.0.35 — Daos拆分**：1,223行→18个领域文件
-> - ✅ **v4.0.35 — UseCase测试全覆盖**：38个Mockito测试覆盖14/14
-> - ✅ **v4.0.35 — 网络层测试**：22个
-> - ✅ **v4.0.35 — Room迁移测试**：14个
-> - ✅ **v4.0.35 — Kover覆盖率工具集成**：根+app+core/data
-> - ✅ **v4.0.35 — CI管道**：.github/workflows/ci.yml
-> - ✅ **v4.0.35 — CLAUDE.md+CODE_WIKI.md更新**
-> - ✅ **v4.0.01 — 模块化依赖根治**：6 模块架构，13 个域接口，engine→data 依赖完全移除，domain 提纯为零 Android Framework 模块
-> - ✅ **v4.0.02 — 背包系统重构**：物品卡片交互统一（点击选中+长按详情+右上角快捷操作），仓库底部三按钮统一布局
-> - ✅ **v4.0.02 — 商店改版**：云游商人「购买」+「收购」双标签布局，收购物品持久化 + 出售数量调节 + 实时总价
-> - ✅ **v4.0.02 — 每日签到奖励多样化**：3 天固定奖励改为随机品种（材料/种子/丹药），增加签到惊喜感
-> - ✅ **v4.0.02 — DB v5 迁移**：新增 merchantAcquisitionItems + merchantAcquisitionLastRefreshYear 列
-> - ✅ **v4.0.01 — 世界地图重构**：预烘焙 Bitmap + 视口裁剪 + 连接线缓存 + 固定宗门坐标，消除地图抖动
-> - ✅ **v4.0.01 — GPU 全覆盖分级渲染**：检测 80+ SoC 型号、40+ 品牌，四级画质自动适配
-> - ✅ **v4.0.01 — Canvas Overdraw 大幅优化**：网格线 LOW 模式 ~100→4 条，预览框 ~50→1 次 drawRect
-> - ✅ **v4.0.00 — 架构重构 + 巨型文件拆分**：CultivationService(3804→拆10文件)、GameEngine(3000→拆9文件) 等
-> - ✅ **反模式清零**：!! 110→0、runBlocking 17→0、@Suppress 60+→15
-> - ~~Disciple 字段注解驱动合并~~ → ✅ 已完成（v3.2.21）
-> - ~~`updateXxxDirect` 方法移除~~ → ✅ 已完成（v3.2.21）

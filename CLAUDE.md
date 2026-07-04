@@ -73,30 +73,14 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt kove
 ## Architecture: Two-Layer State Model + Frame-Driven Game Loop
 
 ```
-┌──────────────────────────────────────────────────┐
-│ Layer 2: UI (ViewModel + Compose)                │
-│   - Subscribes to GameStateStore.unifiedState    │
-│   - Dialogs managed by DialogStateManager        │
-│   - Smooth animations via Animatable + withFrameNanos (R20)
-├──────────────────────────────────────────────────┤
-│ Layer 1: GameEngineCore + GameEngine             │
-│   - EngineCore: frame-driven game loop (accumulator pattern, R1)
-│   - Engine: business logic (cultivation, battle, │
-│     production, diplomacy, exploration, etc.)    │
-│   - Writes to GameStateStore._state MutableFlow  │
-└──────────────────────────────────────────────────┘
+Layer 2: UI (ViewModel + Compose) — 订阅 GameStateStore，DialogStateManager 管理对话框
+Layer 1: GameEngineCore + GameEngine — 游戏循环 + 业务逻辑，写入 GameStateStore._state
 ```
 
 ### Data Flow
 
 ```
-User Action (Compose UI)
-  → ViewModel calls GameEngine method
-    → GameEngine delegates to Service (e.g., CombatService)
-      → Service reads from / writes to GameStateStore._state
-        → StateFlow emits new UnifiedGameState
-          → ViewModel.collectAsState() triggers recomposition
-            → Compose UI renders updated state
+User Action → ViewModel calls GameEngine → Service reads/writes GameStateStore._state → StateFlow emits → ViewModel.collectAsState() → UI recomposition
 ```
 
 - **GameEngine** is the single entry point for all state mutations from the UI layer. ViewModels never write to `GameStateStore` directly.
@@ -122,10 +106,10 @@ while (isActive) {
 }
 ```
 
-| 维度 | 旧 (timer-driven) | 新 (frame-driven) |
-|------|-------------------|------------------|
+| 维度 | 旧 (timer-driven) | 新 (frame-driven + GameTimeClock) |
+|------|-------------------|------------------------------------|
 | 循环频率 | 固定 10Hz (delay 100ms) | 可变，最快每帧 |
-| 逻辑步长 | 每循环固定 1 步 | accumulator 控制 (0/1/N 步) |
+| 旬推进 | 每循环 1 旬 | GameTimeClock 累积器按游戏时间推进：1x=2000ms/旬，2x=1000ms/旬 |
 | 追赶卡顿 | 自适应降速×1.5（恶性降频） | accumulator clamp（自动限制） |
 | 插值因子 | 无 | `currentAlpha` 供 UI 平滑渲染 |
 | 空闲功耗 | 高（2ms微延迟+忙等） | 低（无事 delay 让出 CPU） |
@@ -136,33 +120,21 @@ while (isActive) {
 系统结算分四条路径，每个系统只在一条路径上运行，杜绝双计。
 
 ```
-tickInternal() 每 100ms
-  │
-  ├─ for each phase:
-  │   stateStore.update {
-  │     systemManager.onPhaseTickWithDomainFilter(activeDomains)
-  │       ├─ 实时轨 (100ms): onPhaseTick(this, 1)
-  │       │   焦点域系统 + 进度≥80%槽位 → 每旬结算
-  │       └─ 批量轨 (30s): onPhaseTick(this, N)
-  │           非焦点域系统 + 进度<80%槽位 → 跳过N旬一次补齐
-  │   }
-  │
-  ├─ 月变事件: processMonthlyEvents   ← 外交/盗窃/任务/商人
-  ├─ 年变事件: processYearlyEvents    ← 招募刷新/盟约
-  │
-  ├─ accumulateBatch(临时影子指纹检测)
-  │   └─ 30s墙壁时钟 → 从主状态创建临时影子 → 计算指纹
-  │       指纹变化 → 重建 SettlementCache
-  │       (临时影子只读即弃，不持有持久状态)
-  │
-  └─ yearChanged? → scheduleYearly(shadow)  ← 老化/死亡/招募/盟约
+tickInternal() 按游戏时钟推进走四条路径：
+- for each phase: stateStore.update { systemManager.onPhaseTickWithDomainFilter(activeDomains) }
+  - 实时轨 (每旬): 焦点域系统 + 进度≥80%槽位 → phasesToSettle=1
+  - 批量轨 (动态5-15s): 非焦点域系统 + 进度<80%槽位 → phasesToSettle=N
+- 月变事件: processMonthlyEvents → 外交/盗窃/任务/商人
+- 年变事件: processYearlyEvents → 招募刷新/盟约
+- accumulateBatch(临时影子指纹检测) → 30s创建临时影子→计算指纹→变化时重建SettlementCache
+- yearChanged? → scheduleYearly(shadow) → 老化/死亡/招募/盟约
 ```
 
 **四条路径：**
 
 | 路径 | 频率 | 结算方式 | 覆盖系统 |
 |------|------|---------|---------|
-| 实时轨 | 100ms (每旬) | `onPhaseTick(state, 1)` — 增量1旬 | 活跃域声明的系统 + 进度≥80%槽位 |
+| 实时轨 | 每2000ms（1x）/每1000ms（2x）推进1旬 | `onPhaseTick(state, 1)` — 增量1旬 | 活跃域声明的系统 + 进度≥80%槽位 |
 | 批量轨 | 动态 5-15s (R12) | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非活跃域声明的系统；Tab切换后加速5s，稳定态10s |
 | 月度事件 | 游戏月变时 | 一次性 | 外交/盗窃/任务/商人 |
 | 年度结算 | 游戏年变时 | 一次性 | 老化/死亡/招募/盟约 |
@@ -180,23 +152,11 @@ tickInternal() 每 100ms
 ### Threading Architecture: Four Dispatchers（四线程模型）
 
 ```
-┌─ GameEngine-Thread（单线程，MAX_PRIORITY，非守护）────────────┐
-│  · frame-driven accumulator 游戏循环                           │
-│  · tickInternal() → stateStore.update { }（唯一写入口）         │
-├─────────────────────────────────────────────────────────────┤
-├─ ParallelDispatcher（线程池，N=大核数，MAX_PRIORITY-1）───────┤
-│  · computePhaseTick 只读计算（SystemManager.executeParallel） │
-│  · 弟子循环分块并行（CultivationCore.computeBatch）            │
-│  · 只读不写 → 结果在 GameThread 的 update 块中 apply           │
-├─────────────────────────────────────────────────────────────┤
-├─ BackgroundDispatcher（线程池，2 线程，MIN_PRIORITY+1）───────┤
-│  · BackgroundJobScheduler 后台 Job                            │
-│  · 存档压缩/序列化/IO                                         │
-├─────────────────────────────────────────────────────────────┤
-├─ Watchdog（独立单线程，NORM_PRIORITY，非守护）────────────────┤
-│  · 监控 GameThread 卡死（不变）                                │
-├─────────────────────────────────────────────────────────────┤
-└─ Compose UI Thread（Android Main）───────────────────────────┘
+GameEngine-Thread(单线程,MAX)       游戏循环 + stateStore 写入口
+ParallelDispatcher(N核,MAX-1)       只读并行计算
+BackgroundDispatcher(2线程,MIN+1)   后台 Job / 存档 IO
+Watchdog(单线程,NORM)              监控 GameThread 卡死
+Compose UI Thread(Main)            Android 主线程
 ```
 
 **关键设计决策：**
@@ -255,118 +215,35 @@ tickInternal() 每 100ms
 
 ### Key Source Directories
 
-**Core — Game logic, state, and static data**
-| Directory | Purpose |
-|-----------|---------|
-| `core/engine/` | Game loop (100ms tick), services, systems, production, scheduling |
-| `core/engine/domain/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
-| `core/engine/system/` | ECS-like systems: Inventory, Building, Time, SystemManager |
-| `core/domain/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, domain interfaces |
-| `core/state/` | GameStateStore (central state), UnifiedGameState, UnifiedGameStateManager |
-| `core/registry/` | Static game data: Equipment, Manuals, Herbs, ForgeRecipes, Items |
-| `core/config/` | JSON-driven config: buildings, gifts, diplomatic events, inventory |
-
-**Data — Storage, serialization, and persistence**
-| Directory | Purpose |
-|-----------|---------|
-| `data/` | Storage layer: Room DB, serialization, compression, encryption, WAL, backup |
-| `data/facade/` | StorageFacade — single external API for save/load/delete |
-| `data/engine/` | StorageEngine — internal storage orchestration |
-| `data/local/` | Room database, DAOs (**已拆分为 18 个领域文件**), migrations, type converters |
-
-> DAO 拆分：原 `Daos.kt`（1223 行）已按领域拆分为 18 个独立文件（`GameDataDao.kt`, `DiscipleDataDao.kt`, `EquipmentDaos.kt`, `ManualDaos.kt`, `InventoryDaos.kt`, `ProductionDaos.kt`, `BattleLogDao.kt`, `DiscipleSubDaos.kt`, `MiscDaos.kt` 等）。Room KSP 自动发现同包下的所有 `@Dao` 接口。
-
-**UI — Compose screens, components, and theming**
-| Directory | Purpose |
-|-----------|---------|
-| `ui/game/` | Game screens, ViewModels (one per feature), dialogs |
-| `ui/game/tabs/` | Tab content: Disciples, Buildings, Warehouse, Settings |
-| `ui/game/map/` | World map (Compose Canvas), markers, camera |
-| `ui/components/` | Shared Compose components (GameButton, ItemCard, DialogManager) |
-| `ui/theme/` | Colors, typography, shapes, button sizes |
-
-**Domain — UseCase layer (app module)**
-| Directory | Purpose |
-|-----------|---------|
-| `app/.../core/usecase/` | 14 UseCase classes bridging ViewModel ↔ Facades |
-| `app/.../core/state/` | GameStateStoreImpl (GameStateStore 实现) |
-| `app/.../core/util/` | Utilities: ObjectPool, CircularBuffer, StateFlowListUtils |
-| `app/.../core/CrashHandler.kt` | Uncaught exception handler |
-
-**Infrastructure — DI, networking, and third-party SDKs**
-| Directory | Purpose |
-|-----------|---------|
-| `app/.../di/` | Hilt modules (AppModule, CoreModule, RepositoryModule, StorageModule) |
-| `app/.../network/` | Retrofit API interfaces, RequestSigner, SecureHttpClient |
-| `taptap/` | TapTap SDK wrappers (auth, compliance, tracking) |
+**Core:** `core/engine/`(game loop/services/systems), `core/engine/domain/`(per-domain services), `core/engine/system/`(ECS systems), `core/domain/`(data classes), `core/state/`(GameStateStore), `core/registry/`(static game data), `core/config/`(JSON config)
+**Data:** `data/`(Room DB/serialization/compression), `data/facade/`(StorageFacade API), `data/engine/`(StorageEngine), `data/local/`(Room DB + 18 个领域 DAO 文件)
+**UI:** `ui/game/`(screens/ViewModels/dialogs), `ui/game/tabs/`(tab content), `ui/game/map/`(world map/Canvas), `ui/components/`(shared components), `ui/theme/`
+**UseCase:** `app/.../core/usecase/`(14 UseCase classes), `.../core/state/`(GameStateStoreImpl), `.../core/util/`(ObjectPool/CircularBuffer), `.../core/CrashHandler.kt`
+**Infrastructure:** `app/.../di/`(Hilt modules), `.../network/`(Retrofit/OkHttp), `taptap/`(TapTap SDK wrappers)
 
 ### Key Classes
 
-- **`GameEngineCore`** — Game loop controller. `tick()` at 100ms intervals, driving 4 settlement paths (real-time/batch/monthly/annual). Focus domains are computed from `resolveDomainsFromView(tab, dialog)` via 1:1 `InterfaceDomainMap`. `SystemManager.onPhaseTickWithDomainFilter` builds active system set from domain declarations and routes systems to real-time (`phasesToSettle=1`) or batch (`phasesToSettle=N`) track.
-- **`SettlementCoordinator`** — Fingerprint detection + annual settlement. No persistent shadow. Every 30s creates a temporary shadow from main state for cultivation fingerprint computation and 80% progress classification. Annual settlement handled via `scheduleYearly` → `SettlementScheduler`.
-- **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
-- **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
-- **`GameViewModel`** — Primary ViewModel (Hilt, 1,728 行). Bridges UI to engine. Owns `DialogStateManager`.
-- **ViewModel Delegate 模式** — `GameViewModel` 通过 **9 个 Delegate** 类拆分领域逻辑：
-  `DiscipleDelegate`, `InventoryDelegate`, `NavigationDelegate`, `PlantingDelegate`,
-  `BuildingDelegate`, `BeastAttackDelegate`, `WarningDelegate`, `SectDelegate`, `AutoAssignDelegate`。
-  每个 Delegate 接收 `GameEngine` + `CoroutineScope`，通过回调与 ViewModel 通信（`showSuccess`/`showError`/`dismissDialog`）。
-- **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
-- **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
+- **`GameEngineCore`** — 游戏循环控制器，驱动 4 条结算路径，通过 InterfaceDomainMap 解析焦点域
+- **`SettlementCoordinator`** — 指纹检测 + 年度结算，每 30s 创建临时影子
+- **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
+- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生
+- **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
+- **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
+- **`GameData`** — Room @Entity，主键 (id, slot_id)
 
 ### Component Table Architecture (v4.0.41) / IntPackedArray
 
-Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns.
+Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntPackedArray`（dense IntArray + idToIndex）和 `DoublePackedArray`（零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
 
-**底层实现变更 (v4.0.41)：**
-- `IntComponentTable` 从 `SparseIntArray` 迁移为 `IntPackedArray`（dense IntArray + idToIndex 映射 + swap-on-remove）
-- `DoubleComponentTable` 从 `SparseArray<Double>` 迁移为 `DoublePackedArray`（double[] + idToIndex，零装箱）
-- 查询复杂度从 O(log N) → O(1)
-- 删除操作为 O(1) swap-on-remove，无需移动后续元素
-- 迭代全部有效元素，无空洞
+**EntityStore 增量更新：** 其他实体类型用 `EntityStore<T : HasId>`，MutableList 原地修改 + `freeze()` 快照 + `isDirty` 标记检测。GC 分配降低 80%+。
 
-**CRUD 重构 (v4.0.41)：**
-- `remove()`/`clear()`/`bindAllOnWrite()`/`deepCopy()` 从手工编写 450+ 行改为声明式列表驱动
-- 在 `buildCopyableRefs()` 中声明所有列的引用，不再需要每个方法手工同步
-- 新增列只需在 `buildCopyableRefs()` 列表中添加一行
+**EntityStore 注意事项：** `plus(item)` 必须通过 `EntityStore(newItems)` 构造新实例，不可 `EntityStore()` + `items_.addAll()`，否则 `frozenSnapshot` 未正确初始化。
 
-```kotlin
-// 新增一列的步骤（示例）：
-// 1. 声明字段 val newField = IntComponentTable()
-// 2. 在 buildCopyableRefs() 中添加：
-//    IntTableRef(newField, DiscipleTables::newField, "newField"),
-```
+**FingerprintSnapshot (R13)：** 只读轻量快照，零 deepCopy，仅指纹变化时回退到完整 `createSettlementShadow()`。
 
-**EntityStore 增量更新 (v4.0.38)：**
-
-Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>`.
-- 从写时复制（每次 `update` 分配新 `List`）改为 `MutableList` 原地修改 + `freeze()` 快照
-- 写操作零分配，仅在 `freeze()` 时重建不可变快照
-- `isDirty` 标记供 GameStateStoreImpl 检测变化
-- GC 分配量降低 80%+
-
-**EntityStore 注意事项 (v4.0.40 修复)：**
-- `plus(item)` 运算符必须通过 `EntityStore(newItems)` 构造新实例。`EntityStore()` + `items_.addAll()` 的模式会导致 `frozenSnapshot` 未正确初始化，使得 `find`/`iterator` 操作返回错误结果
-
-**FingerprintSnapshot (R13, v4.0.40)：**
-- `FingerprintSnapshot` 是只读的轻量指纹快照，直接从 `GameStateStore` 的当前可读 API 取值
-- 零 deepCopy 开销，全部为引用拷贝
-- 仅指纹变化时（罕见）回退到完整 `createSettlementShadow()` 构建 SettlementCache
-- `take(store)` 工厂方法从 `store.discipleTables`、`store.gameData.value`、`store.equipmentInstances.value` 取值
-
-**并发基础设施（v4.0.40 新增，v4.0.41 清理废弃 `ParallelWorkerPool`）：**
-
-| 类 | 职责 | 所在文件 |
-|----|------|---------|
-| `DeviceCapabilityProfiler` | 设备能力检测 + 管理 `parallelDispatcher`/`backgroundDispatcher` 两个独立线程池 | `core/engine/.../concurrent/` |
-| `ParallelExecutionContext` | 并行 compute 阶段的只读状态快照 | 同上 |
-| `BackgroundJobScheduler` | 后台任务调度器，使用低优先级 `backgroundDispatcher` | 同上 |
-| `ThermalController` | 热控检测，发热/低帧率时关闭并行 | 同上 |
-| `CultivationBatchResult` | `CultivationTickSystem` 并行 compute 的结果容器 | 同上 |
-| `ParallelPhaseResult` | 并行计算结果的 apply 接口 | 同上 |
+**并发基础设施（v4.0.40）：** `DeviceCapabilityProfiler`（线程池管理）、`ParallelExecutionContext`（只读快照）、`BackgroundJobScheduler`（后台调度）、`ThermalController`（热控降级）、`CultivationBatchResult` / `ParallelPhaseResult`（并行结算结果）。均在 `core/engine/.../concurrent/`。
 
 **四线程调度模型：**
-
 | 调度器 | 线程数 | 优先级 | 用途 |
 |--------|--------|--------|------|
 | `GameDispatcher` (GameEngine-Thread) | 1 | MAX (-19) | 游戏循环 + stateStore 写入口 |
@@ -385,78 +262,29 @@ Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T :
 - **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, `productionSlots: List<ProductionSlot>`（v4.0.42 新增，结算影子中自动包含槽位快照）
 
 ### 并发模型：可重入 Mutex 显式计数 (R5, v4.0.38)
-
-原实现通过 `transactionOwnerThread: AtomicReference<Thread?>` 检测重入，依赖"所有引擎代码在同一线程"的约定。
-从 v4.0.38 起改为显式重入计数：
-
-| 维度 | 旧 (thread identity) | 新 (reentrant count) |
-|------|-------------------|---------------------|
-| 检测方式 | `Thread.currentThread()` 比较 | `reentrantCount.get() > 0` |
-| 调度器切换 | 死锁风险 | 安全 |
-| 重入路径 | 跳过 Mutex 直接操作 buffer | 跳过 Mutex 直接操作 buffer |
-| 异常回滚 | 无 | 支持（不发射 StateFlow） |
+`transactionOwnerThread` 改为 `reentrantCount` 显式重入计数，支持调度器切换和异常回滚。
 
 ### 批量发射模式 (R19, v4.0.40)
-
-`GameStateStoreImpl` 支持 `batchEmissionMode`，用于结算等批量更新场景：
-
-- `enterBatchEmissionMode()` — 进入批量模式，抑制个体字段 StateFlow 发射
-- `exitBatchEmissionMode()` — 退出批量模式，递增 `_updateVersion` 触发一次统一状态重建
-- 在批量模式下，个体 Flow（`_gameDataFlow`、`_pillsFlow` 等）的赋值被跳过，仅 `_updateVersion` 递增
-- `onSettlementComplete` 在 `swapFromShadow` 前后使用批量模式，避免 13+ Flow 同时发射导致 Compose 重组雪崩
+`enterBatchEmissionMode()` / `exitBatchEmissionMode()` 抑制个体 StateFlow 发射，避免批量更新时 Compose 重组雪崩。
 
 ### mergeDiscipleTables 简化 (R7, v4.0.40)
-
-从 100 行逐字段三路值比较简化为声明式合并：
-
-- 以 `shadow.deepCopy()` 为基础（保留结算结果）
-- 对所有 shared ID：生命周期字段（age/status/realm/isAlive 等）无条件取 current 的值
-- 通过 `shadowOriginAliveIds`（轻量 Set&lt;Int&gt;）区分"死亡"（origin 有、current 无 → 移除）与"新生儿"（origin 无、shadow 有 → 保留）
-- current-only 弟子（新招募）通过 `copyRowFrom(current, id)` 复制到结果
+声明式合并：以 `shadow.deepCopy()` 为基础 + 生命周期字段取 current + `shadowOriginAliveIds` 区分死亡/新生儿。
 
 ### 抗冻结架构：自适应忙等 (R3, v4.0.38)
-
-原实现每 tick 都执行分片忙等（小米设备 45% CPU 占空比）。从 v4.0.38 起忙等自适应化：
-
-- 正常运行 → 纯 `delay()`，零忙等 CPU 消耗
-- 检测到 tick 间隔异常（可能被 OEM 挂起）→ 自动启用忙等
-- 恢复正常（连续 20 tick 正常）→ 自动禁用忙等
-- OEM 参数从 6 组独立配置简化为 3 档（AGGRESSIVE/MODERATE/LIGHT）
+忙等自适应化：正常时纯 `delay()`，检测到异常时自动启用忙等，恢复后禁用。OEM 参数简化为 3 档。
 
 ### 帧预算监控 (R17, v4.0.38)
-
-`UnifiedPerformanceMonitor` 新增帧质量追踪：
-
-- `FrameQuality` 枚举：SMOOTH / ACCEPTABLE / JANKY / FREEZE
-- 连续 3 帧 jank 自动触发 `loadReductionRequested`
-- 引擎可据此降低 `maxAccumulatedPhases` 或暂停非关键渲染
+`FrameQuality` 枚举 (SMOOTH/ACCEPTABLE/JANKY/FREEZE)，连续 3 帧 jank 触发 `loadReductionRequested`。
 
 ### Mail & Reward System
 
-Mail reward claims use Saga compensation pattern for atomicity:
+Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物品+claim记录，
+若 `distributeAttachmentsInline` 抛出则 `mailRecords` 不写入，邮件保持未领取。
 
-```
-claimAttachment(mailId, slotId)
-  → getMutex(slotId).withLock { ... }           // per-slot serialization
-  → parse attachments from MailEntity JSON
-  → ensureCapacity(attachments, slotId)         // pre-check warehouse/roster
-  → stateStore.update {                         // ← SINGLE atomic transaction
-        distributeAttachmentsInline(this, attachments)  // items → inventory
-        gameData.mailRecords += MailClaimRecord(         // claim record
-            mailId, claimedAt=now, source=mail.source
-        )
-    }
-  → mailRepo.update(mail marked claimed+read)   // Room DB (non-critical)
-  → refreshActiveMails(slotId)                  // UI list update
-```
-
-**Key design decisions:**
-- **Atomic Saga**: Items + claim record in one `stateStore.update {}`. If `distributeAttachmentsInline` throws, `mailRecords` is NOT written → mail stays unclaimed.
-- **Stable IDs**: Builtin mails use deterministic IDs from `BuiltinMailConfig`. Online mails use `"online_${remoteMailId}"` — stable across sessions, enabling `mailRecords` restoration on reload.
-- **MailRecords in GameData**: `mailRecords: List<MailClaimRecord>` replaces old `claimedMailIds: List<String>`. Each record has `mailId`, `claimedAt` (timestamp), `source` ("builtin"/"online"). Persisted with game saves, restored via `resetAndInitSlot`.
-- **Init ordering**: `mailService.resetAndInitSlot()` called AFTER world initialization in `createNewGame`/`restartGameInternal`, ensuring `slotId` and initial state are ready.
-- **Orphan cleanup**: `StorageEngine.delete()` cleans `mails` table for deleted slots.
-- **Mail content** (title/body/attachments) is NOT persisted in saves — only claim records are. Content is re-fetched from `BuiltinMailConfig` + online API on each load.
+- **Stable IDs**: 内置邮件用 BuiltinMailConfig 确定性 ID，在线邮件用 `"online_${remoteMailId}"`
+- **GameData 存储**: `mailRecords: List<MailClaimRecord>`（含 mailId/claimedAt/source），非邮件内容
+- **初始化**: `mailService.resetAndInitSlot()` 在世界初始化后调用
+- **清理**: `StorageEngine.delete()` 清理已删档位的 mails 表
 
 ### Navigation Pattern
 
@@ -685,7 +513,7 @@ stateStore.update {
 - 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
 - 新增丹药类型（pillType）或 PillEffects 字段 → `CultivationCore.processRealtimeAutoPills` 的字段写回列表 + `DisciplePillManager.classify` 的分类规则需同步更新。丹药指纹检测在该方法内通过 `storageBagItems.any { it.itemType == "pill" }` 实现，无需单独指纹数据类
 
-指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。批量轨每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
+指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。指纹检测每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 
 **6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
 

@@ -89,7 +89,7 @@ class GameTimeClock @Inject constructor() {
     }
 
     /**
-     * 每 tick 调用一次（100ms 间隔）。
+     * 每 tick 调用一次（由 frame-driven 游戏循环驱动，~100ms 间隔，accumulator 模式）。
      * @param isSettlementPending 当前是否有未完成的月度/年度结算
      * @return 本 tick 应推进的旬数，以及是否需要等待结算
      */

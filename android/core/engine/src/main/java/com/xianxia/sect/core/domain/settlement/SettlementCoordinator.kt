@@ -25,7 +25,7 @@ import kotlin.random.Random
  *
  * 主要职责：
  * - 接收 shadow 状态，构建 [SettlementCache]，按阶段调度 [SettlementScheduler]
- * - 焦点弟子即时结算（每 100ms tick 推进修炼值，月度结算时合并差额）
+ * - 焦点弟子即时结算（每 tick 推进修炼值，月度结算时合并差额）
  * - 非焦点弟子分批结算（clean / dirty 两类批次）
  * - 生产、世界事件、年度老化等阶段串联
  * - 非焦点域热控分批：根据 [ThermalMonitor] 决定非焦点弟子结算间隔
@@ -60,7 +60,7 @@ class SettlementCoordinator @Inject constructor(
     /**
      * 实时轨槽位映射为需要激活的域集合。
      * 调用方应在 [com.xianxia.sect.core.GameEngineCore.getActiveDomains]
-     * 中合并这些域，使 ≥80% 进度的槽位绕过热控分批，获得 100ms tick 处理。
+     * 中合并这些域，使 ≥80% 进度的槽位绕过热控分批，获得实时 tick 处理。
      */
     val batchRealtimeDomains: Set<com.xianxia.sect.core.engine.system.FocusDomain>
         get() {
@@ -375,7 +375,7 @@ class SettlementCoordinator @Inject constructor(
      * 结算完成后的收尾流程。
      *
      * 1. 将 shadow 状态原子换入 [GameStateStore]（批量发射模式，抑制个体 Flow 重组）；
-     * 2. 将当月修炼速率缓存同步给 [CultivationService]，供焦点域 100ms tick 推进修炼值；
+     * 2. 将当月修炼速率缓存同步给 [CultivationService]，供焦点域 tick 推进修炼值；
      * 3. 重置 HFD（HighFrequencyData）—— 满足"每次月度结算后必须重置"硬约束；
      * 4. 构建并记录 [SettlementMetrics]；
      * 5. 清空 shadowState / currentCache 并重置 scheduler。
@@ -388,7 +388,7 @@ class SettlementCoordinator @Inject constructor(
         stateStore.exitBatchEmissionMode()
         val swapMs = timer.stop()
 
-        // 同步修炼速率缓存到 CultivationService，供焦点域 100ms tick 推进修炼值
+        // 同步修炼速率缓存到 CultivationService，供焦点域 tick 推进修炼值
         currentCache?.let { cache ->
             domain.cultivationService.cachedCultivationRates = cache.cultivationRateCache
         }
@@ -422,7 +422,7 @@ class SettlementCoordinator @Inject constructor(
     }
 
     /**
-     * 焦点弟子即时结算（每 100ms tick 已推进修炼值的月度合并）。
+     * 焦点弟子即时结算（每 tick 已推进修炼值的月度合并）。
      *
      * 焦点弟子由 [CultivationService] 在高频 tick（约 100ms）中持续推进修炼、HP/MP 恢复、
      * 持续效果衰减等。本方法在月度结算时合并 HFD 中已结算的部分与月度总额的差额，
