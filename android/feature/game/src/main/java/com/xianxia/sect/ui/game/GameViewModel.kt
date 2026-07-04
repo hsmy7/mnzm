@@ -737,6 +737,9 @@ class GameViewModel @Inject constructor(
     /** 拜师：将 discipleId 设为 masterId 的徒弟，委托给 [DiscipleDelegate] */
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
 
+    /** 修改弟子名称，委托给 [DiscipleDelegate] */
+    fun renameDisciple(discipleId: String, newName: String) = disciple.renameDisciple(discipleId, newName)
+
     /** 获取弟子日志事件列表 */
     fun getLifeEvents(discipleId: String): List<String> =
         discipleFacade.getLifeEvents(discipleId)

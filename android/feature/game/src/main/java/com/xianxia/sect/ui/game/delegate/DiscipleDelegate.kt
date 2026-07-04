@@ -212,6 +212,14 @@ class DiscipleDelegate(
         }
     }
 
+    fun renameDisciple(discipleId: String, newName: String) {
+        scope.launch {
+            gameEngine.updateDisciple(discipleId) { disciple ->
+                disciple.copy(name = newName)
+            }
+        }
+    }
+
     fun recruitDiscipleFromList(discipleId: String) {
         if (recruitingDiscipleIds.contains(discipleId)) return
         recruitingDiscipleIds.add(discipleId)

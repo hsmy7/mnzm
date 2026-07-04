@@ -70,6 +70,11 @@ object InputValidator {
             return "弟子名称只能包含中文和英文"
         }
 
+        if (BannedWords.containsBannedWord(trimmed)) {
+            val found = BannedWords.findFirstBannedWord(trimmed)
+            return "弟子名称包含违禁词（$found）"
+        }
+
         return null
     }
 

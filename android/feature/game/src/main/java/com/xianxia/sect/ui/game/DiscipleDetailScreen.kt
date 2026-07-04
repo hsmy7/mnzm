@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.game.components.detail.*
+import com.xianxia.sect.ui.game.dialogs.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 val LocalDismissDropdown = compositionLocalOf { {} }
@@ -93,6 +94,7 @@ fun DiscipleDetailDialog(
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
     var showApprenticeSelectDialog by remember { mutableStateOf(false) }
     var showLifeLogDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
@@ -266,6 +268,7 @@ fun DiscipleDetailDialog(
                             onShowExpelConfirm = { showExpelConfirmDialog = true },
                             onShowLifeLog = { showLifeLogDialog = true },
                             onShowApprentice = { showApprenticeSelectDialog = true },
+                            onRenameDisciple = { showRenameDialog = true },
                             onNavigateToDisciple = onNavigateToDisciple,
                         ),
                         viewModel = viewModel
@@ -506,6 +509,17 @@ fun DiscipleDetailDialog(
                     }
                 )
             }
+        )
+    }
+
+    if (showRenameDialog) {
+        RenameDiscipleDialog(
+            currentName = disciple.name,
+            onConfirm = { newName ->
+                viewModel?.renameDisciple(disciple.id, newName)
+                showRenameDialog = false
+            },
+            onDismiss = { showRenameDialog = false }
         )
     }
     }

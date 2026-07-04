@@ -35,6 +35,7 @@ data class DetailActionCallbacks(
     val onShowExpelConfirm: () -> Unit,
     val onShowLifeLog: () -> Unit,
     val onShowApprentice: () -> Unit,
+    val onRenameDisciple: (() -> Unit)? = null,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
 )
 
@@ -92,7 +93,12 @@ fun DetailRightPanel(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
-                modifier = Modifier.padding(horizontal = 8.dp)
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .clickable(enabled = actions.onRenameDisciple != null) {
+                        dismissDropdown()
+                        actions.onRenameDisciple?.invoke()
+                    }
             )
             if (hasNext && navTo != null) {
                 Box(

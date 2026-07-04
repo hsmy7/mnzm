@@ -1,14 +1,6 @@
 [
 	{
 		"date": "2026-07-04",
-		"version": "4.0.42",
-		"changes": [
-			"引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
-			"引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算"
-		]
-	},
-	{
-		"date": "2026-07-04",
 		"version": "4.0.39",
 		"changes": [
 			"修复：Xiaomi HyperOS键盘频闪——宗门名称输入框键盘反复弹出收起。创建DialogSoftInputGuard可复用Composable，临时切换windowSoftInputMode=adjustNothing切断震荡回路，覆盖全部8个输入框",
@@ -19,7 +11,7 @@
 			"架构：热控降级反馈——45°C+或帧率低于25fps时自动关闭并行退化为单线程",
 			"优化：Canvas分层渲染——静态层离屏Bitmap缓存，相机平移不再触发重绘",
 			"优化：灵田建筑预过滤——消除O(n×m)双层循环",
-			"优化：存档脏标记——状态无变化时跳过重复写库",
+			"优化：存档脏标记——状态无变化时重复写库",
 			"修复：暂停按钮无效——看门狗在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
 			"修复：系统异常收集器ANR——BufferedChannel.hasNext()挂起主线程，改为Dispatchers.Default运行",
 			"新增：系统异常主动上报Bugly——已捕获异常通过CrashReport.postCatchedException上报",
@@ -29,7 +21,10 @@
 			"测试：新增DeviceCapabilityProfilerTest(8个用例)和CultivationCoreConcurrencyTest(4个用例)",
 			"防御：Android 15 libhwui.so RenderThread SIGSEGV——CrashRecoveryEngine崩溃自愈引擎",
 			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，问题设备自动禁用Vulkan",
-			"防御：安全模式主题——Theme.XianxiaSect.GameSafe在连续崩溃后禁用硬件加速，回退软件渲染"
+			"防御：安全模式主题——Theme.XianxiaSect.GameSafe在连续崩溃后禁用硬件加速，回退软件渲染",
+			"引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
+			"引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算",
+			"新增：弟子改名——详情界面点击名称可弹出输入框修改，长度2-10个字符，支持违禁词过滤"
 		]
 	},
 	{
