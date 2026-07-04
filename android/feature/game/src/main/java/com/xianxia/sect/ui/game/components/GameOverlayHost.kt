@@ -281,13 +281,7 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.SalaryConfig -> {
-            SalaryConfigDialog(
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = onDismiss
-            )
-        }
+        is DialogRoute.SalaryConfig -> { }
         is DialogRoute.WorldMap -> {
             val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()

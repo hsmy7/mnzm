@@ -86,82 +86,91 @@ fun UnifiedGameDialog(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0x99000000))
-            .then(
-                if (dismissOnClickOutside) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismissRequest
-                    )
-                } else Modifier
-            ),
-        contentAlignment = Alignment.Center
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
     ) {
         Box(
-            modifier = modifier
-                .then(widthModifier)
-                .then(heightModifier)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {}
-                )
-                .clip(RoundedCornerShape(CornerRadius.LG))
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x99000000))
+                .then(
+                    if (dismissOnClickOutside) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onDismissRequest
+                        )
+                    } else Modifier
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = backgroundRes),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Unified header
-                val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = headerH, end = headerH, top = 4.dp),
-                    contentAlignment = titleAlignment
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = titleFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor
+            Box(
+                modifier = modifier
+                    .then(widthModifier)
+                    .then(heightModifier)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
                     )
-                    if (showCloseButton || headerActions != null) {
-                        Row(
-                            modifier = Modifier.align(Alignment.CenterEnd),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            headerActions?.invoke()
-                            if (showCloseButton) {
-                                CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
+                    .clip(RoundedCornerShape(CornerRadius.LG))
+            ) {
+                Image(
+                    painter = painterResource(id = backgroundRes),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Unified header
+                    val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = headerH, end = headerH, top = 4.dp),
+                        contentAlignment = titleAlignment
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = titleFontSize,
+                            fontWeight = FontWeight.Bold,
+                            color = titleColor
+                        )
+                        if (showCloseButton || headerActions != null) {
+                            Row(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                headerActions?.invoke()
+                                if (showCloseButton) {
+                                    CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
+                                }
                             }
                         }
                     }
-                }
-                // Header extension content (e.g. filter bar)
-                headerContent?.invoke()
-                // Scrollable content
-                val contentScrollModifier = if (scrollableContent) {
-                    Modifier.verticalScroll(rememberScrollState())
-                } else {
-                    Modifier
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .then(contentScrollModifier)
-                        .padding(horizontal = if (mode == DialogMode.Full) 32.dp else Spacing.MD)
-                ) {
-                    content()
+                    // Header extension content (e.g. filter bar)
+                    headerContent?.invoke()
+                    // Scrollable content
+                    val contentScrollModifier = if (scrollableContent) {
+                        Modifier.verticalScroll(rememberScrollState())
+                    } else {
+                        Modifier
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .then(contentScrollModifier)
+                            .padding(horizontal = if (mode == DialogMode.Full) 32.dp else Spacing.MD)
+                    ) {
+                        content()
+                    }
                 }
             }
         }

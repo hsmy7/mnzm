@@ -265,22 +265,30 @@ fun InlineStandardPromptDialog(
         BackHandler { onDismissRequest() }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
-            .background(Color(0x99000000)) // 半透明遮罩
-            .then(
-                if (dismissOnClickOutside) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismissRequest
-                    )
-                } else Modifier
-            ),
-        contentAlignment = Alignment.Center
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .background(Color(0x99000000)) // 半透明遮罩
+                .then(
+                    if (dismissOnClickOutside) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onDismissRequest
+                        )
+                    } else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
         Box(
             modifier = Modifier
                 .width(dialogWidth)
@@ -388,5 +396,6 @@ fun InlineStandardPromptDialog(
                 }
             }
         }
+    }
     }
 }

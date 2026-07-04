@@ -73,7 +73,7 @@ fun SalaryConfigDialog(
 
 
 @Composable
-private fun SalaryRealmCard(
+internal fun SalaryRealmCard(
     realmName: String,
     salary: Int,
     enabled: Boolean,

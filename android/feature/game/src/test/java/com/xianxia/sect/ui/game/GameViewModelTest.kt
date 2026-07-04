@@ -500,12 +500,6 @@ class GameViewModelTest {
         assertEquals(GameRoute.BattleLog, deferred.await())
     }
 
-    @Test
-    fun `openSalaryConfigDialog - 转发到 NavigationDelegate 并发出 SalaryConfig 路由`() = runTest(testDispatcher) {
-        val deferred = async { viewModel.navigationEvents.first() }
-        viewModel.openSalaryConfigDialog()
-        assertEquals(GameRoute.SalaryConfig, deferred.await())
-    }
 
     @Test
     fun `closeCurrentDialog - 转发到 NavigationDelegate 并发出 popBack null`() = runTest(testDispatcher) {

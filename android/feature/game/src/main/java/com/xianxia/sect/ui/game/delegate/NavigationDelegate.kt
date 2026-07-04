@@ -114,10 +114,6 @@ class NavigationDelegate(
         gameEngine.clearPendingBattleResult()
     }
 
-    fun openSalaryConfigDialog() {
-        onNavigate(GameRoute.SalaryConfig)
-    }
-
     fun openGameOverDialog() {
         scope.launch {
             try {

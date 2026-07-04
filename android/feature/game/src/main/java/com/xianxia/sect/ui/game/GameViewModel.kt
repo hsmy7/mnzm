@@ -1476,9 +1476,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /** 打开年薪配置对话框，委托给 [NavigationDelegate] */
-    fun openSalaryConfigDialog() = navigation.openSalaryConfigDialog()
-
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
         .map { it.isGameOver }
         .distinctUntilChanged()

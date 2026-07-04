@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
@@ -66,6 +67,7 @@ import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
@@ -171,6 +173,7 @@ internal fun SettingsTab(
     var showRedeemCodeDialog by remember { mutableStateOf(false) }
     var showChangelogDialog by remember { mutableStateOf(false) }
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
+    var showSalaryConfigDialog by remember { mutableStateOf(false) }
 
     val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsStateWithLifecycle()
     val redeemResult by viewModel.redeemResult.collectAsStateWithLifecycle()
@@ -323,7 +326,10 @@ internal fun SettingsTab(
                     
                     if (showEditIntervalDialog) {
                         DialogSoftInputGuard()
-                        // 内联覆盖层替代已废弃的 HalfScreenDialog
+                        Dialog(
+                            onDismissRequest = { showEditIntervalDialog = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -411,6 +417,7 @@ internal fun SettingsTab(
                                 }
                             }
                         }
+                        }
                     }
                 }
             }
@@ -434,7 +441,7 @@ internal fun SettingsTab(
                                 .width(ButtonSizes.StandardWidth)
                                 .height(ButtonSizes.StandardHeight)
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable { viewModel.openSalaryConfigDialog() },
+                                .clickable { showSalaryConfigDialog = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -722,41 +729,44 @@ internal fun SettingsTab(
     }
 
     if (showOtherSettingsDialog) {
-        // 内联覆盖层替代已废弃的 HalfScreenDialog
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { showOtherSettingsDialog = false }
-                ),
-            contentAlignment = Alignment.Center
+        Dialog(
+            onDismissRequest = { showOtherSettingsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.83f)
-                    .fillMaxHeight(0.78f)
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxSize()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {}
+                        onClick = { showOtherSettingsDialog = false }
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Column(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(20.dp)
+                        .fillMaxWidth(0.83f)
+                        .fillMaxHeight(0.78f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Image(
+                        painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(20.dp)
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -868,10 +878,87 @@ internal fun SettingsTab(
                 }
             }
         }
+        }
     }
 
     if (showChangelogDialog) {
         ChangelogDialog(onDismiss = { showChangelogDialog = false })
+    }
+
+    if (showSalaryConfigDialog) {
+        Dialog(
+            onDismissRequest = { showSalaryConfigDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showSalaryConfigDialog = false }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.83f)
+                    .fillMaxHeight(0.78f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
+            ) {
+                Image(
+                    painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "年俸设置",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        CloseButton(onClick = { showSalaryConfigDialog = false })
+                    }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val realms = listOf(
+                            0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
+                            4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
+                            8 to "筑基", 9 to "练气"
+                        )
+                        items(realms, key = { it.first }) { (realm, name) ->
+                            val salary = gameData.yearlySalary[realm] ?: 0
+                            val enabled = gameData.yearlySalaryEnabled[realm] ?: true
+                            SalaryRealmCard(
+                                realmName = name,
+                                salary = salary,
+                                enabled = enabled,
+                                onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        }
     }
     }
 }
@@ -918,7 +1005,10 @@ internal fun SaveSlotDialog(
         }
     }
     
-    // 内联覆盖层替代已废弃的 HalfScreenDialog
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1119,6 +1209,7 @@ internal fun SaveSlotDialog(
             }
         }
     }
+    }
 }  // SaveSlotDialog
 
 @Composable
@@ -1215,7 +1306,10 @@ internal fun SaveSlotCard(
 
 @Composable
 private fun ChangelogDialog(onDismiss: () -> Unit) {
-    // 内联覆盖层替代已废弃的 HalfScreenDialog
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1318,6 +1412,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
     }
 }
 }
