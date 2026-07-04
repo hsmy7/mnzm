@@ -735,6 +735,9 @@ fun MainGameScreen(
                 fullMapBmp = displayMapBmp,
                 buildingsBaked = shouldBakeBuildings && frontBufferBmp != null,
                 spiritFieldPlants = gameData.spiritFieldPlants,
+                spiritFieldBuildings = effectivePlacedBuildings.filter {
+                    it.displayName == BuildingDef.SPIRIT_FIELD.displayName
+                },
                 cropBitmaps = cropBitmaps,
                 currentGameYear = gameData.gameYear,
                 currentGameMonth = gameData.gameMonth,

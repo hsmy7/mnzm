@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoNumber
+import kotlinx.serialization.protobuf.ProtoPacked
 
 @Serializable
 data class SerializableSaveSlot(
@@ -802,15 +803,19 @@ data class SerializableSectPolicies(
     @ProtoNumber(9) val autoAlchemy: Boolean = false,
     @ProtoNumber(10) val autoForge: Boolean = false,
     @ProtoNumber(11) val autoMineFocused: Boolean = false,
+    @ProtoPacked
     @ProtoNumber(12) val autoMineRootCounts: List<Int> = emptyList(),
     @ProtoNumber(13) val autoMineThreshold: Int = 1,
     @ProtoNumber(14) val autoPlantFocused: Boolean = false,
+    @ProtoPacked
     @ProtoNumber(15) val autoPlantRootCounts: List<Int> = emptyList(),
     @ProtoNumber(16) val autoPlantThreshold: Int = 1,
     @ProtoNumber(17) val autoAlchemyFocused: Boolean = false,
+    @ProtoPacked
     @ProtoNumber(18) val autoAlchemyRootCounts: List<Int> = emptyList(),
     @ProtoNumber(19) val autoAlchemyThreshold: Int = 1,
     @ProtoNumber(20) val autoForgeFocused: Boolean = false,
+    @ProtoPacked
     @ProtoNumber(21) val autoForgeRootCounts: List<Int> = emptyList(),
     @ProtoNumber(22) val autoForgeThreshold: Int = 1
 )

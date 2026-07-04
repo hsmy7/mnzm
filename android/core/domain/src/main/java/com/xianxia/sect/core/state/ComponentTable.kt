@@ -98,12 +98,212 @@ class ComponentTable<T> @JvmOverloads constructor(
     }
 }
 
+// ============================================================
+// Packed Array 实现：基于 dense array + id→index 映射 +
+// swap-on-remove 的 Sparse Set 模式。
+//
+// 相比 SparseIntArray 的优势：
+// - 值存储在连续 IntArray 中，缓存友好、零装箱
+// - 删除操作为 O(1)，无需移动后续元素（swap-on-remove）
+// - 迭代全部有效元素，无空洞
+// - grow 策略简单：capacity 翻倍
+//
+// 注意：swap-on-remove 会使迭代顺序在删除后改变，
+// 但不影响 `contains`/`get`/`put` 等操作的正确性。
+// ============================================================
+
+/**
+ * 基于 packed array + swap-on-remove 的 int→int 稀疏集合。
+ *
+ * 内部结构：
+ * - `values: IntArray` — 连续排列的 dense 值数组
+ * - `keys: IntArray` — 连续排列的 key 数组（与 values 一一对应）
+ * - `idToIndex: SparseIntArray` — id → index 映射，O(log N) 查询
+ * - `size_` — 有效条目数
+ *
+ * swap-on-remove：删除条目时，用最后一个有效条目填充空洞，使 dense 数组保持连续。
+ */
+class IntPackedArray @JvmOverloads constructor(
+    initialCapacity: Int = 64
+) {
+    @PublishedApi internal var values = IntArray(initialCapacity)
+    @PublishedApi internal var keys = IntArray(initialCapacity)
+    @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
+    @PublishedApi internal var size_ = 0
+
+    // === 读取 ===
+
+    /** O(log N) 获取值，不存在返回 0 */
+    operator fun get(key: Int): Int {
+        val idx = idToIndex.get(key, -1)
+        return if (idx >= 0) values[idx] else 0
+    }
+
+    /** O(log N) 获取值，不存在返回 [default] */
+    fun get(key: Int, default: Int): Int {
+        val idx = idToIndex.get(key, -1)
+        return if (idx >= 0) values[idx] else default
+    }
+
+    // === 写入 ===
+
+    /** 设置值（存在则更新，否则插入） */
+    fun put(key: Int, value: Int) {
+        val idx = idToIndex.get(key, -1)
+        if (idx >= 0) {
+            values[idx] = value
+            return
+        }
+        if (size_ >= values.size) grow()
+        keys[size_] = key
+        values[size_] = value
+        idToIndex.put(key, size_)
+        size_++
+    }
+
+    /** 删除 */
+    fun delete(key: Int) {
+        val idx = idToIndex.get(key, -1)
+        if (idx < 0) return
+        idToIndex.delete(key)
+        val lastIdx = size_ - 1
+        if (idx != lastIdx) {
+            // swap-on-remove：用最后一个有效条目填充空洞
+            keys[idx] = keys[lastIdx]
+            values[idx] = values[lastIdx]
+            idToIndex.put(keys[idx], idx)
+        }
+        size_--
+    }
+
+    /** 清空（保留容量） */
+    fun clear() {
+        idToIndex.clear()
+        size_ = 0
+    }
+
+    // === 迭代兼容 API（与 SparseIntArray 保持方法签名一致） ===
+
+    /** 有效条目数 */
+    fun size(): Int = size_
+
+    /** 返回第 [index] 个条目的 key */
+    fun keyAt(index: Int): Int = keys[index]
+
+    /** 返回第 [index] 个条目的 value */
+    fun valueAt(index: Int): Int = values[index]
+
+    /** 包含检测（返回 >= 0 表示存在，与 SparseIntArray.indexOfKey 行为兼容） */
+    fun indexOfKey(key: Int): Int = if (idToIndex.get(key, -1) >= 0) 1 else -1
+
+    // === 内部 ===
+
+    private fun grow() {
+        val newSize = maxOf(values.size * 2, 8)
+        values = values.copyOf(newSize)
+        keys = keys.copyOf(newSize)
+    }
+}
+
+/**
+ * 基于 packed array + swap-on-remove 的 int→double 稀疏集合。
+ *
+ * 与 [IntPackedArray] 结构相同，但值类型为 [Double]。
+ * 替代 [android.util.SparseArray]<Double>，避免装箱。
+ */
+class DoublePackedArray @JvmOverloads constructor(
+    initialCapacity: Int = 64
+) {
+    @PublishedApi internal var values = DoubleArray(initialCapacity)
+    @PublishedApi internal var keys = IntArray(initialCapacity)
+    @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
+    @PublishedApi internal var size_ = 0
+
+    // === 读取 ===
+
+    /** O(log N) 获取值，不存在返回 0.0 */
+    operator fun get(key: Int): Double {
+        val idx = idToIndex.get(key, -1)
+        return if (idx >= 0) values[idx] else 0.0
+    }
+
+    /** O(log N) 获取值，不存在返回 [default] */
+    fun get(key: Int, default: Double): Double {
+        val idx = idToIndex.get(key, -1)
+        return if (idx >= 0) values[idx] else default
+    }
+
+    // === 写入 ===
+
+    /** 设置值（存在则更新，否则插入） */
+    fun put(key: Int, value: Double) {
+        val idx = idToIndex.get(key, -1)
+        if (idx >= 0) {
+            values[idx] = value
+            return
+        }
+        if (size_ >= values.size) grow()
+        keys[size_] = key
+        values[size_] = value
+        idToIndex.put(key, size_)
+        size_++
+    }
+
+    /** 删除 */
+    fun delete(key: Int) {
+        val idx = idToIndex.get(key, -1)
+        if (idx < 0) return
+        idToIndex.delete(key)
+        val lastIdx = size_ - 1
+        if (idx != lastIdx) {
+            // swap-on-remove
+            keys[idx] = keys[lastIdx]
+            values[idx] = values[lastIdx]
+            idToIndex.put(keys[idx], idx)
+        }
+        size_--
+    }
+
+    /** 清空（保留容量） */
+    fun clear() {
+        idToIndex.clear()
+        size_ = 0
+    }
+
+    // === 迭代兼容 API ===
+
+    /** 有效条目数 */
+    fun size(): Int = size_
+
+    /** 返回第 [index] 个条目的 key */
+    fun keyAt(index: Int): Int = keys[index]
+
+    /** 返回第 [index] 个条目的 value */
+    fun valueAt(index: Int): Double = values[index]
+
+    /** 包含检测 */
+    fun indexOfKey(key: Int): Int = if (idToIndex.get(key, -1) >= 0) 1 else -1
+
+    // === 内部 ===
+
+    private fun grow() {
+        val newSize = maxOf(values.size * 2, 8)
+        values = values.copyOf(newSize)
+        keys = keys.copyOf(newSize)
+    }
+}
+
+// ============================================================
+// Int 值组件表
+// ============================================================
+
 /**
  * 基本类型组件表：int 值，无装箱。
- * 用于 loyalty, hp, realm 等 int 字段。
+ * 底层使用 [IntPackedArray]（dense array + swap-on-remove），
+ * 比原 [android.util.SparseIntArray] 更优的缓存局部性和迭代性能。
  */
 class IntComponentTable(initialCapacity: Int = 64) {
-    @PublishedApi internal val store = SparseIntArray(initialCapacity)
+    @PublishedApi internal val store = IntPackedArray(initialCapacity)
 
     /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
     @JvmField var onWrite: (() -> Unit)? = null
@@ -130,24 +330,26 @@ class IntComponentTable(initialCapacity: Int = 64) {
     fun clear() { store.clear(); onWrite?.invoke() }
 }
 
+// ============================================================
+// Double 值组件表
+// ============================================================
+
 /**
  * 基本类型组件表：double 值，无装箱。
- * 用于 cultivation 等 double 字段。
+ * 底层使用 [DoublePackedArray]（dense array + swap-on-remove），
+ * 替代原 [android.util.SparseArray]<Double> 的装箱开销。
  */
 class DoubleComponentTable(initialCapacity: Int = 64) {
-    // 使用 SparseArray<Double> 的包装来存 double
-    // Android 没有 SparseDoubleArray，用 SparseArray<kotlin.Double> 装箱成本可接受
-    // 因为弟子数 < 500，性能不是瓶颈
-    @PublishedApi internal val store = SparseArray<Double>(initialCapacity)
+    @PublishedApi internal val store = DoublePackedArray(initialCapacity)
 
     /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
     @JvmField var onWrite: (() -> Unit)? = null
 
-    operator fun get(id: Int): Double = store[id] ?: 0.0
-    fun getOrDefault(id: Int, default: Double): Double = store[id] ?: default
+    operator fun get(id: Int): Double = store[id]
+    fun getOrDefault(id: Int, default: Double): Double = store.get(id, default)
     operator fun set(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
     inline fun update(id: Int, block: (Double) -> Double) {
-        store[id] = block(store[id] ?: 0.0); onWrite?.invoke()
+        store.put(id, block(store[id])); onWrite?.invoke()
     }
     fun ids(): IntArray {
         val result = IntArray(store.size())
@@ -161,6 +363,96 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     }
     fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
     fun put(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
-    fun remove(id: Int) { store.remove(id); onWrite?.invoke() }
+    fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
     fun clear() { store.clear(); onWrite?.invoke() }
+}
+
+// ============================================================
+// 统一接口：迭代式 CRUD 操作（用于 DiscipleTables 重构）
+// ============================================================
+
+/**
+ * 组件表统一接口，支持 [remove] 和 [clear] 迭代操作。
+ */
+sealed interface ComponentTableLike {
+    fun remove(id: Int)
+    fun clear()
+    val size: Int
+    val debugName: String
+}
+
+/**
+ * 带深拷贝能力的组件表引用，用于 [DiscipleTables.deepCopy]。
+ */
+sealed interface CopyableTableRef : ComponentTableLike {
+    fun copyTo(dest: DiscipleTables)
+}
+
+/** [IntComponentTable] 的拷贝引用（无需 lambda，使用属性引用避免匿名类膨胀） */
+class IntTableRef(
+    @JvmField val table: IntComponentTable,
+    @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, IntComponentTable>,
+    override val debugName: String
+) : CopyableTableRef {
+    override fun remove(id: Int) = table.remove(id)
+    override fun clear() = table.clear()
+    override val size: Int get() = table.size
+    override fun copyTo(dest: DiscipleTables) {
+        val dst = destProp.get(dest)
+        for (i in 0 until table.store.size()) {
+            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
+        }
+    }
+}
+
+/** [DoubleComponentTable] 的拷贝引用 */
+class DoubleTableRef(
+    @JvmField val table: DoubleComponentTable,
+    @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, DoubleComponentTable>,
+    override val debugName: String
+) : CopyableTableRef {
+    override fun remove(id: Int) = table.remove(id)
+    override fun clear() = table.clear()
+    override val size: Int get() = table.size
+    override fun copyTo(dest: DiscipleTables) {
+        val dst = destProp.get(dest)
+        for (i in 0 until table.store.size()) {
+            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
+        }
+    }
+}
+
+/** [ComponentTable] 的引用拷贝（值不可变类型，浅拷贝安全） */
+class RefTableRef<T>(
+    @JvmField val table: ComponentTable<T>,
+    @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, ComponentTable<T>>,
+    override val debugName: String
+) : CopyableTableRef {
+    override fun remove(id: Int) = table.remove(id)
+    override fun clear() = table.clear()
+    override val size: Int get() = table.size
+    override fun copyTo(dest: DiscipleTables) {
+        val dst = destProp.get(dest)
+        for (i in 0 until table.store.size()) {
+            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
+        }
+    }
+}
+
+/** [ComponentTable] 的拷贝引用（值可变类型，使用 [deepCopyFn] 深拷贝每个元素） */
+class MutableTableRef<T>(
+    @JvmField val table: ComponentTable<T>,
+    @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, ComponentTable<T>>,
+    override val debugName: String,
+    private val deepCopyFn: (T) -> T
+) : CopyableTableRef {
+    override fun remove(id: Int) = table.remove(id)
+    override fun clear() = table.clear()
+    override val size: Int get() = table.size
+    override fun copyTo(dest: DiscipleTables) {
+        val dst = destProp.get(dest)
+        for (i in 0 until table.store.size()) {
+            dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i)))
+        }
+    }
 }

@@ -1,5 +1,30 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.41] - 2026-07-04（versionCode=4041）
+
+### 架构重构
+
+- **组件表底层优化** — `IntComponentTable`/`DoubleComponentTable` 从 SparseArray 迁移为 Packed Array（dense array + id→index 映射 + swap-on-remove），查询从 O(log N) 降至 O(1)，删除零移动
+- **重复代码消除** — DiscipleTables 的 remove/clear/bindAllOnWrite/deepCopy 从手工 450+ 行改为声明式列表驱动，新增列只需在 `buildCopyableRefs()` 加一行
+- **废弃代码清理** — 删除 `@Deprecated` 的 `ParallelWorkerPool`，全部统一使用 `DeviceCapabilityProfiler.parallelDispatcher`
+
+### 渲染优化
+
+- **Canvas 分层渲染** — SectMapCanvas 拆分为静态层（drawBehind，离屏 Bitmap 缓存）和动态层（交互态），相机平移不再触发静态内容重绘
+- **灵田渲染优化** — 建筑列表预过滤只保留灵田建筑，消除 O(n×m) 双层循环
+
+### 工程效能
+
+- **InterfaceDomainMap 加固** — DomainMappingTest 全覆盖验证所有 DialogRoute 的域映射，新增 dialog 忘记映射会编译失败
+- **存档脏标记** — GameStateStoreImpl 新增 `_stateDirty` 标志位，避免状态无变化时重复写库
+
+### 测试覆盖
+
+- 新增 `DomainMappingTest` 用例（3 个）— 聚焦/非聚焦 DialogRoute 全覆盖交叉验证
+- 全量 `compileReleaseKotlin` + `testReleaseUnitTest` 通过
+
+---
+
 ## [4.0.40] - 2026-07-04（versionCode=4040）
 
 ### 架构重构

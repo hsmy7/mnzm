@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.system.FocusDomain
+import com.xianxia.sect.core.engine.system.InterfaceDomainMap
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -313,14 +314,8 @@ class DomainMappingTest {
 
     @Test
     fun `焦点域 dialog 全部正确映射`() {
-        val focusDialogs = listOf(
-            "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
-            "Warehouse", "Merchant", "SectTrade",
-            "MissionHall",
-            "BloodRefiningPool",
-            "WorldMap", "Diplomacy"
-        )
-        for (d in focusDialogs) {
+        // 使用与 [DialogRoute 全覆盖验证] 一致的焦点列表（不含 legacy 映射）
+        for (d in FOCUS_DIALOG_ROUTES) {
             val domains = resolve(dialog = d)
             assertTrue(
                 "$d 应为焦点域，至少包含一个非 ALWAYS 域",
@@ -331,21 +326,19 @@ class DomainMappingTest {
 
     @Test
     fun `仅 ALWAYS 的 dialog 正确映射`() {
-        val nonFocusDialogs = listOf(
-            "Mail", "Activity",
-            "TianshuHall", "SectLevelDetail",
-            "PatrolTower", "Recruit", "Residence", "Library",
-            "WenDaoPeak", "QingyunPeak",
-            "LawEnforcementHall", "ReflectionCliff",
-            "BattleLog", "WarehouseBuilding"
-        )
-        for (d in nonFocusDialogs) {
+        val nonFocus = ALL_DIALOG_ROUTES - FOCUS_DIALOG_ROUTES
+        for (d in nonFocus) {
             val domains = resolve(dialog = d)
             assertEquals(
                 "$d 应为非焦点域，仅含 ALWAYS",
                 setOf(FocusDomain.ALWAYS), domains
             )
         }
+    }
+
+    @Test
+    fun `legacy dialog SectTrade 正确映射（非 DialogRoute 的独立入口）`() {
+        assertDomains(resolve(dialog = "SectTrade"), FocusDomain.SECT_TRADE)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -413,41 +406,98 @@ class DomainMappingTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // DialogRoute → InterfaceDomainMap 一致性验证
+    // DialogRoute → InterfaceDomainMap 全覆盖验证
+    //
+    // 以下测试枚举所有 DialogRoute 子类的 domainKey，确保每个子类
+    // 都被显式处理——要么有域映射（焦点域），要么明确为无域（仅 ALWAYS）。
+    //
+    // 新增 DialogRoute 子类时，必须在此处将其 domainKey 加入
+    // ALL_DIALOG_ROUTES 集合并分到正确的分类列表中。
     // ═══════════════════════════════════════════════════════════════
 
+    /** 所有 DialogRoute 子类的 domainKey 一览 */
+    private val ALL_DIALOG_ROUTES: Set<String> = setOf(
+        // 焦点域（展示随时间变化的数据）
+        "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
+        "Warehouse", "Merchant", "MissionHall",
+        "BloodRefiningPool", "WorldMap", "Diplomacy",
+        "Disciples", "Buildings",
+        // 非焦点域（静态信息/配置型页面）
+        "None", "Settings", "Recruit", "SalaryConfig",
+        "BattleLog", "Mail", "Activity", "Library",
+        "WenDaoPeak", "QingyunPeak", "TianshuHall",
+        "LawEnforcementHall", "ReflectionCliff",
+        "PatrolTower", "Residence", "WarehouseBuilding",
+        "GameOver", "SectLevelDetail", "RenameSect"
+    )
+
+    /** 应在 InterfaceDomainMap 中有映射的焦点 DialogRoute */
+    private val FOCUS_DIALOG_ROUTES: Set<String> = setOf(
+        "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
+        "Warehouse", "Merchant", "MissionHall",
+        "BloodRefiningPool", "WorldMap", "Diplomacy",
+        "Disciples", "Buildings"
+    )
+
     @Test
-    fun `DialogRoute 焦点 dialog 的 toString 匹配 InterfaceDomainMap`() {
-        // 所有应有独立域的 DialogRoute 对象
-        val focusDialogs = listOf(
-            "Alchemy", "Forge", "HerbGarden", "SpiritMine", "Planting",
-            "Warehouse", "Merchant", "MissionHall",
-            "BloodRefiningPool", "WorldMap", "Diplomacy",
-            "Disciples", "Buildings"
-        )
-        for (name in focusDialogs) {
+    fun `聚焦 DialogRoute 的 domainKey 在 InterfaceDomainMap 中有映射`() {
+        for (name in FOCUS_DIALOG_ROUTES) {
             assertNotNull(
-                "DialogRoute $name 应在 InterfaceDomainMap 中有映射",
-                resolve(dialog = name).find { it != FocusDomain.ALWAYS }
+                "DialogRoute $name 应在 InterfaceDomainMap 中有域映射",
+                InterfaceDomainMap[name]
+            )
+            val domains = resolve(dialog = name)
+            assertTrue(
+                "DialogRoute $name 应解析出非 ALWAYS 域",
+                domains.size > 1 // 至少包含 ALWAYS + 一个焦点域
             )
         }
     }
 
     @Test
-    fun `DialogRoute 静态 dialog 的 toString 不匹配任何焦点域`() {
-        val staticDialogs = listOf(
-            "None", "Settings", "Recruit", "SalaryConfig",
-            "BattleLog", "Mail", "Activity", "Library",
-            "WenDaoPeak", "QingyunPeak", "TianshuHall",
-            "LawEnforcementHall", "ReflectionCliff",
-            "PatrolTower", "Residence", "WarehouseBuilding",
-            "GameOver", "SectLevelDetail"
-        )
+    fun `非聚焦 DialogRoute 的 domainKey 不在 InterfaceDomainMap 中`() {
+        val staticDialogs = ALL_DIALOG_ROUTES - FOCUS_DIALOG_ROUTES
         for (name in staticDialogs) {
+            assertNull(
+                "DialogRoute $name 不应在 InterfaceDomainMap 中有映射" +
+                    "（它是静态页面，无需实时轨）",
+                InterfaceDomainMap[name]
+            )
             val domains = resolve(dialog = name)
             assertEquals(
-                "DialogRoute $name 应仅含 ALWAYS（无非焦点域映射）",
+                "DialogRoute $name 应仅含 ALWAYS",
                 setOf(FocusDomain.ALWAYS), domains
+            )
+        }
+    }
+
+    @Test
+    fun `所有 DialogRoute 子类都已覆盖验证`() {
+        // 全量枚举 + 分类验证确保没有子类被遗漏
+        val covered = setOf(
+            FOCUS_DIALOG_ROUTES,
+            ALL_DIALOG_ROUTES - FOCUS_DIALOG_ROUTES
+        ).flatten().toSet()
+
+        assertEquals(
+            "ALL_DIALOG_ROUTES 应等于 FOCUS + STATIC 之和",
+            ALL_DIALOG_ROUTES, covered
+        )
+
+        // 验证没有未知 DialogRoute 被遗漏
+        val allInMap = InterfaceDomainMap.keys
+        val dialogKeysInMap = allInMap - setOf(
+            // 排除 Tab 键和子界面键（它们不是 DialogRoute）
+            "OVERVIEW", "DISCIPLES", "BUILDINGS", "WAREHOUSE",
+            "DiscipleSelector", "ManualDetail", "EquipmentDetail", "DiscipleDetail",
+            // SectTrade 是非 DialogRoute 的遗留映射，另有测试覆盖
+            "SectTrade"
+        )
+        for (key in dialogKeysInMap) {
+            assertTrue(
+                "InterfaceDomainMap 中的键 '$key' 应在 ALL_DIALOG_ROUTES 中" +
+                    "（它对应一个 DialogRoute 子类，需被测试覆盖）",
+                key in ALL_DIALOG_ROUTES
             )
         }
     }

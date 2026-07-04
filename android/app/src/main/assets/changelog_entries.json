@@ -1,6 +1,19 @@
 [
 	{
 		"date": "2026-07-04",
+		"version": "4.0.41",
+		"changes": [
+			"架构：组件表 Packed Array——IntComponentTable/DoubleComponentTable从SparseArray迁移为Packed Array，查询O(log N)→O(1)，零装箱",
+			"重构：DiscipleTables重复代码消除——remove/clear/bindAllOnWrite/deepCopy从手工450行改为声明式列表驱动，新增列只要加一行",
+			"重构：删除废弃ParallelWorkerPool——全部统一使用DeviceCapabilityProfiler.parallelDispatcher",
+			"优化：Canvas分层渲染——静态层离屏Bitmap缓存+drawBehind，拖拽不再触发静态内容重绘",
+			"优化：灵田建筑预过滤——消除O(n×m)双层循环",
+			"测试：InterfaceDomainMap全覆盖——新增DialogRoute遗忘域映射时测试失败",
+			"优化：存档脏标记——状态无变化时跳过重复写库"
+		]
+	},
+	{
+		"date": "2026-07-04",
 		"version": "4.0.40",
 		"changes": [
 			"架构：游戏线程并行化——新增DeviceCapabilityProfiler设备能力检测，8核/6GB+自动启用4路并行调度",

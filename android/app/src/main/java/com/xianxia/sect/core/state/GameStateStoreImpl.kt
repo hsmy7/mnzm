@@ -44,6 +44,24 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     override var activeSubDialogs: Set<String> = emptySet()
 
+    // ── Dirty 标志 —— 供 SaveLoadViewModel 检查是否有未保存变更 ──
+    @Volatile private var _stateDirty = false
+    @Volatile private var _discipleDirty = false
+
+    /** 强制标记状态脏（供外部手动触发保存） */
+    fun markDirty() { _stateDirty = true }
+
+    /**
+     * 检查并消费 dirty 标志。
+     * @return true 表示自上次调用以来有状态变更
+     */
+    fun consumeDirty(): Boolean {
+        val dirty = _stateDirty || _discipleDirty
+        _stateDirty = false
+        _discipleDirty = false
+        return dirty
+    }
+
     companion object {
         private const val TAG = "GameStateStore"
 
@@ -156,7 +174,7 @@ class GameStateStoreImpl @Inject constructor(
     /** 批量模式下抑制个体字段 StateFlow 发射，仅 _updateVersion 递增 */
     override fun enterBatchEmissionMode() { batchEmissionMode = true }
     /** 退出批量模式，立即触发一次完整状态发射 */
-    override fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++ }
+    override fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++; _stateDirty = true }
 
     override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -471,16 +489,19 @@ class GameStateStoreImpl @Inject constructor(
     override fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
         _updateVersion.value++
+        _stateDirty = true
     }
 
     // === 快照读取（绕过 stateIn 调度延迟） ===
@@ -492,31 +513,37 @@ class GameStateStoreImpl @Inject constructor(
     override fun setPendingNotification(notification: GameNotification) {
         _pendingNotificationFlow.value = notification
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun clearPendingNotification() {
         _pendingNotificationFlow.value = null
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun setPendingBattleResult(result: BattleResultUIData) {
         _pendingBattleResultFlow.value = result
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun clearPendingBattleResult() {
         _pendingBattleResultFlow.value = null
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {
         _pendingBeastAttacksFlow.value = attacks
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun clearPendingBeastAttacks() {
         _pendingBeastAttacksFlow.value = emptyList()
         _updateVersion.value++
+        _stateDirty = true
     }
 
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
@@ -619,8 +646,10 @@ class GameStateStoreImpl @Inject constructor(
                     if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
                     if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
                     if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
-                    if (reusableMutableState.battleLogs !== curBL) _battleLogsFlow.value = reusableMutableState.battleLogs
-                    if (blockChangedNotification) _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                    if (reusableMutableState.battleLogs !== curBL)
+                        _battleLogsFlow.value = reusableMutableState.battleLogs
+                    if (blockChangedNotification)
+                        _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 }
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
                 val mutated = reusableMutableState.discipleTables.mutationVersion
@@ -629,6 +658,7 @@ class GameStateStoreImpl @Inject constructor(
                     // 锁内仅标记 mutationVersion，实际 assembleAll() 在锁外执行
                     // 减少 transactionMutex 持有时间，降低游戏循环锁争用
                     lastAssembledMutationVersion = mutated
+                    _discipleDirty = true
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
@@ -663,7 +693,10 @@ class GameStateStoreImpl @Inject constructor(
                     || finalLoading != curLoading
                     || finalSaving != curSaving
                     || blockChangedNotification
-                if (anyFieldChanged) _updateVersion.value++
+                if (anyFieldChanged) {
+                    _updateVersion.value++
+                    _stateDirty = true
+                }
                 _discipleTables = reusableMutableState.discipleTables
             } finally {
                 reentrantCount.set(0)
@@ -783,6 +816,7 @@ class GameStateStoreImpl @Inject constructor(
                 if (disciplesChanged || mutated != lastAssembledMutationVersion) {
                     _disciplesFlow.value = reusableMutableState.discipleTables.assembleAll()
                     lastAssembledMutationVersion = mutated
+                    _discipleDirty = true
                 }
                 repository.markDirty(
                     gameData = reusableMutableState.gameData !== curGame,
@@ -816,7 +850,10 @@ class GameStateStoreImpl @Inject constructor(
                     || finalLoading != curLoading
                     || finalSaving != curSaving
                     || blockChangedNotification
-                if (anyFieldChanged) _updateVersion.value++
+                if (anyFieldChanged) {
+                    _updateVersion.value++
+                    _stateDirty = true
+                }
                 _discipleTables = reusableMutableState.discipleTables
                 return result
             } finally {
@@ -890,6 +927,8 @@ class GameStateStoreImpl @Inject constructor(
                 repository.setActiveSlot(gameData.slotId)
                 repository.markAllDirty()
                 _updateVersion.value++
+                _stateDirty = false
+                _discipleDirty = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -945,6 +984,8 @@ class GameStateStoreImpl @Inject constructor(
             _isLoading.value = false
             _isSaving.value = false
             _updateVersion.value++
+            _stateDirty = false
+            _discipleDirty = false
         }
     }
 

@@ -56,11 +56,20 @@ sealed class GameRoute(val route: String) {
 
 sealed class DialogRoute {
     /**
-     * 返回 DialogRoute 的简单类名作为域映射键。
-     * 覆写 toString() 以确保与 [InterfaceDomainMap] 的键精确匹配，
+     * 域映射键 — 对应 [com.xianxia.sect.core.engine.system.InterfaceDomainMap] 中的键。
+     * 默认返回简单类名，与 map 中的条目精确匹配。
+     * 子类可通过覆写此属性提供自定义映射键（例如兼容旧调用方）。
+     *
+     * 新增 [InterfaceDomainMap] 条目时，常规做法是让 DialogRoute 子类的类名
+     * 与 map 键一致，由默认实现自动匹配。如需自定义键名，覆写此属性即可。
+     */
+    open val domainKey: String get() = this::class.simpleName ?: ""
+
+    /**
+     * 返回 [domainKey] 作为字符串表示，确保与 [InterfaceDomainMap] 的键精确匹配，
      * 而非返回默认的 FQN@hash（object）或 data class 的完整参数串。
      */
-    override fun toString(): String = this::class.simpleName ?: super.toString()
+    override fun toString(): String = domainKey
 
     object None : DialogRoute()
 

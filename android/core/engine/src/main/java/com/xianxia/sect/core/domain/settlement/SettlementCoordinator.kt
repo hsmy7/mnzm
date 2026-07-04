@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.settlement
 
+import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -13,6 +14,8 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -39,7 +42,7 @@ class SettlementCoordinator @Inject constructor(
     private val stateStore: GameStateStore,
     private val scheduler: SettlementScheduler,
     private val metricsCollector: SettlementMetricsCollector,
-    private val workerPool: ParallelWorkerPool
+    private val profiler: DeviceCapabilityProfiler
 ) {
     @Volatile
     private var shadowState: MutableGameState? = null
@@ -104,7 +107,7 @@ class SettlementCoordinator @Inject constructor(
      * 每帧指纹检测（使用动态批量间隔，[FingerprintSnapshot] 零拷贝 + 并行计算）。
      *
      * 执行指纹检测 + 80% 槽位分类，在结构或进度变化时重建缓存。
-     * 指纹和分类通过 [ParallelWorkerPool] 在 [Dispatchers.Default] 上并行执行。
+     * 指纹和分类通过 [DeviceCapabilityProfiler.parallelDispatcher] 并行执行。
      *
      * @param batchIntervalMs 当前批量间隔（ms），由 GameEngineCore 动态管理
      */
@@ -116,11 +119,11 @@ class SettlementCoordinator @Inject constructor(
 
         // 轻量快照（零分配）+ 并行计算指纹和分类
         val snapshot = FingerprintSnapshot.take(stateStore)
-        val result = workerPool.parallelCompute(
-            snapshot,
-            { s -> computeFingerprint(s as FingerprintSnapshot) },
-            { s -> classifySlotsProgress(s as FingerprintSnapshot) }
-        )
+        val result = coroutineScope {
+            val defA = async(profiler.parallelDispatcher) { computeFingerprint(snapshot) }
+            val defB = async(profiler.parallelDispatcher) { classifySlotsProgress(snapshot) }
+            ParallelResult(defA.await(), defB.await())
+        }
 
         if (result.resultA != lastFingerprint || result.resultB != batchRealtimeSlots) {
             DomainLog.d(TAG, "Fingerprint/80% changed")
@@ -959,3 +962,11 @@ private class SettlementMetricsBuilder {
         )
     }
 }
+
+/**
+ * 并行计算结果容器。
+ */
+data class ParallelResult<out A, out B>(
+    val resultA: A,
+    val resultB: B
+)

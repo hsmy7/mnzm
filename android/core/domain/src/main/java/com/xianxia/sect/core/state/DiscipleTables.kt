@@ -172,6 +172,137 @@ class DiscipleTables {
         if (id in ids) update(disciple) else insert(disciple)
     }
 
+    // ================================================================
+    // 迭代式 CRUD 支持（所有组件表的统一引用列表）
+    // ================================================================
+
+    /** 所有组件表的统一引用列表，用于 [remove]/[clear]/[bindAllOnWrite]/[deepCopy] 的迭代操作 */
+    private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs()
+
+    @Suppress("LongMethod")
+    private fun buildCopyableRefs(): List<CopyableTableRef> = listOf(
+        // ── Int 表（值拷贝） ──
+        IntTableRef(slotIds, DiscipleTables::slotIds, "slotIds"),
+        IntTableRef(realms, DiscipleTables::realms, "realms"),
+        IntTableRef(realmLayers, DiscipleTables::realmLayers, "realmLayers"),
+        IntTableRef(ages, DiscipleTables::ages, "ages"),
+        IntTableRef(lifespans, DiscipleTables::lifespans, "lifespans"),
+        IntTableRef(isAlive, DiscipleTables::isAlive, "isAlive"),
+        IntTableRef(soulPowers, DiscipleTables::soulPowers, "soulPowers"),
+        IntTableRef(cultivationSpeedDurations, DiscipleTables::cultivationSpeedDurations, "cultivationSpeedDurations"),
+        IntTableRef(autoLearnFromWarehouse, DiscipleTables::autoLearnFromWarehouse, "autoLearnFromWarehouse"),
+        IntTableRef(autoEquipFromWarehouse, DiscipleTables::autoEquipFromWarehouse, "autoEquipFromWarehouse"),
+        IntTableRef(baseHps, DiscipleTables::baseHps, "baseHps"),
+        IntTableRef(baseMps, DiscipleTables::baseMps, "baseMps"),
+        IntTableRef(basePhysicalAttacks, DiscipleTables::basePhysicalAttacks, "basePhysicalAttacks"),
+        IntTableRef(baseMagicAttacks, DiscipleTables::baseMagicAttacks, "baseMagicAttacks"),
+        IntTableRef(basePhysicalDefenses, DiscipleTables::basePhysicalDefenses, "basePhysicalDefenses"),
+        IntTableRef(baseMagicDefenses, DiscipleTables::baseMagicDefenses, "baseMagicDefenses"),
+        IntTableRef(baseSpeeds, DiscipleTables::baseSpeeds, "baseSpeeds"),
+        IntTableRef(hpVariances, DiscipleTables::hpVariances, "hpVariances"),
+        IntTableRef(mpVariances, DiscipleTables::mpVariances, "mpVariances"),
+        IntTableRef(physicalAttackVariances, DiscipleTables::physicalAttackVariances, "physicalAttackVariances"),
+        IntTableRef(magicAttackVariances, DiscipleTables::magicAttackVariances, "magicAttackVariances"),
+        IntTableRef(physicalDefenseVariances, DiscipleTables::physicalDefenseVariances, "physicalDefenseVariances"),
+        IntTableRef(magicDefenseVariances, DiscipleTables::magicDefenseVariances, "magicDefenseVariances"),
+        IntTableRef(speedVariances, DiscipleTables::speedVariances, "speedVariances"),
+        IntTableRef(breakthroughCounts, DiscipleTables::breakthroughCounts, "breakthroughCounts"),
+        IntTableRef(breakthroughFailCounts, DiscipleTables::breakthroughFailCounts, "breakthroughFailCounts"),
+        IntTableRef(currentHps, DiscipleTables::currentHps, "currentHps"),
+        IntTableRef(currentMps, DiscipleTables::currentMps, "currentMps"),
+        IntTableRef(pillPhysicalAttackBonuses, DiscipleTables::pillPhysicalAttackBonuses, "pillPhysicalAttackBonuses"),
+        IntTableRef(pillMagicAttackBonuses, DiscipleTables::pillMagicAttackBonuses, "pillMagicAttackBonuses"),
+        IntTableRef(pillPhysicalDefenseBonuses, DiscipleTables::pillPhysicalDefenseBonuses, "pillPhysicalDefenseBonuses"),
+        IntTableRef(pillMagicDefenseBonuses, DiscipleTables::pillMagicDefenseBonuses, "pillMagicDefenseBonuses"),
+        IntTableRef(pillHpBonuses, DiscipleTables::pillHpBonuses, "pillHpBonuses"),
+        IntTableRef(pillMpBonuses, DiscipleTables::pillMpBonuses, "pillMpBonuses"),
+        IntTableRef(pillSpeedBonuses, DiscipleTables::pillSpeedBonuses, "pillSpeedBonuses"),
+        IntTableRef(pillEffectDurations, DiscipleTables::pillEffectDurations, "pillEffectDurations"),
+        IntTableRef(discipleSpiritStones, DiscipleTables::discipleSpiritStones, "discipleSpiritStones"),
+        IntTableRef(cultivationCompletionMonths, DiscipleTables::cultivationCompletionMonths, "cultivationCompletionMonths"),
+        IntTableRef(cultivationCompletionPhases, DiscipleTables::cultivationCompletionPhases, "cultivationCompletionPhases"),
+        IntTableRef(manualCompletionMonths, DiscipleTables::manualCompletionMonths, "manualCompletionMonths"),
+        IntTableRef(manualCompletionPhases, DiscipleTables::manualCompletionPhases, "manualCompletionPhases"),
+        IntTableRef(equipmentNurturingCompletionMonths, DiscipleTables::equipmentNurturingCompletionMonths, "equipmentNurturingCompletionMonths"),
+        IntTableRef(equipmentNurturingCompletionPhases, DiscipleTables::equipmentNurturingCompletionPhases, "equipmentNurturingCompletionPhases"),
+        IntTableRef(lastChildYears, DiscipleTables::lastChildYears, "lastChildYears"),
+        IntTableRef(intelligences, DiscipleTables::intelligences, "intelligences"),
+        IntTableRef(charms, DiscipleTables::charms, "charms"),
+        IntTableRef(loyalties, DiscipleTables::loyalties, "loyalties"),
+        IntTableRef(comprehensions, DiscipleTables::comprehensions, "comprehensions"),
+        IntTableRef(artifactRefinings, DiscipleTables::artifactRefinings, "artifactRefinings"),
+        IntTableRef(pillRefinings, DiscipleTables::pillRefinings, "pillRefinings"),
+        IntTableRef(spiritPlantings, DiscipleTables::spiritPlantings, "spiritPlantings"),
+        IntTableRef(minings, DiscipleTables::minings, "minings"),
+        IntTableRef(teachings, DiscipleTables::teachings, "teachings"),
+        IntTableRef(moralities, DiscipleTables::moralities, "moralities"),
+        IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
+        IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
+        IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
+        IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
+        IntTableRef(hasClearAllEffects, DiscipleTables::hasClearAllEffects, "hasClearAllEffects"),
+        IntTableRef(lastTheftMonths, DiscipleTables::lastTheftMonths, "lastTheftMonths"),
+
+        // ── Double 表（值拷贝） ──
+        DoubleTableRef(cultivations, DiscipleTables::cultivations, "cultivations"),
+        DoubleTableRef(cultivationSpeedBonuses, DiscipleTables::cultivationSpeedBonuses, "cultivationSpeedBonuses"),
+        DoubleTableRef(pillCritRateBonuses, DiscipleTables::pillCritRateBonuses, "pillCritRateBonuses"),
+        DoubleTableRef(pillCritEffectBonuses, DiscipleTables::pillCritEffectBonuses, "pillCritEffectBonuses"),
+        DoubleTableRef(pillCultivationSpeedBonuses, DiscipleTables::pillCultivationSpeedBonuses, "pillCultivationSpeedBonuses"),
+        DoubleTableRef(pillSkillExpSpeedBonuses, DiscipleTables::pillSkillExpSpeedBonuses, "pillSkillExpSpeedBonuses"),
+        DoubleTableRef(pillNurtureSpeedBonuses, DiscipleTables::pillNurtureSpeedBonuses, "pillNurtureSpeedBonuses"),
+
+        // ── Long 表（值不可变，浅拷贝安全） ──
+        RefTableRef(totalCultivations, DiscipleTables::totalCultivations, "totalCultivations"),
+        RefTableRef(storageBagSpiritStones, DiscipleTables::storageBagSpiritStones, "storageBagSpiritStones"),
+
+        // ── String 表（引用不可变，浅拷贝安全） ──
+        RefTableRef(names, DiscipleTables::names, "names"),
+        RefTableRef(surnames, DiscipleTables::surnames, "surnames"),
+        RefTableRef(genders, DiscipleTables::genders, "genders"),
+        RefTableRef(portraitRes, DiscipleTables::portraitRes, "portraitRes"),
+        RefTableRef(discipleTypes, DiscipleTables::discipleTypes, "discipleTypes"),
+        RefTableRef(spiritRootTypes, DiscipleTables::spiritRootTypes, "spiritRootTypes"),
+        RefTableRef(activePillCategories, DiscipleTables::activePillCategories, "activePillCategories"),
+        RefTableRef(weaponIds, DiscipleTables::weaponIds, "weaponIds"),
+        RefTableRef(armorIds, DiscipleTables::armorIds, "armorIds"),
+        RefTableRef(bootsIds, DiscipleTables::bootsIds, "bootsIds"),
+        RefTableRef(accessoryIds, DiscipleTables::accessoryIds, "accessoryIds"),
+
+        // ── Set 表（需深拷贝 toSet） ──
+        MutableTableRef(activePillTypes, DiscipleTables::activePillTypes, "activePillTypes") { it.toSet() },
+        MutableTableRef(usedPermanentPillKeys, DiscipleTables::usedPermanentPillKeys, "usedPermanentPillKeys") { it.toSet() },
+        MutableTableRef(usedExtendLifePillTypes, DiscipleTables::usedExtendLifePillTypes, "usedExtendLifePillTypes") { it.toSet() },
+
+        // ── List 表（需深拷贝 toList） ──
+        MutableTableRef(manualIds, DiscipleTables::manualIds, "manualIds") { it.toList() },
+        MutableTableRef(talentIds, DiscipleTables::talentIds, "talentIds") { it.toList() },
+        MutableTableRef(lifeEvents, DiscipleTables::lifeEvents, "lifeEvents") { it.toList() },
+        MutableTableRef(storageBagItems, DiscipleTables::storageBagItems, "storageBagItems") { it.toList() },
+        MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes, "usedFunctionalPillTypes") { it.toList() },
+        MutableTableRef(usedExtendLifePillIds, DiscipleTables::usedExtendLifePillIds, "usedExtendLifePillIds") { it.toList() },
+
+        // ── Map 表（需深拷贝 toMap） ──
+        MutableTableRef(manualMasteries, DiscipleTables::manualMasteries, "manualMasteries") { it.toMap() },
+        MutableTableRef(statusData, DiscipleTables::statusData, "statusData") { it.toMap() },
+
+        // ── 枚举/数据类单值表（值不可变，浅拷贝安全） ──
+        RefTableRef(statuses, DiscipleTables::statuses, "statuses"),
+        RefTableRef(weaponNurtures, DiscipleTables::weaponNurtures, "weaponNurtures"),
+        RefTableRef(armorNurtures, DiscipleTables::armorNurtures, "armorNurtures"),
+        RefTableRef(bootsNurtures, DiscipleTables::bootsNurtures, "bootsNurtures"),
+        RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures"),
+
+        // ── Nullable 值表（值不可变，浅拷贝安全） ──
+        RefTableRef(partnerIds, DiscipleTables::partnerIds, "partnerIds"),
+        RefTableRef(partnerSectIds, DiscipleTables::partnerSectIds, "partnerSectIds"),
+        RefTableRef(parentId1s, DiscipleTables::parentId1s, "parentId1s"),
+        RefTableRef(parentId2s, DiscipleTables::parentId2s, "parentId2s"),
+        RefTableRef(childBirthMonths, DiscipleTables::childBirthMonths, "childBirthMonths"),
+        RefTableRef(griefEndYears, DiscipleTables::griefEndYears, "griefEndYears"),
+        RefTableRef(masterIds, DiscipleTables::masterIds, "masterIds")
+    )
+
     init { bindAllOnWrite() }
 
     /* ================================================================
@@ -552,103 +683,13 @@ class DiscipleTables {
      */
     fun remove(id: Int) {
         synchronized(ids) { ids.remove(id) }
-        names.remove(id); surnames.remove(id); genders.remove(id)
-        portraitRes.remove(id); discipleTypes.remove(id); spiritRootTypes.remove(id)
-        slotIds.remove(id)
-        realms.remove(id); realmLayers.remove(id); cultivations.remove(id)
-        ages.remove(id); lifespans.remove(id); isAlive.remove(id); soulPowers.remove(id)
-        cultivationSpeedBonuses.remove(id); cultivationSpeedDurations.remove(id)
-        autoLearnFromWarehouse.remove(id); autoEquipFromWarehouse.remove(id)
-        manualIds.remove(id); talentIds.remove(id); lifeEvents.remove(id); manualMasteries.remove(id)
-        statuses.remove(id); statusData.remove(id)
-        baseHps.remove(id); baseMps.remove(id)
-        basePhysicalAttacks.remove(id); baseMagicAttacks.remove(id)
-        basePhysicalDefenses.remove(id); baseMagicDefenses.remove(id); baseSpeeds.remove(id)
-        hpVariances.remove(id); mpVariances.remove(id)
-        physicalAttackVariances.remove(id); magicAttackVariances.remove(id)
-        physicalDefenseVariances.remove(id); magicDefenseVariances.remove(id)
-        speedVariances.remove(id)
-        totalCultivations.remove(id); breakthroughCounts.remove(id); breakthroughFailCounts.remove(id)
-        currentHps.remove(id); currentMps.remove(id)
-        pillPhysicalAttackBonuses.remove(id); pillMagicAttackBonuses.remove(id)
-        pillPhysicalDefenseBonuses.remove(id); pillMagicDefenseBonuses.remove(id)
-        pillHpBonuses.remove(id); pillMpBonuses.remove(id); pillSpeedBonuses.remove(id)
-        pillEffectDurations.remove(id)
-        pillCritRateBonuses.remove(id); pillCritEffectBonuses.remove(id)
-        pillCultivationSpeedBonuses.remove(id); pillSkillExpSpeedBonuses.remove(id)
-        pillNurtureSpeedBonuses.remove(id); activePillCategories.remove(id)
-        activePillTypes.remove(id)
-        weaponIds.remove(id); armorIds.remove(id); bootsIds.remove(id); accessoryIds.remove(id)
-        weaponNurtures.remove(id); armorNurtures.remove(id)
-        bootsNurtures.remove(id); accessoryNurtures.remove(id)
-        storageBagItems.remove(id); storageBagSpiritStones.remove(id)
-        discipleSpiritStones.remove(id)
-        cultivationCompletionMonths.remove(id); cultivationCompletionPhases.remove(id)
-        manualCompletionMonths.remove(id); manualCompletionPhases.remove(id)
-        equipmentNurturingCompletionMonths.remove(id); equipmentNurturingCompletionPhases.remove(id)
-        partnerIds.remove(id); partnerSectIds.remove(id)
-        parentId1s.remove(id); parentId2s.remove(id)
-        lastChildYears.remove(id); childBirthMonths.remove(id); griefEndYears.remove(id)
-        masterIds.remove(id)
-        intelligences.remove(id); charms.remove(id); loyalties.remove(id)
-        comprehensions.remove(id); artifactRefinings.remove(id); pillRefinings.remove(id)
-        spiritPlantings.remove(id); minings.remove(id); teachings.remove(id)
-        moralities.remove(id); salaryPaidCounts.remove(id); salaryMissedCounts.remove(id)
-        usedFunctionalPillTypes.remove(id); usedExtendLifePillIds.remove(id)
-        usedPermanentPillKeys.remove(id); usedExtendLifePillTypes.remove(id)
-        recruitedMonths.remove(id); hasReviveEffects.remove(id); hasClearAllEffects.remove(id)
-        lastTheftMonths.remove(id)
+        _allCopyableRefs.forEach { it.remove(id) }
     }
 
     /** 清空所有组件表 */
     fun clear() {
         synchronized(ids) { ids.clear() }
-        names.clear(); surnames.clear(); genders.clear()
-        portraitRes.clear(); discipleTypes.clear(); spiritRootTypes.clear()
-        slotIds.clear()
-        realms.clear(); realmLayers.clear(); cultivations.clear()
-        ages.clear(); lifespans.clear(); isAlive.clear(); soulPowers.clear()
-        cultivationSpeedBonuses.clear(); cultivationSpeedDurations.clear()
-        autoLearnFromWarehouse.clear(); autoEquipFromWarehouse.clear()
-        manualIds.clear(); talentIds.clear(); lifeEvents.clear(); manualMasteries.clear()
-        statuses.clear(); statusData.clear()
-        baseHps.clear(); baseMps.clear()
-        basePhysicalAttacks.clear(); baseMagicAttacks.clear()
-        basePhysicalDefenses.clear(); baseMagicDefenses.clear(); baseSpeeds.clear()
-        hpVariances.clear(); mpVariances.clear()
-        physicalAttackVariances.clear(); magicAttackVariances.clear()
-        physicalDefenseVariances.clear(); magicDefenseVariances.clear()
-        speedVariances.clear()
-        totalCultivations.clear(); breakthroughCounts.clear(); breakthroughFailCounts.clear()
-        currentHps.clear(); currentMps.clear()
-        pillPhysicalAttackBonuses.clear(); pillMagicAttackBonuses.clear()
-        pillPhysicalDefenseBonuses.clear(); pillMagicDefenseBonuses.clear()
-        pillHpBonuses.clear(); pillMpBonuses.clear(); pillSpeedBonuses.clear()
-        pillEffectDurations.clear()
-        pillCritRateBonuses.clear(); pillCritEffectBonuses.clear()
-        pillCultivationSpeedBonuses.clear(); pillSkillExpSpeedBonuses.clear()
-        pillNurtureSpeedBonuses.clear(); activePillCategories.clear()
-        activePillTypes.clear()
-        weaponIds.clear(); armorIds.clear(); bootsIds.clear(); accessoryIds.clear()
-        weaponNurtures.clear(); armorNurtures.clear()
-        bootsNurtures.clear(); accessoryNurtures.clear()
-        storageBagItems.clear(); storageBagSpiritStones.clear()
-        discipleSpiritStones.clear()
-        cultivationCompletionMonths.clear(); cultivationCompletionPhases.clear()
-        manualCompletionMonths.clear(); manualCompletionPhases.clear()
-        equipmentNurturingCompletionMonths.clear(); equipmentNurturingCompletionPhases.clear()
-        partnerIds.clear(); partnerSectIds.clear()
-        parentId1s.clear(); parentId2s.clear()
-        lastChildYears.clear(); childBirthMonths.clear(); griefEndYears.clear()
-        masterIds.clear()
-        intelligences.clear(); charms.clear(); loyalties.clear()
-        comprehensions.clear(); artifactRefinings.clear(); pillRefinings.clear()
-        spiritPlantings.clear(); minings.clear(); teachings.clear()
-        moralities.clear(); salaryPaidCounts.clear(); salaryMissedCounts.clear()
-        usedFunctionalPillTypes.clear(); usedExtendLifePillIds.clear()
-        usedPermanentPillKeys.clear(); usedExtendLifePillTypes.clear()
-        recruitedMonths.clear(); hasReviveEffects.clear(); hasClearAllEffects.clear()
-        lastTheftMonths.clear()
+        _allCopyableRefs.forEach { it.clear() }
     }
 
     /**
@@ -657,236 +698,25 @@ class DiscipleTables {
      */
     private fun bindAllOnWrite() {
         val cb: () -> Unit = ::markMutated
-        // 基础信息
-        names.onWrite = cb; surnames.onWrite = cb; genders.onWrite = cb
-        portraitRes.onWrite = cb; discipleTypes.onWrite = cb
-        spiritRootTypes.onWrite = cb; slotIds.onWrite = cb
-        // 境界与修为
-        realms.onWrite = cb; realmLayers.onWrite = cb; cultivations.onWrite = cb
-        ages.onWrite = cb; lifespans.onWrite = cb; isAlive.onWrite = cb
-        soulPowers.onWrite = cb
-        // 修炼加速
-        cultivationSpeedBonuses.onWrite = cb
-        cultivationSpeedDurations.onWrite = cb
-        // 自动行为
-        autoLearnFromWarehouse.onWrite = cb; autoEquipFromWarehouse.onWrite = cb
-        // 列表类型
-        manualIds.onWrite = cb; talentIds.onWrite = cb; lifeEvents.onWrite = cb
-        manualMasteries.onWrite = cb
-        // 状态
-        statuses.onWrite = cb; statusData.onWrite = cb
-        // 战斗属性
-        baseHps.onWrite = cb; baseMps.onWrite = cb
-        basePhysicalAttacks.onWrite = cb; baseMagicAttacks.onWrite = cb
-        basePhysicalDefenses.onWrite = cb; baseMagicDefenses.onWrite = cb
-        baseSpeeds.onWrite = cb
-        hpVariances.onWrite = cb; mpVariances.onWrite = cb
-        physicalAttackVariances.onWrite = cb; magicAttackVariances.onWrite = cb
-        physicalDefenseVariances.onWrite = cb; magicDefenseVariances.onWrite = cb
-        speedVariances.onWrite = cb
-        totalCultivations.onWrite = cb; breakthroughCounts.onWrite = cb
-        breakthroughFailCounts.onWrite = cb
-        currentHps.onWrite = cb; currentMps.onWrite = cb
-        // 丹药效果
-        pillPhysicalAttackBonuses.onWrite = cb; pillMagicAttackBonuses.onWrite = cb
-        pillPhysicalDefenseBonuses.onWrite = cb; pillMagicDefenseBonuses.onWrite = cb
-        pillHpBonuses.onWrite = cb; pillMpBonuses.onWrite = cb
-        pillSpeedBonuses.onWrite = cb; pillEffectDurations.onWrite = cb
-        pillCritRateBonuses.onWrite = cb; pillCritEffectBonuses.onWrite = cb
-        pillCultivationSpeedBonuses.onWrite = cb
-        pillSkillExpSpeedBonuses.onWrite = cb
-        pillNurtureSpeedBonuses.onWrite = cb; activePillCategories.onWrite = cb
-        activePillTypes.onWrite = cb
-        // 装备
-        weaponIds.onWrite = cb; armorIds.onWrite = cb
-        bootsIds.onWrite = cb; accessoryIds.onWrite = cb
-        weaponNurtures.onWrite = cb; armorNurtures.onWrite = cb
-        bootsNurtures.onWrite = cb; accessoryNurtures.onWrite = cb
-        storageBagItems.onWrite = cb; storageBagSpiritStones.onWrite = cb
-        discipleSpiritStones.onWrite = cb
-        cultivationCompletionMonths.onWrite = cb
-        cultivationCompletionPhases.onWrite = cb
-        manualCompletionMonths.onWrite = cb
-        manualCompletionPhases.onWrite = cb
-        equipmentNurturingCompletionMonths.onWrite = cb
-        equipmentNurturingCompletionPhases.onWrite = cb
-        // 社交
-        partnerIds.onWrite = cb; partnerSectIds.onWrite = cb
-        parentId1s.onWrite = cb; parentId2s.onWrite = cb
-        lastChildYears.onWrite = cb; childBirthMonths.onWrite = cb
-        griefEndYears.onWrite = cb
-        masterIds.onWrite = cb
-        // 技能
-        intelligences.onWrite = cb; charms.onWrite = cb; loyalties.onWrite = cb
-        comprehensions.onWrite = cb; artifactRefinings.onWrite = cb
-        pillRefinings.onWrite = cb; spiritPlantings.onWrite = cb
-        minings.onWrite = cb; teachings.onWrite = cb; moralities.onWrite = cb
-        salaryPaidCounts.onWrite = cb; salaryMissedCounts.onWrite = cb
-        // 使用记录
-        usedFunctionalPillTypes.onWrite = cb
-        usedExtendLifePillIds.onWrite = cb
-        usedPermanentPillKeys.onWrite = cb
-        usedExtendLifePillTypes.onWrite = cb; recruitedMonths.onWrite = cb
-        hasReviveEffects.onWrite = cb; hasClearAllEffects.onWrite = cb
-        lastTheftMonths.onWrite = cb
+        _allCopyableRefs.forEach { ref ->
+            when (ref) {
+                is IntTableRef -> ref.table.onWrite = cb
+                is DoubleTableRef -> ref.table.onWrite = cb
+                is RefTableRef<*> -> ref.table.onWrite = cb
+                is MutableTableRef<*> -> ref.table.onWrite = cb
+            }
+        }
     }
 
     /**
      * 深拷贝组件表（用于 Shadow 结算）。
-     * 直接按表复制，不经过 assemble→insert 的 Disciple 中转。
-     * 基本类型表是值拷贝。引用类型表（List/Map/String）浅拷贝。
+     * 使用 [CopyableTableRef] 迭代完成所有表的复制。
      */
     fun deepCopy(): DiscipleTables {
         val copy = DiscipleTables()
         copy.ids.addAll(this.ids)
-
-        // Int 表：直接值拷贝
-        copyIntTable(this.slotIds, copy.slotIds)
-        copyIntTable(this.realms, copy.realms)
-        copyIntTable(this.realmLayers, copy.realmLayers)
-        copyIntTable(this.ages, copy.ages)
-        copyIntTable(this.lifespans, copy.lifespans)
-        copyIntTable(this.isAlive, copy.isAlive)
-        copyIntTable(this.soulPowers, copy.soulPowers)
-        copyIntTable(this.cultivationSpeedDurations, copy.cultivationSpeedDurations)
-        copyIntTable(this.autoLearnFromWarehouse, copy.autoLearnFromWarehouse)
-        copyIntTable(this.autoEquipFromWarehouse, copy.autoEquipFromWarehouse)
-        copyIntTable(this.baseHps, copy.baseHps)
-        copyIntTable(this.baseMps, copy.baseMps)
-        copyIntTable(this.basePhysicalAttacks, copy.basePhysicalAttacks)
-        copyIntTable(this.baseMagicAttacks, copy.baseMagicAttacks)
-        copyIntTable(this.basePhysicalDefenses, copy.basePhysicalDefenses)
-        copyIntTable(this.baseMagicDefenses, copy.baseMagicDefenses)
-        copyIntTable(this.baseSpeeds, copy.baseSpeeds)
-        copyIntTable(this.hpVariances, copy.hpVariances)
-        copyIntTable(this.mpVariances, copy.mpVariances)
-        copyIntTable(this.physicalAttackVariances, copy.physicalAttackVariances)
-        copyIntTable(this.magicAttackVariances, copy.magicAttackVariances)
-        copyIntTable(this.physicalDefenseVariances, copy.physicalDefenseVariances)
-        copyIntTable(this.magicDefenseVariances, copy.magicDefenseVariances)
-        copyIntTable(this.speedVariances, copy.speedVariances)
-        copyIntTable(this.breakthroughCounts, copy.breakthroughCounts)
-        copyIntTable(this.breakthroughFailCounts, copy.breakthroughFailCounts)
-        copyIntTable(this.currentHps, copy.currentHps)
-        copyIntTable(this.currentMps, copy.currentMps)
-        copyIntTable(this.pillPhysicalAttackBonuses, copy.pillPhysicalAttackBonuses)
-        copyIntTable(this.pillMagicAttackBonuses, copy.pillMagicAttackBonuses)
-        copyIntTable(this.pillPhysicalDefenseBonuses, copy.pillPhysicalDefenseBonuses)
-        copyIntTable(this.pillMagicDefenseBonuses, copy.pillMagicDefenseBonuses)
-        copyIntTable(this.pillHpBonuses, copy.pillHpBonuses)
-        copyIntTable(this.pillMpBonuses, copy.pillMpBonuses)
-        copyIntTable(this.pillSpeedBonuses, copy.pillSpeedBonuses)
-        copyIntTable(this.pillEffectDurations, copy.pillEffectDurations)
-        copyIntTable(this.discipleSpiritStones, copy.discipleSpiritStones)
-        copyIntTable(this.cultivationCompletionMonths, copy.cultivationCompletionMonths)
-        copyIntTable(this.cultivationCompletionPhases, copy.cultivationCompletionPhases)
-        copyIntTable(this.manualCompletionMonths, copy.manualCompletionMonths)
-        copyIntTable(this.manualCompletionPhases, copy.manualCompletionPhases)
-        copyIntTable(this.equipmentNurturingCompletionMonths, copy.equipmentNurturingCompletionMonths)
-        copyIntTable(this.equipmentNurturingCompletionPhases, copy.equipmentNurturingCompletionPhases)
-        copyIntTable(this.lastChildYears, copy.lastChildYears)
-        copyIntTable(this.intelligences, copy.intelligences)
-        copyIntTable(this.charms, copy.charms)
-        copyIntTable(this.loyalties, copy.loyalties)
-        copyIntTable(this.comprehensions, copy.comprehensions)
-        copyIntTable(this.artifactRefinings, copy.artifactRefinings)
-        copyIntTable(this.pillRefinings, copy.pillRefinings)
-        copyIntTable(this.spiritPlantings, copy.spiritPlantings)
-        copyIntTable(this.minings, copy.minings)
-        copyIntTable(this.teachings, copy.teachings)
-        copyIntTable(this.moralities, copy.moralities)
-        copyIntTable(this.salaryPaidCounts, copy.salaryPaidCounts)
-        copyIntTable(this.salaryMissedCounts, copy.salaryMissedCounts)
-        copyIntTable(this.recruitedMonths, copy.recruitedMonths)
-        copyIntTable(this.hasReviveEffects, copy.hasReviveEffects)
-        copyIntTable(this.hasClearAllEffects, copy.hasClearAllEffects)
-        copyIntTable(this.lastTheftMonths, copy.lastTheftMonths)
-
-        // Double 表
-        copyDoubleTable(this.cultivations, copy.cultivations)
-        copyDoubleTable(this.cultivationSpeedBonuses, copy.cultivationSpeedBonuses)
-        copyDoubleTable(this.pillCritRateBonuses, copy.pillCritRateBonuses)
-        copyDoubleTable(this.pillCritEffectBonuses, copy.pillCritEffectBonuses)
-        copyDoubleTable(this.pillCultivationSpeedBonuses, copy.pillCultivationSpeedBonuses)
-        copyDoubleTable(this.pillSkillExpSpeedBonuses, copy.pillSkillExpSpeedBonuses)
-        copyDoubleTable(this.pillNurtureSpeedBonuses, copy.pillNurtureSpeedBonuses)
-
-        // Long 表
-        copyRefTable(this.totalCultivations, copy.totalCultivations)
-        copyRefTable(this.storageBagSpiritStones, copy.storageBagSpiritStones)
-
-        // String 表（同引用类型）
-        copyRefTable(this.names, copy.names)
-        copyRefTable(this.surnames, copy.surnames)
-        copyRefTable(this.genders, copy.genders)
-        copyRefTable(this.portraitRes, copy.portraitRes)
-        copyRefTable(this.discipleTypes, copy.discipleTypes)
-        copyRefTable(this.spiritRootTypes, copy.spiritRootTypes)
-        copyRefTable(this.activePillCategories, copy.activePillCategories)
-        copyMutableTable(this.activePillTypes, copy.activePillTypes) { it.toSet() }
-        copyRefTable(this.weaponIds, copy.weaponIds)
-        copyRefTable(this.armorIds, copy.armorIds)
-        copyRefTable(this.bootsIds, copy.bootsIds)
-        copyRefTable(this.accessoryIds, copy.accessoryIds)
-
-        // 枚举/数据类单值表
-        copyRefTable(this.statuses, copy.statuses)
-        copyRefTable(this.weaponNurtures, copy.weaponNurtures)
-        copyRefTable(this.armorNurtures, copy.armorNurtures)
-        copyRefTable(this.bootsNurtures, copy.bootsNurtures)
-        copyRefTable(this.accessoryNurtures, copy.accessoryNurtures)
-
-        // List/Map 表：深拷贝防止 Shadow 内突变影响原表
-        copyMutableTable(this.manualIds, copy.manualIds) { it.toList() }
-        copyMutableTable(this.talentIds, copy.talentIds) { it.toList() }
-        copyMutableTable(this.lifeEvents, copy.lifeEvents) { it.toList() }
-        copyMutableTable(this.manualMasteries, copy.manualMasteries) { it.toMap() }
-        copyMutableTable(this.statusData, copy.statusData) { it.toMap() }
-        copyMutableTable(this.storageBagItems, copy.storageBagItems) { it.toList() }
-        copyMutableTable(this.usedFunctionalPillTypes, copy.usedFunctionalPillTypes) { it.toList() }
-        copyMutableTable(this.usedExtendLifePillIds, copy.usedExtendLifePillIds) { it.toList() }
-        copyMutableTable(this.usedPermanentPillKeys, copy.usedPermanentPillKeys) { it.toSet() }
-        copyMutableTable(this.usedExtendLifePillTypes, copy.usedExtendLifePillTypes) { it.toSet() }
-
-        // Nullable 表
-        copyRefTable(this.partnerIds, copy.partnerIds)
-        copyRefTable(this.partnerSectIds, copy.partnerSectIds)
-        copyRefTable(this.parentId1s, copy.parentId1s)
-        copyRefTable(this.parentId2s, copy.parentId2s)
-        copyRefTable(this.childBirthMonths, copy.childBirthMonths)
-        copyRefTable(this.griefEndYears, copy.griefEndYears)
-        copyRefTable(this.masterIds, copy.masterIds)
-
+        _allCopyableRefs.forEach { it.copyTo(copy) }
         return copy
     }
 
-    private companion object {
-        fun copyIntTable(src: IntComponentTable, dst: IntComponentTable) {
-            for (i in 0 until src.store.size()) {
-                dst.store.put(src.store.keyAt(i), src.store.valueAt(i))
-            }
-        }
-
-        fun copyDoubleTable(src: DoubleComponentTable, dst: DoubleComponentTable) {
-            for (i in 0 until src.store.size()) {
-                dst.store.put(src.store.keyAt(i), src.store.valueAt(i))
-            }
-        }
-
-        fun <T> copyRefTable(src: ComponentTable<T>, dst: ComponentTable<T>) {
-            for (i in 0 until src.store.size()) {
-                dst.store.put(src.store.keyAt(i), src.store.valueAt(i))
-            }
-        }
-
-        fun <T> copyMutableTable(
-            src: ComponentTable<T>,
-            dst: ComponentTable<T>,
-            deepCopy: (T) -> T
-        ) {
-            for (i in 0 until src.store.size()) {
-                dst.store.put(src.store.keyAt(i), deepCopy(src.store.valueAt(i)))
-            }
-        }
-    }
 }

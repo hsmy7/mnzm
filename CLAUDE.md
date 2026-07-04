@@ -303,11 +303,32 @@ tickInternal() 每 100ms
 - **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
 - **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
 
-### Component Table Architecture (v4.0.01) / EntityStore 增量更新 (v4.0.38)
+### Component Table Architecture (v4.0.41) / IntPackedArray
 
-Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. Each column is a `SparseArray` keyed by disciple ID (Int). Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>`.
+Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns.
 
-**EntityStore 变更 (R6, v4.0.38)：**
+**底层实现变更 (v4.0.41)：**
+- `IntComponentTable` 从 `SparseIntArray` 迁移为 `IntPackedArray`（dense IntArray + idToIndex 映射 + swap-on-remove）
+- `DoubleComponentTable` 从 `SparseArray<Double>` 迁移为 `DoublePackedArray`（double[] + idToIndex，零装箱）
+- 查询复杂度从 O(log N) → O(1)
+- 删除操作为 O(1) swap-on-remove，无需移动后续元素
+- 迭代全部有效元素，无空洞
+
+**CRUD 重构 (v4.0.41)：**
+- `remove()`/`clear()`/`bindAllOnWrite()`/`deepCopy()` 从手工编写 450+ 行改为声明式列表驱动
+- 在 `buildCopyableRefs()` 中声明所有列的引用，不再需要每个方法手工同步
+- 新增列只需在 `buildCopyableRefs()` 列表中添加一行
+
+```kotlin
+// 新增一列的步骤（示例）：
+// 1. 声明字段 val newField = IntComponentTable()
+// 2. 在 buildCopyableRefs() 中添加：
+//    IntTableRef(newField, DiscipleTables::newField, "newField"),
+```
+
+**EntityStore 增量更新 (v4.0.38)：**
+
+Other entity types (Equipment, Pills, Manuals, Herbs, etc.) use `EntityStore<T : HasId>`.
 - 从写时复制（每次 `update` 分配新 `List`）改为 `MutableList` 原地修改 + `freeze()` 快照
 - 写操作零分配，仅在 `freeze()` 时重建不可变快照
 - `isDirty` 标记供 GameStateStoreImpl 检测变化
@@ -322,13 +343,7 @@ Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow 
 - 仅指纹变化时（罕见）回退到完整 `createSettlementShadow()` 构建 SettlementCache
 - `take(store)` 工厂方法从 `store.discipleTables`、`store.gameData.value`、`store.equipmentInstances.value` 取值
 
-**ParallelWorkerPool (R16, v4.0.40，已废弃)：**
-- 轻量并行计算辅助池，将两个独立计算任务分发到 `Dispatchers.Default` 并行执行
-- 所有 Worker 为纯函数（只读输入 → 值输出），禁止修改状态
-- 当前用于 `accumulateBatch`：指纹计算 + 进度分类两路并行
-- **新代码请使用 `DeviceCapabilityProfiler.parallelDispatcher` + coroutineScope**
-
-**并发基础设施（v4.0.40 新增）：**
+**并发基础设施（v4.0.40 新增，v4.0.41 清理废弃 `ParallelWorkerPool`）：**
 
 | 类 | 职责 | 所在文件 |
 |----|------|---------|
@@ -349,8 +364,8 @@ Disciple entities are stored in `DiscipleTables` — a collection of ~90 narrow 
 | `Watchdog` | 1 | NORM | 监控卡死 |
 
 **Key rules:**
-- **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(log n), no allocation
-- **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(log n)
+- **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(1) via IntPackedArray (was O(log n) SparseArray)
+- **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(1) via IntPackedArray (was O(log n))
 - **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class — ONLY for UI/Serialization, NEVER in hot path
 - **Non-Disciple lookup**: `entityStore.get(id)` — O(1) via HashMap index
 - **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配

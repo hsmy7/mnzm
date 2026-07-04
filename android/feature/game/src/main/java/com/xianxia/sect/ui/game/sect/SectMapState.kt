@@ -22,6 +22,8 @@ data class SectMapStaticData(
     val fullMapBmp: ImageBitmap,
     val buildingsBaked: Boolean,
     val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
+    /** 预过滤的灵田建筑列表 — 避免渲染时反复遍历全量建筑列表 */
+    val spiritFieldBuildings: List<GridBuildingData> = emptyList(),
     val cropBitmaps: Map<String, ImageBitmap> = emptyMap(),
     val currentGameYear: Int = 1,
     val currentGameMonth: Int = 1,

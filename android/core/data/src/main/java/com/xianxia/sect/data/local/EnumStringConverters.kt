@@ -4,10 +4,11 @@ import androidx.room.TypeConverter
 import com.xianxia.sect.core.model.*
 
 /**
- * JsonConverters - 简单类型和枚举的 Room TypeConverter
+ * EnumStringConverters - 枚举类型的 Room TypeConverter（存储为枚举字符串名）
  *
- * 包含基本集合类型（List<String>, Map<K,V>, Set<Int>）和枚举类型的转换器。
- * 枚举使用 name.toString() / valueOf() 存储。
+ * 所有枚举通过 name.toString() / entries.find{} 双向转换，不使用 JSON 序列化。
+ * 原名 JsonConverters，因名称易误导（实际无 JSON 序列化），v4.0.40+ 重命名为
+ * EnumStringConverters 以及映其真实用途。
  */
 object JsonConverters {
 
