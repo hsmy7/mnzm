@@ -582,14 +582,7 @@ fun GameOverlayHost(
 
     if (pendingNotification != null) {
         val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
-        val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
-        val activeSectBuildings = remember {
-            derivedStateOf { placedBuildings.filter { it.sectId == gameData.activeSectId } }
-        }
     pendingNotification?.let { notification ->
-        val hasPrison = activeSectBuildings.value.any {
-            it.displayName == "监牢" || it.buildingId == "reflection_cliff"
-        }
         val currentYear = gameData.gameYear
 
         when (notification) {
@@ -608,12 +601,11 @@ fun GameOverlayHost(
             is GameNotification.DiscipleTheftCaught -> {
                 DiscipleTheftCaughtDialog(
                     disciple = notification.disciple,
-                    hasPrison = hasPrison,
-                    onExpel = { viewModel.expelTheftDisciple(notification.disciple.id) },
-                    onImprison = { viewModel.imprisonTheftDisciple(notification.disciple.id, currentYear) },
-                    onRelease = { viewModel.releaseTheftDisciple(notification.disciple.id) },
                     onDiscipleClick = { },
-                    onLoyaltyDismissed = { viewModel.onLoyaltyDialogDismissed() }
+                    onDismiss = {
+                        viewModel.imprisonTheftDisciple(notification.disciple.id, currentYear)
+                        viewModel.clearNotification()
+                    }
                 )
             }
             is GameNotification.WarehouseTheft -> {
