@@ -20,7 +20,6 @@ data class SectMapStaticData(
     val placedBuildings: List<GridBuildingData>,
     val buildingBitmaps: Map<String, ImageBitmap>,
     val fullMapBmp: ImageBitmap,
-    val buildingsBaked: Boolean,
     val spiritFieldPlants: List<SpiritFieldPlant> = emptyList(),
     /** 预过滤的灵田建筑列表 — 避免渲染时反复遍历全量建筑列表 */
     val spiritFieldBuildings: List<GridBuildingData> = emptyList(),

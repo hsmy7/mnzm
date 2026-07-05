@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidBitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
@@ -414,313 +413,11 @@ fun MainGameScreen(
             }
         }
 
-        // [C2 静态建筑层架构]
-        // 核心思路：将建筑预渲染（bake）到地图 Bitmap 上，Canvas 每帧只绘制单张 Bitmap，
-        // 避免逐帧遍历建筑列表。建筑变化时通过增量更新（擦除旧区域 + 绘制新建筑）修改
-        // 离屏 backBuffer，完成后原子交换为 frontBuffer —— 消除 HWUI RenderThread 与
-        // 主线程之间的读写竞争（libhwui.so SIGSEGV 根因）。
-        // 低配设备（heap < 256MB）跳过烘焙，回退为动态绘制。
-        // 注意：Canvas 本身因相机平移每帧内容都变，graphicsLayer(offscreen) 无法缓存；
-        // 真正的静态层优化由 baked frontBuffer 承担。
-        // 设备分级：GPU 能力 + 堆内存联动
-        // 来源: docs/huawei-performance-research.md §4.2 + §4.4
-        val maxHeapMB = remember { Runtime.getRuntime().maxMemory() / (1024 * 1024) }
-        val shouldBakeBuildings = gpuRenderConfig.bakeBuildings && maxHeapMB >= 256
-        val bmpConfig = if (gpuRenderConfig.useArgb8888 && maxHeapMB >= 384)
-            android.graphics.Bitmap.Config.ARGB_8888
-        else
-            android.graphics.Bitmap.Config.RGB_565
-
-        // 双缓冲烘焙管线：
-        //   frontBufferBmp — Compose 渲染线程只读（通过 displayMapBmp → drawImage）
-        //   backBufferBmp  — 主线程写入（LaunchedEffect 中 canvas.drawBitmap）
-        // 写入完成后 swap：back → front, front → back（复用，不分配新内存）
-        // 这从根源消除了 SIGSEGV — HWUI 渲染线程永远不会读到正在被写的 Bitmap
-        var frontBufferBmp by remember {
-            mutableStateOf<android.graphics.Bitmap?>(null)
-        }
-        var backBufferBmp by remember {
-            mutableStateOf<android.graphics.Bitmap?>(null)
-        }
-
-        // 追踪上一次绘制的建筑列表，用于增量更新
-        val previousBuildings = remember { mutableListOf<GridBuildingData>() }
-
-        // 已清除装饰物的格子（避免反复清除同一格）
-        val clearedDecorationCells = remember { mutableSetOf<Long>() }
-
-        // 被拆除建筑的格点集合（步骤 2 已从 backBuffer 擦除过的区域）
-        // 这些格点在 buffer swap 后的 backBuffer 上可能残留旧建筑像素，
-        // 新建筑放置时若覆盖这些格点，需先从 fullMapBmp 恢复地形再绘制
-        val erasedCells = remember { mutableSetOf<Long>() }
-
-        // 烘焙触发器 — 双缓冲重建时递增，强制 LaunchedEffect 全量重绘
-        var bakeTrigger by remember { mutableIntStateOf(0) }
-
-        // 烘焙完成版本号 — swap 后递增，触发 Compose 重绘
-        var bakeVersion by remember { mutableIntStateOf(0) }
-
-        // 重开版本号：重开后递增，强制烘焙管线全量重建
-        val restartVersion by saveLoadViewModel.restartVersion
-            .collectAsStateWithLifecycle()
-
-        // 初始化/重建双缓冲（shouldBakeBuildings / bmpConfig / fullMapBmp / restartVersion 变化时）
-        LaunchedEffect(shouldBakeBuildings, bmpConfig, fullMapBmp, restartVersion) {
-            // 回收旧缓冲
-            frontBufferBmp?.takeIf { !it.isRecycled }?.recycle()
-            backBufferBmp?.takeIf { !it.isRecycled }?.recycle()
-            frontBufferBmp = null
-            backBufferBmp = null
-            previousBuildings.clear()
-            clearedDecorationCells.clear()
-            erasedCells.clear()
-
-            if (shouldBakeBuildings) {
-                val src = fullMapBmp.asAndroidBitmap()
-                val b1 = withContext(Dispatchers.Default) {
-                    src.copy(bmpConfig, true) ?: src
-                }
-                val b2 = withContext(Dispatchers.Default) {
-                    src.copy(bmpConfig, true) ?: src
-                }
-                frontBufferBmp = b1
-                backBufferBmp = b2
-                bakeTrigger++
-                bakeVersion++
-            }
-        }
-
-        // 建筑变化时增量烘焙到 backBuffer，然后原子交换
-        LaunchedEffect(effectivePlacedBuildings, bakeTrigger) {
-            val backBmp = backBufferBmp?.takeIf { !it.isRecycled }
-                ?: return@LaunchedEffect
-
-            val canvas = android.graphics.Canvas(backBmp)
-            // Canvas 缩放到渲染分辨率，建筑绘制坐标仍基于世界空间
-            // 来源: docs/gpu-tier-fairness-plan.md §3 — 内部位图可能低于世界分辨率
-            val renderScale = backBmp.width.toFloat() / worldPixelWidth.toFloat()
-            canvas.scale(renderScale, renderScale)
-            val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
-
-            // 使用 rawTileData 的工作拷贝进行装饰物检测与清除，
-            // 避免原地修改损坏原始数据导致下次建筑放置时树检测失败
-            val workingTileData = Array(rawTileData.size) { rawTileData[it].copyOf() }
-
-            // === 1. 清除新增建筑覆盖的装饰物 ===
-            val buildingCells = mutableSetOf<Long>()
-            for (b in effectivePlacedBuildings) {
-                for (cx in b.gridX until b.gridX + b.width) {
-                    for (cy in b.gridY until b.gridY + b.height) {
-                        if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
-                            buildingCells.add(
-                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
-                        }
-                    }
-                }
-            }
-            val cellsToClear = mutableSetOf<Long>()
-            cellsToClear.addAll(buildingCells)
-            // 建筑周围的树也要清除（树是 2×2 格大装饰物）
-            for (cellKey in buildingCells) {
-                val bx = (cellKey shr 32).toInt()
-                val by = (cellKey and 0xFFFF_FFFF).toInt()
-                for (dx in -1..1) {
-                    for (dy in -1..1) {
-                        val tx = bx + dx
-                        val ty = by + dy
-                        if (ty in workingTileData.indices && tx in workingTileData[ty].indices
-                            && workingTileData[ty][tx] == TILE_TREE) {
-                            for (ex in tx - 1..tx + 1) {
-                                for (ey in ty - 1..ty + 1) {
-                                    if (ey in workingTileData.indices && ex in workingTileData[ey].indices) {
-                                        cellsToClear.add(
-                                            (ex.toLong() shl 32) or (ey.toLong() and 0xFFFF_FFFF))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            for (cellKey in cellsToClear) {
-                if (cellKey !in clearedDecorationCells) {
-                    clearedDecorationCells.add(cellKey)
-                    val cx = (cellKey shr 32).toInt()
-                    val cy = (cellKey and 0xFFFF_FFFF).toInt()
-                    workingTileData[cy][cx] = TILE_GROUND
-                    // srcRect 必须使用渲染分辨率坐标
-                    val srcX = (cx * tileSize * renderScale).toInt()
-                    val srcY = (cy * tileSize * renderScale).toInt()
-                    val srcX2 = ((cx + 1) * tileSize * renderScale).toInt()
-                    val srcY2 = ((cy + 1) * tileSize * renderScale).toInt()
-                    val srcRect = android.graphics.Rect(srcX, srcY, srcX2, srcY2)
-                    val dstRect = android.graphics.Rect(
-                        cx * tileSize, cy * tileSize,
-                        (cx + 1) * tileSize, (cy + 1) * tileSize
-                    )
-                    canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
-                }
-            }
-
-            // === 2. 擦除被移除的建筑区域（恢复原始背景含装饰物） ===
-            val currentIds = effectivePlacedBuildings.map { it.instanceId }.toSet()
-            for (oldBuilding in previousBuildings) {
-                if (oldBuilding.instanceId !in currentIds) {
-                    val bx = oldBuilding.gridX * tileSize
-                    val by = oldBuilding.gridY * tileSize
-                    val bw = oldBuilding.width * tileSize
-                    val bh = oldBuilding.height * tileSize
-                    val srcBmp = fullMapBmp.asAndroidBitmap()
-                    val srcRect = android.graphics.Rect(
-                        (bx * renderScale).toInt(), (by * renderScale).toInt(),
-                        ((bx + bw) * renderScale).toInt(),
-                        ((by + bh) * renderScale).toInt()
-                    )
-                    val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
-                    canvas.drawBitmap(srcBmp, srcRect, dstRect, null)
-
-                    // 记录已擦除的建筑格点
-                    // 这些格点在 buffer swap 后会出现在 backBuffer 上成为残影
-                    for (cx in oldBuilding.gridX until oldBuilding.gridX + oldBuilding.width) {
-                        for (cy in oldBuilding.gridY until oldBuilding.gridY + oldBuilding.height) {
-                            erasedCells.add(
-                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
-                            // 同步清理 clearedDecorationCells，确保下次放置时
-                            // 步骤 1 能重新清除该位置的装饰物（fullMapBmp 恢复的树等）
-                            clearedDecorationCells.remove(
-                                (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF))
-                        }
-                    }
-                }
-            }
-
-            // === 2.5. 处理被移动的建筑（同一 instanceId，坐标变化） ===
-            for (prev in previousBuildings) {
-                val curr = effectivePlacedBuildings.find {
-                    it.instanceId == prev.instanceId
-                } ?: continue
-                if (prev.gridX != curr.gridX || prev.gridY != curr.gridY) {
-                    // 擦除旧位置（恢复原始地形含装饰物）
-                    val obx = prev.gridX * tileSize
-                    val oby = prev.gridY * tileSize
-                    val obw = prev.width * tileSize
-                    val obh = prev.height * tileSize
-                    val srcBmp = fullMapBmp.asAndroidBitmap()
-                    val sRect = android.graphics.Rect(
-                        (obx * renderScale).toInt(), (oby * renderScale).toInt(),
-                        ((obx + obw) * renderScale).toInt(),
-                        ((oby + obh) * renderScale).toInt()
-                    )
-                    val dRect = android.graphics.Rect(obx, oby, obx + obw, oby + obh)
-                    canvas.drawBitmap(srcBmp, sRect, dRect, null)
-                    // 绘制新位置
-                    val nbx = curr.gridX * tileSize
-                    val nby = curr.gridY * tileSize
-                    val nbw = curr.width * tileSize
-                    val nbh = curr.height * tileSize
-                    val cbmp = buildingBitmaps[curr.displayName]
-                    if (cbmp != null) {
-                        val abmp = cbmp.asAndroidBitmap()
-                        canvas.drawBitmap(abmp,
-                            android.graphics.Rect(0, 0, abmp.width, abmp.height),
-                            android.graphics.Rect(nbx, nby, nbx + nbw, nby + nbh),
-                            null)
-                    } else {
-                        val p = android.graphics.Paint().apply {
-                            color = 0xCCBDBDBD.toInt()
-                        }
-                        canvas.drawRect(
-                            android.graphics.RectF(
-                                nbx.toFloat(), nby.toFloat(),
-                                (nbx + nbw).toFloat(), (nby + nbh).toFloat()
-                            ), p)
-                    }
-                }
-            }
-
-            // === 2.75. 清除残影：恢复 erasedCells 中被新建筑覆盖的格点 ===
-            // 这些格点在 backBuffer 上残留了已拆除建筑的像素，
-            // 从 fullMapBmp 恢复原始地形后再由步骤 3 绘制新建筑
-            if (erasedCells.isNotEmpty()) {
-                val srcBmp = fullMapBmp.asAndroidBitmap()
-                val processedKeys = mutableListOf<Long>()
-                for (building in effectivePlacedBuildings) {
-                    for (cx in building.gridX until building.gridX + building.width) {
-                        for (cy in building.gridY until building.gridY + building.height) {
-                            val key = (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF)
-                            if (key in erasedCells) {
-                                val px = cx * tileSize
-                                val py = cy * tileSize
-                                canvas.drawBitmap(srcBmp,
-                                    android.graphics.Rect(
-                                        (px * renderScale).toInt(),
-                                        (py * renderScale).toInt(),
-                                        ((px + tileSize) * renderScale).toInt(),
-                                        ((py + tileSize) * renderScale).toInt()),
-                                    android.graphics.Rect(px, py, px + tileSize, py + tileSize),
-                                    null)
-                                processedKeys.add(key)
-                            }
-                        }
-                    }
-                }
-                // 已处理的格点从残影集合中移除
-                erasedCells.removeAll(processedKeys)
-            }
-
-            // === 3. 绘制所有建筑（全量重绘，避免增量更新导致的双缓冲交替丢失） ===
-            for (building in effectivePlacedBuildings) {
-                val bx = building.gridX * tileSize
-                val by = building.gridY * tileSize
-                val bw = building.width * tileSize
-                val bh = building.height * tileSize
-                val bmp = buildingBitmaps[building.displayName]
-                if (bmp != null) {
-                    val androidBmp = bmp.asAndroidBitmap()
-                    val srcRect = android.graphics.Rect(
-                        0, 0, androidBmp.width, androidBmp.height)
-                    val dstRect = android.graphics.Rect(bx, by, bx + bw, by + bh)
-                    canvas.drawBitmap(androidBmp, srcRect, dstRect, null)
-                } else {
-                    val paint = android.graphics.Paint().apply {
-                        color = 0xCCBDBDBD.toInt()
-                    }
-                    canvas.drawRect(
-                        android.graphics.RectF(
-                            bx.toFloat(), by.toFloat(),
-                            (bx + bw).toFloat(), (by + bh).toFloat()
-                        ), paint)
-                }
-            }
-
-            // 更新追踪列表
-            previousBuildings.clear()
-            previousBuildings.addAll(effectivePlacedBuildings)
-
-            // 原子交换：backBuffer 变成新的 frontBuffer（渲染线程只读）
-            // 旧 frontBuffer 变成新的 backBuffer（下次写入复用，不分配新 Bitmap）
-            val tmp = frontBufferBmp
-            frontBufferBmp = backBmp
-            backBufferBmp = tmp
-
-            // 通知 Compose 双缓冲内容已变更，触发重绘
-            bakeVersion++
-        }
-
-        // 主动回收双缓冲 Bitmap，避免依赖 GC
-        DisposableEffect(Unit) {
-            onDispose {
-                frontBufferBmp?.takeIf { !it.isRecycled }?.recycle()
-                backBufferBmp?.takeIf { !it.isRecycled }?.recycle()
-            }
-        }
-
-        // 用于 Compose 渲染的 ImageBitmap（低配设备直接用原始地图）
-        val displayMapBmp = remember(frontBufferBmp, bakeVersion) {
-            frontBufferBmp?.asImageBitmap() ?: fullMapBmp
-        }
-
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览）
+        // Canvas 统一直接绘制：背景 + 建筑 + 动态叠加层合并到单个 Canvas，
+        // 每帧从 placedBuildings 数据实时绘制，GPU 自动处理合成。
+        // 不再使用双缓冲烘焙 / 离屏缓存 / 增量更新，彻底消除残影 bug。
+        // 来源: 行业调研报告 (2026-07-05)
         SectMapCanvas(
             config = SectMapRenderConfig(
                 cameraState = cameraState,
@@ -729,20 +426,17 @@ fun MainGameScreen(
                 worldHeightCells = worldHeightCells,
                 gpuRenderConfig = gpuRenderConfig
             ),
-            staticData = SectMapStaticData(
-                placedBuildings = effectivePlacedBuildings,
-                buildingBitmaps = buildingBitmaps,
-                fullMapBmp = displayMapBmp,
-                buildingsBaked = shouldBakeBuildings && frontBufferBmp != null,
-                spiritFieldPlants = gameData.spiritFieldPlants,
-                spiritFieldBuildings = effectivePlacedBuildings.filter {
-                    it.displayName == BuildingDef.SPIRIT_FIELD.displayName
-                },
-                cropBitmaps = cropBitmaps,
-                currentGameYear = gameData.gameYear,
-                currentGameMonth = gameData.gameMonth,
-                goldenFingerBmp = goldenFingerBmp
-            ),
+            placedBuildings = activeSectBuildings,
+            buildingBitmaps = buildingBitmaps,
+            fullMapBmp = fullMapBmp,
+            spiritFieldPlants = gameData.spiritFieldPlants,
+            spiritFieldBuildings = activeSectBuildings.filter {
+                it.displayName == BuildingDef.SPIRIT_FIELD.displayName
+            },
+            cropBitmaps = cropBitmaps,
+            currentGameYear = gameData.gameYear,
+            currentGameMonth = gameData.gameMonth,
+            goldenFingerBmp = goldenFingerBmp,
             placement = if (isPlacingBuilding) PlacementModeState(
                 isActive = true,
                 buildingName = placingBuildingName,
@@ -924,6 +618,7 @@ fun MainGameScreen(
 
         // 移动模式确认按钮 + 拆除按钮
         if (movingBuilding != null) {
+            val moveScope = rememberCoroutineScope()
             PlacementConfirmButtons(
                 snappedGridX = movingSnappedGridX,
                 snappedGridY = movingSnappedGridY,
@@ -932,14 +627,18 @@ fun MainGameScreen(
                 tileSize = tileSize,
                 validity = movingValid,
                 onConfirm = {
-                    movingBuilding?.let { b ->
-                        if (movingValid == GridSnapHelper.PlacementValidity.Valid &&
-                            (movingSnappedGridX != b.gridX || movingSnappedGridY != b.gridY)
-                        ) {
+                    val b = movingBuilding
+                    if (b != null &&
+                        movingValid == GridSnapHelper.PlacementValidity.Valid &&
+                        (movingSnappedGridX != b.gridX || movingSnappedGridY != b.gridY)
+                    ) {
+                        moveScope.launch {
                             viewModel.moveBuilding(b.instanceId, movingSnappedGridX, movingSnappedGridY)
+                            movingBuilding = null
                         }
+                    } else {
+                        movingBuilding = null
                     }
-                    movingBuilding = null
                 },
                 onCancel = { movingBuilding = null }
             )

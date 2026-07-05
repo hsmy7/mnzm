@@ -351,7 +351,7 @@ class GameViewModel @Inject constructor(
         buildingDelegate.batchPlaceBuilding(goldFingerState)
 
     /** @see [BuildingDelegate.moveBuilding] */
-    fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) =
+    suspend fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) =
         buildingDelegate.moveBuilding(instanceId, newGridX, newGridY)
 
     /** @see [BuildingDelegate.demolishBuilding] */

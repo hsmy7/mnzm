@@ -1,5 +1,27 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.41] - 2026-07-05（versionCode=4041）
+
+### 重构
+
+- **宗门地图渲染架构重写** — 移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、
+  previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制。
+  背景+建筑+动态叠加层合并到单个Canvas，每帧从placedBuildings数据实时绘制，GPU自动合成。
+  新增视口裁剪跳过不可见建筑。
+  来源：行业调研报告（30+来源，含Unity Tilemap Chunk Mode、Minecraft Chunk、
+  Factorio渲染层、Bevy GPU Instancing等方案）。
+  - 修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态 + previousBuildings追踪遗漏）
+  - 删除：高低配双渲染路径（shouldBakeBuildings分支）统一为单一渲染路径
+  - 修复：建筑移动确认时序（movingBuilding = null在状态更新完成后执行，消除竞态）
+
+### 删除
+
+- 双缓冲Bitmap烘焙管线：frontBufferBmp、backBufferBmp、shouldBakeBuildings、bmpConfig
+- 增量更新追踪：previousBuildings、clearedDecorationCells、erasedCells
+- 烘焙触发器：bakeTrigger、bakeVersion
+- 离屏缓存：staticLayerCache、buildStaticLayerCache()
+- 分层绘制架构：Box+drawBehind+Canvas嵌套 → 统一单层Canvas
+
 ## [4.0.40] - 2026-07-05（versionCode=4040）
 
 ### Bug 修复

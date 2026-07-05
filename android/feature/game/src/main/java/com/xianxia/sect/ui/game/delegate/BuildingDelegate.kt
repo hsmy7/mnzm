@@ -157,8 +157,8 @@ class BuildingDelegate(
     }
 
     /** 移动已放置的建筑到新坐标。 */
-    fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
-        scope.launch { buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY) }
+    suspend fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
+        buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
     }
 
     /** 拆除建筑，返还一半造价并提示。 */

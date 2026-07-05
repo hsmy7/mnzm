@@ -1,6 +1,17 @@
 [
 	{
 		"date": "2026-07-05",
+		"version": "4.0.41",
+		"changes": [
+			"重构：宗门地图渲染架构重写——移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制",
+			"修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",
+			"修复：建筑移动确认时序——movingBuilding=null在stateStore.update完成后执行，消除竞态",
+			"新增：视口裁剪——跳过视口外的建筑绘制，降低draw call",
+			"删除：高低配双渲染路径——shouldBakeBuildings分支删除，统一为单一渲染路径"
+		]
+	},
+	{
+		"date": "2026-07-05",
 		"version": "4.0.40",
 		"changes": [
 			"修复：弟子偷盗被捕提示框简化——移除驱逐/押入监牢/释放三个按钮，仅保留知道了按钮。点击后自动将弟子押入监牢并关闭界面",
