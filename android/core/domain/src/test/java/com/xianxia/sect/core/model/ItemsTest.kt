@@ -640,16 +640,12 @@ class ItemsTest {
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.preachingMasters)
         assertEquals("", slots.lawEnforcementElder)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.lawEnforcementDisciples)
-        assertEquals(emptyList<DirectDiscipleSlot>(), slots.lawEnforcementReserveDisciples)
         assertEquals("", slots.innerElder)
         assertEquals("", slots.qingyunPreachingElder)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.qingyunPreachingMasters)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.herbGardenDisciples)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.alchemyDisciples)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.forgeDisciples)
-        assertEquals(emptyList<DirectDiscipleSlot>(), slots.herbGardenReserveDisciples)
-        assertEquals(emptyList<DirectDiscipleSlot>(), slots.alchemyReserveDisciples)
-        assertEquals(emptyList<DirectDiscipleSlot>(), slots.forgeReserveDisciples)
         assertEquals(emptyList<DirectDiscipleSlot>(), slots.spiritMineDeaconDisciples)
     }
 

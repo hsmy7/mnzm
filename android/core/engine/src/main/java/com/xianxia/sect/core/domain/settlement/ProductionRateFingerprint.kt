@@ -59,12 +59,11 @@ data class ProductionRateFingerprint(
             // 1. 灵植阁：灵田状态 + 长老/弟子分配
             val herbGardenHash = buildHerbGardenHash(data, tables)
 
-            // 2. 炼丹：长老/弟子/储备弟子分配 + 激励政策 + 已分配弟子属性
+            // 2. 炼丹：长老/弟子分配 + 激励政策 + 已分配弟子属性
             val alchemyHash = buildAlchemyForgeHash(
                 data, tables,
                 elderId = data.elderSlots.alchemyElder,
                 disciples = data.elderSlots.alchemyDisciples,
-                reserveDisciples = data.elderSlots.alchemyReserveDisciples,
                 policyEnabled = data.sectPolicies.alchemyIncentive
             )
 
@@ -73,7 +72,6 @@ data class ProductionRateFingerprint(
                 data, tables,
                 elderId = data.elderSlots.forgeElder,
                 disciples = data.elderSlots.forgeDisciples,
-                reserveDisciples = data.elderSlots.forgeReserveDisciples,
                 policyEnabled = data.sectPolicies.forgeIncentive
             )
 
@@ -139,10 +137,6 @@ data class ProductionRateFingerprint(
             h = 31 * h + data.elderSlots.herbGardenDisciples.map {
                 "${it.discipleId}"
             }.hashCode()
-            // 灵植阁储备弟子
-            h = 31 * h + data.elderSlots.herbGardenReserveDisciples.map {
-                "${it.discipleId}"
-            }.hashCode()
             // 灵矿执事弟子（灵植阁可能共用）
             h = 31 * h + data.elderSlots.spiritMineDeaconDisciples.map {
                 "${it.discipleId}"
@@ -155,16 +149,14 @@ data class ProductionRateFingerprint(
             tables: DiscipleTables,
             elderId: String,
             disciples: List<com.xianxia.sect.core.model.DirectDiscipleSlot>,
-            reserveDisciples: List<com.xianxia.sect.core.model.DirectDiscipleSlot>,
             policyEnabled: Boolean
         ): Int {
             var h = 1
             h = 31 * h + elderId.hashCode()
             h = 31 * h + disciples.map { "${it.discipleId}" }.hashCode()
-            h = 31 * h + reserveDisciples.map { "${it.discipleId}" }.hashCode()
             h = 31 * h + policyEnabled.hashCode()
             // 已分配弟子的境界
-            val allAssignedIds = (disciples + reserveDisciples)
+            val allAssignedIds = disciples
                 .mapNotNull { it.discipleId?.takeIf { id -> id.isNotEmpty() } }
             h = 31 * h + allAssignedIds.map { id ->
                 val idInt = id.toIntOrNull()
@@ -207,21 +199,12 @@ data class ProductionRateFingerprint(
             data.elderSlots.herbGardenDisciples.forEach { slot ->
                 slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
             }
-            data.elderSlots.herbGardenReserveDisciples.forEach { slot ->
-                slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
-            }
             // 炼丹弟子
             data.elderSlots.alchemyDisciples.forEach { slot ->
                 slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
             }
-            data.elderSlots.alchemyReserveDisciples.forEach { slot ->
-                slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
-            }
             // 炼器弟子
             data.elderSlots.forgeDisciples.forEach { slot ->
-                slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
-            }
-            data.elderSlots.forgeReserveDisciples.forEach { slot ->
                 slot.discipleId?.toIntOrNull()?.let { assignedIds.add(it) }
             }
             // 血炼弟子

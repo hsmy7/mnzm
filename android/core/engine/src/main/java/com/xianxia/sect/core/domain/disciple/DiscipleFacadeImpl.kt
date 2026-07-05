@@ -139,8 +139,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun getIdleDisciples(): List<Disciple> = discipleService.getIdleDisciples()
 
-    override suspend fun autoFillLawEnforcementSlots(): Int = discipleService.autoFillLawEnforcementSlots()
-
     override fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? =
         discipleService.getDiscipleAggregate(discipleId)
 
@@ -634,12 +632,6 @@ class DiscipleFacadeImpl @Inject constructor(
                 list[slotIndex] = newSlot
                 slots.copy(lawEnforcementDisciples = list)
             }
-            "lawEnforcementReserve" -> {
-                val list = slots.lawEnforcementReserveDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(lawEnforcementReserveDisciples = list)
-            }
             "qingyunPreaching" -> {
                 val list = slots.qingyunPreachingMasters.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
@@ -658,9 +650,6 @@ class DiscipleFacadeImpl @Inject constructor(
             stateStore.update {
                 gameData = gameData.copy(elderSlots = updatedSlots)
                 discipleService.syncAllDiscipleStatuses()
-                if (elderSlotType == "lawEnforcement") {
-                    discipleService.autoFillLawEnforcementSlots()
-                }
             }
         }
     }
@@ -693,11 +682,6 @@ class DiscipleFacadeImpl @Inject constructor(
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(lawEnforcementDisciples = list)
             }
-            "lawEnforcementReserve" -> {
-                val list = slots.lawEnforcementReserveDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(lawEnforcementReserveDisciples = list)
-            }
             "qingyunPreaching" -> {
                 val list = slots.qingyunPreachingMasters.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
@@ -714,9 +698,6 @@ class DiscipleFacadeImpl @Inject constructor(
             stateStore.update {
                 gameData = gameData.copy(elderSlots = updatedSlots)
                 discipleService.syncAllDiscipleStatuses()
-                if (elderSlotType == "lawEnforcement") {
-                    discipleService.autoFillLawEnforcementSlots()
-                }
             }
         }
     }

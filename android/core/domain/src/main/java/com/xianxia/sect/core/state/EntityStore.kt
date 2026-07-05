@@ -34,11 +34,11 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
     init { rebuildIndex() }
 
     /**
-     * 当前已冻结的列表引用。
-     * 无写入时复用同一引用（!== 检测正常工作）。
-     * 有写入后调用 [freeze] 才更新。
+     * 当前列表引用。
+     * - 无未冻结写入时返回 [frozenSnapshot]，复用同一引用供 `!==` 检测。
+     * - 有未冻结写入（dirty=true）时返回 [items_]，确保读取实时一致。
      */
-    val items: List<T> get() = frozenSnapshot
+    val items: List<T> get() = if (dirty) items_ else frozenSnapshot
 
     // === 读取 ===
 

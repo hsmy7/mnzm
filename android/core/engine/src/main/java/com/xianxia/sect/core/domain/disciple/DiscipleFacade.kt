@@ -32,7 +32,6 @@ interface DiscipleFacade {
     fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
     fun getAliveDisciplesCount(): Int
     fun getIdleDisciples(): List<Disciple>
-    suspend fun autoFillLawEnforcementSlots(): Int
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate?
     fun getAllDiscipleAggregates(): List<DiscipleAggregate>
     suspend fun approveMarriage(maleId: String, femaleId: String)

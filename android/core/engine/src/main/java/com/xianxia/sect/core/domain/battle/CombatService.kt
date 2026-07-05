@@ -236,9 +236,6 @@ class CombatService @Inject constructor(
         updated = updated.copy(
             lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
                 if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-            },
-            lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
             }
         )
         if (updated.viceSectMaster in deadMemberIds) updated = updated.copy(viceSectMaster = "")
@@ -259,19 +256,10 @@ class CombatService @Inject constructor(
             herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
                 if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
             },
-            herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-            },
             alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
                 if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
             },
-            alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
-                if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-            },
             forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
-                if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-            },
-            forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
                 if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
             },
             spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.mapNotNull { slot ->

@@ -138,7 +138,6 @@ internal class SlotConverter {
             preachingMasters = slots.preachingMasters?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             lawEnforcementElder = slots.lawEnforcementElder ?: "",
             lawEnforcementDisciples = slots.lawEnforcementDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            lawEnforcementReserveDisciples = slots.lawEnforcementReserveDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             innerElder = slots.innerElder ?: "",
             recruitingElder = slots.recruitingElder ?: "",
             qingyunPreachingElder = slots.qingyunPreachingElder ?: "",
@@ -146,9 +145,6 @@ internal class SlotConverter {
             herbGardenDisciples = slots.herbGardenDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             alchemyDisciples = slots.alchemyDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             forgeDisciples = slots.forgeDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            herbGardenReserveDisciples = slots.herbGardenReserveDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            alchemyReserveDisciples = slots.alchemyReserveDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            forgeReserveDisciples = slots.forgeReserveDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             spiritMineDeaconDisciples = slots.spiritMineDeaconDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList()
         )
     }
@@ -164,7 +160,6 @@ internal class SlotConverter {
             preachingMasters = data.preachingMasters.map { convertBackDirectDiscipleSlot(it) },
             lawEnforcementElder = data.lawEnforcementElder,
             lawEnforcementDisciples = data.lawEnforcementDisciples.map { convertBackDirectDiscipleSlot(it) },
-            lawEnforcementReserveDisciples = data.lawEnforcementReserveDisciples.map { convertBackDirectDiscipleSlot(it) },
             innerElder = data.innerElder,
             recruitingElder = data.recruitingElder,
             qingyunPreachingElder = data.qingyunPreachingElder,
@@ -172,9 +167,6 @@ internal class SlotConverter {
             herbGardenDisciples = data.herbGardenDisciples.map { convertBackDirectDiscipleSlot(it) },
             alchemyDisciples = data.alchemyDisciples.map { convertBackDirectDiscipleSlot(it) },
             forgeDisciples = data.forgeDisciples.map { convertBackDirectDiscipleSlot(it) },
-            herbGardenReserveDisciples = data.herbGardenReserveDisciples.map { convertBackDirectDiscipleSlot(it) },
-            alchemyReserveDisciples = data.alchemyReserveDisciples.map { convertBackDirectDiscipleSlot(it) },
-            forgeReserveDisciples = data.forgeReserveDisciples.map { convertBackDirectDiscipleSlot(it) },
             spiritMineDeaconDisciples = data.spiritMineDeaconDisciples.map { convertBackDirectDiscipleSlot(it) }
         )
     }

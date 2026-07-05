@@ -101,7 +101,7 @@ message ElderSlotsProto {
     repeated DirectDiscipleSlotProto preaching_masters = 8;
     string law_enforcement_elder = 9;
     repeated DirectDiscipleSlotProto law_enforcement_disciples = 10;
-    repeated DirectDiscipleSlotProto law_enforcement_reserve_disciples = 11;
+    reserved 11, 19, 20, 21;
     string inner_elder = 12;
     string qingyun_preaching_elder = 13;
     repeated DirectDiscipleSlotProto qingyun_preaching_masters = 14;
@@ -109,9 +109,6 @@ message ElderSlotsProto {
     repeated DirectDiscipleSlotProto alchemy_disciples = 16;
     repeated DirectDiscipleSlotProto forge_disciples = 17;
     repeated DirectDiscipleSlotProto library_disciples = 18;
-    repeated DirectDiscipleSlotProto herb_garden_reserve_disciples = 19;
-    repeated DirectDiscipleSlotProto alchemy_reserve_disciples = 20;
-    repeated DirectDiscipleSlotProto forge_reserve_disciples = 21;
     repeated DirectDiscipleSlotProto spirit_mine_deacon_disciples = 22;
 }
 

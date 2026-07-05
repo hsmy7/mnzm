@@ -653,7 +653,6 @@ data class ElderSlots(
     val preachingMasters: List<DirectDiscipleSlot> = emptyList(),
     val lawEnforcementElder: String = "",
     val lawEnforcementDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val lawEnforcementReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
     val innerElder: String = "",
     val recruitingElder: String = "",
     val qingyunPreachingElder: String = "",
@@ -661,26 +660,22 @@ data class ElderSlots(
     val herbGardenDisciples: List<DirectDiscipleSlot> = emptyList(),
     val alchemyDisciples: List<DirectDiscipleSlot> = emptyList(),
     val forgeDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val herbGardenReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val alchemyReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val forgeReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
     val spiritMineDeaconDisciples: List<DirectDiscipleSlot> = emptyList()
 ) {
     fun isDiscipleInAnyPosition(discipleId: String): Boolean {
         if (viceSectMaster == discipleId) return true
-        
+
         val allElderIds = listOf(
             herbGardenElder, alchemyElder, forgeElder,
             outerElder, preachingElder, lawEnforcementElder,
             innerElder, recruitingElder, qingyunPreachingElder
         )
         if (allElderIds.contains(discipleId)) return true
-        
+
         val allDirectDiscipleIds = listOf(
             herbGardenDisciples, alchemyDisciples, forgeDisciples,
-            preachingMasters, lawEnforcementDisciples, lawEnforcementReserveDisciples,
-            qingyunPreachingMasters, spiritMineDeaconDisciples,
-            alchemyReserveDisciples, herbGardenReserveDisciples, forgeReserveDisciples
+            preachingMasters, lawEnforcementDisciples,
+            qingyunPreachingMasters, spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
 
         return allDirectDiscipleIds.contains(discipleId)

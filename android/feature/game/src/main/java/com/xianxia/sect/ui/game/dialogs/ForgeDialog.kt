@@ -46,7 +46,6 @@ import com.xianxia.sect.ui.game.FORGE_THEME
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
-import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
@@ -71,8 +70,6 @@ fun ForgeDialog(
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
-    var showReserveDiscipleDialog by remember { mutableStateOf(false) }
-    var showAddReserveDialog by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     val globalForges = gameData?.placedBuildings?.filter { it.displayName == "锻造坊" } ?: emptyList()
@@ -89,23 +86,7 @@ fun ForgeDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "锻造坊",
         mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(theme.reserveButtonBackgroundColor)
-                    .clickable { showReserveDiscipleDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "储备弟子",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = theme.reserveButtonTextColor
-                )
-            }
-        }
+        scrollableContent = false
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -221,8 +202,6 @@ fun ForgeDialog(
                 defaultBorderColor = Color(0xFFFF9800),
                 workingStatusColor = Color(0xFFFF9800),
                 selectedHighlightColor = Color(0xFFFF9800),
-                reserveButtonBackgroundColor = Color(0xFFFF9800),
-                reserveButtonTextColor = Color.White,
                 slotLabelPrefix = "炼器槽",
                 selectionDialogTitle = "选择锻造弟子",
                 startProductionText = "确认",
@@ -273,48 +252,6 @@ fun ForgeDialog(
         }
     }
 
-    if (showReserveDiscipleDialog) {
-        ForgeReserveDiscipleDialogWrapper(
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            forgeViewModel = forgeViewModel,
-            onDismiss = { showReserveDiscipleDialog = false },
-            onAddClick = { showAddReserveDialog = true }
-        )
-    }
-
-    if (showAddReserveDialog) {
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼器）", defaultSortAttribute = "artifactRefining"),
-            disciples = forgeViewModel.getAvailableDisciplesForForgeReserve(),
-            onDismiss = { showAddReserveDialog = false },
-            onConfirm = { selected ->
-                forgeViewModel.addForgeReserveDisciples(selected.map { it.id })
-                showAddReserveDialog = false
-            },
-            viewModel = viewModel
-        )
-    }
-
-}
-
-@Composable
-private fun ForgeReserveDiscipleDialogWrapper(
-    viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
-    forgeViewModel: ForgeViewModel,
-    onDismiss: () -> Unit,
-    onAddClick: () -> Unit
-) {
-    val reserveDisciples by remember { derivedStateOf { forgeViewModel.getForgeReserveDisciplesWithInfo() } }
-
-    ProductionReserveDiscipleDialog(
-        theme = FORGE_THEME,
-        reserveDisciples = reserveDisciples,
-        onDismiss = onDismiss,
-        onAddClick = onAddClick,
-        onRemove = { forgeViewModel.removeForgeReserveDisciple(it) }
-    )
 }
 
 @Composable

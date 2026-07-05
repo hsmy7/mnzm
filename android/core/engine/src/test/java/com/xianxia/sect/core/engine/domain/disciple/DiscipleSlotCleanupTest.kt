@@ -34,10 +34,6 @@ class DiscipleSlotCleanupTest {
             herbGardenDisciples = listOf(discipleSlot),
             alchemyDisciples = listOf(discipleSlot),
             forgeDisciples = listOf(discipleSlot),
-            lawEnforcementReserveDisciples = listOf(discipleSlot),
-            herbGardenReserveDisciples = listOf(discipleSlot),
-            alchemyReserveDisciples = listOf(discipleSlot),
-            forgeReserveDisciples = listOf(discipleSlot),
             spiritMineDeaconDisciples = listOf(discipleSlot)
         )
 

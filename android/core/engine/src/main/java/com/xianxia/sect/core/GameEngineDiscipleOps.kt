@@ -24,7 +24,6 @@ fun GameEngine.isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = dis
 fun GameEngine.updateYearlySalaryEnabled(realm: Int, enabled: Boolean) = discipleFacade.updateYearlySalaryEnabled(realm, enabled)
 fun GameEngine.getAliveDisciplesCount(): Int = discipleFacade.getAliveDisciplesCount()
 fun GameEngine.getIdleDisciples(): List<Disciple> = discipleFacade.getIdleDisciples()
-suspend fun GameEngine.autoFillLawEnforcementSlots(): Int = discipleFacade.autoFillLawEnforcementSlots()
 fun GameEngine.getDiscipleAggregate(discipleId: String): DiscipleAggregate? = discipleFacade.getDiscipleAggregate(discipleId)
 fun GameEngine.getAllDiscipleAggregates(): List<DiscipleAggregate> = discipleFacade.getAllDiscipleAggregates()
 suspend fun GameEngine.dismissDisciple(discipleId: String) = discipleFacade.dismissDisciple(discipleId)

@@ -189,48 +189,6 @@ class DisciplePositionHelperTest {
         assertFalse(DisciplePositionHelper.hasDisciplePosition("unknown", gameData))
     }
 
-    // ==================== isReserveDisciple ====================
-
-    @Test
-    fun isReserveDisciple_lawEnforcementReserve_returnsTrue() {
-        val gameData = buildGameData(
-            elderSlots = ElderSlots(lawEnforcementReserveDisciples = listOf(discipleSlot("r1")))
-        )
-        assertTrue(DisciplePositionHelper.isReserveDisciple("r1", gameData))
-    }
-
-    @Test
-    fun isReserveDisciple_herbGardenReserve_returnsTrue() {
-        val gameData = buildGameData(
-            elderSlots = ElderSlots(herbGardenReserveDisciples = listOf(discipleSlot("r2")))
-        )
-        assertTrue(DisciplePositionHelper.isReserveDisciple("r2", gameData))
-    }
-
-    @Test
-    fun isReserveDisciple_alchemyReserve_returnsTrue() {
-        val gameData = buildGameData(
-            elderSlots = ElderSlots(alchemyReserveDisciples = listOf(discipleSlot("r3")))
-        )
-        assertTrue(DisciplePositionHelper.isReserveDisciple("r3", gameData))
-    }
-
-    @Test
-    fun isReserveDisciple_forgeReserve_returnsTrue() {
-        val gameData = buildGameData(
-            elderSlots = ElderSlots(forgeReserveDisciples = listOf(discipleSlot("r4")))
-        )
-        assertTrue(DisciplePositionHelper.isReserveDisciple("r4", gameData))
-    }
-
-    @Test
-    fun isReserveDisciple_nonReserve_returnsFalse() {
-        val gameData = buildGameData(
-            elderSlots = ElderSlots(viceSectMaster = "d1")
-        )
-        assertFalse(DisciplePositionHelper.isReserveDisciple("d1", gameData))
-    }
-
     // ==================== isPositionWorkStatus ====================
 
     @Test

@@ -194,8 +194,7 @@ private val scopeProvider: CoroutineScopeProvider,
 
         val elderSlots = data.elderSlots
         if (elderSlots.lawEnforcementElder == discipleId ||
-            elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId }) {
+            elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) {
             return DiscipleStatus.LAW_ENFORCING
         }
         if (elderSlots.preachingElder == discipleId ||
@@ -219,10 +218,7 @@ private val scopeProvider: CoroutineScopeProvider,
             elderSlots.herbGardenElder == discipleId ||
             elderSlots.herbGardenDisciples.any { it.discipleId == discipleId } ||
             elderSlots.alchemyDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.forgeDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }) {
+            elderSlots.forgeDisciples.any { it.discipleId == discipleId }) {
             return DiscipleStatus.MANAGING
         }
 
@@ -249,7 +245,6 @@ private val scopeProvider: CoroutineScopeProvider,
         val lawEnforcerIds = mutableSetOf<String>()
         elderSlots.lawEnforcementElder?.let { lawEnforcerIds.add(it) }
         elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
-        elderSlots.lawEnforcementReserveDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
 
         val preachingIds = mutableSetOf<String>()
         elderSlots.preachingElder?.let { preachingIds.add(it) }
@@ -270,9 +265,6 @@ private val scopeProvider: CoroutineScopeProvider,
         elderSlots.herbGardenDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
         elderSlots.alchemyDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
         elderSlots.forgeDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
-        elderSlots.herbGardenReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
-        elderSlots.alchemyReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
-        elderSlots.forgeReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
 
         val studyingIds = data.librarySlots.mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toMutableSet()
 
@@ -439,8 +431,6 @@ private val scopeProvider: CoroutineScopeProvider,
             tables.statuses[id] = DiscipleStatus.IDLE
             tables.statusData[id] = emptyMap()
         }
-
-        autoFillLawEnforcementSlots()
     }
 
     private fun clearAllDisciplesFromElderSlots(slots: ElderSlots, reflectingIds: Set<String>): ElderSlots {
@@ -468,14 +458,10 @@ private val scopeProvider: CoroutineScopeProvider,
         updated = updated.copy(
             preachingMasters = updated.preachingMasters.filter { it.discipleId in reflectingIds },
             lawEnforcementDisciples = updated.lawEnforcementDisciples.filter { it.discipleId in reflectingIds },
-            lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.filter { it.discipleId in reflectingIds },
             qingyunPreachingMasters = updated.qingyunPreachingMasters.filter { it.discipleId in reflectingIds },
             herbGardenDisciples = updated.herbGardenDisciples.filter { it.discipleId in reflectingIds },
             alchemyDisciples = updated.alchemyDisciples.filter { it.discipleId in reflectingIds },
             forgeDisciples = updated.forgeDisciples.filter { it.discipleId in reflectingIds },
-            herbGardenReserveDisciples = updated.herbGardenReserveDisciples.filter { it.discipleId in reflectingIds },
-            alchemyReserveDisciples = updated.alchemyReserveDisciples.filter { it.discipleId in reflectingIds },
-            forgeReserveDisciples = updated.forgeReserveDisciples.filter { it.discipleId in reflectingIds },
             spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.filter { it.discipleId in reflectingIds }
         )
 
@@ -889,99 +875,6 @@ private val scopeProvider: CoroutineScopeProvider,
                 }
             }
         }
-
-        autoFillLawEnforcementSlots()
-    }
-
-    /**
-     * 执法堂自动补位
-     *
-     * 当执法弟子槽位出现空缺时，从储备弟子池中按优先级自动选取候选人补位。
-     *
-     * 补位规则：
-     * - 仅对 lawEnforcementDisciples 的 8 个槽位（index 0-7）进行补位，不自动填补执法长老
-     * - 候选人排序优先级：智力降序 → 境界升序
-     * - 按槽位 index 从小到大依次填补
-     * - 一个储备弟子只能填补一个槽位
-     * - 仅选取存活且存在于 disciples 列表中的储备弟子
-     *
-     * @return 成功补位的数量
-     */
-    suspend fun autoFillLawEnforcementSlots(): Int {
-        val data = stateStore.gameData.value
-        val elderSlots = data.elderSlots
-        val activeSlots = elderSlots.lawEnforcementDisciples
-        val reserveSlots = elderSlots.lawEnforcementReserveDisciples
-        val tables = stateStore.discipleTables
-
-        // 收集空缺槽位（仅处理前 8 个槽位）
-        val emptySlotIndices = (0 until 8).filter { index ->
-            index >= activeSlots.size || activeSlots[index].discipleId.isEmpty()
-        }
-
-        if (emptySlotIndices.isEmpty()) return 0
-
-        val candidates = reserveSlots
-            .mapNotNull { slot ->
-                val discipleId = slot.discipleId.ifEmpty { return@mapNotNull null }
-                val id = discipleId.toIntOrNull() ?: return@mapNotNull null
-                if (tables.ids.contains(id) && tables.isAlive[id] == 1) {
-                    Triple(discipleId, slot.discipleName, tables.assemble(id))
-                } else null
-            }
-            // 排序：智力降序 → 境界升序（realm 越小境界越高）
-            .sortedWith(compareByDescending<Triple<String, String, Disciple>> { it.third.skills.intelligence }
-                .thenBy { it.third.realm })
-
-        if (candidates.isEmpty()) return 0
-
-        var fillCount = 0
-        var updatedActiveSlots = activeSlots.toMutableList()
-        var updatedReserveSlots = reserveSlots.toMutableList()
-        val usedReserveIds = mutableSetOf<String>()
-
-        // 确保活跃槽位列表至少有 8 个元素
-        while (updatedActiveSlots.size < 8) {
-            updatedActiveSlots.add(DirectDiscipleSlot(index = updatedActiveSlots.size))
-        }
-
-        for (slotIndex in emptySlotIndices) {
-            if (fillCount >= candidates.size) break
-
-            // 找到第一个未被使用的最优候选人
-            val candidate = candidates.find { (discipleId, _, _) -> discipleId !in usedReserveIds } ?: break
-            val (discipleId, discipleName, disciple) = candidate
-            usedReserveIds.add(discipleId)
-
-            // 构建新的活跃槽位
-            updatedActiveSlots[slotIndex] = DirectDiscipleSlot(
-                index = slotIndex,
-                discipleId = discipleId,
-                discipleName = discipleName,
-                discipleRealm = disciple.realmName,
-                discipleSpiritRootColor = disciple.spiritRoot.countColor
-            )
-
-            // 从储备池中移除该弟子
-            updatedReserveSlots = updatedReserveSlots.mapNotNull { slot ->
-                if (slot.discipleId == discipleId) null else slot
-            }.toMutableList()
-
-            fillCount++
-        }
-
-        if (fillCount > 0) {
-            stateStore.update { gameData = gameData.copy(
-                elderSlots = gameData.elderSlots.copy(
-                    lawEnforcementDisciples = updatedActiveSlots.toList(),
-                    lawEnforcementReserveDisciples = updatedReserveSlots.toList()
-                )
-            ) }
-
-            syncAllDiscipleStatuses()
-        }
-
-        return fillCount
     }
 
     /**

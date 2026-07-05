@@ -52,33 +52,16 @@ fun LawEnforcementHallDialog(
 ) {
     var showElderSelection by remember { mutableStateOf(false) }
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
-    var showReserveDiscipleList by remember { mutableStateOf(false) }
 
     val lawElder = productionViewModel.getLawEnforcementElder()
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
-    val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
     val discipleMap = disciples.associateBy { it.id }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "执法堂",
         mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFE74C3C))
-                    .clickable { showReserveDiscipleList = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "储备弟子(${reserveDisciplesWithInfo.size})",
-                    fontSize = 10.sp,
-                    color = Color.White
-                )
-            }
-        }
+        scrollableContent = false
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -125,8 +108,6 @@ fun LawEnforcementHallDialog(
             defaultBorderColor = Color(0xFFE74C3C),
             workingStatusColor = Color(0xFF2196F3),
             selectedHighlightColor = Color(0xFFFFD700),
-            reserveButtonBackgroundColor = Color(0xFFE74C3C),
-            reserveButtonTextColor = Color.White,
             slotLabelPrefix = "执法",
             selectionDialogTitle = "",
             startProductionText = "",
@@ -168,17 +149,6 @@ fun LawEnforcementHallDialog(
                 productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
                 showDiscipleSelection = null
             }
-        )
-    }
-
-    if (showReserveDiscipleList) {
-        ReserveDiscipleListDialog(
-            reserveDisciples = reserveDisciplesWithInfo,
-            allDisciples = disciples.filter { it.isAlive },
-            elderSlots = gameData?.elderSlots ?: ElderSlots(),
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { showReserveDiscipleList = false }
         )
     }
 
@@ -398,118 +368,4 @@ private fun CommonDialog(
             }
         }
     )
-}
-
-@Composable
-private fun ReserveDiscipleListDialog(
-    reserveDisciples: List<DiscipleAggregate>,
-    allDisciples: List<DiscipleAggregate>,
-    elderSlots: ElderSlots,
-    viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
-    onDismiss: () -> Unit
-) {
-    var showAddDiscipleDialog by remember { mutableStateOf(false) }
-    
-    val sortedReserveDisciples = remember(reserveDisciples) {
-        reserveDisciples.sortedByFollowAndRealm()
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "储备弟子 (${sortedReserveDisciples.size})",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("推荐智力", fontSize = 10.sp, color = Color(0xFF4CAF50))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFE74C3C))
-                        .clickable { showAddDiscipleDialog = true }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "+ 添加",
-                        fontSize = 10.sp,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "执法弟子空缺时自动补位",
-                fontSize = 9.sp,
-                color = Color.Black,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                textAlign = TextAlign.Center
-            )
-            if (sortedReserveDisciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无储备弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(sortedReserveDisciples, key = { it.id }) { disciple ->
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            actions = {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(GameColors.PageBackground)
-                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                        .clickable { productionViewModel.removeReserveDisciple(disciple.id) }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(text = "移除", fontSize = 10.sp, color = Color.Black)
-                                }
-                            },
-                            onClick = {}
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (showAddDiscipleDialog) {
-        val rawDisciples = remember(allDisciples, elderSlots) {
-            allDisciples.filter {
-                it.isAlive && it.realmLayer > 0 && it.age >= 5 &&
-                it.status == DiscipleStatus.IDLE && it.discipleType == "inner" &&
-                !elderSlots.isDiscipleInAnyPosition(it.id)
-            }
-        }
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "内门弟子", defaultSortAttribute = "intelligence"),
-            disciples = rawDisciples,
-            onDismiss = { showAddDiscipleDialog = false },
-            onConfirm = { selected ->
-                productionViewModel.addReserveDisciples(selected.map { it.id })
-                showAddDiscipleDialog = false
-            },
-            viewModel = viewModel
-        )
-    }
 }

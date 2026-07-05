@@ -147,11 +147,7 @@ class DiscipleViewModel @Inject constructor(
     fun hasDisciplePosition(discipleId: String): Boolean {
         return disciplePositionQuery.hasDisciplePosition(discipleId)
     }
-    
-    fun isReserveDisciple(discipleId: String): Boolean {
-        return disciplePositionQuery.isReserveDisciple(discipleId)
-    }
-    
+
     fun recruitDisciple() {
         viewModelScope.launch {
             try {

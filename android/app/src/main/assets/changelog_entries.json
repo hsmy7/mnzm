@@ -1,106 +1,108 @@
 [
-	{
-		"date": "2026-07-05",
-		"version": "4.0.41",
-		"changes": [
-			"优化：自动管理（天枢殿→宗门管理→自动管理）——每种生产类型（灵矿/灵植/炼丹/锻造）从每月仅安排1人改为有多少空闲槽位就安排多少符合条件的空闲弟子",
-			"修复：居所弟子忠诚度加成（processResidenceLoyalty）未在生产代码调用导致失效+年俸发放晚于叛逃检查——批量叛逃Bug",
-			"重构：宗门地图渲染架构重写——移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制",
-			"修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",
-			"修复：建筑移动确认时序——movingBuilding=null在stateStore.update完成后执行，消除竞态",
-			"新增：视口裁剪——跳过视口外的建筑绘制，降低draw call",
-			"删除：高低配双渲染路径——shouldBakeBuildings分支删除，统一为单一渲染路径"
-		]
-	},
-	{
-		"date": "2026-07-05",
-		"version": "4.0.40",
-		"changes": [
-			"修复：弟子偷盗被捕提示框简化——移除驱逐/押入监牢/释放三个按钮，仅保留知道了按钮。点击后自动将弟子押入监牢并关闭界面",
-			"重构：弟子偷盗被捕提示框信息改用弟子槽位组件——DiscipleSlot居中显示头像、名称、境界"
-		]
-	},
-	{
-		"date": "2026-07-04",
-		"version": "4.0.39",
-		"changes": [
-			"修复：设置界面子对话框全屏居中——其他设置/年俸/更新日志/存档管理改用Compose Dialog平台窗口，不再受父容器约束偏下偏移",
-			"修复：UnifiedGameDialog全屏居中——80+对话框共用容器外层包裹Dialog，确保全屏居中不依赖父容器尺寸",
-			"修复：InlineStandardPromptDialog全屏居中——内联提示框外层包裹Dialog平台窗口",
-			"修复：更新日志不显示——changelog_entries.json JSON格式错误（缺失逗号）已修复",
-			"清理：年俸设置改为SettingsTab内联渲染，移除废弃方法",
-			"修复：Xiaomi HyperOS键盘频闪——宗门名称输入框键盘反复弹出收起。创建DialogSoftInputGuard可复用Composable，临时切换windowSoftInputMode=adjustNothing切断震荡回路，覆盖全部8个输入框",
-			"架构：组件表Packed Array——IntComponentTable/DoubleComponentTable从SparseArray迁Packed Array，查询O(log N)→O(1)，零装箱",
-			"重构：DiscipleTables重复代码消除——remove/clear等改声明式列表驱动，新增列只要加一行",
-			"架构：游戏线程并行化——新增DeviceCapabilityProfiler设备能力检测，8核/6GB+自动启用4路并行调度",
-			"架构：独立线程池——新增高优先级parallelDispatcher（tick内并行）和低优先级backgroundDispatcher（后台批量）",
-			"架构：热控降级反馈——45°C+或帧率低于25fps时自动关闭并行退化为单线程",
-			"优化：Canvas分层渲染——静态层离屏Bitmap缓存，相机平移不再触发重绘",
-			"优化：灵田建筑预过滤——消除O(n×m)双层循环",
-			"优化：存档脏标记——状态无变化时重复写库",
-			"修复：暂停按钮无效——看门狗在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
-			"修复：系统异常收集器ANR——BufferedChannel.hasNext()挂起主线程，改为Dispatchers.Default运行",
-			"新增：系统异常主动上报Bugly——已捕获异常通过CrashReport.postCatchedException上报",
-			"新增：弟子详情加入焦点域DISCIPLE_DETAIL——CultivationTickSystem进入实时轨",
-			"修复：弟子肖像预加载改用资源ID映射——避免运行时getIdentifier字符串查找失败",
-			"测试：InterfaceDomainMap全覆盖——DialogRoute遗忘域映射时测试失败",
-			"测试：新增DeviceCapabilityProfilerTest(8个用例)和CultivationCoreConcurrencyTest(4个用例)",
-			"防御：Android 15 libhwui.so RenderThread SIGSEGV——CrashRecoveryEngine崩溃自愈引擎",
-			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，问题设备自动禁用Vulkan",
-			"防御：安全模式主题——Theme.XianxiaSect.GameSafe在连续崩溃后禁用硬件加速，回退软件渲染",
-			"引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
-			"引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算",
-			"新增：弟子改名——详情界面点击名称可弹出输入框修改，长度2-10个字符，支持违禁词过滤",
-			"修复：文本选择工具栏BadTokenException(Bugly #3026)——FloatingActionMode在窗口token失效后弹出PopupWindow。Activity级Window.Callback拦截+平台Dialog的onDispose清除焦点"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.38",
-		"changes": [
-			"架构：游戏循环帧驱动化(R1)——从timer-driven delay(100ms)改为frame-driven accumulator模式，每帧计算deltaTime累加后按固定步长消费，产出currentAlpha插值因子供60fps平滑渲染",
-			"架构：忙等自适应化(R3)——正常运行零忙等(纯delay)，仅检测到OEM挂起线程时自动启用分片忙等，恢复后自动停用",
-			"架构：OEM参数三档化(R4)——6组厂商独立参数(21魔数)简化为AGGRESSIVE/MODERATE/LIGHT三档",
-			"架构：可重入Mutex显式计数(R5)——从AtomicReference线程身份检测改为AtomicInteger显式重入计数，消除调度器切换死锁风险",
-			"架构：EntityStore增量更新(R6)——写时复制改为MutableList原地修改+freeze()快照，GC分配量降低80%+",
-			"架构：影子合并简化(R7)——mergeDiscipleTables从100行逐字段三路比较简化为15行声明式合并，消除shadowOrigin全量快照",
-			"修复：ThermalMonitor协程泄漏(R9)——移除孤立CoroutineScope+while(true)，改为start/stop生命周期绑定engineScope",
-			"修复：SaveLoadViewModel.onCleared主线程阻塞(R10)——Thread.sleep+CountDownLatch改为NonCancellable挂起式等待，消除ANR风险",
-			"修复：AlchemyViewModel吞CancellationException(R11)——添加catch(CancellationException)重新抛出",
-			"架构：批量轨动态降频(R12)——非焦点域批量间隔从硬编码30s改为动态5-15s，Tab切换后加速5s",
-			"架构：指纹增量计算(R13)——accumulateBatch指纹检测从每次全量deepCopy改为FingerprintSnapshot.take零分配引用拷贝",
-			"修复：看门狗假运行检测误触发(R14)——移除假运行检测逻辑",
-			"架构：scope/ioScope分离(R15)——ApplicationScopeProvider不再共享SupervisorJob，可独立取消",
-			"架构：并行结算引擎(R16)——新增ParallelWorkerPool类，指纹计算和进度分类两路async并行化",
-			"架构：帧预算监控(R17)——UnifiedPerformanceMonitor新增FrameQuality枚举，连续3帧jank自动触发负载降级",
-			"架构：Compose稳定性标注(R18)——UnifiedGameState/HighFreqState/EntityState/ConfigState补齐@Immutable注解",
-			"架构：批量发射模式(R19)——结算路径激活batchEmissionMode，减少重组雪崩",
-			"架构：动画帧同步(R20)——GameViewModel新增cultivationProgress Animatable平滑驱动+interpolationFactor插值因子接口",
-			"修复：红米K80(HyperOS 2.0)游戏时间停止——游戏循环线程被HyperOS电源管理挂起后时间不再推进，UI可操作但时间冻结。新增主线程健康监控器、紧急重启机制、看门狗自愈、forceCompleteSettlement超时保护",
-			"修复：Xiaomi HyperOS防挂起参数增强——antiFreeze占空比提升，看门狗检查间隔缩短",
-			"修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
-			"修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
-			"清理：删除5份v3.x时期过时架构分析文档",
-			"修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding，GameOverlayHost中onConfirm lambda用remember稳定引用，SaveSelectScreen设置dismissOnClickOutside=false",
-			"防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
-			"防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
-			"防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
-			"防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.37",
-		"changes": [
-			"修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版"
-		]
-	},
-	{
-		"date": "2026-07-03",
-		"version": "4.0.36",
-		"changes": [
-			"技术：公式系统统一为乘区法——全部数值计算统一为乘区内加算、乘区间乘算结构，新增7个乘区data class及ZoneCalculator核心工具",
-			"技术：修复8个预存测试失败——VassalServiceTest/EquipmentSpriteTest/ChangelogParseTest/MainGameScreenTest/ViewModelArchitectureTest"
-		]
-	}
+  {
+    "date": "2026-07-05",
+    "version": "4.0.41",
+    "changes": [
+      "优化：自动管理（天枢殿→宗门管理→自动管理）——每种生产类型（灵矿/灵植/炼丹/锻造）从每月仅安排1人改为有多少空闲槽位就安排多少符合条件的空闲弟子",
+      "修复：居所弟子忠诚度加成（processResidenceLoyalty）未在生产代码调用导致失效+年俸发放晚于叛逃检查——批量叛逃Bug",
+      "重构：宗门地图渲染架构重写——移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制",
+      "修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",
+      "修复：建筑移动确认时序——movingBuilding=null在stateStore.update完成后执行，消除竞态",
+      "新增：视口裁剪——跳过视口外的建筑绘制，降低draw call",
+      "删除：高低配双渲染路径——shouldBakeBuildings分支删除，统一为单一渲染路径",
+      "删除：移除储备弟子机制——删除执法堂/炼丹炉/锻造坊/灵植阁四个部门的储备弟子池（30+文件全链路清理）",
+      "修复：EntityStore脏读导致StackableItemStore合并失败——items属性dirty时返回items_确保读取实时一致"
+    ]
+  },
+  {
+    "date": "2026-07-05",
+    "version": "4.0.40",
+    "changes": [
+      "修复：弟子偷盗被捕提示框简化——移除驱逐/押入监牢/释放三个按钮，仅保留知道了按钮。点击后自动将弟子押入监牢并关闭界面",
+      "重构：弟子偷盗被捕提示框信息改用弟子槽位组件——DiscipleSlot居中显示头像、名称、境界"
+    ]
+  },
+  {
+    "date": "2026-07-04",
+    "version": "4.0.39",
+    "changes": [
+      "修复：设置界面子对话框全屏居中——其他设置/年俸/更新日志/存档管理改用Compose Dialog平台窗口，不再受父容器约束偏下偏移",
+      "修复：UnifiedGameDialog全屏居中——80+对话框共用容器外层包裹Dialog，确保全屏居中不依赖父容器尺寸",
+      "修复：InlineStandardPromptDialog全屏居中——内联提示框外层包裹Dialog平台窗口",
+      "修复：更新日志不显示——changelog_entries.json JSON格式错误（缺失逗号）已修复",
+      "清理：年俸设置改为SettingsTab内联渲染，移除废弃方法",
+      "修复：Xiaomi HyperOS键盘频闪——宗门名称输入框键盘反复弹出收起。创建DialogSoftInputGuard可复用Composable，临时切换windowSoftInputMode=adjustNothing切断震荡回路，覆盖全部8个输入框",
+      "架构：组件表Packed Array——IntComponentTable/DoubleComponentTable从SparseArray迁Packed Array，查询O(log N)→O(1)，零装箱",
+      "重构：DiscipleTables重复代码消除——remove/clear等改声明式列表驱动，新增列只要加一行",
+      "架构：游戏线程并行化——新增DeviceCapabilityProfiler设备能力检测，8核/6GB+自动启用4路并行调度",
+      "架构：独立线程池——新增高优先级parallelDispatcher（tick内并行）和低优先级backgroundDispatcher（后台批量）",
+      "架构：热控降级反馈——45°C+或帧率低于25fps时自动关闭并行退化为单线程",
+      "优化：Canvas分层渲染——静态层离屏Bitmap缓存，相机平移不再触发重绘",
+      "优化：灵田建筑预过滤——消除O(n×m)双层循环",
+      "优化：存档脏标记——状态无变化时重复写库",
+      "修复：暂停按钮无效——看门狗在暂停时误判为死机触发紧急重启，新增暂停状态跳过检测",
+      "修复：系统异常收集器ANR——BufferedChannel.hasNext()挂起主线程，改为Dispatchers.Default运行",
+      "新增：系统异常主动上报Bugly——已捕获异常通过CrashReport.postCatchedException上报",
+      "新增：弟子详情加入焦点域DISCIPLE_DETAIL——CultivationTickSystem进入实时轨",
+      "修复：弟子肖像预加载改用资源ID映射——避免运行时getIdentifier字符串查找失败",
+      "测试：InterfaceDomainMap全覆盖——DialogRoute遗忘域映射时测试失败",
+      "测试：新增DeviceCapabilityProfilerTest(8个用例)和CultivationCoreConcurrencyTest(4个用例)",
+      "防御：Android 15 libhwui.so RenderThread SIGSEGV——CrashRecoveryEngine崩溃自愈引擎",
+      "防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，问题设备自动禁用Vulkan",
+      "防御：安全模式主题——Theme.XianxiaSect.GameSafe在连续崩溃后禁用硬件加速，回退软件渲染",
+      "引擎：PartnerSystem并行化——弟子配对从串行改为compute/apply模式，列直读替代assembleAll全量对象组装，ParallelDispatcher计算主线程零等待",
+      "引擎：ProductionSubsystem并行化——批量月度循环改为ParallelDispatcher一次性模拟N个月，消除N×6次锁争用，药园/炼丹/锻造政策加成完整计算",
+      "新增：弟子改名——详情界面点击名称可弹出输入框修改，长度2-10个字符，支持违禁词过滤",
+      "修复：文本选择工具栏BadTokenException(Bugly #3026)——FloatingActionMode在窗口token失效后弹出PopupWindow。Activity级Window.Callback拦截+平台Dialog的onDispose清除焦点"
+    ]
+  },
+  {
+    "date": "2026-07-03",
+    "version": "4.0.38",
+    "changes": [
+      "架构：游戏循环帧驱动化(R1)——从timer-driven delay(100ms)改为frame-driven accumulator模式，每帧计算deltaTime累加后按固定步长消费，产出currentAlpha插值因子供60fps平滑渲染",
+      "架构：忙等自适应化(R3)——正常运行零忙等(纯delay)，仅检测到OEM挂起线程时自动启用分片忙等，恢复后自动停用",
+      "架构：OEM参数三档化(R4)——6组厂商独立参数(21魔数)简化为AGGRESSIVE/MODERATE/LIGHT三档",
+      "架构：可重入Mutex显式计数(R5)——从AtomicReference线程身份检测改为AtomicInteger显式重入计数，消除调度器切换死锁风险",
+      "架构：EntityStore增量更新(R6)——写时复制改为MutableList原地修改+freeze()快照，GC分配量降低80%+",
+      "架构：影子合并简化(R7)——mergeDiscipleTables从100行逐字段三路比较简化为15行声明式合并，消除shadowOrigin全量快照",
+      "修复：ThermalMonitor协程泄漏(R9)——移除孤立CoroutineScope+while(true)，改为start/stop生命周期绑定engineScope",
+      "修复：SaveLoadViewModel.onCleared主线程阻塞(R10)——Thread.sleep+CountDownLatch改为NonCancellable挂起式等待，消除ANR风险",
+      "修复：AlchemyViewModel吞CancellationException(R11)——添加catch(CancellationException)重新抛出",
+      "架构：批量轨动态降频(R12)——非焦点域批量间隔从硬编码30s改为动态5-15s，Tab切换后加速5s",
+      "架构：指纹增量计算(R13)——accumulateBatch指纹检测从每次全量deepCopy改为FingerprintSnapshot.take零分配引用拷贝",
+      "修复：看门狗假运行检测误触发(R14)——移除假运行检测逻辑",
+      "架构：scope/ioScope分离(R15)——ApplicationScopeProvider不再共享SupervisorJob，可独立取消",
+      "架构：并行结算引擎(R16)——新增ParallelWorkerPool类，指纹计算和进度分类两路async并行化",
+      "架构：帧预算监控(R17)——UnifiedPerformanceMonitor新增FrameQuality枚举，连续3帧jank自动触发负载降级",
+      "架构：Compose稳定性标注(R18)——UnifiedGameState/HighFreqState/EntityState/ConfigState补齐@Immutable注解",
+      "架构：批量发射模式(R19)——结算路径激活batchEmissionMode，减少重组雪崩",
+      "架构：动画帧同步(R20)——GameViewModel新增cultivationProgress Animatable平滑驱动+interpolationFactor插值因子接口",
+      "修复：红米K80(HyperOS 2.0)游戏时间停止——游戏循环线程被HyperOS电源管理挂起后时间不再推进，UI可操作但时间冻结。新增主线程健康监控器、紧急重启机制、看门狗自愈、forceCompleteSettlement超时保护",
+      "修复：Xiaomi HyperOS防挂起参数增强——antiFreeze占空比提升，看门狗检查间隔缩短",
+      "修复：EntityStore.plus frozenSnapshot未正确初始化——合并后的find操作返回空结果，修复为EntityStore(newItems)直接构造",
+      "修复：GameViewModel主线程健康检查Log崩溃——替换为DomainLog.e，消除31个测试预存失败",
+      "清理：删除5份v3.x时期过时架构分析文档",
+      "修复：宗门命名对话框键盘反复弹出收起——InlineStandardPromptDialog外层Box添加imePadding，GameOverlayHost中onConfirm lambda用remember稳定引用，SaveSelectScreen设置dismissOnClickOutside=false",
+      "防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
+      "防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
+      "防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
+      "防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
+    ]
+  },
+  {
+    "date": "2026-07-03",
+    "version": "4.0.37",
+    "changes": [
+      "修复：新建游戏宗门命名对话框背景频闪和键盘频闪——StandardPromptDialog使用平台Dialog窗口+adjustResize导致键盘弹出时窗口尺寸震荡。新增InlineStandardPromptDialog(内联Box覆盖层)，SaveSelectScreen宗门命名和RenameSectDialog宗门改名改用内联版"
+    ]
+  },
+  {
+    "date": "2026-07-03",
+    "version": "4.0.36",
+    "changes": [
+      "技术：公式系统统一为乘区法——全部数值计算统一为乘区内加算、乘区间乘算结构，新增7个乘区data class及ZoneCalculator核心工具",
+      "技术：修复8个预存测试失败——VassalServiceTest/EquipmentSpriteTest/ChangelogParseTest/MainGameScreenTest/ViewModelArchitectureTest"
+    ]
+  }
 ]

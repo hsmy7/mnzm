@@ -31,6 +31,14 @@
 - 离屏缓存：staticLayerCache、buildStaticLayerCache()
 - 分层绘制架构：Box+drawBehind+Canvas嵌套 → 统一单层Canvas
 
+### 删除
+
+- **移除储备弟子机制** — 删除执法堂/炼丹炉/锻造坊/灵植阁四个部门的储备弟子池（`lawEnforcementReserveDisciples`、`alchemyReserveDisciples`、`forgeReserveDisciples`、`herbGardenReserveDisciples`），涉及 30+ 个文件的全链路清理：ElderSlots 字段、Proto 序列化、DiscipleService 自动补位逻辑、生产指纹计算、8 个 ViewModel 的 CRUD 方法及 UI 组件。
+
+### Bug 修复
+
+- **修复 EntityStore 脏读导致 StackableItemStore 合并失败** — `EntityStore.items` 始终返回 `frozenSnapshot`（只读缓存），但 `update()/add()/remove()` 只修改 `items_`（内部列表），未经 `freeze()` 显式调用前所有读取返回过期数据。修复为 dirty 时返回 `items_` 确保实时一致。影响：`MergeStackableTest` 5 个用例 + `StackableItemStoreTest` 3 个用例从 FAILED 修复为 PASS。
+
 ## [4.0.40] - 2026-07-05（versionCode=4040）
 
 ### Bug 修复

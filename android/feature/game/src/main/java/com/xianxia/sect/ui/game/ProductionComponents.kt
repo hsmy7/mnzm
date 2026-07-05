@@ -47,8 +47,6 @@ data class ProductionTheme(
     val defaultBorderColor: Color,
     val workingStatusColor: Color,
     val selectedHighlightColor: Color,
-    val reserveButtonBackgroundColor: Color,
-    val reserveButtonTextColor: Color,
     val slotLabelPrefix: String,
     val selectionDialogTitle: String,
     val startProductionText: String = "开始炼制",
@@ -72,8 +70,6 @@ val ALCHEMY_THEME = ProductionTheme(
     defaultBorderColor = Color(0xFF9C27B0),
     workingStatusColor = Color(0xFF2196F3),
     selectedHighlightColor = Color(0xFFFFD700),
-    reserveButtonBackgroundColor = GameColors.ButtonBackground,
-    reserveButtonTextColor = Color.Black,
     slotLabelPrefix = "炼丹槽",
     selectionDialogTitle = "选择丹药",
     startProductionText = "确认炼制",
@@ -100,8 +96,6 @@ val FORGE_THEME = ProductionTheme(
     defaultBorderColor = Color(0xFFFF9800),
     workingStatusColor = Color(0xFFFF9800),
     selectedHighlightColor = Color(0xFFFF9800),
-    reserveButtonBackgroundColor = Color(0xFFFF9800),
-    reserveButtonTextColor = Color.White,
     slotLabelPrefix = "炼器槽",
     selectionDialogTitle = "选择装备",
     startProductionText = "确认锻造",
@@ -128,8 +122,6 @@ val HERB_GARDEN_THEME = ProductionTheme(
     defaultBorderColor = Color(0xFF27AE60),
     workingStatusColor = Color(0xFF2196F3),
     selectedHighlightColor = Color(0xFFFFD700),
-    reserveButtonBackgroundColor = GameColors.ButtonBackground,
-    reserveButtonTextColor = Color.Black,
     slotLabelPrefix = "种植槽",
     selectionDialogTitle = "选择种子",
     startProductionText = "确认种植",
@@ -157,8 +149,6 @@ val SPIRIT_MINE_THEME = ProductionTheme(
     defaultBorderColor = Color(0xFF795548),
     workingStatusColor = Color(0xFF2196F3),
     selectedHighlightColor = Color(0xFFFFD700),
-    reserveButtonBackgroundColor = GameColors.ButtonBackground,
-    reserveButtonTextColor = Color.Black,
     slotLabelPrefix = "采矿",
     selectionDialogTitle = "",
     startProductionText = "",
@@ -619,84 +609,4 @@ private fun ProductionDiscipleSelectionCard(
     )
 }
 
-@Composable
-fun ProductionReserveDiscipleDialog(
-    theme: ProductionTheme,
-    reserveDisciples: List<DiscipleAggregate>,
-    onDismiss: () -> Unit,
-    onAddClick: () -> Unit,
-    onRemove: (String) -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "储备弟子",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
-        }
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(theme.reserveButtonBackgroundColor)
-                            .clickable { onAddClick() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(text = "添加", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = theme.reserveButtonTextColor)
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                if (reserveDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text(text = "暂无储备弟子", fontSize = 12.sp, color = Color.Black) }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(reserveDisciples, key = { it.id }) { disciple ->
-                            ProductionReserveDiscipleCard(
-                                theme = theme,
-                                disciple = disciple,
-                                onRemove = { onRemove(disciple.id) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-}
-
-@Composable
-private fun ProductionReserveDiscipleCard(
-    theme: ProductionTheme,
-    disciple: DiscipleAggregate,
-    onRemove: () -> Unit
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        PortraitDiscipleCard(
-            disciple = disciple,
-            onClick = {}
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                .clickable { onRemove() }
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) { Text(text = "移除", fontSize = 10.sp, color = Color.Black) }
-    }
-}
 

@@ -23,10 +23,6 @@ class DisciplePositionQueryUseCase @Inject constructor(
         return DisciplePositionHelper.getDisciplePosition(discipleId, gameEngine.gameData.value)
     }
 
-    fun isReserveDisciple(discipleId: String): Boolean {
-        return DisciplePositionHelper.isReserveDisciple(discipleId, gameEngine.gameData.value)
-    }
-
     fun isPositionWorkStatus(discipleId: String): Boolean {
         return DisciplePositionHelper.isPositionWorkStatus(discipleId, gameEngine.gameData.value)
     }

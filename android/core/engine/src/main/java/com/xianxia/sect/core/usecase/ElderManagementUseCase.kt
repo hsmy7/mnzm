@@ -51,12 +51,9 @@ class ElderManagementUseCase @Inject constructor(
         return listOf(
             herbGardenDisciples,
             alchemyDisciples,
-            alchemyReserveDisciples,
             forgeDisciples,
-            forgeReserveDisciples,
             preachingMasters,
             lawEnforcementDisciples,
-            lawEnforcementReserveDisciples,
             qingyunPreachingMasters,
             spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
@@ -94,13 +91,11 @@ class ElderManagementUseCase @Inject constructor(
             )
             ElderSlotType.ALCHEMY -> elderSlots.copy(
                 alchemyElder = discipleId,
-                alchemyDisciples = emptyList(),
-                alchemyReserveDisciples = emptyList()
+                alchemyDisciples = emptyList()
             )
             ElderSlotType.FORGE -> elderSlots.copy(
                 forgeElder = discipleId,
-                forgeDisciples = emptyList(),
-                forgeReserveDisciples = emptyList()
+                forgeDisciples = emptyList()
             )
             ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
                 viceSectMaster = discipleId
@@ -114,8 +109,7 @@ class ElderManagementUseCase @Inject constructor(
             )
             ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
                 lawEnforcementElder = discipleId,
-                lawEnforcementDisciples = emptyList(),
-                lawEnforcementReserveDisciples = emptyList()
+                lawEnforcementDisciples = emptyList()
             )
             ElderSlotType.INNER_ELDER -> elderSlots.copy(
                 innerElder = discipleId
@@ -144,13 +138,11 @@ class ElderManagementUseCase @Inject constructor(
             )
             ElderSlotType.ALCHEMY -> elderSlots.copy(
                 alchemyElder = "",
-                alchemyDisciples = emptyList(),
-                alchemyReserveDisciples = emptyList()
+                alchemyDisciples = emptyList()
             )
             ElderSlotType.FORGE -> elderSlots.copy(
                 forgeElder = "",
-                forgeDisciples = emptyList(),
-                forgeReserveDisciples = emptyList()
+                forgeDisciples = emptyList()
             )
             ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
                 viceSectMaster = ""
@@ -164,8 +156,7 @@ class ElderManagementUseCase @Inject constructor(
             )
             ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
                 lawEnforcementElder = "",
-                lawEnforcementDisciples = emptyList(),
-                lawEnforcementReserveDisciples = emptyList()
+                lawEnforcementDisciples = emptyList()
             )
             ElderSlotType.INNER_ELDER -> elderSlots.copy(
                 innerElder = ""

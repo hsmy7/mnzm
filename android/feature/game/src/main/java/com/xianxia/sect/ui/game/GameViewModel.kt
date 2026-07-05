@@ -565,16 +565,6 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * 判断弟子是否为预备弟子（无职位）。
-     *
-     * @param discipleId 弟子 ID
-     * @return true 表示是预备弟子
-     */
-    fun isReserveDisciple(discipleId: String): Boolean {
-        return disciplePositionQuery.isReserveDisciple(discipleId)
-    }
-
-    /**
      * 判断弟子当前职位是否为工作状态。
      *
      * @param discipleId 弟子 ID

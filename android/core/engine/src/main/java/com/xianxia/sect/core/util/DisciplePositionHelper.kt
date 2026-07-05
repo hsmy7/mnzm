@@ -54,14 +54,6 @@ object DisciplePositionHelper {
                elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }
     }
 
-    fun isReserveDisciple(discipleId: String, gameData: GameData): Boolean {
-        val elderSlots = gameData.elderSlots
-        return elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }
-    }
-
     fun getEligibleBattleDisciples(
         disciples: List<DiscipleAggregate>,
         currentSlotDiscipleIds: List<String>,

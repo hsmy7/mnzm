@@ -49,7 +49,6 @@ import com.xianxia.sect.ui.game.ALCHEMY_THEME
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
-import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
@@ -74,7 +73,6 @@ fun AlchemyDialog(
     var showPillSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
-    var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     val globalFurnaces = gameData?.placedBuildings?.filter { it.displayName == "炼丹炉" } ?: emptyList()
@@ -91,23 +89,7 @@ fun AlchemyDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
         title = "炼丹炉",
         mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(theme.reserveButtonBackgroundColor)
-                    .clickable { showReserveDiscipleDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "储备弟子",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = theme.reserveButtonTextColor
-                )
-            }
-        }
+        scrollableContent = false
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -224,8 +206,6 @@ fun AlchemyDialog(
                 defaultBorderColor = Color(0xFF9C27B0),
                 workingStatusColor = Color(0xFF2196F3),
                 selectedHighlightColor = Color(0xFFFFD700),
-                reserveButtonBackgroundColor = GameColors.ButtonBackground,
-                reserveButtonTextColor = Color.Black,
                 slotLabelPrefix = "炼丹槽",
                 selectionDialogTitle = "选择炼丹弟子",
                 startProductionText = "确认",
@@ -277,49 +257,6 @@ fun AlchemyDialog(
         }
     }
 
-    if (showReserveDiscipleDialog) {
-        AlchemyReserveDiscipleDialogWrapper(
-            disciples = disciples,
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            alchemyViewModel = alchemyViewModel,
-            onDismiss = { showReserveDiscipleDialog = false }
-        )
-    }
-
-}
-
-@Composable
-private fun AlchemyReserveDiscipleDialogWrapper(
-    disciples: List<DiscipleAggregate>,
-    viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
-    alchemyViewModel: AlchemyViewModel,
-    onDismiss: () -> Unit
-) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    val reserveDisciples = alchemyViewModel.getAlchemyReserveDisciplesWithInfo()
-
-    ProductionReserveDiscipleDialog(
-        theme = ALCHEMY_THEME,
-        reserveDisciples = reserveDisciples,
-        onDismiss = onDismiss,
-        onAddClick = { showAddDialog = true },
-        onRemove = { alchemyViewModel.removeAlchemyReserveDisciple(it) }
-    )
-
-    if (showAddDialog) {
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼丹）", defaultSortAttribute = "pillRefining"),
-            disciples = alchemyViewModel.getAvailableDisciplesForAlchemyReserve(),
-            onDismiss = { showAddDialog = false },
-            onConfirm = { selected ->
-                alchemyViewModel.addAlchemyReserveDisciples(selected.map { it.id })
-                showAddDialog = false
-            },
-            viewModel = viewModel
-        )
-    }
 }
 
 @Composable

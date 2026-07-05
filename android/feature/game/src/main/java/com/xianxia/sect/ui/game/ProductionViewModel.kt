@@ -212,117 +212,6 @@ class ProductionViewModel @Inject constructor(
         return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementDisciples ?: emptyList()
     }
 
-    fun getLawEnforcementReserveDisciples(): List<DirectDiscipleSlot> {
-        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
-        return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
-    }
-
-    fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
-        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
-        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.id in reserveIds }
-            .sortedByFollowAndRealm()
-    }
-
-    fun addReserveDisciple(discipleId: String) {
-        viewModelScope.launch {
-            try {
-                val disciple = gameEngine.getDiscipleAggregate(discipleId)
-                if (disciple == null) {
-                    showError("弟子不存在")
-                    return@launch
-                }
-
-                if (disciplePositionQuery.hasDisciplePosition(discipleId)) {
-                    showError("该弟子已担任其他职务，不可同时担任多个职务")
-                    return@launch
-                }
-
-                if (disciplePositionQuery.isReserveDisciple(discipleId)) {
-                    showError("该弟子已是其他部门的储备弟子")
-                    return@launch
-                }
-
-                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
-                if (currentReserveDisciples.any { it.discipleId == discipleId }) {
-                    showError("该弟子已是储备弟子")
-                    return@launch
-                }
-
-                val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
-                val newSlot = DirectDiscipleSlot(
-                    index = newIndex,
-                    discipleId = discipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor,
-                    sectId = gameEngine.gameDataSnapshot.activeSectId
-                )
-
-                val updatedReserveDisciples = currentReserveDisciples + newSlot
-                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-            } catch (e: Exception) {
-                showError(e.message ?: "添加失败")
-            }
-        }
-    }
-
-    fun addReserveDisciples(discipleIds: List<String>) {
-        viewModelScope.launch {
-            try {
-                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
-                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
-
-                val newSlots = mutableListOf<DirectDiscipleSlot>()
-                var nextIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
-
-                for (discipleId in discipleIds) {
-                    if (discipleId in existingIds) continue
-
-                    val disciple = gameEngine.getDiscipleAggregate(discipleId)
-                    if (disciple == null) continue
-
-                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) continue
-
-                    if (disciplePositionQuery.isReserveDisciple(discipleId)) continue
-
-                    newSlots.add(
-                        DirectDiscipleSlot(
-                            index = nextIndex,
-                            discipleId = discipleId,
-                            discipleName = disciple.name,
-                            discipleRealm = disciple.realmName,
-                            discipleSpiritRootColor = disciple.spiritRoot.countColor,
-                            sectId = gameEngine.gameDataSnapshot.activeSectId
-                        )
-                    )
-                    nextIndex++
-                }
-
-                if (newSlots.isNotEmpty()) {
-                    val updatedReserveDisciples = currentReserveDisciples + newSlots
-                    gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "添加失败")
-            }
-        }
-    }
-
-    fun removeReserveDisciple(discipleId: String) {
-        viewModelScope.launch {
-            try {
-                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
-                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
-                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
-            } catch (e: Exception) {
-                showError(e.message ?: "移除失败")
-            }
-        }
-    }
-
     fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameDataSnapshot.elderSlots
 
@@ -337,14 +226,6 @@ class ProductionViewModel @Inject constructor(
         return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedByFollowAndRealm()
-    }
-
-    fun getAvailableDisciplesForLawEnforcementReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
-            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForOuterElder(): List<DiscipleAggregate> {

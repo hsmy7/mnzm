@@ -181,88 +181,10 @@ class AlchemyViewModel @Inject constructor(
             elderSlots.herbGardenElder,
             elderSlots.viceSectMaster
         ).filter { it.isNotEmpty() }
-        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples
-            + elderSlots.alchemyReserveDisciples + elderSlots.forgeReserveDisciples + elderSlots.herbGardenReserveDisciples)
+        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples)
             .mapNotNull { it.discipleId }.toSet()
         return all.filter { it.isAlive && it.id !in assignedIds && it.id !in elderIds && it.id !in directIds }
             .sortedByDescending { it.pillRefining }
-    }
-
-    fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
-        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
-        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
-            .sortedByDescending { it.pillRefining }
-    }
-
-    fun addAlchemyReserveDisciples(discipleIds: List<String>) {
-        viewModelScope.launch {
-            try {
-                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.toMutableList() ?: mutableListOf()
-                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
-                val initialSize = currentReserveDisciples.size
-
-                discipleIds.forEach { discipleId ->
-                    if (existingIds.contains(discipleId)) return@forEach
-                    val disciple = gameEngine.disciples.value.find { it.id == discipleId } ?: return@forEach
-                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
-                    if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
-
-                    val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
-                    val newSlot = DirectDiscipleSlot(
-                        index = newIndex,
-                        discipleId = discipleId,
-                        discipleName = disciple.name,
-                        discipleRealm = disciple.realmName,
-                        discipleSpiritRootColor = disciple.spiritRoot.countColor,
-                        sectId = gameEngine.gameDataSnapshot.activeSectId
-                    )
-                    currentReserveDisciples.add(newSlot)
-                }
-
-                val addedCount = currentReserveDisciples.size - initialSize
-                if (addedCount > 0) {
-                    gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = currentReserveDisciples)) }
-                } else {
-                    showError("没有可添加的弟子")
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "添加失败")
-            }
-        }
-    }
-
-    fun removeAlchemyReserveDisciple(discipleId: String) {
-        viewModelScope.launch {
-            try {
-                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
-                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
-                gameEngine.updateGameDataAndSync { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "移除失败")
-            }
-        }
-    }
-
-    fun getAvailableDisciplesForAlchemyReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
-            elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
-            elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
-
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForProductionPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
-            .sortedByDescending { it.pillRefining }
-    }
-
-    fun getAlchemyReserveDisciples(): List<DirectDiscipleSlot> {
-        val activeSectId = gameEngine.gameDataSnapshot?.activeSectId ?: ""
-        return gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.filter { it.sectId == activeSectId } ?: emptyList()
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {
