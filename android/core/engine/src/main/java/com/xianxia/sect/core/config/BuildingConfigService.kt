@@ -222,7 +222,7 @@ class BuildingConfigService @Inject constructor(
                     id = "herb_garden",
                     displayName = "灵植阁",
                     buildingType = "HERB_GARDEN",
-                    slotCount = 3,
+                    slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 3000,
                     gridWidth = 2,

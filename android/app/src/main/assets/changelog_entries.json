@@ -3,6 +3,7 @@
 		"date": "2026-07-05",
 		"version": "4.0.41",
 		"changes": [
+			"优化：自动管理（天枢殿→宗门管理→自动管理）——每种生产类型（灵矿/灵植/炼丹/锻造）从每月仅安排1人改为有多少空闲槽位就安排多少符合条件的空闲弟子",
 			"修复：居所弟子忠诚度加成（processResidenceLoyalty）未在生产代码调用导致失效+年俸发放晚于叛逃检查——批量叛逃Bug",
 			"重构：宗门地图渲染架构重写——移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制",
 			"修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",

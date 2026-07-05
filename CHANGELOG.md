@@ -11,6 +11,8 @@
 
 ### 重构
 
+- **自动管理改为批量填满空闲槽位** — `processAutoAssign()` 每种生产类型（灵矿/灵植/炼丹/锻造）从"月度判定只安排1人"改为"有多少空闲槽位就安排多少符合条件的空闲弟子"。采矿槽位单次 `stateStore.update` 批量写入，仓库型槽位用 `batchUpdate` 一次性提交。
+
 - **宗门地图渲染架构重写** — 移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、
   previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制。
   背景+建筑+动态叠加层合并到单个Canvas，每帧从placedBuildings数据实时绘制，GPU自动合成。

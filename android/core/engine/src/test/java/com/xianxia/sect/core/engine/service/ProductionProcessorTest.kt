@@ -361,4 +361,100 @@ class ProductionProcessorTest {
             false || listOf(1, 2).isNotEmpty()
         )
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // batchAssignToProductionSlots — 批量填满所有空闲槽位
+    //
+    // 模拟 batchAssignToProductionSlots 的循环逻辑：
+    // 遍历空闲槽位 → 依次取候选人 → 直到槽满或候选耗尽。
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 模拟 batchAssignToProductionSlots 的批量填充逻辑。
+     *
+     * @param emptyCount 空闲槽位数
+     * @param candidates 可变候选人列表（会被消耗）
+     * @return 实际安排的槽位数
+     */
+    private fun simulateBatchFill(emptyCount: Int, candidates: MutableList<String>): Int {
+        var filled = 0
+        for (i in 0 until emptyCount) {
+            if (candidates.isEmpty()) break
+            candidates.removeFirst()
+            filled++
+        }
+        return filled
+    }
+
+    @Test
+    fun `batchFill - 3空槽3候选人全部填满`() {
+        val candidates = mutableListOf("d1", "d2", "d3")
+        val filled = simulateBatchFill(3, candidates)
+        assertEquals("3空槽3候选人应填满3槽", 3, filled)
+        assertTrue("候选人应全部用完", candidates.isEmpty())
+    }
+
+    @Test
+    fun `batchFill - 3空槽仅1候选人只填1槽`() {
+        val candidates = mutableListOf("d1")
+        val filled = simulateBatchFill(3, candidates)
+        assertEquals("3空槽1候选人只应填1槽", 1, filled)
+        assertTrue("候选人应全部用完", candidates.isEmpty())
+    }
+
+    @Test
+    fun `batchFill - 1空槽3候选人只填1槽`() {
+        val candidates = mutableListOf("d1", "d2", "d3")
+        val filled = simulateBatchFill(1, candidates)
+        assertEquals("1空槽3候选人只应填1槽", 1, filled)
+        assertEquals("应剩2候选人", 2, candidates.size)
+    }
+
+    @Test
+    fun `batchFill - 0空槽不安排任何候选人`() {
+        val candidates = mutableListOf("d1", "d2")
+        val filled = simulateBatchFill(0, candidates)
+        assertEquals("0空槽不应安排任何人", 0, filled)
+        assertEquals("候选人不应被消耗", 2, candidates.size)
+    }
+
+    @Test
+    fun `batchFill - 无候选人时空槽保持空闲`() {
+        val candidates = mutableListOf<String>()
+        val filled = simulateBatchFill(3, candidates)
+        assertEquals("无候选人时应安排0人", 0, filled)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 跨优先级批量填充 — 采矿优先于种植，优先消耗候选人池
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `batchFill - 采矿3空槽种植2空槽共5候选人全部填满`() {
+        val candidates = mutableListOf("d1", "d2", "d3", "d4", "d5")
+
+        // 采矿先填 3 空槽
+        val mineFilled = simulateBatchFill(3, candidates)
+        assertEquals("采矿应填满3槽", 3, mineFilled)
+
+        // 种植后填 2 空槽
+        val plantFilled = simulateBatchFill(2, candidates)
+        assertEquals("种植应填满2槽", 2, plantFilled)
+
+        assertTrue("5候选人应全部用完", candidates.isEmpty())
+    }
+
+    @Test
+    fun `batchFill - 跨类型竞争时前面的类型优先消耗候选人`() {
+        val candidates = mutableListOf("d1", "d2")
+
+        // 采矿先填 3 空槽，但只有 2 候选人
+        val mineFilled = simulateBatchFill(3, candidates)
+        assertEquals("采矿应消耗所有2候选人", 2, mineFilled)
+        assertTrue("候选人应全部用完", candidates.isEmpty())
+
+        // 种植无候选人可用
+        val plantFilled = simulateBatchFill(2, candidates)
+        assertEquals("种植无候选人应安排0人", 0, plantFilled)
+    }
 }

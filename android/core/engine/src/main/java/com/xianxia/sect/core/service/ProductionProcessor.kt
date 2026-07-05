@@ -508,60 +508,80 @@ class ProductionProcessor @Inject constructor(
         }
 
         if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
-            val candidate = takeCandidate(policies.autoMineFocused, policies.autoMineRootCounts, policies.autoMineThreshold) { it.mining }
-            if (candidate != null) {
-                val emptyIndex = data.spiritMineSlots.indexOfFirst { it.discipleId.isEmpty() }
-                if (emptyIndex >= 0) {
+            val emptyIndices = data.spiritMineSlots
+                .mapIndexedNotNull { i, slot -> if (slot.discipleId.isEmpty()) i else null }
+            if (emptyIndices.isNotEmpty()) {
+                val assignments = emptyIndices.mapNotNull {
+                    val c = takeCandidate(policies.autoMineFocused, policies.autoMineRootCounts, policies.autoMineThreshold) { it.mining }
+                    c?.let { it.id to it.name }
+                }
+                if (assignments.isNotEmpty()) {
+                    val assignIter = assignments.iterator()
                     stateStore.update {
-                        gameData = gameData.copy(spiritMineSlots = gameData.spiritMineSlots.mapIndexed { i, slot ->
-                            if (i == emptyIndex) slot.copy(discipleId = candidate.id, discipleName = candidate.name) else slot
+                        gameData = gameData.copy(spiritMineSlots = gameData.spiritMineSlots.map { slot ->
+                            if (slot.discipleId.isEmpty() && assignIter.hasNext()) {
+                                val (id, name) = assignIter.next()
+                                slot.copy(discipleId = id, discipleName = name)
+                            } else slot
                         })
                     }
-                    markDiscipleAssigned(candidate.id, DiscipleStatus.MINING)
+                    assignments.forEach { (id, _) -> markDiscipleAssigned(id, DiscipleStatus.MINING) }
                 }
             }
         }
 
         if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
-            val candidate = takeCandidate(policies.autoPlantFocused, policies.autoPlantRootCounts, policies.autoPlantThreshold) { it.spiritPlanting }
-            if (candidate != null) {
-                val slots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
-                val emptySlot = slots.firstOrNull { it.assignedDiscipleId.isNullOrEmpty() && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
-                if (emptySlot != null) {
-                    productionSlotRepository.updateSlotByBuildingId("herbGarden", emptySlot.slotIndex) { s ->
-                        s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
-                    }
-                    markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
-                }
+            batchAssignToProductionSlots(
+                com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN, "herbGarden"
+            ) {
+                takeCandidate(policies.autoPlantFocused, policies.autoPlantRootCounts, policies.autoPlantThreshold) { it.spiritPlanting }
             }
         }
 
         if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
-            assignToProductionSlot(
-                takeCandidate(policies.autoAlchemyFocused, policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold) { it.pillRefining },
+            batchAssignToProductionSlots(
                 com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, BuildingNames.ALCHEMY
-            )
+            ) {
+                takeCandidate(policies.autoAlchemyFocused, policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold) { it.pillRefining }
+            }
         }
 
         if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
-            assignToProductionSlot(
-                takeCandidate(policies.autoForgeFocused, policies.autoForgeRootCounts, policies.autoForgeThreshold) { it.artifactRefining },
+            batchAssignToProductionSlots(
                 com.xianxia.sect.core.model.production.BuildingType.FORGE, BuildingNames.FORGE
-            )
+            ) {
+                takeCandidate(policies.autoForgeFocused, policies.autoForgeRootCounts, policies.autoForgeThreshold) { it.artifactRefining }
+            }
         }
     }
 
-    private suspend fun assignToProductionSlot(
-        candidate: Disciple?, type: com.xianxia.sect.core.model.production.BuildingType, buildingId: String
+    /**
+     * 批量安排弟子到指定生产建筑的所有空闲槽位。
+     *
+     * 依次取候选人填满所有空闲槽位，用 [ProductionSlotRepository.batchUpdate] 一次性写入。
+     */
+    private suspend fun batchAssignToProductionSlots(
+        type: com.xianxia.sect.core.model.production.BuildingType,
+        buildingId: String,
+        takeNext: () -> Disciple?
     ) {
-        if (candidate == null) return
         val slots = productionSlotRepository.getSlotsByType(type)
-        val emptySlot = slots.firstOrNull { it.assignedDiscipleId.isNullOrEmpty() && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
-        if (emptySlot != null) {
-            productionSlotRepository.updateSlotByBuildingId(buildingId, emptySlot.slotIndex) { s ->
-                s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
-            }
+        val emptySlots = slots.filter { slot ->
+            slot.assignedDiscipleId.isNullOrEmpty()
+                && slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+        }
+        if (emptySlots.isEmpty()) return
+
+        val updates = mutableListOf<com.xianxia.sect.core.repository.SlotUpdate>()
+        for (emptySlot in emptySlots) {
+            val candidate = takeNext() ?: break
             markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
+            updates.add(com.xianxia.sect.core.repository.SlotUpdate(type, emptySlot.slotIndex) { s ->
+                s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
+            })
+        }
+        if (updates.isNotEmpty()) {
+            productionSlotRepository.batchUpdate(updates)
         }
     }
 
