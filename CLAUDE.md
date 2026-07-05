@@ -221,6 +221,10 @@ Compose UI Thread(Main)            Android 主线程
 **UseCase:** `app/.../core/usecase/`(14 UseCase classes), `.../core/state/`(GameStateStoreImpl), `.../core/util/`(ObjectPool/CircularBuffer), `.../core/CrashHandler.kt`
 **Infrastructure:** `app/.../di/`(Hilt modules), `.../network/`(Retrofit/OkHttp), `taptap/`(TapTap SDK wrappers)
 
+### Architecture Docs
+
+- [宗门地图渲染架构](docs/map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
+
 ### Key Classes
 
 - **`GameEngineCore`** — 游戏循环控制器，驱动 4 条结算路径，通过 InterfaceDomainMap 解析焦点域

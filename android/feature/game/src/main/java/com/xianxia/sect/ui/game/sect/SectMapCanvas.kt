@@ -37,6 +37,15 @@ import kotlinx.coroutines.launch
 
 private enum class DragTarget { CAMERA, BUILDING_MOVE, BUILDING_PLACE, GOLD_FINGER }
 
+// 瓦片类型常量（与 GameActivity.kt 一致）
+private const val TILE_GROUND = 0
+private const val TILE_GRASS_SMALL = 1
+private const val TILE_GRASS_MEDIUM = 2
+private const val TILE_GRASS_LARGE = 3
+private const val TILE_TREE1 = 4
+private const val TILE_TREE2 = 5
+private const val TILE_BUILDING = 6
+
 /** 灵田作物生长阶段 */
 private enum class GrowthStage { SEED, GROWING, MATURE }
 
@@ -67,7 +76,10 @@ fun SectMapCanvas(
     config: SectMapRenderConfig,
     placedBuildings: List<GridBuildingData>,
     buildingBitmaps: Map<String, ImageBitmap>,
-    fullMapBmp: ImageBitmap,
+    groundTileBmp: ImageBitmap,
+    grassDecBitmaps: List<ImageBitmap>,
+    treeDecBitmaps: List<ImageBitmap>,
+    tileData: Array<IntArray>,
     placement: PlacementModeState,
     move: MoveModeState,
     goldFinger: GoldFingerState = GoldFingerState.INACTIVE,
@@ -262,23 +274,63 @@ fun SectMapCanvas(
                 scale(config.cameraState.scale, config.cameraState.scale)
             }) {
                 // =====================================
-                // 1. 背景地图
+                // 1. 地面（groundTileBmp 拉伸到世界尺寸）
                 // =====================================
                 drawImage(
-                    fullMapBmp,
-                    dstOffset = IntOffset(-1, -1),
-                    dstSize = IntSize(worldPixelWidth + 2, worldPixelHeight + 2)
+                    groundTileBmp,
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(worldPixelWidth, worldPixelHeight)
                 )
 
-                // =====================================
-                // 2. 建筑（视口裁剪）
-                // =====================================
-                val skipId = move.building?.instanceId
+                // 视口裁剪参数（供装饰层和建筑层使用）
                 val viewLeft = renderCamX - ts
                 val viewTop = renderCamY - ts
                 val viewRight = renderCamX + sw / config.cameraState.scale + ts
                 val viewBottom = renderCamY + sh / config.cameraState.scale + ts
 
+                // =====================================
+                // 2. 装饰物（逐可见格绘制，跳过建筑占用的格子）
+                // =====================================
+                val firstCol = max(0, (viewLeft / ts).toInt())
+                val lastCol = min(config.worldWidthCells - 1, (viewRight / ts).toInt())
+                val firstRow = max(0, (viewTop / ts).toInt())
+                val lastRow = min(config.worldHeightCells - 1, (viewBottom / ts).toInt())
+                for (row in firstRow..lastRow) {
+                    val tileRow = tileData[row]
+                    for (col in firstCol..lastCol) {
+                        when (tileRow[col]) {
+                            TILE_GRASS_SMALL, TILE_GRASS_MEDIUM,
+                            TILE_GRASS_LARGE -> {
+                                val idx = tileRow[col] - TILE_GRASS_SMALL  // 0,1,2
+                                if (idx < grassDecBitmaps.size) {
+                                    drawImage(
+                                        grassDecBitmaps[idx],
+                                        dstOffset = IntOffset(col * ts, row * ts),
+                                        dstSize = IntSize(ts, ts)
+                                    )
+                                }
+                            }
+                            TILE_TREE1, TILE_TREE2 -> {
+                                val idx = tileRow[col] - TILE_TREE1  // 0,1
+                                if (idx < treeDecBitmaps.size) {
+                                    val tx = (col - 1) * ts
+                                    val ty = (row - 1) * ts
+                                    drawImage(
+                                        treeDecBitmaps[idx],
+                                        dstOffset = IntOffset(tx, ty),
+                                        dstSize = IntSize(ts * 2, ts * 2)
+                                    )
+                                }
+                            }
+                            // TILE_BUILDING / TILE_GROUND: 跳过
+                        }
+                    }
+                }
+
+                // =====================================
+                // 3. 建筑（视口裁剪）
+
+                val skipId = move.building?.instanceId
                 for (building in placedBuildings) {
                     // 跳过正在移动中的建筑（在动态叠加层中单独绘制）
                     if (skipId != null && building.instanceId == skipId) continue
@@ -305,7 +357,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 3. 移动中的建筑 — 原始位置幽灵（0.5 alpha）
+                // 4. 移动中的建筑 — 原始位置幽灵（0.5 alpha）
                 // =====================================
                 val mb = move.building
                 if (mb != null) {
@@ -321,7 +373,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 4. 灵田作物动态叠加层
+                // 5. 灵田作物动态叠加层
                 // =====================================
                 if (cropBitmaps.isNotEmpty() && spiritFieldPlants.isNotEmpty()) {
                     for (building in spiritFieldBuildings) {
@@ -358,7 +410,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 5. 灵植阁光环预览
+                // 6. 灵植阁光环预览
                 // =====================================
                 val showHerbGardenAura = (placement.isActive && placement.buildingName == herbGardenDisplayName) ||
                         (move.isActive && (move.building?.displayName ?: "") == herbGardenDisplayName)
@@ -392,7 +444,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 6. 网格线（放置/移动模式时显示）
+                // 7. 网格线（放置/移动模式时显示）
                 // =====================================
                 if (placement.isActive || move.isActive) {
                     val gridColor = Color(0xFFE4DDD0)
@@ -442,7 +494,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 7. 放置预览
+                // 8. 放置预览
                 // =====================================
                 if (placement.isActive) {
                     if (placement.buildingName.isNotEmpty()) {
@@ -478,7 +530,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 8. 移动预览（0.7 alpha）+ 移动中建筑预览
+                // 9. 移动预览（0.7 alpha）+ 移动中建筑预览
                 // =====================================
                 if (move.isActive) {
                     // 预览精灵图吸附到新位置
@@ -506,7 +558,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 9. 金手指框选区域渲染
+                // 10. 金手指框选区域渲染
                 // =====================================
                 if (goldFinger.isActive) {
                     val gMinX = minOf(goldFinger.startGridX, goldFinger.endGridX)
@@ -556,7 +608,7 @@ fun SectMapCanvas(
                 }
 
                 // =====================================
-                // 10. 灵植阁光环范围圈
+                // 11. 灵植阁光环范围圈
                 // =====================================
                 if (showHerbGardenAura) {
                     val centerX: Float

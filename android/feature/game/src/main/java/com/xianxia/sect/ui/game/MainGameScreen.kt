@@ -120,11 +120,14 @@ import com.xianxia.sect.ui.theme.ButtonSizes
  * - 内存: 减少 30% (更少的状态快照)
  */
 
-// 瓦片类型常量（0=空地 1=草地 2=树木 3=建筑）
+// 瓦片类型常量（与 GameActivity.kt 一致）
 private const val TILE_GROUND = 0
-private const val TILE_GRASS = 1
-private const val TILE_TREE = 2
-private const val TILE_BUILDING = 3
+private const val TILE_GRASS_SMALL = 1
+private const val TILE_GRASS_MEDIUM = 2
+private const val TILE_GRASS_LARGE = 3
+private const val TILE_TREE1 = 4
+private const val TILE_TREE2 = 5
+private const val TILE_BUILDING = 6
 
 @Composable
 fun MainGameScreen(
@@ -246,11 +249,12 @@ fun MainGameScreen(
 
     // 地图瓦片素材 — 由 GameActivity 预加载，此处同步读取
 
-    val fullMapBmp = remember(mapPreloadData) { mapPreloadData.fullMapBmp }
-
     val rawTileData = mapPreloadData.rawTileData
+    val groundTileBmp = mapPreloadData.groundTileBmp
+    val grassDecBitmaps = mapPreloadData.grassDecBitmaps
+    val treeDecBitmaps = mapPreloadData.treeDecBitmaps
 
-    // 建筑覆盖到瓦片数据
+    // 瓦片数据（含建筑占位标记）：装饰物类型 + 建筑占用 → 统一 tileData
     val tileData = remember(rawTileData, effectivePlacedBuildings) {
         val data = Array(rawTileData.size) { rawTileData[it].copyOf() }
         for (b in effectivePlacedBuildings) {
@@ -428,7 +432,10 @@ fun MainGameScreen(
             ),
             placedBuildings = activeSectBuildings,
             buildingBitmaps = buildingBitmaps,
-            fullMapBmp = fullMapBmp,
+            groundTileBmp = groundTileBmp,
+            grassDecBitmaps = grassDecBitmaps,
+            treeDecBitmaps = treeDecBitmaps,
+            tileData = tileData,
             spiritFieldPlants = gameData.spiritFieldPlants,
             spiritFieldBuildings = activeSectBuildings.filter {
                 it.displayName == BuildingDef.SPIRIT_FIELD.displayName
