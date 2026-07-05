@@ -865,6 +865,12 @@ class GameEngineCore @Inject constructor(
         // ── 月变/年变后处理（统一路径）──
         if (yearChanged) {
             cultivationService.processYearlyEvents()
+            // ★ 年俸先于月度事件（含叛逃检查）发放，确保叛逃检查看到加薪后的忠诚度
+            if (stateStore.gameData.value.gameMonth == 1) {
+                cultivationService.processAnnualSalary(
+                    stateStore.gameData.value.gameYear
+                )
+            }
         }
         if (monthChanged) {
             cultivationService.processMonthlyEvents()
@@ -888,12 +894,6 @@ class GameEngineCore @Inject constructor(
                 if (completed) settlementCoordinator.onSettlementComplete()
             }
 
-            // 年俸发放（每年 1 月）
-            if (stateStore.gameData.value.gameMonth == 1) {
-                cultivationService.processAnnualSalary(
-                    stateStore.gameData.value.gameYear
-                )
-            }
         }
 
         // 巡逻结果（空闲/活跃共同）

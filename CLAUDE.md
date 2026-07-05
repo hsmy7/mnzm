@@ -636,7 +636,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 
 **12.3 🟢 同步 `CODE_WIKI.md`** — 新增模块/模式后更新架构文档。
 
-**12.4 🔴 功能变更必须更新 Changelog** — 同步更新 `CHANGELOG.md`（项目根目录）和 `ChangelogData.kt`（游戏内）。
+**12.4 🔴 功能变更必须更新 Changelog** — 同步更新 `CHANGELOG.md`（项目根目录）和 `ChangelogData.kt`（游戏内）。改动写入**当前版本**条目，不强制递增版本号。
 
 ---
 
@@ -748,9 +748,14 @@ Never commit PNG/JPG game images. The only PNG exception is `ic_launcher-playsto
 
 After implementing any feature or bug fix, update BOTH:
 - **In-game**: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt` — add/append `ChangelogEntry` to `entries` list
-- **External**: `CHANGELOG.md` at project root — add version section at top
+- **External**: `CHANGELOG.md` at project root — **追加到当前版本段落内**（不总是新建版本）
 
 Both must be updated before marking any task complete. Changes described in Chinese from the player's perspective.
+
+**版本号变更规则：**
+- 普通改动直接写入当前版本的日志条目，不递增版本号
+- **禁止擅自更新版本号**（`versionCode`、`versionName`）—— 只有用户明确要求时才可更新
+- 需要在 `build.gradle` 中更新版本号的场景（发布新版本、重大功能完成、存档兼容性变更等）由用户判断和指令
 
 ## Version Release
 

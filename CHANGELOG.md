@@ -2,6 +2,13 @@
 
 ## [4.0.41] - 2026-07-05（versionCode=4041）
 
+### Bug 修复
+
+- **修复弟子批量叛逃脱离宗门的Bug** — 根因：年俸从月发改为年发后，居所弟子每月+1忠诚度机制（`processResidenceLoyalty()`）未在生产代码中调用，导致所有居所弟子忠诚度加成失效。矿工每3月-1忠诚度仍在执行，忠诚度持续下降突破30阈值后触发批量叛逃。
+  - 接通居所忠诚度月度加成：`CultivationService.processMonthlyEvents()` 增加 `processResidenceLoyalty()` 调用
+  - 调整年俸发放执行顺序：年俸（+1忠诚度）提前到月度叛逃检查之前发放，避免忠诚度29的弟子因检查顺序问题被误判叛逃
+  - 解决了预存资源编译错误（clean后R.java缓存重建问题）
+
 ### 重构
 
 - **宗门地图渲染架构重写** — 移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、

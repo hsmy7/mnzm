@@ -402,8 +402,8 @@ class CultivationEventProcessor @Inject constructor(
         processScoutInfoExpiryLazy(year, month)
         diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
         vassalService.processMonthlyBreakawayCheck(year, month)
-        processLawEnforcementMonthly()
         processTheftIfNeeded()
+        processLawEnforcementMonthly()
         processMissionRefreshIfDue(month)
         processCompletedMissionsLazy(year, month)
         if (month == 12) {

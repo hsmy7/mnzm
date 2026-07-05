@@ -667,7 +667,7 @@ object GameConfig {
     object LawEnforcementConfig {
         const val LOYALTY_THRESHOLD = 30
         const val MORALITY_THRESHOLD = 30
-        const val PROB_PER_POINT = 0.03
+        const val PROB_PER_POINT = 0.01
         const val MAX_PROB = 0.90
         const val THEFT_MIN_RATIO = 0.01
         const val THEFT_MAX_RATIO = 0.05

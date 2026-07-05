@@ -3,6 +3,7 @@
 		"date": "2026-07-05",
 		"version": "4.0.41",
 		"changes": [
+			"修复：居所弟子忠诚度加成（processResidenceLoyalty）未在生产代码调用导致失效+年俸发放晚于叛逃检查——批量叛逃Bug",
 			"重构：宗门地图渲染架构重写——移除双缓冲Bitmap烘焙管线（frontBuffer/backBuffer双缓冲、previousBuildings增量追踪、erasedCells残影清理等共~370行代码），统一为Canvas直接绘制",
 			"修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",
 			"修复：建筑移动确认时序——movingBuilding=null在stateStore.update完成后执行，消除竞态",

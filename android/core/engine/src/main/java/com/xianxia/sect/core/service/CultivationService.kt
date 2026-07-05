@@ -217,6 +217,8 @@ class CultivationService @Inject constructor(
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
         // 空闲弟子自动分配：月度结算路径，一月判定一次
         productionProcessor.processAutoAssign()
+        // 居所弟子每月忠诚度加成（年俸改为年发后，居所加成是月度忠诚度的主要来源）
+        cultivationSettlement.processResidenceLoyalty()
     }
 
     /**

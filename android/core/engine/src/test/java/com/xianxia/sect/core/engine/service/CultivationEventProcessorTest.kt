@@ -160,11 +160,11 @@ class CultivationEventProcessorTest {
     // ═══════════════════════════════════════════════════════════════
     // 叛逃概率公式
     // ═══════════════════════════════════════════════════════════════
-    // 公式：desertionProb = (30 - loyalty) * 0.03，范围 [0, 0.9]
+    // 公式：desertionProb = (30 - loyalty) * 0.01，范围 [0, 0.9]
 
     private fun calcDesertionProb(loyalty: Int): Double {
         val threshold = 30
-        val probPerPoint = 0.03
+        val probPerPoint = 0.01
         val maxProb = 0.9
         return ((threshold - loyalty) * probPerPoint)
             .coerceIn(0.0, maxProb)
@@ -176,23 +176,23 @@ class CultivationEventProcessorTest {
     }
 
     @Test
-    fun `叛逃概率 - loyalty=29 概率为3%`() {
-        assertEquals(0.03, calcDesertionProb(29), 0.001)
+    fun `叛逃概率 - loyalty=29 概率为1%`() {
+        assertEquals(0.01, calcDesertionProb(29), 0.001)
     }
 
     @Test
-    fun `叛逃概率 - loyalty=20 概率为30%`() {
-        assertEquals(0.30, calcDesertionProb(20), 0.001)
+    fun `叛逃概率 - loyalty=20 概率为10%`() {
+        assertEquals(0.10, calcDesertionProb(20), 0.001)
     }
 
     @Test
-    fun `叛逃概率 - loyalty=0 概率为90%上限`() {
-        assertEquals(0.90, calcDesertionProb(0), 0.001)
+    fun `叛逃概率 - loyalty=0 概率为30%`() {
+        assertEquals(0.30, calcDesertionProb(0), 0.001)
     }
 
     @Test
-    fun `叛逃概率 - loyalty=-10 概率仍为90%上限`() {
-        assertEquals(0.90, calcDesertionProb(-10), 0.001)
+    fun `叛逃概率 - loyalty=-10 概率为40%`() {
+        assertEquals(0.40, calcDesertionProb(-10), 0.001)
     }
 
     @Test
@@ -209,11 +209,11 @@ class CultivationEventProcessorTest {
     // ═══════════════════════════════════════════════════════════════
     // 偷盗概率公式
     // ═══════════════════════════════════════════════════════════════
-    // 公式：(30 - morality) * 0.03，范围 [0, 0.9]
+    // 公式：(30 - morality) * 0.01，范围 [0, 0.9]
 
     private fun calcTheftProb(morality: Int): Double {
         val threshold = 30
-        val probPerPoint = 0.03
+        val probPerPoint = 0.01
         val maxProb = 0.9
         return ((threshold - morality) * probPerPoint)
             .coerceIn(0.0, maxProb)
@@ -225,13 +225,13 @@ class CultivationEventProcessorTest {
     }
 
     @Test
-    fun `偷盗概率 - morality=20 概率为30%`() {
-        assertEquals(0.30, calcTheftProb(20), 0.001)
+    fun `偷盗概率 - morality=20 概率为10%`() {
+        assertEquals(0.10, calcTheftProb(20), 0.001)
     }
 
     @Test
-    fun `偷盗概率 - morality=0 概率为90%上限`() {
-        assertEquals(0.90, calcTheftProb(0), 0.001)
+    fun `偷盗概率 - morality=0 概率为30%`() {
+        assertEquals(0.30, calcTheftProb(0), 0.001)
     }
 
     @Test
