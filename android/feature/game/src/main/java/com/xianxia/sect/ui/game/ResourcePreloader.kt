@@ -14,7 +14,6 @@ import com.xianxia.sect.ui.components.allManualSpriteResIds
 import com.xianxia.sect.ui.components.allPillSpriteResIds
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
-import com.xianxia.sect.ui.game.building.BuildingRegistry
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +41,6 @@ class ResourcePreloader @Inject constructor(
     companion object {
         private const val TAG = "ResourcePreloader"
         private const val MAX_SPRITE_DIMENSION = 300
-        private const val MAX_BUILDING_DIMENSION = 256
         private const val MAX_PORTRAIT_DIMENSION = 256
         private const val MAX_UI_DIMENSION = 128
 
@@ -67,13 +65,11 @@ class ResourcePreloader @Inject constructor(
     /**
      * 预加载结果
      *
-     * @param buildingBitmaps 建筑物精灵图（宗门地图渲染用）
      * @param itemSprites 物品精灵图（功法/药丸/装备，仓库用）
      * @param portraitSprites 弟子头像精灵图（L0，首屏弟子列表用）
      * @param uiSprites 关键 UI 精灵图（L0，底部按钮栏用）
      */
     data class PreloadResult(
-        val buildingBitmaps: Map<String, ImageBitmap>,
         val itemSprites: Map<Int, ImageBitmap>,
         val portraitSprites: Map<String, ImageBitmap>,
         val uiSprites: Map<String, ImageBitmap>
@@ -117,18 +113,16 @@ class ResourcePreloader @Inject constructor(
         onProgress(SaveLoadViewModelConstants.PROGRESS_SPRITE_PRELOAD)
 
         return withContext(Dispatchers.Default) {
-            val buildingDeferred = async { preloadBuildingBitmaps() }
             val itemDeferred = async { preloadItemSprites() }
             val portraitDeferred = async { preloadPortraitSprites() }
             val uiDeferred = async { preloadCriticalUiSprites() }
 
             val result = PreloadResult(
-                buildingBitmaps = buildingDeferred.await(),
                 itemSprites = itemDeferred.await(),
                 portraitSprites = portraitDeferred.await(),
                 uiSprites = uiDeferred.await()
             )
-            Log.d(TAG, "Preload complete: buildings=${result.buildingBitmaps.size}, " +
+            Log.d(TAG, "Preload complete: " +
                 "items=${result.itemSprites.size}, portraits=${result.portraitSprites.size}, " +
                 "ui=${result.uiSprites.size}")
             result
@@ -189,22 +183,6 @@ class ResourcePreloader @Inject constructor(
                 name to (bmp?.asImageBitmap() ?: return@mapNotNull null)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to decode UI sprite: $resId", e)
-                null
-            }
-        }.toMap()
-    }
-
-    // ── L1: 建筑物精灵图 ──
-
-    private fun preloadBuildingBitmaps(): Map<String, ImageBitmap> {
-        val bitmapNames = BuildingRegistry.names
-        return bitmapNames.mapNotNull { name ->
-            val resId = getBuildingDrawableResId(name)
-            try {
-                val bmp = decodeBitmap(resId, MAX_BUILDING_DIMENSION)
-                name to (bmp?.asImageBitmap() ?: return@mapNotNull null)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to decode building bitmap: $name", e)
                 null
             }
         }.toMap()
@@ -303,7 +281,4 @@ class ResourcePreloader @Inject constructor(
         height: Int,
         maxDimension: Int = MAX_SPRITE_DIMENSION
     ): Int = calcSampleSize(width, height, maxDimension)
-
-    private fun getBuildingDrawableResId(displayName: String): Int =
-        BuildingRegistry.drawableRes(displayName)
 }

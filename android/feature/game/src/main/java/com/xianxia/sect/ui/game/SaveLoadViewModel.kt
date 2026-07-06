@@ -77,7 +77,6 @@ class SaveLoadViewModel @Inject constructor(
             onProgress = { _loadingProgress.value = it },
             onPhase = { _preloadPhase.value = it }
         )
-        _preloadedBuildingBitmaps.value = result.buildingBitmaps
         _preloadedItemSprites.value = result.itemSprites
         _preloadedPortraitSprites.value = result.portraitSprites
         _preloadedUiSprites.value = result.uiSprites
@@ -107,9 +106,6 @@ class SaveLoadViewModel @Inject constructor(
 
     private val _loadingProgress = MutableStateFlow(0f)
     val loadingProgress: StateFlow<Float> = _loadingProgress.asStateFlow()
-
-    private val _preloadedBuildingBitmaps = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
-    val preloadedBuildingBitmaps: StateFlow<Map<String, ImageBitmap>> = _preloadedBuildingBitmaps.asStateFlow()
 
     private val _preloadedItemSprites = MutableStateFlow<Map<Int, ImageBitmap>>(emptyMap())
     val preloadedItemSprites: StateFlow<Map<Int, ImageBitmap>> = _preloadedItemSprites.asStateFlow()

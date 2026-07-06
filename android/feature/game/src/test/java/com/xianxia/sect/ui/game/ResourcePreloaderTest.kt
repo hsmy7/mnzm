@@ -87,13 +87,11 @@ class ResourcePreloaderTest {
     @Test
     fun `PreloadResult - constructed with empty maps`() {
         val result = ResourcePreloader.PreloadResult(
-            buildingBitmaps = emptyMap(),
             itemSprites = emptyMap(),
             portraitSprites = emptyMap(),
             uiSprites = emptyMap()
         )
         assertNotNull(result)
-        assertTrue(result.buildingBitmaps.isEmpty())
         assertTrue(result.itemSprites.isEmpty())
         assertTrue(result.portraitSprites.isEmpty())
         assertTrue(result.uiSprites.isEmpty())
@@ -103,12 +101,10 @@ class ResourcePreloaderTest {
     fun `PreloadResult - constructed with populated maps`() {
         val mockBitmap = mockk<ImageBitmap>(relaxed = true)
         val result = ResourcePreloader.PreloadResult(
-            buildingBitmaps = mapOf("alchemy" to mockBitmap),
             itemSprites = mapOf(1 to mockBitmap, 2 to mockBitmap),
             portraitSprites = mapOf("male_1" to mockBitmap),
             uiSprites = mapOf("ui_button" to mockBitmap)
         )
-        assertEquals(1, result.buildingBitmaps.size)
         assertEquals(2, result.itemSprites.size)
         assertEquals(1, result.portraitSprites.size)
         assertEquals(1, result.uiSprites.size)

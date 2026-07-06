@@ -1,0 +1,1315 @@
+#include "VulkanBackend.h"
+#include <android/native_window_jni.h>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#include <cstring>
+#include <algorithm>
+#include <vector>
+#include <set>
+#include <android/log.h>
+
+// SPIR-V 着色器字节码（由 gen_header.py 从 .spv 生成）
+#include "shaders.h"
+
+#define LOG_TAG "VulkanBackend"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+// ============================================================
+// 初始化
+// ============================================================
+
+// 创建 1×1 白色纹理（供 drawRect 纯色矩形使用）
+// 在纯色绘制时，shader 计算 outFrag = texture(white) * vertexColor = 1.0 * vertexColor = vertexColor
+// 避免采样图集左上角像素导致颜色错误。
+bool VulkanBackend::createWhiteTexture() {
+    uint8_t whitePixel[4] = { 255, 255, 255, 255 };
+    int w = 1, h = 1;
+
+    Texture& outTex = m_whiteTexture;
+
+    VkImageCreateInfo imgInfo{};
+    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imgInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imgInfo.extent = { (uint32_t)w, (uint32_t)h, 1 };
+    imgInfo.mipLevels = 1;
+    imgInfo.arrayLayers = 1;
+    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imgInfo.tiling = VK_IMAGE_TILING_LINEAR;
+    imgInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (vkCreateImage(m_device, &imgInfo, nullptr, &outTex.image) != VK_SUCCESS) {
+        LOGE("Failed to create white texture image");
+        return false;
+    }
+
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(m_device, outTex.image, &memReq);
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((memReq.memoryTypeBits & (1u << i)) &&
+            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+            memType = i;
+            break;
+        }
+    }
+    if (memType == UINT32_MAX) { LOGE("No mem type for white texture"); return false; }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outTex.memory) != VK_SUCCESS) {
+        LOGE("Failed to alloc white tex memory");
+        return false;
+    }
+    vkBindImageMemory(m_device, outTex.image, outTex.memory, 0);
+
+    void* mapped;
+    vkMapMemory(m_device, outTex.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    VkSubresourceLayout layout;
+    VkImageSubresource sub{};
+    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    vkGetImageSubresourceLayout(m_device, outTex.image, &sub, &layout);
+    memcpy((char*)mapped + layout.offset, whitePixel, 4);
+    vkUnmapMemory(m_device, outTex.memory);
+
+    // Layout transition: UNDEFINED → SHADER_READ_ONLY_OPTIMAL
+    VkCommandBufferAllocateInfo cmdAlloc{};
+    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAlloc.commandPool = m_commandPool;
+    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAlloc.commandBufferCount = 1;
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(m_device, &cmdAlloc, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = outTex.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_HOST_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+    VkFence fence;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(m_device, &fenceInfo, nullptr, &fence);
+    vkQueueSubmit(m_graphicsQueue, 1, &submit, fence);
+    vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkDestroyFence(m_device, fence, nullptr);
+    vkFreeCommandBuffers(m_device, m_commandPool, 1, &cmd);
+
+    // ImageView
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = outTex.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(m_device, &viewInfo, nullptr, &outTex.view) != VK_SUCCESS) {
+        LOGE("Failed to create white texture view");
+        return false;
+    }
+
+    VkSamplerCreateInfo sampInfo{};
+    sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampInfo.magFilter = VK_FILTER_NEAREST;
+    sampInfo.minFilter = VK_FILTER_NEAREST;
+    sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampInfo.anisotropyEnable = VK_FALSE;
+    sampInfo.maxLod = 1.0f;
+    if (vkCreateSampler(m_device, &sampInfo, nullptr, &outTex.sampler) != VK_SUCCESS) {
+        LOGE("Failed to create white texture sampler");
+        return false;
+    }
+
+    outTex.width = w;
+    outTex.height = h;
+    outTex.id = 0;  // 白色纹理 ID 固定为 0
+    return true;
+}
+
+bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
+    m_config = config;
+    // 增加 ANativeWindow 引用计数，防止 Surface 被销毁后窗口失效
+    m_nativeWindow = static_cast<ANativeWindow*>(nativeWindow);
+    if (m_nativeWindow) ANativeWindow_acquire(m_nativeWindow);
+
+    LOGI("init(%dx%d, window=%p)", config.viewportW, config.viewportH, nativeWindow);
+
+    if (!createInstance()) { LOGE("init: createInstance failed"); return false; }
+    if (!selectPhysicalDevice()) { LOGE("init: selectPhysicalDevice failed"); return false; }
+    if (!createLogicalDevice()) { LOGE("init: createLogicalDevice failed"); return false; }
+    if (!createSwapchain(config.viewportW, config.viewportH)) { LOGE("init: createSwapchain failed"); return false; }
+    if (!createRenderPass()) { LOGE("init: createRenderPass failed"); return false; }
+    if (!createFramebuffers()) { LOGE("init: createFramebuffers failed"); return false; }
+    if (!loadShaders()) { LOGE("init: loadShaders failed"); return false; }
+    if (!createPipeline()) { LOGE("init: createPipeline failed"); return false; }
+    if (!createVertexBuffer()) { LOGE("init: createVertexBuffer failed"); return false; }
+    if (!createCommandObjects()) { LOGE("init: createCommandObjects failed"); return false; }
+    if (!createSynchronization()) { LOGE("init: createSynchronization failed"); return false; }
+
+    // 创建 1×1 白色纹理，作为默认绑定纹理（供 drawRect 纯色矩形使用）
+    if (!createWhiteTexture()) {
+        LOGE("init: white texture creation failed (non-fatal, drawRect colors may be wrong)");
+    } else {
+        // 将描述符集初始指向白色纹理
+        bindTextureToDescriptor(m_whiteTexture);
+        LOGI("White texture created for solid-color draws");
+    }
+
+    orthoProj(m_projMatrix, 0.0f, (float)config.viewportW,
+              (float)config.viewportH, 0.0f);
+
+    m_ready = true;
+    LOGI("VulkanBackend initialized: %dx%d", config.viewportW, config.viewportH);
+    return true;
+}
+
+void VulkanBackend::shutdown() {
+    if (m_device == VK_NULL_HANDLE) return;
+    vkDeviceWaitIdle(m_device);
+
+    destroyPipelineObjects();
+    destroySwapchain();
+
+    // 清理白色纹理
+    if (m_whiteTexture.view) vkDestroyImageView(m_device, m_whiteTexture.view, nullptr);
+    if (m_whiteTexture.image) vkDestroyImage(m_device, m_whiteTexture.image, nullptr);
+    if (m_whiteTexture.memory) vkFreeMemory(m_device, m_whiteTexture.memory, nullptr);
+    if (m_whiteTexture.sampler) vkDestroySampler(m_device, m_whiteTexture.sampler, nullptr);
+    m_whiteTexture = {};
+
+    for (auto& tex : m_textures) {
+        if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
+        if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
+        if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
+        if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
+    }
+    m_textures.clear();
+
+    if (m_descriptorPool)
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+    if (m_descriptorSetLayout)
+        vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+
+    if (m_vertexBuffer && m_vertexMapped) {
+        vkUnmapMemory(m_device, m_vertexMemory);
+        m_vertexMapped = nullptr;
+    }
+    if (m_vertexBuffer) vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
+    if (m_vertexMemory) vkFreeMemory(m_device, m_vertexMemory, nullptr);
+
+    for (auto& sem : m_imageAvailable)
+        if (sem) vkDestroySemaphore(m_device, sem, nullptr);
+    for (auto& sem : m_renderFinished)
+        if (sem) vkDestroySemaphore(m_device, sem, nullptr);
+    for (auto& fence : m_inFlightFences)
+        if (fence) vkDestroyFence(m_device, fence, nullptr);
+
+    if (m_commandPool)
+        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+
+    if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+    if (m_device) vkDestroyDevice(m_device, nullptr);
+    if (m_instance) vkDestroyInstance(m_instance, nullptr);
+
+    // 释放 ANativeWindow 引用
+    if (m_nativeWindow) {
+        ANativeWindow_release(m_nativeWindow);
+        m_nativeWindow = nullptr;
+    }
+
+    m_ready = false;
+    LOGI("VulkanBackend shutdown");
+}
+
+// ============================================================
+// Instance / Device
+// ============================================================
+
+bool VulkanBackend::createInstance() {
+    VkApplicationInfo appInfo{};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "XianxiaSect";
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "NativeRenderer2D";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_1;
+
+    const char* extensions[] = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_ANDROID_SURFACE_EXTENSION_NAME
+    };
+
+    VkInstanceCreateInfo instInfo{};
+    instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instInfo.pApplicationInfo = &appInfo;
+    instInfo.enabledExtensionCount = 2;
+    instInfo.ppEnabledExtensionNames = extensions;
+
+    // 不启用验证层（发布版本）
+    VkResult res = vkCreateInstance(&instInfo, nullptr, &m_instance);
+    if (res != VK_SUCCESS) {
+        LOGE("vkCreateInstance failed: %d", res);
+        return false;
+    }
+    return true;
+}
+
+bool VulkanBackend::selectPhysicalDevice() {
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(m_instance, &count, nullptr);
+    if (count == 0) { LOGE("No Vulkan devices"); return false; }
+
+    std::vector<VkPhysicalDevice> devices(count);
+    vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
+
+    // 优先选独立 GPU，回退到第一个可用
+    for (auto& dev : devices) {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(dev, &props);
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceFeatures(dev, &features);
+
+        // 确保支持纹理压缩（所有 Mali/Adreno 都支持 ETC2）
+        if (!features.textureCompressionETC2 &&
+            !features.textureCompressionASTC_LDR) {
+            continue;
+        }
+
+        uint32_t qCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &qCount, nullptr);
+        std::vector<VkQueueFamilyProperties> queues(qCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &qCount, queues.data());
+
+        for (uint32_t i = 0; i < qCount; i++) {
+            if (queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                m_graphicsQueueIndex = i;
+                m_physDevice = dev;
+                LOGI("Selected GPU: %s (queue %d)", props.deviceName, i);
+                return true;
+            }
+        }
+    }
+
+    LOGE("No suitable GPU found");
+    return false;
+}
+
+bool VulkanBackend::createLogicalDevice() {
+    float queuePriority = 1.0f;
+    VkDeviceQueueCreateInfo queueInfo{};
+    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueInfo.queueFamilyIndex = m_graphicsQueueIndex;
+    queueInfo.queueCount = 1;
+    queueInfo.pQueuePriorities = &queuePriority;
+
+    const char* extensions[] = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    // 只启用 GPU 实际支持的功能（部分 Adreno 驱动在请求不支持的功能时 SIGSEGV）
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(m_physDevice, &supportedFeatures);
+
+    VkPhysicalDeviceFeatures features{};
+    features.samplerAnisotropy = VK_FALSE;
+    features.textureCompressionASTC_LDR = supportedFeatures.textureCompressionASTC_LDR
+        ? VK_TRUE : VK_FALSE;
+    features.textureCompressionETC2 = supportedFeatures.textureCompressionETC2
+        ? VK_TRUE : VK_FALSE;
+
+    VkDeviceCreateInfo devInfo{};
+    devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    devInfo.queueCreateInfoCount = 1;
+    devInfo.pQueueCreateInfos = &queueInfo;
+    devInfo.enabledExtensionCount = 1;
+    devInfo.ppEnabledExtensionNames = extensions;
+    devInfo.pEnabledFeatures = &features;
+
+    if (vkCreateDevice(m_physDevice, &devInfo, nullptr, &m_device) != VK_SUCCESS) {
+        LOGE("Failed to create logical device");
+        return false;
+    }
+
+    vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+    m_presentQueue = m_graphicsQueue;
+
+    LOGI("Logical device created (ASTC=%d, ETC2=%d)",
+         features.textureCompressionASTC_LDR,
+         features.textureCompressionETC2);
+    return true;
+}
+
+// ============================================================
+// Swapchain
+// ============================================================
+
+bool VulkanBackend::createSwapchain(int width, int height) {
+    VkAndroidSurfaceCreateInfoKHR surfInfo{};
+    surfInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+    surfInfo.window = m_nativeWindow;
+
+    if (vkCreateAndroidSurfaceKHR(m_instance, &surfInfo, nullptr, &m_surface) != VK_SUCCESS) {
+        LOGE("Failed to create Android surface");
+        return false;
+    }
+
+    // 查询 surface 格式
+    uint32_t fmtCount = 0;
+    VkResult fmtRes = vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &fmtCount, nullptr);
+    if (fmtRes != VK_SUCCESS || fmtCount == 0) {
+        LOGE("No surface formats available (res=%d, count=%u)", fmtRes, fmtCount);
+        return false;
+    }
+    std::vector<VkSurfaceFormatKHR> formats(fmtCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &fmtCount, formats.data());
+
+    // 从可用格式中优先选择 gralloc 确定支持的格式。
+    // Adreno 驱动有时将 A2B10G10R10 (59) 列为首个格式，
+    // 但高通 gralloc 模块无法为此格式分配帧缓冲 → GetSize unrecognized + BAD_VALUE。
+    // 安全格式优先级：R8G8B8A8_UNORM > B8G8R8A8_UNORM > R8G8B8A8_SRGB > B8G8R8A8_SRGB。
+    {
+        const VkFormat SAFE_FORMATS[] = {
+            VK_FORMAT_R8G8B8A8_UNORM,    // 37 — 最广泛兼容
+            VK_FORMAT_B8G8R8A8_UNORM,    // 44 — 部分设备优选
+            VK_FORMAT_R8G8B8A8_SRGB,     // 43 — sRGB 变体
+            VK_FORMAT_B8G8R8A8_SRGB,     // 50 — sRGB 变体
+        };
+        bool found = false;
+        for (const auto& surfaceFmt : formats) {
+            for (VkFormat safe : SAFE_FORMATS) {
+                if (surfaceFmt.format == safe) {
+                    m_swapchainFormat = surfaceFmt.format;
+                    m_swapchainColorSpace = surfaceFmt.colorSpace;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found) {
+            // 回退：使用设备报告的首个格式
+            m_swapchainFormat = formats[0].format;
+            m_swapchainColorSpace = formats[0].colorSpace;
+        }
+    }
+    LOGI("Swapchain format: %d, colorSpace=%d, total=%u, selected from %u available",
+         m_swapchainFormat, m_swapchainColorSpace, fmtCount, fmtCount);
+
+    // 设置 extent，确保非零
+    uint32_t safeW = (uint32_t)std::max(width, 1);
+    uint32_t safeH = (uint32_t)std::max(height, 1);
+    m_swapchainExtent = { safeW, safeH };
+
+    VkSwapchainCreateInfoKHR swapInfo{};
+    swapInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapInfo.surface = m_surface;
+    swapInfo.minImageCount = MAX_FRAMES_IN_FLIGHT;
+    swapInfo.imageFormat = m_swapchainFormat;
+    swapInfo.imageColorSpace = m_swapchainColorSpace;
+    swapInfo.imageExtent = m_swapchainExtent;
+    swapInfo.imageArrayLayers = 1;
+    swapInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    swapInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;  // VSYNC 对齐
+    swapInfo.clipped = VK_TRUE;
+
+    VkResult scRes = vkCreateSwapchainKHR(m_device, &swapInfo, nullptr, &m_swapchain);
+    if (scRes != VK_SUCCESS) {
+        LOGE("vkCreateSwapchainKHR failed: %d (format=%d, %dx%d)",
+             scRes, m_swapchainFormat, safeW, safeH);
+        return false;
+    }
+
+    // 获取 swapchain 图像
+    uint32_t imgCount = 0;
+    vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, nullptr);
+    m_swapchainImages.resize(imgCount);
+    vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, m_swapchainImages.data());
+
+    // 创建 ImageView
+    m_swapchainViews.resize(imgCount);
+    for (uint32_t i = 0; i < imgCount; i++) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_swapchainImages[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = m_swapchainFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &viewInfo, nullptr, &m_swapchainViews[i]) != VK_SUCCESS) {
+            LOGE("Failed to create swapchain image view");
+            return false;
+        }
+    }
+
+    // ImageView 创建后不立即创建 Framebuffer —— 此时 m_renderPass 尚未初始化，
+    // framebuffer 需在 createRenderPass() 之后通过 createFramebuffers() 创建。
+
+    LOGI("Swapchain created: %dx%d, %d images, format=%d",
+         m_swapchainExtent.width, m_swapchainExtent.height,
+         imgCount, m_swapchainFormat);
+    return true;
+}
+
+void VulkanBackend::destroySwapchain() {
+    for (auto& fb : m_framebuffers)
+        if (fb) vkDestroyFramebuffer(m_device, fb, nullptr);
+    m_framebuffers.clear();
+    for (auto& view : m_swapchainViews)
+        if (view) vkDestroyImageView(m_device, view, nullptr);
+    m_swapchainViews.clear();
+    m_swapchainImages.clear();
+    if (m_swapchain) vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+    m_swapchain = VK_NULL_HANDLE;
+}
+
+bool VulkanBackend::createFramebuffers() {
+    uint32_t imgCount = (uint32_t)m_swapchainViews.size();
+    if (imgCount == 0 || m_renderPass == VK_NULL_HANDLE) {
+        LOGE("createFramebuffers: no swapchain views or render pass not ready");
+        return false;
+    }
+    m_framebuffers.resize(imgCount);
+    for (uint32_t i = 0; i < imgCount; i++) {
+        VkFramebufferCreateInfo fbInfo{};
+        fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fbInfo.renderPass = m_renderPass;
+        fbInfo.attachmentCount = 1;
+        fbInfo.pAttachments = &m_swapchainViews[i];
+        fbInfo.width = m_swapchainExtent.width;
+        fbInfo.height = m_swapchainExtent.height;
+        fbInfo.layers = 1;
+
+        if (vkCreateFramebuffer(m_device, &fbInfo, nullptr, &m_framebuffers[i]) != VK_SUCCESS) {
+            LOGE("Failed to create framebuffer %u", i);
+            return false;
+        }
+    }
+    LOGI("Framebuffers created: %u (%dx%d)", imgCount,
+         m_swapchainExtent.width, m_swapchainExtent.height);
+    return true;
+}
+
+bool VulkanBackend::resize(int width, int height) {
+    if (m_device == VK_NULL_HANDLE) return false;
+    vkDeviceWaitIdle(m_device);
+
+    destroySwapchain();
+    destroyPipelineObjects();
+
+    m_config.viewportW = width;
+    m_config.viewportH = height;
+
+    if (!createSwapchain(width, height)) return false;
+    if (!createRenderPass()) return false;
+    if (!createFramebuffers()) return false;
+    if (!loadShaders()) return false;
+    if (!createPipeline()) return false;
+
+    // 重建 CommandBuffer
+    for (auto& cmd : m_commandBuffers)
+        if (cmd) vkFreeCommandBuffers(m_device, m_commandPool, 1, &cmd);
+    m_commandBuffers.clear();
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = m_commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = (uint32_t)m_swapchainImages.size();
+    m_commandBuffers.resize(m_swapchainImages.size());
+    if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
+        LOGE("Failed to reallocate command buffers");
+        return false;
+    }
+
+    orthoProj(m_projMatrix, 0.0f, (float)width, (float)height, 0.0f);
+    LOGI("Resized to %dx%d", width, height);
+    return true;
+}
+
+// ============================================================
+// RenderPass / Pipeline
+// ============================================================
+
+bool VulkanBackend::createRenderPass() {
+    if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+
+    VkAttachmentDescription colorAtt{};
+    colorAtt.format = m_swapchainFormat;
+    colorAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAtt.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAtt.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAtt.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAtt.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorRef{};
+    colorRef.attachment = 0;
+    colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dep{};
+    dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep.dstSubpass = 0;
+    dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.srcAccessMask = 0;
+    dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo rpInfo{};
+    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rpInfo.attachmentCount = 1;
+    rpInfo.pAttachments = &colorAtt;
+    rpInfo.subpassCount = 1;
+    rpInfo.pSubpasses = &subpass;
+    rpInfo.dependencyCount = 1;
+    rpInfo.pDependencies = &dep;
+
+    if (vkCreateRenderPass(m_device, &rpInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+        LOGE("Failed to create render pass");
+        return false;
+    }
+    return true;
+}
+
+bool VulkanBackend::loadShaders() {
+    // 从构建时生成的 C 头文件中加载 SPIR-V 字节码
+    m_vertShader = compileShader(sprite_vert_spv, sprite_vert_spv_size);
+    m_fragShader = compileShader(sprite_frag_spv, sprite_frag_spv_size);
+
+    if (!m_vertShader || !m_fragShader) {
+        LOGE("Failed to compile shaders");
+        return false;
+    }
+
+    LOGI("Shaders loaded from embedded SPIR-V (vert=%zu, frag=%zu bytes)",
+         sprite_vert_spv_size, sprite_frag_spv_size);
+    return true;
+}
+
+VkShaderModule VulkanBackend::compileShader(const uint32_t* code, size_t size) {
+    VkShaderModuleCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    info.codeSize = size;
+    info.pCode = code;
+    VkShaderModule module;
+    if (vkCreateShaderModule(m_device, &info, nullptr, &module) != VK_SUCCESS) {
+        LOGE("Failed to create shader module");
+        return VK_NULL_HANDLE;
+    }
+    return module;
+}
+
+bool VulkanBackend::createPipeline() {
+    // 从已编译的 SPIR-V 创建 Pipeline
+    // 实际项目中使用从 assets 加载的 SPIR-V
+    // 这里使用内联 SPIR-V（最小版本）
+    // 完整实现通过 JNI 从 assets 读取 .spv 文件
+
+    // 描述符集布局（1个 combined image sampler）
+    VkDescriptorSetLayoutBinding bind{};
+    bind.binding = 0;
+    bind.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bind.descriptorCount = 1;
+    bind.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo dslInfo{};
+    dslInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    dslInfo.bindingCount = 1;
+    dslInfo.pBindings = &bind;
+
+    if (vkCreateDescriptorSetLayout(m_device, &dslInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
+        LOGE("Failed to create descriptor set layout");
+        return false;
+    }
+
+    // Pipeline Layout（1 个 push constant mat4）
+    VkPushConstantRange pushRange{};
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.offset = 0;
+    pushRange.size = sizeof(float) * 16;
+
+    VkPipelineLayoutCreateInfo plInfo{};
+    plInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    plInfo.setLayoutCount = 1;
+    plInfo.pSetLayouts = &m_descriptorSetLayout;
+    plInfo.pushConstantRangeCount = 1;
+    plInfo.pPushConstantRanges = &pushRange;
+
+    if (vkCreatePipelineLayout(m_device, &plInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+        LOGE("Failed to create pipeline layout");
+        return false;
+    }
+
+    // 描述符池
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo dpInfo{};
+    dpInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    dpInfo.maxSets = 1;
+    dpInfo.poolSizeCount = 1;
+    dpInfo.pPoolSizes = &poolSize;
+
+    if (vkCreateDescriptorPool(m_device, &dpInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+        LOGE("Failed to create descriptor pool");
+        return false;
+    }
+
+    VkDescriptorSetAllocateInfo dsAlloc{};
+    dsAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    dsAlloc.descriptorPool = m_descriptorPool;
+    dsAlloc.descriptorSetCount = 1;
+    dsAlloc.pSetLayouts = &m_descriptorSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device, &dsAlloc, &m_descriptorSet) != VK_SUCCESS) {
+        LOGE("Failed to allocate descriptor set");
+        return false;
+    }
+
+    // 顶点输入状态
+    VkVertexInputBindingDescription vxBind{};
+    vxBind.binding = 0;
+    vxBind.stride = sizeof(SpriteVertex);
+    vxBind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription vxAttrs[3]{};
+    vxAttrs[0].location = 0;  // pos
+    vxAttrs[0].binding = 0;
+    vxAttrs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    vxAttrs[0].offset = offsetof(SpriteVertex, px);
+
+    vxAttrs[1].location = 1;  // uv
+    vxAttrs[1].binding = 0;
+    vxAttrs[1].format = VK_FORMAT_R32G32_SFLOAT;
+    vxAttrs[1].offset = offsetof(SpriteVertex, u);
+
+    vxAttrs[2].location = 2;  // color
+    vxAttrs[2].binding = 0;
+    vxAttrs[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    vxAttrs[2].offset = offsetof(SpriteVertex, r);
+
+    VkPipelineVertexInputStateCreateInfo vxInput{};
+    vxInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vxInput.vertexBindingDescriptionCount = 1;
+    vxInput.pVertexBindingDescriptions = &vxBind;
+    vxInput.vertexAttributeDescriptionCount = 3;
+    vxInput.pVertexAttributeDescriptions = vxAttrs;
+
+    // 输入装配
+    VkPipelineInputAssemblyStateCreateInfo inputAssem{};
+    inputAssem.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssem.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    // 视口
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)m_swapchainExtent.width;
+    viewport.height = (float)m_swapchainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = m_swapchainExtent;
+
+    VkPipelineViewportStateCreateInfo vpState{};
+    vpState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vpState.viewportCount = 1;
+    vpState.pViewports = &viewport;
+    vpState.scissorCount = 1;
+    vpState.pScissors = &scissor;
+
+    // 光栅化
+    VkPipelineRasterizationStateCreateInfo raster{};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.cullMode = VK_CULL_MODE_NONE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster.lineWidth = 1.0f;
+
+    // 多重采样（禁用）
+    VkPipelineMultisampleStateCreateInfo msaa{};
+    msaa.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    msaa.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // 深度/模板（禁用，2D 不需要）
+    VkPipelineDepthStencilStateCreateInfo depth{};
+    depth.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth.depthTestEnable = VK_FALSE;
+    depth.depthWriteEnable = VK_FALSE;
+
+    // 颜色混合（支持透明度）
+    VkPipelineColorBlendAttachmentState blend{};
+    blend.blendEnable = VK_TRUE;
+    blend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.colorBlendOp = VK_BLEND_OP_ADD;
+    blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend.alphaBlendOp = VK_BLEND_OP_ADD;
+    blend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo blendState{};
+    blendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    blendState.attachmentCount = 1;
+    blendState.pAttachments = &blend;
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = m_vertShader;
+    stages[0].pName = "main";
+
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = m_fragShader;
+    stages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo pipeInfo{};
+    pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeInfo.stageCount = 2;
+    pipeInfo.pStages = stages;
+    pipeInfo.pVertexInputState = &vxInput;
+    pipeInfo.pInputAssemblyState = &inputAssem;
+    pipeInfo.pViewportState = &vpState;
+    pipeInfo.pRasterizationState = &raster;
+    pipeInfo.pMultisampleState = &msaa;
+    pipeInfo.pDepthStencilState = &depth;
+    pipeInfo.pColorBlendState = &blendState;
+    pipeInfo.layout = m_pipelineLayout;
+    pipeInfo.renderPass = m_renderPass;
+    pipeInfo.subpass = 0;
+
+    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE,
+                                  1, &pipeInfo, nullptr, &m_pipeline)
+        != VK_SUCCESS) {
+        LOGE("Failed to create graphics pipeline");
+        return false;
+    }
+
+    LOGI("Pipeline created successfully");
+    return true;
+}
+
+void VulkanBackend::bindTextureToDescriptor(const Texture& tex) {
+    VkDescriptorImageInfo descImg{};
+    descImg.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descImg.imageView = tex.view;
+    descImg.sampler = tex.sampler;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &descImg;
+
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+}
+
+void VulkanBackend::destroyPipelineObjects() {
+    if (m_pipeline) vkDestroyPipeline(m_device, m_pipeline, nullptr);
+    m_pipeline = VK_NULL_HANDLE;
+    if (m_pipelineLayout) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    m_pipelineLayout = VK_NULL_HANDLE;
+    if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+    m_renderPass = VK_NULL_HANDLE;
+    if (m_descriptorSetLayout) vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+    m_descriptorSetLayout = VK_NULL_HANDLE;
+    if (m_vertShader) vkDestroyShaderModule(m_device, m_vertShader, nullptr);
+    m_vertShader = VK_NULL_HANDLE;
+    if (m_fragShader) vkDestroyShaderModule(m_device, m_fragShader, nullptr);
+    m_fragShader = VK_NULL_HANDLE;
+}
+
+// ============================================================
+// 缓冲区
+// ============================================================
+
+bool VulkanBackend::createVertexBuffer() {
+    VkBufferCreateInfo bufInfo{};
+    bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufInfo.size = m_vertexBufferSize;
+    bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS) {
+        LOGE("Failed to create vertex buffer");
+        return false;
+    }
+
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memReq);
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((memReq.memoryTypeBits & (1 << i)) &&
+            (memProps.memoryTypes[i].propertyFlags &
+             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+            (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+            memType = i;
+            break;
+        }
+    }
+
+    if (memType == UINT32_MAX) { LOGE("No suitable memory type"); return false; }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexMemory) != VK_SUCCESS) {
+        LOGE("Failed to allocate vertex memory");
+        return false;
+    }
+
+    vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexMemory, 0);
+    vkMapMemory(m_device, m_vertexMemory, 0, VK_WHOLE_SIZE, 0, &m_vertexMapped);
+
+    LOGI("Vertex buffer: %llu bytes (mapped)", (unsigned long long)m_vertexBufferSize);
+    return true;
+}
+
+// ============================================================
+// Command / Sync
+// ============================================================
+
+bool VulkanBackend::createCommandObjects() {
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = m_graphicsQueueIndex;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool) != VK_SUCCESS) {
+        LOGE("Failed to create command pool");
+        return false;
+    }
+
+    uint32_t imgCount = (uint32_t)m_swapchainImages.size();
+    m_commandBuffers.resize(imgCount);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = m_commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = imgCount;
+
+    if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
+        LOGE("Failed to allocate command buffers");
+        return false;
+    }
+    return true;
+}
+
+bool VulkanBackend::createSynchronization() {
+    m_imageAvailable.resize(MAX_FRAMES_IN_FLIGHT);
+    m_renderFinished.resize(MAX_FRAMES_IN_FLIGHT);
+    m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+    VkSemaphoreCreateInfo semInfo{};
+    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateSemaphore(m_device, &semInfo, nullptr, &m_imageAvailable[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(m_device, &semInfo, nullptr, &m_renderFinished[i]) != VK_SUCCESS ||
+            vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
+            LOGE("Failed to create sync objects");
+            return false;
+        }
+    }
+    return true;
+}
+
+// ============================================================
+// 纹理
+// ============================================================
+
+// 简易纹理上传（使用 LINEAR tiling + 逐行拷贝 + layout transition via one-time command)
+static uint32_t s_nextTextureId = 1;
+
+uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height) {
+    if (!m_device || !pixels) return 0;
+
+    Texture tex;
+    tex.width = width;
+    tex.height = height;
+
+    VkImageCreateInfo imgInfo{};
+    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imgInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imgInfo.extent = { (uint32_t)width, (uint32_t)height, 1 };
+    imgInfo.mipLevels = 1;
+    imgInfo.arrayLayers = 1;
+    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    // 使用 OPTIMAL 搭配 staging buffer 是标准做法，但 LINEAR 更简单直接。
+    // 二者都需要 layout transition barrier。
+    imgInfo.tiling = VK_IMAGE_TILING_LINEAR;
+    imgInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (vkCreateImage(m_device, &imgInfo, nullptr, &tex.image) != VK_SUCCESS) {
+        LOGE("Failed to create texture image");
+        return 0;
+    }
+
+    // 分配内存（HOST_VISIBLE 以便直接写入）
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((memReq.memoryTypeBits & (1 << i)) &&
+            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
+            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+            memType = i;
+            break;
+        }
+    }
+
+    // 回退：仅 HOST_VISIBLE
+    if (memType == UINT32_MAX) {
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if ((memReq.memoryTypeBits & (1 << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+                memType = i;
+                break;
+            }
+        }
+    }
+    if (memType == UINT32_MAX) { LOGE("No memory type for texture"); return 0; }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
+        LOGE("Failed to allocate texture memory");
+        return 0;
+    }
+    vkBindImageMemory(m_device, tex.image, tex.memory, 0);
+
+    // 写入像素数据（逐行，考虑 rowPitch）
+    void* mapped;
+    vkMapMemory(m_device, tex.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    VkSubresourceLayout layout;
+    VkImageSubresource sub{};
+    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    vkGetImageSubresourceLayout(m_device, tex.image, &sub, &layout);
+
+    size_t srcRowPitch = (size_t)width * 4;
+    for (int y = 0; y < height; y++) {
+        memcpy((char*)mapped + layout.offset + y * layout.rowPitch,
+               (const char*)pixels + y * srcRowPitch, srcRowPitch);
+    }
+    vkUnmapMemory(m_device, tex.memory);
+
+    // === Layout Transition: UNDEFINED → SHADER_READ_ONLY_OPTIMAL ===
+    // 使用一次性 command buffer 提交 layout transition barrier
+    VkCommandBufferAllocateInfo cmdAlloc{};
+    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAlloc.commandPool = m_commandPool;
+    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAlloc.commandBufferCount = 1;
+
+    VkCommandBuffer transitionCmd;
+    vkAllocateCommandBuffers(m_device, &cmdAlloc, &transitionCmd);
+
+    VkCommandBufferBeginInfo cmdBegin{};
+    cmdBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBegin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(transitionCmd, &cmdBegin);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = tex.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.layerCount = 1;
+    // host write → shader read
+    barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(transitionCmd,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(transitionCmd);
+
+    VkSubmitInfo submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &transitionCmd;
+
+    // 使用临时 fence 等待 transition 完成
+    VkFence transitionFence;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(m_device, &fenceInfo, nullptr, &transitionFence);
+
+    vkQueueSubmit(m_graphicsQueue, 1, &submit, transitionFence);
+    vkWaitForFences(m_device, 1, &transitionFence, VK_TRUE, UINT64_MAX);
+
+    vkDestroyFence(m_device, transitionFence, nullptr);
+    vkFreeCommandBuffers(m_device, m_commandPool, 1, &transitionCmd);
+
+    // ImageView
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = tex.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
+        LOGE("Failed to create texture view");
+        return 0;
+    }
+
+    // Sampler（点采样 + REPEAT 寻址——地面纹理通过 tilesX×tilesY 的 UV 平铺，
+    // 图集纹理的 UV 在 [0,1] 内，REPEAT 行为与 CLAMP 一致）
+    VkSamplerCreateInfo sampInfo{};
+    sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampInfo.magFilter = VK_FILTER_NEAREST;
+    sampInfo.minFilter = VK_FILTER_NEAREST;
+    sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampInfo.anisotropyEnable = VK_FALSE;
+    sampInfo.maxLod = 1.0f;
+
+    if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
+        LOGE("Failed to create sampler");
+        return 0;
+    }
+
+    uint32_t id = s_nextTextureId++;
+    tex.id = id;
+    m_textures.push_back(tex);
+
+    // 注意：不在此处更新描述符集。描述符集在每帧 submitFrame 中按纹理
+    // ID 切换（白色纹理 → 地面 → 图集），见 submitFrame 的纹理切换逻辑。
+
+    LOGI("Texture %dx%d uploaded (id=%u)", width, height, id);
+    return id;
+}
+
+void VulkanBackend::destroyTexture(uint32_t id) {
+    // 纹理在 shutdown 时统一清理
+}
+
+// ============================================================
+// 帧渲染
+// ============================================================
+
+void VulkanBackend::setProjection(const float mat[16]) {
+    memcpy(m_projMatrix, mat, sizeof(m_projMatrix));
+}
+
+void VulkanBackend::draw(const SpriteVertex* vertices, int count,
+                          uint32_t textureId) {
+    if (!m_ready || count == 0) return;
+    m_pendingDraws.push_back({ vertices, count, textureId });
+}
+
+void VulkanBackend::beginFrame() {
+    m_pendingDraws.clear();
+}
+
+void VulkanBackend::endFrame() {
+    // 空实现 — 实际工作在 submitFrame 中
+}
+
+void VulkanBackend::submitFrame() {
+    if (!m_ready || m_pendingDraws.empty()) return;
+
+    // 等待前帧完成
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame],
+                    VK_TRUE, UINT64_MAX);
+
+    // 获取下一张 swapchain 图像
+    uint32_t imageIndex;
+    VkResult result = vkAcquireNextImageKHR(
+        m_device, m_swapchain, UINT64_MAX,
+        m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        LOGI("Swapchain out of date, need resize");
+        // 不重置 fence — fence 保持 signaled 状态，下一帧可正常等待。
+        return;
+    }
+
+    // 成功获取图像后才重置 fence（防止 out-of-date 提前返回后 fence 未被 signal）
+    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+
+    VkCommandBuffer cmd = m_commandBuffers[imageIndex];
+
+    // 记录 Command Buffer
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkClearValue clearColor = { { { 0.95f, 0.93f, 0.89f, 1.0f } } }; // #F2EDE4
+
+    VkRenderPassBeginInfo rpBegin{};
+    rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rpBegin.renderPass = m_renderPass;
+    rpBegin.framebuffer = m_framebuffers[imageIndex];
+    rpBegin.renderArea.offset = {0, 0};
+    rpBegin.renderArea.extent = m_swapchainExtent;
+    rpBegin.clearValueCount = 1;
+    rpBegin.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
+
+    // 设置投影矩阵
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+                       0, sizeof(m_projMatrix), m_projMatrix);
+
+    VkBuffer vertexBuffers[] = { m_vertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+
+    // 提交所有 pending draw calls，按纹理 ID 切换描述符集
+    // 渲染顺序（由 NativeBridge.cpp 保证）：
+    //   纹理 0 (白色) → drawRect 纯色矩形
+    //   纹理 1+ → drawGround / drawDecor / drawBuildings
+    int vertexOffset = 0;
+    uint32_t currentBoundTexId = UINT32_MAX;
+    for (auto& draw : m_pendingDraws) {
+        if (draw.count <= 0) continue;
+
+        // 纹理切换：找到对应纹理并更新描述符集
+        if (draw.textureId != currentBoundTexId) {
+            currentBoundTexId = draw.textureId;
+            if (draw.textureId == 0) {
+                bindTextureToDescriptor(m_whiteTexture);
+            } else {
+                for (const auto& tex : m_textures) {
+                    if (tex.id == draw.textureId) {
+                        bindTextureToDescriptor(tex);
+                        break;
+                    }
+                }
+            }
+            // 重新绑定描述符集到 command buffer
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_pipelineLayout, 0, 1, &m_descriptorSet,
+                                    0, nullptr);
+        }
+
+        // 拷贝顶点数据到 VBO
+        size_t copySize = draw.count * sizeof(SpriteVertex);
+        memcpy((char*)m_vertexMapped + vertexOffset * sizeof(SpriteVertex),
+               draw.vertices, copySize);
+
+        // 提交 Draw Call
+        vkCmdDraw(cmd, draw.count, 1, vertexOffset, 0);
+        vertexOffset += draw.count;
+    }
+
+    vkCmdEndRenderPass(cmd);
+    vkEndCommandBuffer(cmd);
+
+    // 提交 GPU
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &m_imageAvailable[m_currentFrame];
+    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_renderFinished[m_currentFrame];
+
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]);
+
+    // Present
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &m_renderFinished[m_currentFrame];
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &m_swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+
+    vkQueuePresentKHR(m_presentQueue, &presentInfo);
+
+    m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}

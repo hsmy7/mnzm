@@ -43,6 +43,18 @@
 
 - **修复 EntityStore 脏读导致 StackableItemStore 合并失败** — `EntityStore.items` 始终返回 `frozenSnapshot`（只读缓存），但 `update()/add()/remove()` 只修改 `items_`（内部列表），未经 `freeze()` 显式调用前所有读取返回过期数据。修复为 dirty 时返回 `items_` 确保实时一致。影响：`MergeStackableTest` 5 个用例 + `StackableItemStoreTest` 3 个用例从 FAILED 修复为 PASS。
 
+### 新增
+
+- **宗门地图渲染架构升级：Vulkan 原生渲染管线** — 替换 Compose Canvas 为独立渲染线程 + Vulkan 1.1+ 后端，CPU 每帧开销从 1-3ms 降至 <0.1ms，地图渲染不再触发 Compose 重组
+  - C++：完整的 Vulkan 渲染后端（VulkanBackend.cpp 1315 行）含单 Pipeline + 单纹理图集 + 持久映射 VBO + 三重缓冲交换链
+  - 着色器：GLSL 顶点/片段 + SPIR-V 预编译 + Push Constant 投影矩阵
+  - 精灵批处理：SpriteBatcher 将最多 4096 个精灵合并为 3 draw calls/帧（地面/装饰/建筑）
+  - 纹理图集：所有地面、装饰、建筑精灵合并到单张 2048×2048 RGBA8 纹理，24 个精灵槽位
+  - NativeSurfaceView：SurfaceView + 独立 10fps 渲染线程，先上传纹理再启动渲染线程消除竞态
+  - VulkanPolicy：设备兼容性检测（高通/联发科/国产厂商分级）
+  - 资源加载优化：移除 GameActivity 中全部地图位图预加载代码（-200 行），精简 MapPreloadData 仅保留瓦片数据和配置参数
+  - 死代码清理：移除 buildingBitmaps、MapBitmapUtils.kt 等 Canvas 时代遗留代码，净减 875 行
+
 ## [4.0.40] - 2026-07-05（versionCode=4040）
 
 ### Bug 修复

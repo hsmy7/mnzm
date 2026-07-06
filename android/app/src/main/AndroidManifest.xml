@@ -66,6 +66,8 @@
     <!-- 设备特性声明 - 非必需 -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.screen.landscape" android:required="true" />
+    <!-- Vulkan 渲染后端（非必需，无 Vulkan 驱动的旧设备仍可通过 CPU fallback 运行） -->
+    <uses-feature android:name="android.hardware.vulkan" android:required="false" android:version="1" />
 
     <application
         android:name=".XianxiaApplication"

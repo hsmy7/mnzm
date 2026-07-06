@@ -36,6 +36,8 @@ if (versionPropsFile.exists()) {
 android {
     namespace = 'com.xianxia.sect'
 
+    ndkVersion = "27.0.12077973"  // NDK r27 (2025 stable, Vulkan 1.1+ 支持)
+
     defaultConfig {
         applicationId = "com.xianxia.sect"
         versionCode = versionProps.getProperty('versionCode', '1').toInteger()
@@ -79,6 +81,17 @@ android {
                 v1SigningEnabled = true
                 v2SigningEnabled = true
             }
+        }
+    }
+
+    // ============================================================
+    // Native 渲染引擎（Vulkan C++ 实现）
+    // 使用 NDK CMake 构建，要求 NDK r25+（2024+ 版本）
+    // ============================================================
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1+"
         }
     }
 

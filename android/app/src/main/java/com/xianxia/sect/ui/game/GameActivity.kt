@@ -25,7 +25,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.compose.ui.graphics.asImageBitmap
 import com.xianxia.sect.R
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
@@ -51,11 +50,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.perf.GpuTierDetector
-import com.xianxia.sect.core.perf.GpuRenderConfig
 import android.view.ActionMode
 import android.view.Window
-import kotlin.random.Random
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -64,12 +60,6 @@ class GameActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
-
-        /** 单张 Bitmap 内存分配硬上限 (50 MB)，防止异常大图导致 OOM */
-        private const val MAX_BITMAP_ALLOCATION_BYTES = 50 * 1024 * 1024
-
-        /** 解码失败回退的地图瓦片颜色 */
-        private const val FALLBACK_TILE_COLOR = 0xFFF2EDE4.toInt()
     }
 
     private val viewModel: GameViewModel by viewModels()
@@ -122,11 +112,7 @@ class GameActivity : ComponentActivity() {
         }
     }
 
-    // GPU 分级检测 — 在 Activity 级别缓存，供地图预渲染使用
-    // 来源: docs/device-adaptation-plan.md §5 Step 5 — 优先使用 GameManager API
-    private val gpuRenderConfig: GpuRenderConfig by lazy { GpuRenderConfig.forTier(GpuTierDetector().detect(this)) }
-
-    // 持有地图预加载数据引用，供 onTrimMemory 中释放 Bitmap 使用
+    // 持有地图预加载数据引用，供 onTrimMemory 中释放内存使用
     @Volatile
     private var mapPreloadDataRef: MapPreloadData? = null
 
@@ -207,185 +193,21 @@ class GameActivity : ComponentActivity() {
                             val worldPixelWidth = worldWidthCells * tileSize
                             val worldPixelHeight = worldHeightCells * tileSize
 
-                            val result = withContext(Dispatchers.IO) {
-                                val renderConfig = gpuRenderConfig
+                            // v4.0.43+：Vulkan 原生渲染不再依赖 Compose Canvas 位图。
+                            // 纹理由 NativeSurfaceView.buildAtlas() 在渲染器就绪后独立加载。
+                            // 此处只需生成瓦片数据和配置参数。
+                            val rawTileData = SectMapTileGenerator.generateTileData(
+                                worldWidthCells, worldHeightCells
+                            )
 
-                                // 渲染分辨率低于世界分辨率，画的时候拉伸
-                                // 来源: docs/gpu-tier-fairness-plan.md §3 — GPU 分级只影响渲染质量，不改变游戏世界尺寸
-                                val renderScale = renderConfig.mapResolution.toFloat() / GameConfig.SectMap.WORLD_WIDTH_CELLS.toFloat()
-                                val renderWidth = (worldPixelWidth * renderScale).toInt()
-                                val renderHeight = (worldPixelHeight * renderScale).toInt()
-
-                                // 来源: docs/device-adaptation-plan.md §4 — textureLodOffset 控制贴图质量
-                                // +1 = 更模糊(省显存), 0 = 默认, -1 = 更清晰
-                                val lodMultiplier = when (renderConfig.textureLodOffset) {
-                                    -1 -> 1   // ULTRA: 高质量 (inSampleSize 减半)
-                                    0 -> 2    // HIGH/MEDIUM: 当前质量
-                                    1 -> 4    // LOW: 低质量 (inSampleSize 翻倍)
-                                    else -> 2
-                                }
-                                val groundSampleSize = lodMultiplier
-                                val decorationSampleSize = lodMultiplier * 2
-
-                                // 1. 加载地图单格纹理，平铺合成地面位图
-                                val mapTileSrc = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }
-                                    android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.map_tile, opts
-                                    )
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) {
-                                    Log.w(TAG, "Failed to load map_tile", e); null
-                                }
-
-                                // 地面位图：将 mapTile 平铺到渲染分辨率
-                                val groundBmp = if (mapTileSrc != null) {
-                                    val bmpConfig = if (renderConfig.useArgb8888)
-                                        android.graphics.Bitmap.Config.ARGB_8888
-                                    else
-                                        android.graphics.Bitmap.Config.RGB_565
-                                    val estBytes = renderWidth.toLong() * renderHeight * (if (bmpConfig == android.graphics.Bitmap.Config.ARGB_8888) 4 else 2)
-                                    if (estBytes > MAX_BITMAP_ALLOCATION_BYTES) {
-                                        Log.e(TAG, "groundBmp too large: ${renderWidth}x$renderHeight est=${estBytes}bytes > max=$MAX_BITMAP_ALLOCATION_BYTES")
-                                        null
-                                    } else {
-                                        android.graphics.Bitmap.createBitmap(renderWidth, renderHeight, bmpConfig).apply {
-                                            val c = android.graphics.Canvas(this)
-                                            val tileW = mapTileSrc.width
-                                            val tileH = mapTileSrc.height
-                                            var sy = 0
-                                            while (sy < renderHeight) {
-                                                var sx = 0
-                                                while (sx < renderWidth) {
-                                                    c.drawBitmap(mapTileSrc, sx.toFloat(), sy.toFloat(), null)
-                                                    sx += tileW
-                                                }
-                                                sy += tileH
-                                            }
-                                        }
-                                    }
-                                } else null
-
-                                // 2. 加载 3 种草装饰精灵图
-                                val grassSmallBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = decorationSampleSize }
-                                    android.graphics.BitmapFactory.decodeResource(resources, R.drawable.decoration_grass_small, opts)
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) {
-                                    Log.w(TAG, "Failed to load grass_small", e); null
-                                }
-                                val grassMediumBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply {
-                                        inSampleSize = decorationSampleSize
-                                    }
-                                    android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.decoration_grass_medium, opts
-                                    )
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) {
-                                    Log.w(TAG, "Failed to load grass_medium", e); null
-                                }
-                                val grassLargeBmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply {
-                                        inSampleSize = decorationSampleSize
-                                    }
-                                    android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.decoration_grass_large, opts
-                                    )
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) {
-                                    Log.w(TAG, "Failed to load grass_large", e); null
-                                }
-
-                                // 3. 加载 2 种树装饰精灵图
-                                val tree1Bmp = try {
-                                    val opts = android.graphics.BitmapFactory.Options().apply {
-                                        inSampleSize = decorationSampleSize
-                                    }
-                                    android.graphics.BitmapFactory.decodeResource(
-                                        resources, R.drawable.decoration_tree1, opts
-                                    )
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) {
-                                    Log.w(TAG, "Failed to load tree1", e); null
-                                }
-                                val tree2Bmp = if (renderConfig.showTrees) {
-                                    try {
-                                        val opts = android.graphics.BitmapFactory.Options().apply {
-                                            inSampleSize = decorationSampleSize
-                                        }
-                                        android.graphics.BitmapFactory.decodeResource(
-                                            resources, R.drawable.decoration_tree2, opts
-                                        )
-                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                    catch (e: Exception) {
-                                        Log.w(TAG, "Failed to load tree2", e); null
-                                    }
-                                } else null
-
-                                // 4. 瓦片数据生成（SectMapTileGenerator）
-                                val rawTileData = SectMapTileGenerator.generateTileData(
-                                    worldWidthCells, worldHeightCells
-                                )
-
-                                if (groundBmp != null && grassSmallBmp != null && mapTileSrc != null) {
-                                    val grassSmallImg = grassSmallBmp.asImageBitmap()
-                                    groundBmp.prepareToDraw()
-                                    grassSmallBmp.prepareToDraw()
-                                    grassMediumBmp?.prepareToDraw()
-                                    grassLargeBmp?.prepareToDraw()
-                                    tree1Bmp?.prepareToDraw()
-                                    tree2Bmp?.prepareToDraw()
-                                    mapTileSrc.prepareToDraw()
-
-                                    MapPreloadData(
-                                        mapTileBmp = mapTileSrc.asImageBitmap(),
-                                        groundTileBmp = groundBmp.asImageBitmap(),
-                                        grassDecBitmaps = listOf(
-                                            grassSmallImg,
-                                            grassMediumBmp?.asImageBitmap() ?: grassSmallImg,
-                                            grassLargeBmp?.asImageBitmap() ?: grassSmallImg
-                                        ),
-                                        treeDecBitmaps = listOf(
-                                            tree1Bmp?.asImageBitmap() ?: grassSmallImg,
-                                            tree2Bmp?.asImageBitmap() ?: grassSmallImg
-                                        ),
-                                        rawTileData = rawTileData,
-                                        worldWidthCells = worldWidthCells,
-                                        worldHeightCells = worldHeightCells,
-                                        tileSize = tileSize,
-                                        worldPixelWidth = worldPixelWidth,
-                                        worldPixelHeight = worldPixelHeight,
-                                        renderWidth = renderWidth,
-                                        renderHeight = renderHeight
-                                    )
-                                } else {
-                                    Log.w(TAG, "Map tile decode failed, using fallback")
-                                    val fallbackBmp = android.graphics.Bitmap.createBitmap(
-                                        tileSize, tileSize,
-                                        android.graphics.Bitmap.Config.ARGB_8888
-                                    ).also { it.eraseColor(FALLBACK_TILE_COLOR) }
-                                    val fallbackImg = fallbackBmp.asImageBitmap()
-                                    MapPreloadData(
-                                        mapTileBmp = fallbackImg,
-                                        groundTileBmp = fallbackImg,
-                                        grassDecBitmaps = listOf(
-                                            fallbackImg, fallbackImg, fallbackImg
-                                        ),
-                                        treeDecBitmaps = listOf(fallbackImg, fallbackImg),
-                                        rawTileData = SectMapTileGenerator.generateTileData(
-                                            worldWidthCells, worldHeightCells
-                                        ),
-                                        worldWidthCells = worldWidthCells,
-                                        worldHeightCells = worldHeightCells,
-                                        tileSize = tileSize,
-                                        worldPixelWidth = worldPixelWidth,
-                                        worldPixelHeight = worldPixelHeight,
-                                        renderWidth = renderWidth,
-                                        renderHeight = renderHeight
-                                    )
-                                }
-                            }
+                            val result = MapPreloadData(
+                                rawTileData = rawTileData,
+                                worldWidthCells = worldWidthCells,
+                                worldHeightCells = worldHeightCells,
+                                tileSize = tileSize,
+                                worldPixelWidth = worldPixelWidth,
+                                worldPixelHeight = worldPixelHeight
+                            )
 
                             if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect
                             mapPreloadData = result

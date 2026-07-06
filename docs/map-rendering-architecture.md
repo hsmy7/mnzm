@@ -2,46 +2,69 @@
 
 ## 概览
 
-宗门地图采用**三层按格实时绘制**架构，自 v4.0.42 起废除 `fullMapBmp` 单层位图烘焙模式。
+宗门地图自 **v4.0.43+** 起采用 **Vulkan 原生渲染管线**，替代了旧版的 Compose Canvas 实时绘制。
+
+新架构：**3 draw calls / 帧** + 独立渲染线程 + 持久映射 VBO + 三重缓冲交换链。
 
 ```
-渲染顺序（从底到顶）：
-  Layer 1: Ground  — map_tile.webp 平铺合成 → groundTileBmp 拉伸铺满
-  Layer 2: Deco    — 逐可见格绘制装饰精灵，建筑占用的格子跳过
-  Layer 3: Building — placedBuildings 列表逐建筑绘制
+渲染顺序（从底到顶，由 C++ VulkanBackend::submitFrame 提交）：
+  Layer 1: Ground  — map_tile.webp → GPU 单次 draw call（UV 平铺整个世界）
+  Layer 2: Deco    — 图集内装饰精灵 → AI 批量合并为 1 次 draw call
+  Layer 3: Building — 图集内建筑精灵 → AI 批量合并为 1 次 draw call
+  Layer 4: Preview — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
 ```
+
+## 架构对比
+
+| 维度 | ≤4.0.41 (Canvas) | 4.0.42 (Canvas 三层) | **4.0.43+ (Vulkan)** |
+|------|-------------------|---------------------|----------------------|
+| 渲染引擎 | Compose Canvas / Skia | Compose Canvas / Skia | **Vulkan 1.1+ 原生** |
+| Draw calls | 每格 1 次 (~60) | ~25-45 (地面1+装饰~30+建筑~15) | **固定 3** (地面+装饰+建筑) |
+| 纹理管理 | ImageBitmap 逐个加载 | ImageBitmap 逐个加载 | **单张 2048×2048 图集** |
+| 渲染线程 | Compose UI 主线程 | Compose UI 主线程 | **独立 RenderThread** |
+| CPU 开销 | ~2-5ms (Compose 重组) | ~1-3ms | **<0.1ms** (纯 JNI 转发) |
+| 帧率控制 | 跟随 Compose | 跟随 Compose | **10fps 固定帧率** |
+| 功耗 | 高 (Compose 每帧重置) | 中 | **低** (空闲 delay) |
 
 ## 数据流
 
 ```
-美术资源 (WebP)
-  ├─ map_tile.webp          — 单格地面纹理
-  ├─ decoration_grass_*.webp — 3 种草装饰变体
-  └─ decoration_tree*.webp   — 2 种树装饰变体
+美术资源 (WebP in drawable-nodpi)
+  ├─ map_tile.webp                 — 单格地面纹理 → GPU 平铺
+  ├─ decoration_grass_*.webp       — 3 种草装饰变体 → 图集
+  └─ decoration_tree*.webp         — 2 种树装饰变体 → 图集
         ↓
 GameActivity.kt (启动时 LaunchedEffect)
-  ├─ map_tile 平铺 → groundTileBmp (全图地面位图)
-  ├─ 加载 3+2 装饰精灵图 → grassDecBitmaps[3] / treeDecBitmaps[2]
-  └─ SectMapTileGenerator.generateTileData() → rawTileData
+  └─ SectMapTileGenerator.generateTileData() → rawTileData (仅瓦片类型数据)
         ↓
 MapPreloadData (Compose State)
-  ├─ groundTileBmp: ImageBitmap
-  ├─ grassDecBitmaps: List<ImageBitmap>  [小, 中, 大]
-  ├─ treeDecBitmaps: List<ImageBitmap>   [树木1, 树木2]
-  └─ rawTileData: Array<IntArray>
+  ├─ rawTileData: Array<IntArray>
+  └─ worldWidthCells / worldHeightCells / tileSize / worldPixelWidth / worldPixelHeight
         ↓
 MainGameScreen.kt
-  └─ rawTileData + effectivePlacedBuildings → tileData (含 TILE_BUILDING)
+  ├─ rawTileData + effectivePlacedBuildings → tileData (含 TILE_BUILDING)
+  ├─ flatTileData: IntArray → JNI 传递
+  ├─ buildingData: FloatArray → JNI 传递 (gridX, gridY, width, height, nameIndex)
+  └─ NativeRenderConfig / FrameRenderState → 每帧更新
         ↓
-SectMapCanvas.kt (每帧 Canvas 实时绘制)
-  ├─ drawImage(groundTileBmp)          → 地面层
-  ├─ for each visible cell:            → 装饰层
-  │   switch tileData[row][col]:
-  │     TILE_GRASS_SMALL/MEDIUM/LARGE → draw grass variant
-  │     TILE_TREE1/TREE2              → draw tree variant
-  │     TILE_BUILDING/TILE_GROUND     → skip
-  └─ for each placedBuilding:          → 建筑层
-      drawImage(buildingBitmap)
+NativeSurfaceView (SurfaceView + RenderThread)
+  ├─ surfaceCreated → NativeBridge.initAtlas()
+  ├─ surfaceChanged → NativeBridge.initRenderer() → 上传纹理 → 启动 RenderThread
+  └─ RenderThread 每 100ms:
+       1. setCamera (投影矩阵 → Push Constant)
+       2. beginFrame (清空 pending draws)
+       3. drawGround  (1 draw call, UV 平铺)
+       4. drawDecor   (SpriteBatcher 合并 → 1 draw call)
+       5. drawBuildings (SpriteBatcher 合并 → 1 draw call)
+       6. drawRect(s) (放置预览纯色矩形)
+       7. submitFrame (VkQueueSubmit + VkQueuePresentKHR)
+        ↓
+C++ VulkanBackend (Vulkan 1.1+)
+  ├─ 单 Pipeline (固定功能)
+  ├─ 单 DescriptorSet (单纹理图集 sampler)
+  ├─ 单 VBO (持久映射，每帧 memcpy)
+  ├─ 三重缓冲交换链 (3× semaphore + fence)
+  └─ 纹理 0 = 1×1 白色纹理 (供纯色矩形用)
 ```
 
 ## 瓦片类型编码
@@ -56,7 +79,31 @@ const val TILE_TREE2        = 5   // 树变体2
 const val TILE_BUILDING     = 6   // 建筑占位（由 placedBuildings 计算）
 ```
 
-定义在 `SectMapTileGenerator`（`core/engine/.../util/`），消费端在 `SectMapCanvas.kt` 和 `MainGameScreen.kt`。
+定义在 `SectMapTileGenerator`（`core/engine/.../util/`），消费端在 `MainGameScreen.kt` 和 `NativeBridge.cpp::drawDecor`。
+
+## 纹理图集布局
+
+所有地面/装饰/建筑精灵合并到单张 **2048×2048 RGBA8** 纹理：
+
+```
+行0 (y=0):     地面(64×64) + 草装饰(64×64×3) + 树(128×128×2)
+行1 (y=128):   建筑 A-E  (128×128×4)
+行2 (y=256):   建筑 F-J  (128×128×4)
+行3 (y=384):   建筑 K-O  (128×128×4)
+行4 (y=512):   建筑 P-R  (128×128×3 + 空位)
+```
+
+UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtlas.h）双重定义，必须保持同步。
+
+## 精灵图集构建
+
+`NativeSurfaceView.buildAtlas()` 在渲染器就绪后调用：
+1. 创建 2048×2048 `Bitmap`
+2. 逐精灵调用 `BitmapFactory.decodeResource` 解码 → `Canvas.drawBitmap` 绘制到图集
+3. `uploadBitmap` 将 ARGB 像素转为 RGBA ByteArray 上传到 GPU 纹理
+4. 返回纹理 ID 存入 `atlasTextureId`
+
+资源 ID 运行时通过 `context.resources.getIdentifier(name, "drawable", pkg)` 查找。
 
 ## 装饰物生成算法
 
@@ -71,23 +118,77 @@ const val TILE_BUILDING     = 6   // 建筑占位（由 placedBuildings 计算�
 - **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.30
 - **定义位置**：`core/engine/src/main/java/com/xianxia/sect/core/util/SectMapTileGenerator.kt`
 
-## 性能指标
+## Vulkan 渲染管线结构
 
-| 指标 | 值 | 说明 |
-|------|-----|------|
-| 地面层 draw calls | 1 | `drawImage(groundTileBmp)` 一次调用 |
-| 装饰层 draw calls | ~10-30 | 视口内可见装饰格数，每格 1 次 |
-| 建筑层 draw calls | ~5-15 | 视口内可见建筑数 |
-| 视口裁剪 | ✅ | 装饰和建筑均只渲染可见区域 |
-| 总帧开销 | <0.1ms | 28×28 网格，约 60 可见格 |
+### 着色器
 
-## 架构演进
+| 着色器 | 作用 | Push Constant | 输入 |
+|--------|------|---------------|------|
+| `sprite.vert` | 顶点变换 | mat4 投影矩阵 | inPos(vec2), inUV(vec2), inColor(vec4) |
+| `sprite.frag` | 纹理采样 | — | sampler2D(纹理图集) × inColor |
+
+### Pipeline 状态
+
+- 顶点输入: 2×float32 (位置) + 2×float32 (UV) + 4×float32 (颜色) = 32 字节/顶点
+- 图元: TRIANGLE_LIST
+- 混合: 无 (不透明渲染)
+- 深度: 关闭
+- 面剔除: 关闭 (背面可见)
+
+### 纹理切换
+
+在 `submitFrame()` 中，按 `draw.textureId` 分组：
+- **textureId = 0** → 1×1 白色纹理（纯色矩形输出 `white × vertexColor = vertexColor`）
+- **textureId > 0** → 对应上传纹理，更新 DescriptorSet 后绘制
+
+## 设备兼容性
+
+`VulkanPolicy` 检测设备 GPU 兼容性：
+
+| 等级 | 行为 |
+|------|------|
+| SAFE (高通 Adreno) | 正常使用硬件加速 |
+| WARNING (国产厂商 + Android 15+) | 日志警告，继续运行 |
+| PROBLEMATIC (MTK/已知问题机型) | 禁用硬件加速 |
+
+已知问题：国产 ROM（MIUI/OriginOS/ColorOS）的 Mali GPU Vulkan 驱动兼容性差。
+详见 `android-renderthread-crash-research.md`。
+
+## 关键文件索引
+
+| 文件 | 职责 |
+|------|------|
+| **C++ 渲染引擎** | |
+| `app/src/main/cpp/VulkanBackend.cpp/h` | Vulkan 1.1+ 渲染后端（1315 行） |
+| `app/src/main/cpp/Renderer2D.h` | 渲染抽象接口 + 正交投影数学 |
+| `app/src/main/cpp/SpriteBatcher.h/cpp` | 精灵批处理构建器 |
+| `app/src/main/cpp/TextureAtlas.h/cpp` | 纹理图集定义 + UV 坐标 |
+| `app/src/main/cpp/NativeBridge.cpp` | JNI 桥接（14 个接口） |
+| `app/src/main/cpp/shaders/sprite.vert/frag` | GLSL 着色器 + SPIR-V 预编译 |
+| `app/src/main/cpp/CMakeLists.txt` | NDK CMake 构建配置 |
+| **Kotlin 桥接** | |
+| `core/engine/.../nativebridge/NativeBridge.kt` | JNI 声明 |
+| `feature/game/.../sect/NativeSurfaceView.kt` | SurfaceView + 渲染线程 + 纹理上传/图集构建 |
+| `feature/game/.../sect/SectUIState.kt` | 放置/移动/金手指状态 |
+| `feature/game/.../sect/NativeRenderConfig.kt` | 渲染配置 data class (内联于 NativeSurfaceView.kt) |
+| **游戏逻辑** | |
+| `core/engine/.../util/SectMapTileGenerator.kt` | 瓦片数据生成算法 |
+| `core/engine/.../util/SectMapTileGeneratorTest.kt` | 生成算法测试（10 用例） |
+| `core/domain/.../model/MapPreloadData.kt` | 预加载数据模型（无纹理字段） |
+| `app/.../ui/game/GameActivity.kt` | 资源加载 + MapPreloadData 构建 |
+| `feature/game/.../MainGameScreen.kt` | tileData 计算 + AndroidView 嵌入 + 手势处理 |
+| **兼容性** | |
+| `app/.../core/VulkanPolicy.kt` | 设备兼容性检测 |
+| `AndroidManifest.xml` | `<uses-feature android:name="android.hardware.vulkan" android:required="false">` |
+
+## 历史版本
 
 | 版本 | 架构 | 问题 |
 |------|------|------|
 | ≤4.0.40 | 双缓冲 Bitmap 烘焙（frontBuffer/backBuffer） | 残影 bug、复杂增量追踪 |
 | 4.0.41 | 统一 Canvas 直接绘制 + `fullMapBmp` 单层位图 | 地面+装饰合并无法独立控制 |
-| **4.0.42** | **三层按格实时绘制** ✅ | 分离地面/装饰/建筑，无后处理 |
+| 4.0.42 | 三层按格实时绘制（Compose Canvas） | Compose 重组开销、主线程渲染 |
+| **4.0.43+** | **Vulkan 原生渲染管线（当前）** | 3 draw calls、独立渲染线程、低功耗 |
 
 ## 美术资源清单
 
@@ -102,16 +203,4 @@ const val TILE_BUILDING     = 6   // 建筑占位（由 placedBuildings 计算�
 | `decoration_tree1.webp` | 树变体 1 | `树木1.png` |
 | `decoration_tree2.webp` | 树变体 2 | `树木2.png` |
 
-这些资源不走 `SpriteResRegistry` 注册，而是通过 `GameActivity.kt` 的 `MapPreloadData` 构建逻辑直接预加载（地图资源类别的正交设计）。
-
-## 关键文件索引
-
-| 文件 | 职责 |
-|------|------|
-| `core/engine/.../util/SectMapTileGenerator.kt` | 瓦片数据生成算法 |
-| `core/engine/.../util/SectMapTileGeneratorTest.kt` | 生成算法测试（10 用例） |
-| `core/domain/.../model/MapPreloadData.kt` | 预加载数据模型 |
-| `app/.../ui/game/GameActivity.kt` | 资源加载 + MapPreloadData 构建 |
-| `feature/game/.../sect/SectMapCanvas.kt` | 三层按格渲染 |
-| `feature/game/.../MainGameScreen.kt` | tileData 计算 + 参数传递 |
-| `feature/game/.../sect/SectMapState.kt` | 放置/移动/金手指状态 |
+这些资源不走 `SpriteResRegistry` 注册，而是通过 `NativeSurfaceView.buildAtlas()` 直接解码后上传到 GPU 纹理图集。

@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.Image
-import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,35 +18,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
@@ -58,10 +41,6 @@ import com.xianxia.sect.ui.navigation.toDialogRoute
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.core.perf.GpuTier
-import com.xianxia.sect.core.perf.GpuTierDetector
-import com.xianxia.sect.core.perf.GpuRenderConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
@@ -74,6 +53,11 @@ import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
+import androidx.compose.ui.viewinterop.AndroidView
+import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.ui.game.sect.NativeSurfaceView
+import com.xianxia.sect.ui.game.sect.NativeRenderConfig
+import com.xianxia.sect.ui.game.sect.FrameRenderState
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
@@ -83,7 +67,7 @@ import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.*
 import com.xianxia.sect.ui.game.main.*
-import com.xianxia.sect.ui.theme.ButtonSizes
+import androidx.compose.runtime.mutableIntStateOf
 
 
 /**
@@ -233,7 +217,7 @@ fun MainGameScreen(
     }
 
     // 金手指批量建造状态
-    var goldFingerState by remember { mutableStateOf(GoldFingerState()) }
+    var goldFingerState by remember { mutableStateOf<com.xianxia.sect.ui.game.sect.GoldFingerState>(com.xianxia.sect.ui.game.sect.GoldFingerState()) }
     val goldFingerBuildingCost = remember {
         derivedStateOf {
             val name = goldFingerState.buildingName
@@ -250,9 +234,8 @@ fun MainGameScreen(
     // 地图瓦片素材 — 由 GameActivity 预加载，此处同步读取
 
     val rawTileData = mapPreloadData.rawTileData
-    val groundTileBmp = mapPreloadData.groundTileBmp
-    val grassDecBitmaps = mapPreloadData.grassDecBitmaps
-    val treeDecBitmaps = mapPreloadData.treeDecBitmaps
+
+    // 纹理将在 NativeSurfaceView 的 onRendererReady 回调中上传
 
     // 瓦片数据（含建筑占位标记）：装饰物类型 + 建筑占用 → 统一 tileData
     val tileData = remember(rawTileData, effectivePlacedBuildings) {
@@ -333,10 +316,6 @@ fun MainGameScreen(
     }
     val isGameOver by viewModel.isGameOver.collectAsStateWithLifecycle()
 
-    // GPU 分级检测 — 启动时一次性检测，后续使用缓存结果
-    val gpuTier = remember { GpuTierDetector().detect() }
-    val gpuRenderConfig = remember { GpuRenderConfig.forTier(gpuTier) }
-
     LaunchedEffect(isGameOver) {
         if (isGameOver) {
             viewModel.openGameOverDialog()
@@ -364,10 +343,6 @@ fun MainGameScreen(
                 screenHeightPx = size.height.toFloat()
             }
     ) {
-        val preloadedBuildingBitmaps by saveLoadViewModel.preloadedBuildingBitmaps.collectAsStateWithLifecycle()
-        val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
-            else rememberBuildingBitmaps()
-
         val context = LocalContext.current
 
         // 金手指图标位图
@@ -417,174 +392,276 @@ fun MainGameScreen(
             }
         }
 
-        // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览）
-        // Canvas 统一直接绘制：背景 + 建筑 + 动态叠加层合并到单个 Canvas，
-        // 每帧从 placedBuildings 数据实时绘制，GPU 自动处理合成。
-        // 不再使用双缓冲烘焙 / 离屏缓存 / 增量更新，彻底消除残影 bug。
-        // 来源: 行业调研报告 (2026-07-05)
-        SectMapCanvas(
-            config = SectMapRenderConfig(
-                cameraState = cameraState,
+        // 宗门大地图层（Vulkan 原生渲染）
+        // v4.0.43+ 架构：替换 Compose Canvas 为 Vulkan 原生渲染管线，
+        // 实现 GPU 批处理（3 draw calls/帧）、独立渲染线程、VSYNC 对齐。
+        // 参见: docs/map-rendering-architecture.md
+        val nativeConfig = remember(tileSize) {
+            NativeRenderConfig(
                 tileSize = tileSize,
                 worldWidthCells = worldWidthCells,
                 worldHeightCells = worldHeightCells,
-                gpuRenderConfig = gpuRenderConfig
-            ),
-            placedBuildings = activeSectBuildings,
-            buildingBitmaps = buildingBitmaps,
-            groundTileBmp = groundTileBmp,
-            grassDecBitmaps = grassDecBitmaps,
-            treeDecBitmaps = treeDecBitmaps,
-            tileData = tileData,
-            spiritFieldPlants = gameData.spiritFieldPlants,
-            spiritFieldBuildings = activeSectBuildings.filter {
-                it.displayName == BuildingDef.SPIRIT_FIELD.displayName
-            },
-            cropBitmaps = cropBitmaps,
-            currentGameYear = gameData.gameYear,
-            currentGameMonth = gameData.gameMonth,
-            goldenFingerBmp = goldenFingerBmp,
-            placement = if (isPlacingBuilding) PlacementModeState(
-                isActive = true,
-                buildingName = placingBuildingName,
-                gridX = placingSnappedGridX,
-                gridY = placingSnappedGridY,
-                worldX = placingWorldX,
-                worldY = placingWorldY,
-                size = placingBuildingSize,
-                validity = placementValidity
-            ) else PlacementModeState.INACTIVE,
-            move = if (movingBuilding != null) MoveModeState(
-                isActive = true,
-                building = movingBuilding,
-                gridX = movingSnappedGridX,
-                gridY = movingSnappedGridY,
-                worldX = movingWorldX,
-                worldY = movingWorldY,
-                size = movingBuildingSize,
-                validity = movingValid
-            ) else MoveModeState.INACTIVE,
-            goldFinger = goldFingerState,
-            buildingIndex = buildingIndex,
-            onBuildingClick = { building ->
-                val def = BuildingRegistry.findByDisplayName(building.displayName)
-                when (def) {
-                    BuildingDef.SPIRIT_MINE -> viewModel.navigateToDialog(DialogRoute.SpiritMine(building.instanceId))
-                    BuildingDef.ALCHEMY -> viewModel.navigateToDialog(DialogRoute.Alchemy(building.instanceId))
-                    BuildingDef.FORGE -> viewModel.navigateToDialog(DialogRoute.Forge(building.instanceId))
-                    BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
-                        viewModel.navigateToDialog(DialogRoute.Residence(building.instanceId))
+                worldPixelWidth = worldPixelWidth,
+                worldPixelHeight = worldPixelHeight
+            )
+        }
+        var nativeSurfaceView by remember { mutableStateOf<NativeSurfaceView?>(null) }
+
+        // 将二维 tileData 展平为一维 IntArray（供 JNI 传递）
+        val flatTileData = remember(tileData) {
+            tileData.flatMap { it.toList() }.toIntArray()
+        }
+
+        // 预计算 UV 坐标（匹配 C++ TextureAtlas.h 布局: 64/128 px tiles in 2048×2048 atlas）
+        val decorUvMap = remember { floatArrayOf(
+            64f/2048f, 0f, 128f/2048f, 64f/2048f,   // 1: grass_small
+            128f/2048f, 0f, 192f/2048f, 64f/2048f,  // 2: grass_medium
+            192f/2048f, 0f, 256f/2048f, 64f/2048f,  // 3: grass_large
+            256f/2048f, 0f, 384f/2048f, 128f/2048f, // 4: tree1
+            384f/2048f, 0f, 512f/2048f, 128f/2048f, // 5: tree2
+        )}
+
+        AndroidView(
+            factory = { ctx ->
+                NativeSurfaceView(ctx, nativeConfig).also { view ->
+                    nativeSurfaceView = view
+
+                    // 渲染器就绪后上传纹理
+                    view.onRendererReady = {
+                        // 上传地面纹理
+                        val gfx = ctx.resources
+                        val opts = android.graphics.BitmapFactory.Options()
+                        val tileBmp = try {
+                            val id = com.xianxia.sect.feature.game.R.drawable.map_tile
+                            android.graphics.BitmapFactory.decodeResource(gfx, id, opts)
+                        } catch (e: Exception) { null }
+
+                        if (tileBmp != null) {
+                            view.groundTextureId = view.uploadBitmap(tileBmp)
+                            tileBmp.recycle()
+                        }
+
+                        // 构建完整纹理图集（装饰 + 建筑 -> 单张 2048×2048 纹理）
+                        view.atlasTextureId = view.buildAtlas(ctx)
                     }
-                    else -> {
-                        val b = buildingList.find { it.first == building.displayName }
-                        b?.second?.invoke(building)
-                    }
+
+                    view.updateRenderState(
+                        FrameRenderState(
+                            camX = cameraState.cameraX,
+                            camY = cameraState.cameraY,
+                            scale = cameraState.scale,
+                            cameraDirty = true
+                        )
+                    )
                 }
             },
-            onBuildingLongPress = { building ->
-                if (!isPlacingBuilding) {
-                    movingBuilding = building
-                    movingWorldX = (building.gridX * tileSize).toFloat()
-                    movingWorldY = (building.gridY * tileSize).toFloat()
-                    movingSnappedGridX = building.gridX
-                    movingSnappedGridY = building.gridY
-                    movingValid = GridSnapHelper.PlacementValidity.Valid
-                }
-            },
-            onPlacementDrag = { dx, dy ->
-                placingWorldX += dx
-                placingWorldY += dy
-                placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
-                placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
-                placementValidity = gridSystem.validatePlacement(
-                    placingSnappedGridX, placingSnappedGridY,
-                    placingBuildingSize.width, placingBuildingSize.height
+            update = { view ->
+                view.updateRenderState(
+                    FrameRenderState(
+                        camX = cameraState.cameraX,
+                        camY = cameraState.cameraY,
+                        scale = cameraState.scale,
+                        cameraDirty = true,
+                        decorVisible = true,
+                        tileData = flatTileData,
+                        uvMap = decorUvMap,
+                        firstCol = 0,
+                    lastCol = worldWidthCells - 1,
+                    firstRow = 0,
+                    lastRow = worldHeightCells - 1,
+                    buildingData = buildBuildingDataArray(
+                        activeSectBuildings, movingBuilding
+                    ),
+                    buildingCount = activeSectBuildings.size -
+                        (if (movingBuilding != null) 1 else 0),
+                    buildingUVMap = BUILDING_UV_MAP,
+                    showPlacementPreview = isPlacingBuilding,
+                    previewX = placingWorldX,
+                    previewY = placingWorldY,
+                    previewW = (placingBuildingSize.width * tileSize).toFloat(),
+                    previewH = (placingBuildingSize.height * tileSize).toFloat(),
+                    previewR = 0.25f, previewG = 0.75f,
+                    previewB = 0.25f, previewA = 0.5f
                 )
-                val edgePx = 80f
-                val screenX = cameraState.worldToScreenX(placingWorldX)
-                val screenY = cameraState.worldToScreenY(placingWorldY)
-                val panSpeed = 8f
-                if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
-                if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
-                if (screenY < edgePx) cameraState.pan(0f, panSpeed)
-                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
-            },
-            onMovingDrag = { dx, dy ->
-                movingWorldX += dx
-                movingWorldY += dy
-                movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
-                movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
-                movingValid = gridSystem.validatePlacement(
-                    movingSnappedGridX, movingSnappedGridY,
-                    movingBuildingSize.width, movingBuildingSize.height
-                )
-                val edgePx = 80f
-                val screenX = cameraState.worldToScreenX(movingWorldX)
-                val screenY = cameraState.worldToScreenY(movingWorldY)
-                val panSpeed = 8f
-                if (screenX < edgePx) cameraState.pan(panSpeed, 0f)
-                if (screenX > screenWidthPx - edgePx) cameraState.pan(-panSpeed, 0f)
-                if (screenY < edgePx) cameraState.pan(0f, panSpeed)
-                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, -panSpeed)
-            },
-            onGoldFingerStart = {
-                // 金手指模式启动：记录金手指起始格，初始化 state
-                val initialCost = viewModel.getBuildingCost(placingBuildingName)
-                val initialValidity = computeGoldFingerCellValidities(
-                    startGridX = placingSnappedGridX,
-                    startGridY = placingSnappedGridY,
-                    endGridX = placingSnappedGridX,
-                    endGridY = placingSnappedGridY,
-                    buildingW = placingBuildingSize.width,
-                    buildingH = placingBuildingSize.height,
-                    existingBuildings = effectivePlacedBuildings,
-                    worldWidthCells = worldWidthCells,
-                    worldHeightCells = worldHeightCells
-                )
-                val initCanBuildCount = initialValidity.count { it.value }
-                goldFingerState = goldFingerState.copy(
-                    isActive = true,
-                    startGridX = placingSnappedGridX,
-                    startGridY = placingSnappedGridY,
-                    endGridX = placingSnappedGridX,
-                    endGridY = placingSnappedGridY,
-                    buildingName = placingBuildingName,
-                    buildingSize = placingBuildingSize,
-                    buildingCost = initialCost,
-                    totalCost = initCanBuildCount * initialCost,
-                    canAfford = (gameData?.spiritStones ?: 0L) >= initCanBuildCount * initialCost,
-                    canBuildCount = initCanBuildCount,
-                    cellValidity = initialValidity
-                )
-            },
-            onGoldFingerDrag = { endGridX, endGridY ->
-                val startX = goldFingerState.startGridX
-                val startY = goldFingerState.startGridY
-                val newValidity = computeGoldFingerCellValidities(
-                    startGridX = startX,
-                    startGridY = startY,
-                    endGridX = endGridX,
-                    endGridY = endGridY,
-                    buildingW = goldFingerState.buildingSize.width,
-                    buildingH = goldFingerState.buildingSize.height,
-                    existingBuildings = effectivePlacedBuildings,
-                    worldWidthCells = worldWidthCells,
-                    worldHeightCells = worldHeightCells
-                )
-                val canBuildCount = newValidity.count { it.value }
-                val totalCost = canBuildCount * goldFingerState.buildingCost
-                val canAfford = (gameData?.spiritStones ?: 0L) >= totalCost
-                goldFingerState = goldFingerState.copy(
-                    endGridX = endGridX,
-                    endGridY = endGridY,
-                    totalCost = totalCost,
-                    canAfford = canAfford,
-                    canBuildCount = canBuildCount,
-                    cellValidity = newValidity
-                )
-            },
-            onUserInteraction = viewModel::onUserInteraction,
+                    )
+                },
             modifier = Modifier.fillMaxSize()
+        )
+
+        // 触控手势层（透明覆盖在 Vulkan 渲染层之上，处理手势检测）
+        // 功能：相机拖动、建筑点击、建筑长按→移动模式
+        val gestureScope = rememberCoroutineScope()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val downPos = down.position
+                        var dragStarted = false
+                        var longPressTriggered = false
+                        var lastPos = downPos
+
+                        // 长按检测
+                        val longPressJob = gestureScope.launch {
+                            delay(viewConfiguration.longPressTimeoutMillis)
+                            if (!dragStarted) {
+                                val wx = cameraState.screenToWorldX(downPos.x)
+                                val wy = cameraState.screenToWorldY(downPos.y)
+                                val gx = (wx / tileSize).toInt()
+                                val gy = (wy / tileSize).toInt()
+
+                                if (isPlacingBuilding && !goldFingerState.isActive) {
+                                    // 金手指激活检测：点击位置在预览框右下角外部单格
+                                    val gfWx = (placingSnappedGridX + placingBuildingSize.width) * tileSize
+                                    val gfWy = (placingSnappedGridY + placingBuildingSize.height) * tileSize
+                                    if (wx >= gfWx && wx < gfWx + tileSize &&
+                                        wy >= gfWy && wy < gfWy + tileSize) {
+                                        // 激活金手指模式
+                                        val initialCost = viewModel.getBuildingCost(placingBuildingName)
+                                        val initialValidity = computeGoldFingerCellValidities(
+                                            startGridX = placingSnappedGridX, startGridY = placingSnappedGridY,
+                                            endGridX = placingSnappedGridX, endGridY = placingSnappedGridY,
+                                            buildingW = placingBuildingSize.width,
+                                            buildingH = placingBuildingSize.height,
+                                            existingBuildings = effectivePlacedBuildings,
+                                            worldWidthCells = worldWidthCells,
+                                            worldHeightCells = worldHeightCells
+                                        )
+                                        val initCanBuild = initialValidity.count { it.value }
+                                        goldFingerState = com.xianxia.sect.ui.game.sect.GoldFingerState(
+                                            isActive = true,
+                                            startGridX = placingSnappedGridX,
+                                            startGridY = placingSnappedGridY,
+                                            endGridX = placingSnappedGridX,
+                                            endGridY = placingSnappedGridY,
+                                            buildingName = placingBuildingName,
+                                            buildingSize = placingBuildingSize,
+                                            buildingCost = initialCost,
+                                            totalCost = initCanBuild * initialCost,
+                                            canAfford = (gameData?.spiritStones ?: 0L) >= initCanBuild * initialCost,
+                                            canBuildCount = initCanBuild,
+                                            cellValidity = initialValidity
+                                        )
+                                        longPressTriggered = true
+                                    }
+                                } else if (!isPlacingBuilding && movingBuilding == null) {
+                                    // 已有建筑长按 → 移动模式
+                                    val touched = buildingIndex.findBuildingAt(gx, gy)
+                                    if (touched != null) {
+                                        longPressTriggered = true
+                                        movingBuilding = touched
+                                        movingWorldX = (touched.gridX * tileSize).toFloat()
+                                        movingWorldY = (touched.gridY * tileSize).toFloat()
+                                        movingSnappedGridX = touched.gridX
+                                        movingSnappedGridY = touched.gridY
+                                        movingValid = GridSnapHelper.PlacementValidity.Valid
+                                    }
+                                }
+                            }
+                        }
+
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+
+                            if (!change.pressed) {
+                                longPressJob.cancel()
+                                if (!dragStarted && !longPressTriggered) {
+                                    // 点击检测
+                                    val wx = cameraState.screenToWorldX(change.position.x)
+                                    val wy = cameraState.screenToWorldY(change.position.y)
+                                    val gx = (wx / tileSize).toInt()
+                                    val gy = (wy / tileSize).toInt()
+                                    val clicked = buildingIndex.findBuildingAt(gx, gy)
+                                    if (clicked != null) {
+                                        val def = BuildingRegistry.findByDisplayName(clicked.displayName)
+                                        when (def) {
+                                            BuildingDef.SPIRIT_MINE -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
+                                            BuildingDef.ALCHEMY -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
+                                            BuildingDef.FORGE -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
+                                            BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
+                                                viewModel.navigateToDialog(DialogRoute.Residence(clicked.instanceId))
+                                            }
+                                            else -> {
+                                                val b = buildingList.find { it.first == clicked.displayName }
+                                                b?.second?.invoke(clicked)
+                                            }
+                                        }
+                                    }
+                                }
+                                change.consume()
+                                break
+                            }
+
+                            if (!dragStarted && !longPressTriggered) {
+                                val dx = change.position.x - lastPos.x
+                                val dy = change.position.y - lastPos.y
+                                if (dx * dx + dy * dy > viewConfiguration.touchSlop * viewConfiguration.touchSlop) {
+                                    dragStarted = true
+                                    longPressJob.cancel()
+                                }
+                            }
+
+                            if (dragStarted) {
+                                change.consume()
+                                val dragAmountX = change.position.x - lastPos.x
+                                val dragAmountY = change.position.y - lastPos.y
+
+                                if (movingBuilding != null && longPressTriggered) {
+                                    // 移动模式：更新建筑位置
+                                    movingWorldX += dragAmountX
+                                    movingWorldY += dragAmountY
+                                    movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
+                                    movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
+                                    movingValid = gridSystem.validatePlacement(
+                                        movingSnappedGridX, movingSnappedGridY,
+                                        movingBuildingSize.width, movingBuildingSize.height
+                                    )
+                                    // 边缘自动平移
+                                    val edgePx = 80f
+                                    val sx = cameraState.worldToScreenX(movingWorldX)
+                                    val sy = cameraState.worldToScreenY(movingWorldY)
+                                    if (sx < edgePx) cameraState.pan(8f, 0f)
+                                    if (sx > screenWidthPx - edgePx) cameraState.pan(-8f, 0f)
+                                    if (sy < edgePx) cameraState.pan(0f, 8f)
+                                    if (sy > screenHeightPx - edgePx) cameraState.pan(0f, -8f)
+                                } else if (goldFingerState.isActive) {
+                                    // 金手指拖拽：更新框选结束格
+                                    val newWx = cameraState.screenToWorldX(change.position.x)
+                                    val newWy = cameraState.screenToWorldY(change.position.y)
+                                    val newGridX = (newWx / tileSize).toInt()
+                                    val newGridY = (newWy / tileSize).toInt()
+                                    val fStartX = goldFingerState.startGridX
+                                    val fStartY = goldFingerState.startGridY
+                                    val fSize = goldFingerState.buildingSize
+                                    val newValidity = computeGoldFingerCellValidities(
+                                        startGridX = fStartX, startGridY = fStartY,
+                                        endGridX = newGridX, endGridY = newGridY,
+                                        buildingW = fSize.width, buildingH = fSize.height,
+                                        existingBuildings = effectivePlacedBuildings,
+                                        worldWidthCells = worldWidthCells,
+                                        worldHeightCells = worldHeightCells
+                                    )
+                                    val canBuildCount = newValidity.count { it.value }
+                                    val totalCost = canBuildCount * goldFingerState.buildingCost
+                                    goldFingerState = goldFingerState.copy(
+                                        endGridX = newGridX, endGridY = newGridY,
+                                        totalCost = totalCost,
+                                        canAfford = (gameData?.spiritStones ?: 0L) >= totalCost,
+                                        canBuildCount = canBuildCount,
+                                        cellValidity = newValidity
+                                    )
+                                } else if (!isPlacingBuilding && movingBuilding == null) {
+                                    // 相机拖动
+                                    cameraState.pan(dragAmountX, dragAmountY)
+                                    viewModel.onUserInteraction()
+                                }
+                                lastPos = change.position
+                            }
+                        } while (true)
+                    }
+                }
         )
 
         // 放置模式确认按钮
@@ -815,5 +892,70 @@ fun MainGameScreen(
         }
     }
     } // CompositionLocalProvider
+}
+
+/**
+ * 构建建筑数据数组，供 NativeBridge.drawBuildings 使用。
+ * 格式：[gridX, gridY, width, height, nameIndex] × buildingCount
+ */
+private fun buildBuildingDataArray(
+    buildings: List<GridBuildingData>,
+    movingBuilding: GridBuildingData?
+): FloatArray {
+    val filtered = if (movingBuilding != null)
+        buildings.filter { it.instanceId != movingBuilding.instanceId }
+    else buildings
+
+    val result = FloatArray(filtered.size * 5)
+    for ((i, b) in filtered.withIndex()) {
+        val idx = i * 5
+        result[idx] = b.gridX.toFloat()
+        result[idx + 1] = b.gridY.toFloat()
+        result[idx + 2] = b.width.toFloat()
+        result[idx + 3] = b.height.toFloat()
+        result[idx + 4] = (BUILDING_NAME_INDEX[b.displayName] ?: 0).toFloat()
+    }
+    return result
+}
+
+/** 建筑名称 → 图集中的索引（匹配 TextureAtlas.h 中从 index 6 开始的建筑顺序） */
+private val BUILDING_NAME_INDEX: Map<String, Int> = mapOf(
+    "灵矿场" to 0, "灵植阁" to 1, "灵田" to 2, "炼丹炉" to 3,
+    "锻造坊" to 4, "仓库" to 5, "藏经阁" to 6, "问道塔" to 7,
+    "青云塔" to 8, "天枢殿" to 9, "执法堂" to 10, "任务阁" to 11,
+    "巡视楼" to 12, "监牢" to 13, "单人住所" to 14, "中级单人住所" to 15,
+    "多人住所" to 16, "血炼池" to 17
+)
+
+/** 建筑 UV 坐标（匹配图集布局：128×128 建筑从 y=128 开始，每行4个） */
+private val BUILDING_UV_MAP: FloatArray by lazy {
+    val uvs = FloatArray(18 * 4)
+    for (i in 0 until 18) {
+        val col = i % 4
+        val row = i / 4
+        val px = col * 128
+        val py = 128 + row * 128
+        uvs[i * 4]     = px / 2048f
+        uvs[i * 4 + 1] = py / 2048f
+        uvs[i * 4 + 2] = (px + 128) / 2048f
+        uvs[i * 4 + 3] = (py + 128) / 2048f
+    }
+    uvs
+}
+
+private fun uploadBitmapToGpu(
+    bitmap: android.graphics.Bitmap
+): Int {
+    val pixels = IntArray(bitmap.width * bitmap.height)
+    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    val buffer = ByteArray(pixels.size * 4)
+    for (i in pixels.indices) {
+        val p = pixels[i]
+        buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
+        buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
+        buffer[i * 4 + 2] = (p and 0xFF).toByte()
+        buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
+    }
+    return NativeBridge.uploadTexture(buffer, bitmap.width, bitmap.height)
 }
 
