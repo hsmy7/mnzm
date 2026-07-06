@@ -116,7 +116,8 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 
 - **原理**：`smoothNoise()` 在粗网格上采样 `cellHash`，经双线性插值 + smoothstep 产生连续平滑值，相邻格值变化平缓 → 自然地块而非噪点
 - **地面变体**：两个地面纹理（地面1/地面2）使用同一方案以 6×6 尺度混合，地面1≈70%、地面2≈30%
-- **确定性**：相同输入永远产生相同输出（全部基于 `cellHash` + 固定种子，无 `java.util.Random`）
+- **确定性 + 随机种子**：same seed + same input = same output。`worldSeed` 参数（默认 0）通过 XOR 混入 7 个内部种子点，使不同存档的地图分布不同。`worldSeed=0` 保持向后兼容
+- **种子持久化**：新游戏时 `GameEngine.createNewGame()` 生成 `Random.nextInt()` → 存入 `GameData.mapSeed`。读档时从 DB 读出，保证同一存档地图不变
 - **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.18
 - **定义位置**：`core/engine/src/main/java/com/xianxia/sect/core/util/SectMapTileGenerator.kt`
 

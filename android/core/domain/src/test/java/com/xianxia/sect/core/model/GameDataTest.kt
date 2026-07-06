@@ -24,6 +24,7 @@ class GameDataTest {
         assertEquals(0, data.spiritHerbs)
         assertEquals(0.0, data.sectCultivation, 0.001)
         assertEquals(3, data.autoSaveIntervalMonths)
+        assertEquals(0, data.mapSeed)
         assertFalse(data.isGameOver)
     }
 

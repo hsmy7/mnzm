@@ -165,11 +165,13 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     initializeWorldAndServices(sectName, currentSlot)
     val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
     val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
+    val mapSeed = java.util.Random().nextInt()
     stateStore.update {
         val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
         gameData = gameData.copy(
             slotId = currentSlot,
             currentSlot = currentSlot,
+            mapSeed = mapSeed,
             placedBuildings = listOf(initialMine),
             spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
             // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留

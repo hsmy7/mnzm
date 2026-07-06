@@ -14,11 +14,24 @@ class SectMapTileGeneratorTest {
 
     @Test
     fun `generateTileData - deterministic output for same input`() {
-        val result1 = SectMapTileGenerator.generateTileData(28, 28, 0.30f)
-        val result2 = SectMapTileGenerator.generateTileData(28, 28, 0.30f)
+        val result1 = SectMapTileGenerator.generateTileData(28, 28, 0.30f, 12345)
+        val result2 = SectMapTileGenerator.generateTileData(28, 28, 0.30f, 12345)
         for (row in result1.indices) {
             assertArrayEquals(result1[row], result2[row])
         }
+    }
+
+    @Test
+    fun `generateTileData - different seeds produce different output`() {
+        val result1 = SectMapTileGenerator.generateTileData(28, 28, 0.30f, 100)
+        val result2 = SectMapTileGenerator.generateTileData(28, 28, 0.30f, 9999)
+        var same = true
+        for (row in result1.indices) {
+            for (col in result1[row].indices) {
+                if (result1[row][col] != result2[row][col]) same = false
+            }
+        }
+        assertFalse("Expected different output for different seeds", same)
     }
 
     @Test

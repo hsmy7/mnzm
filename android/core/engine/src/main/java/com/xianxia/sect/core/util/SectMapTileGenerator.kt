@@ -24,18 +24,20 @@ object SectMapTileGenerator {
      * @param worldWidthCells 地图宽度（格数）
      * @param worldHeightCells 地图高度（格数）
      * @param decorationDensity 总装饰密度 (0.0~1.0)，默认 0.18
+     * @param worldSeed 世界随机种子，不同种子产生不同地图分布；默认 0 保持向后兼容
      */
     fun generateTileData(
         worldWidthCells: Int,
         worldHeightCells: Int,
-        decorationDensity: Float = 0.18f
+        decorationDensity: Float = 0.18f,
+        worldSeed: Int = 0
     ): Array<IntArray> {
         val data = Array(worldHeightCells) {
             IntArray(worldWidthCells) { TILE_GROUND }
         }
-        placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity)
-        placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity)
-        mixGroundVariants(data, worldWidthCells, worldHeightCells)
+        placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
+        placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
+        mixGroundVariants(data, worldWidthCells, worldHeightCells, worldSeed)
         return data
     }
 
@@ -44,16 +46,16 @@ object SectMapTileGenerator {
      * 在噪声确定的草地斑块内密集长草，形成自然草滩。
      */
     private fun placeGrassPatches(
-        data: Array<IntArray>, w: Int, h: Int, density: Float
+        data: Array<IntArray>, w: Int, h: Int, density: Float, worldSeed: Int = 0
     ) {
         val fill = (density * 0.80f).coerceIn(0f, 1f)
         val threshold = 1.0f - fill
         for (gx in 0 until w) {
             for (gy in 0 until h) {
                 if (data[gy][gx] != TILE_GROUND) continue
-                if (smoothNoise(gx, gy, 8, 42) < threshold) continue
-                if (cellHash(gx, gy, 43) >= 0.80f) continue
-                data[gy][gx] = when (cellHash(gx, gy, 44)) {
+                if (smoothNoise(gx, gy, 8, 42 xor worldSeed) < threshold) continue
+                if (cellHash(gx, gy, 43 xor worldSeed) >= 0.80f) continue
+                data[gy][gx] = when (cellHash(gx, gy, 44 xor worldSeed)) {
                     in 0.93f..1.0f -> TILE_GRASS_LARGE
                     in 0.80f..0.93f -> TILE_GRASS_MEDIUM
                     else -> TILE_GRASS_SMALL
@@ -67,16 +69,17 @@ object SectMapTileGenerator {
      * 树在更大尺度上成簇，密度低于草地。
      */
     private fun placeTreeClusters(
-        data: Array<IntArray>, w: Int, h: Int, density: Float
+        data: Array<IntArray>, w: Int, h: Int, density: Float, worldSeed: Int = 0
     ) {
         val fill = (density * 0.35f).coerceIn(0f, 1f)
         val threshold = 1.0f - fill
         for (gx in 0 until w) {
             for (gy in 0 until h) {
                 if (data[gy][gx] != TILE_GROUND) continue
-                if (smoothNoise(gx, gy, 12, 101) < threshold) continue
-                if (cellHash(gx, gy, 45) >= 0.35f) continue
-                data[gy][gx] = if (cellHash(gx, gy, 46) < 0.5f) TILE_TREE1 else TILE_TREE2
+                if (smoothNoise(gx, gy, 12, 101 xor worldSeed) < threshold) continue
+                if (cellHash(gx, gy, 45 xor worldSeed) >= 0.35f) continue
+                data[gy][gx] = if (cellHash(gx, gy, 46 xor worldSeed) < 0.5f)
+                    TILE_TREE1 else TILE_TREE2
             }
         }
     }
@@ -85,10 +88,11 @@ object SectMapTileGenerator {
      * 地面变体混合：约 30% 的 TILE_GROUND 改为 TILE_GROUND_V2。
      * 双线性插值平滑噪声，产生自然地块而非噪点。
      */
-    private fun mixGroundVariants(data: Array<IntArray>, w: Int, h: Int) {
+    private fun mixGroundVariants(data: Array<IntArray>, w: Int, h: Int, worldSeed: Int = 0) {
         for (gx in 0 until w) {
             for (gy in 0 until h) {
-                if (data[gy][gx] == TILE_GROUND && smoothNoise(gx, gy, 6, 999) < 0.3f) {
+                if (data[gy][gx] == TILE_GROUND &&
+                    smoothNoise(gx, gy, 6, 999 xor worldSeed) < 0.3f) {
                     data[gy][gx] = TILE_GROUND_V2
                 }
             }

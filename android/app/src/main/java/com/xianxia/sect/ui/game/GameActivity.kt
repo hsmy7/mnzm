@@ -196,8 +196,10 @@ class GameActivity : ComponentActivity() {
                             // v4.0.43+：Vulkan 原生渲染不再依赖 Compose Canvas 位图。
                             // 纹理由 NativeSurfaceView.buildAtlas() 在渲染器就绪后独立加载。
                             // 此处只需生成瓦片数据和配置参数。
+                            // worldSeed 使用 GameData.mapSeed，保证不同存档地图分布不同
                             val rawTileData = SectMapTileGenerator.generateTileData(
-                                worldWidthCells, worldHeightCells
+                                worldWidthCells, worldHeightCells,
+                                worldSeed = gameData.mapSeed
                             )
 
                             val result = MapPreloadData(

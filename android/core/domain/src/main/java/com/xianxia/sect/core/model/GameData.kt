@@ -430,7 +430,12 @@ data class GameData(
 
     // 玩家宗门战记录（仅宗门攻占/丢失，用于附属决策，统计近3年）
     @SettlementStrategy(Strategy.USE_SHADOW)
-    var sectBattleRecords: List<SectBattleRecord> = emptyList()
+    var sectBattleRecords: List<SectBattleRecord> = emptyList(),
+
+    // 宗门地图随机种子：新开游戏时随机初始化，不同存档产生不同的地面/装饰物分布
+    @ColumnInfo(name = "map_seed", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var mapSeed: Int = 0
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
