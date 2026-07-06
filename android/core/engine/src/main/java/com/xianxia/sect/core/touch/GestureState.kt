@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.touch
 
-import com.xianxia.sect.core.model.GridBuildingData
-
 /**
  * 宗门地图手势状态机状态定义。
  *
@@ -27,10 +25,12 @@ sealed class GestureState {
     /** 手指抬起且速度 > minFlingVelocity，惯性滑行中。 */
     data object Flinging : GestureState()
 
-    /** 长按检测到建筑，正在拖拽移动建筑。 */
-    data class BuildingDrag(
-        val building: GridBuildingData
-    ) : GestureState()
+    /**
+     * 长按检测到建筑，正在拖拽移动建筑。
+     * 引擎不持有建筑引用（由 UI 层通过 movingBuilding 变量维护），
+     * 只负责将移动增量通过 onBuildingDragUpdate 回调传递给 UI 层。
+     */
+    data object BuildingDrag : GestureState()
 
     /** 长按检测到金手指激活区，正在框选批量建造区域。 */
     data object GoldFingerDrag : GestureState()

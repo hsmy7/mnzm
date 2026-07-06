@@ -85,6 +85,14 @@ object NativeBridge {
         r: Float, g: Float, b: Float, a: Float
     )
 
+    /** 从图集绘制精灵纹理（用于建造/移动预览的半透明建筑） */
+    external fun drawSprite(
+        x: Float, y: Float, w: Float, h: Float,
+        atlasTexId: Int,
+        u0: Float, v0: Float, u1: Float, v1: Float,
+        r: Float, g: Float, b: Float, a: Float
+    )
+
     /** 提交帧到 GPU */
     external fun submitFrame()
 

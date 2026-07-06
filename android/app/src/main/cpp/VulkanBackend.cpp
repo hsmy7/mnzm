@@ -1325,7 +1325,7 @@ void VulkanBackend::endFrame() {
 }
 
 void VulkanBackend::submitFrame() {
-    if (!m_ready || m_pendingDraws.empty()) return;
+    if (!m_ready) return;
 
     // 等待前帧完成
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame],
@@ -1368,52 +1368,55 @@ void VulkanBackend::submitFrame() {
 
     vkCmdBeginRenderPass(cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
+    // 有绘制内容时绑定管线并提交 draw calls，空帧则仅清除颜色缓冲
+    if (!m_pendingDraws.empty()) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
 
-    // 设置投影矩阵
-    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-                       0, sizeof(m_projMatrix), m_projMatrix);
+        // 设置投影矩阵
+        vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+                           0, sizeof(m_projMatrix), m_projMatrix);
 
-    VkBuffer vertexBuffers[] = { m_vertexBuffers[m_activeBuffer] };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+        VkBuffer vertexBuffers[] = { m_vertexBuffers[m_activeBuffer] };
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
-    // 提交所有 pending draw calls，按纹理 ID 切换描述符集
-    // 数据已在 draw() 调用时直接写入 VBO，此处只需提交 draw calls
-    uint32_t currentBoundTexId = UINT32_MAX;
-    for (auto& draw : m_pendingDraws) {
-        if (draw.count <= 0) continue;
+        // 提交所有 pending draw calls，按纹理 ID 切换描述符集
+        // 数据已在 draw() 调用时直接写入 VBO，此处只需提交 draw calls
+        uint32_t currentBoundTexId = UINT32_MAX;
+        for (auto& draw : m_pendingDraws) {
+            if (draw.count <= 0) continue;
 
-        // 纹理切换：找到对应纹理并更新描述符集
-        if (draw.textureId != currentBoundTexId) {
-            currentBoundTexId = draw.textureId;
-            if (draw.textureId == 0) {
-                bindTextureToDescriptor(m_whiteTexture);
-            } else {
-                bool found = false;
-                for (const auto& tex : m_textures) {
-                    if (tex.id == draw.textureId) {
-                        bindTextureToDescriptor(tex);
-                        found = true;
-                        break;
+            // 纹理切换：找到对应纹理并更新描述符集
+            if (draw.textureId != currentBoundTexId) {
+                currentBoundTexId = draw.textureId;
+                if (draw.textureId == 0) {
+                    bindTextureToDescriptor(m_whiteTexture);
+                } else {
+                    bool found = false;
+                    for (const auto& tex : m_textures) {
+                        if (tex.id == draw.textureId) {
+                            bindTextureToDescriptor(tex);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        // 纹理未找到时回退到白色纹理，避免描述符集指向错误数据
+                        bindTextureToDescriptor(m_whiteTexture);
+                        currentBoundTexId = 0;  // 下次遇到 ID≠0 会重新查找
                     }
                 }
-                if (!found) {
-                    // 纹理未找到时回退到白色纹理，避免描述符集指向错误数据
-                    bindTextureToDescriptor(m_whiteTexture);
-                    currentBoundTexId = 0;  // 下次遇到 ID≠0 会重新查找
-                }
+                // 重新绑定描述符集到 command buffer
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        m_pipelineLayout, 0, 1, &m_descriptorSet,
+                                        0, nullptr);
             }
-            // 重新绑定描述符集到 command buffer
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_pipelineLayout, 0, 1, &m_descriptorSet,
-                                    0, nullptr);
-        }
 
-        // 直接使用 VBO 中已有的数据（已在 draw() 中写入）
-        vkCmdDraw(cmd, draw.count, 1, draw.vertexOffset, 0);
+            // 直接使用 VBO 中已有的数据（已在 draw() 中写入）
+            vkCmdDraw(cmd, draw.count, 1, draw.vertexOffset, 0);
+        }
     }
 
     vkCmdEndRenderPass(cmd);

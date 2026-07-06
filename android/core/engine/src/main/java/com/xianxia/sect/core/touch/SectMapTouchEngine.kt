@@ -42,10 +42,7 @@ class SectMapTouchEngine(
     private val config: TouchEngineConfig = TouchEngineConfig()
 ) {
     /** 当前手势状态 */
-    private var state: GestureState = GestureState.Idle
-
-    /** 长按模式（由 UI 层在 onLongPress 中设置） */
-    private var longPressMode: LongPressMode = LongPressMode.NONE
+    @PublishedApi internal var state: GestureState = GestureState.Idle
 
     /** 手指按下位置 */
     private var downX = 0f
@@ -54,6 +51,13 @@ class SectMapTouchEngine(
     /** 上一帧手指位置 */
     private var lastX = 0f
     private var lastY = 0f
+
+    /**
+     * DOWN 时刻是否触摸在建筑/预览上。
+     * 若为 true，则 ANY 移动直接进入 BuildingDrag（无需长按），
+     * 无移动则视为 Tap（打开建筑对话框）。
+     */
+    private var hasBuildingTarget = false
 
     /** 速度追踪器 */
     private val velocityTracker = CustomVelocityTracker()
@@ -90,7 +94,7 @@ class SectMapTouchEngine(
         longPressJob?.cancel(); longPressJob = null
         flingJob?.cancel(); flingJob = null
         state = GestureState.Idle
-        longPressMode = LongPressMode.NONE
+        hasBuildingTarget = false
         velocityTracker.clear()
         flingPhysics.stop()
     }
@@ -120,22 +124,72 @@ class SectMapTouchEngine(
         downY = data.y
         lastX = data.x
         lastY = data.y
-        longPressMode = LongPressMode.NONE
         velocityTracker.clear()
         velocityTracker.addPosition(data.x, data.y, data.timestamp)
         state = GestureState.Down
+        hasBuildingTarget = false
 
-        // 长按检测
-        longPressJob = scope.launch {
-            try {
-                delay(config.longPressTimeoutMs)
-                if (state is GestureState.Down) {
-                    val handled = callbacks.onLongPress(data.x, data.y)
-                    if (handled) {
-                        // UI 层会在回调中调用 setLongPressMode
-                    }
+        val alreadyEditing = callbacks.isInEditMode()
+
+        if (alreadyEditing) {
+            // [编辑模式] 放置/移动中：任意触摸立即进入拖拽预览
+            // 行业标准做法（CoC、Rise of Kingdoms、Unity RTS Engine）
+            when (callbacks.onLongPress(data.x, data.y)) {
+                LongPressResult.BuildingDrag -> {
+                    // UI 已设置，等待 MOVE 或 200ms 超时进入 BuildingDrag
                 }
-            } catch (e: CancellationException) { throw e }
+                LongPressResult.GoldFingerDrag -> {
+                    state = GestureState.GoldFingerDrag
+                }
+                LongPressResult.NotHandled -> {
+                    // 放置模式下非金手指区域 → 立即进入 BuildingDrag
+                    state = GestureState.BuildingDrag
+                }
+            }
+            // 还未进入 BuildingDrag → 200ms 自动进入
+            if (state is GestureState.Down) {
+                longPressJob = scope.launch {
+                    try {
+                        delay(200L)
+                        if (state is GestureState.Down) state = GestureState.BuildingDrag
+                    } catch (e: CancellationException) { throw e }
+                }
+            }
+            return
+        }
+
+        // [非编辑模式] 检测是否在建筑上
+        hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
+
+        if (hasBuildingTarget) {
+            // 首次触摸建筑：200ms 长按后进入 BuildingDrag
+            longPressJob = scope.launch {
+                try {
+                    delay(200L)
+                    if (state is GestureState.Down) {
+                        when (callbacks.onLongPress(data.x, data.y)) {
+                            LongPressResult.BuildingDrag -> { state = GestureState.BuildingDrag }
+                            LongPressResult.GoldFingerDrag -> { state = GestureState.GoldFingerDrag }
+                            LongPressResult.NotHandled -> { /* 保持 Down */ }
+                        }
+                    }
+                } catch (e: CancellationException) { throw e }
+            }
+        } else {
+            // 非建筑区域：标准长按用于金手指激活
+            longPressJob = scope.launch {
+                try {
+                    delay(config.longPressTimeoutMs)
+                    if (state is GestureState.Down) {
+                        when (callbacks.onLongPress(data.x, data.y)) {
+                            LongPressResult.GoldFingerDrag -> {
+                                state = GestureState.GoldFingerDrag
+                            }
+                            else -> { /* NotHandled: 保持 Down */ }
+                        }
+                    }
+                } catch (e: CancellationException) { throw e }
+            }
         }
     }
 
@@ -146,7 +200,21 @@ class SectMapTouchEngine(
             is GestureState.Down -> {
                 val dx = data.x - downX
                 val dy = data.y - downY
-                if (dx * dx + dy * dy > config.touchSlopSq) {
+
+                // [编辑模式] 任意移动即进入 BuildingDrag，直接预览跟随手指
+                if (callbacks.isInEditMode() && (dx != 0f || dy != 0f)) {
+                    longPressJob?.cancel(); longPressJob = null
+                    state = GestureState.BuildingDrag
+                    val scale = callbacks.getCameraScale().coerceAtLeast(0.1f)
+                    callbacks.onBuildingDragUpdate(dx / scale, dy / scale)
+                    return
+                }
+
+                // 首次触摸建筑中（等待 200ms 长按）→ 移动不做任何事
+                if (hasBuildingTarget) return
+
+                val overSlop = dx * dx + dy * dy > config.touchSlopSq
+                if (overSlop) {
                     longPressJob?.cancel(); longPressJob = null
                     state = if (callbacks.isGoldFingerActive()) {
                         GestureState.GoldFingerDrag
@@ -169,7 +237,7 @@ class SectMapTouchEngine(
                 val worldDy = (data.y - lastY) / scale
                 callbacks.onBuildingDragUpdate(worldDx, worldDy)
 
-                // 边缘自动平移
+                // 边缘自动平移（手指移到屏幕边缘时自动滚屏）
                 val ep = edgeDetector.computePanVelocity(data.x, data.y)
                 if (ep.dx != 0f || ep.dy != 0f) {
                     callbacks.onPanCamera(ep.dx * 0.016f, ep.dy * 0.016f)
@@ -186,7 +254,7 @@ class SectMapTouchEngine(
 
     private fun handleUp(data: TouchData) {
         longPressJob?.cancel(); longPressJob = null
-        longPressMode = LongPressMode.NONE
+        hasBuildingTarget = false
 
         when (state) {
             is GestureState.Down -> {
@@ -223,7 +291,6 @@ class SectMapTouchEngine(
     private fun handleCancel() {
         longPressJob?.cancel(); longPressJob = null
         flingJob?.cancel(); flingJob = null
-        longPressMode = LongPressMode.NONE
         state = GestureState.Idle
     }
 

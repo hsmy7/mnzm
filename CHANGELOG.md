@@ -47,6 +47,14 @@
   - 调整年俸发放执行顺序：年俸（+1忠诚度）提前到月度叛逃检查之前发放，避免忠诚度29的弟子因检查顺序问题被误判叛逃
   - 解决了预存资源编译错误（clean后R.java缓存重建问题）
 
+- **修复建筑长按拖拽时地图滚动而非移动建筑** — 根因：手势引擎 `handleMove()` 中手指超 touchSlop（16px）时无条件过渡 `Down→Scrolling`，400ms长按成功后状态仍为 `Down`。修复：长按返回 `LongPressResult` sealed class 直接指示引擎切换状态，BuildingDrag 后不再经过 Scrolling 判决。
+
+- **修复进入建造模式时地图白屏** — 根因：`VulkanBackend::submitFrame()` 在 `m_pendingDraws.empty()` 时直接 return 不提交帧，`@Volatile` 多字段撕裂读导致渲染线程读到不一致状态。修复：`submitFrame()` 无 draw call 时仍提交空帧（acquire→clear→present），渲染状态改为单 `@Volatile` 引用原子赋值。
+
+- **修复建造/移动模式不显示建筑精灵图** — 建造模式仅绿色方块 `drawRect`，移动模式建筑被从 `buildingData` 排除。修复：新增 `drawSprite()` JNI 从图集采样建筑 UV + per-vertex Alpha Blend 渲染半透明预览，统一 `showPreview` 控制建造/移动模式。
+
+- **修复全部建筑精灵图渲染错误（索引≥4）** — 根因：`BUILDING_UV_MAP` 固定 `col = i % 4` 假设每行4个建筑，图集实际为每行5个。修复：按图集实际行分布 `listOf(5,5,5,3)` 计算 UV。
+
 ### 重构
 
 - **宗门地图渲染架构重构：分离地面/装饰/建筑三层渲染** — 废除 `fullMapBmp` 单层位图模式（地面+装饰物预烘焙到一张静态位图），改为三层按格实时绘制：Layer 1 `groundTileBmp` 地面 → Layer 2 逐可见格绘制草/树装饰精灵（跳过建筑占用的格子）→ Layer 3 建筑。效果：建筑下方装饰物自然不可见（跳过不画），不再需要后处理像素覆盖；移动建筑后原位置装饰物自动恢复。`tileData`（含 `TILE_BUILDING` 标记）从死代码变为实际驱动装饰渲染的权威数据。

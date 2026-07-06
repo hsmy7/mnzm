@@ -150,84 +150,23 @@ class NativeSurfaceView(
 
     /**
      * 每帧渲染状态 — 由 Compose 层通过 [updateRenderState] 写入，
-     * 渲染线程通过 @Volatile 字段读取。
-     * 使用 mutable var 字段避免每帧创建新对象。
+     * 渲染线程通过原子快照 [currentRenderState] 读取。
+     * 使用 immutable data class 原子替换，避免多字段撕裂读（白屏 Bug 根源）。
      */
     @Volatile
-    var camX: Float = 0f
-    @Volatile
-    var camY: Float = 0f
-    @Volatile
-    var camScale: Float = 1f
+    var currentRenderState: FrameRenderState = FrameRenderState()
+
+    /**
+     * 相机脏标记 — 独立于 [currentRenderState]，由渲染线程读取后复位。
+     * 与 FrameRenderState 分离是因为渲染线程需要复位它，而原子快照不可变。
+     */
     @Volatile
     var cameraDirty: Boolean = false
 
-    @Volatile
-    var buildingVisible: Boolean = true
-    @Volatile
-    var tileData: IntArray? = null
-    @Volatile
-    var uvMap: FloatArray? = null
-    @Volatile
-    var firstCol: Int = 0
-    @Volatile
-    var lastCol: Int = 0
-    @Volatile
-    var firstRow: Int = 0
-    @Volatile
-    var lastRow: Int = 0
-
-    @Volatile
-    var buildingData: FloatArray? = null
-    @Volatile
-    var buildingCount: Int = 0
-    @Volatile
-    var buildingUVMap: FloatArray? = null
-
-    @Volatile
-    var showPlacementPreview: Boolean = false
-    @Volatile
-    var previewX: Float = 0f
-    @Volatile
-    var previewY: Float = 0f
-    @Volatile
-    var previewW: Float = 0f
-    @Volatile
-    var previewH: Float = 0f
-    @Volatile
-    var previewR: Float = 0f
-    @Volatile
-    var previewG: Float = 0f
-    @Volatile
-    var previewB: Float = 0f
-    @Volatile
-    var previewA: Float = 0f
-
-    /** 从 Compose 层批量更新渲染状态 */
+    /** 从 Compose 层原子更新渲染状态 */
     fun updateRenderState(state: FrameRenderState) {
-        camX = state.camX
-        camY = state.camY
-        camScale = state.scale
-        cameraDirty = state.cameraDirty
-        buildingVisible = state.buildingVisible
-        state.tileData?.let { tileData = it }
-        state.uvMap?.let { uvMap = it }
-        firstCol = state.firstCol
-        lastCol = state.lastCol
-        firstRow = state.firstRow
-        lastRow = state.lastRow
-        state.buildingData?.let { buildingData = it }
-        buildingCount = state.buildingCount
-        state.buildingUVMap?.let { buildingUVMap = it }
-        showPlacementPreview = state.showPlacementPreview
-        previewX = state.previewX
-        previewY = state.previewY
-        previewW = state.previewW
-        previewH = state.previewH
-        previewR = state.previewR
-        previewG = state.previewG
-        previewB = state.previewB
-        previewA = state.previewA
+        currentRenderState = state
+        cameraDirty = true
     }
 
     /** 跨平台手势引擎 */
@@ -368,28 +307,30 @@ class NativeSurfaceView(
                 }
                 lastFrameNs = now
 
-                // --- 每帧渲染 ---
+                // --- 每帧渲染（从原子快照读取状态） ---
+
+                val rs = currentRenderState
 
                 if (cameraDirty) {
-                    NativeBridge.setCamera(camX, camY, camScale, width, height)
+                    NativeBridge.setCamera(rs.camX, rs.camY, rs.scale, width, height)
                     cameraDirty = false
                 }
 
                 NativeBridge.beginFrame()
 
-                // 1. 统一瓦片层（地面+装饰+建筑合并到图集，1 draw call）
-                val td = tileData
-                val uv = uvMap
-                val bd = buildingData
-                val buv = buildingUVMap
+                // 1. 统一瓦片层（地面+装饰+建筑合并到图集）
+                val td = rs.tileData
+                val uv = rs.uvMap
+                val bd = rs.buildingData
+                val buv = rs.buildingUVMap
                 if (td != null && uv != null && atlasTextureId != 0) {
                     NativeBridge.drawAllTiles(
                         tileData = td,
                         cols = config.worldWidthCells,
                         rows = config.worldHeightCells,
                         buildingData = bd,
-                        buildingCount = buildingCount,
-                        buildingVisible = buildingVisible,
+                        buildingCount = rs.buildingCount,
+                        buildingVisible = rs.buildingVisible,
                         tileSize = config.tileSize,
                         atlasTexId = atlasTextureId,
                         uvMap = uv,
@@ -397,11 +338,13 @@ class NativeSurfaceView(
                     )
                 }
 
-                // 2. 放置预览
-                if (showPlacementPreview) {
-                    NativeBridge.drawRect(
-                        previewX, previewY, previewW, previewH,
-                        previewR, previewG, previewB, previewA
+                // 2. 建筑精灵预览（建造/移动模式）
+                if (rs.showPreview && atlasTextureId != 0) {
+                    NativeBridge.drawSprite(
+                        rs.previewX, rs.previewY, rs.previewW, rs.previewH,
+                        atlasTextureId,
+                        rs.previewU0, rs.previewV0, rs.previewU1, rs.previewV1,
+                        rs.previewTintRed, rs.previewTintGreen, rs.previewTintBlue, rs.previewAlpha
                     )
                 }
 
@@ -442,13 +385,18 @@ data class FrameRenderState(
     val buildingData: FloatArray? = null,
     val buildingCount: Int = 0,
     val buildingUVMap: FloatArray? = null,
-    val showPlacementPreview: Boolean = false,
+    // — 建筑精灵预览（建造/移动模式） —
+    val showPreview: Boolean = false,
     val previewX: Float = 0f,
     val previewY: Float = 0f,
     val previewW: Float = 0f,
     val previewH: Float = 0f,
-    val previewR: Float = 0f,
-    val previewG: Float = 0f,
-    val previewB: Float = 0f,
-    val previewA: Float = 0f
+    val previewU0: Float = 0f,
+    val previewV0: Float = 0f,
+    val previewU1: Float = 0f,
+    val previewV1: Float = 0f,
+    val previewTintRed: Float = 0.25f,
+    val previewTintGreen: Float = 1.0f,
+    val previewTintBlue: Float = 0.25f,
+    val previewAlpha: Float = 0.5f
 )

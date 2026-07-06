@@ -448,6 +448,32 @@ fun MainGameScreen(
             update = { view ->
                 // 同步视口到 touchEngine
                 view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
+
+                // 计算预览参数（建造/移动统一处理）
+                val isPreviewActive = isPlacingBuilding || movingBuilding != null
+                val previewBuildingName = when {
+                    isPlacingBuilding -> placingBuildingName
+                    movingBuilding != null -> movingBuilding!!.displayName
+                    else -> ""
+                }
+                val previewNameIdx = BUILDING_NAME_INDEX[previewBuildingName] ?: -1
+                val hasPreview = isPreviewActive && previewNameIdx >= 0
+
+                val previewUvs = if (hasPreview) {
+                    val idx = previewNameIdx
+                    floatArrayOf(
+                        BUILDING_UV_MAP[idx * 4],
+                        BUILDING_UV_MAP[idx * 4 + 1],
+                        BUILDING_UV_MAP[idx * 4 + 2],
+                        BUILDING_UV_MAP[idx * 4 + 3]
+                    )
+                } else null
+
+                val px = if (movingBuilding != null) movingWorldX else placingWorldX
+                val py = if (movingBuilding != null) movingWorldY else placingWorldY
+                val pSize = if (movingBuilding != null) movingBuildingSize else placingBuildingSize
+                val pValid = if (movingBuilding != null) movingValid else placementValidity
+
                 view.updateRenderState(
                     FrameRenderState(
                         camX = cameraState.cameraX,
@@ -460,19 +486,24 @@ fun MainGameScreen(
                         buildingData = buildBuildingDataArray(
                             activeSectBuildings, movingBuilding
                         ),
-                        buildingCount = activeSectBuildings.size -
-                            (if (movingBuilding != null) 1 else 0),
+                        buildingCount = activeSectBuildings.size,
                         buildingUVMap = BUILDING_UV_MAP,
-                        showPlacementPreview = isPlacingBuilding,
-                        previewX = placingWorldX,
-                        previewY = placingWorldY,
-                        previewW = (placingBuildingSize.width * tileSize).toFloat(),
-                        previewH = (placingBuildingSize.height * tileSize).toFloat(),
-                        previewR = 0.25f, previewG = 0.75f,
-                        previewB = 0.25f, previewA = 0.5f
+                        showPreview = hasPreview,
+                        previewX = px,
+                        previewY = py,
+                        previewW = (pSize.width * tileSize).toFloat(),
+                        previewH = (pSize.height * tileSize).toFloat(),
+                        previewU0 = previewUvs?.get(0) ?: 0f,
+                        previewV0 = previewUvs?.get(1) ?: 0f,
+                        previewU1 = previewUvs?.get(2) ?: 0f,
+                        previewV1 = previewUvs?.get(3) ?: 0f,
+                        previewTintRed = if (pValid == GridSnapHelper.PlacementValidity.Valid) 0.25f else 1.0f,
+                        previewTintGreen = 1.0f,
+                        previewTintBlue = if (pValid == GridSnapHelper.PlacementValidity.Valid) 0.25f else 0.25f,
+                        previewAlpha = 0.5f
                     )
-                    )
-                },
+                )
+            },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -511,7 +542,7 @@ fun MainGameScreen(
                         }
                     }
 
-                    override fun onLongPress(screenX: Float, screenY: Float): Boolean {
+                    override fun onLongPress(screenX: Float, screenY: Float): LongPressResult {
                         val wx = cameraState.screenToWorldX(screenX)
                         val wy = cameraState.screenToWorldY(screenY)
                         val gx = (wx / tileSize).toInt()
@@ -550,14 +581,17 @@ fun MainGameScreen(
                                     canBuildCount = canBuild,
                                     cellValidity = v
                                 )
-                                return true
+                                return LongPressResult.GoldFingerDrag
                             }
-                            return false
+                            return LongPressResult.NotHandled
                         }
 
                         // 非放置模式 → 建筑长按 → 移动模式
-                        if (!isPlacingBuilding && movingBuilding == null) {
+                        // 注意：movingBuilding 可能非 null（上次拖拽后确认/取消按钮还在显示）
+                        // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
+                        if (!isPlacingBuilding) {
                             val touched = buildingIndex.findBuildingAt(gx, gy)
+                                ?: (if (movingBuilding != null) movingBuilding else null)
                             if (touched != null) {
                                 movingBuilding = touched
                                 movingWorldX = (touched.gridX * tileSize).toFloat()
@@ -565,26 +599,39 @@ fun MainGameScreen(
                                 movingSnappedGridX = touched.gridX
                                 movingSnappedGridY = touched.gridY
                                 movingValid = GridSnapHelper.PlacementValidity.Valid
-                                return true
+                                return LongPressResult.BuildingDrag
                             }
                         }
-                        return false
+                        return LongPressResult.NotHandled
                     }
 
                     override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
-                        movingWorldX += worldDx
-                        movingWorldY += worldDy
-                        movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
-                        movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
-                        movingValid = gridSystem.validatePlacement(
-                            movingSnappedGridX, movingSnappedGridY,
-                            movingBuildingSize.width, movingBuildingSize.height
-                        )
+                        if (isPlacingBuilding) {
+                            // 放置模式：更新预览位置
+                            placingWorldX += worldDx
+                            placingWorldY += worldDy
+                            placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
+                            placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
+                            placementValidity = gridSystem.validatePlacement(
+                                placingSnappedGridX, placingSnappedGridY,
+                                placingBuildingSize.width, placingBuildingSize.height
+                            )
+                        } else {
+                            // 移动模式：更新被拖建筑位置
+                            movingWorldX += worldDx
+                            movingWorldY += worldDy
+                            movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
+                            movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
+                            movingValid = gridSystem.validatePlacement(
+                                movingSnappedGridX, movingSnappedGridY,
+                                movingBuildingSize.width, movingBuildingSize.height
+                            )
+                        }
                     }
 
                     override fun onBuildingDragEnd() {
-                        // 手指抬起后保持最后位置，显示确认/取消按钮
-                        // 无需额外操作，MainGameScreen 根据 movingBuilding != null 显示按钮
+                        // 松手后保持最后位置，显示确认/取消按钮
+                        // movingBuilding 保持非 null，确认按钮触发 viewModel.moveBuilding()
                     }
 
                     override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
@@ -615,6 +662,52 @@ fun MainGameScreen(
 
                     override fun isGoldFingerActive(): Boolean = goldFingerState.isActive
                     override fun getCameraScale(): Float = cameraState.scale
+
+                    /**
+                     * [关键] DOWN 时刻检测是否在建筑上。
+                     * 引擎据此抑制 Slop→Scrolling 转换，让长按有足够时间触发 BuildingDrag。
+                     * 复用 buildingIndex 的 O(1) 空间索引查询。
+                     */
+                    override fun findBuildingAt(screenX: Float, screenY: Float): Any? {
+                        val wx = cameraState.screenToWorldX(screenX)
+                        val wy = cameraState.screenToWorldY(screenY)
+
+                        // 放置模式：用世界坐标检测触摸是否在预览区域内（比网格检测更精准）
+                        if (isPlacingBuilding) {
+                            val previewLeft = placingWorldX
+                            val previewTop = placingWorldY
+                            val previewRight = previewLeft + placingBuildingSize.width * tileSize
+                            val previewBottom = previewTop + placingBuildingSize.height * tileSize
+                            if (wx >= previewLeft && wx < previewRight &&
+                                wy >= previewTop && wy < previewBottom
+                            ) {
+                                return Any()
+                            }
+                            return null
+                        }
+
+                        val gx = (wx / tileSize).toInt()
+                        val gy = (wy / tileSize).toInt()
+
+                        // buildingIndex 不包含 movingBuilding，手动检查
+                        val mb = movingBuilding
+                        if (mb != null) {
+                            // 用当前拖拽位置（movingSnappedGridX/Y）而非原始位置检查
+                            if (gx >= movingSnappedGridX && gx < movingSnappedGridX + mb.width &&
+                                gy >= movingSnappedGridY && gy < movingSnappedGridY + mb.height
+                            ) {
+                                return mb
+                            }
+                        }
+                        return buildingIndex.findBuildingAt(gx, gy)
+                    }
+
+                    /**
+                     * 是否已在编辑模式（移动或放置中）。
+                     * true  → 直接拖拽，无需长按
+                     * false → 首次触摸建筑需长按 200ms
+                     */
+                    override fun isInEditMode(): Boolean = isPlacingBuilding || movingBuilding != null
 
                     override fun onFlingStart() {
                         nativeSurfaceView?.targetFps = 30
@@ -686,6 +779,12 @@ fun MainGameScreen(
                     ) {
                         moveScope.launch {
                             viewModel.moveBuilding(b.instanceId, movingSnappedGridX, movingSnappedGridY)
+                            // 同步更新空间索引，避免 LaunchedEffect 异步重建前
+                            // 第二次长按读到旧坐标导致建筑跳回原位置
+                            buildingIndex.remove(b.instanceId)
+                            buildingIndex.add(b.copy(
+                                gridX = movingSnappedGridX, gridY = movingSnappedGridY
+                            ))
                             movingBuilding = null
                         }
                     } else {
@@ -865,17 +964,14 @@ fun MainGameScreen(
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
  * 格式：[gridX, gridY, width, height, nameIndex] × buildingCount
+ * 注意：不排除 movingBuilding，让建筑在原位持续渲染，避免切换预览时的视觉闪烁。
  */
 private fun buildBuildingDataArray(
     buildings: List<GridBuildingData>,
     movingBuilding: GridBuildingData?
 ): FloatArray {
-    val filtered = if (movingBuilding != null)
-        buildings.filter { it.instanceId != movingBuilding.instanceId }
-    else buildings
-
-    val result = FloatArray(filtered.size * 5)
-    for ((i, b) in filtered.withIndex()) {
+    val result = FloatArray(buildings.size * 5)
+    for ((i, b) in buildings.withIndex()) {
         val idx = i * 5
         result[idx] = b.gridX.toFloat()
         result[idx + 1] = b.gridY.toFloat()
@@ -895,18 +991,28 @@ private val BUILDING_NAME_INDEX: Map<String, Int> = mapOf(
     "多人住所" to 16, "血炼池" to 17
 )
 
-/** 建筑 UV 坐标（匹配图集布局：128×128 建筑从 y=128 开始，每行4个） */
+/**
+ * 建筑 UV 坐标（匹配图集布局：128×128 建筑从 y=128 开始）。
+ * 图集行分布（NativeSurfaceView.buildAtlas 与 TextureAtlas.h MAP_SPRITES 一致）：
+ *   Row 1 (y=128): 5 sprites (indices 0-4)
+ *   Row 2 (y=256): 5 sprites (indices 5-9)
+ *   Row 3 (y=384): 5 sprites (indices 10-14)
+ *   Row 4 (y=512): 3 sprites (indices 15-17)
+ */
 private val BUILDING_UV_MAP: FloatArray by lazy {
     val uvs = FloatArray(18 * 4)
-    for (i in 0 until 18) {
-        val col = i % 4
-        val row = i / 4
-        val px = col * 128
-        val py = 128 + row * 128
-        uvs[i * 4]     = px / 2048f
-        uvs[i * 4 + 1] = py / 2048f
-        uvs[i * 4 + 2] = (px + 128) / 2048f
-        uvs[i * 4 + 3] = (py + 128) / 2048f
+    val colsPerRow = listOf(5, 5, 5, 3)
+    var idx = 0
+    for ((rowIndex, cols) in colsPerRow.withIndex()) {
+        for (col in 0 until cols) {
+            val px = col * 128
+            val py = 128 + rowIndex * 128
+            uvs[idx * 4]     = px / 2048f
+            uvs[idx * 4 + 1] = py / 2048f
+            uvs[idx * 4 + 2] = (px + 128) / 2048f
+            uvs[idx * 4 + 3] = (py + 128) / 2048f
+            idx++
+        }
     }
     uvs
 }

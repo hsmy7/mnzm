@@ -18,13 +18,24 @@ interface TouchEngineCallbacks {
 
     /**
      * 长按检测到。
-     * @return true = 引擎应进入对应模式（BuildingDrag / GoldFingerDrag），
-     *         false = 忽略（不作为长按处理）
+     * @return LongPressResult 指示引擎应进入的模式。
+     *   BuildingDrag / GoldFingerDrag — 引擎自动切换状态，
+     *   NotHandled — 忽略（不处理为长按）
      */
-    fun onLongPress(screenX: Float, screenY: Float): Boolean = false
+    fun onLongPress(screenX: Float, screenY: Float): LongPressResult = LongPressResult.NotHandled
 
-    /** 进入长按模式时告知引擎当前是什么模式 */
-    suspend fun setLongPressMode(mode: LongPressMode): Unit = Unit
+    /**
+     * 查找屏幕坐标处的建筑（用于 DOWN 时刻快速判断）。
+     * 引擎在 handleDown 中调用，如果返回非 null，则抑制 Down→Scrolling 转换。
+     */
+    fun findBuildingAt(screenX: Float, screenY: Float): Any? = null
+
+    /**
+     * 是否已在编辑模式（正在移动建筑 / 放置模式中）。
+     * true  → 直接拖拽（无需长按），适用于放置模式或确认按钮显示时再次拖动。
+     * false → 首次触摸建筑，需 200ms 长按才进入 BuildingDrag。
+     */
+    fun isInEditMode(): Boolean = false
 
     /** 建筑拖拽位移更新。worldDx/worldDy 为世界坐标偏移。 */
     fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) = Unit
@@ -46,9 +57,17 @@ interface TouchEngineCallbacks {
     fun onFlingEnd() = Unit
 }
 
-/** 长按模式 */
-enum class LongPressMode {
-    NONE,
-    BUILDING_DRAG,
-    GOLD_FINGER_DRAG
+/**
+ * 长按结果 —— 通知引擎长按检测到了什么。
+ * 引擎根据结果自动切换到对应手势状态。
+ */
+sealed class LongPressResult {
+    /** 未检测到任何长按目标，引擎保持 Down 状态等待后续判决 */
+    data object NotHandled : LongPressResult()
+
+    /** 检测到建筑，进入建筑拖拽模式 */
+    data object BuildingDrag : LongPressResult()
+
+    /** 检测到金手指区域，进入金手指框选模式 */
+    data object GoldFingerDrag : LongPressResult()
 }

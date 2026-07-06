@@ -319,6 +319,30 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawRect(
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSprite(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat x, jfloat y, jfloat w, jfloat h,
+    jint atlasTexId,
+    jfloat u0, jfloat v0, jfloat u1, jfloat v1,
+    jfloat r, jfloat g, jfloat b, jfloat a) {
+
+    if (!g_renderer) return;
+
+    SpriteVertex verts[6]{};
+    for (int i = 0; i < 6; i++) {
+        verts[i] = { 0, 0, 0, 0, r, g, b, a };
+    }
+    verts[0] = { x,   y,   u0, v0, r, g, b, a };
+    verts[1] = { x+w, y,   u1, v0, r, g, b, a };
+    verts[2] = { x,   y+h, u0, v1, r, g, b, a };
+    verts[3] = { x+w, y,   u1, v0, r, g, b, a };
+    verts[4] = { x+w, y+h, u1, v1, r, g, b, a };
+    verts[5] = { x,   y+h, u0, v1, r, g, b, a };
+
+    g_renderer->draw(verts, 6, static_cast<uint32_t>(atlasTexId));
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_submitFrame(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     if (g_renderer) g_renderer->submitFrame();
