@@ -16,6 +16,27 @@ static Renderer2D* g_renderer = nullptr;
 static TextureAtlas* g_atlas = nullptr;
 static float g_projMatrix[16]{};
 
+// 视口世界坐标范围（由 setCamera 更新，用于 drawAllTiles 的可见性检测）
+static float g_viewLeft   = 0.0f;
+static float g_viewTop    = 0.0f;
+static float g_viewRight  = 0.0f;
+static float g_viewBottom = 0.0f;
+
+// 世界像素尺寸（由 initRenderer 设置）
+static int g_worldPixelsW = 0;
+static int g_worldPixelsH = 0;
+
+/** 检查世界坐标矩形是否与视口相交（可见性检测） */
+static inline bool isRectVisible(float x, float y, float w, float h) {
+    // 矩形完全在视口之外才返回 false
+    return !(x + w <= g_viewLeft || x >= g_viewRight ||
+             y + h <= g_viewTop || y >= g_viewBottom);
+}
+
+/** 瓷砖类型常量（与 SectMapTileGenerator.kt 保持一致） */
+static constexpr int TILE_GROUND       = 0;
+static constexpr int TILE_BUILDING     = 6;
+
 // ============================================================
 // 纹理图集
 // ============================================================
@@ -75,6 +96,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     config.worldHeight = worldH;
     config.tileSize = tileSize;
     config.renderScale = 1.0f;
+
+    g_worldPixelsW = worldW;
+    g_worldPixelsH = worldH;
 
     g_renderer = new VulkanBackend();
     bool ok = g_renderer->init(config, window);
@@ -140,39 +164,26 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
 
     cameraProjMatrix(g_projMatrix, camX, camY, scale, (float)vpW, (float)vpH);
     if (g_renderer) g_renderer->setProjection(g_projMatrix);
+
+    // 记录视口世界坐标范围（供 drawAllTiles 可见性检测使用）
+    g_viewLeft   = camX;
+    g_viewTop    = camY;
+    g_viewRight  = camX + (float)vpW / (scale > 0.001f ? scale : 1.0f);
+    g_viewBottom = camY + (float)vpH / (scale > 0.001f ? scale : 1.0f);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawGround(
-    JNIEnv* /*env*/, jobject /*thiz*/,
-    jfloat worldW, jfloat worldH, jint textureId,
-    jint tilesX, jint tilesY) {
-
-    if (!g_renderer) return;
-
-    float uMax = (float)tilesX;
-    float vMax = (float)tilesY;
-
-    SpriteVertex verts[6]{};
-    verts[0] = { 0, 0, 0, 0, 1,1,1,1 };
-    verts[1] = { worldW, 0, uMax, 0, 1,1,1,1 };
-    verts[2] = { 0, worldH, 0, vMax, 1,1,1,1 };
-    verts[3] = { worldW, 0, uMax, 0, 1,1,1,1 };
-    verts[4] = { worldW, worldH, uMax, vMax, 1,1,1,1 };
-    verts[5] = { 0, worldH, 0, vMax, 1,1,1,1 };
-
-    g_renderer->draw(verts, 6, static_cast<uint32_t>(textureId));
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawDecor(
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     JNIEnv* env, jobject /*thiz*/,
-    jintArray tileData, jint cols, jint rows,
-    jint firstCol, jint lastCol,
-    jint firstRow, jint lastRow,
+    jintArray tileData,          // 展平瓦片类型数组 [0..N]
+    jint cols, jint rows,        // 地图网格尺寸
+    jfloatArray buildingData,    // 建筑数据 [x,y,w,h,nameIdx] × count
+    jint buildingCount,          // 建筑数量
+    jboolean buildingVisible,    // 是否显示建筑
     jint tileSize,
-    jint atlasTexId,
-    jfloatArray uvMap) {
+    jint atlasTexId,             // 图集纹理 ID
+    jfloatArray uvMap,           // UV 映射 [u0,v0,u1,v1] × tileTypeCount
+    jfloatArray buildingUVMap) { // 建筑 UV 映射
 
     if (!g_renderer || !tileData || !uvMap) return;
 
@@ -183,88 +194,106 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawDecor(
     SpriteBatcher batcher;
     batcher.begin(g_projMatrix);
 
-    for (int row = firstRow; row <= lastRow && row < rows; row++) {
-        jint rowOffset = row * cols;
-        for (int col = firstCol; col <= lastCol && col < cols; col++) {
-            int tile = static_cast<int>(tiles[rowOffset + col]);
-            if (tile < 1 || tile > 5) continue;  // 跳过 GROUND(0) 和 BUILDING(6)
+    // ---- 1. 瓦片层 ----
+    // 每格先画地面，再装饰叠加上方（建筑格的地面由建筑精灵覆盖）
+    // 同一 batcher 中先 add 的先画 → 地面最先画，装饰浮在地面上
+    // 地面纹理：默认格用 uvMap[0]，TILE_GROUND_V2(7) 用 uvMap[7]
+    static const int TILE_GROUND_V2 = 7;
 
-            int uvIdx = (tile - 1);
-            if (uvIdx >= uvCount) continue;
+    for (int row = 0; row < rows; row++) {
+        jint rowBase = row * cols;
+        float wy = (float)(row * tileSize);
+        for (int col = 0; col < cols; col++) {
+            int tile = static_cast<int>(tiles[rowBase + col]);
 
-            float u0 = uvs[uvIdx * 4], v0 = uvs[uvIdx * 4 + 1];
-            float u1 = uvs[uvIdx * 4 + 2], v1 = uvs[uvIdx * 4 + 3];
+            float wx = (float)(col * tileSize);
 
-            if (tile >= 4) {
-                // 树（2×2 格，偏移 (-1,-1)）
-                batcher.add(atlasTexId,
-                    (col - 1) * tileSize, (row - 1) * tileSize,
-                    tileSize * 2.0f, tileSize * 2.0f,
-                    u0, v0, u1, v1);
-            } else {
-                // 草（1×1 格）
-                batcher.add(atlasTexId,
-                    col * tileSize, row * tileSize,
-                    tileSize, tileSize,
-                    u0, v0, u1, v1);
+            // 可见性检测
+            if (!isRectVisible(wx, wy, (float)tileSize, (float)tileSize)) continue;
+
+            // (A) 地面底图（所有格子都有）
+            // 地面变体格(7)用自身纹理，其他格(0/装饰/建筑)用默认地面纹理uvMap[0]
+            int gIdx = (tile == TILE_GROUND_V2) ? 7 : 0;
+            // uvCount 是条目数（每组 4 个 float = 1 组 UV），gIdx 直接比较
+            if (gIdx < (int)uvCount) {
+                batcher.add(atlasTexId, wx, wy,
+                    (float)tileSize, (float)tileSize,
+                    uvs[gIdx * 4], uvs[gIdx * 4 + 1],
+                    uvs[gIdx * 4 + 2], uvs[gIdx * 4 + 3]);
             }
+
+            // (B) 装饰叠加层（草/树）
+            if (tile >= 1 && tile <= 5) {
+                int uvIdx = tile;
+                if (uvIdx < (int)uvCount) {
+                    float u0 = uvs[uvIdx * 4], v0 = uvs[uvIdx * 4 + 1];
+                    float u1 = uvs[uvIdx * 4 + 2], v1 = uvs[uvIdx * 4 + 3];
+
+                    if (tile >= 4) {
+                        // 树（2×2 格，偏移 (-1,-1)）
+                        batcher.add(atlasTexId,
+                            wx - (float)tileSize, wy - (float)tileSize,
+                            (float)(tileSize * 2), (float)(tileSize * 2),
+                            u0, v0, u1, v1);
+                    } else {
+                        // 草（1×1 格）
+                        batcher.add(atlasTexId, wx, wy,
+                            (float)tileSize, (float)tileSize,
+                            u0, v0, u1, v1);
+                    }
+                }
+            }
+            // (C) 建筑占位格（tile=6）：地面已画，建筑精灵由下面的建筑层叠加上去
         }
     }
 
-    int count = batcher.end();
-    if (count > 0) {
-        g_renderer->draw(batcher.vertices, count,
-                         static_cast<uint32_t>(atlasTexId));
+    // ---- 2. 建筑层 ----
+    jfloat* buildings = nullptr;
+    jfloat* buvs = nullptr;
+    jsize buvCount = 0;
+
+    if (buildingVisible && buildingData && buildingUVMap && buildingCount > 0) {
+        buildings = env->GetFloatArrayElements(buildingData, nullptr);
+        buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
+        buvCount = env->GetArrayLength(buildingUVMap) / 4;
+
+        for (int i = 0; i < buildingCount; i++) {
+            int idx = i * 5;
+            float gx = buildings[idx];
+            float gy = buildings[idx + 1];
+            float gw = buildings[idx + 2];
+            float gh = buildings[idx + 3];
+            int nameIdx = static_cast<int>(buildings[idx + 4]);
+
+            float px = gx * tileSize;
+            float py = gy * tileSize;
+            float pw = gw * tileSize;
+            float ph = gh * tileSize;
+
+            // 可见性检测
+            if (!isRectVisible(px, py, pw, ph)) continue;
+
+            int buvIdx = nameIdx;
+            if (buvIdx >= (int)buvCount) buvIdx = 0;
+
+            batcher.add(atlasTexId, px, py, pw, ph,
+                buvs[buvIdx * 4], buvs[buvIdx * 4 + 1],
+                buvs[buvIdx * 4 + 2], buvs[buvIdx * 4 + 3]);
+        }
     }
 
-    env->ReleaseIntArrayElements(tileData, tiles, JNI_ABORT);
-    env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawBuildings(
-    JNIEnv* env, jobject /*thiz*/,
-    jfloatArray buildingData, jint count,
-    jint tileSize, jint atlasTexId,
-    jfloatArray buildingUVMap) {
-
-    if (!g_renderer || count <= 0) return;
-
-    jfloat* data = env->GetFloatArrayElements(buildingData, nullptr);
-    jfloat* uvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
-
-    SpriteBatcher batcher;
-    batcher.begin(g_projMatrix);
-
-    for (int i = 0; i < count; i++) {
-        // buildingData layout: [gx, gy, gw, gh, nameIdx] per building
-        int idx = i * 5;
-        float gx = data[idx];
-        float gy = data[idx + 1];
-        float gw = data[idx + 2];
-        float gh = data[idx + 3];
-        int nameIdx = static_cast<int>(data[idx + 4]);
-
-        float px = gx * tileSize;
-        float py = gy * tileSize;
-        float uvBase = nameIdx * 4;
-
-        batcher.add(atlasTexId, px, py,
-                    gw * tileSize, gh * tileSize,
-                    uvs[static_cast<int>(uvBase)],
-                    uvs[static_cast<int>(uvBase) + 1],
-                    uvs[static_cast<int>(uvBase) + 2],
-                    uvs[static_cast<int>(uvBase) + 3]);
-    }
-
+    // ---- 3. 提交合并后的图集绘制 ----
     int vertCount = batcher.end();
     if (vertCount > 0) {
         g_renderer->draw(batcher.vertices, vertCount,
                          static_cast<uint32_t>(atlasTexId));
     }
 
-    env->ReleaseFloatArrayElements(buildingData, data, JNI_ABORT);
-    env->ReleaseFloatArrayElements(buildingUVMap, uvs, JNI_ABORT);
+    // 释放 JNI 数组
+    env->ReleaseIntArrayElements(tileData, tiles, JNI_ABORT);
+    env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
+    if (buildings) env->ReleaseFloatArrayElements(buildingData, buildings, JNI_ABORT);
+    if (buvs) env->ReleaseFloatArrayElements(buildingUVMap, buvs, JNI_ABORT);
 }
 
 extern "C" JNIEXPORT void JNICALL

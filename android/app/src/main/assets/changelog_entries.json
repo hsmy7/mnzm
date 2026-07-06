@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-07-06",
+    "version": "4.0.41",
+    "changes": [
+      "重构：Vulkan渲染管线 v2——修复悬空指针bug（draw()直写VBO存偏移）+ 地面改为图集逐格渲染（消除LINEAR+REPEAT兼容隐患）+ 统一至2 draw calls",
+      "修复：宗门地图地面显示纯色（根因：VulkanBackend::draw()存栈裸指针+LINEAR tiling+REPEAT组合驱动兼容性差）",
+      "新增：视锥剔除——drawAllTiles中跳过视口外的地面/装饰/建筑格",
+      "优化：SpriteBatcher栈大小——768KB栈数组改为16KB小栈+超限堆扩展",
+      "优化：VBO双缓冲——交替写入避免GPU读CPU写冲突",
+      "优化：纹理上传标准做法——LINEAR tiling+memcpy改为OPTIMAL tiling+staging buffer",
+      "新增：Autotile接口预留——SectMapTileGenerator增加computeAutotileBitmask() 8-bit blob tile算法",
+      "优化：地面纹理混合——两个地面变体（地面1/地面2）以平滑噪声地块方式混用，约70/30比例自然分布",
+      "优化：装饰物放置平滑噪声地块方案——草地成片草滩（8×8噪声地块）、树成稀疏树丛（12×12噪声地块），替代原逐格独立随机",
+      "优化：装饰密度从0.30降至0.18——地图更干净整洁",
+      "修复：原地面纹理显示白色（uvMap索引7越界检查bug：gIdx*4+3误比了条目数而非float数）",
+      "新增：smoothNoise()平滑噪声函数——双线性插值+smoothstep，用于地面变体和装饰物地块生成"
+    ]
+  },
+  {
     "date": "2026-07-05",
     "version": "4.0.41",
     "changes": [

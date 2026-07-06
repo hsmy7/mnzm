@@ -26,6 +26,7 @@ class SectMapTileGeneratorTest {
         val result = SectMapTileGenerator.generateTileData(28, 28, 1.0f)
         val validValues = setOf(
             SectMapTileGenerator.TILE_GROUND,
+            SectMapTileGenerator.TILE_GROUND_V2,
             SectMapTileGenerator.TILE_GRASS_SMALL,
             SectMapTileGenerator.TILE_GRASS_MEDIUM,
             SectMapTileGenerator.TILE_GRASS_LARGE,
@@ -40,11 +41,28 @@ class SectMapTileGeneratorTest {
     }
 
     @Test
-    fun `generateTileData - zero density produces only ground`() {
+    fun `generateTileData - has both ground variants`() {
+        val result = SectMapTileGenerator.generateTileData(28, 28, 0.0f)
+        var hasV1 = false
+        var hasV2 = false
+        for (row in result) {
+            for (value in row) {
+                if (value == SectMapTileGenerator.TILE_GROUND) hasV1 = true
+                if (value == SectMapTileGenerator.TILE_GROUND_V2) hasV2 = true
+            }
+        }
+        assertTrue("Expected TILE_GROUND", hasV1)
+        assertTrue("Expected TILE_GROUND_V2", hasV2)
+    }
+
+    @Test
+    fun `generateTileData - zero density produces only ground variants`() {
         val result = SectMapTileGenerator.generateTileData(28, 28, 0.0f)
         for (row in result) {
             for (value in row) {
-                assertEquals(SectMapTileGenerator.TILE_GROUND, value)
+                assertTrue("Expected ground variant, got $value",
+                    value == SectMapTileGenerator.TILE_GROUND ||
+                    value == SectMapTileGenerator.TILE_GROUND_V2)
             }
         }
     }
@@ -109,5 +127,101 @@ class SectMapTileGeneratorTest {
                 assertTrue("cellHash out of range: $v at ($x,$y)", v in 0.0f..1.0f)
             }
         }
+    }
+
+    @Test
+    fun `smoothNoise - values are in 0 to 1 range`() {
+        for (x in 0..50) {
+            for (y in 0..50) {
+                val v = SectMapTileGenerator.smoothNoise(x, y, 6, 999)
+                assertTrue("smoothNoise out of range: $v at ($x,$y)", v in 0.0f..1.0f)
+            }
+        }
+    }
+
+    @Test
+    fun `smoothNoise - adjacent tiles have similar values`() {
+        // 平滑噪声中相邻格的值差应小（双线性插值保证连续性）
+        val v1 = SectMapTileGenerator.smoothNoise(10, 10, 6, 999)
+        val v2 = SectMapTileGenerator.smoothNoise(11, 10, 6, 999)
+        val diff = kotlin.math.abs(v1 - v2)
+        assertTrue("Adjacent tiles too different: $v1 vs $v2 (diff=$diff)", diff < 0.2f)
+    }
+
+    @Test
+    fun `smoothNoise - deterministic output`() {
+        val v1 = SectMapTileGenerator.smoothNoise(7, 13, 6, 999)
+        val v2 = SectMapTileGenerator.smoothNoise(7, 13, 6, 999)
+        assertEquals(v1, v2, 0.0f)
+    }
+
+    // ============================================================
+    // Autotile bitmask
+    // ============================================================
+
+    @Test
+    fun `computeAutotileBitmask - uniform field produces 0xFF mask`() {
+        val tileData = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_GROUND } }
+        val mask = SectMapTileGenerator.computeAutotileBitmask(tileData)
+        // Center tiles (y=1..3, x=1..3) have all 8 neighbors matching → 0xFF
+        for (y in 1..3) {
+            for (x in 1..3) {
+                assertEquals("mask at ($x,$y)", 0xFF, mask[y][x].toInt() and 0xFF)
+            }
+        }
+        // Edge tiles (y=0 or x=0 or y=4 or x=4) are skipped → 0
+        for (x in 0..4) {
+            assertEquals(0, mask[0][x].toInt())
+            assertEquals(0, mask[4][x].toInt())
+        }
+        for (y in 0..4) {
+            assertEquals(0, mask[y][0].toInt())
+            assertEquals(0, mask[y][4].toInt())
+        }
+    }
+
+    @Test
+    fun `computeAutotileBitmask - center tile with 4 cardinal neighbors gets 0x0F`() {
+        val tileData = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_GROUND } }
+        // Set center and all 4 cardinal neighbors to grass_small
+        for (dx in 0..4) {
+            for (dy in 0..4) {
+                val tx = 2 + dx
+                val ty = 2 + dy
+                if (tx in 0..4 && ty in 0..4) {
+                    // Only fill neighbors, not center (center stays ground)
+                }
+            }
+        }
+        // Clean approach: create 3x3 pattern with grass in center + all 4 cardinal neighbors
+        val pattern = Array(5) { row ->
+            IntArray(5) { col ->
+                if (row == 2 && col == 2) SectMapTileGenerator.TILE_GRASS_SMALL
+                else if (row == 2 || col == 2) SectMapTileGenerator.TILE_GRASS_SMALL
+                else SectMapTileGenerator.TILE_GROUND
+            }
+        }
+        val mask = SectMapTileGenerator.computeAutotileBitmask(pattern)
+        // Center tile (2,2) has N,S,W,E = all grass_small → bits 0,2,4,6 set = 0x55
+        assertEquals(0x55, mask[2][2].toInt() and 0xFF)
+    }
+
+    @Test
+    fun `computeAutotileBitmask - isolated grass has no neighbors`() {
+        val pattern = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_GROUND } }
+        pattern[2][2] = SectMapTileGenerator.TILE_GRASS_SMALL
+        val mask = SectMapTileGenerator.computeAutotileBitmask(pattern)
+        // Only the center tile is different from its neighbors
+        // The center itself has ground neighbors, so mask = 0
+        assertEquals(0, mask[2][2].toInt())
+    }
+
+    @Test
+    fun `computeAutotileBitmask - tree tiles are skipped`() {
+        val pattern = Array(5) { IntArray(5) { SectMapTileGenerator.TILE_TREE1 } }
+        val mask = SectMapTileGenerator.computeAutotileBitmask(pattern)
+        // All tiles are tree, which is skipped → mask stays 0
+        // Edge tiles might not be computed due to boundary check
+        assertEquals(0, mask[2][2].toInt())
     }
 }

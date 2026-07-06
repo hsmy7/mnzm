@@ -412,13 +412,17 @@ fun MainGameScreen(
             tileData.flatMap { it.toList() }.toIntArray()
         }
 
-        // 预计算 UV 坐标（匹配 C++ TextureAtlas.h 布局: 64/128 px tiles in 2048×2048 atlas）
+        // 统一 UV 映射表：索引 = tile 类型（匹配 C++ TextureAtlas.h 图集布局）
+        // UV 坐标范围 [0,1]，图集 2048×2048，地面/草 64×64，树 128×128
         val decorUvMap = remember { floatArrayOf(
-            64f/2048f, 0f, 128f/2048f, 64f/2048f,   // 1: grass_small
-            128f/2048f, 0f, 192f/2048f, 64f/2048f,  // 2: grass_medium
-            192f/2048f, 0f, 256f/2048f, 64f/2048f,  // 3: grass_large
-            256f/2048f, 0f, 384f/2048f, 128f/2048f, // 4: tree1
-            384f/2048f, 0f, 512f/2048f, 128f/2048f, // 5: tree2
+            0f/2048f,    0f/2048f,   64f/2048f,  64f/2048f,  // 0: ground_tile (atlas x=0)
+            64f/2048f,   0f/2048f,  128f/2048f,  64f/2048f,  // 1: grass_small
+            128f/2048f,  0f/2048f,  192f/2048f,  64f/2048f,  // 2: grass_medium
+            192f/2048f,  0f/2048f,  256f/2048f,  64f/2048f,  // 3: grass_large
+            256f/2048f,  0f/2048f,  384f/2048f, 128f/2048f,  // 4: tree1
+            384f/2048f,  0f/2048f,  512f/2048f, 128f/2048f,  // 5: tree2
+            0f/2048f,    0f/2048f,   64f/2048f,  64f/2048f,  // 6: (占位, 不会被使用)
+            512f/2048f,  0f/2048f,  576f/2048f,  64f/2048f,  // 7: ground_tile_v2 (atlas x=512)
         )}
 
         AndroidView(
@@ -426,22 +430,8 @@ fun MainGameScreen(
                 NativeSurfaceView(ctx, nativeConfig).also { view ->
                     nativeSurfaceView = view
 
-                    // 渲染器就绪后上传纹理
+                    // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
                     view.onRendererReady = {
-                        // 上传地面纹理
-                        val gfx = ctx.resources
-                        val opts = android.graphics.BitmapFactory.Options()
-                        val tileBmp = try {
-                            val id = com.xianxia.sect.feature.game.R.drawable.map_tile
-                            android.graphics.BitmapFactory.decodeResource(gfx, id, opts)
-                        } catch (e: Exception) { null }
-
-                        if (tileBmp != null) {
-                            view.groundTextureId = view.uploadBitmap(tileBmp)
-                            tileBmp.recycle()
-                        }
-
-                        // 构建完整纹理图集（装饰 + 建筑 -> 单张 2048×2048 纹理）
                         view.atlasTextureId = view.buildAtlas(ctx)
                     }
 
@@ -462,27 +452,23 @@ fun MainGameScreen(
                         camY = cameraState.cameraY,
                         scale = cameraState.scale,
                         cameraDirty = true,
-                        decorVisible = true,
+                        buildingVisible = true,
                         tileData = flatTileData,
                         uvMap = decorUvMap,
-                        firstCol = 0,
-                    lastCol = worldWidthCells - 1,
-                    firstRow = 0,
-                    lastRow = worldHeightCells - 1,
-                    buildingData = buildBuildingDataArray(
-                        activeSectBuildings, movingBuilding
-                    ),
-                    buildingCount = activeSectBuildings.size -
-                        (if (movingBuilding != null) 1 else 0),
-                    buildingUVMap = BUILDING_UV_MAP,
-                    showPlacementPreview = isPlacingBuilding,
-                    previewX = placingWorldX,
-                    previewY = placingWorldY,
-                    previewW = (placingBuildingSize.width * tileSize).toFloat(),
-                    previewH = (placingBuildingSize.height * tileSize).toFloat(),
-                    previewR = 0.25f, previewG = 0.75f,
-                    previewB = 0.25f, previewA = 0.5f
-                )
+                        buildingData = buildBuildingDataArray(
+                            activeSectBuildings, movingBuilding
+                        ),
+                        buildingCount = activeSectBuildings.size -
+                            (if (movingBuilding != null) 1 else 0),
+                        buildingUVMap = BUILDING_UV_MAP,
+                        showPlacementPreview = isPlacingBuilding,
+                        previewX = placingWorldX,
+                        previewY = placingWorldY,
+                        previewW = (placingBuildingSize.width * tileSize).toFloat(),
+                        previewH = (placingBuildingSize.height * tileSize).toFloat(),
+                        previewR = 0.25f, previewG = 0.75f,
+                        previewB = 0.25f, previewA = 0.5f
+                    )
                     )
                 },
             modifier = Modifier.fillMaxSize()
@@ -895,7 +881,7 @@ fun MainGameScreen(
 }
 
 /**
- * 构建建筑数据数组，供 NativeBridge.drawBuildings 使用。
+ * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
  * 格式：[gridX, gridY, width, height, nameIndex] × buildingCount
  */
 private fun buildBuildingDataArray(
@@ -943,19 +929,4 @@ private val BUILDING_UV_MAP: FloatArray by lazy {
     uvs
 }
 
-private fun uploadBitmapToGpu(
-    bitmap: android.graphics.Bitmap
-): Int {
-    val pixels = IntArray(bitmap.width * bitmap.height)
-    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-    val buffer = ByteArray(pixels.size * 4)
-    for (i in pixels.indices) {
-        val p = pixels[i]
-        buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
-        buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
-        buffer[i * 4 + 2] = (p and 0xFF).toByte()
-        buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
-    }
-    return NativeBridge.uploadTexture(buffer, bitmap.width, bitmap.height)
-}
 

@@ -2,6 +2,30 @@
 
 ## [4.0.41] - 2026-07-05（versionCode=4041）
 
+### Vulkan 渲染管线 v2 重构
+
+- **修复宗门地图地面不显示素材（悬空指针 + LINEAR+REPEAT 兼容性）** — 根因：`VulkanBackend::draw()` 存储栈上裸指针，`submitFrame()` 读取时指针已悬空。地面使用 `VK_IMAGE_TILING_LINEAR` + `VK_SAMPLER_ADDRESS_MODE_REPEAT` 的非常规组合，部分驱动上行为未定义。
+  - 修复：`draw()` 改为直接写入持久映射 VBO 并记录偏移，消除裸指针存储。`uploadTexture()` 改用 `OPTIMAL tiling` + staging buffer 标准做法，确保 REPEAT 寻址在所有 Vulkan 1.1 驱动上可靠。
+  - 增加纹理 ID 未找到时的回退保护（自动降到白色纹理），防止描述符集指向错误数据。
+
+- **统一地面/装饰/建筑为单张图集逐格渲染** — 移除独立的地面纹理（`map_tile.webp` 不再单独上传），地面格改为从图集取 `ground_tile` UV 逐格批处理。与装饰/建筑合并到同一 SpriteBatcher，总 draw calls 从 3-4 降至固定 2 个。
+  - 每格可独立选纹理 → 为未来 Autotile 过渡预留
+  - UV 始终在 [0,1] → 零兼容性问题
+
+- **新增视锥剔除** — `setCamera` 记录视口世界坐标范围，`drawAllTiles` 遍历瓦片时跳过视口外的地面/装饰/建筑格，减少 GPU 处理量。
+
+- **修复 SpriteBatcher 栈溢出风险** — 将 768KB 栈数组改为 16KB 小栈 + 超限时自动切换到堆分配，避免 Android 背景线程默认栈（~1MB）溢出。
+
+- **VBO 双缓冲** — 交替写入两个 VBO，避免 GPU 读 CPU 写的冲突。
+
+- **预留 Autotile 接口** — `SectMapTileGenerator` 增加 `computeAutotileBitmask()` 方法（8-bit blob tile 算法），可为每格生成 8 邻居位掩码，为未来 Biome 过渡做好准备。
+
+- **地面纹理混合** — 两个地面变体（地面1/地面2）以平滑噪声地块方式混用，约70/30比例自然分布。使用 `smoothNoise()` 双线性插值+smoothstep 产生连续地块而非噪点。
+
+- **装饰物放置改用平滑噪声地块方案** — 草地以 8×8 噪声尺度成片草滩、树以 12×12 尺度成稀疏树丛，替代原逐格独立随机算法。装饰密度从 0.30 降至 0.18，地图更干净整洁。
+
+- **修复地面纹理显示白色** — `drawAllTiles` 中 `gIdx*4+3 < uvCount` 越界检查误将条目数当 float 数比较，导致 ground_v2 的地面底图从未绘制。同时 uvMap 缺 index 6 占位导致 index 7 越界。
+
 ### Bug 修复
 
 - **修复建筑覆盖装饰物后装饰物未被清除** — 根因：地面和装饰物合并在 `fullMapBmp` 中无法独立控制。重构为三层按格绘制后，建筑下方装饰物自然跳过，不再透出。

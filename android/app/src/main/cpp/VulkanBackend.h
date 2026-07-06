@@ -79,10 +79,11 @@ private:
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
 
-    VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
-    void* m_vertexMapped = nullptr;
-    VkDeviceSize m_vertexBufferSize = MAX_VERTICES * sizeof(SpriteVertex);
+    // 双缓冲 VBO（交替写入，避免 GPU 读 CPU 写冲突）
+    VkBuffer m_vertexBuffers[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkDeviceMemory m_vertexMemories[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    void* m_vertexMapped[2] = { nullptr, nullptr };
+    VkDeviceSize m_vertexBufferSize = MAX_VERTICES * sizeof(SpriteVertex) * 2;
 
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> m_commandBuffers;  // per swapchain image
@@ -118,6 +119,9 @@ private:
     // 创建 1×1 白色纹理（供纯色矩形绘制），在 init 中调用
     bool createWhiteTexture();
 
+    // 确保 staging buffer 有足够大小
+    bool ensureStagingBuffer(size_t requiredSize);
+
     // 着色器
     VkShaderModule m_vertShader = VK_NULL_HANDLE;
     VkShaderModule m_fragShader = VK_NULL_HANDLE;
@@ -128,11 +132,20 @@ private:
 
     // 帧绘制状态
     struct DrawCommand {
-        const SpriteVertex* vertices;
-        int count;
-        uint32_t textureId;
+        uint32_t vertexOffset;  // VBO 中的顶点偏移（单位：顶点数）
+        int count;              // 顶点数
+        uint32_t textureId;     // 纹理 ID
     };
     std::vector<DrawCommand> m_pendingDraws;
+
+    // VBO 双缓冲偏移
+    int m_vboOffset = 0;                            // 当前帧 VBO 写入位置（字节偏移）
+    int m_activeBuffer = 0;                         // 当前活动 VBO 索引
+
+    // Staging buffer（用于 OPTIMAL tiling 纹理上传）
+    VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_stagingMemory = VK_NULL_HANDLE;
+    size_t m_stagingBufferSize = 0;
 
     ANativeWindow* m_nativeWindow = nullptr;
     bool m_ready = false;

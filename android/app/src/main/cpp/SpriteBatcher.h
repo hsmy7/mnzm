@@ -14,22 +14,35 @@
 // ============================================================
 
 struct SpriteBatcher {
-    SpriteVertex vertices[MAX_VERTICES];
+    // 小栈预分配（512 顶点 = 16KB 栈），超限时自动切换到堆分配
+    // 避免 Android 背景线程默认栈（~1MB）上开辟 768KB 数组导致溢出
+    static constexpr int STACK_CAPACITY = 512;
+    SpriteVertex stackBuffer[STACK_CAPACITY];
+    SpriteVertex* vertices;
     int vertexCount = 0;
+    int capacity = STACK_CAPACITY;
+    bool heapAllocated = false;
     uint32_t currentTexture = 0;
     float projMat[16];
 
     void begin(const float projection[16]);
     void add(uint32_t textureId,
-             float x, float y, float w, float h,       // 目标矩形（世界坐标）
-             float u0, float v0, float u1, float v1,   // UV 矩形
+             float x, float y, float w, float h,
+             float u0, float v0, float u1, float v1,
              float r = 1.0f, float g = 1.0f,
-             float b = 1.0f, float a = 1.0f);           // 颜色（默认白色）
+             float b = 1.0f, float a = 1.0f);
     void addCentered(uint32_t textureId,
                      float cx, float cy, float w, float h,
                      float u0, float v0, float u1, float v1,
                      float r = 1.0f, float g = 1.0f,
                      float b = 1.0f, float a = 1.0f);
-    int end();  // 返回顶点数
+    int end();
     void clear();
+
+    ~SpriteBatcher() {
+        if (heapAllocated) delete[] vertices;
+    }
+
+private:
+    void grow();  // 超出栈容量时切换到堆
 };

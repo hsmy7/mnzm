@@ -16,58 +16,115 @@ object SectMapTileGenerator {
     const val TILE_TREE1 = 4
     const val TILE_TREE2 = 5
     const val TILE_BUILDING = 6
+    const val TILE_GROUND_V2 = 7   // 地面变体2（与 TILE_GROUND 随机混用）
 
     /**
      * 基于位置哈希的宗门地图瓦片数据生成（确定性）。
      *
      * @param worldWidthCells 地图宽度（格数）
      * @param worldHeightCells 地图高度（格数）
-     * @param decorationDensity 总装饰密度 (0.0~1.0)，默认 0.30
+     * @param decorationDensity 总装饰密度 (0.0~1.0)，默认 0.18
      */
     fun generateTileData(
         worldWidthCells: Int,
         worldHeightCells: Int,
-        decorationDensity: Float = 0.30f
+        decorationDensity: Float = 0.18f
     ): Array<IntArray> {
         val data = Array(worldHeightCells) {
             IntArray(worldWidthCells) { TILE_GROUND }
         }
-        val rng = java.util.Random(42)
+        placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity)
+        placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity)
+        mixGroundVariants(data, worldWidthCells, worldHeightCells)
+        return data
+    }
 
-        // 树：使用 5×5 网格簇生成（每簇随机偏移 0-2 格）
-        val treeClusterProb = decorationDensity * 0.50f
-        for (tx in 0 until worldWidthCells / 5) {
-            for (ty in 0 until worldHeightCells / 5) {
-                if (rng.nextFloat() < treeClusterProb) {
-                    val offset = rng.nextInt(3)
-                    val cx = (tx * 5 + offset).coerceIn(0, worldWidthCells - 1)
-                    val cy = (ty * 5 + offset).coerceIn(0, worldHeightCells - 1)
-                    data[cy][cx] = if (rng.nextFloat() < 0.5f) {
-                        TILE_TREE1
-                    } else {
-                        TILE_TREE2
-                    }
-                }
-            }
-        }
-
-        // 草：逐格决定，基于位置哈希产生自然分布
-        // 使用 (1.0 - grassProb) 作为噪声阈值：density=0 时全跳过，density↑ 时跳过↓
-        val grassProb = decorationDensity * 0.60f
-        val grassThreshold = 1.0f - grassProb.coerceIn(0f, 1f)
-        for (gx in 0 until worldWidthCells) {
-            for (gy in 0 until worldHeightCells) {
+    /**
+     * 草装饰：成片草滩（平滑噪声 8×8 地块）。
+     * 在噪声确定的草地斑块内密集长草，形成自然草滩。
+     */
+    private fun placeGrassPatches(
+        data: Array<IntArray>, w: Int, h: Int, density: Float
+    ) {
+        val fill = (density * 0.80f).coerceIn(0f, 1f)
+        val threshold = 1.0f - fill
+        for (gx in 0 until w) {
+            for (gy in 0 until h) {
                 if (data[gy][gx] != TILE_GROUND) continue
-                val noise = cellHash(gx, gy, 42)
-                if (noise < grassThreshold) continue
-                data[gy][gx] = when {
-                    noise > 0.92f -> TILE_GRASS_LARGE
-                    noise > 0.82f -> TILE_GRASS_MEDIUM
+                if (smoothNoise(gx, gy, 8, 42) < threshold) continue
+                if (cellHash(gx, gy, 43) >= 0.80f) continue
+                data[gy][gx] = when (cellHash(gx, gy, 44)) {
+                    in 0.93f..1.0f -> TILE_GRASS_LARGE
+                    in 0.80f..0.93f -> TILE_GRASS_MEDIUM
                     else -> TILE_GRASS_SMALL
                 }
             }
         }
-        return data
+    }
+
+    /**
+     * 树装饰：稀疏树丛（平滑噪声 12×12 地块）。
+     * 树在更大尺度上成簇，密度低于草地。
+     */
+    private fun placeTreeClusters(
+        data: Array<IntArray>, w: Int, h: Int, density: Float
+    ) {
+        val fill = (density * 0.35f).coerceIn(0f, 1f)
+        val threshold = 1.0f - fill
+        for (gx in 0 until w) {
+            for (gy in 0 until h) {
+                if (data[gy][gx] != TILE_GROUND) continue
+                if (smoothNoise(gx, gy, 12, 101) < threshold) continue
+                if (cellHash(gx, gy, 45) >= 0.35f) continue
+                data[gy][gx] = if (cellHash(gx, gy, 46) < 0.5f) TILE_TREE1 else TILE_TREE2
+            }
+        }
+    }
+
+    /**
+     * 地面变体混合：约 30% 的 TILE_GROUND 改为 TILE_GROUND_V2。
+     * 双线性插值平滑噪声，产生自然地块而非噪点。
+     */
+    private fun mixGroundVariants(data: Array<IntArray>, w: Int, h: Int) {
+        for (gx in 0 until w) {
+            for (gy in 0 until h) {
+                if (data[gy][gx] == TILE_GROUND && smoothNoise(gx, gy, 6, 999) < 0.3f) {
+                    data[gy][gx] = TILE_GROUND_V2
+                }
+            }
+        }
+    }
+
+    /**
+     * 平滑噪声：在粗网格上采样 cellHash 后做双线性插值 + smoothstep。
+     *
+     * @param scale 特征尺度（= 一个"地块"的格数），默认 6
+     * @param seed 噪声种子
+     * @return [0,1) 连续值，相邻格变化平滑
+     */
+    fun smoothNoise(x: Int, y: Int, scale: Int, seed: Int): Float {
+        val sx = x.toFloat() / scale
+        val sy = y.toFloat() / scale
+        val ix = sx.toInt()
+        val iy = sy.toInt()
+        val fx = sx - ix          // 格内偏移 [0,1)
+        val fy = sy - iy
+
+        // Smoothstep：让插值曲线更自然（S 形而非线性）
+        val sx2 = fx * fx * (3f - 2f * fx)
+        val sy2 = fy * fy * (3f - 2f * fy)
+
+        // 4 个粗网格角点的噪声值
+        val v00 = cellHash(ix,     iy,     seed)
+        val v10 = cellHash(ix + 1, iy,     seed)
+        val v01 = cellHash(ix,     iy + 1, seed)
+        val v11 = cellHash(ix + 1, iy + 1, seed)
+
+        // 双线性插值
+        return v00 * (1f - sx2) * (1f - sy2) +
+               v10 * sx2 * (1f - sy2) +
+               v01 * (1f - sx2) * sy2 +
+               v11 * sx2 * sy2
     }
 
     /** 位置哈希：相同 (x,y,seed) 产生相同 [0,1) 值。 */
@@ -75,5 +132,45 @@ object SectMapTileGenerator {
         val h = (x * 374761393L + y * 668265263L + seed.toLong()).toInt()
         val hash = h * (h xor (h shl 13))
         return ((hash and 0x7FFFFFFF) % 10000) / 10000f
+    }
+
+    /**
+     * 计算 Autotile 8-bit bitmask（用于未来 Biome 过渡）。
+     *
+     * 8-bit blob tile 算法：
+     * - 检查 8 个邻居，构建位掩码
+     * - 角邻居规则：对角线仅在两卡相邻也匹配时计入
+     *
+     * @return Array<ByteArray> 每格的 bitmask 值（0-255）
+     */
+    fun computeAutotileBitmask(tileData: Array<IntArray>): Array<ByteArray> {
+        val h = tileData.size
+        if (h == 0) return emptyArray()
+        val w = tileData[0].size
+
+        val mask = Array(h) { ByteArray(w) { 0 } }
+
+        for (y in 1 until h - 1) {
+            for (x in 1 until w - 1) {
+                val here = tileData[y][x]
+                // 树和建筑不参与 autotile 过渡
+                if (here == TILE_BUILDING || here == TILE_TREE1 || here == TILE_TREE2) continue
+
+                val n  = if (tileData[y-1][x]   == here) 1 else 0
+                val s  = if (tileData[y+1][x]   == here) 1 else 0
+                val w  = if (tileData[y][x-1]   == here) 1 else 0
+                val e  = if (tileData[y][x+1]   == here) 1 else 0
+
+                // 角邻居仅当两卡相邻也匹配时计入（防止对角误连）
+                val nw = if (tileData[y-1][x-1] == here && n == 1 && w == 1) 1 else 0
+                val ne = if (tileData[y-1][x+1] == here && n == 1 && e == 1) 1 else 0
+                val sw = if (tileData[y+1][x-1] == here && s == 1 && w == 1) 1 else 0
+                val se = if (tileData[y+1][x+1] == here && s == 1 && e == 1) 1 else 0
+
+                mask[y][x] = (n or (ne shl 1) or (e shl 2) or (se shl 3) or
+                              (s shl 4) or (sw shl 5) or (w shl 6) or (nw shl 7)).toByte()
+            }
+        }
+        return mask
     }
 }

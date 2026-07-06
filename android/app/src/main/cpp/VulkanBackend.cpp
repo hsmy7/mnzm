@@ -223,12 +223,19 @@ void VulkanBackend::shutdown() {
     if (m_descriptorSetLayout)
         vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-    if (m_vertexBuffer && m_vertexMapped) {
-        vkUnmapMemory(m_device, m_vertexMemory);
-        m_vertexMapped = nullptr;
+    // 清理双缓冲 VBO
+    for (int i = 0; i < 2; i++) {
+        if (m_vertexMapped[i]) {
+            vkUnmapMemory(m_device, m_vertexMemories[i]);
+            m_vertexMapped[i] = nullptr;
+        }
+        if (m_vertexBuffers[i]) vkDestroyBuffer(m_device, m_vertexBuffers[i], nullptr);
+        if (m_vertexMemories[i]) vkFreeMemory(m_device, m_vertexMemories[i], nullptr);
     }
-    if (m_vertexBuffer) vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-    if (m_vertexMemory) vkFreeMemory(m_device, m_vertexMemory, nullptr);
+
+    // 清理 staging buffer
+    if (m_stagingBuffer) vkDestroyBuffer(m_device, m_stagingBuffer, nullptr);
+    if (m_stagingMemory) vkFreeMemory(m_device, m_stagingMemory, nullptr);
 
     for (auto& sem : m_imageAvailable)
         if (sem) vkDestroySemaphore(m_device, sem, nullptr);
@@ -873,52 +880,55 @@ void VulkanBackend::destroyPipelineObjects() {
 // ============================================================
 
 bool VulkanBackend::createVertexBuffer() {
+    // 创建双缓冲 VBO（交替写入，避免 GPU 读 CPU 写冲突）
     VkBufferCreateInfo bufInfo{};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufInfo.size = m_vertexBufferSize;
+    bufInfo.size = m_vertexBufferSize / 2;  // 每个 buffer 为总大小的一半
     bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS) {
-        LOGE("Failed to create vertex buffer");
-        return false;
-    }
-
-    VkMemoryRequirements memReq;
-    vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memReq);
 
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
 
-    uint32_t memType = UINT32_MAX;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-        if ((memReq.memoryTypeBits & (1 << i)) &&
-            (memProps.memoryTypes[i].propertyFlags &
-             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-            (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-            memType = i;
-            break;
+    for (int i = 0; i < 2; i++) {
+        if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffers[i]) != VK_SUCCESS) {
+            LOGE("Failed to create vertex buffer %d", i);
+            return false;
         }
+
+        VkMemoryRequirements memReq;
+        vkGetBufferMemoryRequirements(m_device, m_vertexBuffers[i], &memReq);
+
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < memProps.memoryTypeCount; j++) {
+            if ((memReq.memoryTypeBits & (1 << j)) &&
+                (memProps.memoryTypes[j].propertyFlags &
+                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+                memType = j;
+                break;
+            }
+        }
+
+        if (memType == UINT32_MAX) { LOGE("No suitable memory type for VBO %d", i); return false; }
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = memType;
+
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexMemories[i]) != VK_SUCCESS) {
+            LOGE("Failed to allocate vertex memory %d", i);
+            return false;
+        }
+
+        vkBindBufferMemory(m_device, m_vertexBuffers[i], m_vertexMemories[i], 0);
+        vkMapMemory(m_device, m_vertexMemories[i], 0, VK_WHOLE_SIZE, 0, &m_vertexMapped[i]);
+
+        LOGI("Vertex buffer %d: %llu bytes (mapped)", i, (unsigned long long)bufInfo.size);
     }
-
-    if (memType == UINT32_MAX) { LOGE("No suitable memory type"); return false; }
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReq.size;
-    allocInfo.memoryTypeIndex = memType;
-
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexMemory) != VK_SUCCESS) {
-        LOGE("Failed to allocate vertex memory");
-        return false;
-    }
-
-    vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexMemory, 0);
-    vkMapMemory(m_device, m_vertexMemory, 0, VK_WHOLE_SIZE, 0, &m_vertexMapped);
-
-    LOGI("Vertex buffer: %llu bytes (mapped)", (unsigned long long)m_vertexBufferSize);
     return true;
 }
 
@@ -977,11 +987,102 @@ bool VulkanBackend::createSynchronization() {
 }
 
 // ============================================================
-// 纹理
+// 纹理 — OPTIMAL tiling + staging buffer 标准做法
 // ============================================================
 
-// 简易纹理上传（使用 LINEAR tiling + 逐行拷贝 + layout transition via one-time command)
 static uint32_t s_nextTextureId = 1;
+
+/** 确保 staging buffer 有足够空间，不足则重新分配 */
+bool VulkanBackend::ensureStagingBuffer(size_t requiredSize) {
+    if (m_stagingBufferSize >= requiredSize) return true;
+
+    // 销毁旧的 staging buffer
+    if (m_stagingBuffer) vkDestroyBuffer(m_device, m_stagingBuffer, nullptr);
+    if (m_stagingMemory) vkFreeMemory(m_device, m_stagingMemory, nullptr);
+    m_stagingBuffer = VK_NULL_HANDLE;
+    m_stagingMemory = VK_NULL_HANDLE;
+    m_stagingBufferSize = 0;
+
+    VkBufferCreateInfo bufInfo{};
+    bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufInfo.size = requiredSize;
+    bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_stagingBuffer) != VK_SUCCESS) {
+        LOGE("Failed to create staging buffer (%zu bytes)", requiredSize);
+        return false;
+    }
+
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(m_device, m_stagingBuffer, &memReq);
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    uint32_t memType = UINT32_MAX;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((memReq.memoryTypeBits & (1 << i)) &&
+            (memProps.memoryTypes[i].propertyFlags &
+             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+            (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+            memType = i;
+            break;
+        }
+    }
+
+    if (memType == UINT32_MAX) {
+        LOGE("No suitable memory type for staging buffer");
+        return false;
+    }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = memType;
+
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_stagingMemory) != VK_SUCCESS) {
+        LOGE("Failed to allocate staging memory");
+        return false;
+    }
+
+    vkBindBufferMemory(m_device, m_stagingBuffer, m_stagingMemory, 0);
+    m_stagingBufferSize = requiredSize;
+    LOGI("Staging buffer allocated: %zu bytes", requiredSize);
+    return true;
+}
+
+/** 提交一次性 command buffer（用于 staging upload + layout transition）并等待完成 */
+static bool submitOneTimeCommands(
+    VkDevice device, VkCommandPool pool, VkQueue queue,
+    VkCommandBuffer cmd) {
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+
+    VkFence fence;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fenceInfo, nullptr, &fence);
+
+    VkResult res = vkQueueSubmit(queue, 1, &submit, fence);
+    if (res != VK_SUCCESS) {
+        vkDestroyFence(device, fence, nullptr);
+        vkFreeCommandBuffers(device, pool, 1, &cmd);
+        return false;
+    }
+
+    vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkDestroyFence(device, fence, nullptr);
+    vkFreeCommandBuffers(device, pool, 1, &cmd);
+    return true;
+}
 
 uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height) {
     if (!m_device || !pixels) return 0;
@@ -990,6 +1091,10 @@ uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height)
     tex.width = width;
     tex.height = height;
 
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    // ---- Step 1: 创建 OPTIMAL tiling 图像 ----
     VkImageCreateInfo imgInfo{};
     imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -998,168 +1103,178 @@ uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height)
     imgInfo.mipLevels = 1;
     imgInfo.arrayLayers = 1;
     imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    // 使用 OPTIMAL 搭配 staging buffer 是标准做法，但 LINEAR 更简单直接。
-    // 二者都需要 layout transition barrier。
-    imgInfo.tiling = VK_IMAGE_TILING_LINEAR;
-    imgInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-                    VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;   // OPTIMAL tiling 确保 REPEAT 兼容
+    imgInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                    VK_IMAGE_USAGE_SAMPLED_BIT;
     imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     if (vkCreateImage(m_device, &imgInfo, nullptr, &tex.image) != VK_SUCCESS) {
-        LOGE("Failed to create texture image");
-        return 0;
+        LOGE("Failed to create OPTIMAL texture image");
+        tex.image = VK_NULL_HANDLE;
+        goto fail;
     }
 
-    // 分配内存（HOST_VISIBLE 以便直接写入）
-    VkMemoryRequirements memReq;
-    vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
+    // 分配 DEVICE_LOCAL 内存
+    {
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
-
-    uint32_t memType = UINT32_MAX;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-        if ((memReq.memoryTypeBits & (1 << i)) &&
-            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
-            (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
-            memType = i;
-            break;
-        }
-    }
-
-    // 回退：仅 HOST_VISIBLE
-    if (memType == UINT32_MAX) {
+        uint32_t memType = UINT32_MAX;
         for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
             if ((memReq.memoryTypeBits & (1 << i)) &&
-                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
                 memType = i;
                 break;
             }
         }
-    }
-    if (memType == UINT32_MAX) { LOGE("No memory type for texture"); return 0; }
+        if (memType == UINT32_MAX) {
+            // 回退到 HOST_VISIBLE（部分 Mali GPU 无纯 DEVICE_LOCAL 可选）
+            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+                if (memReq.memoryTypeBits & (1 << i)) {
+                    memType = i;
+                    break;
+                }
+            }
+        }
+        if (memType == UINT32_MAX) { LOGE("No memory type for texture image"); goto fail; }
 
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReq.size;
-    allocInfo.memoryTypeIndex = memType;
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = memType;
 
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
-        LOGE("Failed to allocate texture memory");
-        return 0;
-    }
-    vkBindImageMemory(m_device, tex.image, tex.memory, 0);
-
-    // 写入像素数据（逐行，考虑 rowPitch）
-    void* mapped;
-    vkMapMemory(m_device, tex.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
-    VkSubresourceLayout layout;
-    VkImageSubresource sub{};
-    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    vkGetImageSubresourceLayout(m_device, tex.image, &sub, &layout);
-
-    size_t srcRowPitch = (size_t)width * 4;
-    for (int y = 0; y < height; y++) {
-        memcpy((char*)mapped + layout.offset + y * layout.rowPitch,
-               (const char*)pixels + y * srcRowPitch, srcRowPitch);
-    }
-    vkUnmapMemory(m_device, tex.memory);
-
-    // === Layout Transition: UNDEFINED → SHADER_READ_ONLY_OPTIMAL ===
-    // 使用一次性 command buffer 提交 layout transition barrier
-    VkCommandBufferAllocateInfo cmdAlloc{};
-    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdAlloc.commandPool = m_commandPool;
-    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdAlloc.commandBufferCount = 1;
-
-    VkCommandBuffer transitionCmd;
-    vkAllocateCommandBuffers(m_device, &cmdAlloc, &transitionCmd);
-
-    VkCommandBufferBeginInfo cmdBegin{};
-    cmdBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmdBegin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(transitionCmd, &cmdBegin);
-
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = tex.image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.layerCount = 1;
-    // host write → shader read
-    barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-    vkCmdPipelineBarrier(transitionCmd,
-        VK_PIPELINE_STAGE_HOST_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-    vkEndCommandBuffer(transitionCmd);
-
-    VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &transitionCmd;
-
-    // 使用临时 fence 等待 transition 完成
-    VkFence transitionFence;
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(m_device, &fenceInfo, nullptr, &transitionFence);
-
-    vkQueueSubmit(m_graphicsQueue, 1, &submit, transitionFence);
-    vkWaitForFences(m_device, 1, &transitionFence, VK_TRUE, UINT64_MAX);
-
-    vkDestroyFence(m_device, transitionFence, nullptr);
-    vkFreeCommandBuffers(m_device, m_commandPool, 1, &transitionCmd);
-
-    // ImageView
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = tex.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
-        LOGE("Failed to create texture view");
-        return 0;
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
+            LOGE("Failed to allocate texture memory"); goto fail;
+        }
+        vkBindImageMemory(m_device, tex.image, tex.memory, 0);
     }
 
-    // Sampler（点采样 + REPEAT 寻址——地面纹理通过 tilesX×tilesY 的 UV 平铺，
-    // 图集纹理的 UV 在 [0,1] 内，REPEAT 行为与 CLAMP 一致）
-    VkSamplerCreateInfo sampInfo{};
-    sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampInfo.magFilter = VK_FILTER_NEAREST;
-    sampInfo.minFilter = VK_FILTER_NEAREST;
-    sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampInfo.anisotropyEnable = VK_FALSE;
-    sampInfo.maxLod = 1.0f;
+    // ---- Step 2: 通过 staging buffer 上传像素数据 ----
+    {
+        size_t pixelDataSize = (size_t)width * height * 4;
+        if (!ensureStagingBuffer(pixelDataSize)) goto fail;
 
-    if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
-        LOGE("Failed to create sampler");
-        return 0;
+        void* mapped;
+        vkMapMemory(m_device, m_stagingMemory, 0, pixelDataSize, 0, &mapped);
+        memcpy(mapped, pixels, pixelDataSize);
+        vkUnmapMemory(m_device, m_stagingMemory);
     }
 
-    uint32_t id = s_nextTextureId++;
-    tex.id = id;
-    m_textures.push_back(tex);
+    // ---- Step 3: 提交 vkCmdCopyBufferToImage + Layout Transition ----
+    {
+        VkCommandBufferAllocateInfo cmdAlloc{};
+        cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdAlloc.commandPool = m_commandPool;
+        cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdAlloc.commandBufferCount = 1;
 
-    // 注意：不在此处更新描述符集。描述符集在每帧 submitFrame 中按纹理
-    // ID 切换（白色纹理 → 地面 → 图集），见 submitFrame 的纹理切换逻辑。
+        VkCommandBuffer cmd;
+        if (vkAllocateCommandBuffers(m_device, &cmdAlloc, &cmd) != VK_SUCCESS) {
+            LOGE("Failed to alloc command buffer for texture upload"); goto fail;
+        }
 
-    LOGI("Texture %dx%d uploaded (id=%u)", width, height, id);
-    return id;
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmd, &beginInfo);
+
+        // UNDEFINED → TRANSFER_DST_OPTIMAL
+        VkImageMemoryBarrier preBarrier{};
+        preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        preBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preBarrier.image = tex.image;
+        preBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        preBarrier.subresourceRange.levelCount = 1;
+        preBarrier.subresourceRange.layerCount = 1;
+        preBarrier.srcAccessMask = 0;
+        preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &preBarrier);
+
+        // Copy: staging buffer → image
+        VkBufferImageCopy copyRegion{};
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
+        vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1, &copyRegion);
+
+        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL
+        VkImageMemoryBarrier postBarrier{};
+        postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postBarrier.image = tex.image;
+        postBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        postBarrier.subresourceRange.levelCount = 1;
+        postBarrier.subresourceRange.layerCount = 1;
+        postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &postBarrier);
+
+        if (!submitOneTimeCommands(m_device, m_commandPool, m_graphicsQueue, cmd)) {
+            LOGE("Failed to submit texture upload commands"); goto fail;
+        }
+    }
+
+    // ---- Step 4: ImageView ----
+    {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = tex.image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
+            LOGE("Failed to create texture view"); goto fail;
+        }
+    }
+
+    // ---- Step 5: Sampler（CLAMP_TO_EDGE — 图集 UV 始终在 [0,1] 内） ----
+    {
+        VkSamplerCreateInfo sampInfo{};
+        sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampInfo.magFilter = VK_FILTER_NEAREST;
+        sampInfo.minFilter = VK_FILTER_NEAREST;
+        sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampInfo.anisotropyEnable = VK_FALSE;
+        sampInfo.maxLod = 1.0f;
+
+        if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
+            LOGE("Failed to create sampler"); goto fail;
+        }
+    }
+
+    {
+        uint32_t id = s_nextTextureId++;
+        tex.id = id;
+        m_textures.push_back(tex);
+        LOGI("Texture %dx%d uploaded (id=%u, OPTIMAL)", width, height, id);
+        return id;
+    }
+
+fail:
+    // 失败时清理已创建的资源
+    if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
+    if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
+    if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
+    if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
+    tex = {};
+    return 0;
 }
 
 void VulkanBackend::destroyTexture(uint32_t id) {
@@ -1177,15 +1292,36 @@ void VulkanBackend::setProjection(const float mat[16]) {
 void VulkanBackend::draw(const SpriteVertex* vertices, int count,
                           uint32_t textureId) {
     if (!m_ready || count == 0) return;
-    m_pendingDraws.push_back({ vertices, count, textureId });
+
+    // 直接写入当前活动的 VBO（不再存储裸指针）
+    // 数据在当前帧的 beginFrame 之后到 submitFrame 之前写入
+    size_t copySize = count * sizeof(SpriteVertex);
+    if (m_vboOffset + (int)copySize > (int)(m_vertexBufferSize / 2)) {
+        LOGE("VBO overflow: %d + %zu > %llu",
+             m_vboOffset, copySize, (unsigned long long)(m_vertexBufferSize / 2));
+        return;
+    }
+
+    memcpy((char*)m_vertexMapped[m_activeBuffer] + m_vboOffset,
+           vertices, copySize);
+
+    m_pendingDraws.push_back({
+        (uint32_t)(m_vboOffset / sizeof(SpriteVertex)),
+        count,
+        textureId
+    });
+    m_vboOffset += (int)copySize;
 }
 
 void VulkanBackend::beginFrame() {
     m_pendingDraws.clear();
+    // 双缓冲交替：切换 VBO 并重置偏移
+    m_activeBuffer = (m_activeBuffer + 1) % 2;
+    m_vboOffset = 0;
 }
 
 void VulkanBackend::endFrame() {
-    // 空实现 — 实际工作在 submitFrame 中
+    // 空实现 — 所有工作在 submitFrame 中完成
 }
 
 void VulkanBackend::submitFrame() {
@@ -1240,15 +1376,12 @@ void VulkanBackend::submitFrame() {
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
                        0, sizeof(m_projMatrix), m_projMatrix);
 
-    VkBuffer vertexBuffers[] = { m_vertexBuffer };
+    VkBuffer vertexBuffers[] = { m_vertexBuffers[m_activeBuffer] };
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
     // 提交所有 pending draw calls，按纹理 ID 切换描述符集
-    // 渲染顺序（由 NativeBridge.cpp 保证）：
-    //   纹理 0 (白色) → drawRect 纯色矩形
-    //   纹理 1+ → drawGround / drawDecor / drawBuildings
-    int vertexOffset = 0;
+    // 数据已在 draw() 调用时直接写入 VBO，此处只需提交 draw calls
     uint32_t currentBoundTexId = UINT32_MAX;
     for (auto& draw : m_pendingDraws) {
         if (draw.count <= 0) continue;
@@ -1259,11 +1392,18 @@ void VulkanBackend::submitFrame() {
             if (draw.textureId == 0) {
                 bindTextureToDescriptor(m_whiteTexture);
             } else {
+                bool found = false;
                 for (const auto& tex : m_textures) {
                     if (tex.id == draw.textureId) {
                         bindTextureToDescriptor(tex);
+                        found = true;
                         break;
                     }
+                }
+                if (!found) {
+                    // 纹理未找到时回退到白色纹理，避免描述符集指向错误数据
+                    bindTextureToDescriptor(m_whiteTexture);
+                    currentBoundTexId = 0;  // 下次遇到 ID≠0 会重新查找
                 }
             }
             // 重新绑定描述符集到 command buffer
@@ -1272,14 +1412,8 @@ void VulkanBackend::submitFrame() {
                                     0, nullptr);
         }
 
-        // 拷贝顶点数据到 VBO
-        size_t copySize = draw.count * sizeof(SpriteVertex);
-        memcpy((char*)m_vertexMapped + vertexOffset * sizeof(SpriteVertex),
-               draw.vertices, copySize);
-
-        // 提交 Draw Call
-        vkCmdDraw(cmd, draw.count, 1, vertexOffset, 0);
-        vertexOffset += draw.count;
+        // 直接使用 VBO 中已有的数据（已在 draw() 中写入）
+        vkCmdDraw(cmd, draw.count, 1, draw.vertexOffset, 0);
     }
 
     vkCmdEndRenderPass(cmd);

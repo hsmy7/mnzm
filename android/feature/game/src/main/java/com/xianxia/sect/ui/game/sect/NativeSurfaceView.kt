@@ -40,34 +40,12 @@ class NativeSurfaceView(
     var onRendererReady: (() -> Unit)? = null
 
     // ============================================================
-    // 纹理资源（由外部在 renderer 就绪后上传）
+    // 纹理资源（由外部在 renderer 就绪后上传，统一走图集）
     // ============================================================
 
-    /** 地面纹理 GPU ID（由 uploadTexture 设置） */
-    @Volatile
-    var groundTextureId: Int = 0
-
-    /** 主图集纹理 GPU ID（包含装饰/建筑/作物） */
+    /** 主图集纹理 GPU ID（包含地面/装饰/建筑） */
     @Volatile
     var atlasTextureId: Int = 0
-
-    /**
-     * 上传一张 Android Bitmap 到 GPU 纹理。
-     * 必须在渲染器就绪后调用，返回纹理 ID。
-     */
-    fun uploadBitmap(bitmap: android.graphics.Bitmap): Int {
-        val pixels = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        val buffer = ByteArray(pixels.size * 4)
-        for (i in pixels.indices) {
-            val p = pixels[i]
-            buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
-            buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
-            buffer[i * 4 + 2] = (p and 0xFF).toByte()
-            buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
-        }
-        return NativeBridge.uploadTexture(buffer, bitmap.width, bitmap.height)
-    }
 
     /**
      * 构建纹理图集 — 将所有装饰和建筑精灵合并到单张 2048×2048 纹理。
@@ -101,6 +79,8 @@ class NativeSurfaceView(
             SpriteSlot("grass_large",   192, 0,   64, 64, res("decoration_grass_large")),
             SpriteSlot("tree1",         256, 0,  128,128, res("decoration_tree1")),
             SpriteSlot("tree2",         384, 0,  128,128, res("decoration_tree2")),
+            // 地面变体2（随机混用）
+            SpriteSlot("ground_tile_v2", 512, 0,   64, 64, res("map_tile_v2")),
             // 建筑（128×128，每行4个，从行1开始）
             SpriteSlot("灵矿场",           0, 128, 128,128, buildingMap["灵矿场"] ?: 0),
             SpriteSlot("灵植阁",         128, 128, 128,128, buildingMap["灵植阁"] ?: 0),
@@ -149,8 +129,18 @@ class NativeSurfaceView(
         android.util.Log.i("NativeSurfaceView",
             "buildAtlas: $loadedCount/${slots.size} sprites loaded, atlas=${ATLAS_W}x$ATLAS_H")
 
-        // 上传到 GPU
-        val texId = uploadBitmap(atlas)
+        // 上传到 GPU（ARGB→RGBA 转换）
+        val pixels = IntArray(atlas.width * atlas.height)
+        atlas.getPixels(pixels, 0, atlas.width, 0, 0, atlas.width, atlas.height)
+        val buffer = ByteArray(pixels.size * 4)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
+            buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
+            buffer[i * 4 + 2] = (p and 0xFF).toByte()
+            buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
+        }
+        val texId = NativeBridge.uploadTexture(buffer, atlas.width, atlas.height)
         atlas.recycle()
         return texId
     }
@@ -170,7 +160,7 @@ class NativeSurfaceView(
     var cameraDirty: Boolean = false
 
     @Volatile
-    var decorVisible: Boolean = true
+    var buildingVisible: Boolean = true
     @Volatile
     var tileData: IntArray? = null
     @Volatile
@@ -216,7 +206,7 @@ class NativeSurfaceView(
         camY = state.camY
         camScale = state.scale
         cameraDirty = state.cameraDirty
-        decorVisible = state.decorVisible
+        buildingVisible = state.buildingVisible
         state.tileData?.let { tileData = it }
         state.uvMap?.let { uvMap = it }
         firstCol = state.firstCol
@@ -361,47 +351,27 @@ class NativeSurfaceView(
 
                 NativeBridge.beginFrame()
 
-                // 1. 地面层（1 draw call，UV = tilesX × tilesY 让纹理平铺）
-                NativeBridge.drawGround(
-                    worldW = config.worldPixelWidth.toFloat(),
-                    worldH = config.worldPixelHeight.toFloat(),
-                    textureId = groundTextureId,
-                    tilesX = config.worldWidthCells,
-                    tilesY = config.worldHeightCells
-                )
-
-                // 2. 装饰层（1 draw call，由 C++ VBO 合并）
+                // 1. 统一瓦片层（地面+装饰+建筑合并到图集，1 draw call）
                 val td = tileData
                 val uv = uvMap
-                if (decorVisible && td != null && uv != null && atlasTextureId != 0) {
-                    NativeBridge.drawDecor(
+                val bd = buildingData
+                val buv = buildingUVMap
+                if (td != null && uv != null && atlasTextureId != 0) {
+                    NativeBridge.drawAllTiles(
                         tileData = td,
                         cols = config.worldWidthCells,
                         rows = config.worldHeightCells,
-                        firstCol = firstCol,
-                        lastCol = lastCol,
-                        firstRow = firstRow,
-                        lastRow = lastRow,
-                        tileSize = config.tileSize,
-                        atlasTexId = atlasTextureId,
-                        uvMap = uv
-                    )
-                }
-
-                // 3. 建筑层（1 draw call）
-                val bd = buildingData
-                val buv = buildingUVMap
-                if (bd != null && buv != null && buildingCount > 0 && atlasTextureId != 0) {
-                    NativeBridge.drawBuildings(
                         buildingData = bd,
-                        count = buildingCount,
+                        buildingCount = buildingCount,
+                        buildingVisible = buildingVisible,
                         tileSize = config.tileSize,
                         atlasTexId = atlasTextureId,
+                        uvMap = uv,
                         buildingUVMap = buv
                     )
                 }
 
-                // 4. 放置预览
+                // 2. 放置预览
                 if (showPlacementPreview) {
                     NativeBridge.drawRect(
                         previewX, previewY, previewW, previewH,
@@ -428,13 +398,15 @@ data class NativeRenderConfig(
 
 /**
  * 每帧渲染状态（由 Compose 层通过 [NativeSurfaceView.updateRenderState] 批量写入）
+ *
+ * 架构 v2：统一瓦片层（地面+装饰+建筑合并到单张图集，单次 draw call）
  */
 data class FrameRenderState(
     val camX: Float = 0f,
     val camY: Float = 0f,
     val scale: Float = 1f,
     val cameraDirty: Boolean = false,
-    val decorVisible: Boolean = true,
+    val buildingVisible: Boolean = true,
     val tileData: IntArray? = null,
     val uvMap: FloatArray? = null,
     val firstCol: Int = 0,

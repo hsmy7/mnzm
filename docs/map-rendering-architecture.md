@@ -2,40 +2,40 @@
 
 ## 概览
 
-宗门地图自 **v4.0.43+** 起采用 **Vulkan 原生渲染管线**，替代了旧版的 Compose Canvas 实时绘制。
+宗门地图自 **v4.0.43+** 起采用 **Vulkan 原生渲染管线**，替代了旧版 Compose Canvas。
+**v4.0.45+** 改为 **统一图集逐格渲染**，修复了悬空指针 bug、LINEAR+REPEAT 兼容性隐患。
 
-新架构：**3 draw calls / 帧** + 独立渲染线程 + 持久映射 VBO + 三重缓冲交换链。
+新架构：**固定 2 draw calls / 帧** + 独立渲染线程 + 双缓冲 VBO + OPTIMAL tiling 纹理 + 视锥剔除。
 
 ```
-渲染顺序（从底到顶，由 C++ VulkanBackend::submitFrame 提交）：
-  Layer 1: Ground  — map_tile.webp → GPU 单次 draw call（UV 平铺整个世界）
-  Layer 2: Deco    — 图集内装饰精灵 → AI 批量合并为 1 次 draw call
-  Layer 3: Building — 图集内建筑精灵 → AI 批量合并为 1 次 draw call
-  Layer 4: Preview — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
+渲染顺序（由 C++ VulkanBackend::submitFrame 提交）：
+  Layer 1: 统一瓦片层 — 地面+装饰+建筑全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
+  Layer 2: Preview    — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
 ```
 
 ## 架构对比
 
-| 维度 | ≤4.0.41 (Canvas) | 4.0.42 (Canvas 三层) | **4.0.43+ (Vulkan)** |
-|------|-------------------|---------------------|----------------------|
-| 渲染引擎 | Compose Canvas / Skia | Compose Canvas / Skia | **Vulkan 1.1+ 原生** |
-| Draw calls | 每格 1 次 (~60) | ~25-45 (地面1+装饰~30+建筑~15) | **固定 3** (地面+装饰+建筑) |
-| 纹理管理 | ImageBitmap 逐个加载 | ImageBitmap 逐个加载 | **单张 2048×2048 图集** |
-| 渲染线程 | Compose UI 主线程 | Compose UI 主线程 | **独立 RenderThread** |
-| CPU 开销 | ~2-5ms (Compose 重组) | ~1-3ms | **<0.1ms** (纯 JNI 转发) |
-| 帧率控制 | 跟随 Compose | 跟随 Compose | **10fps 固定帧率** |
-| 功耗 | 高 (Compose 每帧重置) | 中 | **低** (空闲 delay) |
+| 维度 | 4.0.43-4.0.44 (Vulkan 初版) | **4.0.45+ (Vulkan v2)** |
+|------|----------------------------|------------------------|
+| Draw calls | 3-4 (地面+装饰+建筑+预览) | **固定 2** (统一层+预览) |
+| 地面渲染 | UV=REPEAT 平铺（LINER+REPEAT隐患） | **图集逐格批处理** |
+| VBO 更新 | 裸指针 → 悬空 bug | **直写+偏移** |
+| 纹理 tiling | LINEAR (兼容性差) | **OPTIMAL** (标准做法) |
+| VBO 管理 | 单缓冲 | **双缓冲交替** |
+| 可见性 | 无剔除 | **视锥剔除** |
+| Autotile | 无 | 预留 bitmask 接口 |
+| SpriteBatcher | 栈 768KB (溢出风险) | **小栈16KB+堆扩展** |
 
 ## 数据流
 
 ```
 美术资源 (WebP in drawable-nodpi)
-  ├─ map_tile.webp                 — 单格地面纹理 → GPU 平铺
   ├─ decoration_grass_*.webp       — 3 种草装饰变体 → 图集
-  └─ decoration_tree*.webp         — 2 种树装饰变体 → 图集
+  ├─ decoration_tree*.webp         — 2 种树装饰变体 → 图集
+  └─ 建筑精灵 → 图集（所有建筑统一为 128×128）
         ↓
 GameActivity.kt (启动时 LaunchedEffect)
-  └─ SectMapTileGenerator.generateTileData() → rawTileData (仅瓦片类型数据)
+  └─ SectMapTileGenerator.generateTileData() → rawTileData + bitmaskData
         ↓
 MapPreloadData (Compose State)
   ├─ rawTileData: Array<IntArray>
@@ -49,21 +49,21 @@ MainGameScreen.kt
         ↓
 NativeSurfaceView (SurfaceView + RenderThread)
   ├─ surfaceCreated → NativeBridge.initAtlas()
-  ├─ surfaceChanged → NativeBridge.initRenderer() → 上传纹理 → 启动 RenderThread
+  ├─ surfaceChanged → NativeBridge.initRenderer() → 上传图集纹理 → 启动 RenderThread
   └─ RenderThread 每 100ms:
-       1. setCamera (投影矩阵 → Push Constant)
-       2. beginFrame (清空 pending draws)
-       3. drawGround  (1 draw call, UV 平铺)
-       4. drawDecor   (SpriteBatcher 合并 → 1 draw call)
-       5. drawBuildings (SpriteBatcher 合并 → 1 draw call)
-       6. drawRect(s) (放置预览纯色矩形)
-       7. submitFrame (VkQueueSubmit + VkQueuePresentKHR)
+       1. setCamera (投影矩阵 → Push Constant) [同时更新视口范围]
+       2. beginFrame (清空 pending draws + 切换双缓冲 VBO)
+       3. drawAllTiles (SpriteBatcher 合并 → 1 draw call, 含视锥剔除)
+       4. drawRect(s) (放置预览纯色矩形)
+       5. submitFrame (VkQueueSubmit + VkQueuePresentKHR)
         ↓
 C++ VulkanBackend (Vulkan 1.1+)
   ├─ 单 Pipeline (固定功能)
   ├─ 单 DescriptorSet (单纹理图集 sampler)
-  ├─ 单 VBO (持久映射，每帧 memcpy)
+  ├─ 双缓冲 VBO (持久映射，draw() 时直写)
+  ├─ Staging buffer (OPTIMAL tiling 纹理上传)
   ├─ 三重缓冲交换链 (3× semaphore + fence)
+  ├─ 视锥剔除 (在 drawAllTiles 中基于视口范围跳过不可见格)
   └─ 纹理 0 = 1×1 白色纹理 (供纯色矩形用)
 ```
 
@@ -107,15 +107,17 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 
 ## 装饰物生成算法
 
-`SectMapTileGenerator.generateTileData()` 使用两种策略的混合：
+`SectMapTileGenerator.generateTileData()` 使用**平滑噪声地块**方案：
 
-| 装饰类型 | 算法 | 分布效果 |
-|---------|------|---------|
-| 树 (TREE1/TREE2) | 5×5 网格簇 + `java.util.Random` 偏移 | 团状聚集 |
-| 草 (3 变体) | 逐格位置哈希 + 噪声阈值 | 自然散布 |
+| 装饰类型 | 斑块尺度 | 斑块覆盖 | 斑块内密度 | 算法 |
+|---------|---------|---------|-----------|------|
+| 草 (3 变体) | 8×8 | ~14%（0.18 密度时） | ~80% | `smoothNoise(scale=8)` 确定草地斑块区域，斑块内密集分布 |
+| 树 (TREE1/TREE2) | 12×12 | ~6%（0.18 密度时） | ~35% | `smoothNoise(scale=12)` 确定树丛区域，区域内稀疏分布 |
 
-- **确定性**：相同输入永远产生相同输出（种子 42 + 位置哈希）
-- **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.30
+- **原理**：`smoothNoise()` 在粗网格上采样 `cellHash`，经双线性插值 + smoothstep 产生连续平滑值，相邻格值变化平缓 → 自然地块而非噪点
+- **地面变体**：两个地面纹理（地面1/地面2）使用同一方案以 6×6 尺度混合，地面1≈70%、地面2≈30%
+- **确定性**：相同输入永远产生相同输出（全部基于 `cellHash` + 固定种子，无 `java.util.Random`）
+- **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.18
 - **定义位置**：`core/engine/src/main/java/com/xianxia/sect/core/util/SectMapTileGenerator.kt`
 
 ## Vulkan 渲染管线结构
@@ -159,11 +161,11 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 | 文件 | 职责 |
 |------|------|
 | **C++ 渲染引擎** | |
-| `app/src/main/cpp/VulkanBackend.cpp/h` | Vulkan 1.1+ 渲染后端（1315 行） |
+| `app/src/main/cpp/VulkanBackend.cpp/h` | Vulkan 1.1+ 渲染后端（双缓冲 VBO + Staging Buffer） |
 | `app/src/main/cpp/Renderer2D.h` | 渲染抽象接口 + 正交投影数学 |
-| `app/src/main/cpp/SpriteBatcher.h/cpp` | 精灵批处理构建器 |
+| `app/src/main/cpp/SpriteBatcher.h/cpp` | 精灵批处理构建器（小栈+堆扩展） |
 | `app/src/main/cpp/TextureAtlas.h/cpp` | 纹理图集定义 + UV 坐标 |
-| `app/src/main/cpp/NativeBridge.cpp` | JNI 桥接（14 个接口） |
+| `app/src/main/cpp/NativeBridge.cpp` | JNI 桥接（drawAllTiles 统一绘制） |
 | `app/src/main/cpp/shaders/sprite.vert/frag` | GLSL 着色器 + SPIR-V 预编译 |
 | `app/src/main/cpp/CMakeLists.txt` | NDK CMake 构建配置 |
 | **Kotlin 桥接** | |
@@ -188,7 +190,8 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 | ≤4.0.40 | 双缓冲 Bitmap 烘焙（frontBuffer/backBuffer） | 残影 bug、复杂增量追踪 |
 | 4.0.41 | 统一 Canvas 直接绘制 + `fullMapBmp` 单层位图 | 地面+装饰合并无法独立控制 |
 | 4.0.42 | 三层按格实时绘制（Compose Canvas） | Compose 重组开销、主线程渲染 |
-| **4.0.43+** | **Vulkan 原生渲染管线（当前）** | 3 draw calls、独立渲染线程、低功耗 |
+| **4.0.43-4.0.44** | **Vulkan 原生渲染管线 v1** | 3 draw calls、独立渲染线程、低功耗 |
+| **4.0.45+** | **Vulkan v2 统一图集逐格渲染** | 2 draw calls、无双空指针/LINEAR+REPEAT/栈溢出 bug、视锥剔除 |
 
 ## 美术资源清单
 

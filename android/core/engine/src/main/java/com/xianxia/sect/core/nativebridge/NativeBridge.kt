@@ -66,27 +66,17 @@ object NativeBridge {
         vpW: Int, vpH: Int
     )
 
-    /** 绘制地面层（1次 draw call，UV = tilesX × tilesY 以平铺纹理） */
-    external fun drawGround(
-        worldW: Float, worldH: Float, textureId: Int,
-        tilesX: Int, tilesY: Int
-    )
-
-    /** 绘制装饰层（批量合并为1次 draw call） */
-    external fun drawDecor(
-        tileData: IntArray, cols: Int, rows: Int,
-        firstCol: Int, lastCol: Int,
-        firstRow: Int, lastRow: Int,
+    /** 统一瓦片绘制（地面+装饰+建筑合并到图集单次 draw call） */
+    external fun drawAllTiles(
+        tileData: IntArray,          // 展平瓦片类型数组 [0..N]
+        cols: Int, rows: Int,        // 地图网格尺寸
+        buildingData: FloatArray?,   // 建筑数据 [x,y,w,h,nameIdx] × count
+        buildingCount: Int,          // 建筑数量
+        buildingVisible: Boolean,    // 是否显示建筑
         tileSize: Int,
         atlasTexId: Int,
-        uvMap: FloatArray
-    )
-
-    /** 绘制建筑层（批量合并为1次 draw call） */
-    external fun drawBuildings(
-        buildingData: FloatArray, count: Int,
-        tileSize: Int, atlasTexId: Int,
-        buildingUVMap: FloatArray
+        uvMap: FloatArray,           // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引
+        buildingUVMap: FloatArray?   // 建筑 UV 映射
     )
 
     /** 绘制纯色矩形（网格线/放置预览） */
