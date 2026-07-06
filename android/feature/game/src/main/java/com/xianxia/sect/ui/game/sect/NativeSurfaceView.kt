@@ -7,6 +7,9 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.touch.SectMapTouchEngine
+import com.xianxia.sect.core.touch.TouchAction
+import com.xianxia.sect.core.touch.TouchData
 
 /**
  * NativeSurfaceView — 承载 Vulkan 渲染的表面。
@@ -227,11 +230,17 @@ class NativeSurfaceView(
         previewA = state.previewA
     }
 
+    /** 跨平台手势引擎 */
+    var touchEngine: SectMapTouchEngine? = null
+
     init {
         holder.apply {
             addCallback(this@NativeSurfaceView)
             setFormat(PixelFormat.RGBA_8888)
         }
+        // 必须设置 clickable 才能接收触摸事件
+        isClickable = true
+        isFocusableInTouchMode = true
     }
 
     // ============================================================
@@ -304,15 +313,32 @@ class NativeSurfaceView(
     }
 
     // ============================================================
-    // 触摸事件转发到 Compose 层（由 Compose 手势处理器处理）
+    // 触摸事件 → 转换为 TouchData → 喂入跨平台手势引擎
     // ============================================================
 
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
-    var onTouchCallback: ((MotionEvent) -> Boolean)? = null
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return onTouchCallback?.invoke(event) ?: false
+        val engine = touchEngine ?: return false
+
+        val touchData = TouchData(
+            x = event.x,
+            y = event.y,
+            action = when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> TouchAction.DOWN
+                MotionEvent.ACTION_MOVE -> TouchAction.MOVE
+                MotionEvent.ACTION_UP -> TouchAction.UP
+                MotionEvent.ACTION_CANCEL -> TouchAction.CANCEL
+                else -> return false
+            },
+            timestamp = event.eventTime.toLong() * 1_000_000L,
+            pointerId = event.getPointerId(event.actionIndex)
+        )
+        engine.onTouch(touchData)
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        // 覆写以满足 View 契约（setClickable 后必须）
+        return super.performClick()
     }
 
     // ============================================================

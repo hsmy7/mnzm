@@ -114,6 +114,21 @@ class SectCameraState(
     }
 
     /**
+     * 直接设置相机位置（用于惯性滑行 / Fling 动画直接写入）。
+     * 值会被 [clamp] 限制在世界边界内。
+     */
+    fun setPosition(x: Float, y: Float) {
+        if (viewportWidth <= 0 || viewportHeight <= 0) {
+            cameraX = x
+            cameraY = y
+            return
+        }
+        cameraX = x
+        cameraY = y
+        clamp()
+    }
+
+    /**
      * 判断世界坐标点是否在视口可见范围内。
      * @param margin 视口外扩检测边距（世界坐标单位）
      */

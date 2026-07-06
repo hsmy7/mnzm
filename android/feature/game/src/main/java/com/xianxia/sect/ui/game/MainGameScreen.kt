@@ -29,9 +29,6 @@ import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
@@ -67,6 +64,8 @@ import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.*
 import com.xianxia.sect.ui.game.main.*
+import com.xianxia.sect.core.touch.*
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 
 
@@ -314,6 +313,7 @@ fun MainGameScreen(
             cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
         }
     }
+
     val isGameOver by viewModel.isGameOver.collectAsStateWithLifecycle()
 
     LaunchedEffect(isGameOver) {
@@ -446,6 +446,8 @@ fun MainGameScreen(
                 }
             },
             update = { view ->
+                // 同步视口到 touchEngine
+                view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
                 view.updateRenderState(
                     FrameRenderState(
                         camX = cameraState.cameraX,
@@ -474,183 +476,163 @@ fun MainGameScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 触控手势层（透明覆盖在 Vulkan 渲染层之上，处理手势检测）
-        // 功能：相机拖动、建筑点击、建筑长按→移动模式
-        val gestureScope = rememberCoroutineScope()
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val downPos = down.position
-                        var dragStarted = false
-                        var longPressTriggered = false
-                        var lastPos = downPos
+        // ================================================================
+        // 跨平台手势引擎 — 替换旧的 Compose pointerInput 覆盖层
+        // ================================================================
+        val touchScope = rememberCoroutineScope()
+        val touchEngine = remember(cameraState, buildingIndex, gridSystem) {
+            SectMapTouchEngine(
+                callbacks = object : TouchEngineCallbacks {
+                    override fun onPanCamera(dx: Float, dy: Float) {
+                        cameraState.pan(dx, dy)
+                        viewModel.onUserInteraction()
+                    }
 
-                        // 长按检测
-                        val longPressJob = gestureScope.launch {
-                            delay(viewConfiguration.longPressTimeoutMillis)
-                            if (!dragStarted) {
-                                val wx = cameraState.screenToWorldX(downPos.x)
-                                val wy = cameraState.screenToWorldY(downPos.y)
-                                val gx = (wx / tileSize).toInt()
-                                val gy = (wy / tileSize).toInt()
-
-                                if (isPlacingBuilding && !goldFingerState.isActive) {
-                                    // 金手指激活检测：点击位置在预览框右下角外部单格
-                                    val gfWx = (placingSnappedGridX + placingBuildingSize.width) * tileSize
-                                    val gfWy = (placingSnappedGridY + placingBuildingSize.height) * tileSize
-                                    if (wx >= gfWx && wx < gfWx + tileSize &&
-                                        wy >= gfWy && wy < gfWy + tileSize) {
-                                        // 激活金手指模式
-                                        val initialCost = viewModel.getBuildingCost(placingBuildingName)
-                                        val initialValidity = computeGoldFingerCellValidities(
-                                            startGridX = placingSnappedGridX, startGridY = placingSnappedGridY,
-                                            endGridX = placingSnappedGridX, endGridY = placingSnappedGridY,
-                                            buildingW = placingBuildingSize.width,
-                                            buildingH = placingBuildingSize.height,
-                                            existingBuildings = effectivePlacedBuildings,
-                                            worldWidthCells = worldWidthCells,
-                                            worldHeightCells = worldHeightCells
-                                        )
-                                        val initCanBuild = initialValidity.count { it.value }
-                                        goldFingerState = com.xianxia.sect.ui.game.sect.GoldFingerState(
-                                            isActive = true,
-                                            startGridX = placingSnappedGridX,
-                                            startGridY = placingSnappedGridY,
-                                            endGridX = placingSnappedGridX,
-                                            endGridY = placingSnappedGridY,
-                                            buildingName = placingBuildingName,
-                                            buildingSize = placingBuildingSize,
-                                            buildingCost = initialCost,
-                                            totalCost = initCanBuild * initialCost,
-                                            canAfford = (gameData?.spiritStones ?: 0L) >= initCanBuild * initialCost,
-                                            canBuildCount = initCanBuild,
-                                            cellValidity = initialValidity
-                                        )
-                                        longPressTriggered = true
-                                    }
-                                } else if (!isPlacingBuilding && movingBuilding == null) {
-                                    // 已有建筑长按 → 移动模式
-                                    val touched = buildingIndex.findBuildingAt(gx, gy)
-                                    if (touched != null) {
-                                        longPressTriggered = true
-                                        movingBuilding = touched
-                                        movingWorldX = (touched.gridX * tileSize).toFloat()
-                                        movingWorldY = (touched.gridY * tileSize).toFloat()
-                                        movingSnappedGridX = touched.gridX
-                                        movingSnappedGridY = touched.gridY
-                                        movingValid = GridSnapHelper.PlacementValidity.Valid
-                                    }
+                    override fun onTap(screenX: Float, screenY: Float) {
+                        val wx = cameraState.screenToWorldX(screenX)
+                        val wy = cameraState.screenToWorldY(screenY)
+                        val gx = (wx / tileSize).toInt()
+                        val gy = (wy / tileSize).toInt()
+                        val clicked = buildingIndex.findBuildingAt(gx, gy)
+                        if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
+                            val def = BuildingRegistry.findByDisplayName(clicked.displayName)
+                            when (def) {
+                                BuildingDef.SPIRIT_MINE -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
+                                BuildingDef.ALCHEMY -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
+                                BuildingDef.FORGE -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
+                                BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
+                                    viewModel.navigateToDialog(DialogRoute.Residence(clicked.instanceId))
+                                }
+                                else -> {
+                                    val b = buildingList.find { it.first == clicked.displayName }
+                                    b?.second?.invoke(clicked)
                                 }
                             }
                         }
-
-                        do {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-
-                            if (!change.pressed) {
-                                longPressJob.cancel()
-                                if (!dragStarted && !longPressTriggered) {
-                                    // 点击检测
-                                    val wx = cameraState.screenToWorldX(change.position.x)
-                                    val wy = cameraState.screenToWorldY(change.position.y)
-                                    val gx = (wx / tileSize).toInt()
-                                    val gy = (wy / tileSize).toInt()
-                                    val clicked = buildingIndex.findBuildingAt(gx, gy)
-                                    if (clicked != null) {
-                                        val def = BuildingRegistry.findByDisplayName(clicked.displayName)
-                                        when (def) {
-                                            BuildingDef.SPIRIT_MINE -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
-                                            BuildingDef.ALCHEMY -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
-                                            BuildingDef.FORGE -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
-                                            BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
-                                                viewModel.navigateToDialog(DialogRoute.Residence(clicked.instanceId))
-                                            }
-                                            else -> {
-                                                val b = buildingList.find { it.first == clicked.displayName }
-                                                b?.second?.invoke(clicked)
-                                            }
-                                        }
-                                    }
-                                }
-                                change.consume()
-                                break
-                            }
-
-                            if (!dragStarted && !longPressTriggered) {
-                                val dx = change.position.x - lastPos.x
-                                val dy = change.position.y - lastPos.y
-                                if (dx * dx + dy * dy > viewConfiguration.touchSlop * viewConfiguration.touchSlop) {
-                                    dragStarted = true
-                                    longPressJob.cancel()
-                                }
-                            }
-
-                            if (dragStarted) {
-                                change.consume()
-                                val dragAmountX = change.position.x - lastPos.x
-                                val dragAmountY = change.position.y - lastPos.y
-
-                                if (movingBuilding != null && longPressTriggered) {
-                                    // 移动模式：更新建筑位置
-                                    movingWorldX += dragAmountX
-                                    movingWorldY += dragAmountY
-                                    movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
-                                    movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
-                                    movingValid = gridSystem.validatePlacement(
-                                        movingSnappedGridX, movingSnappedGridY,
-                                        movingBuildingSize.width, movingBuildingSize.height
-                                    )
-                                    // 边缘自动平移
-                                    val edgePx = 80f
-                                    val sx = cameraState.worldToScreenX(movingWorldX)
-                                    val sy = cameraState.worldToScreenY(movingWorldY)
-                                    if (sx < edgePx) cameraState.pan(8f, 0f)
-                                    if (sx > screenWidthPx - edgePx) cameraState.pan(-8f, 0f)
-                                    if (sy < edgePx) cameraState.pan(0f, 8f)
-                                    if (sy > screenHeightPx - edgePx) cameraState.pan(0f, -8f)
-                                } else if (goldFingerState.isActive) {
-                                    // 金手指拖拽：更新框选结束格
-                                    val newWx = cameraState.screenToWorldX(change.position.x)
-                                    val newWy = cameraState.screenToWorldY(change.position.y)
-                                    val newGridX = (newWx / tileSize).toInt()
-                                    val newGridY = (newWy / tileSize).toInt()
-                                    val fStartX = goldFingerState.startGridX
-                                    val fStartY = goldFingerState.startGridY
-                                    val fSize = goldFingerState.buildingSize
-                                    val newValidity = computeGoldFingerCellValidities(
-                                        startGridX = fStartX, startGridY = fStartY,
-                                        endGridX = newGridX, endGridY = newGridY,
-                                        buildingW = fSize.width, buildingH = fSize.height,
-                                        existingBuildings = effectivePlacedBuildings,
-                                        worldWidthCells = worldWidthCells,
-                                        worldHeightCells = worldHeightCells
-                                    )
-                                    val canBuildCount = newValidity.count { it.value }
-                                    val totalCost = canBuildCount * goldFingerState.buildingCost
-                                    goldFingerState = goldFingerState.copy(
-                                        endGridX = newGridX, endGridY = newGridY,
-                                        totalCost = totalCost,
-                                        canAfford = (gameData?.spiritStones ?: 0L) >= totalCost,
-                                        canBuildCount = canBuildCount,
-                                        cellValidity = newValidity
-                                    )
-                                } else if (!isPlacingBuilding && movingBuilding == null) {
-                                    // 相机拖动
-                                    cameraState.pan(dragAmountX, dragAmountY)
-                                    viewModel.onUserInteraction()
-                                }
-                                lastPos = change.position
-                            }
-                        } while (true)
                     }
-                }
-        )
 
-        // 放置模式确认按钮
+                    override fun onLongPress(screenX: Float, screenY: Float): Boolean {
+                        val wx = cameraState.screenToWorldX(screenX)
+                        val wy = cameraState.screenToWorldY(screenY)
+                        val gx = (wx / tileSize).toInt()
+                        val gy = (wy / tileSize).toInt()
+
+                        // 放置模式 → 金手指激活检测
+                        if (isPlacingBuilding && !goldFingerState.isActive) {
+                            val gfWx = (placingSnappedGridX + placingBuildingSize.width) * tileSize
+                            val gfWy = (placingSnappedGridY + placingBuildingSize.height) * tileSize
+                            if (wx >= gfWx && wx < gfWx + tileSize &&
+                                wy >= gfWy && wy < gfWy + tileSize
+                            ) {
+                                // 激活金手指模式
+                                val cost = viewModel.getBuildingCost(placingBuildingName)
+                                val v = computeGoldFingerCellValidities(
+                                    startGridX = placingSnappedGridX, startGridY = placingSnappedGridY,
+                                    endGridX = placingSnappedGridX, endGridY = placingSnappedGridY,
+                                    buildingW = placingBuildingSize.width,
+                                    buildingH = placingBuildingSize.height,
+                                    existingBuildings = effectivePlacedBuildings,
+                                    worldWidthCells = worldWidthCells,
+                                    worldHeightCells = worldHeightCells
+                                )
+                                val canBuild = v.count { it.value }
+                                goldFingerState = GoldFingerState(
+                                    isActive = true,
+                                    startGridX = placingSnappedGridX,
+                                    startGridY = placingSnappedGridY,
+                                    endGridX = placingSnappedGridX,
+                                    endGridY = placingSnappedGridY,
+                                    buildingName = placingBuildingName,
+                                    buildingSize = placingBuildingSize,
+                                    buildingCost = cost,
+                                    totalCost = canBuild * cost,
+                                    canAfford = (gameData?.spiritStones ?: 0L) >= canBuild * cost,
+                                    canBuildCount = canBuild,
+                                    cellValidity = v
+                                )
+                                return true
+                            }
+                            return false
+                        }
+
+                        // 非放置模式 → 建筑长按 → 移动模式
+                        if (!isPlacingBuilding && movingBuilding == null) {
+                            val touched = buildingIndex.findBuildingAt(gx, gy)
+                            if (touched != null) {
+                                movingBuilding = touched
+                                movingWorldX = (touched.gridX * tileSize).toFloat()
+                                movingWorldY = (touched.gridY * tileSize).toFloat()
+                                movingSnappedGridX = touched.gridX
+                                movingSnappedGridY = touched.gridY
+                                movingValid = GridSnapHelper.PlacementValidity.Valid
+                                return true
+                            }
+                        }
+                        return false
+                    }
+
+                    override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
+                        movingWorldX += worldDx
+                        movingWorldY += worldDy
+                        movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
+                        movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
+                        movingValid = gridSystem.validatePlacement(
+                            movingSnappedGridX, movingSnappedGridY,
+                            movingBuildingSize.width, movingBuildingSize.height
+                        )
+                    }
+
+                    override fun onBuildingDragEnd() {
+                        // 手指抬起后保持最后位置，显示确认/取消按钮
+                        // 无需额外操作，MainGameScreen 根据 movingBuilding != null 显示按钮
+                    }
+
+                    override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
+                        if (!goldFingerState.isActive) return
+                        val newWx = cameraState.screenToWorldX(screenX)
+                        val newWy = cameraState.screenToWorldY(screenY)
+                        val newGridX = (newWx / tileSize).toInt()
+                        val newGridY = (newWy / tileSize).toInt()
+                        val f = goldFingerState
+                        val newValidity = computeGoldFingerCellValidities(
+                            startGridX = f.startGridX, startGridY = f.startGridY,
+                            endGridX = newGridX, endGridY = newGridY,
+                            buildingW = f.buildingSize.width, buildingH = f.buildingSize.height,
+                            existingBuildings = effectivePlacedBuildings,
+                            worldWidthCells = worldWidthCells,
+                            worldHeightCells = worldHeightCells
+                        )
+                        val canBuildCount = newValidity.count { it.value }
+                        val totalCost = canBuildCount * f.buildingCost
+                        goldFingerState = f.copy(
+                            endGridX = newGridX, endGridY = newGridY,
+                            totalCost = totalCost,
+                            canAfford = (gameData?.spiritStones ?: 0L) >= totalCost,
+                            canBuildCount = canBuildCount,
+                            cellValidity = newValidity
+                        )
+                    }
+
+                    override fun isGoldFingerActive(): Boolean = goldFingerState.isActive
+                    override fun getCameraScale(): Float = cameraState.scale
+
+                    override fun onFlingStart() {
+                        nativeSurfaceView?.targetFps = 30
+                    }
+
+                    override fun onFlingEnd() {
+                        nativeSurfaceView?.targetFps = 10
+                    }
+                },
+                scope = touchScope,
+                config = TouchEngineConfig()
+            )
+        }
+
+        // 挂载 touchEngine 到 NativeSurfaceView
+        LaunchedEffect(nativeSurfaceView) {
+            nativeSurfaceView?.touchEngine = touchEngine
+        }
         if (isPlacingBuilding) {
             val isGf = goldFingerState.isActive
             PlacementConfirmButtons(

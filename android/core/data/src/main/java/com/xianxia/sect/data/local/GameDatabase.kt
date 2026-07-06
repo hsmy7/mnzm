@@ -529,15 +529,15 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v11→v12: 新增 mapSeed 列 — 宗门地图随机种子 */
+        /** v11→v12: 新增 map_seed 列 — 宗门地图随机种子 */
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                if (!columnExists(db, "game_data", "mapSeed")) {
+                if (!columnExists(db, "game_data", "map_seed")) {
                     db.execSQL(
-                        "ALTER TABLE game_data ADD COLUMN mapSeed INTEGER NOT NULL DEFAULT 0"
+                        "ALTER TABLE game_data ADD COLUMN map_seed INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                Log.i(TAG, "Migration 11→12: added mapSeed")
+                Log.i(TAG, "Migration 11→12: added map_seed")
             }
         }
 

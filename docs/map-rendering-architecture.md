@@ -157,6 +157,90 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 已知问题：国产 ROM（MIUI/OriginOS/ColorOS）的 Mali GPU Vulkan 驱动兼容性差。
 详见 `android-renderthread-crash-research.md`。
 
+## 手势系统架构（v4.0.41+）
+
+宗门地图在 **v4.0.41+** 完成手势系统重构，从 Compose `pointerInput` 覆盖层替换为**纯 Kotlin 跨平台手势引擎**。
+
+### 架构对比
+
+| 维度 | 旧 (Compose pointerInput) | 新 (SectMapTouchEngine) |
+|------|--------------------------|------------------------|
+| 触控捕获 | Compose `Box` + `pointerInput` 覆盖层 | `SurfaceView.onTouchEvent` 原生捕获 |
+| 手势逻辑 | ~170行单体 `awaitEachGesture` | 显式 `GestureState` sealed class 状态机 |
+| 惯性滑行 | ❌ 无 | ✅ 线性减速模型 (1500px/s²) |
+| 边缘平移 | 8px 固定步长 | 0~600px/s 距离比例平滑加速 |
+| 长按检测 | `scope.launch { delay() }` | 引擎内置协程超时 |
+| 跨平台 | Android-only Compose API | **纯 Kotlin**（iOS 只需转换 UITouch→TouchData） |
+
+### 数据流
+
+```
+Android SurfaceView.onTouchEvent()
+  ↓ MotionEvent → TouchData
+SectMapTouchEngine.onTouch()
+  ├── GestureStateMachine (sealed class: Idle/Down/Scrolling/Flinging/BuildingDrag/GoldFingerDrag)
+  ├── CustomVelocityTracker (位置历史+最小二乘速度)
+  ├── FlingPhysics (线性减速)
+  └── EdgePanDetector (距离比例速度)
+       ↓ TouchEngineCallbacks
+MainGameScreen (Compose)
+  ├── onPanCamera → SectCameraState.pan()
+  ├── onTap → buildingIndex.findBuildingAt() → Dialog
+  ├── onLongPress → building drag / gold finger
+  └── onBuildingDragUpdate → movingWorldX/Y → grid snapping
+       ↓
+NativeSurfaceView.updateRenderState() (每帧 Compose 重组)
+  └── @Volatile camX/camY → RenderThread → NativeBridge.setCamera()
+```
+
+### 手势状态机
+
+```
+Idle ──DOWN──→ Down ──MOVE(>slop)──→ Scrolling ──UP(有速度)──→ Flinging
+                   │                                              │
+                   │ 超时(长按)                          UP(无速度) │
+                   │                                              │
+                   ├──→ BuildingDrag / GoldFingerDrag              │
+                   │                                              │
+                   └──→ [TAP] ← UP(短触无移动)                   │
+                                                                  │
+             Flinging ──新DOWN──→ Down (中断惯性) ←───────────────┘
+```
+
+### 跨平台设计
+
+手势引擎位于 `core/engine/.../touch/`，纯 Kotlin 零平台依赖：
+
+| 文件 | 职责 | 跨平台 |
+|------|------|--------|
+| `TouchData.kt` | 跨平台触摸数据类 | ✅ 纯 Kotlin |
+| `GestureState.kt` | 手势状态机 sealed class | ✅ 纯 Kotlin |
+| `CustomVelocityTracker.kt` | 速度追踪器（替代 Android VelocityTracker） | ✅ 纯 Kotlin |
+| `FlingPhysics.kt` | 线性减速惯性滑行 | ✅ 纯 Kotlin |
+| `EdgePanDetector.kt` | 边缘比例速度平移 | ✅ 纯 Kotlin |
+| `SectMapTouchEngine.kt` | 核心引擎：状态机+协调器 | ✅ 纯 Kotlin |
+| `TouchEngineCallbacks.kt` | 回调接口定义 | ✅ 纯 Kotlin |
+| `TouchEngineConfig.kt` | 行业标准参数配置 | ✅ 纯 Kotlin |
+
+iOS 移植时只需在 native 层补充：
+```swift
+override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    let loc = touch.location(in: self)
+    engine.onTouch(TouchData(x: loc.x, y: loc.y, action: .DOWN, ...))
+}
+```
+
+### 参数行业参考
+
+| 参数 | 值 | 来源 |
+|------|----|------|
+| touchSlop | 16px | Android ViewConfiguration |
+| longPressTimeout | 400ms | iOS HIG / Android 标准 |
+| minFlingVelocity | 200px/s | Android Scroller |
+| flingDeceleration | 1500px/s² | CoC / 自然手感，3000→0≈2s |
+| edgeThickness | 100px | 经验值 |
+| maxEdgePanSpeed | 600px/s | 经验值 |
+
 ## 关键文件索引
 
 | 文件 | 职责 |
@@ -179,7 +263,16 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 | `core/engine/.../util/SectMapTileGeneratorTest.kt` | 生成算法测试（10 用例） |
 | `core/domain/.../model/MapPreloadData.kt` | 预加载数据模型（无纹理字段） |
 | `app/.../ui/game/GameActivity.kt` | 资源加载 + MapPreloadData 构建 |
-| `feature/game/.../MainGameScreen.kt` | tileData 计算 + AndroidView 嵌入 + 手势处理 |
+| `feature/game/.../MainGameScreen.kt` | tileData 计算 + AndroidView 嵌入 + 手势集成 |
+| **手势引擎** | |
+| `core/engine/.../touch/SectMapTouchEngine.kt` | 核心手势引擎：状态机 + 长按检测 + 惯性滑行 |
+| `core/engine/.../touch/CustomVelocityTracker.kt` | 跨平台速度追踪器 |
+| `core/engine/.../touch/FlingPhysics.kt` | 线性减速惯性物理 |
+| `core/engine/.../touch/EdgePanDetector.kt` | 边缘自动平移检测 |
+| `core/engine/.../touch/TouchEngineCallbacks.kt` | 手势回调接口 |
+| `core/engine/.../touch/TouchEngineConfig.kt` | 手势引擎配置 |
+| `core/engine/.../touch/TouchData.kt` | 跨平台触摸数据 |
+| `core/engine/.../touch/GestureState.kt` | 手势状态机定义 |
 | **兼容性** | |
 | `app/.../core/VulkanPolicy.kt` | 设备兼容性检测 |
 | `AndroidManifest.xml` | `<uses-feature android:name="android.hardware.vulkan" android:required="false">` |
