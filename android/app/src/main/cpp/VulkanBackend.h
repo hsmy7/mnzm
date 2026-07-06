@@ -39,6 +39,17 @@ public:
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
     void submitFrame() override;
 
+    // === 两阶段初始化（主流游戏做法） ===
+
+    /** Phase 1: 仅创建设备和着色器（在加载界面阶段调用，无 Surface 依赖） */
+    bool initDevice(const char* cacheDir, int worldW, int worldH, int tileSize);
+
+    /** Phase 2: 创建 Surface/Swapchain/Pipeline（在 SurfaceView 就绪后调用） */
+    bool initSurface(void* nativeWindow, int viewportW, int viewportH);
+
+    /** 设备是否已初始化（供 NativeBridge 判断是否需要回退到完整 init） */
+    bool isDeviceReady() const { return m_deviceReady; }
+
 private:
     // === 初始化辅助 ===
     bool createInstance();
@@ -54,9 +65,16 @@ private:
     bool createFramebuffers();  // 必须在 createRenderPass() 之后调用
     VkShaderModule compileShader(const uint32_t* code, size_t size);
 
+    // === Pipeline Cache 持久化 ===
+    static constexpr const char* PIPELINE_CACHE_FILENAME = "vulkan_pipeline_cache.bin";
+    bool loadPipelineCache();
+    bool savePipelineCache();
+
     // === 资源管理 ===
     void destroySwapchain();
-    void destroyPipelineObjects();
+    void destroyGraphicsObjects();   // 仅销毁 Pipeline/RenderPass/Layout（保留 ShaderModule）
+    void destroyShaderModules();     // 仅销毁 Shader Module
+    void destroyPipelineObjects();   // 销毁所有图形对象（含 Shader）— 仅供 shutdown
 
     // === Vulkan 对象 ===
     VkInstance m_instance = VK_NULL_HANDLE;
@@ -125,6 +143,11 @@ private:
     // 着色器
     VkShaderModule m_vertShader = VK_NULL_HANDLE;
     VkShaderModule m_fragShader = VK_NULL_HANDLE;
+
+    // Pipeline Cache（加速管线创建，跨会话持久化）
+    VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
+    char m_cacheDir[256] = {};          // 应用缓存目录（用于保存 Pipeline Cache）
+    bool m_deviceReady = false;         // initDevice 是否已完成
 
     // 渲染配置
     RenderConfig m_config{};

@@ -2,10 +2,19 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <cstring>
+#include <android/log.h>
 #include "Renderer2D.h"
 #include "VulkanBackend.h"
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
+
+// ============================================================
+// 日志宏
+// ============================================================
+
+#define LOG_TAG "NativeBridge"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // ============================================================
 // NativeBridge — JNI 入口点
@@ -70,9 +79,40 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_getAtlasUV(
 }
 
 // ============================================================
-// 渲染器生命周期
+// 渲染器生命周期 — 两阶段初始化
 // ============================================================
 
+/** Phase 1: 预加载设备 + 着色器（在加载界面调用，无 Surface 依赖） */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_prewarmDevice(
+    JNIEnv* env, jobject /*thiz*/,
+    jstring cacheDir, jint worldW, jint worldH, jint tileSize) {
+
+    if (g_renderer) {
+        g_renderer->shutdown();
+        delete g_renderer;
+    }
+
+    const char* dir = cacheDir ? env->GetStringUTFChars(cacheDir, nullptr) : nullptr;
+
+    auto* vb = new VulkanBackend();
+    g_renderer = vb;
+    bool ok = vb->initDevice(dir, worldW, worldH, tileSize);
+
+    if (dir) env->ReleaseStringUTFChars(cacheDir, dir);
+
+    if (!ok) {
+        LOGE("prewarmDevice failed — will fall back to full init at surface time");
+        delete g_renderer;
+        g_renderer = nullptr;
+        return JNI_FALSE;
+    }
+
+    LOGI("Vulkan device prewarmed successfully");
+    return JNI_TRUE;
+}
+
+/** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用） */
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     JNIEnv* env, jobject /*thiz*/,
@@ -80,15 +120,26 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     jint worldW, jint worldH, jint tileSize,
     jobject surface) {
 
-    if (g_renderer) {
-        g_renderer->shutdown();
-        delete g_renderer;
-    }
-
-    // 从 Java Surface 对象获取 ANativeWindow
     ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
     if (!window) return JNI_FALSE;
 
+    g_worldPixelsW = worldW;
+    g_worldPixelsH = worldH;
+
+    if (g_renderer) {
+        auto* vb = static_cast<VulkanBackend*>(g_renderer);
+        if (vb->isDeviceReady()) {
+            // Phase 1 已完成，只需初始化 Surface
+            bool ok = vb->initSurface(window, viewportW, viewportH);
+            return ok ? JNI_TRUE : JNI_FALSE;
+        }
+    }
+
+    // 回退：完整初始化（prewarmDevice 未调用或失败）
+    if (g_renderer) {
+        delete g_renderer;
+    }
+    g_renderer = new VulkanBackend();
     RenderConfig config{};
     config.viewportW = viewportW;
     config.viewportH = viewportH;
@@ -97,10 +148,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     config.tileSize = tileSize;
     config.renderScale = 1.0f;
 
-    g_worldPixelsW = worldW;
-    g_worldPixelsH = worldH;
-
-    g_renderer = new VulkanBackend();
     bool ok = g_renderer->init(config, window);
     return ok ? JNI_TRUE : JNI_FALSE;
 }

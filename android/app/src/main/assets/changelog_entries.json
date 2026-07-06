@@ -24,7 +24,10 @@
       "修复：进入建造模式时地图不白屏——VulkanBackend.submitFrame()在无draw call时仍提交空帧（acquire→clear→present），渲染状态改为@Volatile原子引用避免多字段撕裂读",
       "修复：建造模式预览显示半透明建筑精灵——新增drawSprite() JNI从图集取建筑UV+Alpha Blend渲染，替换旧绿色矩形drawRect",
       "修复：移动模式建筑不消失——统一showPreview控制建造/移动预览，移动中建筑精灵半透明跟随手指",
-      "修复：全部18种建筑精灵图显示正确——修正BUILDING_UV_MAP图集行分布（旧假设每行4个，实际为每行5个），索引≥4的建筑不再显示错误精灵"
+      "修复：全部18种建筑精灵图显示正确——修正BUILDING_UV_MAP图集行分布（旧假设每行4个，实际为每行5个），索引≥4的建筑不再显示错误精灵",
+      "优化：着色器编译——采用主流游戏两阶段初始化（加载界面预创建VkDevice+编译ShaderModule+加载Pipeline Cache），宗门地图Surface首次可见时零延迟",
+      "新增：Pipeline Cache持久化——管线编译结果存入磁盘缓存文件，下次启动直接复用跳过GPU驱动重新编译",
+      "优化：resize不再重新编译着色器——ShaderModule跨Surface尺寸复用"
       ]
     },
   {

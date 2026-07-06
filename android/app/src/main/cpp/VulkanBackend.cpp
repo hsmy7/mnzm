@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <android/log.h>
+#include <cstdio>
 
 // SPIR-V 着色器字节码（由 gen_header.py 从 .spv 生成）
 #include "shaders.h"
@@ -159,46 +160,118 @@ bool VulkanBackend::createWhiteTexture() {
     return true;
 }
 
-bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
-    m_config = config;
-    // 增加 ANativeWindow 引用计数，防止 Surface 被销毁后窗口失效
+// ============================================================
+// 两阶段初始化：Phase 1 — 设备 + 着色器（无 Surface 依赖）
+// 在加载界面调用，创建后 initSurface 可跳过此阶段
+// ============================================================
+
+bool VulkanBackend::initDevice(const char* cacheDir, int worldW, int worldH, int tileSize) {
+    LOGI("initDevice: world=%dx%d tile=%d cacheDir=%s",
+         worldW, worldH, tileSize, cacheDir ? cacheDir : "(null)");
+
+    // 保存缓存目录路径
+    if (cacheDir) {
+        strncpy(m_cacheDir, cacheDir, sizeof(m_cacheDir) - 1);
+        m_cacheDir[sizeof(m_cacheDir) - 1] = '\0';
+    }
+
+    m_config.worldWidth = worldW;
+    m_config.worldHeight = worldH;
+    m_config.tileSize = tileSize;
+
+    if (!createInstance()) { LOGE("initDevice: createInstance failed"); return false; }
+    if (!selectPhysicalDevice()) { LOGE("initDevice: selectPhysicalDevice failed"); return false; }
+    if (!createLogicalDevice()) { LOGE("initDevice: createLogicalDevice failed"); return false; }
+    if (!loadShaders()) { LOGE("initDevice: loadShaders failed"); return false; }
+    if (!loadPipelineCache()) { /* 无缓存文件正常，非致命 */ }
+
+    m_deviceReady = true;
+    LOGI("Vulkan device+shaders initialized successfully");
+    return true;
+}
+
+// ============================================================
+// 两阶段初始化：Phase 2 — Surface/Swapchain/Pipeline
+// 在 SurfaceView 就绪后调用，依赖 initDevice 先完成
+// ============================================================
+
+bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH) {
+    LOGI("initSurface(%dx%d, window=%p)", viewportW, viewportH, nativeWindow);
+
+    if (!m_deviceReady) {
+        LOGE("initSurface called without initDevice — do full init instead");
+        // 兜底：如果 Device 未初始化，用默认参数做完整初始化
+        if (!initDevice(nullptr, 0, 0, 0)) return false;
+    }
+
+    m_config.viewportW = viewportW;
+    m_config.viewportH = viewportH;
+
+    // Surface / Swapchain
     m_nativeWindow = static_cast<ANativeWindow*>(nativeWindow);
     if (m_nativeWindow) ANativeWindow_acquire(m_nativeWindow);
 
-    LOGI("init(%dx%d, window=%p)", config.viewportW, config.viewportH, nativeWindow);
+    if (!createSwapchain(viewportW, viewportH)) { LOGE("initSurface: createSwapchain failed"); return false; }
+    if (!createRenderPass()) { LOGE("initSurface: createRenderPass failed"); return false; }
+    if (!createFramebuffers()) { LOGE("initSurface: createFramebuffers failed"); return false; }
 
-    if (!createInstance()) { LOGE("init: createInstance failed"); return false; }
-    if (!selectPhysicalDevice()) { LOGE("init: selectPhysicalDevice failed"); return false; }
-    if (!createLogicalDevice()) { LOGE("init: createLogicalDevice failed"); return false; }
-    if (!createSwapchain(config.viewportW, config.viewportH)) { LOGE("init: createSwapchain failed"); return false; }
-    if (!createRenderPass()) { LOGE("init: createRenderPass failed"); return false; }
-    if (!createFramebuffers()) { LOGE("init: createFramebuffers failed"); return false; }
-    if (!loadShaders()) { LOGE("init: loadShaders failed"); return false; }
-    if (!createPipeline()) { LOGE("init: createPipeline failed"); return false; }
-    if (!createVertexBuffer()) { LOGE("init: createVertexBuffer failed"); return false; }
-    if (!createCommandObjects()) { LOGE("init: createCommandObjects failed"); return false; }
-    if (!createSynchronization()) { LOGE("init: createSynchronization failed"); return false; }
+    // Pipeline（使用预创建的 ShaderModule + PipelineCache 加速）
+    if (!createPipeline()) { LOGE("initSurface: createPipeline failed"); return false; }
 
-    // 创建 1×1 白色纹理，作为默认绑定纹理（供 drawRect 纯色矩形使用）
+    // 管线创建完成后保存 Pipeline Cache
+    savePipelineCache();
+
+    if (!createVertexBuffer()) { LOGE("initSurface: createVertexBuffer failed"); return false; }
+    if (!createCommandObjects()) { LOGE("initSurface: createCommandObjects failed"); return false; }
+    if (!createSynchronization()) { LOGE("initSurface: createSynchronization failed"); return false; }
+
+    // 白色纹理
     if (!createWhiteTexture()) {
-        LOGE("init: white texture creation failed (non-fatal, drawRect colors may be wrong)");
+        LOGE("initSurface: white texture creation failed (non-fatal)");
     } else {
-        // 将描述符集初始指向白色纹理
         bindTextureToDescriptor(m_whiteTexture);
-        LOGI("White texture created for solid-color draws");
     }
 
-    orthoProj(m_projMatrix, 0.0f, (float)config.viewportW,
-              (float)config.viewportH, 0.0f);
+    orthoProj(m_projMatrix, 0.0f, (float)viewportW, (float)viewportH, 0.0f);
 
     m_ready = true;
-    LOGI("VulkanBackend initialized: %dx%d", config.viewportW, config.viewportH);
+    LOGI("Vulkan surface initialized: %dx%d", viewportW, viewportH);
     return true;
+}
+
+// ============================================================
+// init（向后兼容 — 全量初始化，等价于 initDevice + initSurface）
+// ============================================================
+
+bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
+    m_config = config;
+    LOGI("init(%dx%d, window=%p)", config.viewportW, config.viewportH, nativeWindow);
+
+    if (m_deviceReady) {
+        // 已经过 initDevice 预加载，只初始化 Surface
+        return initSurface(nativeWindow, config.viewportW, config.viewportH);
+    }
+
+    // 完整链
+    if (!initDevice(nullptr, config.worldWidth, config.worldHeight, config.tileSize)) {
+        LOGE("init: initDevice failed");
+        return false;
+    }
+    return initSurface(nativeWindow, config.viewportW, config.viewportH);
 }
 
 void VulkanBackend::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
     vkDeviceWaitIdle(m_device);
+
+    // 关机前保存 Pipeline Cache（可能在 LoadingScreen 阶段创建，也可能刚刚创建）
+    savePipelineCache();
+
+    // 销毁 Pipeline Cache
+    if (m_pipelineCache) {
+        vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
+        m_pipelineCache = VK_NULL_HANDLE;
+    }
 
     destroyPipelineObjects();
     destroySwapchain();
@@ -539,7 +612,7 @@ bool VulkanBackend::resize(int width, int height) {
     vkDeviceWaitIdle(m_device);
 
     destroySwapchain();
-    destroyPipelineObjects();
+    destroyGraphicsObjects();  // 保留 ShaderModule（它们不依赖 Surface）
 
     m_config.viewportW = width;
     m_config.viewportH = height;
@@ -547,8 +620,11 @@ bool VulkanBackend::resize(int width, int height) {
     if (!createSwapchain(width, height)) return false;
     if (!createRenderPass()) return false;
     if (!createFramebuffers()) return false;
-    if (!loadShaders()) return false;
+    // 跳过 loadShaders() — ShaderModule 在 initDevice 时已创建，跨 resize 复用
     if (!createPipeline()) return false;
+
+    // 保存 Pipeline Cache（可能已有新优化数据）
+    savePipelineCache();
 
     // 重建 CommandBuffer
     for (auto& cmd : m_commandBuffers)
@@ -649,10 +725,19 @@ VkShaderModule VulkanBackend::compileShader(const uint32_t* code, size_t size) {
 }
 
 bool VulkanBackend::createPipeline() {
-    // 从已编译的 SPIR-V 创建 Pipeline
-    // 实际项目中使用从 assets 加载的 SPIR-V
-    // 这里使用内联 SPIR-V（最小版本）
-    // 完整实现通过 JNI 从 assets 读取 .spv 文件
+    // ── 新增管线指引 ──
+    //
+    // 本函数在 initSurface() 和 resize() 中调用，此时：
+    //   - ShaderModule 已在 initDevice()（加载界面阶段）预编译好
+    //   - m_pipelineCache 已加载（或新建），自动缓存每次管线创建结果
+    //
+    // 新增管线只需两步：
+    //   1. loadShaders() 中加载额外 ShaderModule（在加载界面完成）
+    //   2. 本函数末尾新增 vkCreateGraphicsPipelines，传入 m_pipelineCache
+    //
+    // Pipeline Cache 在首次创建后自动保存到磁盘，下次启动复用。
+    // resize 时 ShaderModule 跨 Surface 复用，不走重新编译。
+    // ───────────────────
 
     // 描述符集布局（1个 combined image sampler）
     VkDescriptorSetLayoutBinding bind{};
@@ -832,7 +917,8 @@ bool VulkanBackend::createPipeline() {
     pipeInfo.renderPass = m_renderPass;
     pipeInfo.subpass = 0;
 
-    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE,
+    VkPipelineCache cache = m_pipelineCache ? m_pipelineCache : VK_NULL_HANDLE;
+    if (vkCreateGraphicsPipelines(m_device, cache,
                                   1, &pipeInfo, nullptr, &m_pipeline)
         != VK_SUCCESS) {
         LOGE("Failed to create graphics pipeline");
@@ -860,7 +946,8 @@ void VulkanBackend::bindTextureToDescriptor(const Texture& tex) {
     vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
 }
 
-void VulkanBackend::destroyPipelineObjects() {
+void VulkanBackend::destroyGraphicsObjects() {
+    // 仅销毁依赖 Surface 的图形对象，保留 ShaderModule 和 PipelineCache
     if (m_pipeline) vkDestroyPipeline(m_device, m_pipeline, nullptr);
     m_pipeline = VK_NULL_HANDLE;
     if (m_pipelineLayout) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
@@ -869,10 +956,97 @@ void VulkanBackend::destroyPipelineObjects() {
     m_renderPass = VK_NULL_HANDLE;
     if (m_descriptorSetLayout) vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     m_descriptorSetLayout = VK_NULL_HANDLE;
+}
+
+void VulkanBackend::destroyShaderModules() {
     if (m_vertShader) vkDestroyShaderModule(m_device, m_vertShader, nullptr);
     m_vertShader = VK_NULL_HANDLE;
     if (m_fragShader) vkDestroyShaderModule(m_device, m_fragShader, nullptr);
     m_fragShader = VK_NULL_HANDLE;
+}
+
+void VulkanBackend::destroyPipelineObjects() {
+    destroyGraphicsObjects();
+    destroyShaderModules();
+}
+
+// ============================================================
+// Pipeline Cache 持久化
+// 主流游戏做法：跨会话缓存已编译的管线，显著加速下次启动
+// ============================================================
+
+bool VulkanBackend::loadPipelineCache() {
+    if (m_cacheDir[0] == '\0') return false;
+
+    char path[320];
+    snprintf(path, sizeof(path), "%s/%s", m_cacheDir, PIPELINE_CACHE_FILENAME);
+
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        LOGI("Pipeline cache not found (%s), will create fresh", path);
+        // 创建空 PipelineCache，后续 vkCreateGraphicsPipelines 会自动填充
+        VkPipelineCacheCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        vkCreatePipelineCache(m_device, &info, nullptr, &m_pipelineCache);
+        return false;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (size <= 0) {
+        fclose(f);
+        VkPipelineCacheCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        vkCreatePipelineCache(m_device, &info, nullptr, &m_pipelineCache);
+        return false;
+    }
+
+    std::vector<uint8_t> data(static_cast<size_t>(size));
+    fread(data.data(), 1, static_cast<size_t>(size), f);
+    fclose(f);
+
+    VkPipelineCacheCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    info.initialDataSize = data.size();
+    info.pInitialData = data.data();
+
+    VkResult res = vkCreatePipelineCache(m_device, &info, nullptr, &m_pipelineCache);
+    if (res != VK_SUCCESS) {
+        LOGE("vkCreatePipelineCache from saved data failed (%d), creating fresh", res);
+        VkPipelineCacheCreateInfo emptyInfo{};
+        emptyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        vkCreatePipelineCache(m_device, &emptyInfo, nullptr, &m_pipelineCache);
+        return false;
+    }
+
+    LOGI("Pipeline cache loaded: %ld bytes from %s", size, path);
+    return true;
+}
+
+bool VulkanBackend::savePipelineCache() {
+    if (!m_pipelineCache || m_cacheDir[0] == '\0') return false;
+
+    size_t dataSize;
+    VkResult res = vkGetPipelineCacheData(m_device, m_pipelineCache, &dataSize, nullptr);
+    if (res != VK_SUCCESS || dataSize == 0) return false;
+
+    std::vector<uint8_t> data(dataSize);
+    res = vkGetPipelineCacheData(m_device, m_pipelineCache, &dataSize, data.data());
+    if (res != VK_SUCCESS) return false;
+
+    char path[320];
+    snprintf(path, sizeof(path), "%s/%s", m_cacheDir, PIPELINE_CACHE_FILENAME);
+
+    FILE* f = fopen(path, "wb");
+    if (!f) return false;
+
+    fwrite(data.data(), 1, data.size(), f);
+    fclose(f);
+
+    LOGI("Pipeline cache saved: %zu bytes", data.size());
+    return true;
 }
 
 // ============================================================

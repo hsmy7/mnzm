@@ -98,6 +98,12 @@
   - VulkanPolicy：设备兼容性检测（高通/联发科/国产厂商分级）
   - 资源加载优化：移除 GameActivity 中全部地图位图预加载代码（-200 行），精简 MapPreloadData 仅保留瓦片数据和配置参数
   - 死代码清理：移除 buildingBitmaps、MapBitmapUtils.kt 等 Canvas 时代遗留代码，净减 875 行
+  - **着色器编译优化：主流游戏两阶段初始化 + Pipeline Cache 持久化**
+    - 将 Vulkan 着色器编译和管线创建拆分为两阶段：Phase 1（加载界面时）创建设备和编译着色器，Phase 2（Surface就绪时）创建 Swapchain 和管线
+    - 新增 Pipeline Cache 持久化：管线编译结果存入 `vulkan_pipeline_cache.bin`，下次启动直接复用，跳过 GPU 驱动重新编译
+    - 在 LoadingScreen 阶段预加载 Native 库 + 创建设备 + 编译 SPIR-V → 宗门地图 Surface 首次可见时零延迟
+    - Pipeline Cache 随管线重建自动更新，关机前保存
+    - resize 不再重新编译着色器（ShaderModule 跨 Surface 尺寸复用）
 
 ## [4.0.40] - 2026-07-05（versionCode=4040）
 

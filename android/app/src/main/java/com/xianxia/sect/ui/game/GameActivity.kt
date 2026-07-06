@@ -45,11 +45,15 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import android.view.ActionMode
 import android.view.Window
 import javax.inject.Inject
@@ -92,6 +96,9 @@ class GameActivity : ComponentActivity() {
 
     @Inject
     lateinit var wakeLockManager: com.xianxia.sect.core.util.WakeLockManager
+
+    @Inject
+    lateinit var ioDispatcher: IoDispatcher
 
     // ── GameForegroundService 绑定 ──
     // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
@@ -186,6 +193,29 @@ class GameActivity : ComponentActivity() {
                     LaunchedEffect(gameData.isGameStarted) {
                         if (gameData.isGameStarted && mapPreloadData == null) {
                             saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
+
+                            // Phase 1: 预加载 Vulkan 设备 + 着色器（主流做法）
+                            withContext(ioDispatcher.dispatcher) {
+                                NativeBridge.ensureLoaded()
+                                try {
+                                    val w = GameConfig.SectMap
+                                    val p = w.WORLD_WIDTH_CELLS * w.TILE_SIZE
+                                    val q = w.WORLD_HEIGHT_CELLS * w.TILE_SIZE
+                                    val d = applicationContext.cacheDir
+                                    NativeBridge.prewarmDevice(
+                                        d.absolutePath, p, q, w.TILE_SIZE
+                                    ).let { ok ->
+                                        if (ok) Log.d(TAG,
+                                            "Vulkan device prewarmed")
+                                        else Log.w(TAG, "prewarm failed")
+                                    }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    Log.e(TAG,
+                                        "Vulkan prewarm exception", e)
+                                }
+                            }
 
                             val tileSize = GameConfig.SectMap.TILE_SIZE
                             val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
