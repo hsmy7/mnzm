@@ -593,12 +593,16 @@ fun MainGameScreen(
                             val touched = buildingIndex.findBuildingAt(gx, gy)
                                 ?: (if (movingBuilding != null) movingBuilding else null)
                             if (touched != null) {
+                                val isResumeDrag = movingBuilding?.instanceId == touched.instanceId
+                                if (!isResumeDrag) {
+                                    // 新建筑拖拽 → 从该建筑的原始网格坐标开始
+                                    movingWorldX = (touched.gridX * tileSize).toFloat()
+                                    movingWorldY = (touched.gridY * tileSize).toFloat()
+                                    movingSnappedGridX = touched.gridX
+                                    movingSnappedGridY = touched.gridY
+                                    movingValid = GridSnapHelper.PlacementValidity.Valid
+                                }
                                 movingBuilding = touched
-                                movingWorldX = (touched.gridX * tileSize).toFloat()
-                                movingWorldY = (touched.gridY * tileSize).toFloat()
-                                movingSnappedGridX = touched.gridX
-                                movingSnappedGridY = touched.gridY
-                                movingValid = GridSnapHelper.PlacementValidity.Valid
                                 return LongPressResult.BuildingDrag
                             }
                         }
