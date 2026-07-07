@@ -314,10 +314,19 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             float gh = buildings[idx + 3];
             int nameIdx = static_cast<int>(buildings[idx + 4]);
 
-            float px = gx * tileSize;
-            float py = gy * tileSize;
-            float pw = gw * tileSize;
-            float ph = gh * tileSize;
+            // 建筑/地砖比例×2（灵田保持原尺寸），居中偏移
+            float px, py, pw, ph;
+            if (nameIdx == SPIRIT_FIELD_NAME_INDEX) {
+                px = gx * tileSize;
+                py = gy * tileSize;
+                pw = gw * tileSize;
+                ph = gh * tileSize;
+            } else {
+                px = gx * tileSize - (gw * tileSize * 0.5f);
+                py = gy * tileSize - (gh * tileSize * 0.5f);
+                pw = gw * tileSize * 2.0f;
+                ph = gh * tileSize * 2.0f;
+            }
 
             // 可见性检测
             if (!isRectVisible(px, py, pw, ph)) continue;

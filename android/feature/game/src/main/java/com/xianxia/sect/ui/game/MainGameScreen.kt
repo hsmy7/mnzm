@@ -493,6 +493,13 @@ fun MainGameScreen(
                 val pSize = if (mb != null) movingBuildingSize else placingBuildingSize
                 val pValid = if (mb != null) movingValid else placementValidity
 
+                // 预览建筑/地砖比例×2（灵田保持原尺寸），居中偏移
+                // 与 NativeBridge.cpp / SoftwareCanvasBackend 的建筑渲染缩放一致
+                val isSpiritField = previewNameIdx == 2  // 灵田在 BUILDING_NAMES 中索引=2
+                val previewScale = if (isSpiritField) 1f else 2f
+                val previewOffsetX = if (isSpiritField) 0f else -(pSize.width * tileSize * 0.5f)
+                val previewOffsetY = if (isSpiritField) 0f else -(pSize.height * tileSize * 0.5f)
+
                 // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
                 // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
                 // 会导致软件渲染器清屏后无法重绘建筑）
@@ -514,10 +521,10 @@ fun MainGameScreen(
                         buildingData = buildingData,
                         buildingCount = effectivePlacedBuildings.size,
                         showPreview = hasPreview,
-                        previewX = px,
-                        previewY = py,
-                        previewW = (pSize.width * tileSize).toFloat(),
-                        previewH = (pSize.height * tileSize).toFloat(),
+                        previewX = px + previewOffsetX,
+                        previewY = py + previewOffsetY,
+                        previewW = (pSize.width * tileSize * previewScale).toFloat(),
+                        previewH = (pSize.height * tileSize * previewScale).toFloat(),
                         previewU0 = previewUvs?.get(0) ?: 0f,
                         previewV0 = previewUvs?.get(1) ?: 0f,
                         previewU1 = previewUvs?.get(2) ?: 0f,

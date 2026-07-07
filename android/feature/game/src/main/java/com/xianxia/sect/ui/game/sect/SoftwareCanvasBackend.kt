@@ -257,10 +257,24 @@ class SoftwareCanvasBackend(
                     val bh = buildingDataArray[idx + 3].toInt()
                     val nameIdx = buildingDataArray[idx + 4].toInt()
 
-                    val bWorldX = gx * tileSize
-                    val bWorldY = gy * tileSize
-                    val bWorldW = bw * tileSize
-                    val bWorldH = bh * tileSize
+                    // 建筑/地砖比例×2（灵田保持原尺寸），居中偏移
+                    val bWorldX: Float
+                    val bWorldY: Float
+                    val bWorldW: Float
+                    val bWorldH: Float
+                    if (nameIdx == SPIRIT_FIELD_ATLAS_INDEX) {
+                        bWorldX = (gx * tileSize).toFloat()
+                        bWorldY = (gy * tileSize).toFloat()
+                        bWorldW = (bw * tileSize).toFloat()
+                        bWorldH = (bh * tileSize).toFloat()
+                    } else {
+                        val halfW = (bw * tileSize * 0.5f)
+                        val halfH = (bh * tileSize * 0.5f)
+                        bWorldX = (gx * tileSize).toFloat() - halfW
+                        bWorldY = (gy * tileSize).toFloat() - halfH
+                        bWorldW = (bw * tileSize * 2).toFloat()
+                        bWorldH = (bh * tileSize * 2).toFloat()
+                    }
                     val screenBX = (bWorldX - frame.camX) * scale
                     val screenBY = (bWorldY - frame.camY) * scale
                     val screenBW = bWorldW * scale
