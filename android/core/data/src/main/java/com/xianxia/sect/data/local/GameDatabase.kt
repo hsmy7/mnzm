@@ -609,61 +609,56 @@ abstract class GameDatabase : RoomDatabase() {
                             PRIMARY KEY(`id`, `slot_id`)
                         )
                     """)
-                    // 重建索引
+                    // 复制数据（排除 isGameStarted 列）
+                    // 使用紧凑单行 SQL 以避免 sqlite4java (Robolectric) 解析长多行 SQL 的问题
+                    val insertCols = listOf(
+                        "id", "slot_id", "sectName", "currentSlot",
+                        "gameYear", "gameMonth", "gamePhase", "gameSpeed",
+                        "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones",
+                        "spiritHerbs", "sectCultivation", "autoSaveIntervalMonths",
+                        "monthlySalary", "monthlySalaryEnabled",
+                        "worldMapSects", "sectDetails", "aiSectDisciples",
+                        "exploredSects", "scoutInfo", "manualProficiencies",
+                        "travelingMerchantItems", "merchantLastRefreshYear",
+                        "merchantRefreshCount", "playerListedItems",
+                        "merchantAcquisitionItems", "merchantAcquisitionLastRefreshYear",
+                        "autoBuyList", "recruitList", "lastRecruitYear",
+                        "worldLevels", "cultivatorCaves", "caveExplorationTeams",
+                        "aiCaveTeams", "unlockedRecipes", "unlockedManuals",
+                        "lastSaveTime", "elderSlots",
+                        "spiritMineSlots", "spiritMineExpansions", "librarySlots",
+                        "productionSlots", "placedBuildings", "spiritFieldPlants",
+                        "activeSectId", "residenceSlots", "warehouseGarrisons",
+                        "patrolSlots", "patrolConfig", "patrolConfigs",
+                        "alliances", "vassalContracts",
+                        "sectRelations", "playerAllianceSlots",
+                        "sectPolicies", "battleTeam", "aiBattleTeams",
+                        "usedRedeemCodes", "mailRecords", "sectLevelClaimRecords",
+                        "save_version",
+                        "playerProtectionEnabled", "playerProtectionStartYear", "playerHasAttackedAI",
+                        "activeMissions", "availableMissions", "autoRecruitSpiritRootFilter",
+                        "daoCompanionBannedRootCounts", "daoCompanionConsentRequired", "patrolBattleResultPopup",
+                        "autoSellMidGradeForPurchase", "autoSellHighGradeForPurchase",
+                        "breakthroughAutoPillFocused", "breakthroughAutoPillRootCounts",
+                        "autoEquipFromWarehouseFocused", "autoEquipFromWarehouseRootCounts",
+                        "autoLearnFromWarehouseFocused", "autoLearnFromWarehouseRootCounts",
+                        "isGameOver",
+                        "bloodRefinements", "activeBloodRefinements", "bloodRefinementBonusTotals",
+                        "heavenly_trial_state", "sign_in_state_json",
+                        "aiSectPersonalities", "suzerainSectId", "lastYearSpiritStoneIncome",
+                        "activeAttackWarnings", "shownWarningStageIds", "sectAttackCooldowns", "sectBattleRecords",
+                        "map_seed"
+                    )
+                    val quotedCols = insertCols.joinToString(", ") { "`$it`" }
+                    db.execSQL("INSERT INTO `game_data_new` SELECT $quotedCols FROM `game_data`")
+                    db.execSQL("DROP TABLE IF EXISTS `game_data`")
+                    db.execSQL("ALTER TABLE `game_data_new` RENAME TO `game_data`")
+                    // ⚠️ 索引必须在 RENAME 之后重建，否则会随旧表一起被 DROP
                     db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `game_data` (`slot_id`)")
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `game_data` (`lastSaveTime`)")
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_sectName` ON `game_data` (`sectName`)")
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `game_data` (`spiritStones`)")
-                    // 复制数据（排除 isGameStarted 列）
-                    db.execSQL("""
-                        INSERT INTO `game_data_new` SELECT
-                            `id`, `slot_id`, `sectName`, `currentSlot`,
-                            `gameYear`, `gameMonth`, `gamePhase`, `gameSpeed`,
-                            `spiritStones`, `midGradeSpiritStones`, `highGradeSpiritStones`,
-                            `spiritHerbs`, `sectCultivation`, `autoSaveIntervalMonths`,
-                            `monthlySalary`, `monthlySalaryEnabled`,
-                            `worldMapSects`, `sectDetails`, `aiSectDisciples`,
-                            `exploredSects`, `scoutInfo`, `manualProficiencies`,
-                            `travelingMerchantItems`, `merchantLastRefreshYear`,
-                            `merchantRefreshCount`, `playerListedItems`,
-                            `merchantAcquisitionItems`, `merchantAcquisitionLastRefreshYear`,
-                            `autoBuyList`, `recruitList`, `lastRecruitYear`,
-                            `worldLevels`, `cultivatorCaves`, `caveExplorationTeams`,
-                            `aiCaveTeams`, `unlockedRecipes`, `unlockedManuals`,
-                            `lastSaveTime`, `elderSlots`,
-                            `spiritMineSlots`, `spiritMineExpansions`, `librarySlots`,
-                            `productionSlots`, `placedBuildings`, `spiritFieldPlants`,
-                            `activeSectId`, `residenceSlots`, `warehouseGarrisons`,
-                            `patrolSlots`, `patrolConfig`, `patrolConfigs`,
-                            `alliances`, `vassalContracts`,
-                            `sectRelations`, `playerAllianceSlots`,
-                            `sectPolicies`, `battleTeam`, `aiBattleTeams`,
-                            `usedRedeemCodes`, `mailRecords`, `sectLevelClaimRecords`,
-                            `save_version`,
-                            `playerProtectionEnabled`, `playerProtectionStartYear`,
-                            `playerHasAttackedAI`,
-                            `activeMissions`, `availableMissions`,
-                            `autoRecruitSpiritRootFilter`,
-                            `daoCompanionBannedRootCounts`, `daoCompanionConsentRequired`,
-                            `patrolBattleResultPopup`,
-                            `autoSellMidGradeForPurchase`, `autoSellHighGradeForPurchase`,
-                            `breakthroughAutoPillFocused`, `breakthroughAutoPillRootCounts`,
-                            `autoEquipFromWarehouseFocused`, `autoEquipFromWarehouseRootCounts`,
-                            `autoLearnFromWarehouseFocused`, `autoLearnFromWarehouseRootCounts`,
-                            `isGameOver`,
-                            `bloodRefinements`, `activeBloodRefinements`,
-                            `bloodRefinementBonusTotals`,
-                            `heavenly_trial_state`, `sign_in_state_json`,
-                            `aiSectPersonalities`, `suzerainSectId`,
-                            `lastYearSpiritStoneIncome`,
-                            `activeAttackWarnings`, `shownWarningStageIds`,
-                            `sectAttackCooldowns`, `sectBattleRecords`,
-                            `map_seed`
-                        FROM `game_data`
-                    """)
-                    db.execSQL("DROP TABLE IF EXISTS `game_data`")
-                    db.execSQL("ALTER TABLE `game_data_new` RENAME TO `game_data`")
                     Log.i(TAG, "Migration 12→13: removed isGameStarted column from game_data")
                 } else {
                     Log.i(TAG, "Migration 12→13: isGameStarted column not found, skipping")
