@@ -158,6 +158,11 @@ class GameActivity : ComponentActivity() {
         // 标记本次为干净启动，重置连续崩溃计数器
         CrashRecoveryEngine.onCleanLaunch()
 
+        // ★ 渲染策略决策：模拟器直接走软件渲染，正常设备 Vulkan（带降级回退）
+        val renderStrategy = VulkanPolicy.getRenderStrategy(this)
+        val isSoftwareRendering = renderStrategy == VulkanPolicy.RenderStrategy.SOFTWARE_ONLY
+        Log.i(TAG, "Render strategy: ${renderStrategy.description}")
+
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 
         enableEdgeToEdge()
@@ -205,27 +210,35 @@ class GameActivity : ComponentActivity() {
                             val worldPixelWidth = worldWidthCells * tileSize
                             val worldPixelHeight = worldHeightCells * tileSize
 
-                            // 将两个独立任务并行化：Vulkan 设备预热 + 瓦片数据生成
-                            val vulkanDeferred = async(ioDispatcher.dispatcher) {
-                                NativeBridge.ensureLoaded()
-                                try {
-                                    // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
-                                    withTimeout(5_000L) {
-                                        val d = applicationContext.cacheDir
-                                        NativeBridge.prewarmDevice(
-                                            d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
-                                        ).let { ok ->
-                                            if (ok) Log.d(TAG, "Vulkan device prewarmed")
-                                            else Log.w(TAG, "prewarm failed")
+                            // 软件渲染策略：跳过 Vulkan 预热（模拟器/Vulkan 不可用设备）
+                            if (!isSoftwareRendering) {
+                                // 将两个独立任务并行化：Vulkan 设备预热 + 瓦片数据生成
+                                val vulkanDeferred = async(ioDispatcher.dispatcher) {
+                                    NativeBridge.ensureLoaded()
+                                    try {
+                                        // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
+                                        withTimeout(5_000L) {
+                                            val d = applicationContext.cacheDir
+                                            NativeBridge.prewarmDevice(
+                                                d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
+                                            ).let { ok ->
+                                                if (ok) Log.d(TAG, "Vulkan device prewarmed")
+                                                else Log.w(TAG, "prewarm failed")
+                                            }
                                         }
+                                    } catch (e: TimeoutCancellationException) {
+                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time")
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Vulkan prewarm exception", e)
                                     }
-                                } catch (e: TimeoutCancellationException) {
-                                    Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time")
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Vulkan prewarm exception", e)
                                 }
+
+                                // 并行：Vulkan 预热
+                                vulkanDeferred.await()
+                            } else {
+                                Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
                             }
 
                             val tileDeferred = async(ioDispatcher.dispatcher) {
@@ -236,8 +249,7 @@ class GameActivity : ComponentActivity() {
                                 )
                             }
 
-                            // 等待所有并行子任务完成
-                            vulkanDeferred.await()
+                            // 等待瓦片数据生成
                             val rawTileData = tileDeferred.await()
 
                             val result = MapPreloadData(
@@ -316,7 +328,8 @@ class GameActivity : ComponentActivity() {
                                         if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效",
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
-                                }
+                                },
+                                forceSoftwareRendering = isSoftwareRendering
                             )
                         }
 

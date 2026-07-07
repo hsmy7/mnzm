@@ -131,7 +131,9 @@ fun MainGameScreen(
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
     limitAdTracking: Boolean = true,
-    onLimitAdTrackingChanged: (Boolean) -> Unit = {}
+    onLimitAdTrackingChanged: (Boolean) -> Unit = {},
+    /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */
+    forceSoftwareRendering: Boolean = false
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
@@ -434,6 +436,11 @@ fun MainGameScreen(
             factory = { ctx ->
                 NativeSurfaceView(ctx, nativeConfig).also { view ->
                     nativeSurfaceView = view
+
+                    // 强制软件渲染（模拟器/Vulkan 不可用设备）
+                    if (forceSoftwareRendering) {
+                        view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
+                    }
 
                     // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
                     view.onRendererReady = {

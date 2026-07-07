@@ -1,6 +1,6 @@
 [
   {
-    "date": "2026-07-06",
+    "date": "2026-07-07",
     "version": "4.0.41",
     "changes": [
       "重构：宗门地图手势系统——全新纯Kotlin跨平台手势引擎，替换Compose pointerInput覆盖层，触摸改由SurfaceView.onTouchEvent原生捕获",
@@ -53,7 +53,11 @@
       "优化：Baseline Profile增强——新增弟子/仓库/建造/设置面板交互路径AOT编译覆盖",
       "优化：LazyColumn contentType——37个文件全部添加contentType参数，消除Compose列表不必要重组",
       "优化：beyondViewportItemCount——弟子/炼丹/锻造/设置关键列表添加预组合参数，减少首次滚动延迟",
-      "优化：地图预加载并行化——背景色/道路/居住区/装饰物4路协程并行计算，替代原串行执行"
+      "优化：地图预加载并行化——背景色/道路/居住区/装饰物4路协程并行计算，替代原串行执行",
+      "修复：华为模拟器宗门地图黑屏——Vulkan渲染在libhoudini ARM翻译层下不可用。新增Canvas软件回退渲染器(SoftwareCanvasBackend)，Vulkan初始化失败时自动降级到Canvas软件渲染。模拟器/联发科/华为等Vulkan问题设备在加载阶段即跳过Vulkan预热并直接使用软件渲染路径",
+      "新增：VulkanPolicy.isEmulator()模拟器检测——参考Flutter Impeller 2025.1策略，通过Build硬件属性+ABI检测判定模拟器，直接走软件渲染跳过Vulkan",
+      "新增：VulkanPolicy.getRenderStrategy()渲染策略决策——PROBLEMATIC/SOFTWARE_ONLY设备直接使用Canvas软件渲染，WARNING/SAFE设备首选Vulkan并带自动降级回退",
+      "新增：SoftwareCanvasBackend软件渲染器——在独立RenderThread中使用Android Canvas API绘制宗门地图帧，通过lockCanvas/unlockCanvasAndPost输出到Surface。数据流与Vulkan路径一致(FrameRenderState)，支持视锥剔除和Tile缓存"
     ]
   },
   {

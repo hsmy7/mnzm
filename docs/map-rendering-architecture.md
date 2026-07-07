@@ -2,8 +2,8 @@
 
 ## 概览
 
-宗门地图自 **v4.0.43+** 起采用 **Vulkan 原生渲染管线**，替代了旧版 Compose Canvas。
-**v4.0.45+** 改为 **统一图集逐格渲染**，修复了悬空指针 bug、LINEAR+REPEAT 兼容性隐患。
+宗门地图自 **v4.0.41** 起采用 **Vulkan 原生渲染管线**，替代了旧版 Compose Canvas。
+**v4.0.41+** 迭代为 **统一图集逐格渲染**，修复了悬空指针 bug、LINEAR+REPEAT 兼容性隐患。
 
 新架构：**固定 2 draw calls / 帧** + 独立渲染线程 + 双缓冲 VBO + OPTIMAL tiling 纹理 + 视锥剔除。
 
@@ -15,7 +15,7 @@
 
 ## 架构对比
 
-| 维度 | 4.0.43-4.0.44 (Vulkan 初版) | **4.0.45+ (Vulkan v2)** |
+| 维度 | 4.0.40 (Vulkan v1) | **4.0.41 (Vulkan v2)** |
 |------|----------------------------|------------------------|
 | Draw calls | 3-4 (地面+装饰+建筑+预览) | **固定 2** (统一层+预览) |
 | 地面渲染 | UV=REPEAT 平铺（LINER+REPEAT隐患） | **图集逐格批处理** |
@@ -157,6 +157,45 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 已知问题：国产 ROM（MIUI/OriginOS/ColorOS）的 Mali GPU Vulkan 驱动兼容性差。
 详见 `android-renderthread-crash-research.md`。
 
+## 设备兼容性 & Canvas 软件回退渲染（4.0.41+）
+
+### 双轨渲染架构
+
+宗门地图从 **v4.0.41+** 起支持双轨渲染引擎，确保在 Vulkan 不可用的设备上地图仍能正常显示：
+
+```
+VulkanPolicy.getRenderStrategy()
+  ├── SOFTWARE_ONLY → NativeSurfaceView.RenderMode.SOFTWARE → SoftwareCanvasBackend
+  └── VULKAN_PREFERRED → Vulkan init 尝试
+        ├── 成功 → RenderMode.VULKAN → VulkanBackend (C++)
+        └── 失败 → 自动降级 → RenderMode.SOFTWARE → SoftwareCanvasBackend
+```
+
+### 降级触发条件
+
+| 条件 | 检测方式 | 行为 |
+|------|---------|------|
+| 模拟器（x86 ABI / Goldfish GPU） | `VulkanPolicy.isEmulator()` | 加载阶段直接跳过 Vulkan 预热，`surfaceChanged` 时直接走 Software 路径 |
+| 崩溃自愈安全模式 | `CrashRecoveryEngine.isSafeMode()` | 同上 |
+| Vulkan 问题设备（PROBLEMATIC） | `VulkanPolicy.detectTier()` | 同上 |
+| Vulkan init 运行时失败 | `NativeBridge.initRenderer()` 返回 false | surfaceChanged 中自动降级，创建 SoftwareCanvasBackend 并启动 RenderThread |
+
+### SoftwareCanvasBackend
+
+| 属性 | 描述 |
+|------|------|
+| 位置 | `SoftwareCanvasBackend.kt`（Kotlin，无 C++ 依赖） |
+| 渲染方式 | Android Canvas API → `lockCanvas`/`unlockCanvasAndPost` |
+| 线程模型 | 与 Vulkan 共用同一 RenderThread（NativeSurfaceView.RenderThread） |
+| 帧率 | 默认 10 FPS，与 Vulkan 路径一致 |
+| 图集 | 复用 `NativeSurfaceView.buildAtlasBitmap()` 生成的 2048×2048 Bitmap |
+| 数据流 | 复用 `FrameRenderState`，完全透明调用方 |
+
+**性能指标（48×48 地图，10 FPS）：**
+- 单帧渲染：< 8ms（现代 CPU 单核，含 Tile 缓存命中）
+- 峰值增量内存：~12 MB（帧缓冲 + Tile 缓存）
+- 对比 Vulkan 路径：CPU 开销增加（软件渲染），但消除了 GPU 和 libhoudini 翻译层依赖
+
 ## 手势系统架构（v4.0.41+）
 
 宗门地图在 **v4.0.41+** 完成手势系统重构，从 Compose `pointerInput` 覆盖层替换为**纯 Kotlin 跨平台手势引擎**。
@@ -284,8 +323,9 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 | ≤4.0.40 | 双缓冲 Bitmap 烘焙（frontBuffer/backBuffer） | 残影 bug、复杂增量追踪 |
 | 4.0.41 | 统一 Canvas 直接绘制 + `fullMapBmp` 单层位图 | 地面+装饰合并无法独立控制 |
 | 4.0.42 | 三层按格实时绘制（Compose Canvas） | Compose 重组开销、主线程渲染 |
-| **4.0.43-4.0.44** | **Vulkan 原生渲染管线 v1** | 3 draw calls、独立渲染线程、低功耗 |
-| **4.0.45+** | **Vulkan v2 统一图集逐格渲染** | 2 draw calls、无双空指针/LINEAR+REPEAT/栈溢出 bug、视锥剔除 |
+| **4.0.40** | **Vulkan 原生渲染管线 v1** | 3 draw calls、独立渲染线程、低功耗 |
+| **4.0.41** | **Vulkan v2 统一图集逐格渲染** | 2 draw calls、无双空指针/LINEAR+REPEAT/栈溢出 bug、视锥剔除 |
+| **4.0.41** | **Canvas 软件回退渲染 (SoftwareCanvasBackend)** | Vulkan 失败时自动降级，模拟器/Vulkan 问题设备全覆盖，零 C++ 依赖 |
 
 ## 美术资源清单
 

@@ -38,6 +38,16 @@
 - **移除旧的 Compose 手势覆盖层** — 触摸事件改由 SurfaceView.onTouchEvent 原生捕获，彻底根除事件冲突
 - **不再依赖 Compose pointerInput** — 为跨平台（Android + iOS）统一输入架构打下基础
 
+### 宗门地图 Canvas 软件渲染回退
+
+- **修复华为模拟器宗门地图黑屏** — 根因：Vulkan 渲染在 libhoudini ARM 翻译层下不可用（`vkCreateInstance`/`vkEnumeratePhysicalDevices` 均失败）。`VulkanPolicy.isAccelerationDisabled()` 仅禁用 Android HWUI 硬件加速，未阻止 `NativeSurfaceView` 尝试 Vulkan 渲染。`initRenderer()` 失败后 NativeSurfaceView 保持黑色。
+  - 新增 `SoftwareCanvasBackend` 软件渲染后端，Vulkan 初始化失败时自动降级
+  - 模拟器/联发科/华为等 Vulkan 问题设备在加载阶段即跳过 Vulkan 预热，直接走软件渲染
+- **新增 `VulkanPolicy.isEmulator()` 模拟器检测** — 参考 Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略，通过 Build 硬件属性 + ABI 检测覆盖 Google Android Emulator / Genymotion 等 x86 模拟器
+- **新增 `VulkanPolicy.RenderStrategy` 渲染策略** — `SOFTWARE_ONLY`（直接软件渲染）和 `VULKAN_PREFERRED`（首选 Vulkan，失败自动降级）两级策略
+- **新增 `SoftwareCanvasBackend`** — 在独立 RenderThread 中使用 Android Canvas API 绘制宗门地图帧，通过 `lockCanvas/unlockCanvasAndPost` 输出到 Surface。视锥剔除 + Tile 缓存优化，10 FPS 下实测 <8ms/帧
+- **双轨渲染架构** — `NativeSurfaceView.RenderMode` 枚举（VULKAN/SOFTWARE），RenderThread 按模式派遣到不同渲染路径。Vulkan 路径不变，Software 路径复用相同 FrameRenderState 数据流
+
 ### Bug 修复
 
 - **修复建筑覆盖装饰物后装饰物未被清除** — 根因：地面和装饰物合并在 `fullMapBmp` 中无法独立控制。重构为三层按格绘制后，建筑下方装饰物自然跳过，不再透出。

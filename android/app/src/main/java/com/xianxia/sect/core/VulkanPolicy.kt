@@ -62,6 +62,47 @@ object VulkanPolicy {
      */
     fun isAccelerationDisabled(): Boolean = _disableAcceleration
 
+    /**
+     * 检测当前设备是否为模拟器。
+     *
+     * 参考信号：
+     * - Google Android Emulator 的 HARDWARE/Brand/Model 特征值
+     * - ABI 包含 x86（说明 ARM native 库需经翻译层运行）
+     * - libhoudini 翻译层存在（ARM→x86）
+     *
+     * @see Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略
+     */
+    @Suppress("ReturnCount")
+    fun isEmulator(): Boolean {
+        // 信号 1: Build 硬件属性（Google Android Emulator / Genymotion）
+        val hardware = Build.HARDWARE.lowercase()
+        val brand = Build.BRAND.lowercase()
+        val model = Build.MODEL.lowercase()
+        val product = Build.PRODUCT.lowercase()
+        val device = Build.DEVICE.lowercase()
+
+        if (hardware.contains("ranchu") || hardware.contains("goldfish") ||
+            hardware.contains("vbox") || hardware.contains("virtual")) {
+            return true
+        }
+        if (brand.startsWith("google") && (model.contains("sdk_gphone") ||
+            model.contains("android sdk built for") || model.contains("emu64"))) {
+            return true
+        }
+        if (product.contains("sdk_") || product.contains("emulator") ||
+            device.contains("generic")) {
+            return true
+        }
+
+        // 信号 2: ABI 包含 x86/x86_64（ARM lib 需经翻译层）
+        for (abi in Build.SUPPORTED_ABIS) {
+            val abiLower = abi.lowercase()
+            if (abiLower.contains("x86")) return true
+        }
+
+        return false
+    }
+
     // ── 已知问题机型列表（持续扩充） ──
     // 基于 Bugly 崩溃数据和行业报告维护
     private val KNOWN_PROBLEM_MODELS = setOf(
@@ -115,6 +156,57 @@ object VulkanPolicy {
         SAFE("设备兼容性良好，正常使用硬件加速"),
         WARNING("可能有兼容性问题，已记录日志"),
         PROBLEMATIC("已知问题设备，建议禁用硬件加速或降级渲染路径"),
+    }
+
+    /**
+     * 渲染策略枚举 — 决定宗门地图使用哪种渲染后端。
+     *
+     * @see NativeSurfaceView.RenderMode
+     */
+    enum class RenderStrategy(val description: String) {
+        /** 先尝试 Vulkan，失败后自动降级到 Canvas 软件渲染 */
+        VULKAN_PREFERRED("首选 Vulkan，失败后软降级"),
+        /** 直接使用 Canvas 软件渲染（模拟器/崩溃自愈模式） */
+        SOFTWARE_ONLY("直接使用软件渲染"),
+    }
+
+    /**
+     * 获取推荐渲染策略。
+     *
+     * 算法：
+     * 1. 崩溃自愈安全模式 → SOFTWARE_ONLY
+     * 2. 模拟器检测 → SOFTWARE_ONLY（模拟器 Vulkan 在 libhoudini 翻译层下不可靠）
+     * 3. PROBLEMATIC 设备 → SOFTWARE_ONLY
+     * 4. 其他 → VULKAN_PREFERRED
+     */
+    fun getRenderStrategy(context: Context): RenderStrategy {
+        // 1. 崩溃自愈安全模式
+        if (CrashRecoveryEngine.isSafeMode()) {
+            Log.w(TAG, "Safe mode → SOFTWARE_ONLY render strategy")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 2. 模拟器检测
+        if (isEmulator()) {
+            Log.w(TAG, "Emulator detected → SOFTWARE_ONLY render strategy")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 3. 设备分级检测
+        return when (detectTier(context)) {
+            DeviceTier.PROBLEMATIC -> {
+                Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
+                RenderStrategy.SOFTWARE_ONLY
+            }
+            DeviceTier.WARNING -> {
+                Log.w(TAG, "WARNING device → VULKAN_PREFERRED (with fallback)")
+                RenderStrategy.VULKAN_PREFERRED
+            }
+            DeviceTier.SAFE -> {
+                Log.d(TAG, "SAFE device → VULKAN_PREFERRED")
+                RenderStrategy.VULKAN_PREFERRED
+            }
+        }
     }
 
     // ── 公共 API ──
