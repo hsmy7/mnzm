@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import com.xianxia.sect.core.util.DomainLog
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,7 +27,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AndroidThermalReader @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) : ThermalReader {
 
     companion object {

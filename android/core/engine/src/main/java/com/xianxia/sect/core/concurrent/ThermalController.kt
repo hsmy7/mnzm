@@ -38,7 +38,7 @@ class ThermalController @Inject constructor(
     companion object {
         private const val TAG = "ThermalController"
         /** 默认检查间隔（ms） */
-        internal const val CHECK_INTERVAL_MS = 10_000L
+        const val CHECK_INTERVAL_MS = 10_000L
         /** 各级温度阈值 */
         private const val TEMP_RED_THRESHOLD_C = 45f
         private const val TEMP_ORANGE_THRESHOLD_C = 42f

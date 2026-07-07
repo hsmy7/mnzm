@@ -26,6 +26,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.xianxia.sect.core.concurrent.ThermalController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -202,6 +203,10 @@ object CoreModule {
     @Provides
     @Singleton
     fun provideThermalReader(impl: com.xianxia.sect.core.thermal.AndroidThermalReader): com.xianxia.sect.core.thermal.ThermalReader = impl
+
+    @Provides
+    @Singleton
+    fun provideThermalCheckIntervalMs(): Long = ThermalController.CHECK_INTERVAL_MS
 
     @Provides
     @Singleton
