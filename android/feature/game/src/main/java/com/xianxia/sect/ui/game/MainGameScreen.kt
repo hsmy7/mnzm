@@ -492,9 +492,9 @@ fun MainGameScreen(
                         tileData = flatTileData,
                         uvMap = decorUvMap,
                         buildingData = buildBuildingDataArray(
-                            activeSectBuildings, movingBuilding
+                            effectivePlacedBuildings
                         ),
-                        buildingCount = activeSectBuildings.size,
+                        buildingCount = effectivePlacedBuildings.size,
                         buildingUVMap = BUILDING_UV_MAP,
                         showPreview = hasPreview,
                         previewX = px,
@@ -1014,11 +1014,10 @@ fun MainGameScreen(
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
  * 格式：[gridX, gridY, width, height, nameIndex] × buildingCount
- * 注意：不排除 movingBuilding，让建筑在原位持续渲染，避免切换预览时的视觉闪烁。
+ * 注意：调用方须传入已排除移动中建筑的建筑列表，避免原位残留精灵图。
  */
 private fun buildBuildingDataArray(
-    buildings: List<GridBuildingData>,
-    movingBuilding: GridBuildingData?
+    buildings: List<GridBuildingData>
 ): FloatArray {
     val result = FloatArray(buildings.size * 5)
     for ((i, b) in buildings.withIndex()) {
