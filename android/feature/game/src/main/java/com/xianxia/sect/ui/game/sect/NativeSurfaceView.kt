@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
@@ -62,6 +63,13 @@ class NativeSurfaceView(
     /** 是否正在初始化（防止 surfaceChanged 重复调用导致并发 init） */
     @Volatile
     private var initInProgress: Boolean = false
+
+    /**
+     * 是否有等待中的 post 初始化。
+     * 防止 surfaceDestroyed 后 stale post 回调执行导致竞态。
+     */
+    @Volatile
+    private var pendingInit: Boolean = false
 
     /** VulkanInit 后台线程引用，供 surfaceDestroyed 时中断取消 */
     @Volatile
@@ -145,58 +153,60 @@ class NativeSurfaceView(
     /**
      * 构建纹理图集 Bitmap — 将所有装饰和建筑精灵合并到单张 2048×2048 Bitmap。
      * 布局与 C++ TextureAtlas.h 中的 MAP_SPRITES 定义一致。
+     * 精灵位置来自 [SpriteAtlasDef]（唯一来源），资源 ID 运行时查找。
      * 供 Canvas 回退渲染器使用（不上传 GPU）。
      */
     companion object {
         fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap {
-            val ATLAS_W = 2048
-            val ATLAS_H = 2048
             val atlas = android.graphics.Bitmap.createBitmap(
-                ATLAS_W, ATLAS_H, android.graphics.Bitmap.Config.ARGB_8888
+                SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H,
+                android.graphics.Bitmap.Config.ARGB_8888
             )
             val canvas = android.graphics.Canvas(atlas)
             val paint = android.graphics.Paint().apply { isFilterBitmap = false }
 
-            // 定义精灵在 atlas 中的位置（与 C++ TextureAtlas.h MAP_SPRITES 一致）
-            data class SpriteSlot(val name: String, val x: Int, val y: Int, val w: Int, val h: Int, val resId: Int)
+            data class SpriteSlot(
+                val name: String,
+                val x: Int, val y: Int, val w: Int, val h: Int,
+                val resId: Int
+            )
 
-            // 运行时查找资源 ID
             val pkg = context.packageName
             fun res(name: String): Int = context.resources.getIdentifier(name, "drawable", pkg)
-                .also { id -> if (id == 0) android.util.Log.w("NativeSurfaceView", "buildAtlas: res not found: $name") }
+                .also { id -> if (id == 0) android.util.Log.w("NativeSurfaceView",
+                    "buildAtlas: res not found: $name") }
 
             val buildingMap = com.xianxia.sect.ui.game.building.BuildingRegistry.allDrawableMap()
 
-            val slots = listOf(
-                // 地面 + 装饰（64×64 tiles）
-                SpriteSlot("ground_tile",   0,   0,   64, 64, res("map_tile")),
-                SpriteSlot("grass_small",   64,  0,   64, 64, res("decoration_grass_small")),
-                SpriteSlot("grass_medium",  128, 0,   64, 64, res("decoration_grass_medium")),
-                SpriteSlot("grass_large",   192, 0,   64, 64, res("decoration_grass_large")),
-                SpriteSlot("tree1",         256, 0,  128,128, res("decoration_tree1")),
-                SpriteSlot("tree2",         384, 0,  128,128, res("decoration_tree2")),
-                // 地面变体2（随机混用）
-                SpriteSlot("ground_tile_v2", 512, 0,   64, 64, res("map_tile_v2")),
-                // 建筑（128×128，每行4个，从行1开始）
-                SpriteSlot("灵矿场",           0, 128, 128,128, buildingMap["灵矿场"] ?: 0),
-                SpriteSlot("灵植阁",         128, 128, 128,128, buildingMap["灵植阁"] ?: 0),
-                SpriteSlot("灵田",           256, 128, 128,128, buildingMap["灵田"] ?: 0),
-                SpriteSlot("炼丹炉",         384, 128, 128,128, buildingMap["炼丹炉"] ?: 0),
-                SpriteSlot("锻造坊",         512, 128, 128,128, buildingMap["锻造坊"] ?: 0),
-                SpriteSlot("仓库",             0, 256, 128,128, buildingMap["仓库"] ?: 0),
-                SpriteSlot("藏经阁",         128, 256, 128,128, buildingMap["藏经阁"] ?: 0),
-                SpriteSlot("问道塔",         256, 256, 128,128, buildingMap["问道塔"] ?: 0),
-                SpriteSlot("青云塔",         384, 256, 128,128, buildingMap["青云塔"] ?: 0),
-                SpriteSlot("天枢殿",         512, 256, 128,128, buildingMap["天枢殿"] ?: 0),
-                SpriteSlot("执法堂",           0, 384, 128,128, buildingMap["执法堂"] ?: 0),
-                SpriteSlot("任务阁",         128, 384, 128,128, buildingMap["任务阁"] ?: 0),
-                SpriteSlot("巡视楼",         256, 384, 128,128, buildingMap["巡视楼"] ?: 0),
-                SpriteSlot("监牢",           384, 384, 128,128, buildingMap["监牢"] ?: 0),
-                SpriteSlot("单人住所",       512, 384, 128,128, buildingMap["单人住所"] ?: 0),
-                SpriteSlot("中级单人住所",     0, 512, 128,128, buildingMap["中级单人住所"] ?: 0),
-                SpriteSlot("多人住所",       128, 512, 128,128, buildingMap["多人住所"] ?: 0),
-                SpriteSlot("血炼池",         256, 512, 128,128, buildingMap["血炼池"] ?: 0),
-            )
+            // 瓦片精灵：来自 SpriteAtlasDef.TileType
+            val tileSlots = mutableListOf<SpriteSlot>()
+            for (tile in SpriteAtlasDef.TileType.values()) {
+                val name = when (tile) {
+                    SpriteAtlasDef.TileType.GROUND -> "map_tile"
+                    SpriteAtlasDef.TileType.GRASS_SMALL -> "decoration_grass_small"
+                    SpriteAtlasDef.TileType.GRASS_MEDIUM -> "decoration_grass_medium"
+                    SpriteAtlasDef.TileType.GRASS_LARGE -> "decoration_grass_large"
+                    SpriteAtlasDef.TileType.TREE1 -> "decoration_tree1"
+                    SpriteAtlasDef.TileType.TREE2 -> "decoration_tree2"
+                    SpriteAtlasDef.TileType.TILE_BUILDING -> ""
+                    SpriteAtlasDef.TileType.GROUND_V2 -> "map_tile_v2"
+                    else -> ""
+                }
+                val sr = tile.rect
+                val id = if (name.isEmpty()) 0 else res(name)
+                tileSlots.add(SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, id))
+            }
+
+            // 建筑精灵：来自 SpriteAtlasDef.BUILDING_NAMES
+            val buildingSlots = mutableListOf<SpriteSlot>()
+            for (idx in SpriteAtlasDef.BUILDING_NAMES.indices) {
+                val name = SpriteAtlasDef.BUILDING_NAMES[idx]
+                val sr = SpriteAtlasDef.buildingRect(idx)
+                buildingSlots.add(SpriteSlot(name, sr.x, sr.y, sr.w, sr.h,
+                    buildingMap[name] ?: 0))
+            }
+
+            val slots = tileSlots + buildingSlots
 
             // 绘制每个精灵到图集
             var loadedCount = 0
@@ -208,13 +218,11 @@ class NativeSurfaceView(
                     )
                     if (bmp != null) {
                         canvas.drawBitmap(bmp, null,
-                            android.graphics.Rect(slot.x, slot.y, slot.x + slot.w, slot.y + slot.h),
+                            android.graphics.Rect(slot.x, slot.y,
+                                slot.x + slot.w, slot.y + slot.h),
                             paint)
                         bmp.recycle()
                         loadedCount++
-                    } else {
-                        android.util.Log.w("NativeSurfaceView",
-                            "buildAtlas: failed to decode '${slot.name}' (resId=$slot.resId)")
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("NativeSurfaceView",
@@ -223,7 +231,7 @@ class NativeSurfaceView(
             }
 
             android.util.Log.i("NativeSurfaceView",
-                "buildAtlas: $loadedCount/${slots.size} sprites loaded, atlas=${ATLAS_W}x$ATLAS_H")
+                "buildAtlas: $loadedCount/${slots.size} sprites loaded")
             return atlas
         }
     }
@@ -268,7 +276,10 @@ class NativeSurfaceView(
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         NativeBridge.ensureLoaded()
-        NativeBridge.initAtlas()
+        // SOFTWARE 模式不需要 C++ 纹理图集（Java 端 buildAtlasBitmap 已处理）
+        if (useRenderMode != RenderMode.SOFTWARE) {
+            NativeBridge.initAtlas()
+        }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
@@ -280,11 +291,25 @@ class NativeSurfaceView(
 
             // ★ 渲染模式预判：若策略要求 SOFTWARE 则直接走软件渲染
             if (useRenderMode == RenderMode.SOFTWARE) {
-                initInProgress = false
                 android.util.Log.i("NativeSurfaceView",
                     "RenderMode.SOFTWARE (by policy) — starting software backend")
+
+                // ★ 修复：同步清除 Surface，防止 emulator 上 Activity 切换导致的残留内容闪烁
+                try {
+                    val clearCanvas = holder.lockCanvas()
+                    if (clearCanvas != null) {
+                        clearCanvas.drawColor(android.graphics.Color.DKGRAY)
+                        holder.unlockCanvasAndPost(clearCanvas)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("NativeSurfaceView",
+                        "SOFTWARE init: surface clear failed (non-fatal)", e)
+                }
+
+                pendingInit = true
                 post {
-                    if (!isReady) {
+                    // ★ 修复：检查 surfaceDestroyed 后 stale post 不执行
+                    if (pendingInit && !isReady) {
                         // 先设置渲染模式和软件后端，再通知上层上传纹理
                         // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
                         // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
@@ -295,6 +320,7 @@ class NativeSurfaceView(
                         isReady = true
                         renderThread = RenderThread().also { it.start() }
                     }
+                    initInProgress = false
                 }
                 return
             }
@@ -412,6 +438,9 @@ class NativeSurfaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         isReady = false
+        // ★ 修复：重置初始化锁，允许下一个 surfaceChanged 重新初始化
+        initInProgress = false
+        pendingInit = false
         // Layer 4: 中断正在执行的 VulkanInit 线程
         vulkanInitThread?.interrupt()
         vulkanInitThread = null
@@ -552,8 +581,8 @@ class NativeSurfaceView(
                 atlas = atlas,
                 cols = config.worldWidthCells,
                 rows = config.worldHeightCells,
-                pixelW = config.worldPixelWidth,
-                pixelH = config.worldPixelHeight
+                vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
+                vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
             ) ?: return
 
             // 输出到 Surface（双缓冲自动处理）

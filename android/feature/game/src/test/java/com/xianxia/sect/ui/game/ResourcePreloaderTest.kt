@@ -88,6 +88,7 @@ class ResourcePreloaderTest {
     fun `PreloadResult - constructed with empty maps`() {
         val result = ResourcePreloader.PreloadResult(
             itemSprites = emptyMap(),
+            itemAtlas = null,
             portraitSprites = emptyMap(),
             uiSprites = emptyMap()
         )
@@ -102,6 +103,7 @@ class ResourcePreloaderTest {
         val mockBitmap = mockk<ImageBitmap>(relaxed = true)
         val result = ResourcePreloader.PreloadResult(
             itemSprites = mapOf(1 to mockBitmap, 2 to mockBitmap),
+            itemAtlas = null,
             portraitSprites = mapOf("male_1" to mockBitmap),
             uiSprites = mapOf("ui_button" to mockBitmap)
         )

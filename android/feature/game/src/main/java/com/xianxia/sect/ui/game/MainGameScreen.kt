@@ -66,6 +66,7 @@ import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.*
 import com.xianxia.sect.ui.game.main.*
 import com.xianxia.sect.core.touch.*
+import com.xianxia.sect.core.render.SpriteAtlasDef
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 
@@ -421,18 +422,8 @@ fun MainGameScreen(
             tileData.flatMap { it.toList() }.toIntArray()
         }
 
-        // 统一 UV 映射表：索引 = tile 类型（匹配 C++ TextureAtlas.h 图集布局）
-        // UV 坐标范围 [0,1]，图集 2048×2048，地面/草 64×64，树 128×128
-        val decorUvMap = remember { floatArrayOf(
-            0f/2048f,    0f/2048f,   64f/2048f,  64f/2048f,  // 0: ground_tile (atlas x=0)
-            64f/2048f,   0f/2048f,  128f/2048f,  64f/2048f,  // 1: grass_small
-            128f/2048f,  0f/2048f,  192f/2048f,  64f/2048f,  // 2: grass_medium
-            192f/2048f,  0f/2048f,  256f/2048f,  64f/2048f,  // 3: grass_large
-            256f/2048f,  0f/2048f,  384f/2048f, 128f/2048f,  // 4: tree1
-            384f/2048f,  0f/2048f,  512f/2048f, 128f/2048f,  // 5: tree2
-            0f/2048f,    0f/2048f,   64f/2048f,  64f/2048f,  // 6: (占位, 不会被使用)
-            512f/2048f,  0f/2048f,  576f/2048f,  64f/2048f,  // 7: ground_tile_v2 (atlas x=512)
-        )}
+        // 统一 UV 映射表（来自 SpriteAtlasDef，与 C++ TextureAtlas.h 一致）
+        val decorUvMap = SpriteAtlasDef.TILE_UV_MAP
 
         AndroidView(
             factory = { ctx ->
@@ -1003,39 +994,10 @@ private fun buildBuildingDataArray(
     return result
 }
 
-/** 建筑名称 → 图集中的索引（匹配 TextureAtlas.h 中从 index 6 开始的建筑顺序） */
-private val BUILDING_NAME_INDEX: Map<String, Int> = mapOf(
-    "灵矿场" to 0, "灵植阁" to 1, "灵田" to 2, "炼丹炉" to 3,
-    "锻造坊" to 4, "仓库" to 5, "藏经阁" to 6, "问道塔" to 7,
-    "青云塔" to 8, "天枢殿" to 9, "执法堂" to 10, "任务阁" to 11,
-    "巡视楼" to 12, "监牢" to 13, "单人住所" to 14, "中级单人住所" to 15,
-    "多人住所" to 16, "血炼池" to 17
-)
+/** 建筑名称 → 图集中的索引（来自 SpriteAtlasDef） */
+private val BUILDING_NAME_INDEX: Map<String, Int> = SpriteAtlasDef.BUILDING_NAME_INDEX
 
-/**
- * 建筑 UV 坐标（匹配图集布局：128×128 建筑从 y=128 开始）。
- * 图集行分布（NativeSurfaceView.buildAtlas 与 TextureAtlas.h MAP_SPRITES 一致）：
- *   Row 1 (y=128): 5 sprites (indices 0-4)
- *   Row 2 (y=256): 5 sprites (indices 5-9)
- *   Row 3 (y=384): 5 sprites (indices 10-14)
- *   Row 4 (y=512): 3 sprites (indices 15-17)
- */
-private val BUILDING_UV_MAP: FloatArray by lazy {
-    val uvs = FloatArray(18 * 4)
-    val colsPerRow = listOf(5, 5, 5, 3)
-    var idx = 0
-    for ((rowIndex, cols) in colsPerRow.withIndex()) {
-        for (col in 0 until cols) {
-            val px = col * 128
-            val py = 128 + rowIndex * 128
-            uvs[idx * 4]     = px / 2048f
-            uvs[idx * 4 + 1] = py / 2048f
-            uvs[idx * 4 + 2] = (px + 128) / 2048f
-            uvs[idx * 4 + 3] = (py + 128) / 2048f
-            idx++
-        }
-    }
-    uvs
-}
+/** 建筑 UV 坐标（来自 SpriteAtlasDef，与 C++ TextureAtlas.h MAP_SPRITES 一致） */
+private val BUILDING_UV_MAP: FloatArray = SpriteAtlasDef.BUILDING_UV_MAP
 
 

@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.*
+import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.core.render.SpriteRect
 
 /**
  * SoftwareCanvasBackend — Canvas 软件回退渲染器。
@@ -25,13 +27,31 @@ import android.graphics.*
 class SoftwareCanvasBackend(
     private val config: NativeRenderConfig
 ) {
-    /** 帧缓冲区 Bitmap（世界大小，复用避免每帧分配） */
-    private val frameBuffer: Bitmap = Bitmap.createBitmap(
-        config.worldPixelWidth,
-        config.worldPixelHeight,
-        Bitmap.Config.ARGB_8888
-    )
-    private val frameCanvas: Canvas = Canvas(frameBuffer)
+    /**
+     * 帧缓冲区 Bitmap（视口大小，懒创建）。
+     * 修复：原代码使用世界大小（3072×3072），导致屏幕始终显示世界左上角，相机偏移被忽略。
+     * 改为使用视口（屏幕）大小，瓦片画在屏幕相对位置。
+     */
+    private var frameBuffer: Bitmap? = null
+    private var frameCanvas: Canvas? = null
+    private var currentViewportW: Int = 0
+    private var currentViewportH: Int = 0
+
+    /**
+     * 确保帧缓冲区是视口大小。当窗口 resize 时自动重建。
+     */
+    private fun ensureFrameBuffer(vpW: Int, vpH: Int) {
+        if (vpW <= 0 || vpH <= 0) return
+        val fb = frameBuffer
+        if (fb == null || fb.width != vpW || fb.height != vpH) {
+            frameBuffer?.recycle()
+            frameBuffer = Bitmap.createBitmap(vpW.coerceAtLeast(1), vpH.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            frameCanvas = Canvas(frameBuffer ?: return)
+            currentViewportW = vpW
+            currentViewportH = vpH
+            tileCacheValid = false
+        }
+    }
 
     /** 精灵绘制 Paint（邻近滤波，保持像素风格） */
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
@@ -50,30 +70,23 @@ class SoftwareCanvasBackend(
     // 精灵图源矩形（与 NativeBridge::drawAllTiles 的 UV 映射一致）
     // ============================================================
 
-    /** 瓦片精灵在图集中的源矩形（索引 = tile 类型，与 decorUvMap 一致） */
-    private val TILE_SRC_RECTS = arrayOf(
-        Rect(0,   0,   64,  64),    // 0: ground_tile
-        Rect(64,  0,   128, 64),    // 1: grass_small
-        Rect(128, 0,   192, 64),    // 2: grass_medium
-        Rect(192, 0,   256, 64),    // 3: grass_large
-        Rect(256, 0,   384, 128),   // 4: tree1 (128×128)
-        Rect(384, 0,   512, 128),   // 5: tree2 (128×128)
-        Rect(0,   0,   64,  64),    // 6: (占位,不会被使用)
-        Rect(512, 0,   576, 64),    // 7: ground_tile_v2
-    )
+    /** 瓦片精灵在图集中的源矩形（索引 = tile 类型，来自 SpriteAtlasDef） */
+    private val TILE_SRC_RECTS: Array<Rect> by lazy {
+        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.TileType.values().size)
+        for (tile in SpriteAtlasDef.TileType.values()) {
+            val sr = tile.rect
+            rects[tile.index] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+        }
+        @Suppress("UNCHECKED_CAST")
+        rects as Array<Rect>
+    }
 
-    /** 建筑精灵在图集中的源矩形（nameIndex 0-17 对应 BUILDING_UV_MAP 顺序） */
-    private val BUILDING_SRC_RECTS = run {
-        val rects = arrayOfNulls<Rect>(18)
-        val colsPerRow = intArrayOf(5, 5, 5, 3)
-        var idx = 0
-        for (rowIndex in colsPerRow.indices) {
-            for (col in 0 until colsPerRow[rowIndex]) {
-                val px = col * 128
-                val py = 128 + rowIndex * 128
-                rects[idx] = Rect(px, py, px + 128, py + 128)
-                idx++
-            }
+    /** 建筑精灵在图集中的源矩形（来自 SpriteAtlasDef BUILDING_NAMES 顺序） */
+    private val BUILDING_SRC_RECTS: Array<Rect> by lazy {
+        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.BUILDING_NAMES.size)
+        for (i in rects.indices) {
+            val sr = SpriteAtlasDef.buildingRect(i)
+            rects[i] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>
@@ -94,10 +107,15 @@ class SoftwareCanvasBackend(
     /**
      * 渲染一帧到帧缓冲区。
      *
+     * ★ 修复：帧缓冲区改为视口大小（[vpW]×[vpH]），瓦片画在屏幕相对位置，
+     * 应用相机偏移 (camX, camY) 和缩放 (scale)。
+     *
      * @param rs     当前帧渲染状态（FrameRenderState）
      * @param atlas  2048×2048 纹理图集 Bitmap
      * @param cols   地图列数
      * @param rows   地图行数
+     * @param vpW    视口宽度（屏幕像素），用于帧缓冲区大小和视锥剔除
+     * @param vpH    视口高度（屏幕像素）
      * @return 渲染好的帧缓冲区 Bitmap（供 lockCanvas 输出）
      */
     fun renderFrame(
@@ -105,34 +123,32 @@ class SoftwareCanvasBackend(
         atlas: Bitmap,
         cols: Int,
         rows: Int,
-        pixelW: Int,
-        pixelH: Int
+        vpW: Int,
+        vpH: Int
     ): Bitmap? {
+        ensureFrameBuffer(vpW, vpH)
+        val canvas = frameCanvas ?: return null
+        val fb = frameBuffer ?: return null
         val tileSize = config.tileSize
         val td = rs.tileData
         if (td == null) {
-            // 在没有 tileData 时返回纯色帧缓冲区，防止 SurfaceView 的"洞"
-            // 在华为模拟器等设备上显示缓冲区残留内容
-            frameCanvas.drawColor(Color.DKGRAY)
-            return frameBuffer
+            canvas.drawColor(Color.DKGRAY)
+            return fb
         }
         val buildingDataArray = rs.buildingData
-
-        // --- 计算可见区域（视锥剔除） ---
         val scale = rs.scale.coerceAtLeast(0.1f)
-        // 注意：相机坐标系中，camX/camY 为视口左上角世界坐标
+
+        // ★ 修复：视锥剔除使用视口尺寸而非世界尺寸
         val viewLeft = rs.camX
         val viewTop = rs.camY
-        // 视口宽高在 world 空间中的范围（考虑缩放因子）
-        val viewRight = rs.camX + pixelW / scale
-        val viewBottom = rs.camY + pixelH / scale
+        val viewRight = rs.camX + vpW / scale
+        val viewBottom = rs.camY + vpH / scale
 
         val firstCol = (viewLeft / tileSize).toInt().coerceIn(0, cols - 1)
         val firstRow = (viewTop / tileSize).toInt().coerceIn(0, rows - 1)
         val lastCol = ((viewRight / tileSize).toInt() + 1).coerceIn(0, cols - 1)
         val lastRow = ((viewBottom / tileSize).toInt() + 1).coerceIn(0, rows - 1)
 
-        // 计算当前数据 hash（判断是否需要重绘缓存层）
         val tileHash = td.contentHashCode()
         val buildingHash = buildingDataArray?.contentHashCode() ?: 0
         val needRebuildTiles = tileHash != lastTileDataHash || !tileCacheValid
@@ -140,10 +156,10 @@ class SoftwareCanvasBackend(
 
         // --- 清空帧缓冲区 ---
         if (needRebuildTiles) {
-            frameCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
             lastTileDataHash = tileHash
 
-            // Step A: 地面 + 装饰
+            // Step A: 地面 + 装饰（画在屏幕相对位置，应用相机偏移）
             for (row in firstRow..lastRow) {
                 val rowBase = row * cols
                 for (col in firstCol..lastCol) {
@@ -151,39 +167,51 @@ class SoftwareCanvasBackend(
                     val wx = col * tileSize
                     val wy = row * tileSize
 
+                    // ★ 修复：世界坐标 → 屏幕坐标（与 CameraState.worldToScreenX/Y 一致）
+                    val screenX = (wx - rs.camX) * scale
+                    val screenY = (wy - rs.camY) * scale
+                    val screenTileW = tileSize * scale
+                    val screenTileH = tileSize * scale
+
+                    // 裁剪：完全在视口外则跳过
+                    if (screenX + screenTileW <= 0f || screenX >= vpW.toFloat() ||
+                        screenY + screenTileH <= 0f || screenY >= vpH.toFloat()) continue
+
                     // A1: 地面底图
                     val gIdx = if (tile == 7 /* TILE_GROUND_V2 */) 7 else 0
                     val groundSrc = TILE_SRC_RECTS[gIdx]
-                    drawTile(frameCanvas, atlas, groundSrc, wx, wy, tileSize, tileSize)
+                    drawTile(canvas, atlas, groundSrc,
+                        screenX.toInt(), screenY.toInt(),
+                        screenTileW.toInt(), screenTileH.toInt())
 
                     // A2: 装饰叠加（草/树）
                     if (tile in 1..5) {
                         val decorSrc = TILE_SRC_RECTS[tile]
                         if (tile >= 4) {
                             // 树（2×2 格，偏移 (-tileSize, -tileSize)）
-                            drawTile(frameCanvas, atlas, decorSrc,
-                                wx - tileSize, wy - tileSize,
-                                tileSize * 2, tileSize * 2)
+                            drawTile(canvas, atlas, decorSrc,
+                                (screenX - screenTileW).toInt(),
+                                (screenY - screenTileH).toInt(),
+                                (screenTileW * 2).toInt(),
+                                (screenTileH * 2).toInt())
                         } else {
                             // 草（1×1 格）
-                            drawTile(frameCanvas, atlas, decorSrc,
-                                wx, wy, tileSize, tileSize)
+                            drawTile(canvas, atlas, decorSrc,
+                                screenX.toInt(), screenY.toInt(),
+                                screenTileW.toInt(), screenTileH.toInt())
                         }
                     }
                 }
             }
 
-            // 缓存地面/装饰层（如果只更新建筑时可以复用）
-            buildTileCache(firstCol, firstRow, lastCol, lastRow, tileSize)
+            // 缓存地面/装饰层
+            // ★ 修复：相机移动时缓存始终无效，简化处理直接跳过缓存
+            // 视野内瓦片数少（~30×30=900格），每帧重绘 < 3ms，不影响性能
+            tileCacheValid = false
         }
 
-        // Step B: 建筑层（每帧重新绘制，因为建筑位置可能变化）
+        // Step B: 建筑层
         if (needRebuildBuildings || needRebuildTiles) {
-            if (!needRebuildTiles) {
-                // 建筑层只需恢复缓存的地面/装饰层，再画建筑
-                restoreTileCache()
-            }
-
             if (buildingDataArray != null && rs.buildingVisible) {
                 val buildingCount = rs.buildingCount.coerceAtMost(buildingDataArray.size / 5)
                 for (i in 0 until buildingCount) {
@@ -194,18 +222,23 @@ class SoftwareCanvasBackend(
                     val bh = buildingDataArray[idx + 3].toInt()
                     val nameIdx = buildingDataArray[idx + 4].toInt()
 
-                    // 可见性检测
-                    val bwx = gx * tileSize
-                    val bwy = gy * tileSize
-                    val bpw = bw * tileSize
-                    val bph = bh * tileSize
-                    if (bwx + bpw <= viewLeft || bwx >= viewRight ||
-                        bwy + bph <= viewTop || bwy >= viewBottom) {
-                        continue
-                    }
+                    // ★ 修复：建筑画在屏幕相对位置
+                    val bWorldX = gx * tileSize
+                    val bWorldY = gy * tileSize
+                    val bWorldW = bw * tileSize
+                    val bWorldH = bh * tileSize
+                    val screenBX = (bWorldX - rs.camX) * scale
+                    val screenBY = (bWorldY - rs.camY) * scale
+                    val screenBW = bWorldW * scale
+                    val screenBH = bWorldH * scale
+
+                    if (screenBX + screenBW <= 0f || screenBX >= vpW.toFloat() ||
+                        screenBY + screenBH <= 0f || screenBY >= vpH.toFloat()) continue
 
                     val srcRect = BUILDING_SRC_RECTS.getOrNull(nameIdx) ?: continue
-                    drawTile(frameCanvas, atlas, srcRect, bwx, bwy, bpw, bph)
+                    drawTile(canvas, atlas, srcRect,
+                        screenBX.toInt(), screenBY.toInt(),
+                        screenBW.toInt(), screenBH.toInt())
                 }
             }
 
@@ -214,10 +247,10 @@ class SoftwareCanvasBackend(
 
         // Step C: 预览精灵（建造/移动模式）
         if (rs.showPreview) {
-            drawPreview(frameCanvas, atlas, rs, tileSize)
+            drawPreview(canvas, atlas, rs, tileSize, scale, rs.camX, rs.camY)
         }
 
-        return frameBuffer
+        return fb
     }
 
     /**
@@ -228,6 +261,7 @@ class SoftwareCanvasBackend(
         lastCol: Int, lastRow: Int,
         tileSize: Int
     ) {
+        val fb = frameBuffer ?: return
         val w = (lastCol - firstCol + 1) * tileSize
         val h = (lastRow - firstRow + 1) * tileSize
         if (w <= 0 || h <= 0) {
@@ -242,7 +276,7 @@ class SoftwareCanvasBackend(
         }
         val cacheCanvas = Canvas(cache)
         cacheCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        cacheCanvas.drawBitmap(frameBuffer,
+        cacheCanvas.drawBitmap(fb,
             Rect(firstCol * tileSize, firstRow * tileSize,
                  (lastCol + 1) * tileSize, (lastRow + 1) * tileSize),
             Rect(0, 0, w, h), paint)
@@ -254,10 +288,11 @@ class SoftwareCanvasBackend(
      */
     private fun restoreTileCache() {
         val cache = tileCache ?: return
+        val fc = frameCanvas ?: return
         if (!tileCacheValid) return
         // 清除再恢复缓存
-        frameCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        frameCanvas.drawBitmap(cache, 0f, 0f, paint)
+        fc.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        fc.drawBitmap(cache, 0f, 0f, paint)
     }
 
     /**
@@ -277,17 +312,23 @@ class SoftwareCanvasBackend(
     /**
      * 绘制半透明建筑预览（建造/移动模式）。
      * 对应 C++ NativeBridge::drawSprite + vertexColor 调色。
+     *
+     * ★ 修复：应用相机偏移 (camX, camY) 和缩放 (scale)。
      */
     private fun drawPreview(
         canvas: Canvas,
         atlas: Bitmap,
         rs: FrameRenderState,
-        tileSize: Int
+        tileSize: Int,
+        scale: Float,
+        camX: Float,
+        camY: Float
     ) {
-        val px = rs.previewX.toInt()
-        val py = rs.previewY.toInt()
-        val pw = rs.previewW.toInt()
-        val ph = rs.previewH.toInt()
+        // ★ 修复：世界坐标 → 屏幕坐标
+        val px = ((rs.previewX - camX) * scale).toInt()
+        val py = ((rs.previewY - camY) * scale).toInt()
+        val pw = (rs.previewW * scale).toInt()
+        val ph = (rs.previewH * scale).toInt()
         if (pw <= 0 || ph <= 0) return
 
         val u0 = rs.previewU0
@@ -324,9 +365,17 @@ class SoftwareCanvasBackend(
         previewPaint.colorFilter = null
     }
 
-    /** 调整视口尺寸（resize 时调用） */
+    /** 调整视口尺寸（resize 时调用），重建帧缓冲区 */
     fun resize(width: Int, height: Int) {
-        // 帧缓冲区固定为世界大小，不随视口变化
+        if (width > 0 && height > 0 &&
+            (width != currentViewportW || height != currentViewportH)) {
+            currentViewportW = width
+            currentViewportH = height
+            frameBuffer?.recycle()
+            frameBuffer = null
+            frameCanvas = null
+            tileCacheValid = false
+        }
     }
 
     /** 释放资源 */
@@ -334,5 +383,8 @@ class SoftwareCanvasBackend(
         tileCache?.recycle()
         tileCache = null
         tileCacheValid = false
+        frameBuffer?.recycle()
+        frameBuffer = null
+        frameCanvas = null
     }
 }

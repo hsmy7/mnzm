@@ -645,6 +645,8 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新增支持并行结算的系统按影子状态模式实施（或在 `computePhaseTick` 中实现纯函数模拟器） |
 | 🔴 | 影子状态 diff 必须包含完全消耗物品（`diffRemovedItems`），不得使用整表 EntityStore 替换 |
 | 🔴 | 批量结算中修改 `gameData` 字段（如 `spiritFieldPlants`）必须通过特定字段同步，不得整表替换 |
+| 🔴 | 渲染特性变更（地图/Canvas/精灵）已同步实现 Vulkan 和 Canvas 两路径（见 `docs/renderer-feature-checklist.md`） |
+| 🔴 | 新增渲染特性有对应的 `SoftwareCanvasBackend` 单元测试（`SoftwareCanvasBackendTest.kt`） |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
