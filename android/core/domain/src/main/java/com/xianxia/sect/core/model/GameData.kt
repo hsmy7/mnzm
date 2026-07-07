@@ -48,8 +48,7 @@ data class SectLevelClaimRecord(
         Index(value = ["lastSaveTime"]),
         Index(value = ["gameYear", "gameMonth"]),
         Index(value = ["sectName"]),
-        Index(value = ["spiritStones"]),
-        Index(value = ["isGameStarted"])
+        Index(value = ["spiritStones"])
     ]
 )
 data class GameData(
@@ -75,8 +74,7 @@ data class GameData(
     var gamePhase: Int = 0,  // 0=上旬, 1=中旬, 2=下旬
 
     // 游戏状态
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var isGameStarted: Boolean = false,
+    // isGameStarted 已移除：v4.0.43+ 使用 GameLifecycle 枚举纯运行时管理
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @Deprecated("使用 GameTimeClock.speed 代替")
     var gameSpeed: Int = 1,

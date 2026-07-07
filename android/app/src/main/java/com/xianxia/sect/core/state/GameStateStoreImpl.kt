@@ -165,6 +165,9 @@ class GameStateStoreImpl @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
 
+    // ── 游戏生命周期（纯运行时，不随存档保存）──
+    private val _gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
+
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
     internal val _updateVersion = MutableStateFlow(0L)
 
@@ -243,6 +246,24 @@ class GameStateStoreImpl @Inject constructor(
     override val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
     override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    override val gameLifecycle: StateFlow<GameLifecycle> = _gameLifecycle.asStateFlow()
+
+    override fun transitionTo(state: GameLifecycle) {
+        val current = _gameLifecycle.value
+        check(current.ordinal + 1 == state.ordinal) {
+            "Illegal lifecyle transition: $current → $state (must be ordinal +1)"
+        }
+        _gameLifecycle.value = state
+    }
+
+    override fun forceLifecycle(state: GameLifecycle) {
+        val current = _gameLifecycle.value
+        if (current != state) {
+            DomainLog.w(TAG, "forceLifecycle: $current → $state (bypass ordinal check)")
+        }
+        _gameLifecycle.value = state
+    }
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
     override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()

@@ -35,6 +35,7 @@ import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
+import com.xianxia.sect.core.state.GameLifecycle
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
 import com.xianxia.sect.data.crypto.SecureKeyManager
@@ -202,70 +203,78 @@ class GameActivity : ComponentActivity() {
                     // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
                     // 从根本上杜绝 "LoadingScreen 消失但贴图未就绪" 的中间帧
                     var mapPreloadData by remember { mutableStateOf<MapPreloadData?>(null) }
+                    val gameLifecycle by saveLoadViewModel.gameLifecycle.collectAsStateWithLifecycle()
 
-                    LaunchedEffect(gameData.isGameStarted) {
-                        if (gameData.isGameStarted && mapPreloadData == null) {
-                            // 从 ViewModel 获取已预生成的地图瓦片数据
-                            val precomputed = saveLoadViewModel.mapPreloadData.value
-                            if (precomputed != null) {
-                                mapPreloadData = precomputed
-                                mapPreloadDataRef = precomputed
-                            }
-
-                            saveLoadViewModel.setLoadingProgress(1.0f)
-                            com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
-                            com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
-                            com.xianxia.sect.taptap.TapDBManager.trackEvent(
-                                "game_start",
-                                mapOf(
-                                    "sect_name" to gameData.sectName,
-                                    "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
-                                )
-                            )
-
-                            // Vulkan 预热：后台发射，不阻塞地图显示
-                            if (!isSoftwareRendering) {
-                                val tileSize = GameConfig.SectMap.TILE_SIZE
-                                val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-                                val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-                                val worldPixelWidth = worldWidthCells * tileSize
-                                val worldPixelHeight = worldHeightCells * tileSize
-
-                                launch(ioDispatcher.dispatcher) {
-                                    NativeBridge.ensureLoaded()
-                                    var prewarmOk = false
-                                    com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
-                                    try {
-                                        withTimeout(5_000L) {
-                                            val d = applicationContext.cacheDir
-                                            prewarmOk = NativeBridge.prewarmDevice(
-                                                d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
-                                            )
-                                            if (prewarmOk) {
-                                                com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
-                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                            } else {
-                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                                com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                            }
-                                        }
-                                    } catch (e: TimeoutCancellationException) {
-                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
-                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                    } catch (e: CancellationException) { throw e }
-                                      catch (e: Exception) {
-                                        Log.e(TAG, "Vulkan prewarm exception", e)
-                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                    }
-
-                                    if (!prewarmOk) {
-                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                    }
+                    // 游戏生命周期驱动 UI 过渡（替代旧的 gameData.isGameStarted 方案）
+                    // MAP_READY → 地图瓦片就绪，安全切换 Crossfade 到 MainGameScreen
+                    // PLAYING   → 游戏 fully loaded，触发 TapDB 上报和 Vulkan 预热
+                    LaunchedEffect(gameLifecycle) {
+                        when {
+                            gameLifecycle >= GameLifecycle.MAP_READY && mapPreloadData == null -> {
+                                // 从 ViewModel 获取已预生成的地图瓦片数据
+                                val precomputed = saveLoadViewModel.mapPreloadData.value
+                                if (precomputed != null) {
+                                    mapPreloadData = precomputed
+                                    mapPreloadDataRef = precomputed
                                 }
-                            } else {
-                                Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
+
+                                saveLoadViewModel.setLoadingProgress(1.0f)
+                            }
+                            gameLifecycle >= GameLifecycle.PLAYING -> {
+                                com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
+                                com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
+                                com.xianxia.sect.taptap.TapDBManager.trackEvent(
+                                    "game_start",
+                                    mapOf(
+                                        "sect_name" to gameData.sectName,
+                                        "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
+                                    )
+                                )
+
+                                // Vulkan 预热：后台发射，不阻塞地图显示
+                                if (!isSoftwareRendering) {
+                                    val tileSize = GameConfig.SectMap.TILE_SIZE
+                                    val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+                                    val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+                                    val worldPixelWidth = worldWidthCells * tileSize
+                                    val worldPixelHeight = worldHeightCells * tileSize
+
+                                    launch(ioDispatcher.dispatcher) {
+                                        NativeBridge.ensureLoaded()
+                                        var prewarmOk = false
+                                        com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
+                                        try {
+                                            withTimeout(5_000L) {
+                                                val d = applicationContext.cacheDir
+                                                prewarmOk = NativeBridge.prewarmDevice(
+                                                    d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
+                                                )
+                                                if (prewarmOk) {
+                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
+                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                                } else {
+                                                    com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                                    com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                                }
+                                            }
+                                        } catch (e: TimeoutCancellationException) {
+                                            Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
+                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                        } catch (e: CancellationException) { throw e }
+                                          catch (e: Exception) {
+                                            Log.e(TAG, "Vulkan prewarm exception", e)
+                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                            com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                        }
+
+                                        if (!prewarmOk) {
+                                            com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                            com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                        }
+                                    }
+                                } else {
+                                    Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
+                                }
                             }
                         }
                     }

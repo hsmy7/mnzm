@@ -708,7 +708,6 @@ class StorageEngine @Inject constructor(
             spiritStones = gd.spiritStones,
             spiritHerbs = gd.spiritHerbs,
             sectCultivation = gd.sectCultivation,
-            isGameStarted = gd.isGameStarted,
             lastSaveTime = data.timestamp,
             discipleCount = data.disciples.count { it.isAlive }
         )

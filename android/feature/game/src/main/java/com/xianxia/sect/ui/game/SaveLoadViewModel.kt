@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.GameLifecycle
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -176,6 +177,9 @@ class SaveLoadViewModel @Inject constructor(
     /** 地图预加载数据 — 由加载管线在游戏循环启动后生成，GameActivity 消费 */
     private val _mapPreloadData = MutableStateFlow<MapPreloadData?>(null)
     val mapPreloadData: StateFlow<MapPreloadData?> = _mapPreloadData.asStateFlow()
+
+    /** 游戏生命周期（纯运行时，不随存档保存） */
+    val gameLifecycle: StateFlow<GameLifecycle> get() = stateStore.gameLifecycle
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
@@ -543,8 +547,9 @@ class SaveLoadViewModel @Inject constructor(
                 startGameLoop()
                 Log.d(TAG, "Game loop started, isPaused=${gameEngineCore.state.value.isPaused}")
 
-                // 在 isGameStarted 前生成地图预加载数据
-                // 消除 LaunchedEffect 时序空洞
+                stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
+
+                // 在地图数据就绪前推进生命周期，确保过渡时数据可用
                 val mapData = try {
                     generateMapPreloadData().also {
                         setLoadingProgress(
@@ -558,12 +563,12 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 if (mapData != null) {
                     _mapPreloadData.value = mapData
+                    stateStore.transitionTo(GameLifecycle.MAP_READY)
                 }
 
-                // Mark game as started AFTER game loop is running
-                // Ensures LaunchedEffect(gameData.isGameStarted) in GameActivity
-                // only shows MainGameScreen when the game is truly live
-                gameEngine.updateGameData { it.copy(isGameStarted = true) }
+                // Mark game as started AFTER game loop is running + map data ready
+                // GameActivity LaunchedEffect(gameLifecycle) 在 MAP_READY 触发 UI 过渡
+                stateStore.transitionTo(GameLifecycle.PLAYING)
 
                 _isGameLoaded = true
                 gameStarted = true
@@ -586,7 +591,7 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
                         startGameLoop()
-                        gameEngine.updateGameData { it.copy(isGameStarted = true) }
+                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
                         _isGameLoaded = true
                         gameStarted = true
                         Log.w(TAG, "startNewGame: Game loop started with partial data")
@@ -757,6 +762,7 @@ class SaveLoadViewModel @Inject constructor(
                     alliances = saveData.alliances,
                     productionSlots = saveData.productionSlots
                 )
+                stateStore.transitionTo(GameLifecycle.DATA_READY)
 
                 gameEngine.ensureHeavyDataLoaded()
 
@@ -784,6 +790,7 @@ class SaveLoadViewModel @Inject constructor(
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
                 startGameLoop()
+                stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
 
                 // 生成地图瓦片数据（flatTileData 预拍平）
                 val mapData = try {
@@ -798,10 +805,11 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 if (mapData != null) {
                     _mapPreloadData.value = mapData
+                    stateStore.transitionTo(GameLifecycle.MAP_READY)
                 }
 
                 _isGameLoaded = true
-                gameEngine.updateGameData { it.copy(isGameStarted = true) }
+                stateStore.transitionTo(GameLifecycle.PLAYING)
                 showSuccess("读档成功")
 
                 val gd = gameEngine.gameData.value
@@ -823,6 +831,7 @@ class SaveLoadViewModel @Inject constructor(
                         preloadGameResources()
                         _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
                         startGameLoop()
+                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
                         _isGameLoaded = true
                     } catch (e: CancellationException) { throw e }
                       catch (loopEx: Exception) {
@@ -912,6 +921,7 @@ class SaveLoadViewModel @Inject constructor(
                         alliances = saveData.alliances,
                         productionSlots = saveData.productionSlots
                     )
+                    stateStore.transitionTo(GameLifecycle.DATA_READY)
 
                     // 修正已有存档中的建筑网格尺寸，补齐instanceId
                     gameEngine.updateGameData { data ->
@@ -940,10 +950,11 @@ class SaveLoadViewModel @Inject constructor(
                     setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
 
                     startGameLoop()
+                    stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
                     _isGameLoaded = true
 
                     // 生成地图瓦片数据（flatTileData 预拍平）
-                    // 在 isGameStarted=true 之前生成，消除 GameActivity LaunchedEffect 中的时序空洞
+                    // 在 MAP_READY 之前生成，确保 UI 过渡时地图数据已就绪
                     val mapData = try {
                         generateMapPreloadData().also {
                             setLoadingProgress(SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
@@ -956,10 +967,11 @@ class SaveLoadViewModel @Inject constructor(
                     }
                     if (mapData != null) {
                         _mapPreloadData.value = mapData
+                        stateStore.transitionTo(GameLifecycle.MAP_READY)
                     }
 
                     gameLoaded = true
-                    gameEngine.updateGameData { it.copy(isGameStarted = true) }
+                    stateStore.transitionTo(GameLifecycle.PLAYING)
                     _loadingProgress.value = PROGRESS_COMPLETE
 
                     val gd = gameEngine.gameData.value
@@ -985,6 +997,7 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
                         startGameLoop()
+                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
                         _isGameLoaded = true
                         gameLoaded = true
                         Log.w(TAG, "loadGameFromSlot: Game loop started with partial data")
@@ -1233,16 +1246,20 @@ class SaveLoadViewModel @Inject constructor(
                 if (wasRunning) {
                     gameEngineCore.startGameLoop()
 
+                    // 重置生命周期（旧 session 结束时在 PLAYING），然后重新推进
+                    stateStore.forceLifecycle(GameLifecycle.UNINITIALIZED)
+
                     // 生成地图瓦片数据（flatTileData 预拍平）
                     try {
                         val mapData = generateMapPreloadData()
                         _mapPreloadData.value = mapData
+                        stateStore.transitionTo(GameLifecycle.MAP_READY)
                     } catch (e: CancellationException) { throw e }
                       catch (e: Exception) {
                         Log.e(TAG, "restartGame: generateMapPreloadData failed (non-fatal)", e)
                     }
 
-                    gameEngine.updateGameData { it.copy(isGameStarted = true) }
+                    stateStore.transitionTo(GameLifecycle.PLAYING)
                     _isTimeRunning.value = true
                     Log.d(TAG, "Game loop restarted after restart operation")
                 }

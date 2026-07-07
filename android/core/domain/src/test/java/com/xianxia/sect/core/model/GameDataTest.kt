@@ -18,7 +18,6 @@ class GameDataTest {
         assertEquals(1, data.gameYear)
         assertEquals(1, data.gameMonth)
         assertEquals(0, data.gamePhase)
-        assertFalse(data.isGameStarted)
         assertEquals(1, data.gameSpeed)
         assertEquals(1000L, data.spiritStones)
         assertEquals(0, data.spiritHerbs)
@@ -62,7 +61,6 @@ class GameDataTest {
     @Test
     fun gameData_defaultConstruction_booleanFields() {
         val data = GameData()
-        assertFalse(data.isGameStarted)
         assertTrue(data.playerProtectionEnabled)
         assertFalse(data.playerHasAttackedAI)
         assertFalse(data.daoCompanionConsentRequired)

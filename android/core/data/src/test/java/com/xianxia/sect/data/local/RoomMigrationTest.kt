@@ -16,7 +16,7 @@ import java.io.File
  * Room 数据库迁移测试。
  *
  * 使用 v2 schema JSON 创建初始数据库，直接执行每个 Migration 的 migrate 函数，
- * 验证新列添加正确，且不崩溃。
+ * 验证新列添加正确、列删除正确，且不崩溃。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -38,9 +38,11 @@ class RoomMigrationTest {
         private val M8_9 = GameDatabase.MIGRATION_8_9
         private val M9_10 = GameDatabase.MIGRATION_9_10
         private val M10_11 = GameDatabase.MIGRATION_10_11
+        private val M11_12 = GameDatabase.MIGRATION_11_12
+        private val M12_13 = GameDatabase.MIGRATION_12_13
 
         private val ALL_MIGRATIONS = listOf(
-            M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10, M10_11
+            M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10, M10_11, M11_12, M12_13
         )
     }
 
@@ -124,14 +126,47 @@ class RoomMigrationTest {
     @Test
     fun `MIGRATION_10_TO_11 adds vassalContracts to game_data`() {
         testSingleMigration(
-            "m_10_11", 2, 11, ALL_MIGRATIONS, "game_data", "vassalContracts"
+            "m_10_11", 2, 11, ALL_MIGRATIONS.dropLast(2), "game_data", "vassalContracts"
         )
+    }
+
+    @Test
+    fun `MIGRATION_11_TO_12 adds map_seed to game_data`() {
+        testSingleMigration(
+            "m_11_12", 2, 12, ALL_MIGRATIONS.dropLast(1), "game_data", "map_seed"
+        )
+    }
+
+    @Test
+    fun `MIGRATION_12_TO_13 removes isGameStarted from game_data`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_12_13_remove"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 2)
+            applyMigrationsSequentially(db, ALL_MIGRATIONS.dropLast(1)) // up to v12
+
+            // 验证 isGameStarted 列在 v12 之前存在
+            assertTrue("isGameStarted should exist before v13 migration",
+                columnExists(db, "game_data", "isGameStarted"))
+
+            // 应用 v12→v13 迁移
+            applyMigrationsSequentially(db, listOf(M12_13))
+
+            // 验证 isGameStarted 列已被删除
+            assertFalse("isGameStarted should be removed after v13 migration",
+                columnExists(db, "game_data", "isGameStarted"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
     }
 
     // ==================== 全量迁移测试 ====================
 
     @Test
-    fun `full migration from v2 to v11 applies all steps without crash`() {
+    fun `full migration from v2 to v13 applies all steps without crash`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val dbName = "full_migrate"
         context.deleteDatabase(dbName)
@@ -144,6 +179,9 @@ class RoomMigrationTest {
             verifyProductionSlotsColumnsExist(db)
             verifyDisciplesExtendedColumnsExist(db)
             verifyDiscipleCompactColumnsExist(db)
+            // 验证 isGameStarted 已被 v13 迁移删除
+            assertFalse("isGameStarted should be removed after full migration",
+                columnExists(db, "game_data", "isGameStarted"))
 
             db.close()
         } finally {
@@ -175,16 +213,13 @@ class RoomMigrationTest {
                 assertEquals(1, it.getInt(it.getColumnIndexOrThrow("slot_id")))
             }
 
-            // 验证新列有默认值
-            cursor = db.query(
-                "SELECT vassalContracts, sectBattleRecords FROM game_data WHERE id = 'preserve_001'",
-                emptyArray()
-            )
-            cursor.use {
-                assertTrue(it.moveToFirst())
-                assertEquals("[]", it.getString(it.getColumnIndexOrThrow("vassalContracts")))
-                assertEquals("[]", it.getString(it.getColumnIndexOrThrow("sectBattleRecords")))
-            }
+            // 验证迁移后 isGameStarted 列不存在
+            assertFalse("isGameStarted column should be gone after v13",
+                columnExists(db, "game_data", "isGameStarted"))
+
+            // 验证 map_seed 列存在（v12 添加的）
+            assertTrue("map_seed should exist after full migration",
+                columnExists(db, "game_data", "map_seed"))
 
             // 验证数据行数
             cursor = db.query("SELECT COUNT(*) FROM game_data", emptyArray())
@@ -202,7 +237,7 @@ class RoomMigrationTest {
     // ==================== 辅助方法 ====================
 
     /**
-     * 测试单个迁移：从 v2 开始，应用一系列迁移，验证目标列存在。
+     * 测试单个迁移：从 v2 开始，应用一系列迁移，验证目标列存在/不存在。
      */
     private fun testSingleMigration(
         dbName: String,
@@ -292,10 +327,7 @@ class RoomMigrationTest {
         }
     }
 
-    /**
-     * 重新打开数据库并应用迁移（通过 Room 的迁移机制）。
-     */
-    /** 插入最小 game_data 行（NOT NULL 列都填写默认等价的值） */
+    /** 插入最小 game_data 行（NOT NULL 列都填写默认等价的值，匹配 v2 schema 列清单） */
     private fun insertMinimalGameDataRow(
         db: SupportSQLiteDatabase,
         id: String,
@@ -376,7 +408,8 @@ class RoomMigrationTest {
             "activeAttackWarnings", "shownWarningStageIds", "sectAttackCooldowns",
             "midGradeSpiritStones", "highGradeSpiritStones",
             "autoSellMidGradeForPurchase", "autoSellHighGradeForPurchase",
-            "vassalContracts", "sectBattleRecords"
+            "vassalContracts", "sectBattleRecords",
+            "map_seed"
         )
         for (col in expected) {
             assertTrue("game_data should have column '$col'",

@@ -22,6 +22,5 @@ interface SaveFacade {
     )
     fun validateState(): List<String>
     fun getStateStatistics(): Map<String, Any>
-    fun isGameStarted(): Boolean
     fun getFormattedGameTime(): String
 }

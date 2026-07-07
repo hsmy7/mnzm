@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.GameLifecycle
 
 /**
  * Convenience extension functions for GameEngine.
@@ -36,5 +37,5 @@ val GameEngine.currentPlacedBuildings: List<GridBuildingData> get() = gameDataSn
 /** Get current player allies */
 val GameEngine.playerAllies: List<String> get() = getPlayerAllies()
 
-/** Check if game has been started */
-val GameEngine.gameStarted: Boolean get() = isGameStarted()
+/** Check if game has been started (via lifecycle state) */
+val GameEngine.gameStarted: Boolean get() = stateStore.gameLifecycle.value >= GameLifecycle.PLAYING

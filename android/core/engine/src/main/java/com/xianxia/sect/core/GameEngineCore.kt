@@ -390,7 +390,7 @@ class GameEngineCore @Inject constructor(
         DomainLog.i(TAG, "Game state resumed (isPaused=false)")
 
         val gd = stateStore.gameDataSnapshot
-        DomainLog.i(TAG, "startGameLoop: isGameStarted=${gd.isGameStarted}, " +
+        DomainLog.i(TAG, "startGameLoop: lifecycle=${stateStore.gameLifecycle.value}, " +
             "speed=${gameClock.speed}, " +
             "year=${gd.gameYear}, month=${gd.gameMonth}, " +
             "sectName=${gd.sectName}")

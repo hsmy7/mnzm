@@ -122,6 +122,26 @@ interface GameStateStore : GameStateSnapshotProvider {
      */
     var activeSubDialogs: Set<String>
 
+    // === 生命周期状态 ===
+    val gameLifecycle: StateFlow<GameLifecycle>
+
+    /**
+     * 正常路径：推进游戏生命周期到下一阶段。
+     *
+     * 每次调用必须从当前状态过渡到 ordinal +1 的下一个状态，
+     * 非法转移（跳级/回退/自环）会抛出 [IllegalStateException]。
+     * 用于加载管线的正常顺序流程。
+     */
+    fun transitionTo(state: GameLifecycle)
+
+    /**
+     * 错误恢复：无条件跳转到目标生命周期状态。
+     *
+     * 绕过 ordinal 校验，用于错误恢复和重启场景。
+     * 调用会记录 WARN 级别日志以便追踪。
+     */
+    fun forceLifecycle(state: GameLifecycle)
+
     // === 核心写入 API ===
     suspend fun update(block: suspend MutableGameState.() -> Unit)
 

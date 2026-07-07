@@ -116,6 +116,5 @@ class SaveFacadeImpl @Inject constructor(
 
     override fun validateState(): List<String> = saveService.validateState()
     override fun getStateStatistics(): Map<String, Any> = saveService.getStateStatistics()
-    override fun isGameStarted(): Boolean = saveService.isGameStarted()
     override fun getFormattedGameTime(): String = saveService.getFormattedGameTime()
 }

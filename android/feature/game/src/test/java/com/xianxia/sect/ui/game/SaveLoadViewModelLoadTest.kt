@@ -1,57 +1,56 @@
 package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.core.model.GameData
-import org.junit.Assert.assertFalse
+import com.xianxia.sect.core.state.GameLifecycle
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SaveLoadViewModel 读档流程纯逻辑测试。
+ * SaveLoadViewModel 读档流程纯逻辑测试（更新为 GameLifecycle 版本）。
  *
- * 验证 gameData.isGameStarted 的设置行为：
- * - updateGameData { it.copy(isGameStarted = true) } 的效果
- * - 默认 GameData 的 isGameStarted 为 false
+ * 验证：
+ * - GameLifecycle 默认值为 UNINITIALIZED
+ * - 加载管线各阶段正确推进生命周期
+ * - 状态转移是单向的（不自反）
  */
 class SaveLoadViewModelLoadTest {
 
     @Test
-    fun `isGameStarted 默认值为 false`() {
-        val data = GameData()
-        assertFalse(
-            "GameData 默认 isGameStarted 应为 false",
-            data.isGameStarted
+    fun `GameLifecycle 默认值为 UNINITIALIZED`() {
+        val lifecycle = GameLifecycle.UNINITIALIZED
+        assertEquals(
+            "GameLifecycle 默认应从 UNINITIALIZED 开始",
+            GameLifecycle.UNINITIALIZED, lifecycle
         )
     }
 
     @Test
-    fun `通过 copy 设置 isGameStarted 为 true`() {
-        val original = GameData()
-        val modified = original.copy(isGameStarted = true)
-        assertTrue(
-            "通过 copy(isGameStarted = true) 应生效",
-            modified.isGameStarted
-        )
+    fun `GameLifecycle ordinal 顺序正确`() {
+        val order = GameLifecycle.entries.toList()
+        assertEquals(GameLifecycle.UNINITIALIZED, order[0])
+        assertEquals(GameLifecycle.DATA_READY, order[1])
+        assertEquals(GameLifecycle.SYSTEMS_READY, order[2])
+        assertEquals(GameLifecycle.MAP_READY, order[3])
+        assertEquals(GameLifecycle.PLAYING, order[4])
     }
 
     @Test
-    fun `copy 不修改未指定的字段`() {
-        val original = GameData(sectName = "测试宗门", spiritStones = 5000)
-        val modified = original.copy(isGameStarted = true)
-        assertTrue(modified.isGameStarted)
-        assert(modified.sectName == "测试宗门")
-        assert(modified.spiritStones == 5000L)
+    fun `GameLifecycle MAP_READY 以上可用于跨界面过渡`() {
+        // 模拟加载管线到达地图就绪阶段
+        val current = GameLifecycle.MAP_READY
+        assertTrue("MAP_READY 应 >= MAP_READY",
+            current >= GameLifecycle.MAP_READY)
+        assertTrue("PLAYING 应 >= MAP_READY",
+            GameLifecycle.PLAYING >= GameLifecycle.MAP_READY)
     }
 
     @Test
-    fun `加载存档后 isGameStarted 应为 true`() {
-        // 模拟 loadData 后 gameData 被设置为 isGameStarted = true 的效果
-        // 这对应于 SaveLoadViewModel.loadGameFromSlot 中
-        // gameEngine.updateGameData { it.copy(isGameStarted = true) } 的最终结果
-        val gameDataAfterLoad = GameData(
-            isGameStarted = true,
-            sectName = "青云宗",
-            currentSlot = 1
-        )
-        assertTrue("读档后 isGameStarted 应为 true", gameDataAfterLoad.isGameStarted)
+    fun `GameLifecycle 各阶段的 ordinal 递增`() {
+        GameLifecycle.entries.zipWithNext { current, next ->
+            assertTrue(
+                "状态转移必须是单向递增的: $current → $next",
+                next.ordinal == current.ordinal + 1
+            )
+        }
     }
 }

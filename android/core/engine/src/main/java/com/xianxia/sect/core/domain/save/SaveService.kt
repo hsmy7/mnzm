@@ -58,7 +58,8 @@ class SaveService @Inject constructor(
             gameYear = data.gameYear,
             gameMonth = data.gameMonth,
             gamePhase = data.gamePhase,
-            isGameStarted = data.isGameStarted,
+            // isGameStarted 已迁移到 GameLifecycle 运行时状态，存档快照中始终为 true
+            isGameStarted = true,
             gameSpeed = data.gameSpeed,
             sectName = data.sectName,
             spiritStones = data.spiritStones,
@@ -193,10 +194,6 @@ class SaveService @Inject constructor(
             "alliances" to data.alliances.size,
             "cultivatorCaves" to data.cultivatorCaves.size
         )
-    }
-
-    fun isGameStarted(): Boolean {
-        return stateStore.gameData.value.isGameStarted
     }
 
     fun getFormattedGameTime(): String {
