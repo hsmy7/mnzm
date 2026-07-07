@@ -738,6 +738,44 @@ fun MainGameScreen(
         LaunchedEffect(nativeSurfaceView) {
             nativeSurfaceView?.touchEngine = touchEngine
         }
+
+        // 网格线（放置/移动模式时显示）
+        val gridPlace = if (isPlacingBuilding) {
+            GridPlacement(placingSnappedGridX, placingSnappedGridY,
+                placingBuildingSize.width, placingBuildingSize.height)
+        } else if (movingBuilding != null) {
+            GridPlacement(movingSnappedGridX, movingSnappedGridY,
+                movingBuildingSize.width, movingBuildingSize.height)
+        } else null
+        GridOverlay(
+            placement = gridPlace,
+            cameraState = cameraState,
+            tileSize = tileSize,
+            worldWidthCells = worldWidthCells,
+            worldHeightCells = worldHeightCells
+        )
+
+        // 金手指图标（建筑预览框右下角）— 放置模式且未激活金手指时显示
+        if (isPlacingBuilding && !goldFingerState.isActive && goldenFingerBmp != null) {
+            GoldFingerIcon(
+                goldenFingerBmp = goldenFingerBmp,
+                gridX = placingSnappedGridX + placingBuildingSize.width,
+                gridY = placingSnappedGridY + placingBuildingSize.height,
+                cameraState = cameraState,
+                tileSize = tileSize
+            )
+        }
+
+        // 金手指框选覆盖层 — 激活时绘制选区方块和边框
+        if (goldFingerState.isActive) {
+            GoldFingerSelectionOverlay(
+                goldFingerState = goldFingerState,
+                cameraState = cameraState,
+                tileSize = tileSize,
+                goldenFingerBmp = goldenFingerBmp
+            )
+        }
+
         if (isPlacingBuilding) {
             val isGf = goldFingerState.isActive
             PlacementConfirmButtons(
