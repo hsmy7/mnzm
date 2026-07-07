@@ -34,7 +34,10 @@ object SaveLoadViewModelConstants {
     const val PROGRESS_DATA_PRELOAD = 0.55f
     const val PROGRESS_SPRITE_PRELOAD = 0.70f
     const val PROGRESS_GAME_LOOP_START = 0.80f
-    const val PROGRESS_MAP_PRELOAD = 0.90f
+    /** 地图瓦片数据生成（原 PROGRESS_MAP_PRELOAD 拆分为更细粒度） */
+    const val PROGRESS_TILE_GEN = 0.90f
+    /** 兼容别名，旧引用（GameActivity 等）使用 */
+    const val PROGRESS_MAP_PRELOAD = PROGRESS_TILE_GEN
     const val PROGRESS_COMPLETE = 1f
 
     /** 预加载阶段标签 */

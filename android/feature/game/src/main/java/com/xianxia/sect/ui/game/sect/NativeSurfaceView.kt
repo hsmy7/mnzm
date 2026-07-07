@@ -246,10 +246,23 @@ class NativeSurfaceView(
 
     /**
      * 相机脏标记 — 独立于 [currentRenderState]，由渲染线程读取后复位。
-     * 与 FrameRenderState 分离是因为渲染线程需要复位它，而原子快照不可变。
      */
     @Volatile
     var cameraDirty: Boolean = false
+
+    // ── 静态数据独立字段（一次性设置，不经过 FrameRenderState） ──
+
+    /** 瓦片类型数据 — 地图生成后在 factory 中设一次即可 */
+    @Volatile
+    var staticTileData: IntArray? = null
+
+    /** 装饰物 UV 坐标 — 一次性设置 */
+    @Volatile
+    var staticUvMap: FloatArray? = null
+
+    /** 建筑 UV 坐标 — 一次性设置 */
+    @Volatile
+    var staticBuildingUVMap: FloatArray? = null
 
     /** 从 Compose 层原子更新渲染状态 */
     fun updateRenderState(state: FrameRenderState) {
@@ -279,6 +292,21 @@ class NativeSurfaceView(
         // SOFTWARE 模式不需要 C++ 纹理图集（Java 端 buildAtlasBitmap 已处理）
         if (useRenderMode != RenderMode.SOFTWARE) {
             NativeBridge.initAtlas()
+        }
+
+        // 首帧绘制：在 surface 刚创建时立即画一帧纯黑背景，防止 GPU surface
+        // 分配延迟期间（100-500ms）SurfaceFlinger 合成未初始化的透明/脏缓冲区。
+        // 此处的 lockCanvas 同步等待 buffer queue 就绪，完成后即使后续渲染线程
+        // 尚未启动，surface 也始终显示有效内容而非黑框。
+        try {
+            val clearCanvas = holder.lockCanvas()
+            if (clearCanvas != null) {
+                clearCanvas.drawColor(android.graphics.Color.BLACK)
+                holder.unlockCanvasAndPost(clearCanvas)
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("NativeSurfaceView",
+                "surfaceCreated: clear failed (non-fatal)", e)
         }
     }
 
@@ -532,22 +560,23 @@ class NativeSurfaceView(
             val rs = currentRenderState
 
             if (cameraDirty) {
-                NativeBridge.setCamera(rs.camX, rs.camY, rs.scale, width, height)
+                NativeBridge.setCamera(
+                    rs.camX, rs.camY, rs.scale, width, height)
                 cameraDirty = false
             }
 
             NativeBridge.beginFrame()
 
-            val td = rs.tileData
-            val uv = rs.uvMap
-            val bd = rs.buildingData
-            val buv = rs.buildingUVMap
+            // 从独立静态字段读取（factory 中一次性设置），不存在则回退 FrameRenderState
+            val td = staticTileData ?: rs.tileData
+            val uv = staticUvMap ?: rs.uvMap
+            val buv = staticBuildingUVMap ?: rs.buildingUVMap
             if (td != null && uv != null && atlasTextureId != 0) {
                 NativeBridge.drawAllTiles(
                     tileData = td,
                     cols = config.worldWidthCells,
                     rows = config.worldHeightCells,
-                    buildingData = bd,
+                    buildingData = rs.buildingData,
                     buildingCount = rs.buildingCount,
                     buildingVisible = rs.buildingVisible,
                     tileSize = config.tileSize,
@@ -559,23 +588,25 @@ class NativeSurfaceView(
 
             if (rs.showPreview && atlasTextureId != 0) {
                 NativeBridge.drawSprite(
-                    rs.previewX, rs.previewY, rs.previewW, rs.previewH,
+                    rs.previewX, rs.previewY,
+                    rs.previewW, rs.previewH,
                     atlasTextureId,
-                    rs.previewU0, rs.previewV0, rs.previewU1, rs.previewV1,
-                    rs.previewTintRed, rs.previewTintGreen, rs.previewTintBlue, rs.previewAlpha
+                    rs.previewU0, rs.previewV0,
+                    rs.previewU1, rs.previewV1,
+                    rs.previewTintRed, rs.previewTintGreen,
+                    rs.previewTintBlue, rs.previewAlpha
                 )
             }
 
             NativeBridge.submitFrame()
         }
 
-        /** Canvas 软件渲染路径（使用 [SoftwareCanvasBackend] + lockCanvas/unlockCanvasAndPost） */
+        /** Canvas 软件渲染路径 */
         private fun renderSoftwareFrame() {
             val sb = softwareBackend ?: return
             val atlas = atlasBitmap ?: return
             val rs = currentRenderState
 
-            // 渲染到帧缓冲区
             val frame = sb.renderFrame(
                 rs = rs,
                 atlas = atlas,
@@ -585,8 +616,6 @@ class NativeSurfaceView(
                 vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
             ) ?: return
 
-            // 输出到 Surface（双缓冲自动处理）
-            // Layer 6: lockCanvas 失败时重试最多 3 次
             var retries = 3
             while (retries > 0) {
                 try {
@@ -601,10 +630,12 @@ class NativeSurfaceView(
                     retries--
                     if (retries == 0) {
                         android.util.Log.w("NativeSurfaceView",
-                            "Software render: lockCanvas failed after 3 retries: ${e.message}")
+                            "Software render: lockCanvas failed " +
+                            "after 3 retries: ${e.message}")
                     } else {
                         android.util.Log.d("NativeSurfaceView",
-                            "Software render: lockCanvas retry $retries: ${e.message}")
+                            "Software render: lockCanvas retry " +
+                            "$retries: ${e.message}")
                         try { Thread.sleep(5) } catch (_: InterruptedException) { break }
                     }
                 }
@@ -626,8 +657,6 @@ data class NativeRenderConfig(
 
 /**
  * 每帧渲染状态（由 Compose 层通过 [NativeSurfaceView.updateRenderState] 批量写入）
- *
- * 架构 v2：统一瓦片层（地面+装饰+建筑合并到单张图集，单次 draw call）
  */
 data class FrameRenderState(
     val camX: Float = 0f,
@@ -644,7 +673,6 @@ data class FrameRenderState(
     val buildingData: FloatArray? = null,
     val buildingCount: Int = 0,
     val buildingUVMap: FloatArray? = null,
-    // — 建筑精灵预览（建造/移动模式） —
     val showPreview: Boolean = false,
     val previewX: Float = 0f,
     val previewY: Float = 0f,

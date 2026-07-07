@@ -5,10 +5,13 @@ import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -87,6 +90,45 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     /**
+     * 生成地图预加载数据（瓦片 + flatTileData 预拍平）。
+     *
+     * 在游戏循环启动后调用（此时 gameData.mapSeed 已就绪）。
+     * 生成的 [MapPreloadData] 通过 [mapPreloadData] StateFlow 暴露，
+     * GameActivity 的 LaunchedEffect 观察并设置到 Composition local state。
+     *
+     * 此操作是 CPU 密集型的，调用方应在后台调度器上运行。
+     */
+    private suspend fun generateMapPreloadData(): MapPreloadData {
+        val tileSize = GameConfig.SectMap.TILE_SIZE
+        val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+        val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+        val worldPixelWidth = worldWidthCells * tileSize
+        val worldPixelHeight = worldHeightCells * tileSize
+
+        _loadingProgress.value = SaveLoadViewModelConstants.PROGRESS_TILE_GEN
+
+        val rawTileData = withContext(Dispatchers.Default) {
+            SectMapTileGenerator.generateTileData(
+                worldWidthCells, worldHeightCells,
+                worldSeed = gameEngine.gameData.value?.mapSeed ?: 0
+            )
+        }
+
+        // 提前拍平 flatTileData，减轻 MainGameScreen 首次主线程组合负担
+        val flatTileData = rawTileData.flatMap { it.toList() }.toIntArray()
+
+        return MapPreloadData(
+            rawTileData = rawTileData,
+            worldWidthCells = worldWidthCells,
+            worldHeightCells = worldHeightCells,
+            tileSize = tileSize,
+            worldPixelWidth = worldPixelWidth,
+            worldPixelHeight = worldPixelHeight,
+            flatTileData = flatTileData
+        )
+    }
+
+    /**
      * 启动 L2 后台精灵图预加载（不阻塞首帧）
      * 在 MainGameScreen 已显示后调用
      */
@@ -130,6 +172,10 @@ class SaveLoadViewModel @Inject constructor(
     /** 预加载阶段标签（UI 展示用） */
     private val _preloadPhase = MutableStateFlow(SaveLoadViewModelConstants.PHASE_INIT)
     val preloadPhase: StateFlow<String> = _preloadPhase.asStateFlow()
+
+    /** 地图预加载数据 — 由加载管线在游戏循环启动后生成，GameActivity 消费 */
+    private val _mapPreloadData = MutableStateFlow<MapPreloadData?>(null)
+    val mapPreloadData: StateFlow<MapPreloadData?> = _mapPreloadData.asStateFlow()
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
@@ -497,6 +543,23 @@ class SaveLoadViewModel @Inject constructor(
                 startGameLoop()
                 Log.d(TAG, "Game loop started, isPaused=${gameEngineCore.state.value.isPaused}")
 
+                // 在 isGameStarted 前生成地图预加载数据
+                // 消除 LaunchedEffect 时序空洞
+                val mapData = try {
+                    generateMapPreloadData().also {
+                        setLoadingProgress(
+                            SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
+                    }
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    Log.e(TAG,
+                        "startNewGame: map preload failed (non-fatal)", e)
+                    null
+                }
+                if (mapData != null) {
+                    _mapPreloadData.value = mapData
+                }
+
                 // Mark game as started AFTER game loop is running
                 // Ensures LaunchedEffect(gameData.isGameStarted) in GameActivity
                 // only shows MainGameScreen when the game is truly live
@@ -721,6 +784,22 @@ class SaveLoadViewModel @Inject constructor(
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
                 startGameLoop()
+
+                // 生成地图瓦片数据（flatTileData 预拍平）
+                val mapData = try {
+                    generateMapPreloadData().also {
+                        setLoadingProgress(
+                            SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
+                    }
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    Log.e(TAG, "loadGame: map preload failed", e)
+                    null
+                }
+                if (mapData != null) {
+                    _mapPreloadData.value = mapData
+                }
+
                 _isGameLoaded = true
                 gameEngine.updateGameData { it.copy(isGameStarted = true) }
                 showSuccess("读档成功")
@@ -862,6 +941,23 @@ class SaveLoadViewModel @Inject constructor(
 
                     startGameLoop()
                     _isGameLoaded = true
+
+                    // 生成地图瓦片数据（flatTileData 预拍平）
+                    // 在 isGameStarted=true 之前生成，消除 GameActivity LaunchedEffect 中的时序空洞
+                    val mapData = try {
+                        generateMapPreloadData().also {
+                            setLoadingProgress(SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
+                        }
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
+                        Log.e(TAG,
+                            "loadGameFromSlot: map preload failed", e)
+                        null
+                    }
+                    if (mapData != null) {
+                        _mapPreloadData.value = mapData
+                    }
+
                     gameLoaded = true
                     gameEngine.updateGameData { it.copy(isGameStarted = true) }
                     _loadingProgress.value = PROGRESS_COMPLETE
@@ -1136,6 +1232,16 @@ class SaveLoadViewModel @Inject constructor(
                 gameEngineCore.clearActiveSaveJob()
                 if (wasRunning) {
                     gameEngineCore.startGameLoop()
+
+                    // 生成地图瓦片数据（flatTileData 预拍平）
+                    try {
+                        val mapData = generateMapPreloadData()
+                        _mapPreloadData.value = mapData
+                    } catch (e: CancellationException) { throw e }
+                      catch (e: Exception) {
+                        Log.e(TAG, "restartGame: generateMapPreloadData failed (non-fatal)", e)
+                    }
+
                     gameEngine.updateGameData { it.copy(isGameStarted = true) }
                     _isTimeRunning.value = true
                     Log.d(TAG, "Game loop restarted after restart operation")

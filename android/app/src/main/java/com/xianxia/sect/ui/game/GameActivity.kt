@@ -18,6 +18,8 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +35,6 @@ import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
-import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
 import com.xianxia.sect.data.crypto.SecureKeyManager
@@ -49,7 +50,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import com.xianxia.sect.core.GameConfig
@@ -205,90 +205,13 @@ class GameActivity : ComponentActivity() {
 
                     LaunchedEffect(gameData.isGameStarted) {
                         if (gameData.isGameStarted && mapPreloadData == null) {
-                            // 仅当当前进度未超过 0.9 时标记地图预加载阶段；
-                            // 防止 loadGameFromSlot 已推进至 1.0 后进度回退
-                            if (saveLoadViewModel.loadingProgress.value < SaveLoadViewModel.PROGRESS_MAP_PRELOAD) {
-                                saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
+                            // 从 ViewModel 获取已预生成的地图瓦片数据
+                            val precomputed = saveLoadViewModel.mapPreloadData.value
+                            if (precomputed != null) {
+                                mapPreloadData = precomputed
+                                mapPreloadDataRef = precomputed
                             }
 
-                            val tileSize = GameConfig.SectMap.TILE_SIZE
-                            val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-                            val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-                            val worldPixelWidth = worldWidthCells * tileSize
-                            val worldPixelHeight = worldHeightCells * tileSize
-
-                            // 软件渲染策略：跳过 Vulkan 预热（模拟器/Vulkan 不可用设备）
-                            if (!isSoftwareRendering) {
-                                // 将两个独立任务并行化：Vulkan 设备预热 + 瓦片数据生成
-                                val vulkanDeferred = async(ioDispatcher.dispatcher) {
-                                    NativeBridge.ensureLoaded()
-                                    var prewarmOk = false
-
-                                    // ★ 写前标记：在调 initDevice 之前写入，成功后才清除。
-                                    // 如果 Vulkan init 导致 SIGSEGV，此标记残留 → 下次启动直接禁用 Vulkan。
-                                    com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
-
-                                    try {
-                                        // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
-                                        withTimeout(5_000L) {
-                                            val d = applicationContext.cacheDir
-                                            prewarmOk = NativeBridge.prewarmDevice(
-                                                d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
-                                            )
-                                            if (prewarmOk) {
-                                                Log.d(TAG, "Vulkan device prewarmed")
-                                                // 清除 Vulkan 失败标记（之前可能被标记过）
-                                                com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
-                                                // 清除写前标记
-                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                            } else {
-                                                Log.w(TAG, "prewarmDevice returned false — Vulkan not available")
-                                            }
-                                        }
-                                    } catch (e: TimeoutCancellationException) {
-                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Vulkan prewarm exception", e)
-                                    }
-
-                                    // Vulkan 初始化失败 → 记录持久化标记 + 清除写前标记
-                                    if (!prewarmOk) {
-                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
-                                    }
-                                }
-
-                                // 并行：Vulkan 预热
-                                vulkanDeferred.await()
-                            } else {
-                                Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
-                            }
-
-                            val tileDeferred = async(ioDispatcher.dispatcher) {
-                                // worldSeed 使用 GameData.mapSeed，保证不同存档地图分布不同
-                                SectMapTileGenerator.generateTileData(
-                                    worldWidthCells, worldHeightCells,
-                                    worldSeed = gameData.mapSeed
-                                )
-                            }
-
-                            // 等待瓦片数据生成
-                            val rawTileData = tileDeferred.await()
-
-                            val result = MapPreloadData(
-                                rawTileData = rawTileData,
-                                worldWidthCells = worldWidthCells,
-                                worldHeightCells = worldHeightCells,
-                                tileSize = tileSize,
-                                worldPixelWidth = worldPixelWidth,
-                                worldPixelHeight = worldPixelHeight
-                            )
-
-                            if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect
-                            mapPreloadData = result
-                            mapPreloadDataRef = result  // 同步到类级引用，供 onTrimMemory 使用
                             saveLoadViewModel.setLoadingProgress(1.0f)
                             com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
                             com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
@@ -299,6 +222,51 @@ class GameActivity : ComponentActivity() {
                                     "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
                                 )
                             )
+
+                            // Vulkan 预热：后台发射，不阻塞地图显示
+                            if (!isSoftwareRendering) {
+                                val tileSize = GameConfig.SectMap.TILE_SIZE
+                                val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+                                val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+                                val worldPixelWidth = worldWidthCells * tileSize
+                                val worldPixelHeight = worldHeightCells * tileSize
+
+                                launch(ioDispatcher.dispatcher) {
+                                    NativeBridge.ensureLoaded()
+                                    var prewarmOk = false
+                                    com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
+                                    try {
+                                        withTimeout(5_000L) {
+                                            val d = applicationContext.cacheDir
+                                            prewarmOk = NativeBridge.prewarmDevice(
+                                                d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
+                                            )
+                                            if (prewarmOk) {
+                                                com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
+                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                            } else {
+                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                                com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                            }
+                                        }
+                                    } catch (e: TimeoutCancellationException) {
+                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                    } catch (e: CancellationException) { throw e }
+                                      catch (e: Exception) {
+                                        Log.e(TAG, "Vulkan prewarm exception", e)
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                    }
+
+                                    if (!prewarmOk) {
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                    }
+                                }
+                            } else {
+                                Log.d(TAG, "Software rendering — skipping Vulkan prewarm")
+                            }
                         }
                     }
 
@@ -315,11 +283,13 @@ class GameActivity : ComponentActivity() {
                         }
                     }
 
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        // 只在贴图加载完成后才将 MainGameScreen 加入组合树
-                        // 这从根本上消除了 "LoadingScreen 关闭但贴图未就绪" 的帧间隙
+                    Crossfade(
+                        targetState = mapPreloadData != null,
+                        animationSpec = tween(durationMillis = 400),
+                        label = "loadingToGameTransition"
+                    ) { showGame ->
                         val preloadData = mapPreloadData
-                        if (preloadData != null) {
+                        if (showGame && preloadData != null) {
                             MainGameScreen(
                                 mapPreloadData = preloadData,
                                 viewModel = viewModel,
@@ -371,25 +341,22 @@ class GameActivity : ComponentActivity() {
                                     }
                                 }
                             )
-                        }
-
-                        if (mapPreloadData == null && !isRestarting) {
+                        } else {
                             LoadingScreen(
                                 progress = loadingProgress,
                                 showProgress = true,
                                 phaseText = preloadPhase
                             )
                         }
+                    }
 
-                        errorMessage?.let { error ->
-                            StandardPromptDialog(
-                                onDismissRequest = { errorMessage = null },
-                                title = "提示",
-                                text = error,
-                                confirmLabel = "确定"
-                            )
-                        }
-
+                    errorMessage?.let { error ->
+                        StandardPromptDialog(
+                            onDismissRequest = { errorMessage = null },
+                            title = "提示",
+                            text = error,
+                            confirmLabel = "确定"
+                        )
                     }
                 }
             }

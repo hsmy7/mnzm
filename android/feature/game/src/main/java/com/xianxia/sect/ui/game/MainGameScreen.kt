@@ -417,13 +417,22 @@ fun MainGameScreen(
         }
         var nativeSurfaceView by remember { mutableStateOf<NativeSurfaceView?>(null) }
 
-        // 将二维 tileData 展平为一维 IntArray（供 JNI 传递）
-        val flatTileData = remember(tileData) {
-            tileData.flatMap { it.toList() }.toIntArray()
+        // 使用预拍平的 flatTileData（加载管线中提前计算）
+        val flatTileData = remember(tileData, mapPreloadData.flatTileData) {
+            val expected = tileData.size * (tileData.firstOrNull()?.size ?: 0)
+            if (mapPreloadData.flatTileData.size == expected) {
+                mapPreloadData.flatTileData
+            } else {
+                // 兜底：尺寸不匹配时重新拍平（建筑占位数据与 rawTileData 合并后可能改变尺寸）
+                tileData.flatMap { it.toList() }.toIntArray()
+            }
         }
 
         // 统一 UV 映射表（来自 SpriteAtlasDef，与 C++ TextureAtlas.h 一致）
         val decorUvMap = SpriteAtlasDef.TILE_UV_MAP
+
+        // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
+        var prevBuildingHash by remember { mutableStateOf(0) }
 
         AndroidView(
             factory = { ctx ->
@@ -435,6 +444,11 @@ fun MainGameScreen(
                         view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
                     }
 
+                    // 一次性设置静态渲染数据（不经过 FrameRenderState）
+                    view.staticTileData = flatTileData
+                    view.staticUvMap = decorUvMap
+                    view.staticBuildingUVMap = BUILDING_UV_MAP
+
                     // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
                     view.onRendererReady = {
                         view.atlasTextureId = view.buildAtlas(ctx)
@@ -443,6 +457,7 @@ fun MainGameScreen(
                     // Vulkan 初始化生命周期监听（由 GameActivity 驱动 CrashRecoveryEngine）
                     view.vulkanInitListener = vulkanInitListener
 
+                    // 初始设置 camera
                     view.updateRenderState(
                         FrameRenderState(
                             camX = cameraState.cameraX,
@@ -457,30 +472,39 @@ fun MainGameScreen(
                 // 同步视口到 touchEngine
                 view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
 
-                // 计算预览参数（建造/移动统一处理）
-                val isPreviewActive = isPlacingBuilding || movingBuilding != null
+                // Camera + 预览 + 建筑数据通过 FrameRenderState 推送
+                // 注意：tileData/uvMap/buildingUVMap 已在 factory 中通过独立字段设置
+                // 此处仍传入以确保 Canvas 回退路径有数据，Vulkan 路径优先读独立字段
+                val mb = movingBuilding
+                val isPreviewActive = isPlacingBuilding || mb != null
                 val previewBuildingName = when {
                     isPlacingBuilding -> placingBuildingName
-                    movingBuilding != null -> movingBuilding!!.displayName
+                    mb != null -> mb.displayName
                     else -> ""
                 }
                 val previewNameIdx = BUILDING_NAME_INDEX[previewBuildingName] ?: -1
                 val hasPreview = isPreviewActive && previewNameIdx >= 0
 
                 val previewUvs = if (hasPreview) {
-                    val idx = previewNameIdx
                     floatArrayOf(
-                        BUILDING_UV_MAP[idx * 4],
-                        BUILDING_UV_MAP[idx * 4 + 1],
-                        BUILDING_UV_MAP[idx * 4 + 2],
-                        BUILDING_UV_MAP[idx * 4 + 3]
+                        BUILDING_UV_MAP[previewNameIdx * 4],
+                        BUILDING_UV_MAP[previewNameIdx * 4 + 1],
+                        BUILDING_UV_MAP[previewNameIdx * 4 + 2],
+                        BUILDING_UV_MAP[previewNameIdx * 4 + 3]
                     )
                 } else null
 
-                val px = if (movingBuilding != null) movingWorldX else placingWorldX
-                val py = if (movingBuilding != null) movingWorldY else placingWorldY
-                val pSize = if (movingBuilding != null) movingBuildingSize else placingBuildingSize
-                val pValid = if (movingBuilding != null) movingValid else placementValidity
+                val px = if (mb != null) movingWorldX else placingWorldX
+                val py = if (mb != null) movingWorldY else placingWorldY
+                val pSize = if (mb != null) movingBuildingSize else placingBuildingSize
+                val pValid = if (mb != null) movingValid else placementValidity
+
+                // 建筑数据：仅变化时生成新 FloatArray
+                val curBuildingHash = effectivePlacedBuildings.hashCode()
+                val buildingData = if (curBuildingHash != prevBuildingHash) {
+                    prevBuildingHash = curBuildingHash
+                    buildBuildingDataArray(effectivePlacedBuildings)
+                } else null
 
                 view.updateRenderState(
                     FrameRenderState(
@@ -489,11 +513,7 @@ fun MainGameScreen(
                         scale = cameraState.scale,
                         cameraDirty = true,
                         buildingVisible = true,
-                        tileData = flatTileData,
-                        uvMap = decorUvMap,
-                        buildingData = buildBuildingDataArray(
-                            effectivePlacedBuildings
-                        ),
+                        buildingData = buildingData,
                         buildingCount = effectivePlacedBuildings.size,
                         buildingUVMap = BUILDING_UV_MAP,
                         showPreview = hasPreview,

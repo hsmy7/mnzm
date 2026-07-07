@@ -15,7 +15,9 @@ data class MapPreloadData(
     val worldHeightCells: Int,
     val tileSize: Int,
     val worldPixelWidth: Int,
-    val worldPixelHeight: Int
+    val worldPixelHeight: Int,
+    /** 展平为一维的 tileData（供 JNI 传递），在生成时提前计算以减轻主线程组合负担 */
+    val flatTileData: IntArray
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -25,7 +27,8 @@ data class MapPreloadData(
             tileSize == other.tileSize &&
             worldPixelWidth == other.worldPixelWidth &&
             worldPixelHeight == other.worldPixelHeight &&
-            rawTileData.contentDeepEquals(other.rawTileData)
+            rawTileData.contentDeepEquals(other.rawTileData) &&
+            flatTileData.contentEquals(other.flatTileData)
     }
 
     override fun hashCode(): Int {
@@ -35,6 +38,7 @@ data class MapPreloadData(
         result = 31 * result + tileSize
         result = 31 * result + worldPixelWidth
         result = 31 * result + worldPixelHeight
+        result = 31 * result + flatTileData.contentHashCode()
         return result
     }
 }
