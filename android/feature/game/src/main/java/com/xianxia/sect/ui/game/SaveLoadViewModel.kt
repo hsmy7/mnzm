@@ -1253,13 +1253,13 @@ class SaveLoadViewModel @Inject constructor(
                     try {
                         val mapData = generateMapPreloadData()
                         _mapPreloadData.value = mapData
-                        stateStore.transitionTo(GameLifecycle.MAP_READY)
+                        stateStore.forceLifecycle(GameLifecycle.MAP_READY)
                     } catch (e: CancellationException) { throw e }
                       catch (e: Exception) {
                         Log.e(TAG, "restartGame: generateMapPreloadData failed (non-fatal)", e)
                     }
 
-                    stateStore.transitionTo(GameLifecycle.PLAYING)
+                    stateStore.forceLifecycle(GameLifecycle.PLAYING)
                     _isTimeRunning.value = true
                     Log.d(TAG, "Game loop restarted after restart operation")
                 }
