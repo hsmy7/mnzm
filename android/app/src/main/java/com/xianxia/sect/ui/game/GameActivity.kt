@@ -48,7 +48,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import com.xianxia.sect.core.GameConfig
@@ -199,21 +199,23 @@ class GameActivity : ComponentActivity() {
                                 saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
                             }
 
-                            // Phase 1: 预加载 Vulkan 设备 + 着色器（主流做法）
-                            withContext(ioDispatcher.dispatcher) {
+                            val tileSize = GameConfig.SectMap.TILE_SIZE
+                            val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+                            val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+                            val worldPixelWidth = worldWidthCells * tileSize
+                            val worldPixelHeight = worldHeightCells * tileSize
+
+                            // 将两个独立任务并行化：Vulkan 设备预热 + 瓦片数据生成
+                            val vulkanDeferred = async(ioDispatcher.dispatcher) {
                                 NativeBridge.ensureLoaded()
-                                val w = GameConfig.SectMap
-                                val p = w.WORLD_WIDTH_CELLS * w.TILE_SIZE
-                                val q = w.WORLD_HEIGHT_CELLS * w.TILE_SIZE
                                 try {
                                     // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
                                     withTimeout(5_000L) {
                                         val d = applicationContext.cacheDir
                                         NativeBridge.prewarmDevice(
-                                            d.absolutePath, p, q, w.TILE_SIZE
+                                            d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
                                         ).let { ok ->
-                                            if (ok) Log.d(TAG,
-                                                "Vulkan device prewarmed")
+                                            if (ok) Log.d(TAG, "Vulkan device prewarmed")
                                             else Log.w(TAG, "prewarm failed")
                                         }
                                     }
@@ -222,25 +224,21 @@ class GameActivity : ComponentActivity() {
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    Log.e(TAG,
-                                        "Vulkan prewarm exception", e)
+                                    Log.e(TAG, "Vulkan prewarm exception", e)
                                 }
                             }
 
-                            val tileSize = GameConfig.SectMap.TILE_SIZE
-                            val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-                            val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-                            val worldPixelWidth = worldWidthCells * tileSize
-                            val worldPixelHeight = worldHeightCells * tileSize
+                            val tileDeferred = async(ioDispatcher.dispatcher) {
+                                // worldSeed 使用 GameData.mapSeed，保证不同存档地图分布不同
+                                SectMapTileGenerator.generateTileData(
+                                    worldWidthCells, worldHeightCells,
+                                    worldSeed = gameData.mapSeed
+                                )
+                            }
 
-                            // v4.0.43+：Vulkan 原生渲染不再依赖 Compose Canvas 位图。
-                            // 纹理由 NativeSurfaceView.buildAtlas() 在渲染器就绪后独立加载。
-                            // 此处只需生成瓦片数据和配置参数。
-                            // worldSeed 使用 GameData.mapSeed，保证不同存档地图分布不同
-                            val rawTileData = SectMapTileGenerator.generateTileData(
-                                worldWidthCells, worldHeightCells,
-                                worldSeed = gameData.mapSeed
-                            )
+                            // 等待所有并行子任务完成
+                            vulkanDeferred.await()
+                            val rawTileData = tileDeferred.await()
 
                             val result = MapPreloadData(
                                 rawTileData = rawTileData,

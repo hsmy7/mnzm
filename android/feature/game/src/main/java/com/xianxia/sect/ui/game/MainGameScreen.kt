@@ -25,6 +25,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
@@ -332,8 +333,12 @@ fun MainGameScreen(
     }
 
     val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
+    val atlasResult by saveLoadViewModel.atlasResult.collectAsStateWithLifecycle()
 
-    CompositionLocalProvider(LocalItemSpriteCache provides preloadedItemSprites) {
+    CompositionLocalProvider(
+        LocalItemSpriteCache provides preloadedItemSprites,
+        LocalAtlasCache provides atlasResult
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()

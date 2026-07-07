@@ -225,7 +225,7 @@ private fun AttackRangeDialog(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(realmOptions, key = { it.first }) { (realm, name) ->
+                items(realmOptions, key = { it.first }, contentType = { "realm_option" }) { (realm, name) ->
                     val checked = realm in selectedRealms
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

@@ -467,7 +467,8 @@ private fun <T> RewardItemGrid(
                         is Seed -> "seed_${item.id}_${item.quantity}"
                         else -> "unknown_${System.identityHashCode(item)}"
                     }
-                }
+                },
+                contentType = { "reward_item" }
             ) { item ->
                 val currentSelectedItem = remember(item) {
                     when (item) {
@@ -540,7 +541,8 @@ private fun RewardAllItemsGrid(
                         is Seed -> "seed_${item.id}_${item.quantity}"
                         else -> "unknown_${System.identityHashCode(item)}"
                     }
-                }
+                },
+                contentType = { "game_item" }
             ) { item ->
                 val currentSelectedItem = remember(item) {
                     when (item) {

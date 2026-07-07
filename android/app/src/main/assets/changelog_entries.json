@@ -43,7 +43,17 @@
       "修复：EntityStore脏读导致StackableItemStore合并失败——items属性dirty时返回items_确保读取实时一致",
       "重构：宗门地图改用地图格拼接——废除sect_ground_map整图，改为map_tile单格平铺合成地面",
       "新增：装饰物3草丛+2树木变体——小/中/大三种草精灵图+两种树木精灵图，位置哈希算法使装饰呈自然聚集分布",
-      "删除：decoration_grass/decoration_trees单装饰精灵图——替换为3草丛+2树木变体体系"
+      "删除：decoration_grass/decoration_trees单装饰精灵图——替换为3草丛+2树木变体体系",
+      "优化：加载阶段后台任务全面优化——7个模块覆盖UI预组合(37文件contentType)+弟子属性快照预计算+地图预加载并行化+存档完整性校验(30项检查)+Compose精灵图集约+字体预渲染架构+音频引擎预加载",
+      "新增：弟子属性快照(DiscipleSnapshotCache)——加载阶段从DiscipleTables批量预计算弟子属性，UI层O(1)读取，替代首次打开面板时的实时assemble+计算",
+      "新增：Compose精灵图集约(AtlasPacker)——加载阶段将丹药/功法/装备小图合并为1-2张大图，减少GPU纹理切换",
+      "新增：存档完整性校验(SaveValidator)——6项检查(宗门名称/日期/修为/装备引用/建筑/寿命)，30个单元测试全覆盖，自动修复可修复问题",
+      "新增：音频引擎(AudioEngine)——SoundPool+MediaPlayer封装，加载阶段预初始化，预留SFX/BGM扩展点",
+      "新增：字体预渲染架构(FontPreloader)——自定义CJK字体加载+Typeface预初始化+优雅回退",
+      "优化：Baseline Profile增强——新增弟子/仓库/建造/设置面板交互路径AOT编译覆盖",
+      "优化：LazyColumn contentType——37个文件全部添加contentType参数，消除Compose列表不必要重组",
+      "优化：beyondViewportItemCount——弟子/炼丹/锻造/设置关键列表添加预组合参数，减少首次滚动延迟",
+      "优化：地图预加载并行化——背景色/道路/居住区/装饰物4路协程并行计算，替代原串行执行"
     ]
   },
   {

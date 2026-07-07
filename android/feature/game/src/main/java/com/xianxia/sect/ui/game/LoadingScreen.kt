@@ -120,27 +120,32 @@ private fun LoadingScreenContent(
                 if (phaseText.isNotEmpty()) {
                     Text(
                         text = phaseText,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Normal,
-                        color = Color(0xFFCCAA66)
+                        color = Color.White
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // 百分比文本
-                Text(
-                    text = "$progressPercent%",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFFD700)
-                )
-
-                // 自定义金色进度条
-                CustomGoldenProgressBar(
-                    progress = animatedProgress,
+                // 自定义金色进度条（百分比嵌入内部居中）
+                Box(
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
-                        .height(14.dp)
-                )
+                        .height(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CustomGoldenProgressBar(
+                        progress = animatedProgress,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Text(
+                        text = "$progressPercent%",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }
@@ -170,7 +175,7 @@ private fun CustomGoldenProgressBar(
         ) {
             val canvasWidth = size.width
             val canvasHeight = size.height
-            val barHeight = canvasHeight * 0.5f
+            val barHeight = canvasHeight * 0.7f
             val diamondWidth = canvasHeight * 0.6f
             val borderWidth = 2.dp.toPx()
             

@@ -98,7 +98,7 @@ fun MasterApprenticeSelectDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(filtered, key = { it.id }) { master ->
+                    items(filtered, key = { it.id }, contentType = { "disciple" }) { master ->
                         PortraitDiscipleCard(
                             disciple = master,
                             isSelected = false,

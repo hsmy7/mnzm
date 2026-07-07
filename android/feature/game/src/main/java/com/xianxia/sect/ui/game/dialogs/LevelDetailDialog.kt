@@ -382,7 +382,7 @@ private fun LevelSlotSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
+                        items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = false,

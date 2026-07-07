@@ -14,7 +14,9 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
@@ -41,7 +43,8 @@ class SaveLoadViewModel @Inject constructor(
     private val buildingConfigService: BuildingConfigService,
     @ApplicationContext private val context: Context,
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
-    private val resourcePreloader: ResourcePreloader
+    private val resourcePreloader: ResourcePreloader,
+    private val discipleSnapshotCache: DiscipleSnapshotCache
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -78,6 +81,7 @@ class SaveLoadViewModel @Inject constructor(
             onPhase = { _preloadPhase.value = it }
         )
         _preloadedItemSprites.value = result.itemSprites
+        _atlasResult.value = result.itemAtlas
         _preloadedPortraitSprites.value = result.portraitSprites
         _preloadedUiSprites.value = result.uiSprites
     }
@@ -115,6 +119,9 @@ class SaveLoadViewModel @Inject constructor(
 
     private val _preloadedUiSprites = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     val preloadedUiSprites: StateFlow<Map<String, ImageBitmap>> = _preloadedUiSprites.asStateFlow()
+
+    private val _atlasResult = MutableStateFlow<AtlasResult?>(null)
+    val atlasResult: StateFlow<AtlasResult?> = _atlasResult.asStateFlow()
 
     /** L2 后台加载的剩余精灵图（异步累积，不阻塞首帧） */
     private val _l2Sprites = MutableStateFlow<Map<Int, ImageBitmap>>(emptyMap())
@@ -477,6 +484,10 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 preloadGameResources()
+
+                // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
+                discipleSnapshotCache.prewarm(gameEngine.discipleTables)
+
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
                 _loadingProgress.value = PROGRESS_GAME_LOOP_START
@@ -686,6 +697,9 @@ class SaveLoadViewModel @Inject constructor(
 
                 gameEngine.ensureHeavyDataLoaded()
 
+                // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
+                discipleSnapshotCache.prewarm(gameEngine.discipleTables)
+
                 setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
 
                 // 修正已有存档中的建筑网格尺寸，补齐instanceId
@@ -840,6 +854,9 @@ class SaveLoadViewModel @Inject constructor(
                     _loadingProgress.value = PROGRESS_GAME_LOOP_START
 
                     gameEngine.ensureHeavyDataLoaded()
+
+                    // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
+                    discipleSnapshotCache.prewarm(gameEngine.discipleTables)
 
                     setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
 

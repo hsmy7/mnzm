@@ -180,7 +180,7 @@ fun EquipmentSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(availableItems, key = { it.id }) { item ->
+                        items(availableItems, key = { it.id }, contentType = { "equipment_selection_item" }) { item ->
                             UnifiedItemCard(
                                 data = ItemCardData(
                                     id = item.id,

@@ -242,7 +242,7 @@ fun PlantingDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             contentPadding = PaddingValues(2.dp)
                         ) {
-                            items(pagedSeeds, key = { it.id }) { seed ->
+                            items(pagedSeeds, key = { it.id }, contentType = { "seed" }) { seed ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = seed.id,

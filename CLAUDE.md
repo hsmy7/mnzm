@@ -221,6 +221,7 @@ Compose UI Thread(Main)            Android 主线程
 ### Architecture Docs
 
 - [宗门地图渲染架构](docs/map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
+- [加载阶段后台任务架构](docs/loading-architecture.md) — 7模块并行加载（UI预组合/弟子快照/存档校验/图集约/地图并行/字体/音频）
 
 ### Key Classes
 

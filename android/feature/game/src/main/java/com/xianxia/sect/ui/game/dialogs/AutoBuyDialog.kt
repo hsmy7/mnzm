@@ -115,7 +115,8 @@ fun AutoBuyDialog(
                 ) {
                     items(
                         items = autoBuyList,
-                        key = { "${it.itemName}:${it.itemType}:${it.rarity}" }
+                        key = { "${it.itemName}:${it.itemType}:${it.rarity}" },
+                        contentType = { "auto_buy_entry" }
                     ) { entry ->
                         val key = "${entry.itemName}:${entry.itemType}:${entry.rarity}"
                         val isSelected = deleteMode && selectedForDeletion.containsKey(key)
@@ -315,7 +316,8 @@ fun AutoBuyItemSelectDialog(
                 ) {
                     items(
                         items = availableItems,
-                        key = { "${it.name}:${it.type}:${it.rarity}" }
+                        key = { "${it.name}:${it.type}:${it.rarity}" },
+                        contentType = { "catalog_item" }
                     ) { item ->
                         val key = "${item.name}:${item.type}:${item.rarity}"
                         val isSelected = selectedItems.containsKey(key)

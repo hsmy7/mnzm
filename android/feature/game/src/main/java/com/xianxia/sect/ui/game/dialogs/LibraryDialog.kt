@@ -232,7 +232,7 @@ private fun LibraryDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
+                        items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
                             val isCurrent = disciple.id == currentDiscipleId
                             PortraitDiscipleCard(
                                 disciple = disciple,

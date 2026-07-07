@@ -318,7 +318,7 @@ fun PeakDiscipleListSection(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(displayItems, key = { it.id }) { disciple ->
+                items(displayItems, key = { it.id }, contentType = { "disciple" }) { disciple ->
                     PortraitDiscipleCard(disciple = disciple, onClick = {})
                 }
                 if (truncateAt != null && sortedDisciples.size > truncateAt) {
@@ -410,7 +410,7 @@ fun PeakDiscipleSelectionDialog(
                         LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(filteredDisciples, key = { it.id }) { disciple ->
+                            items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
                                 val isCurrent = disciple.id == currentDiscipleId
                                 PortraitDiscipleCard(
                                     disciple = disciple,

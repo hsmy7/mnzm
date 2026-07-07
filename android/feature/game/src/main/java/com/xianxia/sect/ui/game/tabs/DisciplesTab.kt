@@ -164,7 +164,8 @@ internal fun DisciplesTab(
             ) {
                 items(
                     items = filteredDisciples,
-                    key = { it.id }
+                    key = { it.id },
+                    contentType = { "disciple" }
                 ) { disciple ->
                     DiscipleCard(
                         disciple = disciple,

@@ -97,7 +97,7 @@ private fun <T> InventorySelectGrid(items: List<T>, selectedItems: MutableMap<St
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items, key = {
                 when (it) { is EquipmentStack -> "eq_${it.id}"; is ManualStack -> "mn_${it.id}"; is Pill -> "pl_${it.id}"; else -> "unk_${System.identityHashCode(it)}" }
-            }) { item ->
+            }, contentType = { "inventory_item" }) { item ->
                 val id = when (item) { is EquipmentStack -> item.id; is ManualStack -> item.id; is Pill -> item.id; else -> "" }
                 val name = when (item) { is EquipmentStack -> item.name; is ManualStack -> item.name; is Pill -> item.name; else -> "" }
                 val rar = when (item) { is EquipmentStack -> item.rarity; is ManualStack -> item.rarity; is Pill -> item.rarity; else -> 1 }
@@ -139,7 +139,7 @@ private fun AllItemsSelectGrid(
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(allItems, key = {
                 when (it) { is EquipmentStack -> "eq_${it.id}"; is ManualStack -> "mn_${it.id}"; is Pill -> "pl_${it.id}_${it.quantity}"; else -> "unk_${System.identityHashCode(it)}" }
-            }) { item ->
+            }, contentType = { "inventory_item" }) { item ->
                 val id = when (item) { is EquipmentStack -> item.id; is ManualStack -> item.id; is Pill -> item.id; else -> "" }
                 val name = when (item) { is EquipmentStack -> item.name; is ManualStack -> item.name; is Pill -> item.name; else -> "" }
                 val rarity = when (item) { is EquipmentStack -> item.rarity; is ManualStack -> item.rarity; is Pill -> item.rarity; else -> 1 }

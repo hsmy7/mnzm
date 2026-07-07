@@ -131,7 +131,7 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(resultData.lootedItems, key = { it.itemId }) { loot ->
+                            items(resultData.lootedItems, key = { it.itemId }, contentType = { "looted_item" }) { loot ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = loot.itemId,
@@ -220,7 +220,7 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(resultData.rewards, key = { it.itemId }) { reward ->
+                            items(resultData.rewards, key = { it.itemId }, contentType = { "reward" }) { reward ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = reward.itemId,

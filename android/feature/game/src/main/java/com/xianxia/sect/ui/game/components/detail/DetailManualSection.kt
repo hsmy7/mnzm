@@ -202,7 +202,7 @@ fun ManualSelectionDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(availableManualStacks, key = { it.id }) { stack ->
+                    items(availableManualStacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
                         UnifiedItemCard(
                             data = ItemCardData(
                                 id = stack.id,

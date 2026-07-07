@@ -311,7 +311,7 @@ private fun EquipmentSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(sortedRecipes, key = { it.recipe.id }) { recipeWithStatus ->
+                items(sortedRecipes, key = { it.recipe.id }, contentType = { "recipe" }) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
                     val hasEnoughMaterials = recipeWithStatus.canCraft
                     val isSelected = selectedRecipe?.id == recipe.id

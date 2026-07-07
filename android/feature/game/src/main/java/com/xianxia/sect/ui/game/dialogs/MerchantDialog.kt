@@ -153,7 +153,7 @@ fun MerchantDialog(
                                     modifier = Modifier.weight(1f).padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(filteredItems, key = { it.id }) { item ->
+                                    items(filteredItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
                                         UnifiedItemCard(data = ItemCardData(id = item.id, name = item.name, rarity = item.rarity,
                                             quantity = item.quantity, additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
                                             grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
@@ -191,7 +191,7 @@ fun MerchantDialog(
                             }
                             HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
                             LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(sortedAcquisitionItems, key = { it.id }) { item ->
+                                items(sortedAcquisitionItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
                                     val warehouseQty = getWarehouseQuantity(item)
                                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.weight(1.3f)) {

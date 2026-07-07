@@ -5,6 +5,8 @@ import com.xianxia.sect.core.state.GameStateSnapshotProvider
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.fixStorageBagReferences
 import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.data.integrity.IntegrityResult
+import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.config.SaveLimitsConfig
@@ -179,9 +181,33 @@ class StorageEngine @Inject constructor(
                 if (dbData != null) {
                     infra.storageMetrics.recordLoad()
                     clearCacheForSlot(slot)
-                    updateCacheAfterSave(slot, dbData)
+
+                    // ── 存档完整性校验 ──
+                    val integrityResult = SaveValidator.validate(dbData)
+                    val finalData: SaveData = when (integrityResult) {
+                        is IntegrityResult.Passed -> dbData
+                        is IntegrityResult.Repaired -> {
+                            Log.w(TAG, "存档完整性修复 (slot=$slot): ${integrityResult.details.size} 项")
+                            integrityResult.details.forEach { Log.i(TAG, "  → $it") }
+                            // 修复后数据替换缓存
+                            integrityResult.data
+                        }
+                        is IntegrityResult.Corrupted -> {
+                            Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
+                            integrityResult.details.forEach { Log.e(TAG, "  → $it") }
+                            // 尝试恢复备份（由上层 StorageFacade 处理）
+                            _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
+                                "存档数据损坏: ${integrityResult.details.size} 项问题")
+                            return@withReadLockLight StorageResult.failure(
+                                StorageError.SLOT_CORRUPTED,
+                                "存档数据完整性校验失败 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
+                            )
+                        }
+                    }
+
+                    updateCacheAfterSave(slot, finalData)
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
-                    StorageResult.success(dbData)
+                    StorageResult.success(finalData)
                 } else {
                     _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
                     StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")

@@ -145,7 +145,7 @@ fun ActivityDialog(
                                         .weight(1f)
                                         .fillMaxWidth()
                                 ) {
-                                    items(activities, key = { it.id }) { activity ->
+                                    items(activities, key = { it.id }, contentType = { "activity" }) { activity ->
                                         val signInBadge by gameViewModel.canClaimToday
                                             .collectAsStateWithLifecycle()
                                         val trialBadge by (trialViewModel?.hasClaimableRewards

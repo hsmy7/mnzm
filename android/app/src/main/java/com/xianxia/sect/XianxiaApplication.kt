@@ -19,6 +19,7 @@ import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.util.FontPreloader
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.core.CrashRecoveryEngine
@@ -543,6 +544,11 @@ class XianxiaApplication : Application() {
 
         // 预加载弟子肖像资源 ID 映射（避免运行时 getIdentifier 字符串查找）
         PortraitPool.initialize(this)
+
+        // 预加载自定义字体，供 Compose Typography 使用
+        // 字体文件置于 app/src/main/assets/fonts/NotoSansSC-Regular.ttf / Bold.ttf
+        // 缺失时自动回退到系统默认 SansSerif 字体
+        FontPreloader.init(this)
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()

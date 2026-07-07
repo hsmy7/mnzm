@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import com.xianxia.sect.core.audio.AudioEngine
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.GameDataManager
@@ -12,6 +13,8 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.allEquipmentSpriteResIds
 import com.xianxia.sect.ui.components.allManualSpriteResIds
 import com.xianxia.sect.ui.components.allPillSpriteResIds
+import com.xianxia.sect.ui.components.AtlasPacker
+import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +39,8 @@ import javax.inject.Singleton
 class ResourcePreloader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val buildingConfigService: BuildingConfigService,
-    private val configLoader: ConfigLoader
+    private val configLoader: ConfigLoader,
+    private val audioEngine: AudioEngine? = null
 ) {
     companion object {
         private const val TAG = "ResourcePreloader"
@@ -66,11 +70,13 @@ class ResourcePreloader @Inject constructor(
      * 预加载结果
      *
      * @param itemSprites 物品精灵图（功法/药丸/装备，仓库用）
+     * @param itemAtlas 小物品精灵图合并后的图集，减少纹理切换（可能为 null）
      * @param portraitSprites 弟子头像精灵图（L0，首屏弟子列表用）
      * @param uiSprites 关键 UI 精灵图（L0，底部按钮栏用）
      */
     data class PreloadResult(
         val itemSprites: Map<Int, ImageBitmap>,
+        val itemAtlas: AtlasResult?,
         val portraitSprites: Map<String, ImageBitmap>,
         val uiSprites: Map<String, ImageBitmap>
     )
@@ -106,6 +112,9 @@ class ResourcePreloader @Inject constructor(
             }
             dataInit.await()
             manualInit.await()
+
+            // ── 音频引擎初始化（不阻塞数据加载） ──
+            audioEngine?.init()
         }
 
         // ── 阶段2: 精灵图预加载（L0 + L1）并行 ──
@@ -117,14 +126,29 @@ class ResourcePreloader @Inject constructor(
             val portraitDeferred = async { preloadPortraitSprites() }
             val uiDeferred = async { preloadCriticalUiSprites() }
 
+            val itemSprites = itemDeferred.await()
+
+            // 图集打包：将小物品精灵合并到一张大图上，降低 GPU 纹理切换开销
+            val atlasResult = try {
+                AtlasPacker().pack(itemSprites)
+            } catch (e: Exception) {
+                Log.w(TAG, "Atlas packing failed, falling back to individual sprites", e)
+                null
+            }
+
             val result = PreloadResult(
-                itemSprites = itemDeferred.await(),
+                itemSprites = itemSprites,
+                itemAtlas = atlasResult,
                 portraitSprites = portraitDeferred.await(),
                 uiSprites = uiDeferred.await()
             )
             Log.d(TAG, "Preload complete: " +
-                "items=${result.itemSprites.size}, portraits=${result.portraitSprites.size}, " +
-                "ui=${result.uiSprites.size}")
+                "items=${result.itemSprites.size}, atlas=${result.itemAtlas != null}, " +
+                "portraits=${result.portraitSprites.size}, ui=${result.uiSprites.size}")
+
+            // ── 音频预加载（不阻塞精灵图主流程） ──
+            preloadAudio()
+
             result
         }
     }
@@ -257,6 +281,38 @@ class ResourcePreloader @Inject constructor(
                 null // L2 静默跳过失败的精灵
             }
         }.toMap()
+    }
+
+    // ── 音频资源预加载（SFX + BGM） ──
+
+    /**
+     * 预加载音频资源。
+     *
+     * 在精灵图预加载阶段（Phase 2）末尾调用，不阻塞主流程。
+     * 实际音频资源 ID 由游戏配置定义，此处预留扩展点。
+     *
+     * 集成步骤（待音频资源就绪后）：
+     * 1. 将 .ogg/.wav 文件放入 `res/raw/` 目录
+     * 2. 在此方法中调用 `audioEngine?.preloadSound("name", R.raw.xxx)`
+     * 3. 在 Phase L2 加载 BGM：`audioEngine?.preloadBGM(R.raw.bg_main)`
+     */
+    private fun preloadAudio() {
+        val engine = audioEngine ?: return
+        if (!engine.isReady) return
+
+        // 预留：在此处添加 SFX 预加载
+        // engine.preloadSound("click", R.raw.sfx_click)
+        // engine.preloadSound("open", R.raw.sfx_open)
+        // engine.preloadSound("close", R.raw.sfx_close)
+        // engine.preloadSound("success", R.raw.sfx_success)
+        // engine.preloadSound("error", R.raw.sfx_error)
+        // engine.preloadSound("battle", R.raw.sfx_battle)
+        // engine.preloadSound("upgrade", R.raw.sfx_upgrade)
+        // engine.preloadSound("purchase", R.raw.sfx_purchase)
+        // engine.preloadBGM(R.raw.bg_main)
+
+        Log.d(TAG, "Audio preload phase complete " +
+            "(soundCache=${engine.isReady})")
     }
 
     // ── 位图解码工具方法 ──

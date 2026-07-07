@@ -122,7 +122,7 @@ fun MailDialog(
                                     .weight(1f)
                                     .fillMaxWidth()
                             ) {
-                                items(mails, key = { it.id }) { mail ->
+                                items(mails, key = { it.id }, contentType = { "mail" }) { mail ->
                                     MailCard(
                                         mail = mail,
                                         isSelected = mail.id == selectedMailId,

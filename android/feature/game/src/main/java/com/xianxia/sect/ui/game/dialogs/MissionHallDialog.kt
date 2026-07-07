@@ -85,7 +85,7 @@ fun MissionHallDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 400.dp)
                 ) {
-                    lazyItems(activeMissions, key = { it.id }) { activeMission ->
+                    lazyItems(activeMissions, key = { it.id }, contentType = { "active_mission" }) { activeMission ->
                         ActiveMissionCard(
                             mission = activeMission,
                             currentYear = currentYear,
@@ -97,7 +97,7 @@ fun MissionHallDialog(
                         )
                     }
 
-                    lazyItems(availableMissions, key = { it.id }) { mission ->
+                    lazyItems(availableMissions, key = { it.id }, contentType = { "available_mission" }) { mission ->
                         AvailableMissionCard(
                             mission = mission,
                             onClick = {
@@ -429,7 +429,7 @@ private fun ActiveMissionDetailDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.heightIn(max = 240.dp)
                     ) {
-                        items(mission.discipleIds, key = { it }) { discipleId ->
+                        items(mission.discipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
                             val index = mission.discipleIds.indexOf(discipleId)
                             val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
                             val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""

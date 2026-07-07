@@ -168,7 +168,7 @@ internal fun DiscipleSelectForRewardDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(filteredAndSortedDisciples, key = { it.id }) { disciple ->
+                    items(filteredAndSortedDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
                         DiscipleCard(
                             disciple = disciple,
                             onClick = {

@@ -944,7 +944,7 @@ internal fun SettingsTab(
                             4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
                             8 to "筑基", 9 to "练气"
                         )
-                        items(realms, key = { it.first }) { (realm, name) ->
+                        items(realms, key = { it.first }, contentType = { "realm" }) { (realm, name) ->
                             val salary = gameData.yearlySalary[realm] ?: 0
                             val enabled = gameData.yearlySalaryEnabled[realm] ?: true
                             SalaryRealmCard(
@@ -1110,7 +1110,7 @@ internal fun SaveSlotDialog(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(saveSlots, key = { it.slot }) { slot ->
+                    items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
                         SaveSlotCard(
                             slot = slot,
                             isSelected = selectedSlot == slot.slot,

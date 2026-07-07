@@ -84,7 +84,7 @@ fun RecruitDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        items(sortedRecruitList, key = { it.id }) { disciple ->
+                        items(sortedRecruitList, key = { it.id }, contentType = { "disciple" }) { disciple ->
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = false,
@@ -175,7 +175,7 @@ private fun AutoRecruitFilterDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(ROOT_COUNT_OPTIONS, key = { it.first }) { (count, name) ->
+                    items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
                         val rootColor = GameColors.getSpiritRootCountColor(count)
                         AutoRecruitFilterRow(
                             label = name,

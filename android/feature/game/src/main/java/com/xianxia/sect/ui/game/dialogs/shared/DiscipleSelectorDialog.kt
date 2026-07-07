@@ -94,7 +94,7 @@ fun DiscipleSelectorDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(filtered, key = { it.id }) { disciple ->
+                    items(filtered, key = { it.id }, contentType = { "disciple" }) { disciple ->
                         PortraitDiscipleCard(
                             disciple = disciple,
                             isCurrent = disciple.id == config.currentId,
