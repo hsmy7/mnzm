@@ -432,8 +432,6 @@ fun MainGameScreen(
         val decorUvMap = SpriteAtlasDef.TILE_UV_MAP
 
         // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
-        var prevBuildingHash by remember { mutableStateOf(0) }
-
         AndroidView(
             factory = { ctx ->
                 NativeSurfaceView(ctx, nativeConfig).also { view ->
@@ -495,12 +493,14 @@ fun MainGameScreen(
                 val pSize = if (mb != null) movingBuildingSize else placingBuildingSize
                 val pValid = if (mb != null) movingValid else placementValidity
 
-                // 建筑数据：仅变化时生成新 FloatArray
-                val curBuildingHash = effectivePlacedBuildings.hashCode()
-                val buildingData = if (curBuildingHash != prevBuildingHash) {
-                    prevBuildingHash = curBuildingHash
+                // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
+                // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
+                // 会导致软件渲染器清屏后无法重绘建筑）
+                val buildingData = if (effectivePlacedBuildings.isNotEmpty()) {
                     buildBuildingDataArray(effectivePlacedBuildings)
-                } else null
+                } else {
+                    null
+                }
 
                 view.updateRenderState(
                     RenderFrame(
