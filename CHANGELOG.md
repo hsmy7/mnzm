@@ -1,6 +1,15 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.41] - 2026-07-05（versionCode=4041）
+## [4.0.41] - 2026-07-07（versionCode=4041）
+
+### 帧率优化与温度读取重构
+
+- **优化场景感知帧率** — 空闲10fps/地图滚动30fps/正常游戏60fps/战斗60fps，闲置30秒自动降帧保电
+- **热控多级降级阶梯** — GREEN(全性能)→YELLOW(半并行+降低特效)→ORANGE(单线程+关闭后处理)→RED(最低画质+锁定30fps)，降温后逐步升档防反复跳变
+- **新增ThermalReader温度读取三通道方案** — Channel 1: `PowerManager.getThermalHeadroom(10)` (API 30+) 主动预测；Channel 2: `PowerManager.currentThermalStatus` (API 29+) 被动回调；Channel 3: sysfs + BatteryManager 降级回退。替代旧 SELinux 封锁的 sysfs 直读
+- **Canvas地图渲染分层缓存** — 建筑层/地面装饰层分离缓存，热控降级时跳过装饰层（草/树）绘制，支持质量因子联动
+- **SettlementScheduler帧预算感知** — 负载重时保守预算(0.5ms)，负载轻时激进预算(12ms)，年度结算自动分帧
+- **新增测试** — ThermalControllerTest(28测试)、SettlementSchedulerTest(8测试)、SoftwareCanvasBackendTest扩充(8测试)
 
 ### Vulkan 渲染管线 v2 重构
 

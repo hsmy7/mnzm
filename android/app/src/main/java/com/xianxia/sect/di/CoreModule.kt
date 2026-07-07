@@ -201,6 +201,10 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideThermalReader(impl: com.xianxia.sect.core.thermal.AndroidThermalReader): com.xianxia.sect.core.thermal.ThermalReader = impl
+
+    @Provides
+    @Singleton
     fun provideAnalyticsTracker(): AnalyticsTracker {
         return object : AnalyticsTracker {
             override fun trackEvent(eventName: String, properties: Map<String, Any>) {

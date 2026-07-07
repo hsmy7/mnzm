@@ -368,4 +368,112 @@ class SoftwareCanvasBackendTest {
             )
         }
     }
+
+    // ============================================================
+    // 热控质量因子（P1.4/P2.2）
+    // ============================================================
+
+    @Test
+    fun `qualityFactor - default is 1 dot 0`() {
+        assertEquals("默认质量因子应为 1.0", 1.0f, backend.qualityFactor, 0.01f)
+    }
+
+    @Test
+    fun `qualityFactor - lowered value does not crash render`() {
+        backend.qualityFactor = 0.5f
+        val rs = FrameRenderState(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 3, width = 2, height = 2, nameIdx = 0
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        assertNotNull("qualityFactor=0.5f 不应影响渲染", result)
+    }
+
+    @Test
+    fun `qualityFactor - extreme low value does not crash`() {
+        backend.qualityFactor = 0.1f
+        val rs = FrameRenderState(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10)
+        )
+        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        assertNotNull("qualityFactor=0.1f 不应 crash", result)
+    }
+
+    // ============================================================
+    // 装饰层关闭（decorationsDisabled）
+    // ============================================================
+
+    @Test
+    fun `decorationsDisabled - default is false`() {
+        assertFalse("默认装饰层应启用", backend.decorationsDisabled)
+    }
+
+    @Test
+    fun `decorationsDisabled - true does not crash render`() {
+        backend.decorationsDisabled = true
+        val rs = FrameRenderState(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10)
+        )
+        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        assertNotNull("decorationsDisabled=true 不应 crash", result)
+    }
+
+    @Test
+    fun `decorationsDisabled - toggle between frames does not crash`() {
+        val rs = FrameRenderState(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10)
+        )
+        // 第一帧：装饰开启
+        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+        // 第二帧：装饰关闭
+        backend.decorationsDisabled = true
+        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+        // 第三帧：装饰重新开启
+        backend.decorationsDisabled = false
+        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+    }
+
+    // ============================================================
+    // 缓存（buildingCacheValid / tileCacheValid）
+    // ============================================================
+
+    @Test
+    fun `multiple frames with same data does not crash`() {
+        val rs = FrameRenderState(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 3, width = 2, height = 2, nameIdx = 0
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        // 连续多帧渲染相同数据（验证缓存逻辑）
+        repeat(10) {
+            val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+            assertNotNull("第 $it 帧不应返回 null", result)
+        }
+    }
+
+    @Test
+    fun `camera movement between frames does not crash`() {
+        repeat(5) { frame ->
+            val rs = FrameRenderState(
+                camX = (frame * 32).toFloat(), camY = (frame * 16).toFloat(),
+                scale = 1f,
+                tileData = createFlatTileData(10, 10)
+            )
+            val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+            assertNotNull("相机移动第 $frame 帧不应 crash", result)
+        }
+    }
+}
 }

@@ -776,6 +776,39 @@ tickInternal()
 @Singleton
 class FrameMetricsMonitor {
     val jankEvents: SharedFlow<FrameMetricsEvent>  // jank 事件流
+
+### ThermalReader（v4.0.41+）
+
+三通道温度读取策略，替代旧 SELinux 封锁的 sysfs 直读：
+
+| 通道 | API | 最低版本 | 类型 |
+|------|-----|---------|------|
+| Channel 1 | `PowerManager.getThermalHeadroom(10)` | API 30 | 主动预测 |
+| Channel 2 | `PowerManager.currentThermalStatus` | API 29 | 被动回调 |
+| Channel 3 | sysfs `/sys/class/thermal/` + BatteryManager | API 24 | 降级回退 |
+
+接口 `ThermalReader` 定义于 `core/engine/.../thermal/`，`AndroidThermalReader` 为 Android 实现。
+iOS 移植通过 `ProcessInfo.thermalState` 实现 `ThermalReader` 接口。
+
+### ThermalController 多级降级（v4.0.41+）
+
+| 等级 | 并行度 | 渲染质量 | 目标帧率 | 粒子 | 后处理 |
+|------|--------|---------|---------|------|--------|
+| GREEN | 全(4线程) | 1.0(完整) | 60fps | 开启 | 开启 |
+| YELLOW | 半(2线程) | 0.8 | 45fps | 开启 | 开启 |
+| ORANGE | 单(1线程) | 0.6 | 30fps | 关闭 | 关闭 |
+| RED | 单(1线程) | 0.4 | 30fps锁定 | 关闭 | 关闭 |
+
+### Scene-Aware Frame Rate（v4.0.41+）
+
+`GameEngineCore` 根据当前场景动态调整帧率预算：
+
+| 场景 | 帧率 | 帧预算 | 触发条件 |
+|------|------|--------|---------|
+| IDLE | 10fps | 100ms | 无操作 ≥30s |
+| MAP_SCROLL | 30fps | 33ms | 地图拖拽/惯性滑行 |
+| GAMEPLAY | 60fps | 16ms | 正常游戏操作 |
+| BATTLE | 60fps | 16ms | 战斗场景 |
     fun startMonitoring(window: Window)   // 注册 OnFrameMetricsAvailableListener
     fun stopMonitoring(window: Window)    // 注销监听器
     fun getStats(): FrameMetricsStats     // 统计汇总

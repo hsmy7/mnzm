@@ -78,7 +78,92 @@ class GameEngineCore @Inject constructor(
      */
     @Volatile
     internal var missionCheck: (suspend () -> Unit)? = null
-    
+
+    // ──────── 场景感知帧率控制（P1.3） ────────
+
+    /**
+     * 游戏场景枚举 — 用于动态调整帧率预算。
+     */
+    enum class GameScene(val displayName: String, val targetFrameTimeMs: Long) {
+        /** 后台/息屏/无操作 — 最低帧率保电 */
+        IDLE("后台", 100L),
+        /** 地图滚动/惯性滑行 — 30fps 足够 */
+        MAP_SCROLL("地图滚动", 33L),
+        /** 正常游戏（Tab、对话框操作）— 60fps */
+        GAMEPLAY("游戏", 16L),
+        /** 战斗动画 — 60fps 优先 */
+        BATTLE("战斗", 16L)
+    }
+
+    /** 当前游戏场景（UI 层通过 [onSceneChanged] 设置） */
+    @Volatile
+    var currentScene: GameScene = GameScene.GAMEPLAY
+        private set
+
+    /** 设置游戏场景，引擎据此调整帧率预算和等待时间 */
+    fun onSceneChanged(scene: GameScene) {
+        if (currentScene != scene) {
+            DomainLog.i(TAG, "Scene changed: ${currentScene.displayName} → ${scene.displayName}")
+            currentScene = scene
+        }
+    }
+
+    /** 场景帧时间预算（单位：ns，用于游戏等待自适应） */
+    private val sceneFrameBudgetNs: Long
+        get() = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(currentScene.targetFrameTimeMs)
+
+    /** 渲染帧率发布（供 NativeSurfaceView/SoftwareCanvasBackend 参考） */
+    private val _renderFrameRate = MutableStateFlow(60)
+    val renderFrameRate: StateFlow<Int> = _renderFrameRate.asStateFlow()
+
+    /** 渲染质量因子发布（供 SoftwareCanvasBackend/Compose UI 参考） */
+    private val _renderingQualityFactor = MutableStateFlow(1.0f)
+    val renderingQualityFactor: StateFlow<Float> = _renderingQualityFactor.asStateFlow()
+
+    /** 是否关闭装饰层（热控降级时） */
+    private val _decorationsDisabled = MutableStateFlow(false)
+    val decorationsDisabled: StateFlow<Boolean> = _decorationsDisabled.asStateFlow()
+
+    private fun updateRenderFrameRate() {
+        // 热控建议帧率与场景帧率取其小（降级优先）
+        val thermalFps = thermalController.recommendedTargetFps
+        val sceneFps = when (currentScene) {
+            GameScene.IDLE -> 10
+            GameScene.MAP_SCROLL -> 30
+            GameScene.GAMEPLAY -> 60
+            GameScene.BATTLE -> 60
+        }
+        val effectiveFps = minOf(thermalFps, sceneFps)
+        _renderFrameRate.value = effectiveFps
+        _renderingQualityFactor.value = thermalController.renderingQualityFactor
+        _decorationsDisabled.value = thermalController.particlesDisabled
+    }
+
+    /**
+     * UI 层通知引擎：用户活跃（有触摸/操作），自动切换到 GAMEPLAY。
+     * 闲置超过 30s 后自动切回 IDLE。
+     */
+    @Volatile
+    private var lastUserActivityTimeNs: Long = 0L
+    private val IDLE_TIMEOUT_NS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30)
+
+    /** 通知引擎用户有操作 */
+    fun onUserActivity() {
+        lastUserActivityTimeNs = System.nanoTime()
+        if (currentScene == GameScene.IDLE) {
+            onSceneChanged(GameScene.GAMEPLAY)
+        }
+    }
+
+    /** 检查是否需要因闲置而降帧 */
+    private fun checkIdleTimeout(nowNs: Long) {
+        if (currentScene == GameScene.GAMEPLAY || currentScene == GameScene.MAP_SCROLL) {
+            if (lastUserActivityTimeNs > 0 && (nowNs - lastUserActivityTimeNs) >= IDLE_TIMEOUT_NS) {
+                onSceneChanged(GameScene.IDLE)
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "GameEngineCore"
         private const val TICK_INTERVAL_MS = 100L
@@ -361,16 +446,25 @@ class GameEngineCore @Inject constructor(
                     // Step 4: 插值因子
                     currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
 
-                    // Step 5: 自适应等待
+                    // Step 5: 闲置超时检测
+                    checkIdleTimeout(nowNs)
+
+                    // Step 6: 场景感知自适应等待（P1.3）
                     if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
-                        val waitMs = ((LOGIC_DT_NS - accumulatorNs) / 1_000_000).coerceIn(1L, 100L)
+                        // 无 tick 执行 → 按场景帧预算等待
+                        val budgetMs = currentScene.targetFrameTimeMs
+                        val consumedMs = (System.nanoTime() - nowNs) / 1_000_000
+                        val waitMs = (budgetMs - consumedMs).coerceIn(1L, budgetMs)
                         delay(waitMs)
                     } else {
+                        // 有 tick 执行 → 确保不超过场景帧预算
                         val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
-                        if (frameElapsedMs < TICK_INTERVAL_MS) {
-                            antiFreezeDelay(TICK_INTERVAL_MS - frameElapsedMs, deltaNs / 1_000_000)
+                        val budgetMs = currentScene.targetFrameTimeMs
+                        if (frameElapsedMs < budgetMs) {
+                            antiFreezeDelay(budgetMs - frameElapsedMs, deltaNs / 1_000_000)
                         }
                     }
+                    updateRenderFrameRate()
                 }
             } finally {
                 gameLoopStoppedSignal.complete(Unit)
@@ -662,9 +756,13 @@ class GameEngineCore @Inject constructor(
         _wasPausedByBackground = false
     }
 
-    /** UI 层调用：重置批量结算时钟，推迟下一次 30s 全量结算 */
+    /**
+     * UI 层调用：重置批量结算时钟 + 通知场景管理器用户活跃。
+     * 连续无操作 30s 后自动切到 IDLE 场景降帧保电。
+     */
     fun onUserInteraction() {
         settlementCoordinator.resetBatchClock()
+        onUserActivity()
     }
 
     /**

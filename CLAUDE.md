@@ -243,7 +243,9 @@ Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`
 
 **FingerprintSnapshot (R13)：** 只读轻量快照，零 deepCopy，仅指纹变化时回退到完整 `createSettlementShadow()`。
 
-**并发基础设施（v4.0.40）：** `DeviceCapabilityProfiler`（线程池管理）、`ParallelExecutionContext`（只读快照）、`BackgroundJobScheduler`（后台调度）、`ThermalController`（热控降级）、`CultivationBatchResult` / `ParallelPhaseResult`（并行结算结果）。均在 `core/engine/.../concurrent/`。
+**并发基础设施（v4.0.40）：** `DeviceCapabilityProfiler`（线程池管理）、`ParallelExecutionContext`（只读快照）、`BackgroundJobScheduler`（后台调度）、`ThermalController`（热控降级，v4.0.41+ 使用 `ThermalReader` 三通道温度读取）、`CultivationBatchResult` / `ParallelPhaseResult`（并行结算结果）。均在 `core/engine/.../concurrent/`。
+
+**热控与温度读取（v4.0.41）：** `ThermalReader` 接口定义三通道温度获取策略，`AndroidThermalReader` 实现：1) `PowerManager.getThermalHeadroom(10)` (API 30+) 主动预测；2) `PowerManager.currentThermalStatus` (API 29+) 被动状态；3) sysfs + BatteryManager 降级回退。`ThermalController` 消费 `ThermalReader` 温度数据驱动四档降级阶梯（GREEN/YELLOW/ORANGE/RED），联动并行度、渲染质量、目标帧率。接口预留 iOS `ProcessInfo.thermalState` 移植点。位于 `core/engine/.../thermal/`。
 
 **四线程调度模型：**
 | 调度器 | 线程数 | 优先级 | 用途 |

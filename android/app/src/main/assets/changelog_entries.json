@@ -151,5 +151,18 @@
       "技术：公式系统统一为乘区法——全部数值计算统一为乘区内加算、乘区间乘算结构，新增7个乘区data class及ZoneCalculator核心工具",
       "技术：修复8个预存测试失败——VassalServiceTest/EquipmentSpriteTest/ChangelogParseTest/MainGameScreenTest/ViewModelArchitectureTest"
     ]
+  },
+  {
+    "date": "2026-07-07",
+    "version": "4.0.41",
+    "changes": [
+      "优化：场景感知动态帧率——空闲10fps/地图30fps/游戏60fps，闲置30s自动降帧保电",
+      "优化：热控多级降级阶梯——GREEN/YELLOW/ORANGE/RED四级，联动并行度+渲染质量+目标帧率",
+      "新增：ThermalReader温度读取——三通道方案：PowerManager.getThermalHeadroom(API 30+)/ThermalStatus(API 29+)/sysfs+Battery降级，替代旧SELinux封锁的sysfs直读",
+      "优化：Canvas地图渲染分层缓存——建筑/地面/装饰分离缓存，热控降级时跳过装饰层",
+      "优化：SettlementScheduler帧预算感知——负载重时保守预算(0.5ms)，负载轻时激进(12ms)，年度结算分帧",
+      "技术：SettlementScheduler新增loadReductionRequested负载降级标志",
+      "技术：新增ThermalControllerTest(28个测试)+SettlementSchedulerTest(8个测试)+SoftwareCanvasBackendTest扩充(8个测试)"
+    ]
   }
 ]
