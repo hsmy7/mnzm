@@ -5,4 +5,7 @@ TAPTAP_CLIENT_ID="your_taptap_client_id_here"
 TAPTAP_CLIENT_TOKEN="your_taptap_client_token_here"
 TAPTAP_IS_CN=true
 TAPDB_CHANNEL="taptap"
+# APK 签名 SHA-256 指纹（用于离线兑换码校验）
+# 生成方式: keytool -list -v -keystore <你的keystore> -alias <alias>
+# 输出中 SHA256 的值去掉冒号并转为小写填入
 APK_SIGNATURE_HASH=""
