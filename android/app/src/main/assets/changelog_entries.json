@@ -27,13 +27,7 @@
       "修复：全部18种建筑精灵图显示正确——修正BUILDING_UV_MAP图集行分布（旧假设每行4个，实际为每行5个），索引≥4的建筑不再显示错误精灵",
       "优化：着色器编译——采用主流游戏两阶段初始化（加载界面预创建VkDevice+编译ShaderModule+加载Pipeline Cache），宗门地图Surface首次可见时零延迟",
       "新增：Pipeline Cache持久化——管线编译结果存入磁盘缓存文件，下次启动直接复用跳过GPU驱动重新编译",
-      "优化：resize不再重新编译着色器——ShaderModule跨Surface尺寸复用"
-      ]
-    },
-  {
-    "date": "2026-07-05",
-    "version": "4.0.41",
-    "changes": [
+      "优化：resize不再重新编译着色器——ShaderModule跨Surface尺寸复用",
       "新增：宗门地图渲染架构升级——Vulkan原生渲染管线，独立渲染线程+3 draw calls/帧，CPU开销<0.1ms",
       "新增：VulkanPolicy设备兼容性检测——高通/联发科/国产厂商分级，问题设备自动禁用硬件加速",
       "重构：移除GameActivity 200行地图位图预加载代码——纹理改由NativeSurfaceView.buildAtlas()独立管理",
@@ -44,7 +38,6 @@
       "修复：建筑覆盖装饰物后装饰物未被清除——根因：地面和装饰物合并无法独立控制。三层重构后建筑下方装饰物自然跳过",
       "修复：移动建筑后原位置显示残影（根因：Bitmap swap竞态+previousBuildings追踪遗漏）",
       "修复：建筑移动确认时序——movingBuilding=null在stateStore.update完成后执行，消除竞态",
-      "新增：视口裁剪——跳过视口外的建筑绘制，降低draw call",
       "删除：高低配双渲染路径——shouldBakeBuildings分支删除，统一为单一渲染路径",
       "删除：移除储备弟子机制——删除执法堂/炼丹炉/锻造坊/灵植阁四个部门的储备弟子池（30+文件全链路清理）",
       "修复：EntityStore脏读导致StackableItemStore合并失败——items属性dirty时返回items_确保读取实时一致",

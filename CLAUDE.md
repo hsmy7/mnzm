@@ -5,14 +5,11 @@
 本用户不懂技术，需求描述未必清晰、未必使用专业术语。
 
 ### AI 行为规范
-1. **产品经理思维优先** — 收到需求后，先用业务语言复述确认理解，再转化为技术方案落地
-2. **听不懂必须问** — 理解不了的地方立即中断，向用户提问确认，不得猜测需求
-3. **提问要精准** — 简洁、直接、给出选项，不要让用户解释技术细节
-4. **翻译是 AI 的工作** — 不要期待用户提供字段名、接口文档、技术规范；听完业务描述后 AI 自己查
-5. **不要闷头干** — 不确定时先问，别等做完了才发现方向错了
-6. **因果链确凿** — 定位问题时，必须从症状追溯到根因，每一步因果关系都要能说清楚。禁止仅凭相关性就下结论，必须有直接证据链
-7. **举一反三排查** — 定位到问题后、动手修复前，先搜索代码库中是否存在同类模式的其他问题，一并纳入修复方案，再统一实施
-8. **默认使用中文** — 所有回复、注释、commit message、文档均使用中文，除非涉及代码标识符或技术术语无合适翻译
+1. **先确需再执行** — 收到需求后先用业务语言复述确认理解，再自行翻译为技术方案；不确定时立即提问，不猜测需求，不让用户解释技术细节
+2. **提问要精准** — 简洁、直接、给出选项，不要让用户解释技术细节
+3. **因果链确凿** — 定位问题时，必须从症状追溯到根因，每一步因果关系都要能说清楚。禁止仅凭相关性就下结论，必须有直接证据链
+4. **举一反三排查** — 定位到问题后、动手修复前，先搜索代码库中是否存在同类模式的其他问题，一并纳入修复方案，再统一实施
+5. **默认使用中文** — 所有回复、注释、commit message、文档均使用中文，除非涉及代码标识符或技术术语无合适翻译
 
 ---
 
@@ -361,7 +358,7 @@ val data = gameEngine.gameDataSnapshot ?: return
 
 **1.2 🟡 优先 `val`** — 所有属性默认 `val`。`var` 仅在不可变 copy-on-write 不可行时使用，需注释说明理由。
 
-**1.3 🔴 领域结果用 sealed class** — 所有可能失败的操作返回 sealed class 结果类型，禁止裸 `Boolean` 代表成功/失败。
+**1.3 🔴 领域结果用 sealed class** — 所有可能失败的操作返回 sealed class 结果类型。可预期的业务失败（找不到、校验失败）用 sealed class，不抛异常；异常仅用于程序错误和基础设施故障。禁止裸 `Boolean` 代表成功/失败。
 
 ```kotlin
 // ❌ BAD — 调用方不知道为何失败
@@ -375,16 +372,7 @@ sealed interface ToggleResult {
 
 **1.4 🔴 协程规范：**
 - 禁止 `runBlocking`（仅测试可用 `runTest`）
-- `CancellationException` 必须重新抛出，**任何 catch Exception 前必须有 `catch (e: CancellationException) { throw e }`**
 - Dispatcher 通过 Hilt `@Dispatcher(IO)` 注入，禁止硬编码 `Dispatchers.IO`
-
-```kotlin
-// ❌ BAD — 吞掉 CancellationException
-try { doWork() } catch (e: Exception) { log(e) }
-// ✅ GOOD — 先重新抛出 CancellationException
-try { doWork() } catch (e: CancellationException) { throw e }
-  catch (e: Exception) { log(e) }
-```
 
 **1.5 🟢 扩展函数放专用文件** — 对某类型的大量扩展函数放入 `{TypeName}Ext.kt`，不堆积在 ViewModel/Service 中。
 
@@ -451,7 +439,6 @@ class GameViewModel @Inject constructor(
 
 **4.1 🔴 必须继承 `BaseViewModel`** — 所有 ViewModel 继承 `com.xianxia.sect.ui.game.BaseViewModel`，确保统一的 `showError()`/`showSuccess()` 事件通道。
 
-**4.2 🔴 构造参数 ≤7 个** — 超限须将相关依赖提取为独立 Facade。
 
 **4.3 🔴 只读 StateFlow 暴露状态** — 禁止公开 `MutableStateFlow`，所有状态通过 `StateFlow`（只读）暴露给 Compose。
 
@@ -463,7 +450,7 @@ private val _productionSlots = MutableStateFlow<List<ProductionSlot>>(emptyList(
 val productionSlots: StateFlow<List<ProductionSlot>> = _productionSlots.asStateFlow()
 ```
 
-**4.4 🔴 禁止直接访问 `GameStateStore`** — ViewModel 所有状态变更通过 `GameEngine` 方法，不直接调用 `stateStore.update()` 或 `gameEngine.updateGameData {}`。
+**4.4 🔴 禁止直接访问 `GameStateStore`** — ViewModel 和 UI 层所有状态变更通过 `GameEngine` 方法，不直接调用 `stateStore.update()` 或 `gameEngine.updateGameData {}`。数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
 
 **4.5 🟡 UserAction/ActionResult 模式** — ViewModel 公开方法使用 sealed `UserAction` 统一入口，便于错误处理和日志。
 
@@ -489,9 +476,7 @@ val productionSlots: StateFlow<List<ProductionSlot>> = _productionSlots.asStateF
 
 **6.1 🔴 `GameStateStore` 是唯一真相源** — 禁止在 ViewModel/Service 中缓存 `GameData` 或实体列表的本地副本。
 
-**6.2 🔴 UI 层禁止直接写 `GameStateStore`** — 数据流单向：UI → ViewModel → GameEngine → Service → GameStateStore。
-
-**6.3 🟡 多实体变更必须用单次 `stateStore.update`** — 所有状态修改在 `stateStore.update {}` 事务内原子完成，禁止多次孤立的 `update` 调用。
+**6.2 🟡 多实体变更必须用单次 `stateStore.update`** — 所有状态修改在 `stateStore.update {}` 事务内原子完成，禁止多次孤立的 `update` 调用。
 
 ```kotlin
 // ❌ BAD — 多次孤立的 update 调用
@@ -507,9 +492,9 @@ stateStore.update {
 }
 ```
 
-**6.5 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
+**6.3 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
 
-**6.6 🔴 新增可变化数据需同步更新指纹** — 批量轨指纹检测依赖 `CultivationRateFingerprint` 检测修炼速率变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
+**6.4 🔴 新增可变化数据需同步更新指纹** — 批量轨指纹检测依赖 `CultivationRateFingerprint` 检测修炼速率变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
 - `DiscipleTables` 新增列（影响修炼速率计算）→ `SettlementCoordinator.computeFingerprint` 的 `perDiscipleHash`
 - `ElderSlots` 新增槽位类型 → 若在 data class 内部自动覆盖；若单独建表需手动加入
 - `SectPolicies` 新增政策 → 若在 data class 内部自动覆盖；否则需手动加入 `productionPolicyHash`
@@ -519,7 +504,7 @@ stateStore.update {
 
 指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。指纹检测每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
 
-**6.7 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
+**6.5 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
 
 新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新：
 
@@ -529,22 +514,20 @@ stateStore.update {
 
 判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面不在此表。**
 
-**6.8 🔴 新增精灵图必须注册到 SpriteResRegistry** — 详见 `rules/static-resources.md`。任何新增的精灵图资源必须走统一注册管道，禁止绕过：
+**6.6 🔴 精灵图必须统一注册并使用统一入口** — 详见 `rules/static-resources.md`。所有静态图片资源必须：
 
-1. **文件放置** — WebP 必须同时放入 `feature/game/src/main/res/drawable-nodpi/` 和 `app/src/main/res/drawable-nodpi/` 两个模块
-2. **注册** — 在 `XianxiaApplication.kt` 中调用 `SpriteResRegistry.register(SpriteCategory.XXX, mapOf("名称" to R.drawable.xxx))`
-3. **显示** — 界面中使用 `SpriteImage("名称")` 或 `SpriteResRegistry.resolve("名称")`，**禁止**直接写 `painterResource(R.drawable.xxx)`
-4. **完成** — 注册后预加载自动发现、缓存自动生效，不需要修改 `ResourcePreloader`
+1. **无损 WebP 格式** — 使用 `scripts/convert-remaining-pngs-to-webp.mjs`（lossless: true, effort: 6）
+2. **两模块文件放置** — WebP 放入 `feature/game/src/main/res/drawable-nodpi/` 和 `app/src/main/res/drawable-nodpi/`
+3. **注册** — 在 `XianxiaApplication.kt` 调用 `SpriteResRegistry.register(SpriteCategory.XXX, mapOf("名称" to R.drawable.xxx))`
+4. **显示** — 使用 `SpriteImage("名称")`、Canvas 中 `drawSprite(name, cache, ...)` 或 `painterResource(id = SpriteResRegistry.resolve("名称") ?: 0)`
+5. ❌ 禁止直引 `painterResource(R.drawable.xxx)`（注册代码除外），禁止硬编码 `R.drawable` 列表
+6. ❌ 禁止提交 PNG/JPG 游戏图片（唯一例外：`ic_launcher-playstore.png`）
 
-**6.9 🔴 新增 UI 界面必须使用统一精灵图入口** — 任何新增的 Composable 界面（Dialog/Screen/Tab/Component），如需显示精灵图：
+---
 
-- ✅ 使用 `SpriteImage(name = "精灵图名称", contentDescription = "描述")` — 自动查缓存 + 自动回退
-- ✅ 在 Canvas 中使用 `drawSprite(name, cache, ...)` — 使用预加载缓存
-- ✅ 需手动处理 Painter 时使用 `painterResource(id = SpriteResRegistry.resolve("名称") ?: 0)` — 通过注册表查找
-- ❌ **禁止** `painterResource(R.drawable.xxx)` 直接引用（XianxiaApplication 注册代码除外）
-- ❌ **禁止** 新建硬编码 `R.drawable` 列表（如 `listOf(R.drawable.tiger_beast, ...)`）
+### 7. 数据库规范
 
-**7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。
+**7.1 🔴 任何 Entity 变更必须有 Migration** — 详见 `rules/database-migration.md`。每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。**修改 `@Entity` 前必须先读 migration 规则**，最常见的存档损坏原因就是改字段没写 Migration。拿不准时保留旧字段+新字段（`@Ignore`），永远不要删列。
 
 **7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。使用 `db.safeDropColumns()` 或保留旧列 + `@Ignore`。
 
@@ -560,24 +543,9 @@ stateStore.update {
 
 **8.2 🔴 禁止空 catch 块** — 每个 `catch` 至少包含 `Log.w(TAG, "...", e)`。
 
-**8.3 🟡 领域错误用 sealed Result 类型** — 可预期的业务失败（找不到、校验失败）用 sealed class，不抛异常。异常仅用于程序错误和基础设施故障。
+**8.3 🟡 UI 错误统一走 `BaseViewModel.showError()`** — ViewModel 不直接处理错误展示。
 
-```kotlin
-// ❌ BAD — 抛异常用于正常业务流程
-fun getDisciple(id: String): Disciple =
-    list.find { it.id == id } ?: throw NotFoundException(id)
-
-// ✅ GOOD — sealed result，编译器强制处理
-fun getDisciple(id: String): DiscipleResult
-sealed interface DiscipleResult {
-    data class Success(val d: Disciple) : DiscipleResult
-    data class NotFound(val id: String) : DiscipleResult
-}
-```
-
-**8.4 🟡 UI 错误统一走 `BaseViewModel.showError()`** — ViewModel 不直接处理错误展示。
-
-**8.5 🟡 引擎错误记录上下文** — `Log.e(TAG, "操作名 failed: id=$id, ctx=$ctx", e)`，信息足够定位问题。
+**8.4 🟡 引擎错误记录上下文** — `Log.e(TAG, "操作名 failed: id=$id, ctx=$ctx", e)`，信息足够定位问题。
 
 ---
 
@@ -587,9 +555,7 @@ sealed interface DiscipleResult {
 
 **9.2 🔴 Migration 必须有集成测试** — 每条 Migration 验证旧数据能完整迁移。
 
-**9.3 🔴 新功能必须有测试** — 新增类/方法需有对应测试，否则 PR 不可合并。
-
-**9.4 🟡 测试命名：`方法名_状态_预期行为`** — Given-When-Then 模式。
+**9.3 🟡 测试命名：`方法名_状态_预期行为`** — Given-When-Then 模式。
 
 ```kotlin
 // ✅ GOOD
@@ -597,7 +563,7 @@ sealed interface DiscipleResult {
 fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 ```
 
-**9.5 🟢 优先 Fake 而非 Mock** — 手写 Fake 实现优于 Mockito mock，可复用、可读、可调试。
+**9.4 🟢 优先 Fake 而非 Mock** — 手写 Fake 实现优于 Mockito mock，可复用、可读、可调试。
 
 ---
 
@@ -640,7 +606,15 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 
 **12.3 🟢 同步 `CODE_WIKI.md`** — 新增模块/模式后更新架构文档。
 
-**12.4 🔴 功能变更必须更新 Changelog** — 同步更新 `CHANGELOG.md`（项目根目录）和 `ChangelogData.kt`（游戏内）。改动写入**当前版本**条目，不强制递增版本号。
+**12.4 🔴 功能变更必须更新 Changelog** — 功能完成后同步更新两个文件，变更从玩家视角用中文描述：
+
+- **游戏内**: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt` — 追加 `ChangelogEntry`
+- **外部**: `CHANGELOG.md`（项目根目录）— 追加到**当前版本**段落内，不强制递增版本号
+
+**版本号变更规则：**
+- 普通改动写入当前版本条目，不递增 `versionCode`/`versionName`
+- **禁止擅自更新版本号**，由用户判断和指令
+- 需要在 `build.gradle` 中更新版本号的场景（发布新版本、重大功能完成、存档兼容性变更等）由用户决定
 
 ---
 
@@ -703,9 +677,13 @@ empty-blocks:
 
 **方案必须是可长期维护的成熟方案，禁止分阶段/渐进式交付。** 设计方案应当一次性完整覆盖所有影响点（包括 UI、存储、测试、旧数据兼容），不允许遗留"后续优化"。方案本身即为最终态，执行者照单实施即可，不应需要自行补充或二次设计。
 
+**最优方案不计成本且需跨 iOS 平台：** 不考虑时间成本、人力成本等任何实施成本，要求**全量采纳**同类型热门游戏（原神、星铁、米哈游系、网易系、腾讯系、莉莉丝、鹰角、叠纸等）的先进设计。若因产品定位、技术栈限制等客观原因无法全量使用，必须逐条说明无法采纳的原因和替代方案。
+
+**方案必须考虑 iOS 跨平台兼容性：** 所有设计方案（UI 组件、渲染管线、手势系统、存储格式、网络协议等）必须确保 Android 与 iOS 两套平台均可落地，优先选择跨平台一致的方案。若技术方案依赖 Android 独占 API 或平台特定特性，须在方案中给出 iOS 侧的对等实现方案。
+
 **硬性指标：**
 - 行业参考来源 **不得少于 20 条**，且必须来自权威渠道
-- 所有参考数据必须是 **近 2 年内** 的最新数据（以当前日期为准），禁止引用过时资料
+- 所有参考数据必须是 **本年加前两年（当前年份和前两年）** 的最新数据（以当前日期为准），禁止引用过时资料
 - 每条参考必须标注来源 URL 和发布日期，无法确认发布日期的来源不得使用
 - 调研报告中必须包含参考来源清单及每条的核心摘要
 
@@ -730,36 +708,6 @@ empty-blocks:
 4. 确保收集 ≥20 条有效参考后，输出对比分析报告，标注推荐方案和理由
 5. 报告末尾附完整的参考来源清单（标题 + URL + 发布日期）
 6. 用户确认后再执行
-
-## Database Migration Requirements
-
-Before modifying ANY `@Entity` class (especially `GameData`), read `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
-
-- **NEVER use `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0+ required, not guaranteed on any Android version. To drop columns, use `db.safeDropColumns("table", "col1", "col2")` (defined in `GameDatabase.kt`). It rebuilds the table via PRAGMA, works on all API levels.
-- **v3.1.60 起不再有 .sav 双写** — Room 是唯一本地存储。修改 `@Entity` 只需一条 DB Migration，无需同步修改 `SerializableSaveData`。序列化层仅在 `SavMigrator`（读旧 .sav）和未来联机通信时使用。
-- **ProtoBuf 只支持 `List`，不支持 `Set`/`Map` 等集合类型** — 所有通过 `ProtobufConverters` 直接序列化的 `@Serializable` 数据类（如 `SectPolicies`、`GameData` 内的嵌套对象），字段必须用 `List`，禁止 `Set`、`Map`。需要去重语义时在业务层用 `.toSet()` 转换。忽略此条会导致序列化静默失败，**存档变空**（v3.1.74 血泪教训）。
-
-## Static Resource Requirements
-
-When adding ANY new static image resource (sprites, UI elements, buildings, portraits, map tiles, etc.), read `rules/static-resources.md`. All image resources MUST be:
-
-1. **Lossless WebP format** — use `scripts/convert-remaining-pngs-to-webp.mjs` (lossless: true, effort: 6)
-2. **Registered for preloading** — register in `SpriteResRegistry.initialize()` / `BuildingRegistry` / `PortraitPool` / `ResourcePreloader` depending on resource type
-
-Never commit PNG/JPG game images. The only PNG exception is `ic_launcher-playstore.png` for Google Play Store listing.
-
-## Changelog Requirements
-
-After implementing any feature or bug fix, update BOTH:
-- **In-game**: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt` — add/append `ChangelogEntry` to `entries` list
-- **External**: `CHANGELOG.md` at project root — **追加到当前版本段落内**（不总是新建版本）
-
-Both must be updated before marking any task complete. Changes described in Chinese from the player's perspective.
-
-**版本号变更规则：**
-- 普通改动直接写入当前版本的日志条目，不递增版本号
-- **禁止擅自更新版本号**（`versionCode`、`versionName`）—— 只有用户明确要求时才可更新
-- 需要在 `build.gradle` 中更新版本号的场景（发布新版本、重大功能完成、存档兼容性变更等）由用户判断和指令
 
 ## Version Release
 

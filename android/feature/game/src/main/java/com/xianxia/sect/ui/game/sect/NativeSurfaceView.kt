@@ -200,6 +200,17 @@ class NativeSurfaceView(
 
             val surface = holder.surface ?: return
 
+            // ★ 新增：初始化超时安全网（10 秒）
+            val timeoutRunnable = Runnable {
+                if (!isReady) {
+                    android.util.Log.w("NativeSurfaceView",
+                        "Vulkan init timed out (10s), forcing ready")
+                    initInProgress = false
+                    isReady = true
+                }
+            }
+            postDelayed(timeoutRunnable, 10_000L)
+
             kotlin.concurrent.thread(name = "VulkanInit") {
                 val initStart = System.currentTimeMillis()
                 val ok = try {
@@ -221,6 +232,14 @@ class NativeSurfaceView(
                     android.util.Log.e("NativeSurfaceView",
                         "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms")
                     initInProgress = false
+                    // 即使 Vulkan 初始化失败，也设 isReady = true 让游戏 UI 可操作
+                    // （NativeSurfaceView 区域保持黑色，但 Compose 按钮/菜单不受影响）
+                    post {
+                        removeCallbacks(timeoutRunnable)
+                        if (!isReady) {
+                            isReady = true
+                        }
+                    }
                     return@thread
                 }
 
@@ -229,6 +248,7 @@ class NativeSurfaceView(
 
                 // init 成功后回到主线程上传纹理，再启动渲染线程
                 post {
+                    removeCallbacks(timeoutRunnable)
                     initInProgress = false
                     if (isReady) return@post
 

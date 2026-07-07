@@ -49,7 +49,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.di.IoDispatcher
@@ -192,23 +193,32 @@ class GameActivity : ComponentActivity() {
 
                     LaunchedEffect(gameData.isGameStarted) {
                         if (gameData.isGameStarted && mapPreloadData == null) {
-                            saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
+                            // 仅当当前进度未超过 0.9 时标记地图预加载阶段；
+                            // 防止 loadGameFromSlot 已推进至 1.0 后进度回退
+                            if (saveLoadViewModel.loadingProgress.value < SaveLoadViewModel.PROGRESS_MAP_PRELOAD) {
+                                saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
+                            }
 
                             // Phase 1: 预加载 Vulkan 设备 + 着色器（主流做法）
                             withContext(ioDispatcher.dispatcher) {
                                 NativeBridge.ensureLoaded()
+                                val w = GameConfig.SectMap
+                                val p = w.WORLD_WIDTH_CELLS * w.TILE_SIZE
+                                val q = w.WORLD_HEIGHT_CELLS * w.TILE_SIZE
                                 try {
-                                    val w = GameConfig.SectMap
-                                    val p = w.WORLD_WIDTH_CELLS * w.TILE_SIZE
-                                    val q = w.WORLD_HEIGHT_CELLS * w.TILE_SIZE
-                                    val d = applicationContext.cacheDir
-                                    NativeBridge.prewarmDevice(
-                                        d.absolutePath, p, q, w.TILE_SIZE
-                                    ).let { ok ->
-                                        if (ok) Log.d(TAG,
-                                            "Vulkan device prewarmed")
-                                        else Log.w(TAG, "prewarm failed")
+                                    // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
+                                    withTimeout(5_000L) {
+                                        val d = applicationContext.cacheDir
+                                        NativeBridge.prewarmDevice(
+                                            d.absolutePath, p, q, w.TILE_SIZE
+                                        ).let { ok ->
+                                            if (ok) Log.d(TAG,
+                                                "Vulkan device prewarmed")
+                                            else Log.w(TAG, "prewarm failed")
+                                        }
                                     }
+                                } catch (e: TimeoutCancellationException) {
+                                    Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time")
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {

@@ -98,7 +98,7 @@ suspend fun GameEngine.loadData(
     heavyDataLoaded = false
     val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
     stateStore.loadFromSnapshot(
-        gameData = migratedGameData.copy(isGameStarted = true), disciples = migratedDisciples,
+        gameData = migratedGameData, disciples = migratedDisciples,
         equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
         manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
         materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,

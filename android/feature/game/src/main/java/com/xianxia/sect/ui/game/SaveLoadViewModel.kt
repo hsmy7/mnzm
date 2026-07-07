@@ -708,6 +708,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 startGameLoop()
                 _isGameLoaded = true
+                gameEngine.updateGameData { it.copy(isGameStarted = true) }
                 showSuccess("读档成功")
 
                 val gd = gameEngine.gameData.value
@@ -845,6 +846,7 @@ class SaveLoadViewModel @Inject constructor(
                     startGameLoop()
                     _isGameLoaded = true
                     gameLoaded = true
+                    gameEngine.updateGameData { it.copy(isGameStarted = true) }
                     _loadingProgress.value = PROGRESS_COMPLETE
 
                     val gd = gameEngine.gameData.value
