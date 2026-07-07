@@ -16,6 +16,15 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+// Vulkan 最低 API 版本要求：1.1（VK_API_VERSION_1_1 = (1 << 22)）
+// 参考 Unity Device Filtering 内置规则和 Flutter Impeller 的 Vulkan 选择逻辑
+static constexpr uint32_t MIN_VULKAN_API_VERSION = VK_API_VERSION_1_1;
+
+// 必需的 Vulkan 设备扩展列表
+static const std::vector<const char*> REQUIRED_DEVICE_EXTENSIONS = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
 // ============================================================
 // 初始化
 // ============================================================
@@ -379,14 +388,51 @@ bool VulkanBackend::selectPhysicalDevice() {
     for (auto& dev : devices) {
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(dev, &props);
+
+        // ── Vulkan API 版本安全检查 ──
+        // 验证驱动程序版本 >= 1.1，排除 1.0 的不完整实现
+        // 参考：Unity 内置最低规格（ARM Mali 要求 >= 1.0.61, 但 1.0 实现普遍不可靠）
+        uint32_t apiMajor = VK_API_VERSION_MAJOR(props.apiVersion);
+        uint32_t apiMinor = VK_API_VERSION_MINOR(props.apiVersion);
+        LOGI("GPU: %s | Vulkan %u.%u.%u (driver 0x%x)",
+             props.deviceName,
+             apiMajor, apiMinor, VK_API_VERSION_PATCH(props.apiVersion),
+             props.driverVersion);
+
+        if (props.apiVersion < MIN_VULKAN_API_VERSION) {
+            LOGE("  -> Vulkan %u.%u < minimum 1.1, SKIPPING",
+                 apiMajor, apiMinor);
+            continue;
+        }
+
         VkPhysicalDeviceFeatures features;
         vkGetPhysicalDeviceFeatures(dev, &features);
 
         // 确保支持纹理压缩（所有 Mali/Adreno 都支持 ETC2）
         if (!features.textureCompressionETC2 &&
             !features.textureCompressionASTC_LDR) {
+            LOGE("  -> No ETC2/ASTC texture compression, SKIPPING");
             continue;
         }
+
+        // ── 必需扩展检查 ──
+        uint32_t extCount = 0;
+        vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, nullptr);
+        std::vector<VkExtensionProperties> availableExts(extCount);
+        vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, availableExts.data());
+
+        bool allExtsFound = true;
+        for (const auto& req : REQUIRED_DEVICE_EXTENSIONS) {
+            bool found = false;
+            for (const auto& av : availableExts) {
+                if (strcmp(av.extensionName, req) == 0) { found = true; break; }
+            }
+            if (!found) {
+                LOGE("  -> Missing required extension: %s", req);
+                allExtsFound = false;
+            }
+        }
+        if (!allExtsFound) continue;
 
         uint32_t qCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &qCount, nullptr);
@@ -397,7 +443,9 @@ bool VulkanBackend::selectPhysicalDevice() {
             if (queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 m_graphicsQueueIndex = i;
                 m_physDevice = dev;
-                LOGI("Selected GPU: %s (queue %d)", props.deviceName, i);
+                LOGI("Selected GPU: %s (queue %d, Vulkan %u.%u.%u)",
+                     props.deviceName, i,
+                     apiMajor, apiMinor, VK_API_VERSION_PATCH(props.apiVersion));
                 return true;
             }
         }

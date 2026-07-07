@@ -36,6 +36,9 @@ object CrashRecoveryEngine {
     private const val KEY_RENDER_SAFE_MODE = "render_safe_mode"
     private const val KEY_LAST_CRASH_TIMESTAMP = "last_crash_timestamp"
     private const val KEY_LAST_CRASH_STACK_HASH = "last_crash_stack_hash"
+    private const val KEY_VULKAN_INIT_FAILED = "vulkan_init_failed"
+    /** 写前标记：Vulkan prewarm 开始前写入，成功后清除。下次启动发现此标记 → SIGSEGV */
+    private const val KEY_PREWARM_STARTED = "prewarm_started"
 
     /** 触发安全模式的连续崩溃阈值 */
     private const val SAFE_MODE_THRESHOLD = 3
@@ -146,6 +149,65 @@ object CrashRecoveryEngine {
             ║  Game performance may be reduced.                      ║
             ╚══════════════════════════════════════════════════════════╝
         """.trimIndent())
+    }
+
+    // ── Vulkan 初始化失败持久化标记 ──
+
+    /**
+     * 记录一次 Vulkan 初始化失败。
+     *
+     * 与 [recordCrash] 不同，此标记记录的是 Vulkan initDevice 返回 false 的软失败，
+     * 不是进程崩溃。标记持久化后，后续启动可直接跳过 Vulkan 尝试。
+     */
+    fun recordVulkanInitFailure() {
+        requirePrefs().edit().putBoolean(KEY_VULKAN_INIT_FAILED, true).apply()
+        Log.w(TAG, "Vulkan init failure recorded — will skip Vulkan on next launch")
+    }
+
+    /**
+     * 清除 Vulkan 初始化失败标记（用户手动恢复或版本更新后调用）。
+     */
+    fun clearVulkanInitFailure() {
+        requirePrefs().edit().remove(KEY_VULKAN_INIT_FAILED).apply()
+        Log.d(TAG, "Vulkan init failure flag cleared")
+    }
+
+    /**
+     * 是否有持久化的 Vulkan 初始化失败记录。
+     *
+     * 返回 true 时，VulkanPolicy 应直接使用 SOFTWARE_ONLY 渲染策略，
+     * 不再尝试 Vulkan 后端。
+     */
+    fun hasVulkanInitFailure(): Boolean {
+        return requirePrefs().getBoolean(KEY_VULKAN_INIT_FAILED, false)
+    }
+
+    // ── Vulkan prewarm 写前标记（检测 SIGSEGV 级崩溃） ──
+
+    /**
+     * 标记 Vulkan prewarm 已开始（在调 initDevice 之前调用）。
+     *
+     * 如果 Vulkan init 导致 SIGSEGV 进程被杀死，此标记不会被清除。
+     * 下次启动时 [wasPrewarmKilled] 返回 true → 直接禁用 Vulkan。
+     */
+    fun markPrewarmStarted() {
+        requirePrefs().edit().putBoolean(KEY_PREWARM_STARTED, true).apply()
+        Log.d(TAG, "Prewarm started mark set")
+    }
+
+    /**
+     * 清除 prewarm 标记（在 prewarmDevice 成功后调用）。
+     */
+    fun clearPrewarmStarted() {
+        requirePrefs().edit().remove(KEY_PREWARM_STARTED).apply()
+        Log.d(TAG, "Prewarm started mark cleared")
+    }
+
+    /**
+     * 上次 Vulkan prewarm 是否被 SIGSEGV 杀死（标记遗留意味着进程未正常完成）。
+     */
+    fun wasPrewarmKilled(): Boolean {
+        return requirePrefs().getBoolean(KEY_PREWARM_STARTED, false)
     }
 
 }

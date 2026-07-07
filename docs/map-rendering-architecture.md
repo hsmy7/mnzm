@@ -146,22 +146,45 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 
 ## 设备兼容性
 
-`VulkanPolicy` 检测设备 GPU 兼容性：
+`VulkanPolicy` 检测设备 GPU 兼容性，采用五层防御体系：
 
-| 等级 | 行为 |
-|------|------|
-| SAFE (高通 Adreno) | 正常使用硬件加速 |
-| WARNING (国产厂商 + Android 15+) | 日志警告，继续运行 |
-| PROBLEMATIC (MTK/已知问题机型) | 禁用硬件加速 |
+| 等级 | 判定条件 | 宗门地图渲染 | 系统 HW 加速 |
+|------|---------|-------------|-------------|
+| SAFE | 非国产厂商 / 高通 Adreno + Android < 15 | Vulkan | 开启 |
+| WARNING | 国产厂商 + 高通 + Android 15+ | Vulkan（有降级） | 开启 |
+| PROBLEMATIC | 非高通国产芯片 / 已知问题 GPU / MTK / 模拟器 / 持久化失败 | Canvas 软件渲染 | Android < 15 开启，≥15 关闭 |
 
-已知问题：国产 ROM（MIUI/OriginOS/ColorOS）的 Mali GPU Vulkan 驱动兼容性差。
-详见 `android-renderthread-crash-research.md`。
+### 五层防御体系
 
-## 设备兼容性 & Canvas 软件回退渲染（4.0.41+）
+```
+Layer 1: CrashRecoveryEngine.isSafeMode() — 连续崩溃 ≥3 次→安全模式
+Layer 2: isEmulator() — 5 种信号检测（HW/ABI/TAGS/FINGERPRINT/RADIO+SERIAL）
+Layer 3: hasVulkanInitFailure() — 前次运行 prewarmDevice 返回 false 的持久化标记
+Layer 4: wasPrewarmKilled() — 写前标记残留（前次 prewarm 被 SIGSEGV 杀死）
+Layer 5: detectTier() — 厂商/SoC/GPU 多因素判定
+  ├── 已知问题机型列表（MODEL 精确匹配）
+  ├── 联发科 SoC（board/hardware 前缀匹配）
+  ├── 国产非高通厂商（Kirin/Exynos/Unisoc 全版本降级）
+  ├── SOC_MODEL + board/hardware 已知 GPU 正则匹配
+  └── 通过→SAFE
+```
+
+关键变更（v4.0.42）：
+- **国产非高通芯片全版本降级**：去掉 `isAndroid15Plus` 限制，Kirin/Exynos/展讯等在所有 Android 版本上直接禁用 Vulkan
+- **模拟器检测增强**：新增 `Build.TAGS`/`FINGERPRINT`/`RADIO`+`BOOTLOADER`+`SERIAL` 三路信号
+- **写前标记检测 SIGSEGV**：`prewarmDevice` 之前写入标记，成功后清除，标记残留→进程被 Vulkan 炸过
+- **持久化失败标记**：`prewarmDevice` 返回 false 写入 SharedPreferences，跨会话记忆
+- **GPU 型号正则匹配**：基于行业报告（UE/Unity/Flutter Issue）维护已知问题 GPU 列表
+- **Native 层版本校验**：C++ VulkanBackend 要求 Vulkan API ≥ 1.1 + 必要扩展检查
+
+已知问题：国产 ROM（MIUI/OriginOS/ColorOS/HarmonyOS）的 Mali GPU Vulkan 驱动兼容性差。
+详见 `android-renderthread-crash-research.md` 和行业调研 `docs/research/tile-map-industry-benchmark.md`。
+
+## 设备兼容性 & Canvas 软件回退渲染（4.0.42+）
 
 ### 双轨渲染架构
 
-宗门地图从 **v4.0.41+** 起支持双轨渲染引擎，确保在 Vulkan 不可用的设备上地图仍能正常显示：
+宗门地图从 **v4.0.41+** 起支持双轨渲染引擎，**v4.0.42** 强化降级决策体系，确保在 Vulkan 不可用的设备上地图仍能正常显示：
 
 ```
 VulkanPolicy.getRenderStrategy()
@@ -171,14 +194,18 @@ VulkanPolicy.getRenderStrategy()
         └── 失败 → 自动降级 → RenderMode.SOFTWARE → SoftwareCanvasBackend
 ```
 
-### 降级触发条件
+### 降级触发条件（v4.0.42）
 
 | 条件 | 检测方式 | 行为 |
 |------|---------|------|
-| 模拟器（x86 ABI / Goldfish GPU） | `VulkanPolicy.isEmulator()` | 加载阶段直接跳过 Vulkan 预热，`surfaceChanged` 时直接走 Software 路径 |
+| 模拟器（5 信号检测） | `VulkanPolicy.isEmulator()` | 加载阶段跳过 Vulkan 预热，直接走 Software |
 | 崩溃自愈安全模式 | `CrashRecoveryEngine.isSafeMode()` | 同上 |
-| Vulkan 问题设备（PROBLEMATIC） | `VulkanPolicy.detectTier()` | 同上 |
-| Vulkan init 运行时失败 | `NativeBridge.initRenderer()` 返回 false | surfaceChanged 中自动降级，创建 SoftwareCanvasBackend 并启动 RenderThread |
+| 国产非高通芯片（全版本） | `VulkanPolicy.detectTier()` | 同上 |
+| 已知问题 GPU（REX 匹配） | `KNOWN_PROBLEM_GPU_PATTERNS` | 同上 |
+| 持久化 Vulkan 失败标记 | `CrashRecoveryEngine.hasVulkanInitFailure()` | 同上 |
+| 写前标记残留（前次 SIGSEGV） | `CrashRecoveryEngine.wasPrewarmKilled()` | 同上 + 转为持久化标记 |
+| Vulkan init 运行时失败 | `NativeBridge.initRenderer()` / `initDevice()` 返回 false | surfaceChanged 中自动降级 |
+| Vulkan API 版本过低（< 1.1） | `VulkanBackend::selectPhysicalDevice()` 校验 | initDevice 返回 false → Java 侧记录失败标记 |
 
 ### SoftwareCanvasBackend
 

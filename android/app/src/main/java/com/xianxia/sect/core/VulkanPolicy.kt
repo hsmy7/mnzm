@@ -69,6 +69,7 @@ object VulkanPolicy {
      * - Google Android Emulator 的 HARDWARE/Brand/Model 特征值
      * - ABI 包含 x86（说明 ARM native 库需经翻译层运行）
      * - libhoudini 翻译层存在（ARM→x86）
+     * - Build.TAGS / FINGERPRINT 模拟器特征（MuMu/Genymotion/华为模拟器）
      *
      * @see Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略
      */
@@ -98,6 +99,40 @@ object VulkanPolicy {
         for (abi in Build.SUPPORTED_ABIS) {
             val abiLower = abi.lowercase()
             if (abiLower.contains("x86")) return true
+        }
+
+        // 信号 3: Build.TAGS test-keys（模拟器/开发版常见）
+        // 注：部分自定义 ROM 也使用 test-keys，结合其他信号判断
+        val tags = Build.TAGS?.lowercase()
+        val fingerprint = Build.FINGERPRINT?.lowercase()
+        val type = Build.TYPE?.lowercase()
+        if (tags == "test-keys" || tags?.contains("test") == true) {
+            if ((type == "eng" || type == "userdebug") ||
+                fingerprint?.contains("test-keys") == true ||
+                fingerprint?.contains("emulator") == true) {
+                return true
+            }
+        }
+
+        // 信号 4: 模拟器常见指纹特征
+        if (fingerprint != null) {
+            if (fingerprint.contains("emulator") ||
+                fingerprint.contains("sdk_google_phone") ||
+                fingerprint.contains("generic_")) {
+                return true
+            }
+        }
+
+        // 信号 5: RADIO / BOOTLOADER 未知（模拟器无基带/引导加载器）
+        // 仅当两者都未知时才确认（避免误伤 WiFi 平板）
+        val radio = Build.RADIO?.lowercase()
+        val bootloader = Build.BOOTLOADER?.lowercase()
+        if ((radio == "unknown" || radio.isNullOrBlank()) &&
+            (bootloader == "unknown" || bootloader.isNullOrBlank())) {
+            // 加上 SERIAL 确认（真机一般有有效序列号，模拟器为 unknown）
+            if (Build.SERIAL?.lowercase() == "unknown") {
+                return true
+            }
         }
 
         return false
@@ -150,6 +185,23 @@ object VulkanPolicy {
         "mt", "mediatek"
     )
 
+    // ── 已知问题 GPU 型号正则列表（基于行业报告持续扩充） ──
+    // 来源：Unreal Engine 论坛崩溃报告、Unity Issue Tracker、Flutter Issue
+    // 参考：https://forums.unrealengine.com/t/artifacts-and-crashes-on-some-android-gpus-and-versions-when-vulkan-is-enabled/2536208
+    private val KNOWN_PROBLEM_GPU_PATTERNS = listOf(
+        Regex("mali-g(52|57|610)", RegexOption.IGNORE_CASE),  // MSAA 100% 崩溃 / 随机崩溃
+        Regex("mali-g(72|76)", RegexOption.IGNORE_CASE),      // MSAA+延迟贴花崩溃
+        Regex("mali-g(77|78)", RegexOption.IGNORE_CASE),      // 纹理数组渲染崩溃
+        Regex("adreno.*6(1[05]|4)0", RegexOption.IGNORE_CASE), // Adreno 610/615/640 异常
+        Regex("adreno.*73[0-9]", RegexOption.IGNORE_CASE),     // Adreno 730/740 计算着色器 bug
+        Regex("adreno.*75[0-9]", RegexOption.IGNORE_CASE),     // Adreno 750/758 写越界
+        Regex("adreno.*83[0-9]", RegexOption.IGNORE_CASE),     // Adreno 830 内存泄漏
+        Regex("powervr.*ge8320", RegexOption.IGNORE_CASE),     // PowerVR GE8320 计算着色器崩溃
+        Regex("powervr.*gm9446", RegexOption.IGNORE_CASE),     // PowerVR GM9446 计算着色器崩溃
+        Regex("xclipse.*94[0-9]", RegexOption.IGNORE_CASE),    // Xclipse 940 swapchain bug
+        Regex("mali.*t(8[56]0|9[05]0)", RegexOption.IGNORE_CASE), // Mali T8xx 系列
+    )
+
     // ── 分级枚举 ──
 
     enum class DeviceTier(val description: String) {
@@ -176,8 +228,9 @@ object VulkanPolicy {
      * 算法：
      * 1. 崩溃自愈安全模式 → SOFTWARE_ONLY
      * 2. 模拟器检测 → SOFTWARE_ONLY（模拟器 Vulkan 在 libhoudini 翻译层下不可靠）
-     * 3. PROBLEMATIC 设备 → SOFTWARE_ONLY
-     * 4. 其他 → VULKAN_PREFERRED
+     * 3. 持久化 Vulkan 初始化失败标记 → SOFTWARE_ONLY（前次运行 initDevice 返回 false）
+     * 4. PROBLEMATIC 设备 → SOFTWARE_ONLY
+     * 5. 其他 → VULKAN_PREFERRED
      */
     fun getRenderStrategy(context: Context): RenderStrategy {
         // 1. 崩溃自愈安全模式
@@ -192,7 +245,20 @@ object VulkanPolicy {
             return RenderStrategy.SOFTWARE_ONLY
         }
 
-        // 3. 设备分级检测
+        // 3. 持久化 Vulkan 初始化失败标记（前次运行软失败）
+        if (CrashRecoveryEngine.hasVulkanInitFailure()) {
+            Log.w(TAG, "Persistent Vulkan failure → SOFTWARE_ONLY render strategy")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 4. 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
+        if (CrashRecoveryEngine.wasPrewarmKilled()) {
+            Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → SOFTWARE_ONLY")
+            CrashRecoveryEngine.recordVulkanInitFailure()
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 5. 设备分级检测
         return when (detectTier(context)) {
             DeviceTier.PROBLEMATIC -> {
                 Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
@@ -221,6 +287,13 @@ object VulkanPolicy {
         val board = Build.BOARD.lowercase()
         val hardware = Build.HARDWARE.lowercase()
         val socManufacturer = Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        val gpuName = ""  // GPU 名无法从 Build 属性直接获取，需从硬件渲染器查询
+
+        // 0. 持久化 Vulkan 初始化失败标记 → PROBLEMATIC
+        if (CrashRecoveryEngine.hasVulkanInitFailure()) {
+            Log.w(TAG, "Persistent Vulkan init failure — PROBLEMATIC")
+            return DeviceTier.PROBLEMATIC
+        }
 
         // 1. 精确匹配已知问题机型 → PROBLEMATIC
         if (KNOWN_PROBLEM_MODELS.any { model.contains(it) }) {
@@ -239,28 +312,61 @@ object VulkanPolicy {
             return DeviceTier.PROBLEMATIC
         }
 
-        // 3. 检测国产厂商 + Android 15+ → WARNING
-        val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
+        // 3. 检测国产厂商 → Vulkan 兼容性判定
+        // 对大多数国产厂商，即使 Android < 15，其定制 GPU 驱动的 Vulkan 实现
+        // 也存在广泛兼容性问题（华为 Kirin、荣耀、vivo、OPPO、小米澎湃OS 等均有报告）。
+        // 只有高通 Adreno 的驱动相对成熟，非高通芯片一律降级。
         val isChineseManufacturer = KNOWN_PROBLEM_MANUFACTURERS.any {
             manufacturer.contains(it)
         }
 
-        if (isChineseManufacturer && isAndroid15Plus) {
-            Log.w(TAG, "Chinese OEM $manufacturer on Android 15+ — Vulkan risk")
-            // 进一步检测是否非高通芯片（高通驱动相对较好）
+        if (isChineseManufacturer) {
             val isQualcomm = COMPATIBLE_SOC_PREFIXES.any { prefix ->
                 board.startsWith(prefix) ||
                 hardware.startsWith(prefix) ||
                 socManufacturer.startsWith(prefix)
             }
-            return if (isQualcomm) {
-                DeviceTier.WARNING
+            if (isQualcomm) {
+                // 高通 Adreno — 相对稳定，但 Android 15+ 仍需监控
+                val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
+                if (isAndroid15Plus) {
+                    Log.w(TAG, "Qualcomm + Chinese OEM $manufacturer on Android 15+ — monitoring")
+                    return DeviceTier.WARNING
+                }
+                // Android < 15 的高通还好，返回 SAFE
             } else {
-                DeviceTier.PROBLEMATIC
+                // 非高通国产芯片（Kirin/Exynos/Unisoc/展讯等）Vulkan 驱动普遍不可靠
+                Log.w(TAG, "Non-Qualcomm Chinese OEM $manufacturer — Vulkan unreliable")
+                return DeviceTier.PROBLEMATIC
             }
         }
 
-        // 4. 检查 Vulkan 功能级别
+        // 4. 检查 SoC/GPU 型号匹配已知问题列表
+        // 使用 Build.SOC_MODEL（API 31+）尝试匹配已知问题 GPU 型号，
+        // 作为额外防线：即使厂商未被标记为问题设备也能捕获。
+        if (Build.VERSION.SDK_INT >= 31) {
+            val socModel = Build.SOC_MODEL?.lowercase() ?: ""
+            if (socModel.isNotEmpty()) {
+                for (pattern in KNOWN_PROBLEM_GPU_PATTERNS) {
+                    if (pattern.containsMatchIn(socModel)) {
+                        Log.w(TAG, "SOC model matches known problem GPU: " +
+                            "$socModel (pattern=${pattern.pattern})")
+                        return DeviceTier.PROBLEMATIC
+                    }
+                }
+            }
+        }
+        // 辅助：board/hardware 中也可能包含 GPU 信息（如 "mt6893" 含 Mali 信息）
+        val hwCombined = "$board $hardware $socManufacturer".lowercase()
+        for (pattern in KNOWN_PROBLEM_GPU_PATTERNS) {
+            if (pattern.containsMatchIn(hwCombined)) {
+                Log.w(TAG, "Hardware matches known problem GPU pattern: " +
+                    "$hwCombined (pattern=${pattern.pattern})")
+                return DeviceTier.PROBLEMATIC
+            }
+        }
+
+        // 5. 检查 Vulkan 功能级别
         try {
             val pm = context.packageManager
             if (pm.hasSystemFeature(
@@ -281,7 +387,9 @@ object VulkanPolicy {
     /**
      * 是否应在该设备上禁用硬件加速。
      *
-     * 合并 [VulkanPolicy] 的设备分级和 [CrashRecoveryEngine] 的安全模式。
+     * 与 [getRenderStrategy] 不同，此方法控制系统级的 HW 加速（Activity 主题）。
+     * Android 15+ 的系统渲染默认使用 SkiaVK（Vulkan 后端），问题设备上需关闭。
+     * Android < 15 的系统渲染使用 OpenGL ES，与 Vulkan 驱动问题无关，可保持开启。
      */
     fun shouldDisableHardwareAcceleration(context: Context): Boolean {
         // 1. 崩溃自愈安全模式 → 强制降级
@@ -290,10 +398,16 @@ object VulkanPolicy {
             return true
         }
 
-        // 2. 设备分级检测
+        // 2. 设备分级检测（仅 Android 15+ 需要关 HW 加速）
+        val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
+        if (!isAndroid15Plus) {
+            // Android < 15 系统使用 OpenGL ES，不受 Vulkan 驱动问题影响
+            return false
+        }
+
         return when (detectTier(context)) {
             DeviceTier.PROBLEMATIC -> {
-                Log.w(TAG, "Problematic device — disabling HW acceleration")
+                Log.w(TAG, "Problematic device on Android 15+ — disabling HW acceleration")
                 true
             }
             DeviceTier.WARNING -> {

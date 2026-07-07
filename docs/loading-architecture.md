@@ -23,7 +23,7 @@
                      + AtlasPacker 图集打包 (L1小图合并)
                      + Audio BGM 预加载
 
-进度 75%─85%  Vulkan 预热: prewarmDevice(VkDevice+ShaderModule)
+进度 75%─85%  Vulkan 预热: prewarmDevice（写前保护标记 + 持久化失败记录）
                      + 地图纹理 ByteBuffer 预构建 (并行async)
 
 进度 85%─90%  游戏循环启动: startGameLoop + isGameStarted
@@ -66,6 +66,22 @@
 ### G: 地图预加载并行化
 
 **修改：** `GameActivity.kt` LaunchedEffect 中背景色/道路/居住区/装饰物改为 4 路 `async` 并行
+
+### H: Vulkan 预热写前保护
+
+**修改：** `GameActivity.kt` + `CrashRecoveryEngine.kt`
+
+Vulkan prewarm 采用写前标记（write-ahead log）模式：
+```
+markPrewarmStarted()    ← prewarmDevice 之前写入 SharedPreferences
+    ↓
+prewarmDevice()          ← 如果 SIGSEGV，标记残留
+    ↓
+clearPrewarmStarted()   ← 成功后才清除
+```
+
+下次启动时 `wasPrewarmKilled()` 返回 true → 直接禁用 Vulkan。
+此机制解决了 Vulkan 初始化 SIGSEGV 无法被 Java try-catch 捕获的问题。
 
 ### B: 字体预渲染
 

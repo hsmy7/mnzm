@@ -221,15 +221,27 @@ class GameActivity : ComponentActivity() {
                                 // 将两个独立任务并行化：Vulkan 设备预热 + 瓦片数据生成
                                 val vulkanDeferred = async(ioDispatcher.dispatcher) {
                                     NativeBridge.ensureLoaded()
+                                    var prewarmOk = false
+
+                                    // ★ 写前标记：在调 initDevice 之前写入，成功后才清除。
+                                    // 如果 Vulkan init 导致 SIGSEGV，此标记残留 → 下次启动直接禁用 Vulkan。
+                                    com.xianxia.sect.core.CrashRecoveryEngine.markPrewarmStarted()
+
                                     try {
                                         // 带超时的预加载：真机 ~1s 内完成，模拟器超时后走 Surface 初始化
                                         withTimeout(5_000L) {
                                             val d = applicationContext.cacheDir
-                                            NativeBridge.prewarmDevice(
+                                            prewarmOk = NativeBridge.prewarmDevice(
                                                 d.absolutePath, worldPixelWidth, worldPixelHeight, tileSize
-                                            ).let { ok ->
-                                                if (ok) Log.d(TAG, "Vulkan device prewarmed")
-                                                else Log.w(TAG, "prewarm failed")
+                                            )
+                                            if (prewarmOk) {
+                                                Log.d(TAG, "Vulkan device prewarmed")
+                                                // 清除 Vulkan 失败标记（之前可能被标记过）
+                                                com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
+                                                // 清除写前标记
+                                                com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                            } else {
+                                                Log.w(TAG, "prewarmDevice returned false — Vulkan not available")
                                             }
                                         }
                                     } catch (e: TimeoutCancellationException) {
@@ -238,6 +250,12 @@ class GameActivity : ComponentActivity() {
                                         throw e
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Vulkan prewarm exception", e)
+                                    }
+
+                                    // Vulkan 初始化失败 → 记录持久化标记 + 清除写前标记
+                                    if (!prewarmOk) {
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
                                     }
                                 }
 

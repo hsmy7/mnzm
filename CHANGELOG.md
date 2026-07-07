@@ -115,6 +115,15 @@
     - Pipeline Cache 随管线重建自动更新，关机前保存
     - resize 不再重新编译着色器（ShaderModule 跨 Surface 尺寸复用）
 
+### 设备兼容性强化
+
+- 修复：国产非高通芯片 Vulkan 初始化 SIGSEGV 崩溃 — VulkanPolicy.detectTier() 原要求 Android 15+ 才触发国产厂商降级，MuMu 模拟器被误判为 SAFE。去掉 isAndroid15Plus 限制，非高通国产芯片全版本禁用 Vulkan。
+- 新增：模拟器检测增强 — 新增 Build.TAGS+FINGERPRINT、RADIO+BOOTLOADER+SERIAL 三路信号，覆盖 ARM 架构模拟器。
+- 新增：SIGSEGV 写前保护 — prewarmDevice 调用前写入标记，成功后清除。标记残留→前次 SIGSEGV→禁用 Vulkan。
+- 新增：Native 层 Vulkan 版本校验 — selectPhysicalDevice() 检查 API >= 1.1。
+- 新增：已知问题 GPU 正则列表。
+- 解耦：系统 HW 加速与宗门地图渲染后端。
+
 ## [4.0.40] - 2026-07-05（versionCode=4040）
 
 ### Bug 修复
