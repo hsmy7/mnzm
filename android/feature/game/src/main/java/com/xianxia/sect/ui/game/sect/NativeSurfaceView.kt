@@ -403,6 +403,20 @@ class NativeSurfaceView(
         var running = true
 
         override fun run() {
+            // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
+            // SurfaceFlinger 未正确清除新分配缓冲区导致残留内容显示
+            if (renderMode == RenderMode.SOFTWARE) {
+                try {
+                    val clearCanvas = holder.lockCanvas()
+                    if (clearCanvas != null) {
+                        clearCanvas.drawColor(android.graphics.Color.BLACK)
+                        holder.unlockCanvasAndPost(clearCanvas)
+                    }
+                } catch (_: Exception) {
+                    // 首帧清除非关键操作，失败不影响后续渲染
+                }
+            }
+
             val frameIntervalNs = 1_000_000_000L / targetFps
             var lastFrameNs = System.nanoTime()
 

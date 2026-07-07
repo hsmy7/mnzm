@@ -123,6 +123,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:noHistory="true"
             android:theme="@style/Theme.XianxiaSect.Splash"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="landscape"

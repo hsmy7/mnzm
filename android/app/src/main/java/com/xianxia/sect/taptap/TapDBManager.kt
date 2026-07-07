@@ -1,12 +1,18 @@
 package com.xianxia.sect.taptap
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
+import com.taptap.sdk.base.utils.lifecycle.TapActivityLifecycleTracker
 import com.taptap.sdk.core.TapTapEvent
 import com.taptap.sdk.core.TapTapPurchasedEvent
 import com.taptap.sdk.db.TapDB
 import com.taptap.sdk.db.biz.gameplay.GameDurationService
+import com.taptap.sdk.db.biz.gameplay.reporter.DefaultGameDurationReporter
+import com.taptap.sdk.db.biz.gameplay.storage.PrefsGameDurationStorage
+import com.taptap.sdk.db.biz.gameplay.tracker.DefaultGameDurationTracker
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 
 object TapDBManager {
@@ -24,7 +30,21 @@ object TapDBManager {
 
     fun startGameDurationTracking(app: Application) {
         try {
-            gameDurationService = GameDurationService.Builder(app).build()
+            val db = TapDB.getInstance()
+            val prefs = app.getSharedPreferences("tap_game_duration", Context.MODE_PRIVATE)
+            val json = Json { ignoreUnknownKeys = true }
+            val storage = PrefsGameDurationStorage(prefs, json)
+            val reporter = DefaultGameDurationReporter()
+            TapActivityLifecycleTracker.initialize(app)
+            val tracker = DefaultGameDurationTracker(
+                storage,
+                reporter,
+                TapActivityLifecycleTracker,
+                db
+            )
+            gameDurationService = GameDurationService.Builder(app)
+                .setTracker(tracker)
+                .build()
             Log.d(TAG, "Game duration tracking started")
         } catch (e: CancellationException) {
             throw e

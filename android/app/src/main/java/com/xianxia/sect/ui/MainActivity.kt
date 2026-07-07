@@ -326,7 +326,7 @@ class MainActivity : ComponentActivity() {
                                     intent.putExtra(EXTRA_SLOT, slot)
                                 }
                                 startActivity(intent)
-                                finish()
+                                finishAndRemoveTask()
                             },
                             onNewGame = { slot, sectName ->
                                 val intent = Intent(this@MainActivity, GameActivity::class.java)
@@ -334,7 +334,7 @@ class MainActivity : ComponentActivity() {
                                 intent.putExtra(EXTRA_NEW_GAME, true)
                                 intent.putExtra(EXTRA_SECT_NAME, sectName)
                                 startActivity(intent)
-                                finish()
+                                finishAndRemoveTask()
                             },
                             onDeleteSlot = { slot ->
                                 lifecycleScope.launch {

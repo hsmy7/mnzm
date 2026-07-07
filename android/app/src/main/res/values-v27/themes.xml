@@ -6,5 +6,6 @@
 
     <style name="Theme.XianxiaSect.GameSafe" parent="Theme.XianxiaSect">
         <item name="android:hardwareAccelerated">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>

@@ -93,6 +93,7 @@ private fun LoadingScreenContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .semantics {
                 contentDescription = "加载中 $progressPercent%"
             },

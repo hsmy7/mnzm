@@ -109,7 +109,13 @@ class SoftwareCanvasBackend(
         pixelH: Int
     ): Bitmap? {
         val tileSize = config.tileSize
-        val td = rs.tileData ?: return null
+        val td = rs.tileData
+        if (td == null) {
+            // 在没有 tileData 时返回纯色帧缓冲区，防止 SurfaceView 的"洞"
+            // 在华为模拟器等设备上显示缓冲区残留内容
+            frameCanvas.drawColor(Color.DKGRAY)
+            return frameBuffer
+        }
         val buildingDataArray = rs.buildingData
 
         // --- 计算可见区域（视锥剔除） ---

@@ -14,5 +14,6 @@
     <!-- 由 GameActivity.onCreate 按 VulkanPolicy 动态选择 -->
     <style name="Theme.XianxiaSect.GameSafe" parent="Theme.XianxiaSect">
         <item name="android:hardwareAccelerated">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>

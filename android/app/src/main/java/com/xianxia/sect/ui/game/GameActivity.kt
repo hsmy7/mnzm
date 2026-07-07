@@ -146,6 +146,12 @@ class GameActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
 
+        // 设置实心窗口背景，防止华为模拟器等设备上 MainActivity 窗口残留
+        // 穿透透明 windowBackground 显示。必须在 setContent 之前调用。
+        window.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK)
+        )
+
         // 初始化并注册崩溃处理器
         setupCrashHandler()
 
