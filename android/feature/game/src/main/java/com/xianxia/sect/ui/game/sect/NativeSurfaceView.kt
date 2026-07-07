@@ -265,11 +265,13 @@ class NativeSurfaceView(
                     "RenderMode.SOFTWARE (by policy) — starting software backend")
                 post {
                     if (!isReady) {
-                        // 通知 Compose 层上传纹理（TextureAtlas 已在 surfaceCreated 中 init）
-                        onRendererReady?.invoke()
-                        // 创建软件渲染后端
+                        // 先设置渲染模式和软件后端，再通知上层上传纹理
+                        // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
+                        // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
                         softwareBackend = SoftwareCanvasBackend(config)
                         renderMode = RenderMode.SOFTWARE
+                        // 通知 Compose 层上传纹理（TextureAtlas 已在 surfaceCreated 中 init）
+                        onRendererReady?.invoke()
                         isReady = true
                         renderThread = RenderThread().also { it.start() }
                     }
