@@ -133,7 +133,8 @@
       "防御：Android 15 libhwui.so RenderThread SIGSEGV——新增CrashRecoveryEngine崩溃自愈引擎，连续N次崩溃后自动进入安全模式",
       "防御：VulkanPolicy设备分级——检测联发科SoC/国产定制ROM，已知问题设备自动禁用Vulkan渲染路径",
       "防御：HWUI渲染后端提示——AndroidManifest设置android.graphics.renderer=skiagl，提示系统使用OpenGL后端",
-      "防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染"
+      "防御：安全模式主题Theme.XianxiaSect.GameSafe——连续崩溃后禁用硬件加速，回退软件渲染",
+      "修复：读档Vulkan SIGSEGV崩溃根治——六层防御体系 v2：Layer 1 设备检测增强（扩展GPU正则覆盖Mali G5x-G925/Exynos/PowerVR DXT全系列），Layer 2 Phase 2写前日志（initSurface/createSwapchain崩溃检测，消除循环崩溃），Layer 3 C++资源生命周期修复（shutdown句柄置空+去双重析构，根治50%+销毁路径崩溃），Layer 4 线程安全初始化（VulkanInit线程可中断防竞态），Layer 5 崩溃自愈加速（阈值3→2+Vulkan崩溃专用标记），Layer 6 Canvas软件渲染保障（lockCanvas失败自动重试）"
     ]
   },
   {

@@ -318,23 +318,27 @@ class MainActivity : ComponentActivity() {
                                 if (saveSlot?.isAutoSave == true && saveSlot.isEmpty) {
                                     return@SaveSelectScreen
                                 }
-                                val intent = Intent(this@MainActivity, GameActivity::class.java)
-                                if (saveSlot?.isEmpty == true) {
-                                    intent.putExtra(EXTRA_SLOT, slot)
-                                    intent.putExtra(EXTRA_NEW_GAME, true)
-                                } else {
-                                    intent.putExtra(EXTRA_SLOT, slot)
+                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                    if (saveSlot?.isEmpty == true) {
+                                        putExtra(EXTRA_SLOT, slot)
+                                        putExtra(EXTRA_NEW_GAME, true)
+                                    } else {
+                                        putExtra(EXTRA_SLOT, slot)
+                                    }
                                 }
                                 startActivity(intent)
-                                finishAndRemoveTask()
+                                finish()
                             },
                             onNewGame = { slot, sectName ->
-                                val intent = Intent(this@MainActivity, GameActivity::class.java)
-                                intent.putExtra(EXTRA_SLOT, slot)
-                                intent.putExtra(EXTRA_NEW_GAME, true)
-                                intent.putExtra(EXTRA_SECT_NAME, sectName)
+                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                    putExtra(EXTRA_SLOT, slot)
+                                    putExtra(EXTRA_NEW_GAME, true)
+                                    putExtra(EXTRA_SECT_NAME, sectName)
+                                }
                                 startActivity(intent)
-                                finishAndRemoveTask()
+                                finish()
                             },
                             onDeleteSlot = { slot ->
                                 lifecycleScope.launch {

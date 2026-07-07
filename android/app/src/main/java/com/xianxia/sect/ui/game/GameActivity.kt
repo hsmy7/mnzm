@@ -43,6 +43,7 @@ import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -245,7 +246,7 @@ class GameActivity : ComponentActivity() {
                                             }
                                         }
                                     } catch (e: TimeoutCancellationException) {
-                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time")
+                                        Log.w(TAG, "prewarmDevice timed out after 5s, will init at surface time", e)
                                     } catch (e: CancellationException) {
                                         throw e
                                     } catch (e: Exception) {
@@ -353,7 +354,22 @@ class GameActivity : ComponentActivity() {
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 },
-                                forceSoftwareRendering = isSoftwareRendering
+                                forceSoftwareRendering = isSoftwareRendering,
+                                vulkanInitListener = object : NativeSurfaceView.VulkanInitListener {
+                                    override fun onSurfaceInitStarted() {
+                                        com.xianxia.sect.core.CrashRecoveryEngine.markSurfaceInitStarted()
+                                    }
+
+                                    override fun onSurfaceInitSucceeded() {
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
+                                    }
+
+                                    override fun onSurfaceInitFailed() {
+                                        com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
+                                        com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
+                                    }
+                                }
                             )
                         }
 
@@ -558,7 +574,7 @@ class GameActivity : ComponentActivity() {
                 isTearingDown = true
                 try {
                     mode.finish()
-                } catch (e: Exception) {
+                } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
                     Log.w(TAG, "finishActiveActionMode failed: ${e.message}")
                 }
                 activeActionMode = null

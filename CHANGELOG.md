@@ -50,6 +50,15 @@
 
 ### Bug 修复
 
+- **修复读档 Vulkan SIGSEGV 崩溃（六层防御体系 v2）** — 读档后 `VulkanBackend::shutdown()` 双重调用导致野指针 SIGSEGV，以及 `createSwapchain` 在问题 GPU 上崩溃后循环闪退。
+  - **Layer 3 C++ 资源生命周期修复（根治 50%+ 销毁路径崩溃）：** `shutdown()` 内每个 `vkDestroy*` 后立即 `handle = VK_NULL_HANDLE`，`~VulkanBackend()` 幂等安全。`NativeBridge.cpp` 中删除显式 `shutdown()` 前调，仅保留 `delete` 触发的析构函数调用（参考 Chromium/FFmpeg/Blender/Mesa 行业做法）
+  - **Layer 2 Phase 2 写前日志（消灭 30%+ init 路径循环崩溃）：** `initRenderer` 调用前写入 `surface_init_started` 标记，成功后清除。`createSwapchain` SIGSEGV 杀死进程后标记残留 → 下次启动直接 SOFTWARE_ONLY
+  - **Layer 1 设备检测增强：** 扩展 GPU 正则覆盖 Mali G5x/G6x/G7x 全系列、Exynos 2200、PowerVR DXT (Pixel 10 Tensor G5) 等；`VulkanPolicy` 新增 `isVulkanCrashDetected()` 专用标记
+  - **Layer 4 线程安全：** `VulkanInit` 线程可中断，`surfaceDestroyed` 时取消未完成的 init 操作
+  - **Layer 5 安全模式加速：** 阈值从 3 降至 2，新增 Vulkan 崩溃专用标记（1 次即降级）
+  - **Layer 6 Canvas 保障：** `lockCanvas` 失败时自动重试最多 3 次，间隙 5ms
+  - 行业调研：参考 Unity Device Filtering、Unreal Engine Mali Bug Catalog、Chromium GPU Fallback、Flutter Impeller、ARM 驱动勘误表等 32 条来源
+
 - **修复建筑覆盖装饰物后装饰物未被清除** — 根因：地面和装饰物合并在 `fullMapBmp` 中无法独立控制。重构为三层按格绘制后，建筑下方装饰物自然跳过，不再透出。
 
 - **修复弟子批量叛逃脱离宗门的Bug** — 根因：年俸从月发改为年发后，居所弟子每月+1忠诚度机制（`processResidenceLoyalty()`）未在生产代码中调用，导致所有居所弟子忠诚度加成失效。矿工每3月-1忠诚度仍在执行，忠诚度持续下降突破30阈值后触发批量叛逃。

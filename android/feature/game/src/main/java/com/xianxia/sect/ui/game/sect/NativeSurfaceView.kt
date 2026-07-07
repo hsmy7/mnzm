@@ -63,6 +63,10 @@ class NativeSurfaceView(
     @Volatile
     private var initInProgress: Boolean = false
 
+    /** VulkanInit 后台线程引用，供 surfaceDestroyed 时中断取消 */
+    @Volatile
+    private var vulkanInitThread: Thread? = null
+
     /**
      * 目标帧率。0 = 跟随系统 VSYNC（不主动 sleep）。
      * 设置为正整数可固定帧率，节省电量。
@@ -75,6 +79,22 @@ class NativeSurfaceView(
 
     /** 渲染器就绪后的回调（用于触发纹理上传） */
     var onRendererReady: (() -> Unit)? = null
+
+    /**
+     * Vulkan 初始化生命周期监听器。
+     * 由 GameActivity 实现，用于在 :feature:game 模块外驱动 CrashRecoveryEngine（在 :app 模块）。
+     */
+    var vulkanInitListener: VulkanInitListener? = null
+
+    /** Vulkan 初始化生命周期回调接口（由 GameActivity 中的 CrashRecoveryEngine 驱动） */
+    interface VulkanInitListener {
+        /** 在 NativeBridge.initRenderer 调用前触发（写前日志入口） */
+        fun onSurfaceInitStarted()
+        /** initRenderer 返回 true 时触发（清除写前标记） */
+        fun onSurfaceInitSucceeded()
+        /** initRenderer 返回 false 或抛出异常时触发（记录 Vulkan 失败） */
+        fun onSurfaceInitFailed()
+    }
 
     // ============================================================
     // 纹理资源（由外部在 renderer 就绪后上传，统一走图集）
@@ -292,10 +312,18 @@ class NativeSurfaceView(
             }
             postDelayed(timeoutRunnable, 10_000L)
 
-            kotlin.concurrent.thread(name = "VulkanInit") {
-                val initStart = System.currentTimeMillis()
-                val ok = try {
-                    NativeBridge.initRenderer(
+            // Layer 4: 取消之前的初始化线程（如有），防止竞态
+            vulkanInitThread?.interrupt()
+            vulkanInitThread = null
+
+            vulkanInitThread = kotlin.concurrent.thread(name = "VulkanInit") {
+                try {
+                    val initStart = System.currentTimeMillis()
+
+                    // Layer 2: Phase 2 写前标记 — initRenderer 前写入
+                    vulkanInitListener?.onSurfaceInitStarted()
+
+                    val ok = NativeBridge.initRenderer(
                         viewportW = width,
                         viewportH = height,
                         worldW = config.worldPixelWidth,
@@ -303,46 +331,73 @@ class NativeSurfaceView(
                         tileSize = config.tileSize,
                         surface = surface
                     )
+
+                    if (ok) {
+                        // Layer 2: 成功清除写前标记 + 清除 Vulkan 失败标记
+                        vulkanInitListener?.onSurfaceInitSucceeded()
+
+                        android.util.Log.i("NativeSurfaceView",
+                            "Vulkan init OK in ${System.currentTimeMillis() - initStart}ms")
+
+                        post {
+                            removeCallbacks(timeoutRunnable)
+                            initInProgress = false
+                            vulkanInitThread = null
+                            if (isReady) return@post
+
+                            // 先上传纹理（地面 + 图集），再启动渲染线程
+                            onRendererReady?.invoke()
+
+                            isReady = true
+                            renderThread = RenderThread().also { it.start() }
+                        }
+                    } else {
+                        // Layer 2: 失败 → 清除写前标记 + 记录持久化失败
+                        vulkanInitListener?.onSurfaceInitFailed()
+
+                        android.util.Log.e("NativeSurfaceView",
+                            "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms — " +
+                            "falling back to software renderer")
+
+                        post {
+                            removeCallbacks(timeoutRunnable)
+                            initInProgress = false
+                            vulkanInitThread = null
+                            if (!isReady) {
+                                // 降级到软件渲染
+                                softwareBackend = SoftwareCanvasBackend(config)
+                                renderMode = RenderMode.SOFTWARE
+                                onRendererReady?.invoke()
+                                isReady = true
+                                renderThread = RenderThread().also { it.start() }
+                            }
+                        }
+                    }
                 } catch (t: Throwable) {
+                    // Layer 4: 线程被中断（surfaceDestroyed），不做降级
+                    if (t is InterruptedException || Thread.interrupted()) {
+                        android.util.Log.w("NativeSurfaceView",
+                            "Vulkan init interrupted — surface was destroyed")
+                        initInProgress = false
+                        vulkanInitThread = null
+                        return@thread
+                    }
+                    // 其他异常（如 OOM），记录并降级
                     android.util.Log.e("NativeSurfaceView",
                         "Vulkan init crashed: ${t.message}", t)
-                    false
-                }
-
-                if (!ok) {
-                    android.util.Log.e("NativeSurfaceView",
-                        "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms — " +
-                        "falling back to software renderer")
-                    initInProgress = false
+                    vulkanInitListener?.onSurfaceInitFailed()
                     post {
                         removeCallbacks(timeoutRunnable)
+                        initInProgress = false
+                        vulkanInitThread = null
                         if (!isReady) {
-                            // 降级到软件渲染
                             softwareBackend = SoftwareCanvasBackend(config)
                             renderMode = RenderMode.SOFTWARE
-                            // 通知 Compose 层上传纹理（用于 Canvas 回退）
                             onRendererReady?.invoke()
                             isReady = true
                             renderThread = RenderThread().also { it.start() }
                         }
                     }
-                    return@thread
-                }
-
-                android.util.Log.i("NativeSurfaceView",
-                    "Vulkan init OK in ${System.currentTimeMillis() - initStart}ms")
-
-                // init 成功后回到主线程上传纹理，再启动渲染线程
-                post {
-                    removeCallbacks(timeoutRunnable)
-                    initInProgress = false
-                    if (isReady) return@post
-
-                    // 先上传纹理（地面 + 图集），再启动渲染线程
-                    onRendererReady?.invoke()
-
-                    isReady = true
-                    renderThread = RenderThread().also { it.start() }
                 }
             }
         } else {
@@ -357,6 +412,9 @@ class NativeSurfaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         isReady = false
+        // Layer 4: 中断正在执行的 VulkanInit 线程
+        vulkanInitThread?.interrupt()
+        vulkanInitThread = null
         renderThread?.running = false
         renderThread = null
         softwareBackend = null
@@ -499,13 +557,28 @@ class NativeSurfaceView(
             ) ?: return
 
             // 输出到 Surface（双缓冲自动处理）
-            try {
-                val surfaceCanvas = holder.lockCanvas() ?: return
-                surfaceCanvas.drawBitmap(frame, 0f, 0f, null)
-                holder.unlockCanvasAndPost(surfaceCanvas)
-            } catch (e: Exception) {
-                android.util.Log.w("NativeSurfaceView",
-                    "Software render: lockCanvas failed: ${e.message}")
+            // Layer 6: lockCanvas 失败时重试最多 3 次
+            var retries = 3
+            while (retries > 0) {
+                try {
+                    val surfaceCanvas = holder.lockCanvas() ?: run {
+                        retries--
+                        continue
+                    }
+                    surfaceCanvas.drawBitmap(frame, 0f, 0f, null)
+                    holder.unlockCanvasAndPost(surfaceCanvas)
+                    break
+                } catch (e: Exception) {
+                    retries--
+                    if (retries == 0) {
+                        android.util.Log.w("NativeSurfaceView",
+                            "Software render: lockCanvas failed after 3 retries: ${e.message}")
+                    } else {
+                        android.util.Log.d("NativeSurfaceView",
+                            "Software render: lockCanvas retry $retries: ${e.message}")
+                        try { Thread.sleep(5) } catch (_: InterruptedException) { break }
+                    }
+                }
             }
         }
     }

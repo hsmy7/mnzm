@@ -89,8 +89,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_prewarmDevice(
     jstring cacheDir, jint worldW, jint worldH, jint tileSize) {
 
     if (g_renderer) {
-        g_renderer->shutdown();
-        delete g_renderer;
+        delete g_renderer;  // 析构函数自动调 shutdown()，句柄置空后幂等
+        g_renderer = nullptr;
     }
 
     const char* dir = cacheDir ? env->GetStringUTFChars(cacheDir, nullptr) : nullptr;
@@ -157,8 +157,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     JNIEnv* /*env*/, jobject /*thiz*/) {
 
     if (g_renderer) {
-        g_renderer->shutdown();
-        delete g_renderer;
+        delete g_renderer;  // 析构函数自动调 shutdown()，句柄置空后幂等安全
         g_renderer = nullptr;
     }
     if (g_atlas) {

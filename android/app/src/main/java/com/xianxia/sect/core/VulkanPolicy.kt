@@ -73,7 +73,7 @@ object VulkanPolicy {
      *
      * @see Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "ComplexCondition", "CyclomaticComplexMethod")
     fun isEmulator(): Boolean {
         // 信号 1: Build 硬件属性（Google Android Emulator / Genymotion）
         val hardware = Build.HARDWARE.lowercase()
@@ -186,20 +186,32 @@ object VulkanPolicy {
     )
 
     // ── 已知问题 GPU 型号正则列表（基于行业报告持续扩充） ──
-    // 来源：Unreal Engine 论坛崩溃报告、Unity Issue Tracker、Flutter Issue
-    // 参考：https://forums.unrealengine.com/t/artifacts-and-crashes-on-some-android-gpus-and-versions-when-vulkan-is-enabled/2536208
+    // 来源：Unreal Engine 论坛崩溃报告、Unity Issue Tracker、Flutter Issue、ANGLE 修复、
+    //       ARM 驱动勘误表 (SDEN-3735689)、ARM Mali GPU compute hang 报告、Flash Slide 等行业数据
+    // 参考：
+    // https://forums.unrealengine.com/t/artifacts-and-crashes-on-some-android-gpus-and-versions-when-vulkan-is-enabled/2536208
     private val KNOWN_PROBLEM_GPU_PATTERNS = listOf(
-        Regex("mali-g(52|57|610)", RegexOption.IGNORE_CASE),  // MSAA 100% 崩溃 / 随机崩溃
-        Regex("mali-g(72|76)", RegexOption.IGNORE_CASE),      // MSAA+延迟贴花崩溃
-        Regex("mali-g(77|78)", RegexOption.IGNORE_CASE),      // 纹理数组渲染崩溃
-        Regex("adreno.*6(1[05]|4)0", RegexOption.IGNORE_CASE), // Adreno 610/615/640 异常
-        Regex("adreno.*73[0-9]", RegexOption.IGNORE_CASE),     // Adreno 730/740 计算着色器 bug
-        Regex("adreno.*75[0-9]", RegexOption.IGNORE_CASE),     // Adreno 750/758 写越界
-        Regex("adreno.*83[0-9]", RegexOption.IGNORE_CASE),     // Adreno 830 内存泄漏
-        Regex("powervr.*ge8320", RegexOption.IGNORE_CASE),     // PowerVR GE8320 计算着色器崩溃
-        Regex("powervr.*gm9446", RegexOption.IGNORE_CASE),     // PowerVR GM9446 计算着色器崩溃
-        Regex("xclipse.*94[0-9]", RegexOption.IGNORE_CASE),    // Xclipse 940 swapchain bug
-        Regex("mali.*t(8[56]0|9[05]0)", RegexOption.IGNORE_CASE), // Mali T8xx 系列
+        // Mali-G5x 系列（G52 MSAA 100% 崩溃 / G57 Ring Buffer 耗尽）
+        Regex("mali-g(52|57|510|610)", RegexOption.IGNORE_CASE),
+        // Mali-G6x/7x 系列（G68/G76 MSAA+延迟贴花 / G77 纹理数组 / G78 shared present mode）
+        Regex("mali-g(68|69|72|76|77|78)", RegexOption.IGNORE_CASE),
+        // Mali-G7xx 新系列（G715 compute hang / G925 PSO 编译崩溃）
+        Regex("mali-g(510|610|615|710|715|720|925)", RegexOption.IGNORE_CASE),
+        // Mali T8xx 系列（较旧但仍在使用）
+        Regex("mali.*t(8[56]0|9[05]0)", RegexOption.IGNORE_CASE),
+        // Adreno 600 系列低端（610/615/640 驱动异常）
+        Regex("adreno.*6(1[05]|4)0", RegexOption.IGNORE_CASE),
+        // Adreno 700 系列（730/740 计算着色器 bug / 750/758 写越界 / 830 内存泄漏）
+        Regex("adreno.*73[0-9]", RegexOption.IGNORE_CASE),
+        Regex("adreno.*75[0-9]", RegexOption.IGNORE_CASE),
+        Regex("adreno.*83[0-9]", RegexOption.IGNORE_CASE),
+        // PowerVR（GE8320/GM9446 计算着色器崩溃 / DXT Pixel 10 Tensor G5）
+        Regex("powervr.*ge8320", RegexOption.IGNORE_CASE),
+        Regex("powervr.*gm9446", RegexOption.IGNORE_CASE),
+        Regex("powervr.*dxt", RegexOption.IGNORE_CASE),
+        // Exynos Xclipse（940 swapchain bug / 2200 纹理闪烁）
+        Regex("xclipse.*94[0-9]", RegexOption.IGNORE_CASE),
+        Regex("exynos.*2200", RegexOption.IGNORE_CASE),
     )
 
     // ── 分级枚举 ──
@@ -228,10 +240,14 @@ object VulkanPolicy {
      * 算法：
      * 1. 崩溃自愈安全模式 → SOFTWARE_ONLY
      * 2. 模拟器检测 → SOFTWARE_ONLY（模拟器 Vulkan 在 libhoudini 翻译层下不可靠）
-     * 3. 持久化 Vulkan 初始化失败标记 → SOFTWARE_ONLY（前次运行 initDevice 返回 false）
-     * 4. PROBLEMATIC 设备 → SOFTWARE_ONLY
-     * 5. 其他 → VULKAN_PREFERRED
+     * 3. Vulkan 崩溃专用标记 → SOFTWARE_ONLY（上次 SIGSEGV 直接标记）
+     * 4. 持久化 Vulkan 初始化失败标记 → SOFTWARE_ONLY（前次运行 initDevice 返回 false）
+     * 5. Phase 1 写前标记残留 → SOFTWARE_ONLY（前次 prewarm 被 SIGSEGV 杀死）
+     * 6. Phase 2 写前标记残留 → SOFTWARE_ONLY（前次 initSurface 被 SIGSEGV 杀死）
+     * 7. PROBLEMATIC 设备 → SOFTWARE_ONLY
+     * 8. 其他 → VULKAN_PREFERRED
      */
+    @Suppress("ReturnCount")
     fun getRenderStrategy(context: Context): RenderStrategy {
         // 1. 崩溃自愈安全模式
         if (CrashRecoveryEngine.isSafeMode()) {
@@ -239,26 +255,39 @@ object VulkanPolicy {
             return RenderStrategy.SOFTWARE_ONLY
         }
 
-        // 2. 模拟器检测
+        // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
+        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
+            Log.w(TAG, "Vulkan crash detected → SOFTWARE_ONLY render strategy")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 3. 模拟器检测
         if (isEmulator()) {
             Log.w(TAG, "Emulator detected → SOFTWARE_ONLY render strategy")
             return RenderStrategy.SOFTWARE_ONLY
         }
 
-        // 3. 持久化 Vulkan 初始化失败标记（前次运行软失败）
+        // 4. 持久化 Vulkan 初始化失败标记（前次运行软失败）
         if (CrashRecoveryEngine.hasVulkanInitFailure()) {
             Log.w(TAG, "Persistent Vulkan failure → SOFTWARE_ONLY render strategy")
             return RenderStrategy.SOFTWARE_ONLY
         }
 
-        // 4. 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
+        // 5. Phase 1 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
         if (CrashRecoveryEngine.wasPrewarmKilled()) {
             Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → SOFTWARE_ONLY")
             CrashRecoveryEngine.recordVulkanInitFailure()
             return RenderStrategy.SOFTWARE_ONLY
         }
 
-        // 5. 设备分级检测
+        // 6. Phase 2 写前标记残留 → 前次 initSurface/createSwapchain 被 SIGSEGV 杀死
+        if (CrashRecoveryEngine.wasSurfaceInitKilled()) {
+            Log.w(TAG, "Previous surface init was killed (SIGSEGV) → SOFTWARE_ONLY")
+            CrashRecoveryEngine.recordVulkanInitFailure()
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // 7. 设备分级检测
         return when (detectTier(context)) {
             DeviceTier.PROBLEMATIC -> {
                 Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
@@ -280,16 +309,21 @@ object VulkanPolicy {
     /**
      * 检测当前设备的渲染安全等级。
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "NestedBlockDepth", "LongMethod")
     fun detectTier(context: Context): DeviceTier {
         val model = Build.MODEL.lowercase()
         val manufacturer = Build.MANUFACTURER.lowercase()
         val board = Build.BOARD.lowercase()
         val hardware = Build.HARDWARE.lowercase()
         val socManufacturer = Build.SOC_MANUFACTURER?.lowercase() ?: ""
-        val gpuName = ""  // GPU 名无法从 Build 属性直接获取，需从硬件渲染器查询
 
-        // 0. 持久化 Vulkan 初始化失败标记 → PROBLEMATIC
+        // 0. Vulkan 崩溃专用标记 → PROBLEMATIC
+        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
+            Log.w(TAG, "Vulkan crash detected — PROBLEMATIC")
+            return DeviceTier.PROBLEMATIC
+        }
+
+        // 1. 持久化 Vulkan 初始化失败标记 → PROBLEMATIC
         if (CrashRecoveryEngine.hasVulkanInitFailure()) {
             Log.w(TAG, "Persistent Vulkan init failure — PROBLEMATIC")
             return DeviceTier.PROBLEMATIC
@@ -391,6 +425,7 @@ object VulkanPolicy {
      * Android 15+ 的系统渲染默认使用 SkiaVK（Vulkan 后端），问题设备上需关闭。
      * Android < 15 的系统渲染使用 OpenGL ES，与 Vulkan 驱动问题无关，可保持开启。
      */
+    @Suppress("ReturnCount")
     fun shouldDisableHardwareAcceleration(context: Context): Boolean {
         // 1. 崩溃自愈安全模式 → 强制降级
         if (CrashRecoveryEngine.isSafeMode()) {
@@ -398,7 +433,13 @@ object VulkanPolicy {
             return true
         }
 
-        // 2. 设备分级检测（仅 Android 15+ 需要关 HW 加速）
+        // 2. Vulkan 崩溃专用标记 → 强制降级
+        if (CrashRecoveryEngine.isVulkanCrashDetected()) {
+            Log.w(TAG, "Vulkan crash detected — disabling HW acceleration")
+            return true
+        }
+
+        // 3. 设备分级检测（仅 Android 15+ 需要关 HW 加速）
         val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
         if (!isAndroid15Plus) {
             // Android < 15 系统使用 OpenGL ES，不受 Vulkan 驱动问题影响

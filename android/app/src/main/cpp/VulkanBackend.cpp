@@ -285,25 +285,23 @@ void VulkanBackend::shutdown() {
     destroyPipelineObjects();
     destroySwapchain();
 
-    // 清理白色纹理
-    if (m_whiteTexture.view) vkDestroyImageView(m_device, m_whiteTexture.view, nullptr);
-    if (m_whiteTexture.image) vkDestroyImage(m_device, m_whiteTexture.image, nullptr);
-    if (m_whiteTexture.memory) vkFreeMemory(m_device, m_whiteTexture.memory, nullptr);
-    if (m_whiteTexture.sampler) vkDestroySampler(m_device, m_whiteTexture.sampler, nullptr);
+    // 清理白色纹理（每个 vkDestroy* 后立即置空，防止二次调用时双重释放）
+    if (m_whiteTexture.view) { vkDestroyImageView(m_device, m_whiteTexture.view, nullptr); m_whiteTexture.view = VK_NULL_HANDLE; }
+    if (m_whiteTexture.image) { vkDestroyImage(m_device, m_whiteTexture.image, nullptr); m_whiteTexture.image = VK_NULL_HANDLE; }
+    if (m_whiteTexture.memory) { vkFreeMemory(m_device, m_whiteTexture.memory, nullptr); m_whiteTexture.memory = VK_NULL_HANDLE; }
+    if (m_whiteTexture.sampler) { vkDestroySampler(m_device, m_whiteTexture.sampler, nullptr); m_whiteTexture.sampler = VK_NULL_HANDLE; }
     m_whiteTexture = {};
 
     for (auto& tex : m_textures) {
-        if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
-        if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
-        if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
-        if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
+        if (tex.view) { vkDestroyImageView(m_device, tex.view, nullptr); tex.view = VK_NULL_HANDLE; }
+        if (tex.image) { vkDestroyImage(m_device, tex.image, nullptr); tex.image = VK_NULL_HANDLE; }
+        if (tex.memory) { vkFreeMemory(m_device, tex.memory, nullptr); tex.memory = VK_NULL_HANDLE; }
+        if (tex.sampler) { vkDestroySampler(m_device, tex.sampler, nullptr); tex.sampler = VK_NULL_HANDLE; }
     }
     m_textures.clear();
 
-    if (m_descriptorPool)
-        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-    if (m_descriptorSetLayout)
-        vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+    if (m_descriptorPool) { vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr); m_descriptorPool = VK_NULL_HANDLE; }
+    if (m_descriptorSetLayout) { vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr); m_descriptorSetLayout = VK_NULL_HANDLE; }
 
     // 清理双缓冲 VBO
     for (int i = 0; i < 2; i++) {
@@ -311,27 +309,27 @@ void VulkanBackend::shutdown() {
             vkUnmapMemory(m_device, m_vertexMemories[i]);
             m_vertexMapped[i] = nullptr;
         }
-        if (m_vertexBuffers[i]) vkDestroyBuffer(m_device, m_vertexBuffers[i], nullptr);
-        if (m_vertexMemories[i]) vkFreeMemory(m_device, m_vertexMemories[i], nullptr);
+        if (m_vertexBuffers[i]) { vkDestroyBuffer(m_device, m_vertexBuffers[i], nullptr); m_vertexBuffers[i] = VK_NULL_HANDLE; }
+        if (m_vertexMemories[i]) { vkFreeMemory(m_device, m_vertexMemories[i], nullptr); m_vertexMemories[i] = VK_NULL_HANDLE; }
     }
 
     // 清理 staging buffer
-    if (m_stagingBuffer) vkDestroyBuffer(m_device, m_stagingBuffer, nullptr);
-    if (m_stagingMemory) vkFreeMemory(m_device, m_stagingMemory, nullptr);
+    if (m_stagingBuffer) { vkDestroyBuffer(m_device, m_stagingBuffer, nullptr); m_stagingBuffer = VK_NULL_HANDLE; }
+    if (m_stagingMemory) { vkFreeMemory(m_device, m_stagingMemory, nullptr); m_stagingMemory = VK_NULL_HANDLE; }
 
-    for (auto& sem : m_imageAvailable)
-        if (sem) vkDestroySemaphore(m_device, sem, nullptr);
-    for (auto& sem : m_renderFinished)
-        if (sem) vkDestroySemaphore(m_device, sem, nullptr);
-    for (auto& fence : m_inFlightFences)
-        if (fence) vkDestroyFence(m_device, fence, nullptr);
+    for (auto& sem : m_imageAvailable) { if (sem) { vkDestroySemaphore(m_device, sem, nullptr); sem = VK_NULL_HANDLE; } }
+    m_imageAvailable.clear();
+    for (auto& sem : m_renderFinished) { if (sem) { vkDestroySemaphore(m_device, sem, nullptr); sem = VK_NULL_HANDLE; } }
+    m_renderFinished.clear();
+    for (auto& fence : m_inFlightFences) { if (fence) { vkDestroyFence(m_device, fence, nullptr); fence = VK_NULL_HANDLE; } }
+    m_inFlightFences.clear();
 
-    if (m_commandPool)
-        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+    if (m_commandPool) { vkDestroyCommandPool(m_device, m_commandPool, nullptr); m_commandPool = VK_NULL_HANDLE; }
 
-    if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-    if (m_device) vkDestroyDevice(m_device, nullptr);
-    if (m_instance) vkDestroyInstance(m_instance, nullptr);
+    // 主句柄置空 —— 确保二次 shutdown() 调用幂等安全
+    if (m_surface) { vkDestroySurfaceKHR(m_instance, m_surface, nullptr); m_surface = VK_NULL_HANDLE; }
+    if (m_device) { vkDestroyDevice(m_device, nullptr); m_device = VK_NULL_HANDLE; }
+    if (m_instance) { vkDestroyInstance(m_instance, nullptr); m_instance = VK_NULL_HANDLE; }
 
     // 释放 ANativeWindow 引用
     if (m_nativeWindow) {
@@ -340,6 +338,8 @@ void VulkanBackend::shutdown() {
     }
 
     m_ready = false;
+    m_deviceReady = false;
+    m_pendingDraws.clear();
     LOGI("VulkanBackend shutdown");
 }
 

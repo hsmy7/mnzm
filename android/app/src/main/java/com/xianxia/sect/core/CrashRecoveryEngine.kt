@@ -27,6 +27,7 @@ import android.util.Log
  *
  * @see VulkanPolicy 设备检测策略
  */
+@Suppress("TooManyFunctions")
 object CrashRecoveryEngine {
 
     private const val TAG = "CrashRecoveryEngine"
@@ -39,9 +40,13 @@ object CrashRecoveryEngine {
     private const val KEY_VULKAN_INIT_FAILED = "vulkan_init_failed"
     /** 写前标记：Vulkan prewarm 开始前写入，成功后清除。下次启动发现此标记 → SIGSEGV */
     private const val KEY_PREWARM_STARTED = "prewarm_started"
+    /** 写前标记：Phase 2 (initSurface) 开始前写入，成功后清除。检测 initRenderer/createSwapchain SIGSEGV */
+    private const val KEY_SURFACE_INIT_STARTED = "surface_init_started"
+    /** Vulkan 崩溃专用标记：一旦检测到 Vulkan SIGSEGV，立即标记，不依赖计数器 */
+    private const val KEY_VULKAN_CRASH_DETECTED = "vulkan_crash_detected"
 
-    /** 触发安全模式的连续崩溃阈值 */
-    private const val SAFE_MODE_THRESHOLD = 3
+    /** 触发安全模式的连续崩溃阈值（Vulkan 崩溃可预判，2 次即可触发） */
+    private const val SAFE_MODE_THRESHOLD = 2
 
     // ── 初始化状态 ──
 
@@ -208,6 +213,61 @@ object CrashRecoveryEngine {
      */
     fun wasPrewarmKilled(): Boolean {
         return requirePrefs().getBoolean(KEY_PREWARM_STARTED, false)
+    }
+
+    // ── Phase 2 (initSurface/createSwapchain) 写前标记（检测 initRenderer 阶段 SIGSEGV） ──
+
+    /**
+     * 标记 Vulkan Surface 初始化已开始（在调 NativeBridge.initRenderer 之前调用）。
+     *
+     * 如果 initRenderer → createSwapchain 导致 SIGSEGV 进程被杀死，此标记不会被清除。
+     * 下次启动时 [wasSurfaceInitKilled] 返回 true → 直接禁用 Vulkan。
+     */
+    fun markSurfaceInitStarted() {
+        requirePrefs().edit().putBoolean(KEY_SURFACE_INIT_STARTED, true).apply()
+        Log.d(TAG, "Surface init started mark set")
+    }
+
+    /**
+     * 清除 surface init 标记（在 initRenderer 成功后调用）。
+     */
+    fun clearSurfaceInitStarted() {
+        requirePrefs().edit().remove(KEY_SURFACE_INIT_STARTED).apply()
+        Log.d(TAG, "Surface init started mark cleared")
+    }
+
+    /**
+     * 上次 Vulkan Surface 初始化是否被 SIGSEGV 杀死。
+     */
+    fun wasSurfaceInitKilled(): Boolean {
+        return requirePrefs().getBoolean(KEY_SURFACE_INIT_STARTED, false)
+    }
+
+    // ── Vulkan 崩溃专用标记（无需等待计数器，1 次即标记） ──
+
+    /**
+     * 标记一次 Vulkan SIGSEGV 崩溃。
+     * 与 [recordCrash] 不同，此标记专门跟踪 Vulkan 渲染器崩溃，
+     * 一次崩溃即触发 SoftwareOnly 降级，无需积累到 SAFE_MODE_THRESHOLD。
+     */
+    fun markVulkanCrashDetected() {
+        requirePrefs().edit().putBoolean(KEY_VULKAN_CRASH_DETECTED, true).apply()
+        Log.e(TAG, "Vulkan crash detected — will force SOFTWARE_ONLY on next launch")
+    }
+
+    /**
+     * 是否有 Vulkan 崩溃记录。
+     */
+    fun isVulkanCrashDetected(): Boolean {
+        return requirePrefs().getBoolean(KEY_VULKAN_CRASH_DETECTED, false)
+    }
+
+    /**
+     * 清除 Vulkan 崩溃标记（版本更新或用户手动恢复后调用）。
+     */
+    fun clearVulkanCrashDetected() {
+        requirePrefs().edit().remove(KEY_VULKAN_CRASH_DETECTED).apply()
+        Log.d(TAG, "Vulkan crash detected flag cleared")
     }
 
 }
