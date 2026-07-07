@@ -776,6 +776,28 @@ fun MainGameScreen(
             )
         }
 
+        // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
+        val herbGardenDisplayName = BuildingDef.HERB_GARDEN.displayName
+        val showHerbGardenAura = (isPlacingBuilding && placingBuildingName == herbGardenDisplayName) ||
+                (movingBuilding?.displayName == herbGardenDisplayName)
+        val auraGridX = if (isPlacingBuilding) placingSnappedGridX else movingSnappedGridX
+        val auraGridY = if (isPlacingBuilding) placingSnappedGridY else movingSnappedGridY
+        val auraSize = if (isPlacingBuilding) placingBuildingSize else movingBuildingSize
+        val spiritFieldDisplayName = BuildingDef.SPIRIT_FIELD.displayName
+        val spiritFieldBuildings = remember(placedBuildings, movingBuilding) {
+            placedBuildings.filter { it.displayName == spiritFieldDisplayName }
+        }
+        HerbGardenAuraOverlay(
+            showAura = showHerbGardenAura,
+            buildingGridX = auraGridX,
+            buildingGridY = auraGridY,
+            buildingW = auraSize.width,
+            buildingH = auraSize.height,
+            spiritFieldBuildings = spiritFieldBuildings,
+            cameraState = cameraState,
+            tileSize = tileSize
+        )
+
         if (isPlacingBuilding) {
             val isGf = goldFingerState.isActive
             PlacementConfirmButtons(
