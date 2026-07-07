@@ -6,7 +6,9 @@ import kotlin.concurrent.thread
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
@@ -125,8 +127,15 @@ class NativeSurfaceView(
      * - Canvas 路径：保存 Bitmap 引用供软件渲染使用
      */
     fun buildAtlas(context: android.content.Context): Int {
-        val atlas = buildAtlasBitmap(context)
-        atlasBitmap = atlas  // 保存 Bitmap 引用（Canvas 回退路径使用）
+        val atlas: android.graphics.Bitmap
+        try {
+            atlas = buildAtlasBitmap(context)
+            atlasBitmap = atlas
+        } catch (t: Throwable) {
+            android.util.Log.e("NativeSurfaceView", "buildAtlas failed", t)
+            RenderMetrics.atlasBuildFailed.incrementAndGet()
+            return 0
+        }
 
         if (renderMode == RenderMode.SOFTWARE) {
             // Canvas 路径：不需要上传 GPU，返回 0
@@ -171,10 +180,24 @@ class NativeSurfaceView(
                 val resId: Int
             )
 
-            val pkg = context.packageName
-            fun res(name: String): Int = context.resources.getIdentifier(name, "drawable", pkg)
-                .also { id -> if (id == 0) android.util.Log.w("NativeSurfaceView",
-                    "buildAtlas: res not found: $name") }
+            // 瓦片/装饰精灵 R.drawable 预建映射（替代 getIdentifier
+            // 运行时查找，避免华为 HarmonyOS 资源表分片返回 0
+            // 导致精灵图加载为空白）
+            val tileDrawableMap = mapOf(
+                "map_tile" to R.drawable.map_tile,
+                "map_tile_v2" to R.drawable.map_tile_v2,
+                "decoration_grass_small" to R.drawable.decoration_grass_small,
+                "decoration_grass_medium" to R.drawable.decoration_grass_medium,
+                "decoration_grass_large" to R.drawable.decoration_grass_large,
+                "decoration_tree1" to R.drawable.decoration_tree1,
+                "decoration_tree2" to R.drawable.decoration_tree2,
+            )
+            fun res(name: String): Int {
+                val id = tileDrawableMap[name] ?: 0
+                if (id == 0) android.util.Log.w("NativeSurfaceView",
+                    "buildAtlas: res not found: $name")
+                return id
+            }
 
             val buildingMap = com.xianxia.sect.ui.game.building.BuildingRegistry.allDrawableMap()
 
@@ -223,10 +246,15 @@ class NativeSurfaceView(
                             paint)
                         bmp.recycle()
                         loadedCount++
+                    } else {
+                        android.util.Log.w("NativeSurfaceView",
+                            "buildAtlas: null bitmap for '${slot.name}'")
+                        com.xianxia.sect.core.render.RenderMetrics.atlasLoadSpriteFailed.incrementAndGet()
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("NativeSurfaceView",
                         "buildAtlas: error loading '${slot.name}': ${e.message}")
+                    com.xianxia.sect.core.render.RenderMetrics.atlasLoadSpriteFailed.incrementAndGet()
                 }
             }
 
@@ -237,37 +265,31 @@ class NativeSurfaceView(
     }
 
     /**
-     * 每帧渲染状态 — 由 Compose 层通过 [updateRenderState] 写入，
-     * 渲染线程通过原子快照 [currentRenderState] 读取。
+     * 每帧渲染帧 — 由 Compose 层通过 [updateRenderState] 写入，
+     * 渲染线程通过原子快照 [currentFrame] 读取。
      * 使用 immutable data class 原子替换，避免多字段撕裂读（白屏 Bug 根源）。
+     * 两后端（Vulkan/Canvas）均消费同一份数据，杜绝不同步。
      */
     @Volatile
-    var currentRenderState: FrameRenderState = FrameRenderState()
+    var currentFrame: RenderFrame? = null
 
     /**
-     * 相机脏标记 — 独立于 [currentRenderState]，由渲染线程读取后复位。
+     * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
      */
     @Volatile
     var cameraDirty: Boolean = false
 
-    // ── 静态数据独立字段（一次性设置，不经过 FrameRenderState） ──
-
-    /** 瓦片类型数据 — 地图生成后在 factory 中设一次即可 */
-    @Volatile
-    var staticTileData: IntArray? = null
-
-    /** 装饰物 UV 坐标 — 一次性设置 */
-    @Volatile
-    var staticUvMap: FloatArray? = null
-
-    /** 建筑 UV 坐标 — 一次性设置 */
-    @Volatile
-    var staticBuildingUVMap: FloatArray? = null
-
-    /** 从 Compose 层原子更新渲染状态 */
-    fun updateRenderState(state: FrameRenderState) {
-        currentRenderState = state
+    /** 从 Compose 层原子更新渲染帧数据 */
+    fun updateRenderState(frame: RenderFrame) {
+        currentFrame = frame
         cameraDirty = true
+
+        // 断言：debug build 时验证 tileData 完整性
+        if (frame.tileData.size != config.worldWidthCells * config.worldHeightCells) {
+            android.util.Log.e("NativeSurfaceView",
+                "RenderFrame tileData size mismatch: ${frame.tileData.size} " +
+                "vs expected ${config.worldWidthCells * config.worldHeightCells}")
+        }
     }
 
     /** 跨平台手势引擎 */
@@ -557,47 +579,47 @@ class NativeSurfaceView(
 
         /** Vulkan GPU 渲染路径 */
         private fun renderVulkanFrame() {
-            val rs = currentRenderState
+            val frame = currentFrame ?: return
 
             if (cameraDirty) {
                 NativeBridge.setCamera(
-                    rs.camX, rs.camY, rs.scale, width, height)
+                    frame.camX, frame.camY, frame.scale, width, height)
                 cameraDirty = false
             }
 
             NativeBridge.beginFrame()
 
-            // 从独立静态字段读取（factory 中一次性设置），不存在则回退 FrameRenderState
-            val td = staticTileData ?: rs.tileData
-            val uv = staticUvMap ?: rs.uvMap
-            val buv = staticBuildingUVMap ?: rs.buildingUVMap
-            if (td != null && uv != null && atlasTextureId != 0) {
+            // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
+            if (atlasTextureId != 0) {
                 NativeBridge.drawAllTiles(
-                    tileData = td,
+                    tileData = frame.tileData,
                     cols = config.worldWidthCells,
                     rows = config.worldHeightCells,
-                    buildingData = rs.buildingData,
-                    buildingCount = rs.buildingCount,
-                    buildingVisible = rs.buildingVisible,
+                    buildingData = frame.buildingData,
+                    buildingCount = frame.buildingCount,
+                    buildingVisible = frame.buildingVisible,
                     tileSize = config.tileSize,
                     atlasTexId = atlasTextureId,
-                    uvMap = uv,
-                    buildingUVMap = buv
+                    uvMap = SpriteAtlasDef.TILE_UV_MAP,
+                    buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP
                 )
             }
 
-            if (rs.showPreview && atlasTextureId != 0) {
+            if (frame.showPreview && atlasTextureId != 0) {
                 NativeBridge.drawSprite(
-                    rs.previewX, rs.previewY,
-                    rs.previewW, rs.previewH,
+                    frame.previewX, frame.previewY,
+                    frame.previewW, frame.previewH,
                     atlasTextureId,
-                    rs.previewU0, rs.previewV0,
-                    rs.previewU1, rs.previewV1,
-                    rs.previewTintRed, rs.previewTintGreen,
-                    rs.previewTintBlue, rs.previewAlpha
+                    frame.previewU0, frame.previewV0,
+                    frame.previewU1, frame.previewV1,
+                    frame.previewTintRed, frame.previewTintGreen,
+                    frame.previewTintBlue, frame.previewAlpha
                 )
             }
 
+            RenderMetrics.vulkanFrames.incrementAndGet()
+            RenderMetrics.totalFrames.incrementAndGet()
+            RenderMetrics.recordFrame()
             NativeBridge.submitFrame()
         }
 
@@ -605,30 +627,46 @@ class NativeSurfaceView(
         private fun renderSoftwareFrame() {
             val sb = softwareBackend ?: return
             val atlas = atlasBitmap ?: return
-            val rs = currentRenderState
+            val frame = currentFrame ?: return
 
-            val frame = sb.renderFrame(
-                rs = rs,
-                atlas = atlas,
-                cols = config.worldWidthCells,
-                rows = config.worldHeightCells,
-                vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
-                vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
-            ) ?: return
+            val rendered = try {
+                sb.renderFrame(
+                    frame = frame,
+                    atlas = atlas,
+                    vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
+                    vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
+                )
+            } catch (e: NullPointerException) {
+                // RenderFrame.tileData 为 null 时尽早暴露，非静默失败
+                android.util.Log.e("NativeSurfaceView",
+                    "renderSoftwareFrame: NPE (likely null tileData)", e)
+                null
+            }
+
+            if (rendered == null) {
+                RenderMetrics.renderFrameNull.incrementAndGet()
+                return
+            }
+
+            RenderMetrics.softwareFrames.incrementAndGet()
+            RenderMetrics.totalFrames.incrementAndGet()
+            RenderMetrics.recordFrame()
 
             var retries = 3
             while (retries > 0) {
                 try {
                     val surfaceCanvas = holder.lockCanvas() ?: run {
+                        RenderMetrics.lockCanvasRetries.incrementAndGet()
                         retries--
                         continue
                     }
-                    surfaceCanvas.drawBitmap(frame, 0f, 0f, null)
+                    surfaceCanvas.drawBitmap(rendered, 0f, 0f, null)
                     holder.unlockCanvasAndPost(surfaceCanvas)
                     break
                 } catch (e: Exception) {
                     retries--
                     if (retries == 0) {
+                        RenderMetrics.lockCanvasFailed.incrementAndGet()
                         android.util.Log.w("NativeSurfaceView",
                             "Software render: lockCanvas failed " +
                             "after 3 retries: ${e.message}")
@@ -656,23 +694,37 @@ data class NativeRenderConfig(
 )
 
 /**
- * 每帧渲染状态（由 Compose 层通过 [NativeSurfaceView.updateRenderState] 批量写入）
+ * RenderFrame — 渲染管线唯一数据契约。
+ *
+ * 由 Compose 层通过 [NativeSurfaceView.updateRenderState] 批量写入，
+ * Vulkan 和 Canvas 两路径均消费同一份 [RenderFrame]，杜绝数据不同步。
+ *
+ * ## 设计原则
+ * - [tileData] 非 null：编译期强制调用方传入，NullPointerException 将
+ *   在 [updateRenderState] 入口尽早抛出，而非等到渲染线程静默画 DKGRAY
+ * - [cols]/[rows]：瓦片矩阵尺寸，用于 [tileData] 完整性验证
+ * - uvMap/buildingUVMap 不在此处传递：Vulkan 和 Canvas 两后端均从
+ *   [SpriteAtlasDef] 编译时常量读取，无需帧级数据传递
  */
-data class FrameRenderState(
+data class RenderFrame(
+    /** 瓦片类型数据（展平一维，index = row * cols + col）非 null */
+    val tileData: IntArray,
+    /** 地图列数（世界格数） */
+    val cols: Int,
+    /** 地图行数（世界格数） */
+    val rows: Int,
+
+    /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */
+    val buildingData: FloatArray? = null,
+    val buildingCount: Int = 0,
+    val buildingVisible: Boolean = true,
+
+    // 相机
     val camX: Float = 0f,
     val camY: Float = 0f,
     val scale: Float = 1f,
-    val cameraDirty: Boolean = false,
-    val buildingVisible: Boolean = true,
-    val tileData: IntArray? = null,
-    val uvMap: FloatArray? = null,
-    val firstCol: Int = 0,
-    val lastCol: Int = 0,
-    val firstRow: Int = 0,
-    val lastRow: Int = 0,
-    val buildingData: FloatArray? = null,
-    val buildingCount: Int = 0,
-    val buildingUVMap: FloatArray? = null,
+
+    // 预览覆盖层（建造/移动模式）
     val showPreview: Boolean = false,
     val previewX: Float = 0f,
     val previewY: Float = 0f,

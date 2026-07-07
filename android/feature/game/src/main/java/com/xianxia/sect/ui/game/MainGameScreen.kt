@@ -55,7 +55,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.game.sect.NativeRenderConfig
-import com.xianxia.sect.ui.game.sect.FrameRenderState
+import com.xianxia.sect.ui.game.sect.RenderFrame
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
@@ -444,11 +444,6 @@ fun MainGameScreen(
                         view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
                     }
 
-                    // 一次性设置静态渲染数据（不经过 FrameRenderState）
-                    view.staticTileData = flatTileData
-                    view.staticUvMap = decorUvMap
-                    view.staticBuildingUVMap = BUILDING_UV_MAP
-
                     // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
                     view.onRendererReady = {
                         view.atlasTextureId = view.buildAtlas(ctx)
@@ -457,13 +452,15 @@ fun MainGameScreen(
                     // Vulkan 初始化生命周期监听（由 GameActivity 驱动 CrashRecoveryEngine）
                     view.vulkanInitListener = vulkanInitListener
 
-                    // 初始设置 camera
+                    // 初始设置 camera + 瓦片数据（通过 RenderFrame 单通道传递）
                     view.updateRenderState(
-                        FrameRenderState(
+                        RenderFrame(
+                            tileData = flatTileData,
+                            cols = worldWidthCells,
+                            rows = worldHeightCells,
                             camX = cameraState.cameraX,
                             camY = cameraState.cameraY,
-                            scale = cameraState.scale,
-                            cameraDirty = true
+                            scale = cameraState.scale
                         )
                     )
                 }
@@ -472,9 +469,8 @@ fun MainGameScreen(
                 // 同步视口到 touchEngine
                 view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
 
-                // Camera + 预览 + 建筑数据通过 FrameRenderState 推送
-                // 注意：tileData/uvMap/buildingUVMap 已在 factory 中通过独立字段设置
-                // 此处仍传入以确保 Canvas 回退路径有数据，Vulkan 路径优先读独立字段
+                // Camera + 预览 + 建筑数据通过 RenderFrame 推送
+                // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
                 val mb = movingBuilding
                 val isPreviewActive = isPlacingBuilding || mb != null
                 val previewBuildingName = when {
@@ -507,15 +503,16 @@ fun MainGameScreen(
                 } else null
 
                 view.updateRenderState(
-                    FrameRenderState(
+                    RenderFrame(
+                        tileData = flatTileData,
+                        cols = worldWidthCells,
+                        rows = worldHeightCells,
                         camX = cameraState.cameraX,
                         camY = cameraState.cameraY,
                         scale = cameraState.scale,
-                        cameraDirty = true,
                         buildingVisible = true,
                         buildingData = buildingData,
                         buildingCount = effectivePlacedBuildings.size,
-                        buildingUVMap = BUILDING_UV_MAP,
                         showPreview = hasPreview,
                         previewX = px,
                         previewY = py,

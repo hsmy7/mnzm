@@ -130,19 +130,15 @@ class SoftwareCanvasBackend(
     /**
      * 渲染一帧到帧缓冲区。
      *
-     * @param rs     当前帧渲染状态（FrameRenderState）
+     * @param frame  当前帧渲染数据（RenderFrame），两后端统一消费
      * @param atlas  2048×2048 纹理图集 Bitmap
-     * @param cols   地图列数
-     * @param rows   地图行数
      * @param vpW    视口宽度（屏幕像素）
      * @param vpH    视口高度（屏幕像素）
      * @return 渲染好的帧缓冲区 Bitmap
      */
     fun renderFrame(
-        rs: FrameRenderState,
+        frame: RenderFrame,
         atlas: Bitmap,
-        cols: Int,
-        rows: Int,
         vpW: Int,
         vpH: Int
     ): Bitmap? {
@@ -150,19 +146,17 @@ class SoftwareCanvasBackend(
         val canvas = frameCanvas ?: return null
         val fb = frameBuffer ?: return null
         val tileSize = config.tileSize
-        val td = rs.tileData
-        if (td == null) {
-            canvas.drawColor(Color.DKGRAY)
-            return fb
-        }
-        val buildingDataArray = rs.buildingData
-        val scale = rs.scale.coerceAtLeast(0.1f)
+        val cols = frame.cols
+        val rows = frame.rows
+        val td = frame.tileData
+        val buildingDataArray = frame.buildingData
+        val scale = frame.scale.coerceAtLeast(0.1f)
 
         // 视锥剔除计算
-        val viewLeft = rs.camX
-        val viewTop = rs.camY
-        val viewRight = rs.camX + vpW / scale
-        val viewBottom = rs.camY + vpH / scale
+        val viewLeft = frame.camX
+        val viewTop = frame.camY
+        val viewRight = frame.camX + vpW / scale
+        val viewBottom = frame.camY + vpH / scale
 
         val firstCol = (viewLeft / tileSize).toInt().coerceIn(0, cols - 1)
         val firstRow = (viewTop / tileSize).toInt().coerceIn(0, rows - 1)
@@ -174,8 +168,8 @@ class SoftwareCanvasBackend(
         val needRebuildTiles = tileHash != lastTileDataHash || !tileCacheValid
 
         // 相机/缩放是否变化（影响建筑缓存有效性）
-        val cameraChanged = rs.camX != lastBuildingCamX ||
-            rs.camY != lastBuildingCamY ||
+        val cameraChanged = frame.camX != lastBuildingCamX ||
+            frame.camY != lastBuildingCamY ||
             scale != lastBuildingScale
 
         val needRebuildBuildings = buildingHash != lastBuildingHash || cameraChanged || needRebuildTiles
@@ -194,8 +188,8 @@ class SoftwareCanvasBackend(
                     val wx = col * tileSize
                     val wy = row * tileSize
 
-                    val screenX = (wx - rs.camX) * scale
-                    val screenY = (wy - rs.camY) * scale
+                    val screenX = (wx - frame.camX) * scale
+                    val screenY = (wy - frame.camY) * scale
                     val screenTileW = tileSize * scale
                     val screenTileH = tileSize * scale
 
@@ -228,9 +222,6 @@ class SoftwareCanvasBackend(
                     }
                 }
             }
-            // 相机移动导致缓存无效，但地面/装饰数据不变时不重建
-            // 注：因为每帧相机位置可能变化，实际缓存总被跳过；
-            // 若需要真正的静态缓存，需在 TileMapData 不变时复用
             tileCacheValid = false
         }
 
@@ -238,16 +229,13 @@ class SoftwareCanvasBackend(
         // Step B: 建筑层（独立缓存）
         // ============================
         if (needRebuildBuildings) {
-            // 先清空地面临时区域（避免与之前的地面层重叠）
             if (!needRebuildTiles) {
-                // 地面没变，只需要清除建筑区域
                 canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-                // 需要重绘地面
                 restoreGroundFromCache()
             }
 
-            if (buildingDataArray != null && rs.buildingVisible) {
-                val buildingCount = rs.buildingCount.coerceAtMost(buildingDataArray.size / 5)
+            if (buildingDataArray != null && frame.buildingVisible) {
+                val buildingCount = frame.buildingCount.coerceAtMost(buildingDataArray.size / 5)
                 for (i in 0 until buildingCount) {
                     val idx = i * 5
                     val gx = buildingDataArray[idx].toInt()
@@ -260,8 +248,8 @@ class SoftwareCanvasBackend(
                     val bWorldY = gy * tileSize
                     val bWorldW = bw * tileSize
                     val bWorldH = bh * tileSize
-                    val screenBX = (bWorldX - rs.camX) * scale
-                    val screenBY = (bWorldY - rs.camY) * scale
+                    val screenBX = (bWorldX - frame.camX) * scale
+                    val screenBY = (bWorldY - frame.camY) * scale
                     val screenBW = bWorldW * scale
                     val screenBH = bWorldH * scale
 
@@ -274,9 +262,8 @@ class SoftwareCanvasBackend(
                         screenBW.toInt(), screenBH.toInt())
                 }
 
-                // 更新建筑缓存状态
-                lastBuildingCamX = rs.camX
-                lastBuildingCamY = rs.camY
+                lastBuildingCamX = frame.camX
+                lastBuildingCamY = frame.camY
                 lastBuildingScale = scale
             }
 
@@ -286,8 +273,8 @@ class SoftwareCanvasBackend(
         // ============================
         // Step C: 预览精灵（建造/移动模式）
         // ============================
-        if (rs.showPreview) {
-            drawPreview(canvas, atlas, rs, tileSize, scale, rs.camX, rs.camY)
+        if (frame.showPreview) {
+            drawPreview(canvas, atlas, frame, tileSize, scale, frame.camX, frame.camY)
         }
 
         return fb
@@ -367,25 +354,23 @@ class SoftwareCanvasBackend(
     private fun drawPreview(
         canvas: Canvas,
         atlas: Bitmap,
-        rs: FrameRenderState,
+        frame: RenderFrame,
         tileSize: Int,
         scale: Float,
         camX: Float,
         camY: Float
     ) {
-        // ★ 修复：世界坐标 → 屏幕坐标
-        val px = ((rs.previewX - camX) * scale).toInt()
-        val py = ((rs.previewY - camY) * scale).toInt()
-        val pw = (rs.previewW * scale).toInt()
-        val ph = (rs.previewH * scale).toInt()
+        val px = ((frame.previewX - camX) * scale).toInt()
+        val py = ((frame.previewY - camY) * scale).toInt()
+        val pw = (frame.previewW * scale).toInt()
+        val ph = (frame.previewH * scale).toInt()
         if (pw <= 0 || ph <= 0) return
 
-        val u0 = rs.previewU0
-        val v0 = rs.previewV0
-        val u1 = rs.previewU1
-        val v1 = rs.previewV1
+        val u0 = frame.previewU0
+        val v0 = frame.previewV0
+        val u1 = frame.previewU1
+        val v1 = frame.previewV1
 
-        // 从 UV (归一化 0-1) 转换到图集像素坐标
         val atlasW = atlas.width
         val atlasH = atlas.height
         val srcLeft = (u0 * atlasW).toInt()
@@ -393,15 +378,13 @@ class SoftwareCanvasBackend(
         val srcRight = (u1 * atlasW).toInt()
         val srcBottom = (v1 * atlasH).toInt()
 
-        // 应用 ColorMatrix 调色（对应 C++ vertexColor = tintColor * alpha）
-        val alpha = rs.previewAlpha.coerceIn(0f, 1f)
+        val alpha = frame.previewAlpha.coerceIn(0f, 1f)
         previewPaint.alpha = (alpha * 255).toInt()
         previewPaint.colorFilter = ColorMatrixColorFilter(
             ColorMatrix(floatArrayOf(
-                // 用灰度保留 + 着色偏移模拟 tint 效果
-                rs.previewTintRed, 0f, 0f, 0f, 0f,
-                0f, rs.previewTintGreen, 0f, 0f, 0f,
-                0f, 0f, rs.previewTintBlue, 0f, 0f,
+                frame.previewTintRed, 0f, 0f, 0f, 0f,
+                0f, frame.previewTintGreen, 0f, 0f, 0f,
+                0f, 0f, frame.previewTintBlue, 0f, 0f,
                 0f, 0f, 0f, 1f, 0f
             ))
         )

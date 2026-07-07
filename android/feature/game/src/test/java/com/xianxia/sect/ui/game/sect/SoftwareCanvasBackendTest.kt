@@ -45,9 +45,10 @@ class SoftwareCanvasBackendTest {
     // ============================================================
 
     @Test
-    fun `renderFrame - null tileData returns solid buffer`() {
-        val rs = FrameRenderState(camX = 0f, camY = 0f)
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+    fun `renderFrame - default tileData renders correctly`() {
+        val td = createFlatTileData(10, 10)
+        val frame = RenderFrame(tileData = td, cols = 10, rows = 10, camX = 0f, camY = 0f)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
         assertEquals(200, result!!.width)
         assertEquals(200, result.height)
@@ -55,11 +56,9 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - null buildingData does not crash`() {
-        val rs = FrameRenderState(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
-        )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val td = createFlatTileData(10, 10)
+        val frame = RenderFrame(tileData = td, cols = 10, rows = 10, camX = 0f, camY = 0f, scale = 1f)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -69,11 +68,12 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - camera at origin shows world top-left`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
         assertEquals(200, result!!.width)
         assertEquals(200, result.height)
@@ -85,11 +85,12 @@ class SoftwareCanvasBackendTest {
         // 应显示世界 (128,128)-(328,328)
         // 瓦片0 (0,0) 在屏幕 (-128,-128) → 视口外，不绘制
         // 瓦片2 (128,128) 在屏幕 (0,0)
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 128f, camY = 128f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -97,11 +98,11 @@ class SoftwareCanvasBackendTest {
     fun `renderFrame - camera at world center`() {
         // 模拟实际场景：相机居中到世界 (1536,1536)，视口 200x200
         val data = createFlatTileData(48, 48)
-        val rs = FrameRenderState(
-            camX = 1536f, camY = 1536f, scale = 1f,
-            tileData = data
+        val frame = RenderFrame(
+            tileData = data, cols = 48, rows = 48,
+            camX = 1536f, camY = 1536f, scale = 1f
         )
-        val result = backend.renderFrame(rs, atlas, 48, 48, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -111,11 +112,12 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - scale 2x produces correct buffer size`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 2f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 400, 400)
+        val result = backend.renderFrame(frame, atlas, vpW = 400, vpH = 400)
         assertNotNull(result)
         assertEquals(400, result!!.width)
         assertEquals(400, result.height)
@@ -123,11 +125,12 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - camera offset with scale 2x`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 64f, camY = 64f, scale = 2f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -137,32 +140,34 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - building at correct screen position`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             buildingData = createBuildingDataArray(
                 gridX = 2, gridY = 3, width = 2, height = 2, nameIdx = 0
             ),
             buildingCount = 1,
             buildingVisible = true
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
     @Test
     fun `renderFrame - building outside viewport not drawn`() {
         // 建筑在 (0,0)，相机在 (500,500)，完全在视口外
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 500f, camY = 500f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             buildingData = createBuildingDataArray(
                 gridX = 0, gridY = 0, width = 2, height = 2, nameIdx = 0
             ),
             buildingCount = 1,
             buildingVisible = true
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -172,14 +177,15 @@ class SoftwareCanvasBackendTest {
             gridX = 1, gridY = 1, width = 2, height = 2, nameIdx = 0,
             gridX2 = 5, gridY2 = 3, width2 = 1, height2 = 1, nameIdx2 = 1
         )
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             buildingData = buildingData,
             buildingCount = 2,
             buildingVisible = true
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -189,31 +195,33 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `renderFrame - preview offset with camera`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 100f, camY = 100f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             showPreview = true,
             previewX = 200f, previewY = 200f,
             previewW = 128f, previewH = 128f,
             previewU0 = 0f, previewV0 = 0f,
             previewU1 = 0.5f, previewV1 = 0.5f
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
     @Test
     fun `renderFrame - preview with scale`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1.5f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             showPreview = true,
             previewX = 128f, previewY = 128f,
             previewW = 128f, previewH = 128f,
             previewU0 = 0f, previewV0 = 0f,
             previewU1 = 0.5f, previewV1 = 0.5f
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 400, 400)
+        val result = backend.renderFrame(frame, atlas, vpW = 400, vpH = 400)
         assertNotNull(result)
     }
 
@@ -223,18 +231,19 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `resize - creates new frame buffer`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
         // 初始 200x200
-        var result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        var result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
         assertEquals(200, result!!.width)
 
         // resize 到 400x400
         backend.resize(400, 400)
-        result = backend.renderFrame(rs, atlas, 10, 10, 400, 400)
+        result = backend.renderFrame(frame, atlas, vpW = 400, vpH = 400)
         assertNotNull(result)
         assertEquals(400, result!!.width)
         assertEquals(400, result.height)
@@ -243,11 +252,12 @@ class SoftwareCanvasBackendTest {
     @Test
     fun `resize - zero dimensions ignored`() {
         backend.resize(0, 0) // 不应 crash
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -259,11 +269,11 @@ class SoftwareCanvasBackendTest {
     fun `renderFrame - camera at world edge`() {
         // 相机在世界右下角附近
         val data = createFlatTileData(10, 10)
-        val rs = FrameRenderState(
-            camX = 576f, camY = 576f, scale = 1f,
-            tileData = data
+        val frame = RenderFrame(
+            tileData = data, cols = 10, rows = 10,
+            camX = 576f, camY = 576f, scale = 1f
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -271,21 +281,22 @@ class SoftwareCanvasBackendTest {
     fun `renderFrame - camera beyond world bounds`() {
         // 相机完全超出世界范围，不应 crash
         val data = createFlatTileData(10, 10)
-        val rs = FrameRenderState(
-            camX = 2000f, camY = 2000f, scale = 1f,
-            tileData = data
+        val frame = RenderFrame(
+            tileData = data, cols = 10, rows = 10,
+            camX = 2000f, camY = 2000f, scale = 1f
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
     @Test
     fun `renderFrame - zero scale clamped`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 0f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -295,14 +306,15 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `release - does not crash and allows re-render`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         backend.release()
         // release 后仍能重新渲染（帧缓冲区被重建）
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
     }
 
@@ -381,27 +393,29 @@ class SoftwareCanvasBackendTest {
     @Test
     fun `qualityFactor - lowered value does not crash render`() {
         backend.qualityFactor = 0.5f
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             buildingData = createBuildingDataArray(
                 gridX = 2, gridY = 3, width = 2, height = 2, nameIdx = 0
             ),
             buildingCount = 1,
             buildingVisible = true
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull("qualityFactor=0.5f 不应影响渲染", result)
     }
 
     @Test
     fun `qualityFactor - extreme low value does not crash`() {
         backend.qualityFactor = 0.1f
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull("qualityFactor=0.1f 不应 crash", result)
     }
 
@@ -417,28 +431,30 @@ class SoftwareCanvasBackendTest {
     @Test
     fun `decorationsDisabled - true does not crash render`() {
         backend.decorationsDisabled = true
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
-        val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull("decorationsDisabled=true 不应 crash", result)
     }
 
     @Test
     fun `decorationsDisabled - toggle between frames does not crash`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10)
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10
         )
         // 第一帧：装饰开启
-        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+        assertNotNull(backend.renderFrame(frame, atlas, vpW = 200, vpH = 200))
         // 第二帧：装饰关闭
         backend.decorationsDisabled = true
-        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+        assertNotNull(backend.renderFrame(frame, atlas, vpW = 200, vpH = 200))
         // 第三帧：装饰重新开启
         backend.decorationsDisabled = false
-        assertNotNull(backend.renderFrame(rs, atlas, 10, 10, 200, 200))
+        assertNotNull(backend.renderFrame(frame, atlas, vpW = 200, vpH = 200))
     }
 
     // ============================================================
@@ -447,9 +463,10 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `multiple frames with same data does not crash`() {
-        val rs = FrameRenderState(
+        val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
             buildingData = createBuildingDataArray(
                 gridX = 2, gridY = 3, width = 2, height = 2, nameIdx = 0
             ),
@@ -458,7 +475,7 @@ class SoftwareCanvasBackendTest {
         )
         // 连续多帧渲染相同数据（验证缓存逻辑）
         repeat(10) {
-            val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+            val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
             assertNotNull("第 $it 帧不应返回 null", result)
         }
     }
@@ -466,12 +483,13 @@ class SoftwareCanvasBackendTest {
     @Test
     fun `camera movement between frames does not crash`() {
         repeat(5) { frame ->
-            val rs = FrameRenderState(
+            val frame = RenderFrame(
+                tileData = createFlatTileData(10, 10),
+                cols = 10, rows = 10,
                 camX = (frame * 32).toFloat(), camY = (frame * 16).toFloat(),
-                scale = 1f,
-                tileData = createFlatTileData(10, 10)
+                scale = 1f
             )
-            val result = backend.renderFrame(rs, atlas, 10, 10, 200, 200)
+            val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
             assertNotNull("相机移动第 $frame 帧不应 crash", result)
         }
     }
