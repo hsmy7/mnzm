@@ -168,4 +168,52 @@ object SpriteAtlasDef {
         // 越界回退
         return SpriteRect(0, BUILDING_SIZE, BUILDING_SIZE, BUILDING_SIZE)
     }
+
+    // ============================================================
+    // 地砖类型定义
+    // ============================================================
+
+    /** 地砖精灵尺寸（原始像素，与建筑占地一致） */
+    enum class FloorTileType(
+        val key: String,
+        val gridW: Int, val gridH: Int,
+        val pixelRect: SpriteRect
+    ) {
+        TILE_2x2("floor_tile_2x2", 2, 2, SpriteRect(0,   640, 128, 128)),
+        TILE_2x3("floor_tile_2x3", 2, 3, SpriteRect(0,   768, 128, 192)),
+        TILE_3x2("floor_tile_3x2", 3, 2, SpriteRect(0,   960, 192, 128)),
+        TILE_3x3("floor_tile_3x3", 3, 3, SpriteRect(192, 960, 192, 192));
+    }
+
+    /** 地砖 UV 映射（归一化 0-1，用于 Vulkan 纹理采样） */
+    val FLOOR_TILE_UV_MAP: FloatArray by lazy {
+        val uv = FloatArray(FloorTileType.values().size * 4)
+        for (tile in FloorTileType.values()) {
+            val r = tile.pixelRect
+            val i = tile.ordinal * 4
+            uv[i] = r.x.toFloat() / ATLAS_W
+            uv[i + 1] = r.y.toFloat() / ATLAS_H
+            uv[i + 2] = (r.x + r.w).toFloat() / ATLAS_W
+            uv[i + 3] = (r.y + r.h).toFloat() / ATLAS_H
+        }
+        uv
+    }
+
+    /**
+     * 根据建筑网格尺寸获取地砖类型索引。
+     * @param gw 建筑占地宽度（格数）
+     * @param gh 建筑占地高度（格数）
+     * @return 地砖索引（0-3），或 -1（无匹配地砖，如灵田 1x1）
+     */
+    fun floorTileIndex(gw: Int, gh: Int): Int = when {
+        gw == 2 && gh == 2 -> 0  // 地砖2x2
+        gw == 2 && gh == 3 -> 1  // 地砖2x3
+        gw == 3 && gh == 2 -> 2  // 地砖3x2
+        gw == 3 && gh == 3 -> 3  // 地砖3x3
+        else -> -1
+    }
+
+    /** 地砖在图集中的像素矩形（供 Canvas 渲染器使用） */
+    fun floorTileRect(index: Int): SpriteRect =
+        FloorTileType.values().getOrNull(index)?.pixelRect ?: SpriteRect(0, 640, 128, 128)
 }

@@ -92,6 +92,12 @@ static const SpriteDef MAP_SPRITES[] = {
     { "中级单人住所",     0,   512, 128,128 },
     { "多人住所",         128, 512, 128,128 },
     { "血炼池",           256, 512, 128,128 },
+
+    // 行5+: 地砖底座（128-192×128-192px，建筑脚下覆盖层）
+    { "floor_tile_2x2",    0,   640, 128,128 },
+    { "floor_tile_2x3",    0,   768, 128,192 },
+    { "floor_tile_3x2",    0,   960, 192,128 },
+    { "floor_tile_3x3",    192, 960, 192,192 },
 };
 
 static constexpr int MAP_SPRITE_COUNT =

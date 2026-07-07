@@ -26,6 +26,8 @@ class SoftwareCanvasBackend(
 ) {
     companion object {
         private const val TAG = "SoftwareCanvasBackend"
+        /** 灵田在图集中的索引（BUILDING_NAMES 中排第3，index=2） */
+        private const val SPIRIT_FIELD_ATLAS_INDEX = 2
     }
 
     /** 渲染质量因子（0.0~1.0），由 ThermalController 设置 */
@@ -110,6 +112,17 @@ class SoftwareCanvasBackend(
         for (i in rects.indices) {
             val sr = SpriteAtlasDef.buildingRect(i)
             rects[i] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+        }
+        @Suppress("UNCHECKED_CAST")
+        rects as Array<Rect>
+    }
+
+    /** 地砖精灵在图集中的源矩形（索引 = FloorTileType ordinal） */
+    private val FLOOR_TILE_SRC_RECTS: Array<Rect> by lazy {
+        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.FloorTileType.values().size)
+        for (ft in SpriteAtlasDef.FloorTileType.values()) {
+            val r = ft.pixelRect
+            rects[ft.ordinal] = Rect(r.x, r.y, r.x + r.w, r.y + r.h)
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>
@@ -255,6 +268,19 @@ class SoftwareCanvasBackend(
 
                     if (screenBX + screenBW <= 0f || screenBX >= vpW.toFloat() ||
                         screenBY + screenBH <= 0f || screenBY >= vpH.toFloat()) continue
+
+                    // A) 地砖底座（灵田除外）
+                    if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
+                        val ftIdx = SpriteAtlasDef.floorTileIndex(bw, bh)
+                        if (ftIdx >= 0) {
+                            val ftSrc = FLOOR_TILE_SRC_RECTS.getOrNull(ftIdx)
+                            if (ftSrc != null) {
+                                drawTile(canvas, atlas, ftSrc,
+                                    screenBX.toInt(), screenBY.toInt(),
+                                    screenBW.toInt(), screenBH.toInt())
+                            }
+                        }
+                    }
 
                     val srcRect = BUILDING_SRC_RECTS.getOrNull(nameIdx) ?: continue
                     drawTile(canvas, atlas, srcRect,

@@ -76,7 +76,7 @@ object NativeBridge {
         vpW: Int, vpH: Int
     )
 
-    /** 统一瓦片绘制（地面+装饰+建筑合并到图集单次 draw call） */
+    /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call） */
     external fun drawAllTiles(
         tileData: IntArray,          // 展平瓦片类型数组 [0..N]
         cols: Int, rows: Int,        // 地图网格尺寸
@@ -86,7 +86,8 @@ object NativeBridge {
         tileSize: Int,
         atlasTexId: Int,
         uvMap: FloatArray,           // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引
-        buildingUVMap: FloatArray?   // 建筑 UV 映射
+        buildingUVMap: FloatArray?,  // 建筑 UV 映射
+        floorTileUVMap: FloatArray?  // 地砖 UV 映射 [u0,v0,u1,v1] × 4
     )
 
     /** 绘制纯色矩形（网格线/放置预览） */

@@ -229,7 +229,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jint tileSize,
     jint atlasTexId,             // 图集纹理 ID
     jfloatArray uvMap,           // UV 映射 [u0,v0,u1,v1] × tileTypeCount
-    jfloatArray buildingUVMap) { // 建筑 UV 映射
+    jfloatArray buildingUVMap,
+    jfloatArray floorTileUVMap) { // 建筑 UV 映射 + 地砖 UV 映射
 
     if (!g_renderer || !tileData || !uvMap) return;
 
@@ -245,6 +246,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     // 同一 batcher 中先 add 的先画 → 地面最先画，装饰浮在地面上
     // 地面纹理：默认格用 uvMap[0]，TILE_GROUND_V2(7) 用 uvMap[7]
     static const int TILE_GROUND_V2 = 7;
+    // 灵田在图集 BUILDING_NAMES 中的索引 = 2（唯一不画地砖的建筑）
+    static const int SPIRIT_FIELD_NAME_INDEX = 2;
 
     for (int row = 0; row < rows; row++) {
         jint rowBase = row * cols;
@@ -322,6 +325,28 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             int buvIdx = nameIdx;
             if (buvIdx >= (int)buvCount) buvIdx = 0;
 
+            // (A) 地砖底座（灵田除外）
+            if (nameIdx != SPIRIT_FIELD_NAME_INDEX && floorTileUVMap != nullptr) {
+                int ftW = static_cast<int>(gw), ftH = static_cast<int>(gh);
+                int ftIdx = -1;
+                if      (ftW == 2 && ftH == 2) ftIdx = 0;
+                else if (ftW == 2 && ftH == 3) ftIdx = 1;
+                else if (ftW == 3 && ftH == 2) ftIdx = 2;
+                else if (ftW == 3 && ftH == 3) ftIdx = 3;
+
+                if (ftIdx >= 0) {
+                    jfloat* ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
+                    jsize ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
+                    if (ftIdx < (int)ftuvCount) {
+                        batcher.add(atlasTexId, px, py, pw, ph,
+                            ftuvs[ftIdx * 4], ftuvs[ftIdx * 4 + 1],
+                            ftuvs[ftIdx * 4 + 2], ftuvs[ftIdx * 4 + 3]);
+                    }
+                    env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
+                }
+            }
+
+            // (B) 建筑精灵（保持原逻辑不变）
             batcher.add(atlasTexId, px, py, pw, ph,
                 buvs[buvIdx * 4], buvs[buvIdx * 4 + 1],
                 buvs[buvIdx * 4 + 2], buvs[buvIdx * 4 + 3]);

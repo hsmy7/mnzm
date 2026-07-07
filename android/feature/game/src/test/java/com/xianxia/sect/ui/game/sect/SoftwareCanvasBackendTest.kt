@@ -493,4 +493,100 @@ class SoftwareCanvasBackendTest {
             assertNotNull("相机移动第 $frame 帧不应 crash", result)
         }
     }
+
+    // ============================================================
+    // 地砖（Floor Tile）
+    // ============================================================
+
+    @Test
+    fun `renderFrame - 2x2 building draws floor tile without crash`() {
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 2, width = 2, height = 2, nameIdx = 0
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("2x2 建筑 + 地砖不应 crash", result)
+    }
+
+    @Test
+    fun `renderFrame - spirit field does not draw floor tile`() {
+        // 灵田 nameIdx=2，应跳过地砖绘制
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 2, width = 1, height = 1, nameIdx = 2
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("灵田跳过地砖不应 crash", result)
+    }
+
+    @Test
+    fun `renderFrame - 3x2 building uses floor tile index 2 without crash`() {
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 1, gridY = 1, width = 3, height = 2, nameIdx = 5
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("3x2 建筑 + 地砖不应 crash", result)
+    }
+
+    @Test
+    fun `renderFrame - 2x3 building uses floor tile index 1 without crash`() {
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 1, gridY = 1, width = 2, height = 3, nameIdx = 7
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("2x3 建筑 + 地砖不应 crash", result)
+    }
+
+    @Test
+    fun `floorTileIndex - returns correct index for each size`() {
+        assertEquals(0, SpriteAtlasDef.floorTileIndex(2, 2))
+        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 3))
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(3, 2))
+        assertEquals(3, SpriteAtlasDef.floorTileIndex(3, 3))
+    }
+
+    @Test
+    fun `floorTileIndex - spirit field 1x1 returns -1`() {
+        assertEquals(-1, SpriteAtlasDef.floorTileIndex(1, 1))
+    }
+
+    @Test
+    fun `spriteAtlasDef - FLOOR_TILE_UV_MAP has correct size`() {
+        assertEquals(4 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
+    }
+
+    @Test
+    fun `spriteAtlasDef - floorTileRect returns valid rect for all indices`() {
+        for (i in 0 until 4) {
+            val rect = SpriteAtlasDef.floorTileRect(i)
+            assertTrue("floorTileRect $i: w=${rect.w}", rect.w > 0)
+            assertTrue("floorTileRect $i: h=${rect.h}", rect.h > 0)
+        }
+    }
 }

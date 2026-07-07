@@ -192,6 +192,14 @@ class NativeSurfaceView(
                 "decoration_tree1" to R.drawable.decoration_tree1,
                 "decoration_tree2" to R.drawable.decoration_tree2,
             )
+
+            // 地砖精灵 R.drawable 映射
+            val floorTileDrawableMap = mapOf(
+                "floor_tile_2x2" to R.drawable.floor_tile_2x2,
+                "floor_tile_2x3" to R.drawable.floor_tile_2x3,
+                "floor_tile_3x2" to R.drawable.floor_tile_3x2,
+                "floor_tile_3x3" to R.drawable.floor_tile_3x3,
+            )
             fun res(name: String): Int {
                 val id = tileDrawableMap[name] ?: 0
                 if (id == 0) android.util.Log.w("NativeSurfaceView",
@@ -229,7 +237,15 @@ class NativeSurfaceView(
                     buildingMap[name] ?: 0))
             }
 
-            val slots = tileSlots + buildingSlots
+            // 地砖精灵：来自 SpriteAtlasDef.FloorTileType
+            val floorTileSlots = mutableListOf<SpriteSlot>()
+            for (ft in SpriteAtlasDef.FloorTileType.values()) {
+                val r = ft.pixelRect
+                floorTileSlots.add(SpriteSlot(ft.key, r.x, r.y, r.w, r.h,
+                    floorTileDrawableMap[ft.key] ?: 0))
+            }
+
+            val slots = tileSlots + buildingSlots + floorTileSlots
 
             // 绘制每个精灵到图集
             var loadedCount = 0
@@ -601,7 +617,8 @@ class NativeSurfaceView(
                     tileSize = config.tileSize,
                     atlasTexId = atlasTextureId,
                     uvMap = SpriteAtlasDef.TILE_UV_MAP,
-                    buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP
+                    buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
+                    floorTileUVMap = SpriteAtlasDef.FLOOR_TILE_UV_MAP
                 )
             }
 
