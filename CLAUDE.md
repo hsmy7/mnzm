@@ -259,7 +259,8 @@ Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`
 **Key rules:**
 - **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(1) via IntPackedArray (was O(log n) SparseArray)
 - **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(1) via IntPackedArray (was O(log n))
-- **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class — ONLY for UI/Serialization, NEVER in hot path
+- **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class (~200 fields, 5 nested layers) — ONLY for UI/Serialization, NEVER in hot path
+- **Hot path column reads**: `cultivation` 热路径用列直读替代 `assemble()`。父母加成仅读 `isAlive` + `spiritRootTypes` 两列，讲道加成仅读 `isAlive` + `realms` + `teachings` 三列。300 弟子时 `assemble` 调用从 1500+ 次/100ms 降至 300 次/100ms（降低 80%）
 - **Non-Disciple lookup**: `entityStore.get(id)` — O(1) via HashMap index
 - **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配
 - **EntityStore snapshot**: `entityStore.freeze()` before StateFlow emission — 仅在 dirty 时分配新 List
