@@ -147,15 +147,9 @@ class CultivationCore @Inject constructor(
         }
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
 
-        val parent1 = disciple.social.parentId1?.let { pid ->
-            val pidInt = pid.toIntOrNull() ?: return@let null
-            if (tables.names.contains(pidInt)) tables.assemble(pidInt) else null
-        }
-        val parent2 = disciple.social.parentId2?.let { pid ->
-            val pidInt = pid.toIntOrNull() ?: return@let null
-            if (tables.names.contains(pidInt)) tables.assemble(pidInt) else null
-        }
-        val parentCultivationBonus = DiscipleStatCalculator.calculateParentCultivationBonus(parent1, parent2)
+        val parentCultivationBonus = calculateParentBonusColumn(
+            disciple.social.parentId1, disciple.social.parentId2, tables
+        )
 
         // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
         val masterDiscipleBonus = disciple.social.masterId?.let { mid ->
@@ -187,29 +181,57 @@ class CultivationCore @Inject constructor(
         return perPhase
     }
 
+    /** 列直读版父母灵根加成，无 assemble。对标 calculateParentCultivationBonus。 */
+    private fun calculateParentBonusColumn(
+        parentId1: String?, parentId2: String?, tables: DiscipleTables
+    ): Double {
+        fun bonusFor(pid: String?): Double {
+            val id = pid?.toIntOrNull() ?: return 0.0
+            if (tables.isAlive[id] != 1) return 0.0
+            val rootCount = tables.spiritRootTypes.getOrNull(id)?.split(",")?.size ?: 0
+            return DiscipleStatCalculator.getParentSpiritRootBonus(rootCount)
+        }
+        return bonusFor(parentId1) + bonusFor(parentId2)
+    }
+
+    /** 列直读版讲道加成 + 导师加成，无 assemble。对标原 calculatePreachingBonuses。 */
     private fun calculatePreachingBonuses(
         disciple: Disciple,
         data: GameData,
         tables: DiscipleTables,
         targetDiscipleType: String
     ): Pair<Double, Double> {
+        if (disciple.discipleType != targetDiscipleType) return 0.0 to 0.0
         val elderSlots = data.elderSlots
-        val preachingElder = when (targetDiscipleType) {
-            "outer" -> elderSlots.preachingElder.let { id -> if (id.isNotEmpty()) id.toIntOrNull()?.let { tables.assemble(it) } else null }
-            "inner" -> elderSlots.qingyunPreachingElder.let { id -> if (id.isNotEmpty()) id.toIntOrNull()?.let { tables.assemble(it) } else null }
-            else -> null
+
+        fun elderBonus(elderId: String?): Double {
+            val id = elderId?.toIntOrNull() ?: return 0.0
+            if (!tables.names.contains(id) || tables.isAlive[id] != 1) return 0.0
+            val teaching = tables.teachings[id]
+            val realm = tables.realms[id]
+            if (disciple.realm >= realm && teaching >= 80) return (teaching - 80) * 0.01
+            return 0.0
         }
-        val preachingMasters = when (targetDiscipleType) {
-            "outer" -> elderSlots.preachingMasters.mapNotNull { slot -> slot.discipleId?.toIntOrNull()?.let { tables.assemble(it) } }
-            "inner" -> elderSlots.qingyunPreachingMasters.mapNotNull { slot -> slot.discipleId?.toIntOrNull()?.let { tables.assemble(it) } }
-            else -> emptyList()
+
+        fun mastersBonus(masterIds: List<String?>): Double {
+            var total = 0.0
+            for (mId in masterIds) {
+                val id = mId?.toIntOrNull() ?: continue
+                if (!tables.names.contains(id) || tables.isAlive[id] != 1) continue
+                val teaching = tables.teachings[id]
+                val realm = tables.realms[id]
+                if (disciple.realm >= realm && teaching >= 80) total += (teaching - 80) * 0.005
+            }
+            return total
         }
-        return DiscipleStatCalculator.calculatePreachingBonus(
-            disciple = disciple,
-            targetDiscipleType = targetDiscipleType,
-            preachingElder = preachingElder,
-            preachingMasters = preachingMasters
-        )
+
+        return when (targetDiscipleType) {
+            "outer" -> elderBonus(elderSlots.preachingElder) to
+                mastersBonus(elderSlots.preachingMasters.map { it.discipleId })
+            "inner" -> elderBonus(elderSlots.qingyunPreachingElder) to
+                mastersBonus(elderSlots.qingyunPreachingMasters.map { it.discipleId })
+            else -> 0.0 to 0.0
+        }
     }
 
     /**
