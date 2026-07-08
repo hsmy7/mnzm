@@ -775,8 +775,8 @@ object GameConfig {
     
     object SectMap {
         const val TILE_SIZE = 64
-        const val WORLD_WIDTH_CELLS = 48
-        const val WORLD_HEIGHT_CELLS = 48
+        const val WORLD_WIDTH_CELLS = 72
+        const val WORLD_HEIGHT_CELLS = 72
         val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE
         val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
     }
