@@ -1017,19 +1017,23 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    /** 根据当前政策重算槽位的 successRate */
+    /** 根据当前政策重算槽位的 successRate。从配方数据库读取基础值 + 当前政策加成。 */
     private fun recalculateSuccessRate(data: GameData, slot: ProductionSlot): Double {
+        val baseRate = when (slot.buildingType) {
+            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY ->
+                com.xianxia.sect.core.registry.PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+            com.xianxia.sect.core.model.production.BuildingType.FORGE ->
+                com.xianxia.sect.core.registry.ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+            else -> null
+        } ?: return slot.successRate  // 查不到配方则保持原值
+
         val policyBonus = when (slot.buildingType) {
             com.xianxia.sect.core.model.production.BuildingType.ALCHEMY ->
                 if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
             com.xianxia.sect.core.model.production.BuildingType.FORGE ->
                 if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
-            else -> return slot.successRate  // 非策略影响类型，保持原值
+            else -> 0.0
         }
-        // 使用配方基础成功率 + 政策加成（clamp [0,1]）
-        val baseSuccessRate = slot.successRate.coerceIn(0.0, 1.0)
-        // 如果旧值已经包含政策加成，这里用原值+新政策会有双倍问题。
-        // 但 baseSuccessRate 来自配方，减掉旧政策无依据，简单用已有值 + 政策增量
-        return (slot.successRate + policyBonus).coerceIn(0.0, 1.0)
+        return (baseRate + policyBonus).coerceIn(0.0, 1.0)
     }
 }

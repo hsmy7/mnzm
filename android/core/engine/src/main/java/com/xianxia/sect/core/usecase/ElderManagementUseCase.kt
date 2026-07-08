@@ -30,6 +30,11 @@ class ElderManagementUseCase @Inject constructor(
         data class Error(val message: String) : ElderResult()
     }
 
+    /** 影响生产速率的长老类型 — 变更后触发 checkpointAllProduction() */
+    private val productionElderTypes = setOf(
+        ElderSlotType.ALCHEMY, ElderSlotType.FORGE, ElderSlotType.HERB_GARDEN
+    )
+
     // ==================== Elder ID 查询辅助方法 ====================
 
     fun ElderSlots.getAllElderIds(): List<String> {
@@ -129,11 +134,6 @@ class ElderManagementUseCase @Inject constructor(
         }
         return ElderResult.Success("长老任命成功")
     }
-
-    /** 影响生产速率的长老类型 */
-    private val productionElderTypes = setOf(
-        ElderSlotType.ALCHEMY, ElderSlotType.FORGE, ElderSlotType.HERB_GARDEN
-    )
 
     // ==================== 长老卸任 ====================
 

@@ -40,10 +40,7 @@ class RoomMigrationTest {
         private val M10_11 = GameDatabase.MIGRATION_10_11
         private val M11_12 = GameDatabase.MIGRATION_11_12
         private val M12_13 = GameDatabase.MIGRATION_12_13
-
-        private val ALL_MIGRATIONS = listOf(
-            M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10, M10_11, M11_12, M12_13
-        )
+        private val M13_14 = GameDatabase.MIGRATION_13_14
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -126,14 +123,18 @@ class RoomMigrationTest {
     @Test
     fun `MIGRATION_10_TO_11 adds vassalContracts to game_data`() {
         testSingleMigration(
-            "m_10_11", 2, 11, ALL_MIGRATIONS.dropLast(2), "game_data", "vassalContracts"
+            "m_10_11", 2, 11,
+            listOf(M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10, M10_11),
+            "game_data", "vassalContracts"
         )
     }
 
     @Test
     fun `MIGRATION_11_TO_12 adds map_seed to game_data`() {
         testSingleMigration(
-            "m_11_12", 2, 12, ALL_MIGRATIONS.dropLast(1), "game_data", "map_seed"
+            "m_11_12", 2, 12,
+            listOf(M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10, M10_11, M11_12),
+            "game_data", "map_seed"
         )
     }
 
@@ -163,19 +164,33 @@ class RoomMigrationTest {
         }
     }
 
+    @Test
+    fun `MIGRATION_13_TO_14 adds cultivationCheckpoint to disciples`() {
+        testSingleMigration(
+            "m_13_14_cp", 13, 14, listOf(M13_14), "disciples", "cultivationCheckpoint"
+        )
+    }
+
+    @Test
+    fun `MIGRATION_13_TO_14 adds cultivationCheckpointGameMonth to disciples`() {
+        testSingleMigration(
+            "m_13_14_cpm", 13, 14, listOf(M13_14), "disciples", "cultivationCheckpointGameMonth"
+        )
+    }
+
     // ==================== 全量迁移测试 ====================
 
     @Test
-    fun `full migration from v2 to v13 applies all steps without crash`() {
+    fun `full migration from v2 to v14 applies all steps without crash`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val dbName = "full_migrate"
         context.deleteDatabase(dbName)
         try {
             // 注意：早期版本（v2-v11）缺少后来加入实体的列（如 merchantAcquisitionItems），
             // 而部分列没有对应的 ALTER TABLE ADD COLUMN 迁移，因此全量迁移测试跳过 v2→v12 段，
-            // 直接从 v12 schema 开始测试 v12→v13 的核心迁移路径
+            // 直接从 v12 schema 开始测试 v12→v14 的核心迁移路径
             val db = createDatabaseFromSchema(context, dbName, 12)
-            applyMigrationsSequentially(db, listOf(M12_13))
+            applyMigrationsSequentially(db, listOf(M12_13, M13_14))
 
             verifyGameDataColumnsExist(db)
             verifyDisciplesColumnsExist(db)
@@ -185,6 +200,11 @@ class RoomMigrationTest {
             // 验证 isGameStarted 已被 v13 迁移删除
             assertFalse("isGameStarted should be removed after v13 migration",
                 columnExists(db, "game_data", "isGameStarted"))
+            // 验证 v14 新增列存在
+            assertTrue("cultivationCheckpoint should exist after v14 migration",
+                columnExists(db, "disciples", "cultivationCheckpoint"))
+            assertTrue("cultivationCheckpointGameMonth should exist after v14 migration",
+                columnExists(db, "disciples", "cultivationCheckpointGameMonth"))
 
             db.close()
         } finally {

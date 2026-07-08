@@ -77,7 +77,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 13  // v13: 移除 isGameStarted 列 — 迁移到 GameLifecycle 纯运行时状态
+    version = 14  // v14: Disciple 新增 cultivationCheckpoint / cultivationCheckpointGameMonth 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -666,6 +666,23 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /** v13→v14: Disciple 新增 cultivationCheckpoint / cultivationCheckpointGameMonth 列（修炼 Checkpoint 快照法） */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "disciples", "cultivationCheckpoint")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN cultivationCheckpoint REAL NOT NULL DEFAULT 0.0"
+                    )
+                }
+                if (!columnExists(db, "disciples", "cultivationCheckpointGameMonth")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN cultivationCheckpointGameMonth INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
+                Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
@@ -705,7 +722,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

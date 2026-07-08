@@ -338,6 +338,8 @@ class DiscipleTables {
         realms[id] = disciple.realm
         realmLayers[id] = disciple.realmLayer
         cultivations[id] = disciple.cultivation
+        cultivationCheckpoints[id] = disciple.cultivationCheckpoint
+        cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
         ages[id] = disciple.age
         lifespans[id] = disciple.lifespan
         isAlive[id] = if (disciple.isAlive) 1 else 0
@@ -461,6 +463,8 @@ class DiscipleTables {
         realms[id] = disciple.realm
         realmLayers[id] = disciple.realmLayer
         cultivations[id] = disciple.cultivation
+        cultivationCheckpoints[id] = disciple.cultivationCheckpoint
+        cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
         ages[id] = disciple.age
         lifespans[id] = disciple.lifespan
         isAlive[id] = if (disciple.isAlive) 1 else 0
@@ -575,6 +579,8 @@ class DiscipleTables {
             realm = realms.getOrDefault(id, 9),
             realmLayer = realmLayers.getOrDefault(id, 1),
             cultivation = cultivations.getOrDefault(id, 0.0),
+            cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
+            cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
             spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
             age = ages.getOrDefault(id, 16),
             lifespan = lifespans.getOrDefault(id, 80),

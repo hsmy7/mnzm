@@ -75,6 +75,8 @@ data class Disciple(
     var realm: Int = 9,
     var realmLayer: Int = 1,
     var cultivation: Double = 0.0,
+    var cultivationCheckpoint: Double = 0.0,
+    var cultivationCheckpointGameMonth: Int = 0,
 
     val spiritRootType: String = "metal",
 
