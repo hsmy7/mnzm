@@ -314,7 +314,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             float gh = buildings[idx + 3];
             int nameIdx = static_cast<int>(buildings[idx + 4]);
 
-            // 建筑/地砖比例×2（灵田保持原尺寸），居中偏移
+            // 建筑世界像素尺寸 = grid尺寸 × tileSize
             float px, py, pw, ph;
             if (nameIdx == SPIRIT_FIELD_NAME_INDEX) {
                 px = gx * tileSize;
@@ -322,10 +322,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                 pw = gw * tileSize;
                 ph = gh * tileSize;
             } else {
-                px = gx * tileSize - (gw * tileSize * 0.5f);
-                py = gy * tileSize - (gh * tileSize * 0.5f);
-                pw = gw * tileSize * 2.0f;
-                ph = gh * tileSize * 2.0f;
+                px = gx * tileSize;
+                py = gy * tileSize;
+                pw = gw * tileSize;
+                ph = gh * tileSize;
             }
 
             // 可见性检测
