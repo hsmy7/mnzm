@@ -124,24 +124,24 @@ object SpriteAtlasDef {
      * 渲染器需通过此表获取占地尺寸来计算地砖索引。
      */
     val FOOTPRINT_BY_NAME_INDEX: Array<Pair<Int, Int>> = arrayOf(
-        4 to 4,   // 0: 灵矿场
-        4 to 4,   // 1: 灵植阁
-        1 to 1,   // 2: 灵田
-        4 to 3,   // 3: 炼丹炉
-        6 to 4,   // 4: 锻造坊
-        6 to 5,   // 5: 仓库
-        6 to 4,   // 6: 藏经阁
-        4 to 3,   // 7: 问道塔
-        4 to 3,   // 8: 青云塔
-        6 to 4,   // 9: 天枢殿
-        6 to 4,   // 10: 执法堂
-        4 to 3,   // 11: 任务阁
-        4 to 4,   // 12: 巡视楼
-        4 to 4,   // 13: 监牢
-        4 to 4,   // 14: 单人住所
-        6 to 6,   // 15: 中级单人住所
-        6 to 4,   // 16: 多人住所
-        2 to 2    // 17: 血炼池
+        4 to 4,   // 0: 灵矿场  (grid 4×4, sprite 4×4)
+        4 to 3,   // 1: 灵植阁  (grid 4×3, sprite 5×6)
+        1 to 1,   // 2: 灵田    (grid 1×1, sprite 1×1)
+        4 to 3,   // 3: 炼丹炉  (grid 4×3, sprite 4×4)
+        5 to 3,   // 4: 锻造坊  (grid 5×3, sprite 5×6)
+        6 to 5,   // 5: 仓库    (grid 6×5, sprite 6×6)
+        6 to 3,   // 6: 藏经阁  (grid 6×3, sprite 6×6)
+        4 to 3,   // 7: 问道塔  (grid 4×3, sprite 4×8)
+        4 to 3,   // 8: 青云塔  (grid 4×3, sprite 4×8)
+        6 to 3,   // 9: 天枢殿  (grid 6×3, sprite 6×6)
+        6 to 3,   // 10: 执法堂 (grid 6×3, sprite 6×6)
+        4 to 3,   // 11: 任务阁 (grid 4×3, sprite 4×6)
+        4 to 4,   // 12: 巡视楼 (grid 4×4, sprite 4×8)
+        4 to 4,   // 13: 监牢   (grid 4×4, sprite 4×4)
+        4 to 4,   // 14: 单人住所 (grid 4×4, sprite 4×4)
+        6 to 6,   // 15: 中级单人住所 (grid 6×6, sprite 6×6)
+        6 to 4,   // 16: 多人住所 (grid 6×4, sprite 6×4)
+        2 to 2    // 17: 血炼池 (grid 2×2, sprite 4×4)
     )
 
     /**
@@ -240,6 +240,8 @@ object SpriteAtlasDef {
         // 新占地尺寸映射到最接近的现有地砖
         gw == 4 && gh == 4 -> 3  // 方形 → 3x3 地砖（拉伸）
         gw == 6 && gh == 4 -> 2  // 宽扁 → 3x2 地砖
+        gw == 5 && gh == 3 -> 2  // 宽扁 → 3x2 地砖
+        gw == 6 && gh == 3 -> 2  // 宽扁 → 3x2 地砖
         gw == 4 && gh == 6 -> 1  // 窄高 → 2x3 地砖
         gw == 6 && gh == 6 -> 3  // 大方 → 3x3 地砖
         gw == 4 && gh == 8 -> 1  // 瘦高 → 2x3 地砖

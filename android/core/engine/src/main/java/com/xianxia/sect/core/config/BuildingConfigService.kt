@@ -255,8 +255,8 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 1.0,
                     cost = 3000,
                     gridWidth = 4,
-                    gridHeight = 4,
-                    spriteWidth = 6,
+                    gridHeight = 3,
+                    spriteWidth = 5,
                     spriteHeight = 6,
                     description = "种植灵草的园地"
                 ),
@@ -282,9 +282,9 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 4000,
-                    gridWidth = 6,
-                    gridHeight = 4,
-                    spriteWidth = 6,
+                    gridWidth = 5,
+                    gridHeight = 3,
+                    spriteWidth = 5,
                     spriteHeight = 6,
                     description = "锻造装备的场所"
                 ),
@@ -311,7 +311,7 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 1.0,
                     cost = 6000,
                     gridWidth = 6,
-                    gridHeight = 4,
+                    gridHeight = 3,
                     spriteWidth = 6,
                     spriteHeight = 6,
                     description = "维护宗门纪律，执行奖惩"
@@ -363,7 +363,7 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 1.0,
                     cost = 8000,
                     gridWidth = 6,
-                    gridHeight = 4,
+                    gridHeight = 3,
                     spriteWidth = 6,
                     spriteHeight = 6,
                     description = "弟子修习功法的场所，提升修炼速度"
@@ -391,7 +391,7 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 1.0,
                     cost = 15000,
                     gridWidth = 6,
-                    gridHeight = 4,
+                    gridHeight = 3,
                     spriteWidth = 6,
                     spriteHeight = 6,
                     description = "处理宗门事务的核心建筑"
