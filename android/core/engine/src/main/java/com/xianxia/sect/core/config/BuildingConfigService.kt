@@ -202,8 +202,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 1500,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "开采灵石和矿石"
                 ),
                 "warehouse" to BuildingConfigModel(
@@ -212,8 +212,8 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "WAREHOUSE",
                     slotCount = 1,
                     cost = 1500,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "储存宗门物资，每座+50格容量"
                 ),
 
@@ -225,8 +225,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 3000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "种植灵草的园地"
                 ),
                 "alchemy" to BuildingConfigModel(
@@ -237,8 +237,8 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 4000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "用于炼制各种丹药的场所"
                 ),
                 "forge" to BuildingConfigModel(
@@ -249,8 +249,8 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 4000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "锻造装备的场所"
                 ),
 
@@ -262,8 +262,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 6,
                     baseSuccessRate = 1.0,
                     cost = 5000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "悔过自新之地，关押违规弟子"
                 ),
                 "law_enforcement_hall" to BuildingConfigModel(
@@ -273,8 +273,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 6000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "维护宗门纪律，执行奖惩"
                 ),
                 "mission_hall" to BuildingConfigModel(
@@ -284,8 +284,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     baseSuccessRate = 1.0,
                     cost = 6000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "派遣弟子执行宗门任务"
                 ),
                 "wen_dao_peak" to BuildingConfigModel(
@@ -295,8 +295,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 4,
-                    gridHeight = 6,
+                    gridWidth = 2,
+                    gridHeight = 3,
                     description = "管理外门弟子与传道授业"
                 ),
                 "qingyun_peak" to BuildingConfigModel(
@@ -306,8 +306,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 4,
-                    gridHeight = 6,
+                    gridWidth = 2,
+                    gridHeight = 3,
                     description = "管理内门弟子与精英培养"
                 ),
                 "library" to BuildingConfigModel(
@@ -317,8 +317,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "弟子修习功法的场所，提升修炼速度"
                 ),
 
@@ -330,8 +330,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 12000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "为弟子提供清修之所，修炼速度+20%，可升级"
                 ),
                 "tianshu_hall" to BuildingConfigModel(
@@ -341,8 +341,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 2,
                     baseSuccessRate = 1.0,
                     cost = 15000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "处理宗门事务的核心建筑"
                 ),
                 "multi_residence" to BuildingConfigModel(
@@ -352,8 +352,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     baseSuccessRate = 1.0,
                     cost = 24000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "供多名弟子共同修炼，修炼速度+10%"
                 ),
 
@@ -365,8 +365,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 30000,
-                    gridWidth = 6,
-                    gridHeight = 4,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "单人修炼之所，修炼速度+40%"
                 ),
                 "patrol_tower" to BuildingConfigModel(
@@ -375,8 +375,8 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "PATROL",
                     slotCount = 8,
                     cost = 35000,
-                    gridWidth = 4,
-                    gridHeight = 6,
+                    gridWidth = 2,
+                    gridHeight = 3,
                     description = "驻守弟子自动巡视地图攻击妖兽"
                 ),
                 "blood_refining_pool" to BuildingConfigModel(
@@ -386,8 +386,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 40000,
-                    gridWidth = 4,
-                    gridHeight = 4,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
                 )
             ),
