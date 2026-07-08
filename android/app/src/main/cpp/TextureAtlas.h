@@ -98,6 +98,9 @@ static const SpriteDef MAP_SPRITES[] = {
     { "floor_tile_2x3",    0,   768, 128,192 },
     { "floor_tile_3x2",    0,   960, 192,128 },
     { "floor_tile_3x3",    192, 960, 192,192 },
+
+    // 行6: 建筑专属地皮覆盖（256×256，灵矿场 4×4 地面）
+    { "spirit_mine_ground",  0,  1152, 256,256 },
 };
 
 static constexpr int MAP_SPRITE_COUNT =

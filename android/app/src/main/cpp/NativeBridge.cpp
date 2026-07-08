@@ -248,6 +248,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     static const int TILE_GROUND_V2 = 7;
     // 灵田在图集 BUILDING_NAMES 中的索引 = 2（唯一不画地砖的建筑）
     static const int SPIRIT_FIELD_NAME_INDEX = 2;
+    // 灵矿场在图集 BUILDING_NAMES 中的索引 = 0（使用专属地皮覆盖）
+    static const int SPIRIT_MINE_NAME_INDEX = 0;
+    // 灵矿场地皮覆盖在 floorTileUVMap 中的索引（第5个，index=4）
+    static const int SPIRIT_MINE_GROUND_UV_INDEX = 4;
 
     for (int row = 0; row < rows; row++) {
         jint rowBase = row * cols;
@@ -342,37 +346,41 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             int buvIdx = nameIdx;
             if (buvIdx >= (int)buvCount) buvIdx = 0;
 
-            // (A) 地砖底座（灵田除外），按占地尺寸绘制
-            if (nameIdx != SPIRIT_FIELD_NAME_INDEX && floorTileUVMap != nullptr) {
-                // 地砖索引由占地尺寸决定
-                int ftIdx = -1;
-                int ftW = fpW, ftH = fpH;
-                if      (ftW == 2 && ftH == 2) ftIdx = 0;
-                else if (ftW == 2 && ftH == 3) ftIdx = 1;
-                else if (ftW == 3 && ftH == 2) ftIdx = 2;
-                else if (ftW == 3 && ftH == 3) ftIdx = 3;
-                // 新占地尺寸映射到最接近的现有地砖
-                else if (ftW == 4 && ftH == 4) ftIdx = 3;  // 方形 → 3x3
-                else if (ftW == 6 && ftH == 4) ftIdx = 2;  // 宽扁 → 3x2
-                else if (ftW == 4 && ftH == 6) ftIdx = 1;  // 窄高 → 2x3
-                else if (ftW == 6 && ftH == 6) ftIdx = 3;  // 大方 → 3x3
-                else if (ftW == 4 && ftH == 8) ftIdx = 1;  // 瘦高 → 2x3
-                else if (ftW == 2 && ftH == 4) ftIdx = 1;  // 窄高 → 2x3
-                else if (ftW == 4 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
-                else if (ftW == 6 && ftH == 5) ftIdx = 2;  // 宽扁 → 3x2
-                else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
-                else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
+            // (A) 地砖底座（灵田除外），按占地尺寸绘制。
+            //    灵矿场使用专属地皮覆盖纹理，其他建筑使用通用地砖。
+            if (floorTileUVMap != nullptr) {
+                jfloat* ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
+                jsize ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
 
-                if (ftIdx >= 0) {
-                    jfloat* ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
-                    jsize ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
-                    if (ftIdx < (int)ftuvCount) {
-                        batcher.add(atlasTexId, ftPx, ftPy, ftPw, ftPh,
-                            ftuvs[ftIdx * 4], ftuvs[ftIdx * 4 + 1],
-                            ftuvs[ftIdx * 4 + 2], ftuvs[ftIdx * 4 + 3]);
-                    }
-                    env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
+                int ftIdx = -1;
+                if (nameIdx == SPIRIT_MINE_NAME_INDEX) {
+                    ftIdx = SPIRIT_MINE_GROUND_UV_INDEX;
+                } else if (nameIdx != SPIRIT_FIELD_NAME_INDEX) {
+                    // 地砖索引由占地尺寸决定
+                    int ftW = fpW, ftH = fpH;
+                    if      (ftW == 2 && ftH == 2) ftIdx = 0;
+                    else if (ftW == 2 && ftH == 3) ftIdx = 1;
+                    else if (ftW == 3 && ftH == 2) ftIdx = 2;
+                    else if (ftW == 3 && ftH == 3) ftIdx = 3;
+                    // 新占地尺寸映射到最接近的现有地砖
+                    else if (ftW == 4 && ftH == 4) ftIdx = 3;  // 方形 → 3x3
+                    else if (ftW == 6 && ftH == 4) ftIdx = 2;  // 宽扁 → 3x2
+                    else if (ftW == 4 && ftH == 6) ftIdx = 1;  // 窄高 → 2x3
+                    else if (ftW == 6 && ftH == 6) ftIdx = 3;  // 大方 → 3x3
+                    else if (ftW == 4 && ftH == 8) ftIdx = 1;  // 瘦高 → 2x3
+                    else if (ftW == 2 && ftH == 4) ftIdx = 1;  // 窄高 → 2x3
+                    else if (ftW == 4 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
+                    else if (ftW == 6 && ftH == 5) ftIdx = 2;  // 宽扁 → 3x2
+                    else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
+                    else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                 }
+
+                if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
+                    batcher.add(atlasTexId, ftPx, ftPy, ftPw, ftPh,
+                        ftuvs[ftIdx * 4], ftuvs[ftIdx * 4 + 1],
+                        ftuvs[ftIdx * 4 + 2], ftuvs[ftIdx * 4 + 3]);
+                }
+                env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
             }
 
             // (B) 建筑精灵

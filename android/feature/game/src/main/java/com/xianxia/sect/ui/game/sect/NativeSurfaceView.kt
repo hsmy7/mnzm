@@ -199,6 +199,7 @@ class NativeSurfaceView(
                 "floor_tile_2x3" to R.drawable.floor_tile_2x3,
                 "floor_tile_3x2" to R.drawable.floor_tile_3x2,
                 "floor_tile_3x3" to R.drawable.floor_tile_3x3,
+                "spirit_mine_ground" to R.drawable.spirit_mine_ground,
             )
             fun res(name: String): Int {
                 val id = tileDrawableMap[name] ?: 0

@@ -28,6 +28,10 @@ class SoftwareCanvasBackend(
         private const val TAG = "SoftwareCanvasBackend"
         /** 灵田在图集中的索引（BUILDING_NAMES 中排第3，index=2） */
         private const val SPIRIT_FIELD_ATLAS_INDEX = 2
+        /** 灵矿场在图集中的索引（BUILDING_NAMES 中排第1，index=0） */
+        private const val SPIRIT_MINE_ATLAS_INDEX = 0
+        /** 灵矿场地皮覆盖在 FloorTileType 中的 ordinal（第5个，index=4） */
+        private const val SPIRIT_MINE_GROUND_FT_INDEX = 4
     }
 
     /** 渲染质量因子（0.0~1.0），由 ThermalController 设置 */
@@ -280,8 +284,17 @@ class SoftwareCanvasBackend(
                     if (screenBX + screenBW <= 0f || screenBX >= vpW.toFloat() ||
                         screenBY + screenBH <= 0f || screenBY >= vpH.toFloat()) continue
 
-                    // A) 地砖底座（灵田除外），按占地尺寸绘制
-                    if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
+                    // A) 地砖底座（灵田除外），按占地尺寸绘制。
+                    //    灵矿场使用专属地皮覆盖纹理，其他建筑使用通用地砖。
+                    if (nameIdx == SPIRIT_MINE_ATLAS_INDEX) {
+                        val ftIdx = SPIRIT_MINE_GROUND_FT_INDEX
+                        val ftSrc = FLOOR_TILE_SRC_RECTS.getOrNull(ftIdx)
+                        if (ftSrc != null) {
+                            drawTile(canvas, atlas, ftSrc,
+                                ftScreenX.toInt(), ftScreenY.toInt(),
+                                ftScreenW.toInt(), ftScreenH.toInt())
+                        }
+                    } else if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
                         val ftIdx = SpriteAtlasDef.floorTileIndex(fpW, fpH)
                         if (ftIdx >= 0) {
                             val ftSrc = FLOOR_TILE_SRC_RECTS.getOrNull(ftIdx)

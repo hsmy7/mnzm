@@ -532,6 +532,23 @@ class SoftwareCanvasBackendTest {
     }
 
     @Test
+    fun `renderFrame - spirit mine uses custom ground cover`() {
+        // 灵矿场 nameIdx=0，应使用专属地皮覆盖（ftIdx=4）而非通用地砖
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 2, width = 4, height = 4, nameIdx = 0
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("灵矿场地皮覆盖不应 crash", result)
+    }
+
+    @Test
     fun `renderFrame - 3x2 building uses floor tile index 2 without crash`() {
         val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
@@ -598,12 +615,12 @@ class SoftwareCanvasBackendTest {
 
     @Test
     fun `spriteAtlasDef - FLOOR_TILE_UV_MAP has correct size`() {
-        assertEquals(4 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
+        assertEquals(5 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
     }
 
     @Test
     fun `spriteAtlasDef - floorTileRect returns valid rect for all indices`() {
-        for (i in 0 until 4) {
+        for (i in 0 until 5) {
             val rect = SpriteAtlasDef.floorTileRect(i)
             assertTrue("floorTileRect $i: w=${rect.w}", rect.w > 0)
             assertTrue("floorTileRect $i: h=${rect.h}", rect.h > 0)

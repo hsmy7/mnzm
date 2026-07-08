@@ -208,7 +208,10 @@ object SpriteAtlasDef {
         TILE_2x2("floor_tile_2x2", 2, 2, SpriteRect(0,   640, 128, 128)),
         TILE_2x3("floor_tile_2x3", 2, 3, SpriteRect(0,   768, 128, 192)),
         TILE_3x2("floor_tile_3x2", 3, 2, SpriteRect(0,   960, 192, 128)),
-        TILE_3x3("floor_tile_3x3", 3, 3, SpriteRect(192, 960, 192, 192));
+        TILE_3x3("floor_tile_3x3", 3, 3, SpriteRect(192, 960, 192, 192)),
+
+        /** 灵矿场专属地皮覆盖（4×4 占地，256×256） */
+        SPIRIT_MINE_GROUND("spirit_mine_ground", 4, 4, SpriteRect(0, 1152, 256, 256));
     }
 
     /** 地砖 UV 映射（归一化 0-1，用于 Vulkan 纹理采样） */
