@@ -6,6 +6,9 @@ import org.junit.Test
 
 /**
  * 宗门地图相机状态测试 — 验证 scale 缩放在各场景下的正确性。
+ *
+ * v4.0.45+ 默认视角高度更改为 0.5（DEFAULT_SCALE），
+ * 大屏设备仍使用 Fill 适配策略。
  */
 class SectCameraStateTest {
 
@@ -21,13 +24,17 @@ class SectCameraStateTest {
     private val largeVpW = 3840
     private val largeVpH = 2160
 
+    // 默认视角高度（用户要求提高50%，取整）
+    private val defaultScale = 0.5f
+
     // ==================== scale 计算 ====================
 
     @Test
-    fun `updateViewport - viewport smaller than world - scale is 1`() {
+    fun `updateViewport - viewport smaller than world - uses default scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
         camera.updateViewport(phoneVpW, phoneVpH)
-        assertEquals("手机竖屏视口小于世界，scale 应为 1.0", 1f, camera.scale, 0.001f)
+        assertEquals("手机竖屏视口小于世界，scale 应为默认视角高度 0.5",
+            defaultScale, camera.scale, 0.001f)
     }
 
     @Test
@@ -57,10 +64,20 @@ class SectCameraStateTest {
     }
 
     @Test
-    fun `updateViewport - viewport equal to world - scale is 1`() {
+    fun `updateViewport - viewport equal to world - uses default scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
         camera.updateViewport(3072, 3072)
-        assertEquals("视口等于世界，scale 应为 1.0", 1f, camera.scale, 0.001f)
+        assertEquals("视口等于世界（未超出），scale 应为默认视角高度 0.5",
+            defaultScale, camera.scale, 0.001f)
+    }
+
+    @Test
+    fun `updateViewport - second call does not reset user scale`() {
+        val camera = SectCameraState(worldWidth, worldHeight)
+        camera.updateViewport(phoneVpW, phoneVpH) // first: scale=0.5
+        camera.zoom(2.0f, phoneVpW / 2f, phoneVpH / 2f) // user zoom → scale=1.0
+        camera.updateViewport(phoneVpW, phoneVpH) // second call → should NOT reset to 0.5
+        assertEquals("用户缩放后 viewport 更新不应覆盖 scale", 1.0f, camera.scale, 0.001f)
     }
 
     // ==================== Fill 保证 ====================
@@ -79,21 +96,23 @@ class SectCameraStateTest {
     // ==================== 坐标转换 ====================
 
     @Test
-    fun `worldToScreen - scale 1 returns identity-like mapping`() {
+    fun `worldToScreen - default scale maps coordinates`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
-            updateViewport(phoneVpW, phoneVpH)
+            updateViewport(phoneVpW, phoneVpH) // scale = 0.5
         }
-        assertEquals(100f, camera.worldToScreenX(100f), 0.001f)
-        assertEquals(50f, camera.worldToScreenY(50f), 0.001f)
+        // screenX = (worldX - cameraX) * scale = (100 - 0) * 0.5 = 50
+        assertEquals(50f, camera.worldToScreenX(100f), 0.001f)
+        assertEquals(25f, camera.worldToScreenY(50f), 0.001f)
     }
 
     @Test
-    fun `screenToWorld - scale 1 returns identity-like mapping`() {
+    fun `screenToWorld - default scale un-maps coordinates`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
-            updateViewport(phoneVpW, phoneVpH)
+            updateViewport(phoneVpW, phoneVpH) // scale = 0.5
         }
-        assertEquals(100f, camera.screenToWorldX(100f), 0.001f)
-        assertEquals(50f, camera.screenToWorldY(50f), 0.001f)
+        // worldX = screenX / scale + cameraX = 100 / 0.5 + 0 = 200
+        assertEquals(200f, camera.screenToWorldX(100f), 0.001f)
+        assertEquals(100f, camera.screenToWorldY(50f), 0.001f)
     }
 
     @Test
@@ -133,19 +152,21 @@ class SectCameraStateTest {
     // ==================== 平移与 clamp ====================
 
     @Test
-    fun `pan - with scale 1 moves camera by screen pixels`() {
+    fun `pan - with default scale moves camera by screen pixels over scale`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
-            updateViewport(phoneVpW, phoneVpH)
+            updateViewport(phoneVpW, phoneVpH) // scale = 0.5
         }
         camera.pan(-100f, -200f) // 左滑/上滑 → 相机右移/下移
-        assertEquals(100f, camera.cameraX, 0.001f)
-        assertEquals(200f, camera.cameraY, 0.001f)
+        // cameraX = 0 - (-100/0.5) = 200, maxX = 3072-1080/0.5 = 912 → 200
+        // cameraY = 0 - (-200/0.5) = 400, maxY = 3072-1920/0.5 = -768 → clamped to 0
+        assertEquals(200f, camera.cameraX, 0.001f)
+        assertEquals(0f, camera.cameraY, 0.001f)
     }
 
     @Test
     fun `pan - with scale gt 1 applies inverse scale to camera`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
-            updateViewport(4000, 3000) // scale = maxOf(4000/3072, 3000/3072) = 1.302
+            updateViewport(4000, 3000) // scale = 1.302 (fill)
         }
         // 宽轴（X）填满视口无法平移，在 Y 轴测试 pan
         camera.pan(0f, -150f)
@@ -170,24 +191,27 @@ class SectCameraStateTest {
         }
         // 尝试大幅右移
         camera.pan(-99999f, -99999f)
-        // 可见世界尺寸 = 视口 / scale = 1080/1 x 1920/1
-        // cameraX max = 3072 - 1080 = 1992
-        assertTrue("cameraX 不应超过世界边界", camera.cameraX <= worldWidth - phoneVpW)
-        assertTrue("cameraY 不应超过世界边界", camera.cameraY <= worldHeight - phoneVpH)
+        // 可见世界 = 视口/scale = 1080/0.5 × 1920/0.5 = 2160 × 3840
+        // cameraX max = max(0, 3072-2160) = 912
+        // cameraY max = max(0, 3072-3840) = 0（3840 > 3072，Y 方向无法平移）
+        val maxX = (worldWidth - phoneVpW / camera.scale).coerceAtLeast(0f)
+        val maxY = (worldHeight - phoneVpH / camera.scale).coerceAtLeast(0f)
+        assertTrue("cameraX 不应超过世界边界", camera.cameraX <= maxX)
+        assertTrue("cameraY 不应超过世界边界", camera.cameraY <= maxY)
     }
 
     // ==================== centerOn ====================
 
     @Test
-    fun `centerOn - with scale 1 centers correctly`() {
+    fun `centerOn - with default scale accounts for scale`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
-            updateViewport(phoneVpW, phoneVpH)
+            updateViewport(phoneVpW, phoneVpH) // scale = 0.5
         }
         camera.centerOn(500f, 1000f)
-        // cameraX = 500 - 1080/2 = 500 - 540 = -40 → clamped to 0
-        // cameraY = 1000 - 1920/2 = 1000 - 960 = 40
+        // cameraX = 500 - 1080/(2*0.5) = 500 - 1080 = -580 → clamped to 0
+        // cameraY = 1000 - 1920/(2*0.5) = 1000 - 1920 = -920 → clamped to 0
         assertEquals(0f, camera.cameraX, 0.001f)
-        assertEquals(40f, camera.cameraY, 0.001f)
+        assertEquals(0f, camera.cameraY, 0.001f)
     }
 
     @Test
@@ -200,6 +224,54 @@ class SectCameraStateTest {
         // visibleH = 2160/1.25 = 1728 → cameraY = 1500 - 1728/2 = 1500 - 864 = 636
         assertEquals(0f, camera.cameraX, 0.001f)
         assertEquals(636f, camera.cameraY, 0.001f)
+    }
+
+    // ==================== zoom ====================
+
+    @Test
+    fun `zoom - preserves world point under focus`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        val focusSx = phoneVpW / 2f
+        val focusSy = phoneVpH / 2f
+        val worldBeforeX = camera.screenToWorldX(focusSx)
+        val worldBeforeY = camera.screenToWorldY(focusSy)
+
+        camera.zoom(2.0f, focusSx, focusSy)
+
+        val worldAfterX = camera.screenToWorldX(focusSx)
+        val worldAfterY = camera.screenToWorldY(focusSy)
+        assertEquals("缩放后焦点下世界坐标应保持不变", worldBeforeX, worldAfterX, 0.1f)
+        assertEquals("缩放后焦点下世界坐标应保持不变", worldBeforeY, worldAfterY, 0.1f)
+    }
+
+    @Test
+    fun `zoom - clamps to min scale`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        camera.zoom(0.01f, phoneVpW / 2f, phoneVpH / 2f)
+        assertTrue("zoom 缩小不应低于 MIN_ZOOM", camera.scale >= SectCameraState.MIN_ZOOM)
+    }
+
+    @Test
+    fun `zoom - clamps to max scale`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        camera.zoom(100f, phoneVpW / 2f, phoneVpH / 2f)
+        assertTrue("zoom 放大不应超过 MAX_ZOOM", camera.scale <= SectCameraState.MAX_ZOOM)
+    }
+
+    @Test
+    fun `zoom - sets userScale flag preventing updateViewport override`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH) // scale=0.5
+        }
+        camera.zoom(2.0f, phoneVpW / 2f, phoneVpH / 2f) // scale=1.0, userScale=true
+        camera.updateViewport(phoneVpW, phoneVpH) // should NOT reset
+        assertEquals("userScale=true 后 updateViewport 不应覆盖 scale", 1.0f, camera.scale, 0.001f)
     }
 
     // ==================== isVisible ====================
@@ -217,7 +289,7 @@ class SectCameraStateTest {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(phoneVpW, phoneVpH)
         }
-        val outside = camera.isVisible(-10f, -10f, margin = 20f)
+        val outside = camera.isVisible(-10f, -10f, margin = 30f)
         assertTrue("margin 应扩展可见范围", outside)
     }
 
@@ -232,5 +304,18 @@ class SectCameraStateTest {
         }
         assertEquals("reset 后 cameraX 应为 0", 0f, camera.cameraX, 0.001f)
         assertEquals("reset 后 cameraY 应为 0", 0f, camera.cameraY, 0.001f)
+    }
+
+    @Test
+    fun `reset - after reset updateViewport reapplies default scale`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH) // scale=0.5
+            zoom(2.0f, 500f, 500f) // scale=1.0, userScale=true
+            updateViewport(phoneVpW, phoneVpH) // should NOT reset (userScale=true)
+            reset() // clear userScale and vpInitialized
+            updateViewport(phoneVpW, phoneVpH) // should reapply default scale
+        }
+        assertEquals("reset 后 updateViewport 应重新应用默认视角高度",
+            defaultScale, camera.scale, 0.001f)
     }
 }

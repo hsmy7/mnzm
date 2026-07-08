@@ -258,7 +258,6 @@ class SectMapTouchEngine(
 
         when (state) {
             is GestureState.Down -> {
-                // 短触无移动 → Tap
                 state = GestureState.Idle
                 callbacks.onTap(data.x, data.y)
             }

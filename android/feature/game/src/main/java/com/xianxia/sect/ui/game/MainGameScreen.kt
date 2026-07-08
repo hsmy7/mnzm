@@ -67,6 +67,7 @@ import com.xianxia.sect.ui.game.sect.*
 import com.xianxia.sect.ui.game.main.*
 import com.xianxia.sect.core.touch.*
 import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.core.animation.CameraAnimator
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 
@@ -540,14 +541,25 @@ fun MainGameScreen(
         )
 
         // ================================================================
-        // 跨平台手势引擎 — 替换旧的 Compose pointerInput 覆盖层
+        // 跨平台手势引擎 + 平滑镜头动画
         // ================================================================
         val touchScope = rememberCoroutineScope()
+        val cameraAnimator = remember(cameraState, touchScope) {
+            CameraAnimator(cameraState, touchScope)
+        }
+        // 设置动画器引用，使 tryCenterOn 使用平滑动画
+        LaunchedEffect(cameraAnimator) {
+            cameraState.setAnimator(cameraAnimator)
+        }
+        // 用户交互时取消动画
+        val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
+
         val touchEngine = remember(cameraState, buildingIndex, gridSystem) {
             SectMapTouchEngine(
                 callbacks = object : TouchEngineCallbacks {
                     override fun onPanCamera(dx: Float, dy: Float) {
                         cameraState.pan(dx, dy)
+                        cancelCameraAnim()
                         viewModel.onUserInteraction()
                     }
 
