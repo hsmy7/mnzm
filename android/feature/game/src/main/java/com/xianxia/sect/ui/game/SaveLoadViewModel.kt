@@ -786,6 +786,9 @@ class SaveLoadViewModel @Inject constructor(
                     if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
                 }
 
+                // 建筑占地重叠/越界迁移（旧存档兼容）
+                loadDelegate.migrateOverflowBuildings()
+
                 preloadGameResources()
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
 
@@ -937,6 +940,9 @@ class SaveLoadViewModel @Inject constructor(
                         val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                         if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
                     }
+
+                    // 建筑占地重叠/越界迁移（旧存档兼容）
+                    loadDelegate.migrateOverflowBuildings()
 
                     preloadGameResources()
                     _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY

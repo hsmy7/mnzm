@@ -142,7 +142,7 @@ class SaveLoadLoadDelegate(
     /**
      * 将新占地尺寸（×2）下放不下的建筑拆除，全额返还灵石，弟子恢复空闲。
      */
-    private suspend fun migrateOverflowBuildings() {
+    internal suspend fun migrateOverflowBuildings() {
         stateStore.update {
             val buildings = gameData.placedBuildings
             if (buildings.isEmpty()) return@update
