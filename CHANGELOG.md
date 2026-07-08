@@ -1,5 +1,22 @@
 # 模拟宗门 - 更新日志
 
+## [4.0.42] - 2026-07-09（versionCode=4042）
+
+### 惰性结算引擎重构
+
+- **重构：四轨结算系统→惰性结算引擎** — 移除 SettlementCoordinator/SettlementCache/FocusDomain/ParallelExecutionContext 等 ~3500 行废弃代码。对标 Supercell Clash of Clans 时间戳差分模式 + VoidForge Checkpoint 快照法 + RimWorld 分类Tick
+- **修复：灵矿场 phase snapshot 跨月错位** — 每旬记录→月结求和时，跨月 batch 中新月份 snapshot 被混入旧月结算。改为时间戳差分：`产出 = rate × (currentMonth - lastSettledMonth)`
+- **修复：灵矿场 phase snapshot 读档丢失** — `phaseSnapshots` 纯内存列表不参与序列化，读档后当月 partial snapshot 不全导致仅结算部分天。`spiritMineLastSettledMonth` 持久化 + 回档保护（delta ≤ 0 自动跳过）
+- **修复：建造灵矿场后 slot 未同步** — `placeBuilding()` 只加 placedBuildings 不建 SpiritMineSlot。`validateAndFixSpiritMineData()` 仅在打开灵矿对话框时调用。改为 `placeBuilding` 时自动 `syncSpiritMineSlotsAfterPlace()`
+- **修复：整数截断精度损失** — `calculateMonthly` 返回 Int 截断小数，`/30` 再 `.toLong()` 第二次截断。改为 `Long` + `roundToLong()`
+- **重构：修炼 VoidForge Checkpoint 快照法** — `cultivationCheckpoints` + `cultivationCheckpointGameMonths` 双字段，`getEffectiveCultivation(checkpoint + rate × delta)` 实时投影。速率变化在下一旬自动生效，无需指纹检测
+- **新增：炼丹/锻造/灵田动态 duration** — `ProductionSlot.baseDuration` 存储配方基础值。每月完成检查时按当前政策/长老重算有效 duration，政策切换/长老变更立即生效
+- **新增：`checkpointAllProduction()`** — 政策 toggle / 长老变更时重算所有活跃槽位的 `completionMonth` 和 `successRate`，保留已完成进度比例
+- **新增：对抗性审查** — 边界狂魔 + 数据篡改者双 agent 审查，发现并修复 6 个问题（含 3 个 P0 级：月份单位不匹配/checkpoint 失效、baseDuration 遗漏、successRate 不同步）
+- **优化：每旬 5 项最小检查** — 对标 RimWorld Rare Tick：HP/MP 恢复 + 自动装备/学习 + 修炼累积 + 丹药到期 + 突破检测
+- **优化：GameSystem 接口简化** — 移除 `onPhaseTick`/`computePhaseTick`/`supportsParallelTick`，改为 `onMonthlyEvent`/`onYearlyEvent`
+- **删除：~3500 行废弃代码** — SettlementCoordinator、SettlementScheduler、SettlementCache、CultivationRateFingerprint、ProductionRateFingerprint、FingerprintSnapshot、FocusDomain、InterfaceDomainMap、CultivationTickSystem、ProductionSubsystem、EconomySubsystem、ParallelExecutionContext、CultivationBatchResult、SpiritMineSystem
+
 ## [4.0.41] - 2026-07-07（versionCode=4041）
 
 ### 帧率优化与温度读取重构

@@ -20,8 +20,6 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
-import com.xianxia.sect.core.engine.system.FocusDomain
-import com.xianxia.sect.core.engine.system.InterfaceDomainMap
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -37,35 +35,17 @@ fun GameEngine.setFocusedDiscipleId(id: String?) {
 }
 
 fun GameEngine.setActiveTab(tab: String) {
-    val oldTab = stateStore.activeTab
     stateStore.activeTab = tab
-    if (oldTab != tab) {
-        InterfaceDomainMap[tab]?.let { gameEngineCore.catchUpDomain(it) }
-    }
 }
 
 fun GameEngine.setActiveDialog(dialogName: String?) {
-    if (dialogName == null) {
-        stateStore.activeDialog = null
-    } else {
-        stateStore.activeDialog = dialogName
-        InterfaceDomainMap[dialogName]?.let { gameEngineCore.catchUpDomain(it) }
-    }
+    stateStore.activeDialog = dialogName
 }
 
-/**
- * 注册子界面域。子界面进入组合时调用，
- * 将其声明的 [FocusDomain] 加入实时轨。
- */
 fun GameEngine.pushSubDialogDomain(domainName: String) {
     stateStore.activeSubDialogs = stateStore.activeSubDialogs + domainName
-    InterfaceDomainMap[domainName]?.let { gameEngineCore.catchUpDomain(it) }
 }
 
-/**
- * 注销子界面域。子界面离开组合时调用，
- * 将其声明的 [FocusDomain] 从实时轨移除。
- */
 fun GameEngine.popSubDialogDomain(domainName: String) {
     stateStore.activeSubDialogs = stateStore.activeSubDialogs - domainName
 }
@@ -209,6 +189,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 currentSlot = currentSlot,
                 placedBuildings = listOf(initialMine),
                 spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
+                spiritMineLastSettledMonth = 1 * 12 + 1,  // 初始化为 gameYear=1, gameMonth=1
                 // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
                 productionSlots = emptyList(),
                 residenceSlots = emptyList(),
@@ -602,6 +583,7 @@ private suspend fun GameEngine.applyMissionResult(
 fun GameEngine.completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) = explorationService.completeExploration(teamId, success, survivorIds)
 suspend fun GameEngine.redeemCode(code: String, usedCodes: List<String>, currentYear: Int, currentMonth: Int): RedeemResult = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
 fun GameEngine.resetCultivationTimer() { cultivationService.resetHighFrequencyData() }
+suspend fun GameEngine.checkpointAllProduction() { cultivationService.checkpointAllProduction() }
 
 // ── Private: Production slot fix ────────────────────────────────────
 

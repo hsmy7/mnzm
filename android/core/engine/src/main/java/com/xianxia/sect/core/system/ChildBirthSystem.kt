@@ -27,13 +27,11 @@ class ChildBirthSystem @Inject constructor(
     override fun release() {}
     override suspend fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
-        if (phasesToSettle < 3) return
-        val months = phasesToSettle / 3
-        repeat(months) { processMonthlyBirth(state) }
+    override suspend fun onMonthlyEvent(state: MutableGameState) {
+        processMonthlyBirth(state)
     }
 
-    override suspend fun onYearTick(state: MutableGameState) {
+    override suspend fun onYearlyEvent(state: MutableGameState) {
         processYearlyConception(state)
     }
 

@@ -72,6 +72,8 @@ class SectPolicyToggleUseCase @Inject constructor(
                 it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = false))
             }
         }
+        // Checkpoint：政策变化后重算炼丹 duration
+        gameEngine.checkpointAllProduction()
         return result
     }
 
@@ -97,6 +99,8 @@ class SectPolicyToggleUseCase @Inject constructor(
                 it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = false))
             }
         }
+        // Checkpoint：政策变化后重算锻造 duration
+        gameEngine.checkpointAllProduction()
         return result
     }
 
@@ -122,6 +126,8 @@ class SectPolicyToggleUseCase @Inject constructor(
                 it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = false))
             }
         }
+        // Checkpoint：政策变化后重算灵田/灵植 duration
+        gameEngine.checkpointAllProduction()
         return result
     }
 

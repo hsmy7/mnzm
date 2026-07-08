@@ -413,6 +413,26 @@ class CultivationEventProcessor @Inject constructor(
         cultivationSettlement.processSpiritMineProductionMonthly()
         // 弟子智能购买上架物品
         disciplePurchaseService.executePurchase(year, month)
+        // 月度修炼结算 + HP/MP恢复 + 自动装备/丹药
+        processMonthlyCultivationAndAuto()
+    }
+
+    /**
+     * 月度修炼结算 + 自动后台型系统。
+     *
+     * 对标 RimWorld Long Tick 模式 — 每月一次性处理
+     * 修炼经验累积、HP/MP恢复、自动装备/学习/丹药。
+     */
+    private suspend fun processMonthlyCultivationAndAuto() {
+        stateStore.update {
+            val data = gameData
+            val tables = discipleTables
+            val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
+            if (aliveIds.isEmpty()) return@update
+
+            // HP/MP 恢复（兜底，已由每旬检查补充）
+            cultivationCore.recoverHpMpForAllDisciples(this, phasesToSettle = 3)
+        }
     }
 
     suspend fun processYearlyEvents(year: Int) {

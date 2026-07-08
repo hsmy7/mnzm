@@ -70,12 +70,49 @@ class CultivationService @Inject constructor(
         cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle)
     }
 
+    fun calculateDiscipleCultivationPerPhase(
+        disciple: com.xianxia.sect.core.model.Disciple,
+        data: com.xianxia.sect.core.model.GameData,
+        tables: com.xianxia.sect.core.state.DiscipleTables
+    ): Double = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables)
+
+    /** 每旬修炼累积：按当前速率累加1旬修为。不更新检查点（只在速率变化时更新）。 */
+    fun accumulateCultivationPerPhase(
+        id: Int,
+        state: com.xianxia.sect.core.state.MutableGameState
+    ) {
+        val tables = state.discipleTables
+        if (tables.isAlive[id] != 1) return
+        val disciple = tables.assemble(id) ?: return
+        if (disciple.cultivation >= disciple.maxCultivation) return
+
+        val rate = cultivationCore.calculateDiscipleCultivationPerPhase(
+            disciple, state.gameData, tables
+        )
+        if (rate <= 0.0) return
+
+        val curCult = tables.cultivations.getOrDefault(id, 0.0)
+        tables.cultivations[id] = (curCult + rate).coerceAtMost(disciple.maxCultivation.toDouble())
+    }
+
     /**
-     * 批量轨累积结算：直接将 N 旬修炼值写入 discipleTables.cultivations，
-     * 跳过 HFD 中转。月度结算通过 focusedPhaseCount 自动扣除不双计。
+     * 修炼速率检查点 — 在任意影响速率的操作后调用。
+     * 同步 checkpoint 到当前游戏月份，使下次计算用新速率。
      */
-    fun batchSettleCultivation(state: MutableGameState, phasesToSettle: Int) {
-        cultivationCore.batchSettleCultivation(state, phasesToSettle)
+    fun checkpointDisciple(id: Int, state: MutableGameState) {
+        val tables = state.discipleTables
+        if (tables.isAlive[id] != 1) return
+        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        tables.cultivationCheckpoints[id] = tables.cultivations.getOrDefault(id, 0.0)
+        tables.cultivationCheckpointGameMonths[id] = currentMonth
+    }
+
+    /**
+     * 全量 Checkpoint：策略/长老变化后调用，重算所有生产系统的有效速率。
+     * 炼丹/锻造的 completionMonth 会根据当前政策/长老重新计算。
+     */
+    suspend fun checkpointAllProduction() {
+        productionProcessor.recalculateAllCompletionMonths()
     }
 
     /** 月度 HP/MP 恢复（月结制专用） */
@@ -173,14 +210,6 @@ class CultivationService @Inject constructor(
 
     internal fun processPolicyCosts(state: MutableGameState) {
         cultivationSettlement.processPolicyCosts(state)
-    }
-
-    internal fun processSpiritMineProduction(state: MutableGameState) {
-        productionProcessor.processSpiritMineProduction(state)
-    }
-
-    internal fun recordPhaseSnapshot(state: MutableGameState) {
-        cultivationSettlement.recordPhaseSnapshot(state)
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────

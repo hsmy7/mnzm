@@ -33,11 +33,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.launch
 import kotlin.random.Random
-import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.ZoneCalculator
 
+/**
+ * 宗门结算服务 — 年俸、政策、灵矿产出。
+ *
+ * 灵矿产出采用 **时间戳差分惰性结算**（对标 Supercell Clash of Clans 模式）：
+ * - 不再逐旬记录 phase snapshot
+ * - 月末按当前矿工状态计算月产出率
+ * - 使用 [spiritMineLastSettledMonth] 做回档保护
+ */
 @Singleton
 @GameService("CultivationSettlement")
 class CultivationSettlement @Inject constructor(
@@ -242,50 +249,7 @@ class CultivationSettlement @Inject constructor(
         }
     }
 
-    /**
-     * 灵矿月度产出结算。
-     * 直接操作影子状态，同步执行，不使用异步协程。
-     */
-    fun processSpiritMineProduction(state: MutableGameState) {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
-
-        // 使用乘区法计算产出
-        val zones = buildSpiritMineZones(data, tables)
-        val totalSpiritStones = zones.calculateMonthly(baseOutput.toDouble())
-
-        // 矿工忠诚度：每连续挖矿3月扣1点（直接操作组件表）
-        val updatedSlots = data.spiritMineSlots.map { slot ->
-            if (slot.discipleId.isNotEmpty()) {
-                val idInt = slot.discipleId.toIntOrNull()
-                if (idInt != null && tables.ids.contains(idInt)) {
-                    val newMonths = slot.consecutiveMiningMonths + 1
-                    if (newMonths >= 3) {
-                        val current = tables.loyalties[idInt] ?: 0
-                        tables.loyalties[idInt] = (current - 1).coerceAtLeast(0)
-                        slot.copy(consecutiveMiningMonths = 0)  // 扣完重置
-                    } else {
-                        slot.copy(consecutiveMiningMonths = newMonths)
-                    }
-                } else {
-                    slot.copy(consecutiveMiningMonths = 0)  // 弟子无效则重置
-                }
-            } else {
-                slot.copy(consecutiveMiningMonths = 0)  // 空槽位重置
-            }
-        }
-        state.gameData = data.copy(spiritMineSlots = updatedSlots)
-
-        // 灵石产出
-        if (totalSpiritStones > 0) {
-            state.gameData = state.gameData.copy(
-                spiritStones = data.spiritStones + totalSpiritStones
-            )
-        }
-    }
-
-    // ── 灵矿月度结算（常驻月度事件，不依赖域路由）──
+    // ── 灵矿产出（时间戳差分惰性结算）──
 
     /**
      * 灵矿产出乘区（Spirit Mine Zone）。
@@ -298,20 +262,15 @@ class CultivationSettlement @Inject constructor(
         val deaconMoralityBonus: Double = 0.0,  // 执事道德加成
         val policyBoost: Double = 0.0,           // 灵矿增产政策
     ) {
-        /** 计算月总产出 */
-        fun calculateMonthly(basePerMiner: Double): Int {
+        /**
+         * 计算月总产出（返回 Long，使用 roundToLong 防截断）。
+         */
+        fun calculateMonthly(basePerMiner: Double): Long {
             val base = minerCount * basePerMiner
-            return ZoneCalculator.calculateInt(
-                base.toInt(),
-                avgMiningSkillBonus,
-                deaconMoralityBonus,
-                policyBoost
-            )
+            return ZoneCalculator.calculate(
+                base, avgMiningSkillBonus, deaconMoralityBonus, policyBoost
+            ).roundToLong()
         }
-
-        /** 计算日产出（月产出 / 30） */
-        fun calculateDaily(basePerMiner: Double): Long =
-            (calculateMonthly(basePerMiner).toDouble() / 30).toLong()
     }
 
     /**
@@ -361,117 +320,39 @@ class CultivationSettlement @Inject constructor(
         )
     }
 
-    /** 每 phase 的灵矿产出快照 */
-    data class SpiritMinePhaseSnapshot(
-        val gamePhase: Int,
-        /** 产出指纹，用于判断月内产出率是否变化 */
-        val fingerprint: Int,
-        /** 当日产出率（灵石/天） */
-        val dailyRate: Long
-    )
-
-    /** 当前月各 phase 的产出快照，月度结算时消费并清空 */
-    private val phaseSnapshots = mutableListOf<SpiritMinePhaseSnapshot>()
-
     /**
-     * 计算灵矿产出指纹 — 捕获影响产出率的结构因素。
-     * 指纹变化意味着产出率变化（矿工增减、技能变化、执事调整、政策切换）。
-     */
-    private fun computeSpiritMineFingerprint(
-        data: GameData, tables: DiscipleTables
-    ): Int {
-        var h = 1
-        // 矿工槽位分配
-        h = 31 * h + data.spiritMineSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .map { "${it.discipleId}:${it.buildingInstanceId}" }
-            .hashCode()
-        // 矿工挖掘技能 + 境界
-        data.spiritMineSlots.forEach { slot ->
-            slot.discipleId.toIntOrNull()?.let { id ->
-                if (tables.ids.contains(id)) {
-                    h = 31 * h + (tables.minings[id] ?: 0)
-                    h = 31 * h + tables.realms.getOrDefault(id, 9)
-                }
-            }
-        }
-        // 灵矿执事弟子
-        h = 31 * h + data.elderSlots.spiritMineDeaconDisciples
-            .map { it.discipleId ?: "" }.hashCode()
-        // 灵矿加成政策
-        h = 31 * h + data.sectPolicies.spiritMineBoost.hashCode()
-        return h
-    }
-
-    /**
-     * 计算灵矿当日产出率（灵石/天），不含忠诚度扣减和槽位状态变更。
-     * 仅用于 phase 快照的产出率记录。
-     */
-    private fun calculateSpiritMineDailyRate(
-        data: GameData, tables: DiscipleTables
-    ): Long {
-        val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
-        if (minerCount == 0) return 0L
-
-        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
-        val zones = buildSpiritMineZones(data, tables)
-        return zones.calculateDaily(baseOutput.toDouble())
-    }
-
-    /**
-     * 在每个游戏 phase 推进后记录灵矿产出快照。
-     * 由 [GameEngineCore.tickInternal] 的 phase loop 调用，
-     * 在 [GameStateStore.update] 块内执行以确保状态一致性。
-     */
-    fun recordPhaseSnapshot(state: MutableGameState) {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val fp = computeSpiritMineFingerprint(data, tables)
-        val dailyRate = calculateSpiritMineDailyRate(data, tables)
-        phaseSnapshots.add(SpiritMinePhaseSnapshot(data.gamePhase, fp, dailyRate))
-    }
-
-    /**
-     * 灵矿月度产出结算 — 常驻月度事件，不依赖域路由。
+     * 灵矿月度产出结算 — 时间戳差分模式（对标 Supercell Clash of Clans）。
      *
-     * 按当月各 phase 记录的产出快照分别计算产出（每 phase 10 天），
-     * 自动处理月内产出率变化（矿工增减/技能变化/执事调整等）。
-     * 同时处理矿工忠诚度扣减（每连续挖矿 3 月扣 1 点）。
+     * 计算逻辑：
+     * 1) 用当前矿工/执事/政策状态构建乘区，计算月产出率
+     * 2) 时间戳差分：产出 = 月产出率 × (当前月份 - 上次结算月份)
+     * 3) 回档保护：当 lastSettledMonth ≥ currentMonth 时跳过
      *
      * 由 [CultivationEventProcessor.processMonthlyEvents] 调用。
      */
     suspend fun processSpiritMineProductionMonthly() {
-        val snapshots = phaseSnapshots.toList()
-        phaseSnapshots.clear()
-
-        if (snapshots.isEmpty()) {
-            // 兜底：无快照时用当前状态直接算全月
-            stateStore.update {
-                val data = gameData
-                val tables = discipleTables
-                val dailyRate = calculateSpiritMineDailyRate(data, tables)
-                val monthly = dailyRate * 30
-                if (monthly > 0) {
-                    gameData = data.copy(
-                        spiritStones = data.spiritStones + monthly
-                    )
-                }
-                // 处理忠诚度
-                applyMinerLoyaltyDecay(this)
-            }
-            return
-        }
-
-        // 按 phase 快照求和（每 phase 10 天）
-        val totalProduction = snapshots.sumOf { it.dailyRate * 10 }
-
         stateStore.update {
-            if (totalProduction > 0) {
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones + totalProduction
+            val data = gameData
+            val currentMonth = data.gameYear * 12 + data.gameMonth
+
+            val zones = buildSpiritMineZones(data, discipleTables)
+            val monthlyRate: Long = zones.calculateMonthly(
+                GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()
+            )
+
+            // 时间戳差分 + 回档保护
+            val lastSettled = data.spiritMineLastSettledMonth
+            if (currentMonth > lastSettled && monthlyRate > 0L) {
+                val delta = currentMonth - lastSettled
+                gameData = data.copy(
+                    spiritStones = data.spiritStones + monthlyRate * delta
                 )
             }
-            // 处理忠诚度
+
+            // 更新结算时间戳
+            gameData = gameData.copy(spiritMineLastSettledMonth = currentMonth)
+
+            // 忠诚度扣减
             applyMinerLoyaltyDecay(this)
         }
     }

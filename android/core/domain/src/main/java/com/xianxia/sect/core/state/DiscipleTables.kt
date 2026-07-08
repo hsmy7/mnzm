@@ -53,6 +53,8 @@ class DiscipleTables {
     // === 修炼加速 ===
     val cultivationSpeedBonuses = DoubleComponentTable()
     val cultivationSpeedDurations = IntComponentTable()
+    val cultivationCheckpoints = DoubleComponentTable()  // id → checkpoint cultivation
+    val cultivationCheckpointGameMonths = IntComponentTable()  // id → checkpoint gameMonth
 
     // === 自动行为 ===
     val autoLearnFromWarehouse = IntComponentTable()   // id → 0/1
@@ -245,6 +247,8 @@ class DiscipleTables {
 
         // ── Double 表（值拷贝） ──
         DoubleTableRef(cultivations, DiscipleTables::cultivations, "cultivations"),
+        DoubleTableRef(cultivationCheckpoints, DiscipleTables::cultivationCheckpoints, "cultivationCheckpoints"),
+        IntTableRef(cultivationCheckpointGameMonths, DiscipleTables::cultivationCheckpointGameMonths, "cultivationCheckpointGameMonths"),
         DoubleTableRef(cultivationSpeedBonuses, DiscipleTables::cultivationSpeedBonuses, "cultivationSpeedBonuses"),
         DoubleTableRef(pillCritRateBonuses, DiscipleTables::pillCritRateBonuses, "pillCritRateBonuses"),
         DoubleTableRef(pillCritEffectBonuses, DiscipleTables::pillCritEffectBonuses, "pillCritEffectBonuses"),
@@ -719,4 +723,15 @@ class DiscipleTables {
         return copy
     }
 
+    /** 获取有效修炼值：检查点值 + 速率 × 经过月份 × 3。
+     *  无检查点时回退到实际修炼值（兼容旧数据/新弟子）。 */
+    fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double {
+        if (!cultivationCheckpoints.contains(id)) return cultivations.getOrDefault(id, 0.0)
+        val checkpoint = cultivationCheckpoints[id]
+        val cpMonth = cultivationCheckpointGameMonths.getOrDefault(id, currentMonth)
+        if (rate <= 0.0) return checkpoint
+        val monthsElapsed = (currentMonth - cpMonth).coerceAtLeast(0)
+        if (monthsElapsed <= 0) return checkpoint
+        return checkpoint + rate * monthsElapsed * 3.0
+    }
 }

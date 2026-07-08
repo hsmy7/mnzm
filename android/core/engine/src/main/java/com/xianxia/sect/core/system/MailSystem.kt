@@ -25,9 +25,7 @@ class MailSystem @Inject constructor(
         mailService.clearForSlot(slotId)
     }
 
-    override suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
-        if (phasesToSettle < 3) return
-        val months = phasesToSettle / 3
-        repeat(months) { mailService.processMonthlyMails(state) }
+    override suspend fun onMonthlyEvent(state: MutableGameState) {
+        mailService.processMonthlyMails(state)
     }
 }

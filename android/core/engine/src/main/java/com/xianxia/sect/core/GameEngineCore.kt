@@ -6,17 +6,10 @@ import android.os.Build
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
-import com.xianxia.sect.core.engine.domain.settlement.SettlementCoordinator
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
-import com.xianxia.sect.core.engine.system.FocusDomain
-import com.xianxia.sect.core.engine.system.InterfaceDomainMap
-import com.xianxia.sect.core.engine.system.CultivationTickSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
-import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
-import com.xianxia.sect.core.concurrent.ParallelExecutionContext
 import com.xianxia.sect.core.concurrent.ThermalController
-import com.xianxia.sect.core.concurrent.BackgroundJobScheduler
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -62,14 +55,11 @@ class GameEngineCore @Inject constructor(
     private val eventBus: EventBusPort,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
-    private val settlementCoordinator: SettlementCoordinator,
     private val scopeProvider: CoroutineScopeProvider,
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
     private val gameClock: GameTimeClock,
-    private val profiler: DeviceCapabilityProfiler,
-    private val thermalController: ThermalController,
-    private val backgroundJobScheduler: BackgroundJobScheduler
+    private val thermalController: ThermalController
 ) {
 
     /**
@@ -251,38 +241,10 @@ class GameEngineCore @Inject constructor(
     @Volatile
     private var isEmergencyRestarting = false
 
-    // 焦点分频：各域上次执行时间戳
-    private val domainLastTickTime = java.util.concurrent.ConcurrentHashMap<FocusDomain, Long>()
-
-    // 自适应降频因子
-    @Volatile
-    private var adaptiveSlowdownFactor = 1.0
-
     // ★ 插值因子（供 UI 平滑渲染，由 frame-driven 循环维护）
     @Volatile
     var currentAlpha: Float = 0f
         private set
-
-    // ── 动态批量间隔 ──
-    /** 当前批量域执行间隔（ms），Tab 切换后加速，稳定后恢复 */
-    @Volatile
-    private var batchIntervalMs: Long = 10_000L  // 默认 10s（原 30s）
-    private var lastTabSwitchTime: Long = 0L
-    private var lastBatchIntervalAdjustTime: Long = 0L
-    private fun updateBatchInterval() {
-        val now = System.currentTimeMillis()
-        if (lastTabSwitchTime > 0 && now - lastTabSwitchTime < 3_000L) {
-            batchIntervalMs = 5_000L
-        } else if (batchIntervalMs > 10_000L) {
-            batchIntervalMs = maxOf(10_000L, batchIntervalMs - 1_000L)
-        }
-    }
-    /** UI 层调用：通知引擎 Tab 切换，加速批量轨 */
-    fun onTabChanged(tabName: String) {
-        lastTabSwitchTime = System.currentTimeMillis()
-        batchIntervalMs = 5_000L
-        stateStore.activeTab = tabName
-    }
 
     // ── 自适应忙等 ──
     @Volatile
@@ -351,10 +313,6 @@ class GameEngineCore @Inject constructor(
     /** 看门狗恢复尝试次数（跨重启累计，仅在 tick 推进时重置） */
     private var watchdogRecoveryAttempts = 0
 
-    /** forceCompleteSettlement 开始时间戳，用于检测死锁超时 */
-    @Volatile
-    private var forceCompleteStartTime: Long = 0L
-
     /** 看门狗连续失败次数达到此阈值后使用更长间隔，避免 OEM 永久挂起时频繁重启 */
     private val watchdogDegradedThreshold = 10
 
@@ -369,7 +327,7 @@ class GameEngineCore @Inject constructor(
         systemManager.initializeAll()
         isInitialized = true
         DomainLog.i(TAG, "GameEngineCore initialized")
-        DomainLog.i(TAG, profiler.summary)
+        DomainLog.i(TAG, "GameEngineCore initialized successfully")
     }
     
     fun startGameLoop() {
@@ -501,7 +459,6 @@ class GameEngineCore @Inject constructor(
         systemManager.releaseAll()
         _autoSaveTrigger.close()
         engineJob.cancel()
-        backgroundJobScheduler.shutdown()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
         // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
@@ -608,8 +565,6 @@ class GameEngineCore @Inject constructor(
         // 取消当前循环
         gameLoopJob?.cancel()
         gameLoopJob = null
-        // 清除残留结算状态，防止重启后 hasPendingWork 阻塞
-        settlementCoordinator.cancelPendingWork()
         // 重置可能卡住的状态
         forceResetStuckStates()
         // 消耗死区时间，防止重启后时间跳变
@@ -682,8 +637,7 @@ class GameEngineCore @Inject constructor(
             gameLoopJob = null
             stopWatchdog()
 
-            // 2. 清除残留结算状态
-            settlementCoordinator.cancelPendingWork()
+            // 2. 重置卡住的状态
             forceResetStuckStates()
 
             // 3. 用全新调度器重建 engineScope
@@ -732,7 +686,6 @@ class GameEngineCore @Inject constructor(
         } else {
             wasRunningBeforeBackground = false
         }
-        settlementCoordinator.cancelPendingWork()
         engineScope.launch {
             cultivationService.resetHighFrequencyData()
         }
@@ -757,77 +710,13 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * UI 层调用：重置批量结算时钟 + 通知场景管理器用户活跃。
+     * UI 层调用：通知引擎用户活跃。
      * 连续无操作 30s 后自动切到 IDLE 场景降帧保电。
      */
     fun onUserInteraction() {
-        settlementCoordinator.resetBatchClock()
         onUserActivity()
     }
 
-    /**
-     * 当玩家打开某个界面时调用，触发该域立即进入实时轨。
-     */
-    fun catchUpDomain(domain: FocusDomain) {
-        domainLastTickTime.remove(domain)
-    }
-
-    /**
-     * 从当前 Tab/Dialog/焦点弟子计算域集合。
-     *
-     * 委托给 [resolveDomainsFromView] 纯函数，便于单元测试。
-     */
-    private fun computeDomainsFromView(): Set<FocusDomain> =
-        resolveDomainsFromView(
-            stateStore.activeTab, stateStore.activeDialog,
-            stateStore.activeSubDialogs
-        )
-
-    /** 获取当前活跃的关注域集合（基于 activeTab + dialog + 弟子焦点 + 实时轨） */
-    private fun getActiveDomains(): Set<FocusDomain> {
-        val viewDomains = computeDomainsFromView()
-        val batchDomains = settlementCoordinator.batchRealtimeDomains
-        val allDomains = viewDomains.toMutableSet()
-        // 批量轨 ≥80% 槽位新增的域需清除追踪时间戳，
-        // 确保 phasesSkippedForDomain 返回 1（而非旧时间戳算出的 N）。
-        // viewDomains 中的域已由 setActiveTab/setActiveDialog 调用
-        // catchUpDomain 清除，此处仅处理批量轨特有域。
-        for (domain in batchDomains) {
-            if (domain !in viewDomains && domain != FocusDomain.ALWAYS) {
-                domainLastTickTime.remove(domain)
-            }
-        }
-        allDomains.addAll(batchDomains)
-        return allDomains
-    }
-
-    /** 判断某个域在本 tick 是否应执行（使用动态间隔） */
-    private fun shouldExecuteDomain(domain: FocusDomain, activeDomains: Set<FocusDomain>): Boolean {
-        if (domain == FocusDomain.ALWAYS) return true
-        if (domain in activeDomains) return true
-
-        val lastTime = domainLastTickTime[domain] ?: 0L
-        return (System.currentTimeMillis() - lastTime) >= batchIntervalMs
-    }
-
-    /** 计算某域自上次执行后跳过了多少游戏旬 */
-    private fun phasesSkippedForDomain(domain: FocusDomain): Int {
-        if (domain == FocusDomain.ALWAYS) return 1
-        val lastTime = domainLastTickTime[domain] ?: return 1
-        if (lastTime == 0L) return 1
-        val elapsedMs = System.currentTimeMillis() - lastTime
-        val gameSpeed = stateStore.gameDataSnapshot.gameSpeed.coerceIn(1, 2)
-        val msPerPhase = (2000L / gameSpeed).coerceAtLeast(500L)
-        return (elapsedMs / msPerPhase).toInt().coerceAtLeast(1)
-    }
-
-    /** 记录域执行时间 */
-    private fun markDomainExecuted(domain: FocusDomain) {
-        if (domain != FocusDomain.ALWAYS) {
-            domainLastTickTime[domain] = System.currentTimeMillis()
-        }
-    }
-    
     private suspend fun tick() {
         val tickStartTime = System.currentTimeMillis()
         val tickStartNanos = System.nanoTime()
@@ -844,9 +733,6 @@ class GameEngineCore @Inject constructor(
 
         if (tickTime > TICK_TIME_BUDGET_MS) {
             DomainLog.w(TAG, "Tick over budget: ${tickTime}ms (budget=${TICK_TIME_BUDGET_MS}ms)")
-            adaptiveSlowdownFactor = (adaptiveSlowdownFactor * 1.5).coerceAtMost(5.0)
-        } else if (tickTime < TICK_TIME_BUDGET_MS / 2 && adaptiveSlowdownFactor > 1.0) {
-            adaptiveSlowdownFactor = (adaptiveSlowdownFactor * 0.9).coerceAtLeast(1.0)
         }
 
         if (tickTime > TICK_WARNING_THRESHOLD_MS) {
@@ -861,7 +747,6 @@ class GameEngineCore @Inject constructor(
         if (isPaused || isLoading || isSaving) {
             checkAndResetStuckStates(isSaving, isLoading)
             gameClock.consumeDeadTime()  // 更新lastWallMs，防止恢复后时间跳变
-            // Periodic diagnostic: log stuck state every 100th skipped tick
             if (_tickCount.value % 100 == 0L) {
                 DomainLog.d(TAG, "tickInternal: tick #${_tickCount.value} skipped " +
                     "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
@@ -871,99 +756,48 @@ class GameEngineCore @Inject constructor(
 
         _tickCount.value++
 
-        // ★ 动态调整批量间隔（Tab 切换后加速）
-        updateBatchInterval()
-
-        // 诊断：仅 Xiaomi 设备记录 tick 起始时间，用于检测 OEM 电源管理冻结
         val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
             System.currentTimeMillis() else 0L
 
-        // ── 基于 GameTimeClock 的固定步长旬推进 ──
-        val tickResult = gameClock.tick(
-            isSettlementPending = settlementCoordinator.hasPendingWork
-        )
+        // ── 惰性结算引擎：GameTimeClock 只推进时间，不结算任何生产 ──
+        val tickResult = gameClock.tick(isSettlementPending = false)
 
         var monthChanged = false
         var yearChanged = false
 
-        // ★ 热控检查（每 tick 后执行 thermal check 间隔有 10s 冷却）
         thermalController.checkAndAdjust(_fps.value)
 
         for (phaseIndex in 1..tickResult.phasesToAdvance) {
-            val currentPhase = stateStore.gameData.value.gamePhase
-            val activeDomainsPerPhase = getActiveDomains()  // 每旬重新计算焦域
+            stateStore.update {
+                // Level 0: 时间推进
+                systemManager.getSystem(TimeSystem::class)
+                    .onPhaseTick(this, phasesToSettle = 1)
 
-            // ★ Phase 1: 并行 pre-compute（在 stateStore.update 之前执行）
-            //   创建只读快照，分发到 Dispatchers.Default 并行计算
-            val parallelResults = if (profiler.enableParallelTick) {
-                val ctx = ParallelExecutionContext.snapshot(stateStore, activeDomainsPerPhase)
-                systemManager.executeParallelCompute(
-                    ctx, activeDomainsPerPhase, ::phasesSkippedForDomain
-                )
-            } else {
-                emptyList()
-            }
+                val prevMonth = this.gameData.gameMonth
+                val prevYear = this.gameData.gameYear
 
-            when {
-                // 下旬 + 结算未完成 → 丢弃推进，等待结算
-                currentPhase == GamePhase.LATE.value && tickResult.isSettlementPending -> {
-                    gameClock.forceConsumeOnePhase()
-                    break  // 后续旬也丢弃
-                }
+                // Level 1: 每旬最小检查（对标 RimWorld Rare Tick）
+                // 仅处理突破检测和丹药自动到期补服
+                checkBreakthroughsAndPills(this)
 
-                // 正常旬推进
-                else -> {
-                    stateStore.update {
-                        // ★ Phase 2: 应用并行计算结果（在系统执行之前写入）
-                        for (result in parallelResults) {
-                            result.apply(this)
-                        }
+                if (this.gameData.gameMonth != prevMonth) monthChanged = true
+                if (this.gameData.gameYear != prevYear) yearChanged = true
 
-                        val prevMonth = this.gameData.gameMonth
-                        val prevYear = this.gameData.gameYear
-
-                        // 执行当前旬的 tick（两档制 + 分旬调度）
-                        // 注意：parallelResults 已为 supportsParallelTick 系统计算并写入了
-                        // batchSettle 等重型操作。这些系统的 onPhaseTick 仍会被调用以执行
-                        // 轻量操作（如突破检测、自动装备），它们通过内部标志跳过已完成的计算。
-                        if (settlementCoordinator.hasPendingWork) {
-                            systemManager.getSystem(TimeSystem::class)
-                                .onPhaseTick(this, phasesToSettle = 1)
-                            systemManager.getSystem(CultivationTickSystem::class)
-                                .onPhaseTick(this, phasesToSettle = 1)
-                        } else {
-                            val phase1Based = this.gameData.gamePhase + 1
-                            systemManager.onPhaseTickWithDomainFilter(
-                                this, activeDomainsPerPhase, ::shouldExecuteDomain, ::markDomainExecuted,
-                                currentPhase = phase1Based,
-                                getPhasesToSettle = ::phasesSkippedForDomain
-                            )
-                        }
-
-                        if (this.gameData.gameMonth != prevMonth) monthChanged = true
-                        if (this.gameData.gameYear != prevYear) yearChanged = true
-
-                        // 灵矿产出 phase 快照（月度结算用）
-                        cultivationService.recordPhaseSnapshot(this)
-
-                        // 自动存档检测（上旬触发，避免重复）
-                        val snapshot = this.gameData
-                        val interval = snapshot.autoSaveIntervalMonths
-                        if (interval > 0 &&
-                            snapshot.gamePhase == GamePhase.EARLY.value &&
-                            snapshot.gameMonth % interval == 0
-                        ) {
-                            _autoSaveTrigger.trySend(Unit)
-                        }
-                    }
+                // 自动存档检测（上旬触发，避免重复）
+                val snapshot = this.gameData
+                val interval = snapshot.autoSaveIntervalMonths
+                if (interval > 0 &&
+                    snapshot.gamePhase == GamePhase.EARLY.value &&
+                    snapshot.gameMonth % interval == 0
+                ) {
+                    _autoSaveTrigger.trySend(Unit)
                 }
             }
         }
 
-        // ── 月变/年变后处理（统一路径）──
+        // ── 月变/年变后处理 ──
         if (yearChanged) {
             cultivationService.processYearlyEvents()
-            // ★ 年俸先于月度事件（含叛逃检查）发放，确保叛逃检查看到加薪后的忠诚度
             if (stateStore.gameData.value.gameMonth == 1) {
                 cultivationService.processAnnualSalary(
                     stateStore.gameData.value.gameYear
@@ -971,36 +805,18 @@ class GameEngineCore @Inject constructor(
             }
         }
         if (monthChanged) {
+            // Level 3: 月变事件
             cultivationService.processMonthlyEvents()
+            // 月度系统事件（炼丹/锻造/灵田/伴侣配对等）
+            stateStore.update { systemManager.onMonthlyEvent(this) }
             missionCheck?.invoke()
         }
-
-        // 先完成待处理的结算（如有）— 每 tick 检查
-        if (settlementCoordinator.hasPendingWork) {
-            forceCompleteSettlement()
-        }
-
-        // 批量轨指纹检测（从主状态计算，无影子，使用动态间隔）
-        settlementCoordinator.accumulateBatch(batchIntervalMs)
-
-        // 年度结算
-        if (yearChanged) {
-            val shadow = stateStore.createSettlementShadow()
-            settlementCoordinator.scheduleYearly(shadow)
-            if (settlementCoordinator.hasPendingWork) {
-                val completed = settlementCoordinator.executeStep()
-                if (completed) settlementCoordinator.onSettlementComplete()
-            }
-
-        }
-
-        // 巡逻结果（空闲/活跃共同）
         val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
         }
 
-        // 诊断日志：Xiaomi 设备记录超预算 tick，辅助定位 OEM 电源管理导致的冻结
+        // 诊断日志：Xiaomi 设备记录超预算 tick
         if (tickStartDiagnostic > 0) {
             val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
             if (tickDuration > TICK_TIME_BUDGET_MS) {
@@ -1013,34 +829,28 @@ class GameEngineCore @Inject constructor(
         }
     }
 
-    private var isForceCompleting = false
+    /**
+     * Level 1: 每旬最小检查 — 对标 RimWorld Rare Tick 模式。
+     *
+     * 每旬执行的操作：
+     * 1) HP/MP 恢复
+     * 2) 自动装备/学习
+     * 3) 修炼经验累积（确保月中速率变化自动生效）
+     * 4) 自动丹药到期补服
+     * 5) 突破检测
+     */
+    private fun checkBreakthroughsAndPills(state: MutableGameState) {
+        cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle = 1)
+        cultivationService.processAutoFromWarehouseRealtime(state)
 
-    private suspend fun forceCompleteSettlement() {
-        if (isForceCompleting) {
-            // 超时检测：如果 isForceCompleting 卡住超过 5 秒，强制重置
-            if (forceCompleteStartTime > 0L &&
-                System.currentTimeMillis() - forceCompleteStartTime > 5000L
-            ) {
-                DomainLog.e(TAG,
-                    "forceCompleteSettlement: stale lock for " +
-                    "${System.currentTimeMillis() - forceCompleteStartTime}ms, force resetting")
-                isForceCompleting = false
-                forceCompleteStartTime = 0L
-            } else {
-                return
-            }
+        // 修炼累积：按当前速率累加1旬（不更新检查点）
+        for (id in state.discipleTables.ids) {
+            if (state.discipleTables.isAlive[id] != 1) continue
+            cultivationService.accumulateCultivationPerPhase(id, state)
         }
-        isForceCompleting = true
-        forceCompleteStartTime = System.currentTimeMillis()
-        try {
-            while (settlementCoordinator.hasPendingWork) {
-                settlementCoordinator.executeStep()
-            }
-            settlementCoordinator.onSettlementComplete()
-        } finally {
-            isForceCompleting = false
-            forceCompleteStartTime = 0L
-        }
+
+        cultivationService.processAutoPillsRealtime(state)
+        cultivationService.processBreakthroughs(state)
     }
 
     /**
@@ -1270,23 +1080,3 @@ class GameEngineCore @Inject constructor(
     }
 }
 
-/**
- * 焦点域判定纯函数 — 从 [InterfaceDomainMap] 读取界面→域映射。
- *
- * @param tab 当前 Tab（null 视为无）
- * @param dialog 当前 Dialog（null 视为无）
- * @return 应激活的 FocusDomain 集合（始终包含 ALWAYS）
- */
-internal fun resolveDomainsFromView(
-    tab: String?,
-    dialog: String?,
-    subDialogs: Set<String> = emptySet()
-): Set<FocusDomain> {
-    val domains = mutableSetOf(FocusDomain.ALWAYS)
-    tab?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
-    dialog?.let { InterfaceDomainMap[it]?.let { d -> domains.add(d) } }
-    for (sd in subDialogs) {
-        InterfaceDomainMap[sd]?.let { d -> domains.add(d) }
-    }
-    return domains
-}

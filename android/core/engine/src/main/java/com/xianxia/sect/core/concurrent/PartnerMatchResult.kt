@@ -19,9 +19,9 @@ class PartnerMatchResult(
     private val partnerUpdates: Map<Int, String?>,
     private val loyaltyUpdates: Map<Int, Int>,
     private val consentRequest: Pair<Int, Int>?
-) : ParallelPhaseResult {
+) {
 
-    override suspend fun apply(state: MutableGameState) {
+    suspend fun apply(state: MutableGameState) {
         val tables = state.discipleTables
 
         if (consentRequest != null) {

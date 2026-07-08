@@ -51,9 +51,9 @@ sealed class ItemOp {
 class ProductionBatchResult(
     private val delta: ProductionBatchDelta,
     private val onApplied: () -> Unit
-) : ParallelPhaseResult {
+) {
 
-    override suspend fun apply(state: MutableGameState) {
+    suspend fun apply(state: MutableGameState) {
         for (op in delta.itemsToAdd) {
             when (op) {
                 is ItemOp.AddPill -> state.pills.add(op.pill)

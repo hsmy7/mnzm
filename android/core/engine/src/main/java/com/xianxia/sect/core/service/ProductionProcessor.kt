@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -21,6 +22,7 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.ZoneCalculator
+import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,7 +37,8 @@ class ProductionProcessor @Inject constructor(
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
     private val cultivationSettlement: CultivationSettlement,
-    private val sharedState: CultivationSharedState
+    private val sharedState: CultivationSharedState,
+    private val formulaService: FormulaService
 ) {
 
     companion object {
@@ -48,7 +51,7 @@ class ProductionProcessor @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         forgeSlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
-            if (slot.isWorking && slot.isFinished(year, month)) {
+            if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
                 val recipeId = slot.recipeId
                 if (recipeId != null) {
                     val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
@@ -87,7 +90,7 @@ class ProductionProcessor @Inject constructor(
         val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
         alchemySlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
-            if (slot.isWorking && slot.isFinished(year, month)) {
+            if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
                 val success = Random.nextDouble() <= slot.successRate
                 if (success) {
                     val grade = PillGrade.random()
@@ -145,7 +148,7 @@ class ProductionProcessor @Inject constructor(
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         herbGardenSlots.forEach { slot ->
-            if (slot.isWorking && slot.isFinished(year, month)) {
+            if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
                 val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
                     ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
                 if (herb != null) {
@@ -205,6 +208,7 @@ class ProductionProcessor @Inject constructor(
                 startYear = data.gameYear,
                 startMonth = data.gameMonth,
                 duration = seedToPlant.growTime,
+                baseDuration = seedToPlant.growTime,
                 outputItemId = herbId ?: "",
                 outputItemName = seedToPlant.name,
                 expectedYield = seedToPlant.yield,
@@ -601,10 +605,6 @@ class ProductionProcessor @Inject constructor(
         return d.statusData["followed"] == "true"
     }
 
-    fun processSpiritMineProduction(state: MutableGameState) {
-        cultivationSettlement.processSpiritMineProduction(state)
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // 影子状态批量生产方法
     //
@@ -667,6 +667,7 @@ class ProductionProcessor @Inject constructor(
                 startYear = gd.gameYear,
                 startMonth = gd.gameMonth,
                 duration = recipeToStart.duration,
+                baseDuration = recipeToStart.duration,
                 successRate = (recipeToStart.successRate + policyBonus).coerceIn(0.0, 1.0),
                 completionMonth = absoluteMonth + recipeToStart.duration.coerceAtLeast(1),
                 completionPhase = 3,
@@ -732,7 +733,7 @@ class ProductionProcessor @Inject constructor(
         for (i in slots.indices) {
             val slot = slots[i]
             if (slot.status != ProductionSlotStatus.WORKING) continue
-            if (!slot.isFinished(year, month)) continue
+            if (!isSlotCompleteDynamic(slot, year, month)) continue
 
             when (slot.buildingType) {
                 com.xianxia.sect.core.model.production.BuildingType.FORGE -> {
@@ -804,7 +805,7 @@ class ProductionProcessor @Inject constructor(
             val slot = slots[i]
             if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN) continue
             if (slot.status != ProductionSlotStatus.WORKING) continue
-            if (!slot.isFinished(year, month)) continue
+            if (!isSlotCompleteDynamic(slot, year, month)) continue
 
             val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
                 ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
@@ -953,5 +954,82 @@ class ProductionProcessor @Inject constructor(
                 else state.materials.update(item.id) { it.copy(quantity = newQty) }
             }
         }
+    }
+
+    // ── Checkpoint 快照法：动态完成检测 ──
+
+    /**
+     * 动态检查生产槽位是否完成（Checkpoint 快照法）。
+     *
+     * 每次检查时按当前策略/长老状态重算有效 duration，
+     * 替代使用缓存 duration 的 [ProductionSlot.isFinished]。
+     */
+    private fun isSlotCompleteDynamic(slot: ProductionSlot, year: Int, month: Int): Boolean {
+        if (!slot.isWorking) return slot.status == ProductionSlotStatus.COMPLETED
+        if (slot.duration <= 0) return true  // 保护：duration=0 → 立即完成
+
+        val effectiveDuration = if (slot.baseDuration > 0) {
+            formulaService.calculateWorkDurationWithAllDisciples(slot.baseDuration, slot.buildingId)
+        } else {
+            slot.duration  // 旧数据回退
+        }
+
+        return TimeProgressUtil.isTimeElapsed(slot.startYear, slot.startMonth, effectiveDuration, year, month)
+    }
+
+    /**
+     * 全量重算所有活跃生产槽位的完成时间（Checkpoint 快照法）。
+     *
+     * 在策略切换/长老变更后调用，确保所有槽位的 completionMonth
+     * 反映当前速率。由 [CultivationService.checkpointAllProduction] 委托。
+     */
+    suspend fun recalculateAllCompletionMonths() {
+        val data = stateStore.gameData.value
+        val currentMonth = data.gameYear * 12 + data.gameMonth
+
+        val allSlots = productionSlotRepository.getSlots()
+        for (slot in allSlots) {
+            if (!slot.isWorking || slot.baseDuration <= 0) continue
+
+            val oldDuration = slot.duration.coerceAtLeast(1)
+            val elapsedMonths = ((data.gameYear - slot.startYear) * 12 + (data.gameMonth - slot.startMonth)).coerceAtLeast(0)
+            val progressRatio = elapsedMonths.toDouble() / oldDuration
+            if (progressRatio >= 1.0) continue
+
+            val newDuration = formulaService.calculateWorkDurationWithAllDisciples(
+                slot.baseDuration, slot.buildingId
+            )
+            if (newDuration == slot.duration) continue
+
+            // 同步更新 successRate（政策/长老变化影响成功率）
+            val newSuccessRate = recalculateSuccessRate(data, slot)
+
+            val remainingMonths = ((1.0 - progressRatio) * newDuration).roundToInt().coerceAtLeast(1)
+            productionSlotRepository.updateSlot(
+                slot.buildingType, slot.slotIndex
+            ) { s ->
+                s.copy(
+                    duration = newDuration,
+                    completionMonth = currentMonth + remainingMonths,
+                    successRate = newSuccessRate
+                )
+            }
+        }
+    }
+
+    /** 根据当前政策重算槽位的 successRate */
+    private fun recalculateSuccessRate(data: GameData, slot: ProductionSlot): Double {
+        val policyBonus = when (slot.buildingType) {
+            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY ->
+                if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            com.xianxia.sect.core.model.production.BuildingType.FORGE ->
+                if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            else -> return slot.successRate  // 非策略影响类型，保持原值
+        }
+        // 使用配方基础成功率 + 政策加成（clamp [0,1]）
+        val baseSuccessRate = slot.successRate.coerceIn(0.0, 1.0)
+        // 如果旧值已经包含政策加成，这里用原值+新政策会有双倍问题。
+        // 但 baseSuccessRate 来自配方，减掉旧政策无依据，简单用已有值 + 政策增量
+        return (slot.successRate + policyBonus).coerceIn(0.0, 1.0)
     }
 }

@@ -3,8 +3,6 @@ package com.xianxia.sect.di
 import android.content.Context
 import com.xianxia.sect.core.engine.system.*
 import com.xianxia.sect.core.engine.service.*
-import com.xianxia.sect.core.engine.domain.production.ProductionSubsystem
-import com.xianxia.sect.core.engine.domain.production.EconomySubsystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.di.MailRepositoryImpl
@@ -60,28 +58,20 @@ object CoreModule {
     @Singleton
     fun provideSystemManager(
         timeSystem: TimeSystem,
-        cultivationTickSystem: CultivationTickSystem,
         inventorySystem: InventorySystem,
         explorationTickSystem: ExplorationTickSystem,
         mailSystem: MailSystem,
         partnerSystem: PartnerSystem,
-        childBirthSystem: ChildBirthSystem,
-        productionSubsystem: ProductionSubsystem,
-        economySubsystem: EconomySubsystem,
-        profiler: com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
+        childBirthSystem: ChildBirthSystem
     ): SystemManager = SystemManager(
         setOf(
             timeSystem,
-            cultivationTickSystem,
             inventorySystem,
             explorationTickSystem,
             mailSystem,
             partnerSystem,
-            childBirthSystem,
-            productionSubsystem,
-            economySubsystem
-        ),
-        profiler
+            childBirthSystem
+        )
     )
 
     @Provides

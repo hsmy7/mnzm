@@ -123,8 +123,17 @@ class ElderManagementUseCase @Inject constructor(
             )
         }
         gameEngine.updateElderSlots(newElderSlots)
+        // Checkpoint：长老变化后重算生产 duration
+        if (slotType in productionElderTypes) {
+            gameEngine.checkpointAllProduction()
+        }
         return ElderResult.Success("长老任命成功")
     }
+
+    /** 影响生产速率的长老类型 */
+    private val productionElderTypes = setOf(
+        ElderSlotType.ALCHEMY, ElderSlotType.FORGE, ElderSlotType.HERB_GARDEN
+    )
 
     // ==================== 长老卸任 ====================
 
@@ -170,6 +179,9 @@ class ElderManagementUseCase @Inject constructor(
             )
         }
         gameEngine.updateElderSlots(newElderSlots)
+        if (slotType in productionElderTypes) {
+            gameEngine.checkpointAllProduction()
+        }
         return ElderResult.Success("长老已卸任")
     }
 

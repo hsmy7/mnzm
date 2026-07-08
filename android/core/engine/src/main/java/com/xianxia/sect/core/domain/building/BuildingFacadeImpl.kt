@@ -27,6 +27,43 @@ class BuildingFacadeImpl @Inject constructor(
     override suspend fun placeBuilding(building: GridBuildingData) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
         stateStore.update { gameData = gameData.copy(placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId)) }
+        if (building.displayName == "灵矿场") {
+            syncSpiritMineSlotsAfterPlace()
+        }
+    }
+
+    /**
+     * 建造灵矿场后同步 slot：为所有灵矿场建筑重建 3 槽位，
+     * 新槽位初始化 lastSettledGameMonth 为当前月份（防回档双计）。
+     */
+    private fun syncSpiritMineSlotsAfterPlace() {
+        gameEngineCore.launchInScope {
+            stateStore.update {
+                val data = gameData
+                val globalMines = data.placedBuildings.filter { it.displayName == "灵矿场" }
+                val rebuiltSlots = mutableListOf<SpiritMineSlot>()
+                var slotIdx = 0
+                for (mine in globalMines) {
+                    for (offset in 0 until 3) {
+                        val existing = data.spiritMineSlots.getOrNull(slotIdx + offset)
+                        val slot = if (existing != null) {
+                            existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
+                        } else {
+                            SpiritMineSlot(
+                                index = rebuiltSlots.size,
+                                sectId = mine.sectId,
+                                buildingInstanceId = mine.instanceId
+                            )
+                        }
+                        rebuiltSlots.add(slot)
+                    }
+                    slotIdx += 3
+                }
+                if (rebuiltSlots != data.spiritMineSlots) {
+                    gameData = data.copy(spiritMineSlots = rebuiltSlots)
+                }
+            }
+        }
     }
 
     override suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {

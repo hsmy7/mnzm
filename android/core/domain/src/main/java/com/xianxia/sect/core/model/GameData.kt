@@ -223,6 +223,9 @@ data class GameData(
     var spiritMineSlots: List<SpiritMineSlot> = emptyList(),
     @SettlementStrategy(Strategy.USE_SHADOW)
     var spiritMineExpansions: Int = 0,
+    /** 灵矿场上次结算的游戏月份（gameYear*12+gameMonth），用于时间戳差分 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var spiritMineLastSettledMonth: Int = 0,
 
     // 藏经阁弟子槽位（独立3个）
     @SettlementStrategy(Strategy.PRESERVE_OLD)

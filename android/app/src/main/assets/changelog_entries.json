@@ -1,5 +1,22 @@
 [
   {
+    "date": "2026-07-09",
+    "version": "4.0.42",
+    "changes": [
+      "重构：四轨结算系统→惰性结算引擎——移除SettlementCoordinator/SettlementCache/FocusDomain/ParallelExecutionContext等~3500行废弃代码，对标Supercell Clash of Clans时间戳差分模式",
+      "修复：灵矿场phase snapshot跨月错位（每旬记录→月结求和，跨月时新月份snapshot被混入旧月结算）——改为时间戳差分：产出=rate×(currentMonth-lastSettledMonth)",
+      "修复：灵矿场phase snapshot读档丢失（phaseSnapshots纯内存列表，存档即丢失）——spiritMineLastSettledMonth持久化+回档保护",
+      "修复：建造灵矿场后slot不同步（SpiritMineSlot仅打开对话框时重建）——placeBuilding时自动syncSpiritMineSlotsAfterPlace()",
+      "修复：灵矿场整数截断精度损失（calculateMonthly返回Int，每日/30再截断）——改为Long+roundToLong()",
+      "重构：修炼系统VoidForge Checkpoint快照法——cultivationCheckpoints+cultivationCheckpointGameMonths双字段，getEffectiveCultivation(checkpoint+rate×delta)实时投影，速率变化自动生效",
+      "新增：炼丹/锻造/灵田动态duration——ProductionSlot.baseDuration存储配方基础值，每月完成检查时按当前政策/长老重算有效duration，政策切换立即生效",
+      "新增：checkpointAllProduction()——政策toggle/长老变更时重算所有活跃槽位的completionMonth和successRate，保留已完成进度比例",
+      "删除：FocusDomain+InterfaceDomainMap（焦点域驱动），SettlementCoordinator+SettlementCache+Fingerprint（指纹检测+批量轨调度），ParallelExecutionContext+CultivationBatchResult（并行结算）",
+      "优化：每旬最小检查（对标RimWorld Rare Tick）——HP/MP恢复+自动装备/学习+修炼累积+丹药到期+突破检测，5项/旬",
+      "优化：GameSystem接口简化——移除onPhaseTick/computePhaseTick/supportsParallelTick，改为onMonthlyEvent/onYearlyEvent"
+    ]
+  },
+  {
     "date": "2026-07-07",
     "version": "4.0.41",
     "changes": [

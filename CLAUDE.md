@@ -112,45 +112,51 @@ while (isActive) {
 | 空闲功耗 | 高（2ms微延迟+忙等） | 低（无事 delay 让出 CPU） |
 | delay抖动 | 直接影响 tick 间隔 | deltaTime 补偿，不影响精度 |
 
-### Settlement Architecture: Four-Track Model
+### Settlement Architecture: Lazy Settlement Engine + RimWorld 分类 Tick
 
-系统结算分四条路径，每个系统只在一条路径上运行，杜绝双计。
+结算系统从 v4.0.43 起从 **四轨制（实时轨/批量轨/月事件/年事件）** 重构为 **惰性结算引擎（Lazy Settlement Engine）**，对标 Supercell Clash of Clans 的时间戳差分模式 + VoidForge Checkpoint 快照法。
 
 ```
-tickInternal() 按游戏时钟推进走四条路径：
-- for each phase: stateStore.update { systemManager.onPhaseTickWithDomainFilter(activeDomains) }
-  - 实时轨 (每旬): 焦点域系统 + 进度≥80%槽位 → phasesToSettle=1
-  - 批量轨 (动态5-15s): 非焦点域系统 + 进度<80%槽位 → phasesToSettle=N
-- 月变事件: processMonthlyEvents → 外交/盗窃/任务/商人
-- 年变事件: processYearlyEvents → 招募刷新/盟约
-- accumulateBatch(临时影子指纹检测) → 30s创建临时影子→计算指纹→变化时重建SettlementCache
-- yearChanged? → scheduleYearly(shadow) → 老化/死亡/招募/盟约
+tickInternal():
+  Level 0 — 时间推进 (每旬)         ← GameTimeClock 驱动
+    └─ TimeSystem.onPhaseTick → 更新 gamePhase
+
+  Level 1 — 每旬最小检查 (每旬)      ← RimWorld Rare Tick 模式
+    ├─ HP/MP 恢复
+    ├─ 自动装备/学习
+    ├─ 修炼累积（速率×1旬）
+    ├─ 自动丹药到期补服
+    └─ 突破检测
+
+  Level 2 — 惰性生产结算 (UI打开时)  ← Supercell 时间戳模式
+    ├─ 灵矿场: rate × (currentMonth - lastSettledMonth)
+    ├─ 炼丹/锻造: 动态重算 duration → 完成检查
+    └─ 灵田/灵植: 动态重算 growTime → 成熟检查
+
+  Level 3 — 月变事件 (月变时)       ← 定时事件模式
+    ├─ 外交/盗窃/执法/任务/叛逃
+    ├─ 月度系统事件 (Alchemy/Forge/HerbGarden/Planting)
+    └─ 伴侣配对 + 忠诚度衰减
+
+  Level 4 — 年变事件 (年变时)
+    └─ 老化/招募/盟约
 ```
-
-**四条路径：**
-
-| 路径 | 频率 | 结算方式 | 覆盖系统 |
-|------|------|---------|---------|
-| 实时轨 | 每2000ms（1x）/每1000ms（2x）推进1旬 | `onPhaseTick(state, 1)` — 增量1旬 | 活跃域声明的系统 + 进度≥80%槽位 |
-| 批量轨 | 动态 5-15s (R12) | `onPhaseTick(state, N)` — 一次性补齐N旬 | 非活跃域声明的系统；Tab切换后加速5s，稳定态10s |
-| 月度事件 | 游戏月变时 | 一次性 | 外交/盗窃/任务/商人 |
-| 年度结算 | 游戏年变时 | 一次性 | 老化/死亡/招募/盟约 |
 
 **核心原则：**
-- **焦点域决定轨道** — 当前界面所在域声明的系统走实时轨，其他系统走批量轨
-- **单路径原则** — 每个系统只在一个结算路径上运行
-- **影子状态** — 批量轨不持有持久影子。生产结算在 `computePhaseTick` 中创建临时影子，
-    影子中包含 `productionSlots`（`MutableGameState.productionSlots`），在其上运行
-    真实生产代码，diff 出增量后 apply，只读即弃
-- **突破检测仅在实时轨** — `CultivationTickSystem.onPhaseTick` 中 `phasesToSettle==1` 时调用 `processBreakthroughs`
-- **焦点域 = 视角驱动 + 域声明系统** — 每个 UI 界面对应一个 FocusDomain，域通过 `systemClasses` 声明激活时需实时 tick 的系统。如在弟子 Tab 则 DISCIPLE_LIST 域激活 → CultivationTickSystem 实时 tick
-- **无焦点弟子机制** — 焦点域中的弟子自然就是需要关注的弟子
+- **时间戳懒惰计算** — 不跑后台循环，仅存 `lastSettledTime`，按需计算：`产出 = rate × (currentTime - lastSettledTime)`
+- **Checkpoint 快照法** — 修炼/炼丹/锻造在速率变化因子（政策/长老/装备/丹药）改变时，通过 `checkpointAllProduction()` 重算有效 duration 和 completionMonth，保留已完成的进度比例
+- **修炼 VoidForge 模式** — `cultivationCheckpoints` + `cultivationCheckpointGameMonths` 双字段存储检查点，`getEffectiveCultivation(checkpoint + rate × delta)` 实时投影
+- **生产系统动态 duration** — 每月完成检查时用当前政策/长老状态重算有效 duration（`baseDuration` 存储配方基础值，加成每月算），政策切换立即生效
+- **无焦点域** — FocusDomain + InterfaceDomainMap 已移除，UI 不再驱动系统 tick
+- **无 SettlementCoordinator** — 指纹检测、批量轨调度、年结编排全部移除
+- **每旬 5 项最小检查** — 对标 RimWorld Rare Tick：HP/MP 恢复、自动装备/学习、修炼累积、丹药、突破
 
-### Threading Architecture: Four Dispatchers（四线程模型）
+### Threading Architecture: Two Game Threads（双游戏线程 + Watchdog）
+
+惰性结算引擎移除了并行计算基础设施，不再需要 ParallelDispatcher。简化后的线程模型：
 
 ```
 GameEngine-Thread(单线程,MAX)       游戏循环 + stateStore 写入口
-ParallelDispatcher(N核,MAX-1)       只读并行计算
 BackgroundDispatcher(2线程,MIN+1)   后台 Job / 存档 IO
 Watchdog(单线程,NORM)              监控 GameThread 卡死
 Compose UI Thread(Main)            Android 主线程
@@ -158,26 +164,22 @@ Compose UI Thread(Main)            Android 主线程
 
 **关键设计决策：**
 
-- **compute/apply 分离** — 所有并行计算分两阶段：`compute`（只读，在 ParallelDispatcher 上 N 路并行）→ `apply`（在主线程的 `stateStore.update` 块中原子写入）
-- **`@Volatile forceSerialByThermal`** — `ThermalController` 检测到发热或低帧率时，通过 `DeviceCapabilityProfiler.forceSerialByThermal` 实时关闭并行，`enableParallelTick` 每次读取都检查此标志
-- **阈值保护** — 弟子数 < 50 时自动走串行（`CultivationCore.MIN_PARALLEL_THRESHOLD`），避免分块调度开销淹没计算收益
-- **不修改 `stateStore.update` 的 Mutex 模型** — 并行 compute 在外面跑，只有 apply 进锁，锁内路径不变
-- **`ParallelWorkerPool` 已废弃**（`@Deprecated`），新代码使用 `DeviceCapabilityProfiler.parallelDispatcher` + coroutineScope
+- **无并行结算** — `ParallelExecutionContext`、`CultivationBatchResult`、`ParallelPhaseResult` 已全部移除。所有结算在 GameEngine-Thread 上串行执行
+- **`stateStore.update` Mutex** — 唯一的写锁，所有状态变更在此事务内原子完成
+- **生产系统 Checkpoint** — 政策/长老变化时通过 `suspend fun checkpointAllProduction()` 在 GameEngine-Thread 上重算所有活跃槽位的 `duration` 和 `completionMonth`
 
-**GameSystem 迁移步骤：**
-1. 类上设置 `override val supportsParallelTick = true`
-2. 实现 `suspend fun computePhaseTick(ctx, phases): ParallelPhaseResult`
-3. 返回的 `ParallelPhaseResult.apply()` 在 `stateStore.update` 块中被调用
-4. 原有 `onPhaseTick` 保留执行轻量操作（通过内部标志跳过已并行计算的重型部分）
+### GameSystem 生命周期
 
-**影子状态模式（推荐用于有复杂业务逻辑的系统）：**
-对于生产结算这类需要运行真实业务代码的系统，采用影子状态模式替代纯函数模拟器：
-1. 确保所有结算所需状态在 `MutableGameState` 中（如 `productionSlots`）
-2. `computePhaseTick` 中调用 `stateStore.createSettlementShadow(slots)` 创建影子
-3. 在影子上运行真实的生产代码（不走 Repository/stateStore，操作本地列表）
-4. Diff 影子 vs 原始快照，生成增量 `ItemOp` / `ProductionBatchDelta`
-5. `apply` 中增量应用到真实状态，不整表替换 EntityStore
-6. 槽位等不在影子中的状态通过 `onPhaseTick` 写回 Repository
+惰性结算引擎使用简化后的 GameSystem 接口：
+
+```kotlin
+interface GameSystem {
+    suspend fun onMonthlyEvent(state: MutableGameState)  // 月变事件
+    suspend fun onYearlyEvent(state: MutableGameState)   // 年变事件
+}
+```
+
+不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
 
 ### Formula Architecture: Zone Multiplier System（乘区法）
 
@@ -225,34 +227,33 @@ Compose UI Thread(Main)            Android 主线程
 
 ### Key Classes
 
-- **`GameEngineCore`** — 游戏循环控制器，驱动 4 条结算路径，通过 InterfaceDomainMap 解析焦点域
-- **`SettlementCoordinator`** — 指纹检测 + 年度结算，每 30s 创建临时影子
+- **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
 - **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
 - **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)
+- **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()` / `checkpointAllProduction()`
 
-### Component Table Architecture (v4.0.41) / IntPackedArray
+### Component Table Architecture (v4.0.41) / IntPackedArray + Cultivation Checkpoint
 
 Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntPackedArray`（dense IntArray + idToIndex）和 `DoublePackedArray`（零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
+
+**修炼 Checkpoint（v4.0.43）：** `cultivationCheckpoints: DoubleComponentTable` + `cultivationCheckpointGameMonths: IntComponentTable`。修炼值 = checkpoint + rate × (currentMonth - cpMonth) × 3。Checkpoint 在每旬累积时更新，在速率变化时通过 `checkpointDisciple()` 同步。
 
 **EntityStore 增量更新：** 其他实体类型用 `EntityStore<T : HasId>`，MutableList 原地修改 + `freeze()` 快照 + `isDirty` 标记检测。GC 分配降低 80%+。
 
 **EntityStore 注意事项：** `plus(item)` 必须通过 `EntityStore(newItems)` 构造新实例，不可 `EntityStore()` + `items_.addAll()`，否则 `frozenSnapshot` 未正确初始化。
 
-**FingerprintSnapshot (R13)：** 只读轻量快照，零 deepCopy，仅指纹变化时回退到完整 `createSettlementShadow()`。
+**生产系统 Checkpoint（v4.0.43）：** `ProductionSlot.baseDuration` 存储配方基础持续时间。政策/长老变化时 `checkpointAllProduction()` 遍历所有活跃槽位，重算 duration 和 completionMonth，保留已完成进度比例。灵田/灵植使用 `calculateSpiritFieldMaturityBonus` 动态重算 effectiveGrowTime。
 
-**并发基础设施（v4.0.40）：** `DeviceCapabilityProfiler`（线程池管理）、`ParallelExecutionContext`（只读快照）、`BackgroundJobScheduler`（后台调度）、`ThermalController`（热控降级，v4.0.41+ 使用 `ThermalReader` 三通道温度读取）、`CultivationBatchResult` / `ParallelPhaseResult`（并行结算结果）。均在 `core/engine/.../concurrent/`。
+**热控与温度读取（v4.0.41）：** `ThermalReader` 接口定义三通道温度获取策略，`AndroidThermalReader` 实现：1) `PowerManager.getThermalHeadroom(10)` (API 30+) 主动预测；2) `PowerManager.currentThermalStatus` (API 29+) 被动状态；3) sysfs + BatteryManager 降级回退。`ThermalController` 消费 `ThermalReader` 温度数据驱动四档降级阶梯（GREEN/YELLOW/ORANGE/RED），联动渲染质量、目标帧率。
 
-**热控与温度读取（v4.0.41）：** `ThermalReader` 接口定义三通道温度获取策略，`AndroidThermalReader` 实现：1) `PowerManager.getThermalHeadroom(10)` (API 30+) 主动预测；2) `PowerManager.currentThermalStatus` (API 29+) 被动状态；3) sysfs + BatteryManager 降级回退。`ThermalController` 消费 `ThermalReader` 温度数据驱动四档降级阶梯（GREEN/YELLOW/ORANGE/RED），联动并行度、渲染质量、目标帧率。接口预留 iOS `ProcessInfo.thermalState` 移植点。位于 `core/engine/.../thermal/`。
-
-**四线程调度模型：**
+**两线程调度模型：**
 | 调度器 | 线程数 | 优先级 | 用途 |
 |--------|--------|--------|------|
 | `GameDispatcher` (GameEngine-Thread) | 1 | MAX (-19) | 游戏循环 + stateStore 写入口 |
-| `parallelDispatcher` | 大核数 | MAX-1 | compute 阶段只读并行计算 |
-| `backgroundDispatcher` | 2 | MIN+1 | 批量结算/IO/存档 |
+| `backgroundDispatcher` | 2 | MIN+1 | 后台 Job/存档 IO |
 | `Watchdog` | 1 | NORM | 监控卡死 |
 
 **Key rules:**
@@ -262,17 +263,11 @@ Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`
 - **Non-Disciple lookup**: `entityStore.get(id)` — O(1) via HashMap index
 - **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配
 - **EntityStore snapshot**: `entityStore.freeze()` before StateFlow emission — 仅在 dirty 时分配新 List
-- **Shadow copies**: `DiscipleTables.deepCopy()` copies each table directly (value types: int/double are value-copied; List/Map types are deep-copied via .toList()/.toMap())
-- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, `productionSlots: List<ProductionSlot>`（v4.0.42 新增，结算影子中自动包含槽位快照）
-
-### 并发模型：可重入 Mutex 显式计数 (R5, v4.0.38)
-`transactionOwnerThread` 改为 `reentrantCount` 显式重入计数，支持调度器切换和异常回滚。
-
-### 批量发射模式 (R19, v4.0.40)
-`enterBatchEmissionMode()` / `exitBatchEmissionMode()` 抑制个体 StateFlow 发射，避免批量更新时 Compose 重组雪崩。
-
-### mergeDiscipleTables 简化 (R7, v4.0.40)
-声明式合并：以 `shadow.deepCopy()` 为基础 + 生命周期字段取 current + `shadowOriginAliveIds` 区分死亡/新生儿。
+- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, `productionSlots: List<ProductionSlot>`, `spiritMineSlots: List<SpiritMineSlot>`
+- **Cultivation Checkpoint**: `tables.cultivationCheckpoints[id]` + `tables.cultivationCheckpointGameMonths[id]` — 每旬 `accumulateCultivationPerPhase()` 更新，`getEffectiveCultivation()` 实时投影
+- **灵矿场结算**: `spiritMineLastSettledMonth` 时间戳差分，`产出 = rate × (currentMonth - lastSettled)`
+- **炼丹/锻造 Checkpoint**: `ProductionSlot.baseDuration` 存储配方基础值，`recalculateAllCompletionMonths()` 按当前政策/长老重算 duration + successRate
+- **政策/长老变更触发**: `SectPolicyToggleUseCase` 和 `ElderManagementUseCase` 在变更后调用 `checkpointAllProduction()`
 
 ### 抗冻结架构：自适应忙等 (R3, v4.0.38)
 忙等自适应化：正常时纯 `delay()`，检测到异常时自动启用忙等，恢复后禁用。OEM 参数简化为 3 档。
@@ -640,13 +635,13 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 类构造参数不超过 7 个 |
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
-| 🔴 | 新增/改动界面已重新评估焦点域映射（FocusDomain 枚举 + InterfaceDomainMap） |
+| 🔴 | 新增影响修炼速率的操作已添加 `checkpointDisciple()` 调用 |
+| 🔴 | 新增影响炼丹/锻造/灵田速率因子已同步更新 `calculateWorkDurationWithAllDisciples` 或 `calculateSpiritFieldMaturityBonus` |
+| 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
+| 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
 | 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
 | 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |
 | 🔴 | 新增 UI 界面使用 `SpriteImage()` 或 `SpriteResRegistry.resolve()` 而非直接 `R.drawable.xxx` |
-| 🔴 | 新增支持并行结算的系统按影子状态模式实施（或在 `computePhaseTick` 中实现纯函数模拟器） |
-| 🔴 | 影子状态 diff 必须包含完全消耗物品（`diffRemovedItems`），不得使用整表 EntityStore 替换 |
-| 🔴 | 批量结算中修改 `gameData` 字段（如 `spiritFieldPlants`）必须通过特定字段同步，不得整表替换 |
 | 🔴 | 渲染特性变更（地图/Canvas/精灵）已同步实现 Vulkan 和 Canvas 两路径（见 `docs/renderer-feature-checklist.md`） |
 | 🔴 | 新增渲染特性有对应的 `SoftwareCanvasBackend` 单元测试（`SoftwareCanvasBackendTest.kt`） |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
