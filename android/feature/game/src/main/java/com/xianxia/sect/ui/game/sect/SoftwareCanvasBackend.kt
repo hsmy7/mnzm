@@ -257,7 +257,7 @@ class SoftwareCanvasBackend(
                     val bh = buildingDataArray[idx + 3].toInt()
                     val nameIdx = buildingDataArray[idx + 4].toInt()
 
-                    // 建筑世界尺寸 = grid尺寸 × tileSize
+                    // 建筑精灵比例×2（视觉更饱满），居中偏移，灵田保持原尺寸
                     val bWorldX: Float
                     val bWorldY: Float
                     val bWorldW: Float
@@ -268,10 +268,12 @@ class SoftwareCanvasBackend(
                         bWorldW = (bw * tileSize).toFloat()
                         bWorldH = (bh * tileSize).toFloat()
                     } else {
-                        bWorldX = (gx * tileSize).toFloat()
-                        bWorldY = (gy * tileSize).toFloat()
-                        bWorldW = (bw * tileSize).toFloat()
-                        bWorldH = (bh * tileSize).toFloat()
+                        val halfW = (bw * tileSize * 0.5f)
+                        val halfH = (bh * tileSize * 0.5f)
+                        bWorldX = (gx * tileSize).toFloat() - halfW
+                        bWorldY = (gy * tileSize).toFloat() - halfH
+                        bWorldW = (bw * tileSize * 2).toFloat()
+                        bWorldH = (bh * tileSize * 2).toFloat()
                     }
                     val screenBX = (bWorldX - frame.camX) * scale
                     val screenBY = (bWorldY - frame.camY) * scale
