@@ -1,7 +1,7 @@
 [
   {
     "date": "2026-07-09",
-    "version": "4.0.42",
+    "version": "4.0.41",
     "changes": [
       "重构：四轨结算系统→惰性结算引擎——移除SettlementCoordinator/SettlementCache/FocusDomain/ParallelExecutionContext等~3500行废弃代码，对标Supercell Clash of Clans时间戳差分模式",
       "修复：灵矿场phase snapshot跨月错位（每旬记录→月结求和，跨月时新月份snapshot被混入旧月结算）——改为时间戳差分：产出=rate×(currentMonth-lastSettledMonth)",
