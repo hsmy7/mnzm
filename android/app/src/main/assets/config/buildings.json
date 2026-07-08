@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "buildings": {
     "spirit_field": {
       "id": "spirit_field",
@@ -9,6 +9,8 @@
       "cost": 200,
       "gridWidth": 1,
       "gridHeight": 1,
+      "spriteWidth": 1,
+      "spriteHeight": 1,
       "description": "种植灵草的田地"
     },
     "mining": {
@@ -20,8 +22,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 1500,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 4,
+      "spriteWidth": 4,
+      "spriteHeight": 4,
       "description": "开采灵石和矿石"
     },
     "warehouse": {
@@ -30,8 +34,10 @@
       "buildingType": "WAREHOUSE",
       "slotCount": 1,
       "cost": 1500,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 5,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "储存宗门物资，每座+50格容量"
     },
     "herb_garden": {
@@ -43,8 +49,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 3000,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "种植灵草的园地"
     },
     "alchemy": {
@@ -56,8 +64,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
       "cost": 4000,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 3,
+      "spriteWidth": 4,
+      "spriteHeight": 4,
       "description": "用于炼制各种丹药的场所"
     },
     "forge": {
@@ -69,8 +79,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
       "cost": 4000,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "锻造装备的场所"
     },
     "reflection_cliff": {
@@ -82,8 +94,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 5000,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 4,
+      "spriteWidth": 4,
+      "spriteHeight": 4,
       "description": "悔过自新之地，关押违规弟子"
     },
     "law_enforcement_hall": {
@@ -95,8 +109,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 6000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "维护宗门纪律，执行奖惩"
     },
     "mission_hall": {
@@ -108,8 +124,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 6000,
-      "gridWidth": 2,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 3,
+      "spriteWidth": 4,
+      "spriteHeight": 6,
       "description": "派遣弟子执行宗门任务"
     },
     "wen_dao_peak": {
@@ -121,8 +139,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 8000,
-      "gridWidth": 2,
+      "gridWidth": 4,
       "gridHeight": 3,
+      "spriteWidth": 4,
+      "spriteHeight": 8,
       "description": "管理外门弟子与传道授业"
     },
     "qingyun_peak": {
@@ -134,8 +154,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 8000,
-      "gridWidth": 2,
+      "gridWidth": 4,
       "gridHeight": 3,
+      "spriteWidth": 4,
+      "spriteHeight": 8,
       "description": "管理内门弟子与精英培养"
     },
     "library": {
@@ -147,8 +169,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 8000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "弟子修习功法的场所，提升修炼速度"
     },
     "single_residence": {
@@ -160,8 +184,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 12000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 4,
+      "gridHeight": 4,
+      "spriteWidth": 4,
+      "spriteHeight": 4,
       "description": "为弟子提供清修之所，修炼速度+20%，可升级"
     },
     "tianshu_hall": {
@@ -173,8 +199,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 15000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "处理宗门事务的核心建筑"
     },
     "multi_residence": {
@@ -186,8 +214,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 24000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "spriteWidth": 6,
+      "spriteHeight": 4,
       "description": "供多名弟子共同修炼，修炼速度+10%"
     },
     "single_residence_upgraded": {
@@ -199,8 +229,10 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 30000,
-      "gridWidth": 3,
-      "gridHeight": 2,
+      "gridWidth": 6,
+      "gridHeight": 6,
+      "spriteWidth": 6,
+      "spriteHeight": 6,
       "description": "单人修炼之所，修炼速度+40%"
     },
     "patrol_tower": {
@@ -209,8 +241,10 @@
       "buildingType": "PATROL",
       "slotCount": 8,
       "cost": 35000,
-      "gridWidth": 2,
-      "gridHeight": 3,
+      "gridWidth": 4,
+      "gridHeight": 4,
+      "spriteWidth": 4,
+      "spriteHeight": 8,
       "description": "驻守弟子自动巡视地图攻击妖兽"
     },
     "blood_refining_pool": {
@@ -224,6 +258,8 @@
       "cost": 40000,
       "gridWidth": 2,
       "gridHeight": 2,
+      "spriteWidth": 4,
+      "spriteHeight": 4,
       "description": "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
     }
   },

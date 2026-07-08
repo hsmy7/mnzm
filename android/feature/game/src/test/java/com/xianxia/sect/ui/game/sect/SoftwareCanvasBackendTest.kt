@@ -577,6 +577,26 @@ class SoftwareCanvasBackendTest {
     }
 
     @Test
+    fun `floorTileIndex - new footprint sizes map to closest tile`() {
+        assertEquals(3, SpriteAtlasDef.floorTileIndex(4, 4))  // 方形 → 3x3
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 4))  // 宽扁 → 3x2
+        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 6))  // 窄高 → 2x3
+        assertEquals(3, SpriteAtlasDef.floorTileIndex(6, 6))  // 大方 → 3x3
+        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 8))  // 瘦高 → 2x3
+        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 4))  // 窄高 → 2x3
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(4, 3))  // 宽扁 → 3x2
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 5))  // 宽扁 → 3x2
+    }
+
+    @Test
+    fun `spriteAtlasDef - FOOTPRINT_BY_NAME_INDEX matches BUILDING_NAMES size`() {
+        assertEquals(
+            SpriteAtlasDef.BUILDING_NAMES.size,
+            SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.size
+        )
+    }
+
+    @Test
     fun `spriteAtlasDef - FLOOR_TILE_UV_MAP has correct size`() {
         assertEquals(4 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
     }

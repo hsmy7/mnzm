@@ -28,8 +28,18 @@ data class BuildingConfigModel(
     val cost: Long = 1000,
     val gridWidth: Int = 2,
     val gridHeight: Int = 2,
+    /** 精灵视觉比例宽度（格数），0 = 使用 gridWidth */
+    val spriteWidth: Int = 0,
+    /** 精灵视觉比例高度（格数），0 = 使用 gridHeight */
+    val spriteHeight: Int = 0,
     val description: String = ""
-)
+) {
+    /** 获取实际精灵宽度，为 0 时回退到占地宽度 */
+    fun effectiveSpriteWidth(): Int = if (spriteWidth > 0) spriteWidth else gridWidth
+
+    /** 获取实际精灵高度，为 0 时回退到占地高度 */
+    fun effectiveSpriteHeight(): Int = if (spriteHeight > 0) spriteHeight else gridHeight
+}
 
 @Singleton
 class BuildingConfigService @Inject constructor(
@@ -39,25 +49,25 @@ class BuildingConfigService @Inject constructor(
         private const val TAG = "BuildingConfigService"
         private const val CONFIG_PATH = "config/buildings.json"
     }
-    
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
-    
+
     private var config: BuildingsConfig? = null
-    
+
     private fun ensureConfigLoaded(): BuildingsConfig {
         if (config == null) {
             loadConfig()
         }
         return config ?: createDefaultConfig().also { config = it }
     }
-    
+
     suspend fun initialize() {
         loadConfig()
     }
-    
+
     private fun loadConfig() {
         try {
             val loadedConfig = loadFromAssets()
@@ -68,7 +78,7 @@ class BuildingConfigService @Inject constructor(
             config = createDefaultConfig()
         }
     }
-    
+
     private fun loadFromAssets(): BuildingsConfig? {
         return try {
             context.assets.open(CONFIG_PATH).use { inputStream ->
@@ -87,30 +97,30 @@ class BuildingConfigService @Inject constructor(
             null
         }
     }
-    
+
     fun getBuildingConfig(buildingId: String): BuildingConfigModel? {
         val cfg = ensureConfigLoaded()
         val normalizedId = normalizeBuildingId(buildingId, cfg)
         return cfg.buildings[normalizedId]
     }
-    
+
     fun getBuildingConfigByType(buildingType: BuildingType): BuildingConfigModel? {
         val cfg = ensureConfigLoaded()
         return cfg.buildings.values.find { it.buildingType == buildingType.name }
     }
-    
+
     fun getAllBuildingConfigs(): List<BuildingConfigModel> {
         return ensureConfigLoaded().buildings.values.toList()
     }
-    
+
     fun getSlotCount(buildingId: String): Int {
         return getBuildingConfig(buildingId)?.slotCount ?: 1
     }
-    
+
     fun getSlotCountByType(buildingType: BuildingType): Int {
         return getBuildingConfigByType(buildingType)?.slotCount ?: 1
     }
-    
+
     fun getBaseSuccessRate(buildingId: String): Double {
         return getBuildingConfig(buildingId)?.baseSuccessRate ?: 1.0
     }
@@ -118,26 +128,26 @@ class BuildingConfigService @Inject constructor(
     fun getBuildingDisplayName(buildingId: String): String {
         return getBuildingConfig(buildingId)?.displayName ?: com.xianxia.sect.core.util.BuildingNames.getDisplayName(buildingId)
     }
-    
+
     fun isValidSlotIndex(buildingId: String, slotIndex: Int): Boolean {
         val slotCount = getSlotCount(buildingId)
         return slotIndex >= 0 && slotIndex < slotCount
     }
-    
+
     fun isValidSlotIndexByType(buildingType: BuildingType, slotIndex: Int): Boolean {
         val slotCount = getSlotCountByType(buildingType)
         return slotCount >= 0 && slotIndex < slotCount
     }
-    
+
     fun resolveBuildingId(input: String): String {
         val cfg = ensureConfigLoaded()
         return cfg.buildingAliases[input.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")]
             ?: input.lowercase(java.util.Locale.getDefault())
     }
-    
+
     fun getBuildingTypeFromId(buildingId: String): BuildingType {
         val config = getBuildingConfig(buildingId)
-        return config?.let { 
+        return config?.let {
             try {
                 BuildingType.valueOf(it.buildingType)
             } catch (e: Exception) {
@@ -145,7 +155,7 @@ class BuildingConfigService @Inject constructor(
             }
         } ?: BuildingType.ALCHEMY
     }
-    
+
     fun getBuildingCost(buildingId: String): Long {
         return getBuildingConfig(buildingId)?.cost ?: 1000L
     }
@@ -153,6 +163,19 @@ class BuildingConfigService @Inject constructor(
     fun getBuildingGridSize(displayName: String): Pair<Int, Int> {
         val config = getBuildingConfigByDisplayName(displayName)
         return (config?.gridWidth ?: 2) to (config?.gridHeight ?: 2)
+    }
+
+    /** 获取建筑精灵视觉比例尺寸，为 0 时回退到占地尺寸 */
+    fun getBuildingSpriteSize(displayName: String): Pair<Int, Int> {
+        val config = getBuildingConfigByDisplayName(displayName)
+        return config?.run { effectiveSpriteWidth() to effectiveSpriteHeight() } ?: (2 to 2)
+    }
+
+    /** 获取所有建筑的精灵视觉比例尺寸映射 */
+    fun getAllBuildingSpriteSizes(): Map<String, Pair<Int, Int>> {
+        return ensureConfigLoaded().buildings.values.associate {
+            it.displayName to getBuildingSpriteSize(it.displayName)
+        }
     }
 
     fun fixupBuildingSizes(buildings: List<com.xianxia.sect.core.model.GridBuildingData>): List<com.xianxia.sect.core.model.GridBuildingData> {
@@ -174,15 +197,15 @@ class BuildingConfigService @Inject constructor(
         loadConfig()
         Log.d(TAG, "Building config reloaded")
     }
-    
+
     private fun normalizeBuildingId(buildingId: String, cfg: BuildingsConfig = ensureConfigLoaded()): String {
         val normalized = buildingId.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")
         return cfg.buildingAliases[normalized] ?: buildingId.lowercase(java.util.Locale.getDefault())
     }
-    
+
     private fun createDefaultConfig(): BuildingsConfig {
         return BuildingsConfig(
-            version = "2.0.0",
+            version = "3.0.0",
             buildings = mapOf(
                 // ─── 初创期（0~3月，200~1,500 灵石）───
                 "spirit_field" to BuildingConfigModel(
@@ -193,6 +216,8 @@ class BuildingConfigService @Inject constructor(
                     cost = 200,
                     gridWidth = 1,
                     gridHeight = 1,
+                    spriteWidth = 1,
+                    spriteHeight = 1,
                     description = "种植灵草的田地"
                 ),
                 "mining" to BuildingConfigModel(
@@ -202,8 +227,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 1500,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 4,
+                    spriteWidth = 4,
+                    spriteHeight = 4,
                     description = "开采灵石和矿石"
                 ),
                 "warehouse" to BuildingConfigModel(
@@ -212,8 +239,10 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "WAREHOUSE",
                     slotCount = 1,
                     cost = 1500,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 5,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "储存宗门物资，每座+50格容量"
                 ),
 
@@ -225,8 +254,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 3000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "种植灵草的园地"
                 ),
                 "alchemy" to BuildingConfigModel(
@@ -237,8 +268,10 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 4000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 3,
+                    spriteWidth = 4,
+                    spriteHeight = 4,
                     description = "用于炼制各种丹药的场所"
                 ),
                 "forge" to BuildingConfigModel(
@@ -249,8 +282,10 @@ class BuildingConfigService @Inject constructor(
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 4000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "锻造装备的场所"
                 ),
 
@@ -262,8 +297,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 6,
                     baseSuccessRate = 1.0,
                     cost = 5000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 4,
+                    spriteWidth = 4,
+                    spriteHeight = 4,
                     description = "悔过自新之地，关押违规弟子"
                 ),
                 "law_enforcement_hall" to BuildingConfigModel(
@@ -273,8 +310,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 6000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "维护宗门纪律，执行奖惩"
                 ),
                 "mission_hall" to BuildingConfigModel(
@@ -284,8 +323,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     baseSuccessRate = 1.0,
                     cost = 6000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 3,
+                    spriteWidth = 4,
+                    spriteHeight = 6,
                     description = "派遣弟子执行宗门任务"
                 ),
                 "wen_dao_peak" to BuildingConfigModel(
@@ -295,8 +336,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 2,
+                    gridWidth = 4,
                     gridHeight = 3,
+                    spriteWidth = 4,
+                    spriteHeight = 8,
                     description = "管理外门弟子与传道授业"
                 ),
                 "qingyun_peak" to BuildingConfigModel(
@@ -306,8 +349,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 2,
+                    gridWidth = 4,
                     gridHeight = 3,
+                    spriteWidth = 4,
+                    spriteHeight = 8,
                     description = "管理内门弟子与精英培养"
                 ),
                 "library" to BuildingConfigModel(
@@ -317,8 +362,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 8000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "弟子修习功法的场所，提升修炼速度"
                 ),
 
@@ -330,8 +377,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 12000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 4,
+                    spriteWidth = 4,
+                    spriteHeight = 4,
                     description = "为弟子提供清修之所，修炼速度+20%，可升级"
                 ),
                 "tianshu_hall" to BuildingConfigModel(
@@ -341,8 +390,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 2,
                     baseSuccessRate = 1.0,
                     cost = 15000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "处理宗门事务的核心建筑"
                 ),
                 "multi_residence" to BuildingConfigModel(
@@ -352,8 +403,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     baseSuccessRate = 1.0,
                     cost = 24000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 4,
                     description = "供多名弟子共同修炼，修炼速度+10%"
                 ),
 
@@ -365,8 +418,10 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 30000,
-                    gridWidth = 3,
-                    gridHeight = 2,
+                    gridWidth = 6,
+                    gridHeight = 6,
+                    spriteWidth = 6,
+                    spriteHeight = 6,
                     description = "单人修炼之所，修炼速度+40%"
                 ),
                 "patrol_tower" to BuildingConfigModel(
@@ -375,8 +430,10 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "PATROL",
                     slotCount = 8,
                     cost = 35000,
-                    gridWidth = 2,
-                    gridHeight = 3,
+                    gridWidth = 4,
+                    gridHeight = 4,
+                    spriteWidth = 4,
+                    spriteHeight = 8,
                     description = "驻守弟子自动巡视地图攻击妖兽"
                 ),
                 "blood_refining_pool" to BuildingConfigModel(
@@ -388,6 +445,8 @@ class BuildingConfigService @Inject constructor(
                     cost = 40000,
                     gridWidth = 2,
                     gridHeight = 2,
+                    spriteWidth = 4,
+                    spriteHeight = 4,
                     description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"
                 )
             ),

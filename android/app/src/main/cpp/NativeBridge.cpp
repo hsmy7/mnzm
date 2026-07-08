@@ -306,48 +306,66 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
         buvCount = env->GetArrayLength(buildingUVMap) / 4;
 
+        // 占地尺寸查找表（与 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 对应）
+        static const int FP_W[] = {4,4,1,4,6,6,6,4,4,6,6,4,4,4,4,6,6,2};
+        static const int FP_H[] = {4,4,1,3,4,5,4,3,3,4,4,3,4,4,4,6,4,2};
+        static const int FP_COUNT = sizeof(FP_W) / sizeof(FP_W[0]);
+
         for (int i = 0; i < buildingCount; i++) {
             int idx = i * 5;
             float gx = buildings[idx];
             float gy = buildings[idx + 1];
-            float gw = buildings[idx + 2];
-            float gh = buildings[idx + 3];
+            float sw = buildings[idx + 2];   // 精灵宽度（比例尺寸，可能大于占地）
+            float sh = buildings[idx + 3];   // 精灵高度
             int nameIdx = static_cast<int>(buildings[idx + 4]);
 
-            // 建筑精灵比例×2（gridWidth×tileSize×2），视觉更饱满，居中偏移
-            float px, py, pw, ph;
-            if (nameIdx == SPIRIT_FIELD_NAME_INDEX) {
-                px = gx * tileSize;
-                py = gy * tileSize;
-                pw = gw * tileSize;
-                ph = gh * tileSize;
-            } else {
-                px = gx * tileSize - (gw * tileSize * 0.5f);
-                py = gy * tileSize - (gh * tileSize * 0.5f);
-                pw = gw * tileSize * 2.0f;
-                ph = gh * tileSize * 2.0f;
-            }
+            int fpW = (nameIdx >= 0 && nameIdx < FP_COUNT) ? FP_W[nameIdx] : 2;
+            int fpH = (nameIdx >= 0 && nameIdx < FP_COUNT) ? FP_H[nameIdx] : 2;
 
-            // 可见性检测
+            // 精灵底部对齐于占地网格：offsetX 居中，offsetY 底部对齐
+            float offsetX = (fpW - sw) * tileSize * 0.5f;
+            float offsetY = (fpH - sh) * tileSize; // 底部对齐
+            float px = gx * tileSize + offsetX;
+            float py = gy * tileSize + offsetY;
+            float pw = sw * tileSize;
+            float ph = sh * tileSize;
+
+            // 地砖使用占地尺寸
+            float ftPx = gx * tileSize;
+            float ftPy = gy * tileSize;
+            float ftPw = fpW * tileSize;
+            float ftPh = fpH * tileSize;
+
+            // 可见性检测（使用精灵尺寸）
             if (!isRectVisible(px, py, pw, ph)) continue;
 
             int buvIdx = nameIdx;
             if (buvIdx >= (int)buvCount) buvIdx = 0;
 
-            // (A) 地砖底座（灵田除外）
+            // (A) 地砖底座（灵田除外），按占地尺寸绘制
             if (nameIdx != SPIRIT_FIELD_NAME_INDEX && floorTileUVMap != nullptr) {
-                int ftW = static_cast<int>(gw), ftH = static_cast<int>(gh);
+                // 地砖索引由占地尺寸决定
                 int ftIdx = -1;
+                int ftW = fpW, ftH = fpH;
                 if      (ftW == 2 && ftH == 2) ftIdx = 0;
                 else if (ftW == 2 && ftH == 3) ftIdx = 1;
                 else if (ftW == 3 && ftH == 2) ftIdx = 2;
                 else if (ftW == 3 && ftH == 3) ftIdx = 3;
+                // 新占地尺寸映射到最接近的现有地砖
+                else if (ftW == 4 && ftH == 4) ftIdx = 3;  // 方形 → 3x3
+                else if (ftW == 6 && ftH == 4) ftIdx = 2;  // 宽扁 → 3x2
+                else if (ftW == 4 && ftH == 6) ftIdx = 1;  // 窄高 → 2x3
+                else if (ftW == 6 && ftH == 6) ftIdx = 3;  // 大方 → 3x3
+                else if (ftW == 4 && ftH == 8) ftIdx = 1;  // 瘦高 → 2x3
+                else if (ftW == 2 && ftH == 4) ftIdx = 1;  // 窄高 → 2x3
+                else if (ftW == 4 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
+                else if (ftW == 6 && ftH == 5) ftIdx = 2;  // 宽扁 → 3x2
 
                 if (ftIdx >= 0) {
                     jfloat* ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
                     jsize ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
                     if (ftIdx < (int)ftuvCount) {
-                        batcher.add(atlasTexId, px, py, pw, ph,
+                        batcher.add(atlasTexId, ftPx, ftPy, ftPw, ftPh,
                             ftuvs[ftIdx * 4], ftuvs[ftIdx * 4 + 1],
                             ftuvs[ftIdx * 4 + 2], ftuvs[ftIdx * 4 + 3]);
                     }
@@ -355,7 +373,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                 }
             }
 
-            // (B) 建筑精灵（保持原逻辑不变）
+            // (B) 建筑精灵
             batcher.add(atlasTexId, px, py, pw, ph,
                 buvs[buvIdx * 4], buvs[buvIdx * 4 + 1],
                 buvs[buvIdx * 4 + 2], buvs[buvIdx * 4 + 3]);

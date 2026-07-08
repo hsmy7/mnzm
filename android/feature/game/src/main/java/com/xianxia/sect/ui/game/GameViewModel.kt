@@ -346,6 +346,12 @@ class GameViewModel @Inject constructor(
     /** @see [BuildingDelegate.getBuildingGridSize] */
     fun getBuildingGridSize(displayName: String): Pair<Int, Int> = buildingDelegate.getBuildingGridSize(displayName)
 
+    /** @see [BuildingDelegate.getBuildingSpriteSize] */
+    fun getBuildingSpriteSize(displayName: String): Pair<Int, Int> = buildingDelegate.getBuildingSpriteSize(displayName)
+
+    /** @see [BuildingDelegate.getAllBuildingSpriteSizes] */
+    fun getAllBuildingSpriteSizes(): Map<String, Pair<Int, Int>> = buildingDelegate.getAllBuildingSpriteSizes()
+
     /** @see [BuildingDelegate.batchPlaceBuilding] */
     fun batchPlaceBuilding(goldFingerState: com.xianxia.sect.ui.game.sect.GoldFingerState) =
         buildingDelegate.batchPlaceBuilding(goldFingerState)

@@ -210,6 +210,14 @@ fun MainGameScreen(
         }
     }
 
+    // 建筑精灵比例尺寸映射 — 用于渲染视觉大小（可能大于占地尺寸）
+    val buildingSpriteSizes = remember {
+        BuildingRegistry.ALL.associate { def ->
+            val (sw, sh) = viewModel.getBuildingSpriteSize(def.displayName)
+            def.displayName to GridSnapHelper.BuildingSize(sw, sh)
+        }
+    }
+
     // 当前放置建筑的尺寸
     var placingBuildingSize by remember { mutableStateOf(GridSnapHelper.BuildingSize(2, 3)) }
 
@@ -494,17 +502,19 @@ fun MainGameScreen(
                 val pSize = if (mb != null) movingBuildingSize else placingBuildingSize
                 val pValid = if (mb != null) movingValid else placementValidity
 
-                // 建筑精灵比例×2（视觉更饱满），居中偏移，灵田保持原尺寸
-                val isSpiritField = previewNameIdx == 2
-                val previewScale = if (isSpiritField) 1f else 2f
-                val previewOffsetX = if (isSpiritField) 0f else -(pSize.width * tileSize * 0.5f)
-                val previewOffsetY = if (isSpiritField) 0f else -(pSize.height * tileSize * 0.5f)
+                // 视觉比例居中偏移：精灵居中于占地网格
+                val (previewSW, previewSH) = if (previewBuildingName.isNotEmpty()) {
+                    val s = buildingSpriteSizes[previewBuildingName]
+                    (s?.width ?: pSize.width) to (s?.height ?: pSize.height)
+                } else (pSize.width to pSize.height)
+                val previewOffsetX = (pSize.width - previewSW) * tileSize * 0.5f
+                val previewOffsetY = (pSize.height - previewSH) * tileSize.toFloat() // 底部对齐
 
                 // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
                 // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
                 // 会导致软件渲染器清屏后无法重绘建筑）
                 val buildingData = if (effectivePlacedBuildings.isNotEmpty()) {
-                    buildBuildingDataArray(effectivePlacedBuildings)
+                    buildBuildingDataArray(effectivePlacedBuildings, buildingSpriteSizes)
                 } else {
                     null
                 }
@@ -523,8 +533,8 @@ fun MainGameScreen(
                         showPreview = hasPreview,
                         previewX = px + previewOffsetX,
                         previewY = py + previewOffsetY,
-                        previewW = (pSize.width * tileSize * previewScale).toFloat(),
-                        previewH = (pSize.height * tileSize * previewScale).toFloat(),
+                        previewW = (previewSW * tileSize).toFloat(),
+                        previewH = (previewSH * tileSize).toFloat(),
                         previewU0 = previewUvs?.get(0) ?: 0f,
                         previewV0 = previewUvs?.get(1) ?: 0f,
                         previewU1 = previewUvs?.get(2) ?: 0f,
@@ -1070,19 +1080,25 @@ fun MainGameScreen(
 
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
- * 格式：[gridX, gridY, width, height, nameIndex] × buildingCount
- * 注意：调用方须传入已排除移动中建筑的建筑列表，避免原位残留精灵图。
+ * 格式：[gridX, gridY, spriteWidth, spriteHeight, nameIndex] × buildingCount
+ * 注意：数组中传递的是精灵视觉比例尺寸（可能大于占地尺寸），
+ * 渲染器如需占地尺寸（如地砖选择），通过 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 查找。
+ * 调用方须传入已排除移动中建筑的建筑列表，避免原位残留精灵图。
  */
 private fun buildBuildingDataArray(
-    buildings: List<GridBuildingData>
+    buildings: List<GridBuildingData>,
+    spriteSizeMap: Map<String, GridSnapHelper.BuildingSize>
 ): FloatArray {
     val result = FloatArray(buildings.size * 5)
     for ((i, b) in buildings.withIndex()) {
         val idx = i * 5
+        val sprite = spriteSizeMap[b.displayName]
+        val sw = sprite?.width ?: b.width
+        val sh = sprite?.height ?: b.height
         result[idx] = b.gridX.toFloat()
         result[idx + 1] = b.gridY.toFloat()
-        result[idx + 2] = b.width.toFloat()
-        result[idx + 3] = b.height.toFloat()
+        result[idx + 2] = sw.toFloat()
+        result[idx + 3] = sh.toFloat()
         result[idx + 4] = (BUILDING_NAME_INDEX[b.displayName] ?: 0).toFloat()
     }
     return result

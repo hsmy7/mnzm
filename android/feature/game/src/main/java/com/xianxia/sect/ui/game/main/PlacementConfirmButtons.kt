@@ -74,9 +74,9 @@ internal fun PlacementConfirmButtons(
             ) { Text("✗", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
     }
-    // 放置预览覆盖层 — graphicsLayer 零重组动画（平移仅触发 draw，跳过 layout）
-    val overlayWDp = (buildingSize.width * tileSize) / density
-    val overlayHDp = (buildingSize.height * tileSize) / density
+    // 放置预览覆盖层 — 尺寸需乘以相机缩放（与 worldToScreenX 同步）
+    val overlayWDp = (buildingSize.width * tileSize * cameraState.scale) / density
+    val overlayHDp = (buildingSize.height * tileSize * cameraState.scale) / density
     val overlayColor = if (canConfirm) Color(0x664CAF50) else Color(0x66F44336)
     Box(
         modifier = Modifier

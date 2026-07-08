@@ -139,6 +139,16 @@ class BuildingDelegate(
         return buildingConfigService.getBuildingGridSize(displayName)
     }
 
+    /** 查询建筑精灵视觉比例尺寸。 */
+    fun getBuildingSpriteSize(displayName: String): Pair<Int, Int> {
+        return buildingConfigService.getBuildingSpriteSize(displayName)
+    }
+
+    /** 获取所有建筑的精灵比例尺寸映射。 */
+    fun getAllBuildingSpriteSizes(): Map<String, Pair<Int, Int>> {
+        return buildingConfigService.getAllBuildingSpriteSizes()
+    }
+
     /** 金手指一键批量建造 */
     fun batchPlaceBuilding(goldFingerState: GoldFingerState) {
         if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return

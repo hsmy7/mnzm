@@ -257,41 +257,38 @@ class SoftwareCanvasBackend(
                     val bh = buildingDataArray[idx + 3].toInt()
                     val nameIdx = buildingDataArray[idx + 4].toInt()
 
-                    // 建筑精灵比例×2（视觉更饱满），居中偏移，灵田保持原尺寸
-                    val bWorldX: Float
-                    val bWorldY: Float
-                    val bWorldW: Float
-                    val bWorldH: Float
-                    if (nameIdx == SPIRIT_FIELD_ATLAS_INDEX) {
-                        bWorldX = (gx * tileSize).toFloat()
-                        bWorldY = (gy * tileSize).toFloat()
-                        bWorldW = (bw * tileSize).toFloat()
-                        bWorldH = (bh * tileSize).toFloat()
-                    } else {
-                        val halfW = (bw * tileSize * 0.5f)
-                        val halfH = (bh * tileSize * 0.5f)
-                        bWorldX = (gx * tileSize).toFloat() - halfW
-                        bWorldY = (gy * tileSize).toFloat() - halfH
-                        bWorldW = (bw * tileSize * 2).toFloat()
-                        bWorldH = (bh * tileSize * 2).toFloat()
-                    }
+                    // 使用占地尺寸居中偏移精灵：精灵居中于占地网格
+                    val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
+                        .getOrElse(nameIdx) { 2 to 2 }
+                    val offsetX = (fpW - bw) * tileSize * 0.5f
+                    val offsetY = (fpH - bh) * tileSize.toFloat() // 底部对齐：精灵底边 = 占地底边
+                    val bWorldX = (gx * tileSize).toFloat() + offsetX
+                    val bWorldY = (gy * tileSize).toFloat() + offsetY
+                    val bWorldW = (bw * tileSize).toFloat()
+                    val bWorldH = (bh * tileSize).toFloat()
                     val screenBX = (bWorldX - frame.camX) * scale
                     val screenBY = (bWorldY - frame.camY) * scale
                     val screenBW = bWorldW * scale
                     val screenBH = bWorldH * scale
 
+                    // 地砖使用占地尺寸（而非精灵尺寸）
+                    val ftScreenX = (gx * tileSize - frame.camX) * scale
+                    val ftScreenY = (gy * tileSize - frame.camY) * scale
+                    val ftScreenW = (fpW * tileSize).toFloat() * scale
+                    val ftScreenH = (fpH * tileSize).toFloat() * scale
+
                     if (screenBX + screenBW <= 0f || screenBX >= vpW.toFloat() ||
                         screenBY + screenBH <= 0f || screenBY >= vpH.toFloat()) continue
 
-                    // A) 地砖底座（灵田除外）
+                    // A) 地砖底座（灵田除外），按占地尺寸绘制
                     if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
-                        val ftIdx = SpriteAtlasDef.floorTileIndex(bw, bh)
+                        val ftIdx = SpriteAtlasDef.floorTileIndex(fpW, fpH)
                         if (ftIdx >= 0) {
                             val ftSrc = FLOOR_TILE_SRC_RECTS.getOrNull(ftIdx)
                             if (ftSrc != null) {
                                 drawTile(canvas, atlas, ftSrc,
-                                    screenBX.toInt(), screenBY.toInt(),
-                                    screenBW.toInt(), screenBH.toInt())
+                                    ftScreenX.toInt(), ftScreenY.toInt(),
+                                    ftScreenW.toInt(), ftScreenH.toInt())
                             }
                         }
                     }
