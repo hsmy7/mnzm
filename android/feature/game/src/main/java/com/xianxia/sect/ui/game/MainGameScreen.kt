@@ -197,9 +197,11 @@ fun MainGameScreen(
     val worldPixelHeight = mapPreloadData.worldPixelHeight
 
     // 统一相机 — 相机在世界空间中移动，screenX = worldX - cameraX
+    // 所有设备水平固定显示 24 格（SectCameraState.VISIBLE_COLS），垂直自然适配
     val cameraState = rememberSectCamera(
         worldWidth = worldPixelWidth.toFloat(),
-        worldHeight = worldPixelHeight.toFloat()
+        worldHeight = worldPixelHeight.toFloat(),
+        worldWidthCells = mapPreloadData.worldWidthCells
     )
 
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
@@ -919,6 +921,14 @@ fun MainGameScreen(
                 }
             )
         }
+
+        // 宗门地图边缘装饰 — 在世界边界外绘制古风卷轴边缘渐变
+        // 位于地图之上、UI 元素之下，对两渲染后端透明
+        SectMapEdgeOverlay(
+            cameraState = cameraState,
+            worldPixelWidth = worldPixelWidth,
+            worldPixelHeight = worldPixelHeight
+        )
 
         // UI overlay — SectInfoCard + toggle + two side button columns
         Box(modifier = Modifier.fillMaxSize()) {

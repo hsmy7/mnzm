@@ -20,6 +20,11 @@ abstract class BaseCameraState(
     override val worldHeight: Float
 ) : CameraState {
 
+    init {
+        require(worldWidth > 0f && worldWidth.isFinite()) { "worldWidth must be positive and finite" }
+        require(worldHeight > 0f && worldHeight.isFinite()) { "worldHeight must be positive and finite" }
+    }
+
     // ── 状态字段（Compose 可观测） ──
 
     override var cameraX by mutableFloatStateOf(0f)
@@ -62,6 +67,7 @@ abstract class BaseCameraState(
      * - 用户未主动缩放时重新计算默认缩放（覆盖 [computeDefaultScale]）。
      * - 用户已缩放时保留当前缩放仅重新 clamp。
      * - 屏幕旋转/多窗口变化后，若用户未缩放，会自动适配新长宽比。
+     * - 极小视口（< 50px）跳过 clamp，防止 resize 过程中边界频繁抖动。
      */
     override fun updateViewport(w: Int, h: Int) {
         viewportWidth = w.coerceAtLeast(0)
@@ -69,7 +75,10 @@ abstract class BaseCameraState(
         if (!userScale) {
             scale = computeDefaultScale(w, h)
         }
-        clamp()
+        // 极小视口跳过 clamp，避免分屏拖拽过程中边界频繁重算导致相机抖动
+        if (viewportWidth >= 50 && viewportHeight >= 50) {
+            clamp()
+        }
     }
 
     /**
@@ -124,17 +133,15 @@ abstract class BaseCameraState(
     /**
      * 直接设置相机位置。
      * 值会被 [clamp] 限制在世界边界内。
+     * 当 viewport 尚未初始化时仍记录位置，但跳过 clamp（无法计算边界）。
      */
     override fun setPosition(x: Float, y: Float) {
         if (x.isNaN() || x.isInfinite() || y.isNaN() || y.isInfinite()) return
-        if (viewportWidth <= 0 || viewportHeight <= 0) {
-            cameraX = x
-            cameraY = y
-            return
-        }
         cameraX = x
         cameraY = y
-        clamp()
+        if (viewportWidth > 0 && viewportHeight > 0) {
+            clamp()
+        }
     }
 
     /**
@@ -173,12 +180,14 @@ abstract class BaseCameraState(
     // ── 边界管理 ──
 
     /**
-     * 将相机位置限制在世界边界内。
+     * 将相机位置限制在世界边界内，同时确保 scale 在合法范围。
      *
      * 可见世界尺寸 = 视口尺寸 / scale，比 scale=1 时看到更多世界区域。
      * scale ≤ 0 时直接返回，防止除以零。
      */
     protected fun clamp() {
+        // 防御性 scale 钳制 — 兜底保护所有 scale 写入路径
+        scale = scale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
         if (scale <= 0f || scale.isNaN()) return
         // NaN/Infinity 净化：coerceIn 不处理 NaN，NaN 会传播到渲染线程
         if (cameraX.isNaN() || cameraX.isInfinite()) cameraX = 0f

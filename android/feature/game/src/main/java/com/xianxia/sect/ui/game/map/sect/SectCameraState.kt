@@ -14,17 +14,25 @@ import kotlin.math.abs
  *
  * 继承 [BaseCameraState] 获得平移/缩放/边界钳制等公共实现，
  * 在此添加宗门地图特有的 [tryCenterOn] 智能居中、[CameraAnimator] 动画支持、
- * 以及 [DEFAULT_SCALE] 默认视角高度策略。
+ * 以及恒定可见格数缩放策略（Clash of Clans `visible_columns` 模式）。
+ *
+ * 核心缩放策略：所有设备水平显示恒定 [VISIBLE_COLS] 个地图格，
+ * 垂直方向随设备屏占比自然变化。
  *
  * 支持动态缩放（scale），v4.0.45+ 新增用户缩放：
- * - 默认 scale=0.5（视角提高 50%，取整），让玩家初期看到更多地图
+ * - 默认缩放自适应设备视口尺寸，保证各设备看到相同水平视野
  * - 用户可通过 [zoom] / 缩放按钮 +/- / 双击缩放调整
  * - 缩放范围 [MIN_ZOOM, MAX_ZOOM] = [0.3, 3.0]
+ *
+ * @param worldWidth 世界像素宽度
+ * @param worldHeight 世界像素高度
+ * @param worldWidthCells 世界水平格数（用于计算 tileSize = worldWidth / worldWidthCells）
  */
 @Stable
 class SectCameraState(
     worldWidth: Float,
-    worldHeight: Float
+    worldHeight: Float,
+    private val worldWidthCells: Int = 128
 ) : BaseCameraState(worldWidth, worldHeight) {
 
     /** 初始居中标记 */
@@ -47,27 +55,67 @@ class SectCameraState(
 
     /** 缩放范围与阈值常量 */
     companion object {
-        /** 默认视角高度 scale，提高 50% 取整 */
-        const val DEFAULT_SCALE = 0.5f
+        /** 水平可见格数 — 所有设备固定显示相同列数（对标 Clash of Clans visible_columns） */
+        const val VISIBLE_COLS = 52
         /** 自动居中触发阈值（世界像素），避免反复居中打断用户操作 */
         private const val CENTER_THRESHOLD = 100f
     }
 
     /**
-     * 计算默认缩放值。
+     * 更新视口尺寸。
      *
-     * - 小视口（手机常见）：应用默认视角高度 [DEFAULT_SCALE]（0.5）
-     * - 大视口（外接显示/平板）：应用 Fill 适配策略，确保地图填满视口无白边
-     * - 屏幕旋转后再次调用此方法适配新尺寸
+     * 当视口尺寸变化超过 [CENTER_THRESHOLD] 时（如横竖屏旋转），
+     * 重置居中标记，使 [tryCenterOn] 能重新居中到世界中心。
+     */
+    override fun updateViewport(w: Int, h: Int) {
+        val prevW = viewportWidth
+        val prevH = viewportHeight
+        super.updateViewport(w, h)
+        // 横竖屏切换（宽高变化超过阈值）时重置居中标记
+        if (prevW > 0 && prevH > 0 &&
+            (abs(w - prevW) > CENTER_THRESHOLD || abs(h - prevH) > CENTER_THRESHOLD)
+        ) {
+            hasInitialized = false
+        }
+    }
+
+    /**
+     * 计算恒定可见格数缩放值（Clash of Clans `visible_columns` 模式）。
+     *
+     * 所有设备水平显示相同数量 [VISIBLE_COLS] 个地图格，确保：
+     * - 同一布局在所有手机上看到同一水平范围（公平性）
+     * - 垂直方向自然适配各设备屏占比
+     * - 不超出世界边界（防溢出保护）
+     *
+     * ```
+     * tileSize = worldWidth / worldWidthCells
+     * targetScale = vpW / (VISIBLE_COLS × tileSize)
+     * finalScale = maxOf(targetScale, vpW/worldWidth, vpH/worldHeight)
+     * ```
+     *
+     * 参考行业做法（27 条来源）：
+     * - Supercell EP2444134: `visible_columns` 抽象缩放单位
+     * - UPC Thesis: Zoom 以"可见行列数"为单位而非像素
+     * - Clash of Clans: 所有设备看到相同数量格子的设计哲学
+     *
+     * @param vpW 视口宽度（像素）
+     * @param vpH 视口高度（像素）
      */
     override fun computeDefaultScale(vpW: Int, vpH: Int): Float {
-        val wf = vpW.toFloat()
-        val hf = vpH.toFloat()
-        return if (wf > worldWidth || hf > worldHeight) {
-            maxOf(wf / worldWidth, hf / worldHeight)
-        } else {
-            DEFAULT_SCALE
+        if (vpW <= 0 || vpH <= 0) {
+            return scale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
         }
+        // tileSize = worldWidth / worldWidthCells
+        val tileSize = worldWidth / worldWidthCells.toFloat()
+        // 目标缩放：水平显示 VISIBLE_COLS 个地图格
+        val targetScale = vpW.toFloat() / (VISIBLE_COLS * tileSize)
+        // 防溢出保护：视口不超出世界边界
+        val minSafeScale = maxOf(
+            vpW.toFloat() / worldWidth,
+            vpH.toFloat() / worldHeight
+        )
+        return maxOf(targetScale, minSafeScale)
+            .coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
     }
 
     /**
@@ -104,6 +152,8 @@ class SectCameraState(
     override fun reset() {
         animator?.cancel()
         hasInitialized = false
+        lastCenterX = 0f
+        lastCenterY = 0f
         super.reset()
     }
 }
@@ -112,9 +162,13 @@ class SectCameraState(
  * 创建并记住 [SectCameraState] 实例。
  * @param worldWidth 世界宽度（像素）
  * @param worldHeight 世界高度（像素）
+ * @param worldWidthCells 世界水平格数（默认 128）
  */
 @Composable
 fun rememberSectCamera(
     worldWidth: Float,
-    worldHeight: Float
-): SectCameraState = remember { SectCameraState(worldWidth, worldHeight) }
+    worldHeight: Float,
+    worldWidthCells: Int = 128
+): SectCameraState = remember(worldWidth, worldHeight, worldWidthCells) {
+    SectCameraState(worldWidth, worldHeight, worldWidthCells)
+}

@@ -34,6 +34,21 @@ class WorldCameraState(
     }
 
     /**
+     * 更新视口尺寸。
+     * 当视口尺寸变化超过阈值时（如横竖屏旋转），重置居中标记。
+     */
+    override fun updateViewport(w: Int, h: Int) {
+        val prevW = viewportWidth
+        val prevH = viewportHeight
+        super.updateViewport(w, h)
+        if (prevW > 0 && prevH > 0 &&
+            (abs(w - prevW) > CENTER_THRESHOLD || abs(h - prevH) > CENTER_THRESHOLD)
+        ) {
+            hasInitialized = false
+        }
+    }
+
+    /**
      * 世界地图的默认缩放保持当前值不变。
      * 初始缩放由构造参数 [initialScale] 设定，
      * [updateViewport] 不会覆盖它（除非用户主动缩放后 reset）。
@@ -49,8 +64,8 @@ class WorldCameraState(
         if (newScale > 0f && newScale != scale) {
             val cx = cameraX + viewportWidth / (2f * scale)
             val cy = cameraY + viewportHeight / (2f * scale)
-            scale = newScale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
-            userScale = true
+            // 委托基类 applyScale（含 NaN/isInfinite 防御 + coerceIn）
+            applyScale(newScale)
             cameraX = cx - viewportWidth / (2f * scale)
             cameraY = cy - viewportHeight / (2f * scale)
             clamp()
@@ -80,6 +95,8 @@ class WorldCameraState(
      */
     override fun reset() {
         hasInitialized = false
+        lastCenterX = 0f
+        lastCenterY = 0f
         super.reset()
     }
 }

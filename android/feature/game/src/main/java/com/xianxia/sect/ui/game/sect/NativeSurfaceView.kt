@@ -13,6 +13,7 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * NativeSurfaceView — 承载地图渲染的表面，支持 Vulkan 原生渲染和 Canvas 软件渲染双模式。
@@ -293,9 +294,10 @@ class NativeSurfaceView(
 
     /**
      * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
+     * 使用 [AtomicBoolean] 防止 Compose 线程与 RenderThread 之间的
+     * read-then-write 竞态导致相机更新丢失。
      */
-    @Volatile
-    var cameraDirty: Boolean = false
+    val cameraDirty = AtomicBoolean(false)
 
     /** 从 Compose 层原子更新渲染帧数据 */
     fun updateRenderState(frame: RenderFrame) {
@@ -306,7 +308,7 @@ class NativeSurfaceView(
             tileData = safeTileData,
             buildingData = safeBuildingData
         )
-        cameraDirty = true
+        cameraDirty.set(true)
 
         // 断言：debug build 时验证 tileData 完整性
         if (frame.tileData.size != config.worldWidthCells * config.worldHeightCells) {
@@ -607,10 +609,9 @@ class NativeSurfaceView(
         private fun renderVulkanFrame() {
             val frame = currentFrame ?: return
 
-            if (cameraDirty) {
+            if (cameraDirty.compareAndSet(true, false)) {
                 NativeBridge.setCamera(
                     frame.camX, frame.camY, frame.scale, width, height)
-                cameraDirty = false
             }
 
             NativeBridge.beginFrame()
