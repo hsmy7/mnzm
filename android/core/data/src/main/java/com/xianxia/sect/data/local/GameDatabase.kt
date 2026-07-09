@@ -666,7 +666,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v13→v14: Disciple 新增 cultivationCheckpoint / cultivationCheckpointGameMonth 列 + game_data.spiritMineLastSettledMonth */
+        /** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples + spiritMineLastSettledMonth 到 game_data */
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "disciples", "cultivationCheckpoint")) {
@@ -681,11 +681,122 @@ abstract class GameDatabase : RoomDatabase() {
                 }
                 Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
                 // 新增 game_data.spiritMineLastSettledMonth 列（时间戳差分惰性结算所需）
+                // ⚠️ 必须用 create-copy-drop-rename：Room v14 schema 中该列无 DEFAULT，
+                //    但 ALTER TABLE ADD COLUMN 要求 NOT NULL 列必须带 DEFAULT，导致校验不匹配。
                 if (!columnExists(db, "game_data", "spiritMineLastSettledMonth")) {
-                    db.execSQL(
-                        "ALTER TABLE game_data ADD COLUMN spiritMineLastSettledMonth INTEGER NOT NULL DEFAULT 0"
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `game_data_new` (
+                            `id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL,
+                            `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL,
+                            `gamePhase` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL,
+                            `midGradeSpiritStones` INTEGER NOT NULL, `highGradeSpiritStones` INTEGER NOT NULL,
+                            `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL,
+                            `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL,
+                            `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL,
+                            `sectDetails` TEXT NOT NULL, `aiSectDisciples` TEXT NOT NULL,
+                            `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL,
+                            `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL,
+                            `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL,
+                            `playerListedItems` TEXT NOT NULL, `merchantAcquisitionItems` TEXT NOT NULL,
+                            `merchantAcquisitionLastRefreshYear` INTEGER NOT NULL, `autoBuyList` TEXT NOT NULL,
+                            `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL,
+                            `worldLevels` TEXT NOT NULL, `cultivatorCaves` TEXT NOT NULL,
+                            `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL,
+                            `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL,
+                            `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL,
+                            `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL,
+                            `spiritMineLastSettledMonth` INTEGER NOT NULL,
+                            `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL,
+                            `placedBuildings` TEXT NOT NULL, `spiritFieldPlants` TEXT NOT NULL,
+                            `activeSectId` TEXT NOT NULL, `residenceSlots` TEXT NOT NULL,
+                            `warehouseGarrisons` TEXT NOT NULL, `patrolSlots` TEXT NOT NULL,
+                            `patrolConfig` TEXT NOT NULL, `patrolConfigs` TEXT NOT NULL,
+                            `alliances` TEXT NOT NULL, `vassalContracts` TEXT NOT NULL,
+                            `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL,
+                            `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT,
+                            `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL,
+                            `mailRecords` TEXT NOT NULL, `sectLevelClaimRecords` TEXT NOT NULL,
+                            `save_version` INTEGER NOT NULL DEFAULT 0,
+                            `playerProtectionEnabled` INTEGER NOT NULL,
+                            `playerProtectionStartYear` INTEGER NOT NULL,
+                            `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL,
+                            `availableMissions` TEXT NOT NULL,
+                            `autoRecruitSpiritRootFilter` TEXT NOT NULL,
+                            `daoCompanionBannedRootCounts` TEXT NOT NULL,
+                            `daoCompanionConsentRequired` INTEGER NOT NULL,
+                            `patrolBattleResultPopup` INTEGER NOT NULL,
+                            `autoSellMidGradeForPurchase` INTEGER NOT NULL,
+                            `autoSellHighGradeForPurchase` INTEGER NOT NULL,
+                            `breakthroughAutoPillFocused` INTEGER NOT NULL,
+                            `breakthroughAutoPillRootCounts` TEXT NOT NULL,
+                            `autoEquipFromWarehouseFocused` INTEGER NOT NULL,
+                            `autoEquipFromWarehouseRootCounts` TEXT NOT NULL,
+                            `autoLearnFromWarehouseFocused` INTEGER NOT NULL,
+                            `autoLearnFromWarehouseRootCounts` TEXT NOT NULL,
+                            `isGameOver` INTEGER NOT NULL,
+                            `bloodRefinements` TEXT NOT NULL DEFAULT '{}',
+                            `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
+                            `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
+                            `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+                            `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
+                            `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
+                            `lastYearSpiritStoneIncome` INTEGER NOT NULL,
+                            `activeAttackWarnings` TEXT NOT NULL, `shownWarningStageIds` TEXT NOT NULL,
+                            `sectAttackCooldowns` TEXT NOT NULL, `sectBattleRecords` TEXT NOT NULL,
+                            `map_seed` INTEGER NOT NULL DEFAULT 0,
+                            PRIMARY KEY(`id`, `slot_id`)
+                        )
+                    """)
+                    val insertCols = listOf(
+                        "id", "slot_id", "sectName", "currentSlot",
+                        "gameYear", "gameMonth", "gamePhase", "gameSpeed",
+                        "spiritStones", "midGradeSpiritStones", "highGradeSpiritStones",
+                        "spiritHerbs", "sectCultivation", "autoSaveIntervalMonths",
+                        "monthlySalary", "monthlySalaryEnabled",
+                        "worldMapSects", "sectDetails", "aiSectDisciples",
+                        "exploredSects", "scoutInfo", "manualProficiencies",
+                        "travelingMerchantItems", "merchantLastRefreshYear",
+                        "merchantRefreshCount", "playerListedItems",
+                        "merchantAcquisitionItems", "merchantAcquisitionLastRefreshYear",
+                        "autoBuyList", "recruitList", "lastRecruitYear",
+                        "worldLevels", "cultivatorCaves", "caveExplorationTeams",
+                        "aiCaveTeams", "unlockedRecipes", "unlockedManuals",
+                        "lastSaveTime", "elderSlots",
+                        "spiritMineSlots", "spiritMineExpansions", "librarySlots",
+                        "productionSlots", "placedBuildings", "spiritFieldPlants",
+                        "activeSectId", "residenceSlots", "warehouseGarrisons",
+                        "patrolSlots", "patrolConfig", "patrolConfigs",
+                        "alliances", "vassalContracts",
+                        "sectRelations", "playerAllianceSlots",
+                        "sectPolicies", "battleTeam", "aiBattleTeams",
+                        "usedRedeemCodes", "mailRecords", "sectLevelClaimRecords",
+                        "save_version",
+                        "playerProtectionEnabled", "playerProtectionStartYear", "playerHasAttackedAI",
+                        "activeMissions", "availableMissions", "autoRecruitSpiritRootFilter",
+                        "daoCompanionBannedRootCounts", "daoCompanionConsentRequired", "patrolBattleResultPopup",
+                        "autoSellMidGradeForPurchase", "autoSellHighGradeForPurchase",
+                        "breakthroughAutoPillFocused", "breakthroughAutoPillRootCounts",
+                        "autoEquipFromWarehouseFocused", "autoEquipFromWarehouseRootCounts",
+                        "autoLearnFromWarehouseFocused", "autoLearnFromWarehouseRootCounts",
+                        "isGameOver",
+                        "bloodRefinements", "activeBloodRefinements", "bloodRefinementBonusTotals",
+                        "heavenly_trial_state", "sign_in_state_json",
+                        "aiSectPersonalities", "suzerainSectId", "lastYearSpiritStoneIncome",
+                        "activeAttackWarnings", "shownWarningStageIds", "sectAttackCooldowns", "sectBattleRecords",
+                        "map_seed"
                     )
-                    Log.i(TAG, "Migration 13→14: added spiritMineLastSettledMonth to game_data")
+                    val quotedCols = insertCols.joinToString(", ") { "`$it`" }
+                    db.execSQL("INSERT INTO `game_data_new` SELECT $quotedCols, 0 AS `spiritMineLastSettledMonth` FROM `game_data`")
+                    db.execSQL("DROP TABLE IF EXISTS `game_data`")
+                    db.execSQL("ALTER TABLE `game_data_new` RENAME TO `game_data`")
+                    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `game_data` (`slot_id`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `game_data` (`lastSaveTime`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_sectName` ON `game_data` (`sectName`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `game_data` (`spiritStones`)")
+                    Log.i(TAG, "Migration 13→14: rebuilt game_data with spiritMineLastSettledMonth column")
+                } else {
+                    Log.i(TAG, "Migration 13→14: spiritMineLastSettledMonth already exists in game_data, skipping")
                 }
             }
         }
