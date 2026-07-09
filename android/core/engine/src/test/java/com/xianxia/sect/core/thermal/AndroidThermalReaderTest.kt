@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.thermal
 
+import android.os.Build
 import android.content.Context
 import org.junit.Assert.*
 import org.junit.Before
@@ -71,6 +72,7 @@ class AndroidThermalReaderTest {
     // ============================================================
 
     @Test
+    @Config(sdk = [Build.VERSION_CODES.Q])
     fun `registerThermalCallback returns true on supported API`() {
         val registered = reader.registerThermalCallback { }
         // Robolectric 模拟 API 29+，应返回 true

@@ -100,7 +100,13 @@ class GameStateStoreLifecycleTest {
         store.forceLifecycle(GameLifecycle.UNINITIALIZED) // 重置
         assertEquals(GameLifecycle.UNINITIALIZED, store.gameLifecycle.value)
 
-        // 重新正常推进
+        // 重新正常推进（必须按 ordinal+1 顺序）
+        store.transitionTo(GameLifecycle.DATA_READY)
+        assertEquals(GameLifecycle.DATA_READY, store.gameLifecycle.value)
+
+        store.transitionTo(GameLifecycle.SYSTEMS_READY)
+        assertEquals(GameLifecycle.SYSTEMS_READY, store.gameLifecycle.value)
+
         store.transitionTo(GameLifecycle.MAP_READY)
         assertEquals(GameLifecycle.MAP_READY, store.gameLifecycle.value)
 

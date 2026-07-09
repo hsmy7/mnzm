@@ -14,7 +14,16 @@ class EngineServiceAnnotationTest {
     private val scope = Konsist.scopeFromDirectory("core/engine/src/main")
 
     // 已知缺少 @GameService 的遗留类（只缩不增，修复后移除）
-    private val knownMissingAnnotation = emptySet<String>()
+    // 以下类位于 service 包内但非服务类，均为内部 data class / sealed subclass：
+    // - CultivationSharedState / PhaseTickAccumulator — 数据容器
+    // - SomeDisabled — PolicyCostResult sealed interface 的子类
+    // - SalaryPlan — 私有 data class
+    private val knownMissingAnnotation = setOf(
+        "CultivationSharedState",
+        "PhaseTickAccumulator",
+        "SomeDisabled",
+        "SalaryPlan"
+    )
 
     @Test
     fun `new service classes must have GameService annotation`() {
@@ -37,7 +46,8 @@ class EngineServiceAnnotationTest {
             }
 
         val newUnannotated = serviceClasses.filter { clazz ->
-            !knownMissingAnnotation.contains(clazz.name) &&
+            val simpleName = clazz.name.substringAfterLast(".")
+            !knownMissingAnnotation.contains(simpleName) &&
             !clazz.text.contains("@GameService")
         }
 

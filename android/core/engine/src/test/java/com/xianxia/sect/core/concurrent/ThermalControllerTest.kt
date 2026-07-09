@@ -232,10 +232,18 @@ class ThermalControllerTest {
         thermal.checkAndAdjust(60f)
         thermal.checkAndAdjust(22f) // 再次低帧率
 
-        // 之后连续 3 次正常 → 升档计数器应重置
-        repeat(3) { thermal.checkAndAdjust(60f) }
+        // 升档计数器已重置（回到 0），连续 2 次正常不应升档（STABILIZE_CHECKS=3）
+        repeat(2) { thermal.checkAndAdjust(60f) }
         assertNotEquals(
-            "再次低帧率后升档计数应重置，3 次正常不应升档",
+            "再次低帧率后升档计数应重置，2 次正常不应升档",
+            ThermalController.DegradationLevel.YELLOW,
+            thermal.currentLevel
+        )
+
+        // 第 3 次正常后累计满 3，应升档回 YELLOW
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "第 3 次正常后应升档回 YELLOW",
             ThermalController.DegradationLevel.YELLOW,
             thermal.currentLevel
         )
