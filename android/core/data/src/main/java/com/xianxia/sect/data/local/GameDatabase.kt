@@ -791,7 +791,18 @@ abstract class GameDatabase : RoomDatabase() {
                     db.execSQL("UPDATE `game_data` SET `sectPolicies` = '{}' WHERE `sectPolicies` IS NULL")
                     db.execSQL("UPDATE `game_data` SET `mailRecords` = '[]' WHERE `mailRecords` IS NULL")
                     db.execSQL("UPDATE `game_data` SET `sectLevelClaimRecords` = '[]' WHERE `sectLevelClaimRecords` IS NULL")
-                    db.execSQL("INSERT INTO `game_data_new` SELECT $quotedCols, 0 AS `spiritMineLastSettledMonth` FROM `game_data`")
+                    // ⚠️ SELECT 列顺序必须与 CREATE TABLE 完全一致！
+                    // spiritMineLastSettledMonth 位于 spiritMineExpansions 和 librarySlots 之间（第42列），
+                    // 不能加在末尾，否则后面所有列错位。（第一性原理：SQLite INSERT SELECT 按位置映射，非按列名）
+                    val selectParts = mutableListOf<String>()
+                    for (col in insertCols) {
+                        if (col == "librarySlots") {
+                            selectParts.add("0 AS `spiritMineLastSettledMonth`")
+                        }
+                        selectParts.add("`$col`")
+                    }
+                    val selectSql = selectParts.joinToString(", ")
+                    db.execSQL("INSERT INTO `game_data_new` SELECT $selectSql FROM `game_data`")
                     db.execSQL("DROP TABLE IF EXISTS `game_data`")
                     db.execSQL("ALTER TABLE `game_data_new` RENAME TO `game_data`")
                     db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `game_data` (`slot_id`)")
