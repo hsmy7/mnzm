@@ -162,8 +162,8 @@
   },
   "sectMap": {
     "tileSize": 32,
-    "worldWidthCells": 48,
-    "worldHeightCells": 48
+    "worldWidthCells": 128,
+    "worldHeightCells": 128
   },
   "worldMap": {
     "mapWidth": 1698,
