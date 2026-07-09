@@ -65,6 +65,71 @@ class SectMapTouchEngineTest {
     }
 
     // ========================
+    // DragStart / DragEnd 回调
+    // ========================
+
+    @Test
+    fun `Down then MOVE over slop triggers onDragStart`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        assertFalse("No dragStart before movement", callbacks.dragStartCalled)
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // > slop
+        assertTrue("onDragStart should fire when entering Scrolling",
+            callbacks.dragStartCalled)
+    }
+
+    @Test
+    fun `Scrolling then UP calls onDragEnd`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // > slop
+        assertTrue(callbacks.dragStartCalled)
+        assertFalse("onDragEnd not yet", callbacks.dragEndCalled)
+        engine.onTouch(touchUp(150f, 200f, 600_000_000L))
+        assertTrue("onDragEnd should fire when Scrolling ends",
+            callbacks.dragEndCalled)
+    }
+
+    @Test
+    fun `CANCEL during Scrolling calls onDragEnd`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L))
+        assertTrue(callbacks.dragStartCalled)
+        engine.onTouch(touchCancel())
+        assertTrue("CANCEL should call onDragEnd", callbacks.dragEndCalled)
+    }
+
+    @Test
+    fun `BuildingDrag in edit mode calls onDragStart`() = runTest {
+        callbacks.inEditMode = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        // 编辑模式下任意移动进入 BuildingDrag
+        engine.onTouch(touchMove(101f, 200f, 50_000_000L))
+        assertEquals(GestureState.BuildingDrag::class, engine.state::class)
+        assertTrue("BuildingDrag entry should call onDragStart",
+            callbacks.dragStartCalled)
+    }
+
+    @Test
+    fun `BuildingDrag then UP calls onDragEnd`() = runTest {
+        callbacks.inEditMode = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(101f, 200f, 50_000_000L))
+        assertTrue(callbacks.dragStartCalled)
+        engine.onTouch(touchUp(101f, 200f, 100_000_000L))
+        assertTrue("BuildingDrag UP should call onDragEnd",
+            callbacks.dragEndCalled)
+    }
+
+    // ========================
     // BuildingDrag 路径（hasBuildingTarget = 直接拖拽，无长按）
     // ========================
 
@@ -253,6 +318,8 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
     var goldFingerUpdateCalled = false
     var flingStartedCalled = false
     var flingEndCalled = false
+    var dragStartCalled = false
+    var dragEndCalled = false
 
     override fun onTap(screenX: Float, screenY: Float) {
         tapCalled = true
@@ -281,6 +348,14 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
         goldFingerUpdateCalled = true
     }
 
+    override fun onDragStart() {
+        dragStartCalled = true
+    }
+
+    override fun onDragEnd() {
+        dragEndCalled = true
+    }
+
     override fun onFlingStart() {
         flingStartedCalled = true
     }
@@ -299,6 +374,8 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
         goldFingerUpdateCalled = false
         flingStartedCalled = false
         flingEndCalled = false
+        dragStartCalled = false
+        dragEndCalled = false
         longPressResult = LongPressResult.NotHandled
         buildingTargetAtDown = false
         inEditMode = false

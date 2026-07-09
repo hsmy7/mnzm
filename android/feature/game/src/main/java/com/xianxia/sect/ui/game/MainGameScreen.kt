@@ -39,6 +39,7 @@ import com.xianxia.sect.ui.navigation.toDialogRoute
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
@@ -762,12 +763,24 @@ fun MainGameScreen(
                      */
                     override fun isInEditMode(): Boolean = isPlacingBuilding || movingBuilding != null
 
+                    override fun onDragStart() {
+                        viewModel.setGameScene(
+                            GameEngineCore.GameScene.GAMEPLAY
+                        )
+                    }
+
+                    override fun onDragEnd() {
+                        // 由 idle timeout 自动降帧 (30s → IDLE 10fps)
+                    }
+
                     override fun onFlingStart() {
-                        nativeSurfaceView?.targetFps = 30
+                        viewModel.setGameScene(
+                            GameEngineCore.GameScene.MAP_SCROLL
+                        )
                     }
 
                     override fun onFlingEnd() {
-                        nativeSurfaceView?.targetFps = 10
+                        // 由 idle timeout 自动降帧 (30s → IDLE 10fps)
                     }
                 },
                 scope = touchScope,
@@ -778,6 +791,14 @@ fun MainGameScreen(
         // 挂载 touchEngine 到 NativeSurfaceView
         LaunchedEffect(nativeSurfaceView) {
             nativeSurfaceView?.touchEngine = touchEngine
+        }
+
+        // 将引擎渲染帧率（热控+场景综合）接入 NativeSurfaceView
+        LaunchedEffect(nativeSurfaceView) {
+            val view = nativeSurfaceView ?: return@LaunchedEffect
+            viewModel.renderFrameRate.collect { fps ->
+                view.targetFps = fps
+            }
         }
 
         // 网格线（放置/移动模式时显示）

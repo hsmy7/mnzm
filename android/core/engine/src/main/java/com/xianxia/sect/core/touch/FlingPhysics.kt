@@ -85,8 +85,8 @@ class FlingPhysics(
         /** 最大初速度限制 (px/s)，防止极端情况 */
         private const val MAX_VELOCITY = 15000f
 
-        /** 默认帧间隔 (ms) */
-        const val DEFAULT_FRAME_INTERVAL_MS = 16L
+        /** 默认帧间隔 (ms) — 匹配 MAP_SCROLL 30fps */
+        const val DEFAULT_FRAME_INTERVAL_MS = 33L
 
         /** 最小触发的 fling 速度 (px/s) */
         const val MIN_FLING_VELOCITY = 200f

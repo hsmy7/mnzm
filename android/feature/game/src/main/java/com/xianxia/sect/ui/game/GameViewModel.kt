@@ -132,6 +132,14 @@ class GameViewModel @Inject constructor(
         gameEngine.notifyUserInteraction()
     }
 
+    /** 引擎渲染帧率（热控+场景综合），供 NativeSurfaceView 帧率控制 */
+    val renderFrameRate: StateFlow<Int> = gameEngineCore.renderFrameRate
+
+    /** 设置游戏场景（GAMEPLAY=60fps, MAP_SCROLL=30fps, IDLE=10fps） */
+    fun setGameScene(scene: GameEngineCore.GameScene) {
+        gameEngineCore.onSceneChanged(scene)
+    }
+
     /** 关闭当前对话框，将路由重置为 [DialogRoute.None] 并清空引擎侧激活状态 */
     fun dismissDialog() {
         _currentDialogRoute.value = DialogRoute.None

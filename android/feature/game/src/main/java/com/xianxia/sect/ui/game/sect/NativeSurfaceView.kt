@@ -82,6 +82,7 @@ class NativeSurfaceView(
      * 目标帧率。0 = 跟随系统 VSYNC（不主动 sleep）。
      * 设置为正整数可固定帧率，节省电量。
      */
+    @Volatile
     var targetFps: Int = 10
 
     /** 渲染器是否已初始化 */
@@ -582,15 +583,17 @@ class NativeSurfaceView(
                 }
             }
 
-            val frameIntervalNs = 1_000_000_000L / targetFps
             var lastFrameNs = System.nanoTime()
 
             while (running && isReady) {
                 val now = System.nanoTime()
                 val elapsedNs = now - lastFrameNs
 
-                if (elapsedNs < frameIntervalNs) {
-                    val sleepMs = (frameIntervalNs - elapsedNs) / 1_000_000
+                // 每次迭代重算，支持 targetFps 运行时动态变化
+                val fiNs = 1_000_000_000L / targetFps.coerceAtLeast(1)
+
+                if (elapsedNs < fiNs) {
+                    val sleepMs = (fiNs - elapsedNs) / 1_000_000
                     if (sleepMs > 1) {
                         try { Thread.sleep(sleepMs) } catch (_: InterruptedException) { break }
                     }

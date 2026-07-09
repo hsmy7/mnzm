@@ -140,10 +140,12 @@ class SectMapTouchEngine(
                 }
                 LongPressResult.GoldFingerDrag -> {
                     state = GestureState.GoldFingerDrag
+                    callbacks.onDragStart()
                 }
                 LongPressResult.NotHandled -> {
                     // 放置模式下非金手指区域 → 立即进入 BuildingDrag
                     state = GestureState.BuildingDrag
+                    callbacks.onDragStart()
                 }
             }
             // 还未进入 BuildingDrag → 200ms 自动进入
@@ -151,7 +153,10 @@ class SectMapTouchEngine(
                 longPressJob = scope.launch {
                     try {
                         delay(200L)
-                        if (state is GestureState.Down) state = GestureState.BuildingDrag
+                        if (state is GestureState.Down) {
+                            state = GestureState.BuildingDrag
+                            callbacks.onDragStart()
+                        }
                     } catch (e: CancellationException) { throw e }
                 }
             }
@@ -168,8 +173,14 @@ class SectMapTouchEngine(
                     delay(200L)
                     if (state is GestureState.Down) {
                         when (callbacks.onLongPress(data.x, data.y)) {
-                            LongPressResult.BuildingDrag -> { state = GestureState.BuildingDrag }
-                            LongPressResult.GoldFingerDrag -> { state = GestureState.GoldFingerDrag }
+                            LongPressResult.BuildingDrag -> {
+                                state = GestureState.BuildingDrag
+                                callbacks.onDragStart()
+                            }
+                            LongPressResult.GoldFingerDrag -> {
+                                state = GestureState.GoldFingerDrag
+                                callbacks.onDragStart()
+                            }
                             LongPressResult.NotHandled -> { /* 保持 Down */ }
                         }
                     }
@@ -184,6 +195,7 @@ class SectMapTouchEngine(
                         when (callbacks.onLongPress(data.x, data.y)) {
                             LongPressResult.GoldFingerDrag -> {
                                 state = GestureState.GoldFingerDrag
+                                callbacks.onDragStart()
                             }
                             else -> { /* NotHandled: 保持 Down */ }
                         }
@@ -205,6 +217,7 @@ class SectMapTouchEngine(
                 if (callbacks.isInEditMode() && (dx != 0f || dy != 0f)) {
                     longPressJob?.cancel(); longPressJob = null
                     state = GestureState.BuildingDrag
+                    callbacks.onDragStart()
                     val scale = callbacks.getCameraScale().coerceAtLeast(0.1f)
                     callbacks.onBuildingDragUpdate(dx / scale, dy / scale)
                     return
@@ -222,6 +235,7 @@ class SectMapTouchEngine(
                         GestureState.Scrolling
                     }
                     if (state is GestureState.Scrolling) {
+                        callbacks.onDragStart()
                         callbacks.onPanCamera(dx, dy)
                     }
                 }
@@ -263,6 +277,7 @@ class SectMapTouchEngine(
             }
 
             is GestureState.Scrolling -> {
+                callbacks.onDragEnd()
                 val vel = velocityTracker.computeVelocity()
                 val speed = kotlin.math.sqrt(vel.x * vel.x + vel.y * vel.y)
                 if (speed >= config.minFlingVelocity) {
@@ -276,10 +291,12 @@ class SectMapTouchEngine(
 
             is GestureState.BuildingDrag -> {
                 callbacks.onBuildingDragEnd()
+                callbacks.onDragEnd()
                 state = GestureState.Idle
             }
 
             is GestureState.GoldFingerDrag -> {
+                callbacks.onDragEnd()
                 state = GestureState.Idle
             }
 
@@ -290,6 +307,12 @@ class SectMapTouchEngine(
     private fun handleCancel() {
         longPressJob?.cancel(); longPressJob = null
         flingJob?.cancel(); flingJob = null
+        when (state) {
+            is GestureState.Scrolling -> callbacks.onDragEnd()
+            is GestureState.BuildingDrag -> callbacks.onBuildingDragEnd()
+            is GestureState.Flinging -> callbacks.onFlingEnd()
+            else -> {}
+        }
         state = GestureState.Idle
     }
 
@@ -300,7 +323,7 @@ class SectMapTouchEngine(
         flingJob = scope.launch {
             try {
                 while (isActive && flingPhysics.isActive) {
-                    val delta = flingPhysics.update(0.016f)
+                    val delta = flingPhysics.update(0.033f)
                     if (delta.dx != 0f || delta.dy != 0f) {
                         callbacks.onPanCamera(delta.dx, delta.dy)
                     }

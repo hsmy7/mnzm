@@ -52,6 +52,10 @@ interface TouchEngineCallbacks {
     /** 获取相机缩放比 */
     fun getCameraScale(): Float = 1f
 
+    /** 拖拽（手指按下滑动）开始/结束（用于帧率提升） */
+    fun onDragStart() = Unit
+    fun onDragEnd() = Unit
+
     /** Fling 开始/结束（用于帧率提升） */
     fun onFlingStart() = Unit
     fun onFlingEnd() = Unit

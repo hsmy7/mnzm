@@ -96,6 +96,7 @@ class GameEngineCore @Inject constructor(
         if (currentScene != scene) {
             DomainLog.i(TAG, "Scene changed: ${currentScene.displayName} → ${scene.displayName}")
             currentScene = scene
+            updateRenderFrameRate()
         }
     }
 
