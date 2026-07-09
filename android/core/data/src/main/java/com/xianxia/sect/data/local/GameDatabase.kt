@@ -666,7 +666,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples + spiritMineLastSettledMonth 到 game_data */
+        /** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples + spiritMineLastSettledMonth 到 game_data + baseDuration 到 production_slots */
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "disciples", "cultivationCheckpoint")) {
@@ -680,6 +680,13 @@ abstract class GameDatabase : RoomDatabase() {
                     )
                 }
                 Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
+                // production_slots.baseDuration（原有commit遗漏的migration）
+                if (!columnExists(db, "production_slots", "baseDuration")) {
+                    db.execSQL(
+                        "ALTER TABLE production_slots ADD COLUMN baseDuration INTEGER NOT NULL DEFAULT 0"
+                    )
+                    Log.i(TAG, "Migration 13→14: added baseDuration to production_slots")
+                }
                 // 新增 game_data.spiritMineLastSettledMonth 列（时间戳差分惰性结算所需）
                 // ⚠️ 必须用 create-copy-drop-rename：Room v14 schema 中该列无 DEFAULT，
                 //    但 ALTER TABLE ADD COLUMN 要求 NOT NULL 列必须带 DEFAULT，导致校验不匹配。

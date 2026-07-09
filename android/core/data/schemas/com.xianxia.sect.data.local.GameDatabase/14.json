@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 14,
-    "identityHash": "aa2fb555b0c5ab0e458dc80dd55780bf",
+    "identityHash": "21e428e23651d195a92f956ad33bac18",
     "entities": [
       {
         "tableName": "game_data",
@@ -4268,7 +4268,7 @@
       },
       {
         "tableName": "production_slots",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `buildingType` TEXT NOT NULL, `buildingId` TEXT NOT NULL, `status` TEXT NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `baseDuration` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT, `outputItemName` TEXT NOT NULL, `outputItemRarity` INTEGER NOT NULL, `outputItemSlot` TEXT NOT NULL, `expectedYield` INTEGER NOT NULL DEFAULT 0, `autoRestartEnabled` INTEGER NOT NULL DEFAULT 0, `completionMonth` INTEGER NOT NULL DEFAULT 0, `completionPhase` INTEGER NOT NULL DEFAULT 1, `buildingInstanceId` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `buildingType` TEXT NOT NULL, `buildingId` TEXT NOT NULL, `status` TEXT NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `baseDuration` INTEGER NOT NULL DEFAULT 0, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT, `outputItemName` TEXT NOT NULL, `outputItemRarity` INTEGER NOT NULL, `outputItemSlot` TEXT NOT NULL, `expectedYield` INTEGER NOT NULL DEFAULT 0, `autoRestartEnabled` INTEGER NOT NULL DEFAULT 0, `completionMonth` INTEGER NOT NULL DEFAULT 0, `completionPhase` INTEGER NOT NULL DEFAULT 1, `buildingInstanceId` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -4339,7 +4339,8 @@
             "fieldPath": "baseDuration",
             "columnName": "baseDuration",
             "affinity": "INTEGER",
-            "notNull": true
+            "notNull": true,
+            "defaultValue": "0"
           },
           {
             "fieldPath": "assignedDiscipleId",
@@ -5601,7 +5602,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'aa2fb555b0c5ab0e458dc80dd55780bf')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '21e428e23651d195a92f956ad33bac18')"
     ]
   }
 }

@@ -39,6 +39,7 @@ data class ProductionSlot(
     val startMonth: Int = 0,
     val duration: Int = 0,
     /** 配方基础持续时间（不含加成），用于月结时动态重算 */
+    @ColumnInfo(defaultValue = "0")
     val baseDuration: Int = 0,
     val assignedDiscipleId: String? = null,
     val assignedDiscipleName: String = "",
