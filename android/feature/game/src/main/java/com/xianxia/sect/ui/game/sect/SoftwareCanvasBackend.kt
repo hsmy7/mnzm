@@ -68,6 +68,10 @@ class SoftwareCanvasBackend(
     private var lastDecorationsDisabled: Boolean = false
     /** 上一帧的预览状态 — 变化时强制清屏，防止绿色残影残留 */
     private var lastShowPreview: Boolean = false
+    /** 上一帧的预览位置 X — 拖拽过程中位置变化时强制重绘建筑层 */
+    private var lastPreviewX: Float = 0f
+    /** 上一帧的预览位置 Y — 拖拽过程中位置变化时强制重绘建筑层 */
+    private var lastPreviewY: Float = 0f
 
     /**
      * 确保帧缓冲区是视口大小。当窗口 resize 时自动重建。
@@ -218,8 +222,10 @@ class SoftwareCanvasBackend(
             || !tileCacheValid || cameraChanged || decorChanged
             || lastShowPreview != frame.showPreview
 
+        val previewMoved = frame.showPreview && (frame.previewX != lastPreviewX || frame.previewY != lastPreviewY)
+
         val needRebuildBuildings = buildingHash != lastBuildingHash
-            || cameraChanged || needRebuildTiles
+            || cameraChanged || needRebuildTiles || previewMoved
 
         // ============================
         // Step A: 地面 + 装饰层
@@ -368,6 +374,10 @@ class SoftwareCanvasBackend(
             }
 
             lastBuildingHash = buildingHash
+            if (frame.showPreview) {
+                lastPreviewX = frame.previewX
+                lastPreviewY = frame.previewY
+            }
         }
 
         // ============================
