@@ -66,6 +66,8 @@ class SoftwareCanvasBackend(
     private var lastBuildingCamY: Float = 0f
     private var lastBuildingScale: Float = 1f
     private var lastDecorationsDisabled: Boolean = false
+    /** 上一帧的预览状态 — 变化时强制清屏，防止绿色残影残留 */
+    private var lastShowPreview: Boolean = false
 
     /**
      * 确保帧缓冲区是视口大小。当窗口 resize 时自动重建。
@@ -214,6 +216,7 @@ class SoftwareCanvasBackend(
         val decorChanged = decorationsDisabled != lastDecorationsDisabled
         val needRebuildTiles = tileHash != lastTileDataHash
             || !tileCacheValid || cameraChanged || decorChanged
+            || lastShowPreview != frame.showPreview
 
         val needRebuildBuildings = buildingHash != lastBuildingHash
             || cameraChanged || needRebuildTiles
@@ -224,6 +227,7 @@ class SoftwareCanvasBackend(
         if (needRebuildTiles) {
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
             lastTileDataHash = tileHash
+            lastShowPreview = frame.showPreview
 
             for (row in firstRow..lastRow) {
                 val rowBase = row * cols

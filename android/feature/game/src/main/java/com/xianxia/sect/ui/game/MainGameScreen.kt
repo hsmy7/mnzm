@@ -426,15 +426,9 @@ fun MainGameScreen(
         }
         var nativeSurfaceView by remember { mutableStateOf<NativeSurfaceView?>(null) }
 
-        // 使用预拍平的 flatTileData（加载管线中提前计算）
-        val flatTileData = remember(tileData, mapPreloadData.flatTileData) {
-            val expected = tileData.size * (tileData.firstOrNull()?.size ?: 0)
-            if (mapPreloadData.flatTileData.size == expected) {
-                mapPreloadData.flatTileData
-            } else {
-                // 兜底：尺寸不匹配时重新拍平（建筑占位数据与 rawTileData 合并后可能改变尺寸）
-                tileData.flatMap { it.toList() }.toIntArray()
-            }
+        // flatTileData — 由 tileData 派生，建筑占位变化时自动重算
+        val flatTileData = remember(tileData) {
+            tileData.flatMap { it.toList() }.toIntArray()
         }
 
         // 统一 UV 映射表（来自 SpriteAtlasDef，与 C++ TextureAtlas.h 一致）

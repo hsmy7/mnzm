@@ -48,11 +48,11 @@ internal fun PlacementConfirmButtons(
     val canConfirm = validity == GridSnapHelper.PlacementValidity.Valid
     val btnDp = (tileSize / density).dp
     val spacerDp = btnDp * 0.4f
-    // 按钮行独立于建筑宽度，居中出现在建筑正上方
+    // 按钮行独立于建筑宽度，居中出现在建筑正上方（2×2 按钮）
     Box(
         modifier = Modifier
-            .offset(x = buildingCenterXDp.dp - btnDp * 1.2f, y = buildingTopYDp.dp - btnDp * 1.5f)
-            .size(width = btnDp * 2f + spacerDp, height = btnDp)
+            .offset(x = buildingCenterXDp.dp - btnDp * 2.2f, y = buildingTopYDp.dp - btnDp * 2.8f)
+            .size(width = btnDp * 4f + spacerDp, height = btnDp * 2)
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -60,18 +60,18 @@ internal fun PlacementConfirmButtons(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(btnDp)
+                modifier = Modifier.size(btnDp * 2)
                     .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black, CircleShape)
                     .clickable(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
-            ) { Text("✓", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            ) { Text("✓", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
             Spacer(modifier = Modifier.width(spacerDp))
             Box(
-                modifier = Modifier.size(btnDp)
+                modifier = Modifier.size(btnDp * 2)
                     .background(Color(0xFFF44336), CircleShape)
                     .clickable { onCancel() },
                 contentAlignment = Alignment.Center
-            ) { Text("✗", fontSize = (btnDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            ) { Text("✗", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
     }
     // 放置预览覆盖层 — 尺寸需乘以相机缩放（与 worldToScreenX 同步）
@@ -113,7 +113,7 @@ internal fun DemolishButton(
     ) / density
 
     var showConfirm by remember { mutableStateOf(false) }
-    val btnW = (tileSize / density).dp * 2
+    val btnW = (tileSize / density).dp * 4
     val btnH = (tileSize / density).dp
 
     Box(
