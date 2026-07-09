@@ -14,11 +14,22 @@ package com.xianxia.sect.core.camera
  * - [setPosition] 和 [applyScale] 的实现必须对值进行 clamp（边界约束）
  * - [pan]/[zoom]/[centerOn] 推荐基于 [setPosition]/[applyScale] 实现
  *
+ * ## updateViewport 契约
+ * - 首次调用时（初始化）应重新计算默认缩放策略
+ * - 屏幕旋转/多窗口尺寸变化时应再次评估默认缩放
+ * - [zoom] 方法调用后应设置内部标记，使后续 [updateViewport] 不覆盖用户缩放
+ *
  * ## 跨平台
  * - 纯 Kotlin 接口，零平台依赖
  * - iOS 移植无需修改接口定义
  */
 interface CameraState {
+    companion object {
+        /** 最小缩放（最远鸟瞰） */
+        const val MIN_ZOOM = 0.3f
+        /** 最大缩放（最近特写） */
+        const val MAX_ZOOM = 3.0f
+    }
     /** 相机在世界空间中的 X 偏移 */
     val cameraX: Float
     /** 相机在世界空间中的 Y 偏移 */
