@@ -516,6 +516,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 storageFacade.setCurrentSlot(slot)
                 Log.d(TAG, "Active slot set to $slot")
+                stateStore.transitionTo(GameLifecycle.DATA_READY)
 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
                 var saveSuccess = performSynchronousSave(slot)
