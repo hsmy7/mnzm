@@ -785,10 +785,12 @@ class GameEngineCore @Inject constructor(
         var yearChanged = false
         for (phaseIndex in 1..phasesToAdvance) {
             stateStore.update {
-                systemManager.getSystem(TimeSystem::class)
-                    .onPhaseTick(this, phasesToSettle = 1)
+                // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
+                // 否则 onPhaseTick 已修改 gameMonth/gameYear，后续比较永远相等。
                 val prevMonth = this.gameData.gameMonth
                 val prevYear = this.gameData.gameYear
+                systemManager.getSystem(TimeSystem::class)
+                    .onPhaseTick(this, phasesToSettle = 1)
                 checkBreakthroughsAndPills(this)
                 if (this.gameData.gameMonth != prevMonth) monthChanged = true
                 if (this.gameData.gameYear != prevYear) yearChanged = true
