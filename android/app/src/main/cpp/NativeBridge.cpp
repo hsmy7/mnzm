@@ -8,6 +8,10 @@
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
 
+// UV 向内收缩 0.5 texel（匹配 Cocos2d-x CC_FIX_ARTIFACTS_BY_STRECHING_TEXEL）
+// 防止 CLAMP_TO_EDGE + NEAREST 采样下 UV 边界采样到相邻图素，消除彩色缝合线
+static constexpr float UV_EPSILON = 0.5f / static_cast<float>(ATLAS_W);
+
 // ============================================================
 // 日志宏
 // ============================================================
@@ -271,16 +275,20 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             if (gIdx < (int)uvCount) {
                 batcher.add(atlasTexId, wx, wy,
                     (float)tileSize, (float)tileSize,
-                    uvs[gIdx * 4], uvs[gIdx * 4 + 1],
-                    uvs[gIdx * 4 + 2], uvs[gIdx * 4 + 3]);
+                    uvs[gIdx * 4] + UV_EPSILON,
+                    uvs[gIdx * 4 + 1] + UV_EPSILON,
+                    uvs[gIdx * 4 + 2] - UV_EPSILON,
+                    uvs[gIdx * 4 + 3] - UV_EPSILON);
             }
 
             // (B) 装饰叠加层（草/树）
             if (tile >= 1 && tile <= 5) {
                 int uvIdx = tile;
                 if (uvIdx < (int)uvCount) {
-                    float u0 = uvs[uvIdx * 4], v0 = uvs[uvIdx * 4 + 1];
-                    float u1 = uvs[uvIdx * 4 + 2], v1 = uvs[uvIdx * 4 + 3];
+                    float u0 = uvs[uvIdx * 4] + UV_EPSILON;
+                    float v0 = uvs[uvIdx * 4 + 1] + UV_EPSILON;
+                    float u1 = uvs[uvIdx * 4 + 2] - UV_EPSILON;
+                    float v1 = uvs[uvIdx * 4 + 3] - UV_EPSILON;
 
                     if (tile >= 4) {
                         // 树（2×2 格，偏移 (-1,-1)）
@@ -377,16 +385,20 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 
                 if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
                     batcher.add(atlasTexId, ftPx, ftPy, ftPw, ftPh,
-                        ftuvs[ftIdx * 4], ftuvs[ftIdx * 4 + 1],
-                        ftuvs[ftIdx * 4 + 2], ftuvs[ftIdx * 4 + 3]);
+                        ftuvs[ftIdx * 4] + UV_EPSILON,
+                        ftuvs[ftIdx * 4 + 1] + UV_EPSILON,
+                        ftuvs[ftIdx * 4 + 2] - UV_EPSILON,
+                        ftuvs[ftIdx * 4 + 3] - UV_EPSILON);
                 }
                 env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
             }
 
             // (B) 建筑精灵
             batcher.add(atlasTexId, px, py, pw, ph,
-                buvs[buvIdx * 4], buvs[buvIdx * 4 + 1],
-                buvs[buvIdx * 4 + 2], buvs[buvIdx * 4 + 3]);
+                buvs[buvIdx * 4] + UV_EPSILON,
+                buvs[buvIdx * 4 + 1] + UV_EPSILON,
+                buvs[buvIdx * 4 + 2] - UV_EPSILON,
+                buvs[buvIdx * 4 + 3] - UV_EPSILON);
         }
     }
 
@@ -440,12 +452,14 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSprite(
     for (int i = 0; i < 6; i++) {
         verts[i] = { 0, 0, 0, 0, r, g, b, a };
     }
-    verts[0] = { x,   y,   u0, v0, r, g, b, a };
-    verts[1] = { x+w, y,   u1, v0, r, g, b, a };
-    verts[2] = { x,   y+h, u0, v1, r, g, b, a };
-    verts[3] = { x+w, y,   u1, v0, r, g, b, a };
-    verts[4] = { x+w, y+h, u1, v1, r, g, b, a };
-    verts[5] = { x,   y+h, u0, v1, r, g, b, a };
+    float su0 = u0 + UV_EPSILON, sv0 = v0 + UV_EPSILON;
+    float su1 = u1 - UV_EPSILON, sv1 = v1 - UV_EPSILON;
+    verts[0] = { x,   y,   su0, sv0, r, g, b, a };
+    verts[1] = { x+w, y,   su1, sv0, r, g, b, a };
+    verts[2] = { x,   y+h, su0, sv1, r, g, b, a };
+    verts[3] = { x+w, y,   su1, sv0, r, g, b, a };
+    verts[4] = { x+w, y+h, su1, sv1, r, g, b, a };
+    verts[5] = { x,   y+h, su0, sv1, r, g, b, a };
 
     g_renderer->draw(verts, 6, static_cast<uint32_t>(atlasTexId));
 }
