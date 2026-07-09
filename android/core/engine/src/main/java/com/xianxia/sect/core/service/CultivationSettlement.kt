@@ -38,6 +38,19 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.ZoneCalculator
 
 /**
+ * 政策月度扣除结果。
+ */
+sealed interface PolicyCostResult {
+    /** 所有政策正常扣除 */
+    data object AllPaid : PolicyCostResult
+    /** 部分政策因灵石不足被自动关闭 */
+    data class SomeDisabled(
+        val disabledPolicies: List<String>,
+        val deducted: List<Pair<String, Long>>
+    ) : PolicyCostResult
+}
+
+/**
  * 宗门结算服务 — 年俸、政策、灵矿产出。
  *
  * 灵矿产出采用 **时间戳差分惰性结算**（对标 Supercell Clash of Clans 模式）：
@@ -80,77 +93,101 @@ class CultivationSettlement @Inject constructor(
         val highRatio = SpiritStoneExchange.EFFECTIVE_RATIO * SpiritStoneExchange.EFFECTIVE_RATIO
 
         stateStore.update {
-            val data = gameData
-            val salaryConfig = data.yearlySalary
-            val enabledConfig = data.yearlySalaryEnabled
+            val plan = calculateSalaryPlan(maxLoyalty, midRatio, highRatio) ?: return@update
+            applySalaryPlan(plan, maxLoyalty)
+        }
+    }
 
-            // 筛选应发弟子
-            val currentDisciples = discipleTables.assembleAll()
-            val eligible = currentDisciples
-                .filter { it.isAlive && enabledConfig[it.realm] == true }
-                .filter { it.skills.loyalty < maxLoyalty }
-                .map { it to (salaryConfig[it.realm]?.toLong() ?: 0L) }
-                .filter { it.second > 0L }
+    private data class SalaryPlan(
+        val eligibleSalaries: Map<String, Long>,
+        val lowDeduct: Long,
+        val midDeduct: Long,
+        val highDeduct: Long,
+        val change: Long
+    )
 
-            val totalRequired = eligible.sumOf { it.second }
-            if (totalRequired <= 0L) return@update
+    private fun MutableGameState.calculateSalaryPlan(
+        maxLoyalty: Int,
+        midRatio: Long,
+        highRatio: Long
+    ): SalaryPlan? {
+        val data = gameData
+        val salaryConfig = data.yearlySalary
+        val enabledConfig = data.yearlySalaryEnabled
 
-            // 计算可用灵石（下品 + 可选的中品/上品折合）
-            var available = data.spiritStones
-            if (data.autoSellMidGradeForPurchase) {
-                available += data.midGradeSpiritStones * midRatio
-            }
-            if (data.autoSellHighGradeForPurchase) {
-                available += data.highGradeSpiritStones * highRatio
-            }
-            if (available < totalRequired) return@update  // 不够，全员不发
+        val eligible = discipleTables.assembleAll()
+            .filter { it.isAlive && enabledConfig[it.realm] == true }
+            .filter { it.skills.loyalty < maxLoyalty }
+            .map { it to (salaryConfig[it.realm]?.toLong() ?: 0L) }
+            .filter { it.second > 0L }
 
-            // 扣除灵石：下品 → 中品 → 上品，找零退下品
-            var remaining = totalRequired
-            val lowDeduct = minOf(remaining, data.spiritStones)
-            remaining -= lowDeduct
-            var midDeduct = 0L
-            var highDeduct = 0L
+        val totalRequired = eligible.sumOf { it.second }
+        if (totalRequired <= 0L) return null
 
-            if (remaining > 0 && data.autoSellMidGradeForPurchase) {
-                val need = (remaining + midRatio - 1) / midRatio  // ceil
-                midDeduct = minOf(need, data.midGradeSpiritStones)
-                remaining -= midDeduct * midRatio
-            }
-            if (remaining > 0 && data.autoSellHighGradeForPurchase) {
-                val need = (remaining + highRatio - 1) / highRatio
-                highDeduct = minOf(need, data.highGradeSpiritStones)
-                remaining -= highDeduct * highRatio
-            }
-            // 找零：多扣的退回下品
-            val change = if (remaining < 0) -remaining else 0L
+        var available = data.spiritStones
+        if (data.autoSellMidGradeForPurchase) {
+            available += data.midGradeSpiritStones * midRatio
+        }
+        if (data.autoSellHighGradeForPurchase) {
+            available += data.highGradeSpiritStones * highRatio
+        }
+        if (available < totalRequired) return null
 
-            gameData = data.copy(
-                spiritStones = data.spiritStones - lowDeduct + change,
-                midGradeSpiritStones = data.midGradeSpiritStones - midDeduct,
-                highGradeSpiritStones = data.highGradeSpiritStones - highDeduct
-            )
+        var remaining = totalRequired
+        val lowDeduct = minOf(remaining, data.spiritStones)
+        remaining -= lowDeduct
+        var midDeduct = 0L
+        var highDeduct = 0L
 
-            // 发放年俸：忠诚 +1，灵石进储物袋
-            discipleTables.clear()
-            currentDisciples.forEach { disciple ->
-                val salary = eligible.firstOrNull { it.first.id == disciple.id }?.second
-                if (salary != null && salary > 0L) {
-                    discipleTables.insert(disciple.copy(
-                        equipment = disciple.equipment.copy(
-                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
-                        ),
-                        skills = disciple.skills.copy(
-                            salaryPaidCount = disciple.skills.salaryPaidCount + 1,
-                            loyalty = (disciple.skills.loyalty + 1).coerceAtMost(maxLoyalty)
-                        )
-                    ))
-                } else {
-                    discipleTables.insert(disciple)
-                }
+        if (remaining > 0 && data.autoSellMidGradeForPurchase) {
+            val need = (remaining + midRatio - 1) / midRatio
+            midDeduct = minOf(need, data.midGradeSpiritStones)
+            remaining -= midDeduct * midRatio
+        }
+        if (remaining > 0 && data.autoSellHighGradeForPurchase) {
+            val need = (remaining + highRatio - 1) / highRatio
+            highDeduct = minOf(need, data.highGradeSpiritStones)
+            remaining -= highDeduct * highRatio
+        }
+        val change = if (remaining < 0) -remaining else 0L
+
+        return SalaryPlan(
+            eligibleSalaries = eligible.associate { it.first.id to it.second },
+            lowDeduct = lowDeduct,
+            midDeduct = midDeduct,
+            highDeduct = highDeduct,
+            change = change
+        )
+    }
+
+    private fun MutableGameState.applySalaryPlan(plan: SalaryPlan, maxLoyalty: Int) {
+        val data = gameData
+        gameData = data.copy(
+            spiritStones = data.spiritStones - plan.lowDeduct + plan.change,
+            midGradeSpiritStones = data.midGradeSpiritStones - plan.midDeduct,
+            highGradeSpiritStones = data.highGradeSpiritStones - plan.highDeduct
+        )
+
+        val currentDisciples = discipleTables.assembleAll()
+        discipleTables.clear()
+        currentDisciples.forEach { disciple ->
+            val salary = plan.eligibleSalaries[disciple.id]
+            if (salary != null && salary > 0L) {
+                discipleTables.insert(disciple.copy(
+                    equipment = disciple.equipment.copy(
+                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
+                    ),
+                    skills = disciple.skills.copy(
+                        salaryPaidCount = disciple.skills.salaryPaidCount + 1,
+                        loyalty = (disciple.skills.loyalty + 1).coerceAtMost(maxLoyalty)
+                    )
+                ))
+            } else {
+                discipleTables.insert(disciple)
             }
         }
     }
+
 
     /**
      * 突破时补发当年年俸 — 仅发当年 1 年份，不累年。
@@ -210,8 +247,9 @@ class CultivationSettlement @Inject constructor(
     /**
      * 政策月度灵石扣除。
      * 直接操作影子状态，同步执行。
+     * @return [PolicyCostResult] — AllPaid 或 SomeDisabled
      */
-    fun processPolicyCosts(state: MutableGameState) {
+    fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
         val data = state.gameData
         val policies = data.sectPolicies
         var currentStones = data.spiritStones
@@ -246,6 +284,11 @@ class CultivationSettlement @Inject constructor(
                 updatedGameData = updatedGameData.copy(sectPolicies = updatedPolicies)
             }
             state.gameData = updatedGameData
+        }
+        return if (disabledPolicies.isNotEmpty()) {
+            PolicyCostResult.SomeDisabled(disabledPolicies, deductedPolicies)
+        } else {
+            PolicyCostResult.AllPaid
         }
     }
 
@@ -336,9 +379,8 @@ class CultivationSettlement @Inject constructor(
             val currentMonth = data.gameYear * 12 + data.gameMonth
 
             val zones = buildSpiritMineZones(data, discipleTables)
-            val monthlyRate: Long = zones.calculateMonthly(
-                GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()
-            )
+            val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+            val monthlyRate: Long = zones.calculateMonthly(baseOutput.toDouble())
 
             // 时间戳差分 + 回档保护
             val lastSettled = data.spiritMineLastSettledMonth

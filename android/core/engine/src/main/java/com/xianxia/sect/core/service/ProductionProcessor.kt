@@ -989,7 +989,11 @@ class ProductionProcessor @Inject constructor(
 
         val allSlots = productionSlotRepository.getSlots()
         for (slot in allSlots) {
-            if (!slot.isWorking || slot.baseDuration <= 0) continue
+            if (!slot.isWorking) continue
+            // 旧存档兼容：baseDuration=0 的槽位用当前 duration 作为基础值，
+            // 确保政策/长老变化也能影响这些槽位（P2-4 fix）
+            val effectiveBase = if (slot.baseDuration > 0) slot.baseDuration else slot.duration
+            if (effectiveBase <= 0) continue
 
             val oldDuration = slot.duration.coerceAtLeast(1)
             val elapsedMonths = ((data.gameYear - slot.startYear) * 12 + (data.gameMonth - slot.startMonth)).coerceAtLeast(0)
@@ -997,7 +1001,7 @@ class ProductionProcessor @Inject constructor(
             if (progressRatio >= 1.0) continue
 
             val newDuration = formulaService.calculateWorkDurationWithAllDisciples(
-                slot.baseDuration, slot.buildingId
+                effectiveBase, slot.buildingId
             )
             if (newDuration == slot.duration) continue
 

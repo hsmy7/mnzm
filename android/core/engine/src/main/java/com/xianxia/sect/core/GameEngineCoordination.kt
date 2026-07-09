@@ -106,6 +106,20 @@ suspend fun GameEngine.loadData(
         }
     }
     discipleService.syncAllDiscipleStatuses()
+
+    // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
+    // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
+    stateStore.update {
+        val data = this.gameData
+        if (data.spiritMineLastSettledMonth == 0) {
+            val currentMonth = data.gameYear * 12 + data.gameMonth
+            if (currentMonth > 1) {
+                this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
+                DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
+            }
+        }
+    }
+
     val loadedData = stateStore.gameData.value
     if (loadedData.aiSectDisciples.isEmpty() && loadedData.worldMapSects.isNotEmpty()) {
         DomainLog.i("GameEngine", "loadData: aiSectDisciples empty, regenerating for ${loadedData.worldMapSects.size} sects")
@@ -154,6 +168,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
             mapSeed = mapSeed,
             placedBuildings = listOf(initialMine),
             spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
+            spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
             // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
             productionSlots = emptyList(),
             residenceSlots = emptyList(),
@@ -189,8 +204,8 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 currentSlot = currentSlot,
                 placedBuildings = listOf(initialMine),
                 spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
-                spiritMineLastSettledMonth = 1 * 12 + 1,  // 初始化为 gameYear=1, gameMonth=1
-                // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
+            spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
+            // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
                 productionSlots = emptyList(),
                 residenceSlots = emptyList(),
                 warehouseGarrisons = emptyList(),

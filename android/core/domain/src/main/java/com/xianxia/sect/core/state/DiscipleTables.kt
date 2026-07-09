@@ -729,8 +729,15 @@ class DiscipleTables {
         return copy
     }
 
-    /** 获取有效修炼值：检查点值 + 速率 × 经过月份 × 3。
-     *  无检查点时回退到实际修炼值（兼容旧数据/新弟子）。 */
+    /**
+     * 修炼投影值：检查点值 + 速率 × 经过月份 × 3。
+     * 无检查点时回退到实际修炼值（兼容旧数据/新弟子）。
+     *
+     * ⚠️ 注意：当前版本中 checkpointDisciple() 仅在 accumulateCultivationPerPhase 每旬更新时同步，
+     * 速率变化点（政策/长老/丹药）尚未全量调用 checkpointDisciple()。
+     * 在启用此投影前，需先在 SectPolicyToggleUseCase、ElderManagementUseCase、CultivationCore 等
+     * 所有影响修炼速率的位置补充 checkpointDisciple() 调用。
+     */
     fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double {
         if (!cultivationCheckpoints.contains(id)) return cultivations.getOrDefault(id, 0.0)
         val checkpoint = cultivationCheckpoints[id]

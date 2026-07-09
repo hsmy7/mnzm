@@ -446,7 +446,7 @@ class RoomMigrationTest {
             "midGradeSpiritStones", "highGradeSpiritStones",
             "autoSellMidGradeForPurchase", "autoSellHighGradeForPurchase",
             "vassalContracts", "sectBattleRecords",
-            "map_seed"
+            "map_seed", "spiritMineLastSettledMonth"
         )
         for (col in expected) {
             assertTrue("game_data should have column '$col'",
@@ -459,6 +459,11 @@ class RoomMigrationTest {
             columnExists(db, "disciples", "usage_lastTheftMonth"))
         assertTrue("disciples should have social_masterId",
             columnExists(db, "disciples", "social_masterId"))
+        // v14: 修炼 Checkpoint 列（修炼 VoidForge Checkpoint 快照法）
+        assertTrue("disciples should have cultivationCheckpoint",
+            columnExists(db, "disciples", "cultivationCheckpoint"))
+        assertTrue("disciples should have cultivationCheckpointGameMonth",
+            columnExists(db, "disciples", "cultivationCheckpointGameMonth"))
     }
 
     private fun verifyProductionSlotsColumnsExist(db: SupportSQLiteDatabase) {

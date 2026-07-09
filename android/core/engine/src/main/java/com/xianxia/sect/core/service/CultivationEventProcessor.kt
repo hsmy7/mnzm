@@ -409,7 +409,7 @@ class CultivationEventProcessor @Inject constructor(
         if (month == 12) {
             autoBuyService.executeAutoBuy(year, month)
         }
-        // 灵矿月度产出结算
+        // 灵矿月度产出结算（含政策月度灵石扣除，保证事务原子性）
         cultivationSettlement.processSpiritMineProductionMonthly()
         // 弟子智能购买上架物品
         disciplePurchaseService.executePurchase(year, month)

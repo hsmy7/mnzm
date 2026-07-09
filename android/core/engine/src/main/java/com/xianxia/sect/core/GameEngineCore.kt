@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.BuildConfig
 import android.os.Build
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
@@ -741,49 +742,56 @@ class GameEngineCore @Inject constructor(
     }
     
     private suspend fun tickInternal() {
+        if (skipTickIfNeeded()) return
+        _tickCount.value++
+        val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
+            System.currentTimeMillis() else 0L
+        val tickResult = gameClock.tick(isSettlementPending = false)
+        thermalController.checkAndAdjust(_fps.value)
+        val (monthChanged, yearChanged) = processTickPhases(tickResult.phasesToAdvance)
+        processMonthYearChange(monthChanged, yearChanged)
+        val patrolResults = explorationService.consumePendingPatrolResults()
+        for (result in patrolResults) {
+            stateStore.setPendingBattleResult(result)
+        }
+        if (tickStartDiagnostic > 0) {
+            val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
+            if (tickDuration > TICK_TIME_BUDGET_MS) {
+                DomainLog.w(TAG,
+                    "tick over budget: ${tickDuration}ms " +
+                    "(budget=${TICK_TIME_BUDGET_MS}ms, " +
+                    "month=${stateStore.gameData.value.gameMonth}, " +
+                    "year=${stateStore.gameData.value.gameYear})")
+            }
+        }
+    }
+    
+    private suspend fun skipTickIfNeeded(): Boolean {
         val isPaused = stateStore.isPaused.value
         val isLoading = stateStore.isLoading.value
         val isSaving = stateStore.isSaving.value
-        if (isPaused || isLoading || isSaving) {
-            checkAndResetStuckStates(isSaving, isLoading)
-            gameClock.consumeDeadTime()  // 更新lastWallMs，防止恢复后时间跳变
-            if (_tickCount.value % 100 == 0L) {
-                DomainLog.d(TAG, "tickInternal: tick #${_tickCount.value} skipped " +
-                    "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
-            }
-            return
+        if (!isPaused && !isLoading && !isSaving) return false
+        checkAndResetStuckStates(isSaving, isLoading)
+        gameClock.consumeDeadTime()
+        if (_tickCount.value % 100 == 0L) {
+            DomainLog.d(TAG, "tickInternal: tick #${_tickCount.value} skipped " +
+                "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
         }
-
-        _tickCount.value++
-
-        val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
-            System.currentTimeMillis() else 0L
-
-        // ── 惰性结算引擎：GameTimeClock 只推进时间，不结算任何生产 ──
-        val tickResult = gameClock.tick(isSettlementPending = false)
-
+        return true
+    }
+    
+    private suspend fun processTickPhases(phasesToAdvance: Int): Pair<Boolean, Boolean> {
         var monthChanged = false
         var yearChanged = false
-
-        thermalController.checkAndAdjust(_fps.value)
-
-        for (phaseIndex in 1..tickResult.phasesToAdvance) {
+        for (phaseIndex in 1..phasesToAdvance) {
             stateStore.update {
-                // Level 0: 时间推进
                 systemManager.getSystem(TimeSystem::class)
                     .onPhaseTick(this, phasesToSettle = 1)
-
                 val prevMonth = this.gameData.gameMonth
                 val prevYear = this.gameData.gameYear
-
-                // Level 1: 每旬最小检查（对标 RimWorld Rare Tick）
-                // 仅处理突破检测和丹药自动到期补服
                 checkBreakthroughsAndPills(this)
-
                 if (this.gameData.gameMonth != prevMonth) monthChanged = true
                 if (this.gameData.gameYear != prevYear) yearChanged = true
-
-                // 自动存档检测（上旬触发，避免重复）
                 val snapshot = this.gameData
                 val interval = snapshot.autoSaveIntervalMonths
                 if (interval > 0 &&
@@ -794,8 +802,10 @@ class GameEngineCore @Inject constructor(
                 }
             }
         }
-
-        // ── 月变/年变后处理 ──
+        return Pair(monthChanged, yearChanged)
+    }
+    
+    private suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
         if (yearChanged) {
             cultivationService.processYearlyEvents()
             if (stateStore.gameData.value.gameMonth == 1) {
@@ -805,27 +815,18 @@ class GameEngineCore @Inject constructor(
             }
         }
         if (monthChanged) {
-            // Level 3: 月变事件
+            var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
+            stateStore.update {
+                policyResult = cultivationService.processPolicyCosts(this)
+            }
+            if (policyResult is PolicyCostResult.SomeDisabled) {
+                cultivationService.checkpointAllProduction()
+                DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient " +
+                    "spirit stones, checkpointAllProduction triggered")
+            }
             cultivationService.processMonthlyEvents()
-            // 月度系统事件（炼丹/锻造/灵田/伴侣配对等）
             stateStore.update { systemManager.onMonthlyEvent(this) }
             missionCheck?.invoke()
-        }
-        val patrolResults = explorationService.consumePendingPatrolResults()
-        for (result in patrolResults) {
-            stateStore.setPendingBattleResult(result)
-        }
-
-        // 诊断日志：Xiaomi 设备记录超预算 tick
-        if (tickStartDiagnostic > 0) {
-            val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
-            if (tickDuration > TICK_TIME_BUDGET_MS) {
-                DomainLog.w(TAG,
-                    "tick over budget: ${tickDuration}ms " +
-                    "(budget=${TICK_TIME_BUDGET_MS}ms, " +
-                    "month=${stateStore.gameData.value.gameMonth}, " +
-                    "year=${stateStore.gameData.value.gameYear})")
-            }
         }
     }
 

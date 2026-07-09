@@ -666,7 +666,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v13→v14: Disciple 新增 cultivationCheckpoint / cultivationCheckpointGameMonth 列（修炼 Checkpoint 快照法） */
+        /** v13→v14: Disciple 新增 cultivationCheckpoint / cultivationCheckpointGameMonth 列 + game_data.spiritMineLastSettledMonth */
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "disciples", "cultivationCheckpoint")) {
@@ -680,6 +680,13 @@ abstract class GameDatabase : RoomDatabase() {
                     )
                 }
                 Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")
+                // 新增 game_data.spiritMineLastSettledMonth 列（时间戳差分惰性结算所需）
+                if (!columnExists(db, "game_data", "spiritMineLastSettledMonth")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN spiritMineLastSettledMonth INTEGER NOT NULL DEFAULT 0"
+                    )
+                    Log.i(TAG, "Migration 13→14: added spiritMineLastSettledMonth to game_data")
+                }
             }
         }
 

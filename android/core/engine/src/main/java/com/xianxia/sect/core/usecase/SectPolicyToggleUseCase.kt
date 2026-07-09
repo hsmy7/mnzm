@@ -18,6 +18,15 @@ class SectPolicyToggleUseCase @Inject constructor(
         gameEngine.updateGameData {
             it.copy(sectPolicies = it.sectPolicies.copy(spiritMineBoost = !it.sectPolicies.spiritMineBoost))
         }
+        // Checkpoint：灵矿政策变化后重设结算时间戳，防止政策追溯应用到未结算区间
+        // （fix P1-2/P1-4：若不重置，toggle 后整个未结算区间都用新速率计算，可被利用反复获利）
+        gameEngine.stateStore.update {
+            val data = gameData
+            val currentMonth = data.gameYear * 12 + data.gameMonth
+            if (currentMonth > data.spiritMineLastSettledMonth) {
+                gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
+            }
+        }
         return ToggleResult.Success
     }
 

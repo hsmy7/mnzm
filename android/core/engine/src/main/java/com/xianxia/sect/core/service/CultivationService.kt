@@ -208,8 +208,8 @@ class CultivationService @Inject constructor(
         cultivationSettlement.processResidenceLoyalty()
     }
 
-    internal fun processPolicyCosts(state: MutableGameState) {
-        cultivationSettlement.processPolicyCosts(state)
+    internal fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
+        return cultivationSettlement.processPolicyCosts(state)
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
