@@ -786,6 +786,11 @@ abstract class GameDatabase : RoomDatabase() {
                         "map_seed"
                     )
                     val quotedCols = insertCols.joinToString(", ") { "`$it`" }
+                    // 保护：清理前次失败 migration 可能留下的 NULL 值
+                    // （TEXT NOT NULL 列被污染为 NULL 时，用 '{}' 兜底）
+                    db.execSQL("UPDATE `game_data` SET `sectPolicies` = '{}' WHERE `sectPolicies` IS NULL")
+                    db.execSQL("UPDATE `game_data` SET `mailRecords` = '[]' WHERE `mailRecords` IS NULL")
+                    db.execSQL("UPDATE `game_data` SET `sectLevelClaimRecords` = '[]' WHERE `sectLevelClaimRecords` IS NULL")
                     db.execSQL("INSERT INTO `game_data_new` SELECT $quotedCols, 0 AS `spiritMineLastSettledMonth` FROM `game_data`")
                     db.execSQL("DROP TABLE IF EXISTS `game_data`")
                     db.execSQL("ALTER TABLE `game_data_new` RENAME TO `game_data`")
