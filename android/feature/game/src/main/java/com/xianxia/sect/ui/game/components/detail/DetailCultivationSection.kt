@@ -266,12 +266,7 @@ fun BasicInfoSection(
                     val building = slot?.let { s ->
                         placedBuildings.firstOrNull { it.instanceId == s.buildingInstanceId }
                     }
-                    when (building?.displayName) {
-                        "中级单人住所" -> 1.40
-                        "单人住所" -> 1.20
-                        "多人住所" -> 1.10
-                        else -> 1.0
-                    }
+                    com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.residenceSpeedMultiplier(building?.displayName ?: "")
                 }
                 val cultivationSpeed = remember(disciple, manualsMap, proficiencyMap, allDisciples, elderSlots, sectPolicies, buildingBonus) {
                     val (preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus) = calculatePreachingBonusesForDisplay(

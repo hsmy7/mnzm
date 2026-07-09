@@ -285,24 +285,24 @@ fun MainGameScreen(
     // 建筑列表及点击回调
     val buildingList = remember {
         BuildingRegistry.constructible.map { def ->
-            val handler: (GridBuildingData?) -> Unit = when (def) {
-                BuildingDef.SPIRIT_MINE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.SpiritMine(it)) }; Unit }
-                BuildingDef.HERB_GARDEN -> { _ -> viewModel.navigateToDialog(DialogRoute.HerbGarden) }
-                BuildingDef.SPIRIT_FIELD -> { _ -> viewModel.navigateToDialog(DialogRoute.Planting) }
-                BuildingDef.ALCHEMY -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Alchemy(it)) }; Unit }
-                BuildingDef.FORGE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Forge(it)) }; Unit }
-                BuildingDef.LIBRARY -> { _ -> viewModel.navigateToDialog(DialogRoute.Library) }
-                BuildingDef.WEN_DAO_PEAK -> { _ -> viewModel.navigateToDialog(DialogRoute.WenDaoPeak) }
-                BuildingDef.QINGYUN_PEAK -> { _ -> viewModel.navigateToDialog(DialogRoute.QingyunPeak) }
-                BuildingDef.TIANSHU_HALL -> { _ -> viewModel.navigateToDialog(DialogRoute.TianshuHall) }
-                BuildingDef.LAW_ENFORCEMENT -> { _ -> viewModel.navigateToDialog(DialogRoute.LawEnforcementHall) }
-                BuildingDef.MISSION_HALL -> { _ -> viewModel.navigateToDialog(DialogRoute.MissionHall) }
-                BuildingDef.REFLECTION_CLIFF -> { _ -> viewModel.navigateToDialog(DialogRoute.ReflectionCliff) }
-                BuildingDef.PATROL_TOWER -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.PatrolTower(it)) }; Unit }
-                BuildingDef.BLOOD_REFINING_POOL -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.BloodRefiningPool(it)) }; Unit }
-                BuildingDef.SINGLE_RESIDENCE, BuildingDef.MULTI_RESIDENCE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Residence(it)) }; Unit }
-                BuildingDef.WAREHOUSE -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.WarehouseBuilding(it)) }; Unit }
-                BuildingDef.SINGLE_RESIDENCE_UPGRADED -> { _ -> Unit }
+            val handler: (GridBuildingData?) -> Unit = when (def.key) {
+                "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.SpiritMine(it)) }; Unit }
+                "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogRoute.HerbGarden) }
+                "spirit_field" -> { _ -> viewModel.navigateToDialog(DialogRoute.Planting) }
+                "alchemy" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Alchemy(it)) }; Unit }
+                "forge" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Forge(it)) }; Unit }
+                "library" -> { _ -> viewModel.navigateToDialog(DialogRoute.Library) }
+                "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogRoute.WenDaoPeak) }
+                "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogRoute.QingyunPeak) }
+                "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.TianshuHall) }
+                "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.LawEnforcementHall) }
+                "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.MissionHall) }
+                "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogRoute.ReflectionCliff) }
+                "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.PatrolTower(it)) }; Unit }
+                "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.BloodRefiningPool(it)) }; Unit }
+                "single_residence", "multi_residence" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Residence(it)) }; Unit }
+                "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.WarehouseBuilding(it)) }; Unit }
+                else -> { _ -> Unit }
             }
             def.displayName to handler
         }
@@ -577,11 +577,11 @@ fun MainGameScreen(
                         val clicked = buildingIndex.findBuildingAt(gx, gy)
                         if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
                             val def = BuildingRegistry.findByDisplayName(clicked.displayName)
-                            when (def) {
-                                BuildingDef.SPIRIT_MINE -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
-                                BuildingDef.ALCHEMY -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
-                                BuildingDef.FORGE -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
-                                BuildingDef.SINGLE_RESIDENCE, BuildingDef.SINGLE_RESIDENCE_UPGRADED, BuildingDef.MULTI_RESIDENCE -> {
+                            when (def?.key) {
+                                "spirit_mine" -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
+                                "alchemy" -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
+                                "forge" -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
+                                "single_residence", "single_residence_upgraded", "multi_residence" -> {
                                     viewModel.navigateToDialog(DialogRoute.Residence(clicked.instanceId))
                                 }
                                 else -> {
@@ -839,13 +839,13 @@ fun MainGameScreen(
         }
 
         // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
-        val herbGardenDisplayName = BuildingDef.HERB_GARDEN.displayName
+        val herbGardenDisplayName = "灵植阁"
         val showHerbGardenAura = (isPlacingBuilding && placingBuildingName == herbGardenDisplayName) ||
                 (movingBuilding?.displayName == herbGardenDisplayName)
         val auraGridX = if (isPlacingBuilding) placingSnappedGridX else movingSnappedGridX
         val auraGridY = if (isPlacingBuilding) placingSnappedGridY else movingSnappedGridY
         val auraSize = if (isPlacingBuilding) placingBuildingSize else movingBuildingSize
-        val spiritFieldDisplayName = BuildingDef.SPIRIT_FIELD.displayName
+        val spiritFieldDisplayName = "灵田"
         val spiritFieldBuildings = remember(placedBuildings, movingBuilding) {
             placedBuildings.filter { it.displayName == spiritFieldDisplayName }
         }

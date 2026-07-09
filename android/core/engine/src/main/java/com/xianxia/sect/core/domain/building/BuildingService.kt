@@ -214,6 +214,9 @@ private val inventorySystem: InventorySystem,
     }
 
     suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> {
+        if (slotIndex < 0) {
+            return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
+        }
         val data = stateStore.gameData.value
 
         val forgeSlot = productionSlotRepository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)

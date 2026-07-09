@@ -27,7 +27,7 @@ class BuildingFacadeImpl @Inject constructor(
     override suspend fun placeBuilding(building: GridBuildingData) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
         stateStore.update { gameData = gameData.copy(placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId)) }
-        if (building.displayName == "灵矿场") {
+        if (BuildingFeatureRegistry.findByDisplayName(building.displayName)?.buildingType == BuildingType.MINING) {
             syncSpiritMineSlotsAfterPlace()
         }
     }
@@ -40,7 +40,9 @@ class BuildingFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 val data = gameData
-                val globalMines = data.placedBuildings.filter { it.displayName == "灵矿场" }
+                val globalMines = data.placedBuildings.filter {
+                    BuildingFeatureRegistry.findByDisplayName(it.displayName)?.buildingType == BuildingType.MINING
+                }
                 val rebuiltSlots = mutableListOf<SpiritMineSlot>()
                 var slotIdx = 0
                 for (mine in globalMines) {
@@ -101,13 +103,11 @@ class BuildingFacadeImpl @Inject constructor(
     override fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
 
     override fun getAlchemyFurnaceCount(): Int {
-        val activeSectId = stateStore.gameDataSnapshot.activeSectId
-        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" && it.sectId == activeSectId }
+        return BuildingFeatureRegistry.countByType(stateStore.gameDataSnapshot, BuildingType.ALCHEMY)
     }
 
     override fun getForgeWorkshopCount(): Int {
-        val activeSectId = stateStore.gameDataSnapshot.activeSectId
-        return stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" && it.sectId == activeSectId }
+        return BuildingFeatureRegistry.countByType(stateStore.gameDataSnapshot, BuildingType.FORGE)
     }
 
     override fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {
@@ -327,6 +327,7 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override fun clearForgeSlot(slotIndex: Int) {
+        if (slotIndex < 0) return
         gameEngineCore.launchInScope {
             val slot = productionCoordinator.repository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)
             if (slot != null && !slot.isWorking) {
@@ -363,93 +364,28 @@ class BuildingFacadeImpl @Inject constructor(
     private fun MutableGameState.collectDiscipleIdsForRemoval(
         name: String, instanceId: String
     ): Set<String> {
-        val ids = mutableSetOf<String>()
-        when {
-            name == "炼丹炉" || name == "锻造坊" -> {
-                val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
-                // 按 buildingInstanceId 精确匹配，替代旧的 maxByOrNull { it.slotIndex }
-                // 修复多建筑同类型时移除错误槽位的问题
-                gameData.productionSlots
-                    .filter { it.buildingInstanceId == instanceId && it.buildingId == bid }
-                    .mapNotNull { it.assignedDiscipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-            }
-            name.contains("住所") -> gameData.residenceSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "仓库" -> gameData.warehouseGarrisons
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "灵矿场" -> gameData.spiritMineSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "巡视楼" -> gameData.patrolSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "血炼池" -> gameData.activeBloodRefinements[instanceId]
-                ?.discipleId?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
-        }
-        return ids
+        val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return emptySet()
+        return feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }.toSet()
     }
 
     private fun MutableGameState.cleanupBuildingSlots(
         name: String, instanceId: String, refund: Long
     ): GameData {
+        val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return gameData
         var gd = gameData.copy(
             placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId },
             spiritStones = gameData.spiritStones + refund
         )
-        when {
-            name == "灵矿场" ->
-                // 按 buildingInstanceId 精确移除，替代旧的 dropLast(3)
-                gd = gd.copy(spiritMineSlots = gd.spiritMineSlots.filter {
-                    it.buildingInstanceId != instanceId
-                })
-            name == "巡视楼" ->
-                // 按 buildingInstanceId 精确移除，替代旧的 dropLast(8) + patrolConfigs.dropLast(1)
-                gd = gd.copy(
-                    patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId != instanceId },
-                    patrolConfigs = gd.patrolConfigs.filterIndexed { idx, _ ->
-                        // patrolConfigs 与巡视楼按顺序一一对应，需找到该 instanceId 对应的索引
-                        val towerIdx = gameData.placedBuildings
-                            .filter { it.displayName == "巡视楼" }
-                            .indexOfFirst { it.instanceId == instanceId }
-                        idx != towerIdx
-                    }
-                )
-            name == "灵田" ->
-                gd = gd.copy(spiritFieldPlants = gd.spiritFieldPlants.filter {
-                    it.buildingInstanceId != instanceId })
-            name.contains("住所") ->
-                gd = gd.copy(residenceSlots = gd.residenceSlots.filter {
-                    it.buildingInstanceId != instanceId })
-            name == "仓库" ->
-                gd = gd.copy(warehouseGarrisons = gd.warehouseGarrisons.filter {
-                    it.buildingInstanceId != instanceId })
-            name == "炼丹炉" || name == "锻造坊" -> {
-                val bid = if (name == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
-                // 按 buildingInstanceId 精确移除，替代旧的 maxOfOrNull { it.slotIndex }
-                gd = gd.copy(productionSlots = gd.productionSlots.filter {
-                    it.buildingInstanceId != instanceId
-                })
-                // 同步清理 Repository 中的槽位（ProductionSlot 已迁移到 Repository 管理）
-                gameEngineCore.launchInScope {
-                    productionCoordinator.repository.getSlotsByBuildingId(bid)
-                        .filter { it.buildingInstanceId == instanceId }
-                        .forEach { slot ->
-                            productionCoordinator.repository.removeSlot(slot.id)
-                        }
-                }
+        for (group in feature.slotGroups) {
+            gd = group.filterFromGameData(gd, instanceId, feature)
+        }
+        // 生产槽位同步清理 Repository
+        if (feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }) {
+            gameEngineCore.launchInScope {
+                productionCoordinator.repository.getSlots()
+                    .filter { it.buildingInstanceId == instanceId }
+                    .forEach { slot -> productionCoordinator.repository.removeSlot(slot.id) }
             }
-            name == "血炼池" -> gd = gd.copy(
-                activeBloodRefinements = gd.activeBloodRefinements
-                    .toMutableMap().apply { remove(instanceId) }
-            )
         }
         return gd
     }
@@ -482,102 +418,24 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     internal companion object {
-        /**
-         * 纯函数：从建筑槽位中收集指定建筑实例关联的弟子 ID。
-         *
-         * 提取为 companion object 静态方法以便单元测试。
-         * 替代旧的 `takeLast(3)` / `takeLast(8)` / `maxByOrNull { it.slotIndex }` 模式，
-         * 按 buildingInstanceId 精确匹配。
-         *
-         * @param displayName 建筑显示名（"灵矿场"/"巡视楼"/"炼丹炉"/"锻造坊" 等）
-         * @param instanceId 建筑实例 ID
-         * @param gameData 当前游戏状态
-         * @return 需释放的弟子 ID 集合
-         */
+        @Deprecated("Use BuildingFeatureRegistry + SlotGroup instead（迁移较复杂，见 collectDiscipleIdsForRemoval 私有方法）")
         fun collectDiscipleIdsForBuildingRemoval(
             displayName: String, instanceId: String, gameData: GameData
         ): Set<String> {
-            val ids = mutableSetOf<String>()
-            when {
-                displayName == "炼丹炉" || displayName == "锻造坊" -> {
-                    val bid = if (displayName == "炼丹炉") BuildingNames.ALCHEMY else BuildingNames.FORGE
-                    @Suppress("DEPRECATION")
-                    gameData.productionSlots
-                        .filter { it.buildingInstanceId == instanceId && it.buildingId == bid }
-                        .mapNotNull { it.assignedDiscipleId }
-                        .filter { it.isNotEmpty() }
-                        .forEach { ids.add(it) }
-                }
-                displayName.contains("住所") -> gameData.residenceSlots
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-                displayName == "仓库" -> gameData.warehouseGarrisons
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-                displayName == "灵矿场" -> gameData.spiritMineSlots
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-                displayName == "巡视楼" -> gameData.patrolSlots
-                    .filter { it.buildingInstanceId == instanceId }
-                    .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-                displayName == "血炼池" -> gameData.activeBloodRefinements[instanceId]
-                    ?.discipleId?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
-            }
-            return ids
+            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return emptySet()
+            return feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }.toSet()
         }
 
-        /**
-         * 纯函数：过滤掉指定建筑实例关联的槽位。
-         *
-         * 用于建筑移除时清理关联槽位，替代旧的 `dropLast(N)` / `maxOfOrNull { it.slotIndex }` 模式。
-         * 按 buildingInstanceId 精确匹配，不影响其他同类型建筑的槽位。
-         *
-         * @param displayName 建筑显示名
-         * @param instanceId 建筑实例 ID
-         * @param gameData 当前游戏状态
-         * @return 过滤后的 GameData（仅槽位字段变更）
-         */
+        @Deprecated("Use BuildingFeatureRegistry.findByDisplayName + SlotGroup.filterFromGameData instead")
         fun filterBuildingSlots(
             displayName: String, instanceId: String, gameData: GameData
         ): GameData {
-            return when {
-                displayName == "灵矿场" -> gameData.copy(
-                    spiritMineSlots = gameData.spiritMineSlots.filter { it.buildingInstanceId != instanceId }
-                )
-                displayName == "巡视楼" -> {
-                    val towerIdx = gameData.placedBuildings
-                        .filter { it.displayName == "巡视楼" }
-                        .indexOfFirst { it.instanceId == instanceId }
-                    gameData.copy(
-                        patrolSlots = gameData.patrolSlots.filter { it.buildingInstanceId != instanceId },
-                        patrolConfigs = if (towerIdx >= 0) gameData.patrolConfigs.filterIndexed { idx, _ -> idx != towerIdx } else gameData.patrolConfigs
-                    )
-                }
-                displayName == "灵田" -> gameData.copy(
-                    spiritFieldPlants = gameData.spiritFieldPlants.filter { it.buildingInstanceId != instanceId }
-                )
-                displayName.contains("住所") -> gameData.copy(
-                    residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId != instanceId }
-                )
-                displayName == "仓库" -> gameData.copy(
-                    warehouseGarrisons = gameData.warehouseGarrisons.filter { it.buildingInstanceId != instanceId }
-                )
-                displayName == "炼丹炉" || displayName == "锻造坊" -> {
-                    @Suppress("DEPRECATION")
-                    gameData.copy(
-                        productionSlots = gameData.productionSlots.filter { it.buildingInstanceId != instanceId }
-                    )
-                }
-                displayName == "血炼池" -> gameData.copy(
-                    activeBloodRefinements = gameData.activeBloodRefinements
-                        .filterKeys { it != instanceId }
-                )
-                else -> gameData
+            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return gameData
+            var gd = gameData
+            for (group in feature.slotGroups) {
+                gd = group.filterFromGameData(gd, instanceId, feature)
             }
+            return gd
         }
 
         /**

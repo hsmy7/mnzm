@@ -4,17 +4,13 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.getDiscipleAggregate
 import com.xianxia.sect.core.engine.removeBuilding
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.production.BuildingType
-import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.ResidenceSlot
-import com.xianxia.sect.core.model.SpiritFieldPlant
-import com.xianxia.sect.core.model.SpiritMineSlot
-import com.xianxia.sect.core.model.PatrolSlot
-import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.game.building.BuildingDef
 import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.ui.game.sect.GoldFingerState
@@ -36,96 +32,55 @@ class BuildingDelegate(
     private var _currentBuildingDelegate: Any? = null
 
     /**
-     * 放置建筑。根据建筑类型自动创建对应的生产槽位（炼丹、炼器）、
-     * 灵矿槽位、巡逻楼槽位、住宅槽位等。
+     * 放置建筑。通过 BuildingFeatureRegistry + SlotGroup 自动创建所有槽位。
      */
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         scope.launch {
+            val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return@launch
             val config = buildingConfigService.getBuildingConfigByDisplayName(name)
-            val cost = config?.cost ?: 1000L
+            val cost = config?.cost ?: feature.cost
             val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
-
             val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
-
-            var newProductionSlot: ProductionSlot? = null
-
             val activeId = gameEngine.currentActiveSectId()
+            val newProductionSlots = mutableListOf<ProductionSlot>()
+
             gameEngine.updateGameData { data ->
-                when {
-                    BuildingRegistry.hasNoLimit(name) -> { /* No build limit */ }
-                    else -> {
-                        if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
-                    }
+                // 限建检查
+                if (!feature.unlimitedBuild) {
+                    if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
                 }
+                // 灵石检查
                 if (data.spiritStones < cost) return@updateGameData data
 
                 val newBuilding = GridBuildingData(
-                    buildingId = name,
-                    displayName = name,
+                    buildingId = feature.key, displayName = name,
                     gridX = gridX, gridY = gridY,
                     width = gridW, height = gridH,
-                    sectId = activeId,
-                    instanceId = newBuildingInstanceId
+                    sectId = activeId, instanceId = newBuildingInstanceId
                 )
 
-                newProductionSlot = when (name) {
-                    BuildingDef.ALCHEMY.displayName -> {
-                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.ALCHEMY.displayName }
-                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
-                            .copy(buildingInstanceId = newBuildingInstanceId)
-                    }
-                    BuildingDef.FORGE.displayName -> {
-                        val idx = data.placedBuildings.count { it.displayName == BuildingDef.FORGE.displayName }
-                        ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
-                            .copy(buildingInstanceId = newBuildingInstanceId)
-                    }
-                    else -> null
+                // 通过 slotGroups 自动创建所有槽位
+                val results = feature.slotGroups.map { group ->
+                    group.createSlots(newBuildingInstanceId, data, activeId, feature)
                 }
 
-                val newSlots = if (name == BuildingDef.SPIRIT_MINE.displayName) {
-                    val nextIndex = data.spiritMineSlots.size
-                    (0 until 3).map { SpiritMineSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
-                } else emptyList()
-
-                val newPatrolSlots = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    val nextIndex = data.patrolSlots.size
-                    val slotCount = buildingConfigService.getSlotCountByDisplayName(name)
-                    (0 until slotCount).map { PatrolSlot(index = nextIndex + it, buildingInstanceId = newBuilding.instanceId) }
-                } else emptyList()
-
-                val newPatrolConfigs = if (name == BuildingDef.PATROL_TOWER.displayName) {
-                    data.patrolConfigs + PatrolConfig()
-                } else emptyList()
-
-                val newResidenceSlots = when (name) {
-                    BuildingDef.SINGLE_RESIDENCE.displayName -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
-                    BuildingDef.MULTI_RESIDENCE.displayName -> (0 until 4).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
-                    else -> emptyList()
-                }
-
-                val newSpiritFieldPlants = if (name == BuildingDef.SPIRIT_FIELD.displayName) {
-                    listOf(SpiritFieldPlant(buildingInstanceId = newBuilding.instanceId, sectId = activeId))
-                } else emptyList()
-
-                @Suppress("DEPRECATION")
-                val slot = newProductionSlot
-                val updatedProductionSlots = if (slot != null) data.productionSlots + slot else data.productionSlots
-
+                newProductionSlots += results.flatMap { it.productionSlots }
                 data.copy(
                     spiritStones = data.spiritStones - cost,
                     placedBuildings = data.placedBuildings + newBuilding,
-                    spiritFieldPlants = data.spiritFieldPlants + newSpiritFieldPlants,
-                    spiritMineSlots = data.spiritMineSlots + newSlots,
-                    patrolSlots = if (newPatrolSlots.isNotEmpty()) data.patrolSlots + newPatrolSlots else data.patrolSlots,
-                    patrolConfigs = if (newPatrolConfigs.isNotEmpty()) newPatrolConfigs else data.patrolConfigs,
-                    residenceSlots = data.residenceSlots + newResidenceSlots,
-                    productionSlots = updatedProductionSlots
+                    spiritFieldPlants = data.spiritFieldPlants + results.flatMap { it.spiritFieldPlants },
+                    spiritMineSlots = data.spiritMineSlots + results.flatMap { it.spiritMineSlots },
+                    patrolSlots = data.patrolSlots + results.flatMap { it.patrolSlots },
+                    patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
+                    residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
+                    productionSlots = data.productionSlots + newProductionSlots,
+                    warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
+                    librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
                 )
             }
 
-            newProductionSlot?.let { slot ->
-                buildingFacade.addProductionSlot(slot)
-            }
+            // 生产槽位同步写入 Repository
+            newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
         }
     }
 
@@ -235,20 +190,26 @@ class BuildingDelegate(
     fun canUpgradeResidence(buildingInstanceId: String): Boolean {
         val data = gameEngine.gameDataSnapshot
         val building = data.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return false
-        return building.displayName == "单人住所"
+        val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
+        return feature?.upgradeTo != null
     }
 
-    /** 升级单人住所为中级单人住所 */
+    /** 升级单人住所（根据 BuildingFeature.upgradeTo 自动确定升级目标和费用） */
     fun upgradeSingleResidence(buildingInstanceId: String) {
         scope.launch {
+            val snapshot = gameEngine.gameDataSnapshot
+            val building = snapshot.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return@launch
+            val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName) ?: return@launch
+            val upgradeKey = feature.upgradeTo ?: return@launch
+            val upgradeFeature = BuildingFeatureRegistry.findByKey(upgradeKey) ?: return@launch
+            val upgradeCost = upgradeFeature.upgradeCost
             gameEngine.updateGameData { data ->
-                val canAfford = data.spiritStones >= 50000L
-                if (!canAfford) return@updateGameData data
+                if (data.spiritStones < upgradeCost) return@updateGameData data
                 data.copy(
-                    spiritStones = data.spiritStones - 50000L,
+                    spiritStones = data.spiritStones - upgradeCost,
                     placedBuildings = data.placedBuildings.map { b ->
-                        if (b.instanceId == buildingInstanceId && b.displayName == "单人住所")
-                            b.copy(displayName = "中级单人住所")
+                        if (b.instanceId == buildingInstanceId && b.displayName == feature.displayName)
+                            b.copy(displayName = upgradeFeature.displayName)
                         else b
                     }
                 )

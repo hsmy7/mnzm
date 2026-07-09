@@ -15,6 +15,7 @@ import com.xianxia.sect.core.util.BuildingNames
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
 
 /**
@@ -32,6 +33,29 @@ import org.junit.Test
  */
 @Suppress("DEPRECATION") // 测试需访问 GameData.productionSlots（已迁移到 Repository，但 GameData 仍保留字段用于旧数据兼容）
 class BuildingRemovalSlotCleanupTest {
+
+    companion object {
+        @BeforeClass @JvmStatic
+        fun initRegistry() {
+            // BuildingFeatureRegistry 初始化（不依赖 R.drawable）
+            if (BuildingFeatureRegistry.findByDisplayName("灵矿场") == null) {
+                val features = listOf(
+                    BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING, listOf(SlotGroup.SpiritMine())),
+                    BuildingFeature("spirit_field", "灵田", BuildingType.SPIRIT_FIELD, listOf(SlotGroup.SpiritField())),
+                    BuildingFeature("herb_garden", "灵植阁", BuildingType.HERB_GARDEN, listOf(SlotGroup.ProductionSlotGroup())),
+                    BuildingFeature("alchemy", "炼丹炉", BuildingType.ALCHEMY, listOf(SlotGroup.ProductionSlotGroup())),
+                    BuildingFeature("forge", "锻造坊", BuildingType.FORGE, listOf(SlotGroup.ProductionSlotGroup())),
+                    BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE, listOf(SlotGroup.Warehouse())),
+                    BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL, listOf(SlotGroup.PatrolTower())),
+                    BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1))),
+                    BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4))),
+                    BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining())),
+                    BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
+                )
+                features.forEach { BuildingFeatureRegistry.register(it) }
+            }
+        }
+    }
 
     // ── collectDiscipleIdsForBuildingRemoval：灵矿场 ────────────────────
 

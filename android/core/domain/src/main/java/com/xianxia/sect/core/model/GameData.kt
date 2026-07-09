@@ -985,7 +985,8 @@ data class WarehouseGarrisonSlot(
     val buildingInstanceId: String = "",
     val discipleId: String = "",
     val discipleName: String = "",
-    val sectId: String = ""
+    val sectId: String = "",
+    val slotIndex: Int = 0               // 新增字段放末尾，兼容旧存档的位置参数调用
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
@@ -994,6 +995,7 @@ data class WarehouseGarrisonSlot(
 @Serializable
 data class LibrarySlot(
     val index: Int = 0,
+    val buildingInstanceId: String = "",   // 新增字段，默认值 "" 兼容旧存档
     val discipleId: String = "",
     val discipleName: String = ""
 ) {

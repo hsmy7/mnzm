@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -86,8 +87,8 @@ suspend fun GameEngine.loadData(
     )
     migratePillTrackingFields(stateStore)
     DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
-    val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" }
-    val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" }
+    val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
+    val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
     val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
     if (fixedProductionSlots.isNotEmpty()) {
         productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
@@ -457,7 +458,9 @@ fun GameEngine.validateAndFixSpiritMineData() {
     val unified = stateStore.unifiedState.value
     val data = unified.gameData
     val discipleMap = unified.disciples.associateBy { it.id }
-    val globalMines = data.placedBuildings.filter { it.displayName == "灵矿场" }
+    val globalMines = data.placedBuildings.filter {
+        BuildingFeatureRegistry.findByDisplayName(it.displayName)?.buildingType == BuildingType.MINING
+    }
     val rebuiltSlots = mutableListOf<SpiritMineSlot>()
     var slotIdx = 0
     for (mine in globalMines) {
@@ -695,13 +698,17 @@ private fun migratePillTrackingFields(stateStore: GameStateStore) {
 }
 
 private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List<Disciple>): Pair<GameData, List<Disciple>> {
-    val numTowers = gameData.placedBuildings.count { it.displayName == "巡视楼" }
+    val numTowers = gameData.placedBuildings.count {
+        BuildingFeatureRegistry.findByDisplayName(it.displayName)?.buildingType == BuildingType.PATROL
+    }
     if (numTowers == 0) return gameData to disciples
     val oldSlots = gameData.patrolSlots
     val expectedSize = numTowers * 8
     if (oldSlots.size <= expectedSize) {
         // 即使数量正确，也需回填 buildingInstanceId（旧存档可能为空）
-        val towers = gameData.placedBuildings.filter { it.displayName == "巡视楼" }
+        val towers = gameData.placedBuildings.filter {
+            BuildingFeatureRegistry.findByDisplayName(it.displayName)?.buildingType == BuildingType.PATROL
+        }
         val needsBackfill = oldSlots.any { it.buildingInstanceId.isEmpty() }
         if (!needsBackfill) return gameData to disciples
         val backfilledSlots = mutableListOf<PatrolSlot>()

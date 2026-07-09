@@ -245,45 +245,15 @@ class SaveLoadLoadDelegate(
     private fun packCell(x: Int, y: Int): Long =
         (x.toLong() shl 32) or (y.toLong() and 0xFFFF_FFFF)
 
-    /** 收集被拆除建筑中已分配弟子的 ID */
+    /** 收集被拆除建筑中已分配弟子的 ID（通过 BuildingFeatureRegistry + SlotGroup） */
     private fun collectFreedDiscipleIds(
         building: GridBuildingData,
         ids: MutableSet<String>,
         gameData: GameData
     ) {
-        val name = building.displayName
-        val instanceId = building.instanceId
-        when {
-            name == "炼丹炉" || name == "锻造坊" -> {
-                val bid = if (name == "炼丹炉")
-                    com.xianxia.sect.core.util.BuildingNames.ALCHEMY
-                else
-                    com.xianxia.sect.core.util.BuildingNames.FORGE
-                gameData.productionSlots
-                    .filter { it.buildingInstanceId == instanceId && it.buildingId == bid }
-                    .mapNotNull { it.assignedDiscipleId }
-                    .filter { it.isNotEmpty() }
-                    .forEach { ids.add(it) }
-            }
-            name.contains("住所") -> gameData.residenceSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "仓库" -> gameData.warehouseGarrisons
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "灵矿场" -> gameData.spiritMineSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "巡视楼" -> gameData.patrolSlots
-                .filter { it.buildingInstanceId == instanceId }
-                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
-                .forEach { ids.add(it) }
-            name == "血炼池" -> gameData.activeBloodRefinements[instanceId]
-                ?.discipleId?.takeIf { it.isNotEmpty() }?.let { ids.add(it) }
-        }
+        val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+            .findByDisplayName(building.displayName) ?: return
+        ids.addAll(feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, building.instanceId, feature) })
     }
 
     /** 应用迁移结果到 MutableGameState */

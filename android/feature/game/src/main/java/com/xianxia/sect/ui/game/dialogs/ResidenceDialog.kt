@@ -40,8 +40,9 @@ fun ResidenceDialog(
     onDismiss: () -> Unit
 ) {
     val building = gameData.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return
-    val isSingleResidence = building.displayName == "单人住所" || building.displayName == "中级单人住所"
-    val isUpgraded = building.displayName == "中级单人住所"
+    val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(building.displayName)
+    val isSingleResidence = feature?.isResidence == true && feature.slotGroups.any { it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence && it.slotsPerInstance == 1 }
+    val isUpgraded = feature?.upgradeTo == null && building.displayName == "中级单人住所"
     val slotCount = if (isSingleResidence) 1 else 4
 
     val residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId == buildingInstanceId }
@@ -50,12 +51,7 @@ fun ResidenceDialog(
             ?: com.xianxia.sect.core.model.ResidenceSlot(buildingInstanceId = buildingInstanceId, slotIndex = index)
     }
 
-    val bonusText = when (building.displayName) {
-        "中级单人住所" -> "修炼速度+40%"
-        "单人住所" -> "修炼速度+20%"
-        "多人住所" -> "修炼速度+10%"
-        else -> ""
-    }
+    val bonusText = feature?.residenceSpeedBonus ?: ""
     val discipleMap = disciples.associateBy { it.id }
 
     var showDiscipleSelector by remember { mutableStateOf(false) }

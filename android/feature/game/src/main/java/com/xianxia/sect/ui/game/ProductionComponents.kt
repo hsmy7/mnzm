@@ -62,7 +62,7 @@ data class ProductionTheme(
 
 val ALCHEMY_THEME = ProductionTheme(
     buildingId = "alchemy",
-    displayName = BuildingDef.ALCHEMY.displayName,
+    displayName = "炼丹炉",
     elderTitle = "炼丹长老",
     elderBonusInfo = ElderBonusInfoProvider.getAlchemyElderInfo(),
     coreAttributeName = "炼丹",
@@ -88,7 +88,7 @@ val ALCHEMY_THEME = ProductionTheme(
 
 val FORGE_THEME = ProductionTheme(
     buildingId = "forge",
-    displayName = BuildingDef.FORGE.displayName,
+    displayName = "锻造坊",
     elderTitle = "天工长老",
     elderBonusInfo = ElderBonusInfoProvider.getForgeElderInfo(),
     coreAttributeName = "炼器",
@@ -114,7 +114,7 @@ val FORGE_THEME = ProductionTheme(
 
 val HERB_GARDEN_THEME = ProductionTheme(
     buildingId = "herbGarden",
-    displayName = BuildingDef.HERB_GARDEN.displayName,
+    displayName = "灵植阁",
     elderTitle = "灵植长老",
     elderBonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo(),
     coreAttributeName = "灵植",
@@ -141,7 +141,7 @@ val HERB_GARDEN_THEME = ProductionTheme(
 
 val SPIRIT_MINE_THEME = ProductionTheme(
     buildingId = "spiritMine",
-    displayName = BuildingDef.SPIRIT_MINE.displayName,
+    displayName = "灵矿场",
     elderTitle = "执事",
     elderBonusInfo = ElderBonusInfo( title = "执事", requiredAttribute = "道德", effectDescription = "管理灵矿场", bonusFormula = "道德值×效率"),
     coreAttributeName = "采矿",

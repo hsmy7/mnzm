@@ -2,7 +2,9 @@ package com.xianxia.sect.ui.game.building
 
 import androidx.compose.ui.graphics.Color
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 
+@Deprecated("Use BuildingFeatureRegistry instead", ReplaceWith("BuildingFeatureRegistry"))
 enum class BuildingDef(
     val key: String,
     val displayName: String,
@@ -29,24 +31,25 @@ enum class BuildingDef(
     MULTI_RESIDENCE("multi_residence", "多人住所", R.drawable.building_multi_residence, Color(0xFFEEEEEE), noLimit = true),
     BLOOD_REFINING_POOL("blood_refining_pool", "血炼池", R.drawable.blood_refining_pool, Color(0xFFB71C1C), noLimit = true);
 
-    val isResidence: Boolean get() = key.endsWith("residence")
+    val isResidence: Boolean get() = BuildingFeatureRegistry.isResidence(displayName)
 }
 
 object BuildingRegistry {
-    val ALL = BuildingDef.entries
-    val byName = ALL.associateBy { it.displayName }
-    private val byKey = ALL.associateBy { it.key }
-    val names = ALL.map { it.displayName }
-    val constructible = ALL.filter { it != BuildingDef.SINGLE_RESIDENCE_UPGRADED }
+    val ALL get() = BuildingFeatureRegistry.all
+    val byName get() = BuildingFeatureRegistry.all.associateBy { it.displayName }
+    val names get() = BuildingFeatureRegistry.all.map { it.displayName }
+    val constructible get() = BuildingFeatureRegistry.constructible
 
-    fun findByDisplayName(name: String): BuildingDef? = byName[name]
-    fun findByKey(key: String): BuildingDef? = byKey[key]
-    fun drawableRes(name: String): Int = byName[name]?.drawableRes ?: R.drawable.building_alchemy
-    fun color(name: String): Color = byName[name]?.color ?: Color(0xFFEEEEEE)
-    fun hasNoLimit(name: String): Boolean = byName[name]?.noLimit ?: false
-    fun isResidence(name: String): Boolean = byName[name]?.isResidence ?: false
-    val residenceNames = ALL.filter { it.isResidence }.map { it.displayName }
-    val noLimitNames = ALL.filter { it.noLimit }.map { it.displayName }
+    fun findByDisplayName(name: String): com.xianxia.sect.core.engine.domain.building.BuildingFeature? =
+        BuildingFeatureRegistry.findByDisplayName(name)
+    fun drawableRes(name: String): Int =
+        BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.building_alchemy
+    fun color(name: String): Color =
+        BuildingFeatureRegistry.findByDisplayName(name)?.let { Color(it.color) } ?: Color(0xFFEEEEEE)
+    fun hasNoLimit(name: String): Boolean = BuildingFeatureRegistry.hasNoLimit(name)
+    fun isResidence(name: String): Boolean = BuildingFeatureRegistry.isResidence(name)
+    val residenceNames get() = ALL.filter { it.isResidence }.map { it.displayName }
+    val noLimitNames get() = ALL.filter { it.unlimitedBuild }.map { it.displayName }
 
     /** 返回所有建筑的 displayName → drawableRes 映射，供 SpriteResRegistry 注册 */
     fun allDrawableMap(): Map<String, Int> =

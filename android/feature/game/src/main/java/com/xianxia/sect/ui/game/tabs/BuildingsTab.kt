@@ -105,42 +105,43 @@ internal fun BuildingsTab(
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val productionSlots by viewModel.productionSlots.collectAsStateWithLifecycle()
 
-    val buildings: List<Triple<String, String, () -> Unit>> = remember {
-        BuildingRegistry.ALL.filter { def ->
-            def != BuildingDef.SINGLE_RESIDENCE_UPGRADED && !def.isResidence && def != BuildingDef.SPIRIT_FIELD
+    val buildingDescriptions = mapOf(
+        "spirit_mine" to "开采灵石资源",
+        "herb_garden" to "种植灵药材料",
+        "alchemy" to "炼制丹药",
+        "forge" to "锻造装备",
+        "library" to "功法管理",
+        "wen_dao_peak" to "管理外门弟子",
+        "qingyun_peak" to "管理内门弟子",
+        "tianshu_hall" to "处理宗门事务",
+        "law_enforcement_hall" to "维护宗门纪律",
+        "mission_hall" to "派遣弟子执行任务",
+        "reflection_cliff" to "悔过自新之地",
+        "patrol_tower" to "驻守弟子自动巡视攻击妖兽",
+        "blood_refining_pool" to "消耗兽血材料淬炼弟子肉身",
+        "warehouse" to "储存宗门物资，每座+50格容量",
+    )
+
+    val buildings: List<Triple<String, String, () -> Unit>> = remember(buildingDescriptions) {
+        BuildingRegistry.constructible.filter { def ->
+            !def.isResidence && def.key != "spirit_field"
         }.map { def ->
-            val desc = when (def) {
-                BuildingDef.SPIRIT_MINE -> "开采灵石资源"
-                BuildingDef.HERB_GARDEN -> "种植灵药材料"
-                BuildingDef.ALCHEMY -> "炼制丹药"
-                BuildingDef.FORGE -> "锻造装备"
-                BuildingDef.LIBRARY -> "功法管理"
-                BuildingDef.WEN_DAO_PEAK -> "管理外门弟子"
-                BuildingDef.QINGYUN_PEAK -> "管理内门弟子"
-                BuildingDef.TIANSHU_HALL -> "处理宗门事务"
-                BuildingDef.LAW_ENFORCEMENT -> "维护宗门纪律"
-                BuildingDef.MISSION_HALL -> "派遣弟子执行任务"
-                BuildingDef.REFLECTION_CLIFF -> "悔过自新之地"
-                BuildingDef.PATROL_TOWER -> "驻守弟子自动巡视攻击妖兽"
-                BuildingDef.BLOOD_REFINING_POOL -> "消耗兽血材料淬炼弟子肉身"
-                else -> ""
-            }
-            val onClick = {
-                when (def) {
-                    BuildingDef.SPIRIT_MINE -> viewModel.openSpiritMineDialog()
-                    BuildingDef.HERB_GARDEN -> viewModel.openHerbGardenDialog()
-                    BuildingDef.ALCHEMY -> viewModel.openAlchemyDialog()
-                    BuildingDef.FORGE -> viewModel.openForgeDialog()
-                    BuildingDef.LIBRARY -> viewModel.openLibraryDialog()
-                    BuildingDef.WEN_DAO_PEAK -> viewModel.openWenDaoPeakDialog()
-                    BuildingDef.QINGYUN_PEAK -> viewModel.openQingyunPeakDialog()
-                    BuildingDef.TIANSHU_HALL -> viewModel.openTianshuHallDialog()
-                    BuildingDef.LAW_ENFORCEMENT -> viewModel.openLawEnforcementHallDialog()
-                    BuildingDef.MISSION_HALL -> viewModel.openMissionHallDialog()
-                    BuildingDef.REFLECTION_CLIFF -> viewModel.openReflectionCliffDialog()
-                    BuildingDef.PATROL_TOWER -> viewModel.openPatrolTowerDialog()
-                    BuildingDef.BLOOD_REFINING_POOL -> viewModel.openBloodRefiningPoolDialog()
-                    else -> { }
+            val desc = buildingDescriptions[def.key] ?: ""
+            val onClick: () -> Unit = {
+                when (def.key) {
+                    "spirit_mine" -> viewModel.openSpiritMineDialog()
+                    "herb_garden" -> viewModel.openHerbGardenDialog()
+                    "alchemy" -> viewModel.openAlchemyDialog()
+                    "forge" -> viewModel.openForgeDialog()
+                    "library" -> viewModel.openLibraryDialog()
+                    "wen_dao_peak" -> viewModel.openWenDaoPeakDialog()
+                    "qingyun_peak" -> viewModel.openQingyunPeakDialog()
+                    "tianshu_hall" -> viewModel.openTianshuHallDialog()
+                    "law_enforcement_hall" -> viewModel.openLawEnforcementHallDialog()
+                    "mission_hall" -> viewModel.openMissionHallDialog()
+                    "reflection_cliff" -> viewModel.openReflectionCliffDialog()
+                    "patrol_tower" -> viewModel.openPatrolTowerDialog()
+                    "blood_refining_pool" -> viewModel.openBloodRefiningPoolDialog()
                 }
             }
             Triple(def.displayName, desc, onClick)

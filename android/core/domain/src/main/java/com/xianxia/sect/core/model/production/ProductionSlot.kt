@@ -221,6 +221,7 @@ enum class BuildingType {
     ALCHEMY,
     FORGE,
     MINING,
+    SPIRIT_FIELD,
     HERB_GARDEN,
     ADMINISTRATION,
     LIBRARY,
@@ -239,6 +240,7 @@ enum class BuildingType {
         ALCHEMY -> "炼丹"
         FORGE -> "锻造"
         MINING -> "灵矿开采"
+        SPIRIT_FIELD -> "灵田"
         HERB_GARDEN -> "灵植阁"
         ADMINISTRATION -> "天枢殿"
         LIBRARY -> "藏经阁"
@@ -258,6 +260,7 @@ enum class BuildingType {
         ALCHEMY -> SlotType.ALCHEMY
         FORGE -> SlotType.FORGING
         MINING -> SlotType.MINING
+        SPIRIT_FIELD -> SlotType.IDLE
         HERB_GARDEN -> SlotType.HERB_GARDEN
         else -> SlotType.IDLE
     }

@@ -480,13 +480,11 @@ class BuildingConfigService @Inject constructor(
 
                 // 问道塔 (wen_dao_peak)
                 "wendaopeak" to "wen_dao_peak",
-                "wendaopeak" to "wen_dao_peak",
                 "wendao" to "wen_dao_peak",
                 "wen_dao_peak" to "wen_dao_peak",
                 "问道塔" to "wen_dao_peak",
 
                 // 青云塔 (qingyun_peak)
-                "qingyunpeak" to "qingyun_peak",
                 "qingyunpeak" to "qingyun_peak",
                 "qingyun" to "qingyun_peak",
                 "qingyun_peak" to "qingyun_peak",
@@ -501,13 +499,11 @@ class BuildingConfigService @Inject constructor(
 
                 // 任务阁 (mission_hall)
                 "missionhall" to "mission_hall",
-                "missionhall" to "mission_hall",
                 "renwuge" to "mission_hall",
                 "mission_hall" to "mission_hall",
                 "任务阁" to "mission_hall",
 
                 // 监牢 (reflection_cliff)
-                "reflectioncliff" to "reflection_cliff",
                 "reflectioncliff" to "reflection_cliff",
                 "siguoya" to "reflection_cliff",
                 "reflection_cliff" to "reflection_cliff",

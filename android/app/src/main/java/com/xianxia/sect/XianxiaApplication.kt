@@ -15,6 +15,8 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.ui.game.building.registerDefaults
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.ui.components.SpriteCategory
@@ -588,6 +590,9 @@ class XianxiaApplication : Application() {
                 Log.e(TAG, "[4.0] Storage reset failed", e)
             }
         }
+
+        // 建筑特征注册表初始化（必须在第一次查询 BuildingFeatureRegistry 之前）
+        BuildingFeatureRegistry.registerDefaults()
 
         Log.i(TAG, "Application initialized with monitoring systems")
 
