@@ -17,6 +17,8 @@ class DiscipleDelegate(
 
     // 招募相关，防止重复点击
     private val recruitingDiscipleIds = mutableSetOf<String>()
+    private val recruitingLock = Any()
+    @Volatile private var isRecruitingAll = false
 
     fun expelDisciple(discipleId: String) {
         scope.launch { gameEngine.expelDisciple(discipleId) }
@@ -221,6 +223,7 @@ class DiscipleDelegate(
     }
 
     fun recruitDiscipleFromList(discipleId: String) {
+        if (isRecruitingAll) return
         if (recruitingDiscipleIds.contains(discipleId)) return
         recruitingDiscipleIds.add(discipleId)
         scope.launch {
@@ -233,11 +236,18 @@ class DiscipleDelegate(
     }
 
     fun recruitAllDisciples() {
+        if (isRecruitingAll) return
+        synchronized(recruitingLock) {
+            if (recruitingDiscipleIds.isNotEmpty()) return
+            isRecruitingAll = true
+        }
         scope.launch {
             try {
                 gameEngine.recruitAllFromList()
             } catch (e: Exception) {
                 /* error handled by BaseViewModel */
+            } finally {
+                isRecruitingAll = false
             }
         }
     }
@@ -249,6 +259,7 @@ class DiscipleDelegate(
     }
 
     fun recruitDisciple(disciple: DiscipleAggregate) {
+        if (isRecruitingAll) return
         if (recruitingDiscipleIds.contains(disciple.id)) return
         recruitingDiscipleIds.add(disciple.id)
         scope.launch {

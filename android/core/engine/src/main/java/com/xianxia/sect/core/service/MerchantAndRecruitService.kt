@@ -322,7 +322,10 @@ class MerchantAndRecruitService @Inject constructor(
         val recruitCount = if (playerSect != null) {
             val range = SectLevel.recruitRange(playerSect.level)
             val bonusCap = calcRecruitBonusCap()
-            Random.nextInt(range.first, range.last + 1 + bonusCap)
+            val until = range.last + 1 + bonusCap
+            // F2: 防 Range 为空导致 Random.nextInt(from, until) 抛 IllegalArgumentException
+            if (until <= range.first) range.first
+            else Random.nextInt(range.first, until)
         } else {
             Random.nextInt(0, 7)  // 兜底：找不到玩家宗门时保持旧逻辑
         }
@@ -349,26 +352,33 @@ class MerchantAndRecruitService @Inject constructor(
             usedNames.add(disciple.name)
         }
 
-        val filter = stateStore.gameData.value.autoRecruitSpiritRootFilter
+        // F6: 空安全 — autoRecruitSpiritRootFilter 可能为 null（旧版本迁移遗漏）
+        val filter = stateStore.gameData.value.autoRecruitSpiritRootFilter ?: emptySet()
         val (autoRecruits, manualRecruits) = newRecruitDisciples.partition { disciple ->
             val rootCount = disciple.spiritRootType.split(",").size
             rootCount in filter
         }
         if (autoRecruits.isNotEmpty()) {
             val currentMonthIndex = year * 12 + 1
-            var nextId = (stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1
-            autoRecruits.forEach { disciple ->
-                disciple.id = nextId.toString()
-                disciple.recruitedMonth = currentMonthIndex
-                nextId++
+            stateStore.update {
+                autoRecruits.forEach { disciple ->
+                    val id = discipleTables.allocateNextId().toString()
+                    disciple.id = id
+                    disciple.recruitedMonth = currentMonthIndex
+                    discipleTables.insert(disciple)
+                }
             }
-            stateStore.update { autoRecruits.forEach { discipleTables.insert(it) } }
             newRecruitDisciples.clear()
             newRecruitDisciples.addAll(manualRecruits)
             DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, ${manualRecruits.size} left for manual review")
         }
 
+        // F4: 覆写前检查旧列表是否非空，打 WARN 日志
         val previousRecruitCount = stateStore.gameData.value.recruitList.size
+        if (previousRecruitCount > 0) {
+            DomainLog.w(TAG, "refreshRecruitList: year=$year, overwriting $previousRecruitCount unprocessed recruits" +
+                " — 年度刷新覆盖了尚未处理的候选人")
+        }
         stateStore.update { gameData = gameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year) }
         DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits (previous recruitList had $previousRecruitCount)")
     }

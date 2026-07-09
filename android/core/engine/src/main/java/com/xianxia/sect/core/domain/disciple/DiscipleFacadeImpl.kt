@@ -211,19 +211,25 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun recruitDiscipleFromList(discipleId: String) {
         val data = stateStore.gameData.value
         val disciple = data.recruitList.toList().find { it.id == discipleId } ?: return
+        // ── 完整性校验：跳过损坏的弟子数据 ──
+        if (disciple.name.isBlank() || disciple.age <= 0 || disciple.realm <= 0) {
+            DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId")
+            return
+        }
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        val newId = ((stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
-        val recruitedDisciple = disciple.copy(
-            id = newId,
-            usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
-        )
         gameEngineCore.launchInScope {
+            // allocateNextId 内部有 synchronized 保护，可与 insert 互斥
+            val newId = stateStore.discipleTables.allocateNextId().toString()
             stateStore.update {
+                val recruitedDisciple = disciple.copy(
+                    id = newId,
+                    usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
+                )
                 discipleTables.insert(recruitedDisciple)
                 gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
             }
             // 记录加入宗门日志
-            discipleService.addLifeEvent(newId, "${recruitedDisciple.age}岁：加入宗门")
+            discipleService.addLifeEvent(newId, "${disciple.age}岁：加入宗门")
         }
     }
 

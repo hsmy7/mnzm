@@ -46,6 +46,7 @@ fun RecruitDialog(
     onDismiss: () -> Unit
 ) {
     var showAutoRecruitDialog by remember { mutableStateOf(false) }
+    var showRejectConfirm by remember { mutableStateOf<String?>(null) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -95,7 +96,7 @@ fun RecruitDialog(
                                     ) {
                                         GameButton(
                                             text = "拒绝",
-                                            onClick = { viewModel.rejectDiscipleFromList(disciple.id) },
+                                            onClick = { showRejectConfirm = disciple.id },
                                             modifier = Modifier.weight(1f)
                                         )
                                         GameButton(
@@ -117,6 +118,22 @@ fun RecruitDialog(
             gameData = gameData,
             viewModel = viewModel,
             onDismiss = { showAutoRecruitDialog = false }
+        )
+    }
+
+    // F8: 拒绝确认对话框
+    if (showRejectConfirm != null) {
+        StandardPromptDialog(
+            onDismissRequest = { showRejectConfirm = null },
+            title = "确认拒绝",
+            text = "确定要拒绝该弟子吗？拒绝后将无法恢复，下一年度才可能刷新到新弟子。",
+            confirmLabel = "拒绝",
+            onConfirm = {
+                viewModel.rejectDiscipleFromList(showRejectConfirm!!)
+                showRejectConfirm = null
+            },
+            dismissLabel = "取消",
+            onDismiss = { showRejectConfirm = null }
         )
     }
 }

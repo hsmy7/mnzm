@@ -314,6 +314,21 @@ class DiscipleTables {
      * ================================================================ */
 
     /**
+     * 在 synchronized 保护下分配下一个可用弟子 ID。
+     * 与 [insert]/[remove] 的 synchronized 使用同一锁对象 [ids]，防止多协程 ID 竞态。
+     *
+     * 调用方获得 ID 后应立即构建 Disciple 并调用 [insert]，避免窗口期。
+     * [insert] 检测到 ID 已存在时会调用内部 [update] 写入全部字段，不会丢失数据。
+     *
+     * @return 分配的新 ID（int），调用方须自行转换为 String
+     */
+    fun allocateNextId(): Int = synchronized(ids) {
+        val id = (ids.maxOrNull() ?: 0) + 1
+        ids.add(id)
+        id
+    }
+
+    /**
      * 添加一个新弟子。所有组件表同时插入一行。
      */
     fun insert(disciple: Disciple) {

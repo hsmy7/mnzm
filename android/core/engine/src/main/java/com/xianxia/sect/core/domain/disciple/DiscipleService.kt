@@ -475,8 +475,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * @param realm 境界，默认 9（炼气期），0 为仙人
      */
     fun recruitDisciple(realm: Int = 9): Disciple {
-        val id =
-            ((stateStore.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
+        val id = stateStore.discipleTables.allocateNextId().toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
         val existingNames = (stateStore.discipleTables.assembleAll()

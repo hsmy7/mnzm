@@ -413,16 +413,24 @@ suspend fun GameEngine.learnManual(discipleId: String, stackId: String) {
 
 // ── Cross-domain: Recruit ───────────────────────────────────────────
 
-fun GameEngine.recruitAllFromList(): Boolean {
+fun GameEngine.recruitAllFromList(): Int {
     val data = stateStore.gameData.value
-    if (data.recruitList.isEmpty()) return false
+    val validRecruits = data.recruitList.filter { d ->
+        d.name.isNotBlank() && d.age > 0 && d.realm > 0
+    }
+    if (validRecruits.isEmpty()) {
+        if (data.recruitList.isNotEmpty()) {
+            DomainLog.w("GameEngine", "recruitAllFromList: all ${data.recruitList.size} recruits are corrupted, skipped")
+        }
+        return 0
+    }
+    val droppedCount = data.recruitList.size - validRecruits.size
     val currentMonthValue = data.gameYear * 12 + data.gameMonth
     gameEngineCore.launchInScope {
         stateStore.update {
-            var nextId = (discipleTables.ids.maxOrNull() ?: 0) + 1
-            val recruitedDisciples = gameData.recruitList.map {
+            val recruitedDisciples = validRecruits.map {
                 it.copy(
-                    id = (nextId++).toString(),
+                    id = discipleTables.allocateNextId().toString(),
                     usage = it.usage.copy(recruitedMonth = currentMonthValue)
                 )
             }
@@ -430,7 +438,12 @@ fun GameEngine.recruitAllFromList(): Boolean {
             gameData = gameData.copy(recruitList = emptyList())
         }
     }
-    return true
+    if (droppedCount > 0) {
+        DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted recruits, recruited ${validRecruits.size}")
+    } else {
+        DomainLog.i("GameEngine", "recruitAllFromList: recruited ${validRecruits.size} disciples")
+    }
+    return validRecruits.size
 }
 
 fun GameEngine.removeFromRecruitList(discipleId: String) {
