@@ -360,6 +360,10 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSellHighGradeForPurchase: Boolean = false,
 
+    // 弟子脱离宗门时弹出提示框（叛逃/偷盗后叛逃）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var discipleDesertionPopup: Boolean = true,
+
     // 弟子管理：突破自动使用仓库丹药
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var breakthroughAutoPillFocused: Boolean = false,

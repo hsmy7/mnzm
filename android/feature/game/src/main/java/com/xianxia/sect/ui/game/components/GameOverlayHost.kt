@@ -587,16 +587,24 @@ fun GameOverlayHost(
 
         when (notification) {
             is GameNotification.DiscipleDesertion -> {
-                DiscipleDesertionDialog(
-                    disciple = notification.disciple,
-                    onDismiss = { viewModel.clearNotification() }
-                )
+                if (gameData.discipleDesertionPopup) {
+                    DiscipleDesertionDialog(
+                        disciple = notification.disciple,
+                        onDismiss = { viewModel.clearNotification() }
+                    )
+                } else {
+                    viewModel.clearNotification()
+                }
             }
             is GameNotification.DiscipleTheftDesertion -> {
-                DiscipleTheftDesertionDialog(
-                    disciple = notification.disciple,
-                    onDismiss = { viewModel.clearNotification() }
-                )
+                if (gameData.discipleDesertionPopup) {
+                    DiscipleTheftDesertionDialog(
+                        disciple = notification.disciple,
+                        onDismiss = { viewModel.clearNotification() }
+                    )
+                } else {
+                    viewModel.clearNotification()
+                }
             }
             is GameNotification.DiscipleTheftCaught -> {
                 DiscipleTheftCaughtDialog(

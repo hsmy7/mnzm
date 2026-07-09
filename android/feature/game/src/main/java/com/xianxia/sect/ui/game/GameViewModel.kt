@@ -974,6 +974,19 @@ class GameViewModel @Inject constructor(
     }
 
     /**
+     * 设置弟子脱离宗门弹窗开关。
+     *
+     * @param enabled 是否弹窗
+     */
+    fun setDiscipleDesertionPopup(enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData {
+                it.copy(discipleDesertionPopup = enabled)
+            }
+        }
+    }
+
+    /**
      * 设置当前激活的界面 Tab。
      *
      * @param tab Tab 标识
