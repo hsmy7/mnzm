@@ -126,6 +126,7 @@ abstract class BaseCameraState(
      * 值会被 [clamp] 限制在世界边界内。
      */
     override fun setPosition(x: Float, y: Float) {
+        if (x.isNaN() || x.isInfinite() || y.isNaN() || y.isInfinite()) return
         if (viewportWidth <= 0 || viewportHeight <= 0) {
             cameraX = x
             cameraY = y
@@ -179,6 +180,9 @@ abstract class BaseCameraState(
      */
     protected fun clamp() {
         if (scale <= 0f || scale.isNaN()) return
+        // NaN/Infinity 净化：coerceIn 不处理 NaN，NaN 会传播到渲染线程
+        if (cameraX.isNaN() || cameraX.isInfinite()) cameraX = 0f
+        if (cameraY.isNaN() || cameraY.isInfinite()) cameraY = 0f
         val ew = viewportWidth / scale
         val eh = viewportHeight / scale
         cameraX = cameraX.coerceIn(0f, (worldWidth - ew).coerceAtLeast(0f))

@@ -84,6 +84,7 @@ class NativeSurfaceView(
     var targetFps: Int = 10
 
     /** 渲染器是否已初始化 */
+    @Volatile
     var isReady: Boolean = false
         private set
 
@@ -298,7 +299,13 @@ class NativeSurfaceView(
 
     /** 从 Compose 层原子更新渲染帧数据 */
     fun updateRenderState(frame: RenderFrame) {
-        currentFrame = frame
+        // ★ 防御：拷贝 IntArray/FloatArray，防止 Compose 线程后续修改导致数据竞争
+        val safeTileData = frame.tileData.copyOf()
+        val safeBuildingData = frame.buildingData?.copyOf()
+        currentFrame = frame.copy(
+            tileData = safeTileData,
+            buildingData = safeBuildingData
+        )
         cameraDirty = true
 
         // 断言：debug build 时验证 tileData 完整性
@@ -505,14 +512,16 @@ class NativeSurfaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         isReady = false
-        // ★ 修复：重置初始化锁，允许下一个 surfaceChanged 重新初始化
         initInProgress = false
         pendingInit = false
         // Layer 4: 中断正在执行的 VulkanInit 线程
         vulkanInitThread?.interrupt()
         vulkanInitThread = null
-        renderThread?.running = false
+        // 等待渲染线程安全停止后再释放资源
+        renderThread?.apply { running = false; join(500) }
         renderThread = null
+        // ★ 修复：在 RenderThread 停止后显式释放 backend 资源
+        softwareBackend?.release()
         softwareBackend = null
         if (renderMode == RenderMode.VULKAN) {
             NativeBridge.shutdownRenderer()
@@ -654,10 +663,16 @@ class NativeSurfaceView(
                     vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
                     vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
                 )
-            } catch (e: NullPointerException) {
-                // RenderFrame.tileData 为 null 时尽早暴露，非静默失败
+            } catch (e: Exception) {
                 android.util.Log.e("NativeSurfaceView",
-                    "renderSoftwareFrame: NPE (likely null tileData)", e)
+                    "renderSoftwareFrame failed: ${e.message}", e)
+                RenderMetrics.renderFrameNull.incrementAndGet()
+                null
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("NativeSurfaceView",
+                    "renderSoftwareFrame OOM: ${e.message}", e)
+                RenderMetrics.renderFrameNull.incrementAndGet()
+                Runtime.getRuntime().gc()
                 null
             }
 
@@ -672,6 +687,8 @@ class NativeSurfaceView(
 
             var retries = 3
             while (retries > 0) {
+                if (!running || !isReady) break
+                if (Thread.interrupted()) break
                 try {
                     val surfaceCanvas = holder.lockCanvas() ?: run {
                         RenderMetrics.lockCanvasRetries.incrementAndGet()
@@ -682,6 +699,7 @@ class NativeSurfaceView(
                     holder.unlockCanvasAndPost(surfaceCanvas)
                     break
                 } catch (e: Exception) {
+                    if (!running || !isReady) break
                     retries--
                     if (retries == 0) {
                         RenderMetrics.lockCanvasFailed.incrementAndGet()
