@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -147,6 +149,24 @@ private fun LoadingScreenContent(
                         color = Color.White
                     )
                 }
+
+                // 游戏玩法提示（每2秒轮换）
+                var currentTip by remember { mutableStateOf(LoadingTips.randomTip()) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(2000)
+                        currentTip = LoadingTips.randomTip()
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = currentTip,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
