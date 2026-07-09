@@ -161,7 +161,7 @@
     }
   },
   "sectMap": {
-    "tileSize": 64,
+    "tileSize": 32,
     "worldWidthCells": 48,
     "worldHeightCells": 48
   },
