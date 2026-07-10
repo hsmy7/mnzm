@@ -18,6 +18,9 @@ import com.xianxia.sect.core.model.*
  */
 class DiscipleTables {
 
+    /** 已故弟子的简要死亡记录（用于剔除后保留信息） */
+    val deathRecords = mutableListOf<DeathRecord>()
+
     /** 写操作计数器——GameStateStore 用于脏检测，跳过无变化的 assembleAll */
     @Volatile var mutationVersion: Long = 0
         private set
@@ -47,6 +50,7 @@ class DiscipleTables {
     val cultivations = DoubleComponentTable()     // id → cultivation progress
     val ages = IntComponentTable()                // id → age
     val lifespans = IntComponentTable()           // id → lifespan
+    val deathYears = IntComponentTable()          // id → deathYear（存活弟子该值为 0 或无条目）
     val isAlive = IntComponentTable()             // id → 0/1 (用 Int 避免 Boolean 装箱)
     val soulPowers = IntComponentTable()          // id → soulPower
 
@@ -190,6 +194,7 @@ class DiscipleTables {
         IntTableRef(ages, DiscipleTables::ages, "ages"),
         IntTableRef(lifespans, DiscipleTables::lifespans, "lifespans"),
         IntTableRef(isAlive, DiscipleTables::isAlive, "isAlive"),
+        IntTableRef(deathYears, DiscipleTables::deathYears, "deathYears"),
         IntTableRef(soulPowers, DiscipleTables::soulPowers, "soulPowers"),
         IntTableRef(cultivationSpeedDurations, DiscipleTables::cultivationSpeedDurations, "cultivationSpeedDurations"),
         IntTableRef(autoLearnFromWarehouse, DiscipleTables::autoLearnFromWarehouse, "autoLearnFromWarehouse"),
@@ -333,7 +338,6 @@ class DiscipleTables {
      */
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
-        // synchronized 确保 check-and-add 原子性，防止多协程交错产生重复 ID。
         synchronized(ids) {
             if (id in ids) {
                 update(disciple)
@@ -341,38 +345,49 @@ class DiscipleTables {
             }
             ids.add(id)
         }
+        writeAllFields(disciple)
+    }
 
-        names[id] = disciple.name
-        surnames[id] = disciple.surname
-        genders[id] = disciple.gender
-        portraitRes[id] = disciple.portraitRes
+    /**
+     * 更新一个已有弟子的所有组件字段（不修改 ids 列表）。
+     * 用于从组装后的 Disciple 对象写回修改。
+     */
+    fun update(disciple: Disciple) {
+        writeAllFields(disciple)
+    }
+
+    /** insert/update 共用：将 Disciple 所有字段写入组件表 */
+    private fun writeAllFields(disciple: Disciple) {
+        val id = disciple.id.toInt()
+
+        // 基础信息
+        names[id] = disciple.name; surnames[id] = disciple.surname
+        genders[id] = disciple.gender; portraitRes[id] = disciple.portraitRes
         discipleTypes[id] = disciple.discipleType
-        spiritRootTypes[id] = disciple.spiritRootType
-        slotIds[id] = disciple.slotId
+        spiritRootTypes[id] = disciple.spiritRootType; slotIds[id] = disciple.slotId
 
-        realms[id] = disciple.realm
-        realmLayers[id] = disciple.realmLayer
+        // 境界与修为
+        realms[id] = disciple.realm; realmLayers[id] = disciple.realmLayer
         cultivations[id] = disciple.cultivation
         cultivationCheckpoints[id] = disciple.cultivationCheckpoint
         cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
-        ages[id] = disciple.age
-        lifespans[id] = disciple.lifespan
-        isAlive[id] = if (disciple.isAlive) 1 else 0
-        soulPowers[id] = disciple.soulPower
+        ages[id] = disciple.age; lifespans[id] = disciple.lifespan
+        isAlive[id] = if (disciple.isAlive) 1 else 0; soulPowers[id] = disciple.soulPower
 
+        // 修炼加速
         cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
         cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
 
+        // 自动行为
         autoLearnFromWarehouse[id] = if (disciple.autoLearnFromWarehouse) 1 else 0
         autoEquipFromWarehouse[id] = if (disciple.equipment.autoEquipFromWarehouse) 1 else 0
 
-        manualIds[id] = disciple.manualIds
-        talentIds[id] = disciple.talentIds
-        lifeEvents[id] = disciple.lifeEvents
-        manualMasteries[id] = disciple.manualMasteries
+        // 列表/映射
+        manualIds[id] = disciple.manualIds; talentIds[id] = disciple.talentIds
+        lifeEvents[id] = disciple.lifeEvents; manualMasteries[id] = disciple.manualMasteries
 
-        statuses[id] = disciple.status
-        statusData[id] = disciple.statusData
+        // 状态
+        statuses[id] = disciple.status; statusData[id] = disciple.statusData
 
         // 战斗属性
         val c = disciple.combat
@@ -380,15 +395,13 @@ class DiscipleTables {
         basePhysicalAttacks[id] = c.basePhysicalAttack
         baseMagicAttacks[id] = c.baseMagicAttack
         basePhysicalDefenses[id] = c.basePhysicalDefense
-        baseMagicDefenses[id] = c.baseMagicDefense
-        baseSpeeds[id] = c.baseSpeed
+        baseMagicDefenses[id] = c.baseMagicDefense; baseSpeeds[id] = c.baseSpeed
         hpVariances[id] = c.hpVariance; mpVariances[id] = c.mpVariance
         physicalAttackVariances[id] = c.physicalAttackVariance
         magicAttackVariances[id] = c.magicAttackVariance
         physicalDefenseVariances[id] = c.physicalDefenseVariance
         magicDefenseVariances[id] = c.magicDefenseVariance
-        speedVariances[id] = c.speedVariance
-        totalCultivations[id] = c.totalCultivation
+        speedVariances[id] = c.speedVariance; totalCultivations[id] = c.totalCultivation
         breakthroughCounts[id] = c.breakthroughCount
         breakthroughFailCounts[id] = c.breakthroughFailCount
         currentHps[id] = c.currentHp; currentMps[id] = c.currentMp
@@ -400,26 +413,21 @@ class DiscipleTables {
         pillPhysicalDefenseBonuses[id] = p.pillPhysicalDefenseBonus
         pillMagicDefenseBonuses[id] = p.pillMagicDefenseBonus
         pillHpBonuses[id] = p.pillHpBonus; pillMpBonuses[id] = p.pillMpBonus
-        pillSpeedBonuses[id] = p.pillSpeedBonus
-        pillEffectDurations[id] = p.pillEffectDuration
+        pillSpeedBonuses[id] = p.pillSpeedBonus; pillEffectDurations[id] = p.pillEffectDuration
         pillCritRateBonuses[id] = p.pillCritRateBonus
         pillCritEffectBonuses[id] = p.pillCritEffectBonus
         pillCultivationSpeedBonuses[id] = p.pillCultivationSpeedBonus
         pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
         pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
-        activePillCategories[id] = p.activePillCategory
-        activePillTypes[id] = p.activePillTypes
+        activePillCategories[id] = p.activePillCategory; activePillTypes[id] = p.activePillTypes
 
         // 装备
         val e = disciple.equipment
         weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
         bootsIds[id] = e.bootsId; accessoryIds[id] = e.accessoryId
-        weaponNurtures[id] = e.weaponNurture
-        armorNurtures[id] = e.armorNurture
-        bootsNurtures[id] = e.bootsNurture
-        accessoryNurtures[id] = e.accessoryNurture
-        storageBagItems[id] = e.storageBagItems
-        storageBagSpiritStones[id] = e.storageBagSpiritStones
+        weaponNurtures[id] = e.weaponNurture; armorNurtures[id] = e.armorNurture
+        bootsNurtures[id] = e.bootsNurture; accessoryNurtures[id] = e.accessoryNurture
+        storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
         discipleSpiritStones[id] = e.spiritStones
         cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
         cultivationCompletionPhases[id] = disciple.cultivationCompletionPhase
@@ -430,14 +438,12 @@ class DiscipleTables {
 
         // 社交
         val s = disciple.social
-        s.partnerId?.let { partnerIds[id] = it }
-        s.partnerSectId?.let { partnerSectIds[id] = it }
-        s.parentId1?.let { parentId1s[id] = it }
-        s.parentId2?.let { parentId2s[id] = it }
+        partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
+        parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
         lastChildYears[id] = s.lastChildYear
         s.childBirthMonth?.let { childBirthMonths[id] = it }
         s.griefEndYear?.let { griefEndYears[id] = it }
-        s.masterId?.let { masterIds[id] = it }
+        masterIds[id] = s.masterId
 
         // 技能
         val sk = disciple.skills
@@ -461,123 +467,6 @@ class DiscipleTables {
     }
 
     /**
-     * 更新一个已有弟子的所有组件字段（不修改 ids 列表）。
-     * 用于从组装后的 Disciple 对象写回修改。
-     */
-    fun update(disciple: Disciple) {
-        val id = disciple.id.toInt()
-
-        names[id] = disciple.name
-        surnames[id] = disciple.surname
-        genders[id] = disciple.gender
-        portraitRes[id] = disciple.portraitRes
-        discipleTypes[id] = disciple.discipleType
-        spiritRootTypes[id] = disciple.spiritRootType
-        slotIds[id] = disciple.slotId
-
-        realms[id] = disciple.realm
-        realmLayers[id] = disciple.realmLayer
-        cultivations[id] = disciple.cultivation
-        cultivationCheckpoints[id] = disciple.cultivationCheckpoint
-        cultivationCheckpointGameMonths[id] = disciple.cultivationCheckpointGameMonth
-        ages[id] = disciple.age
-        lifespans[id] = disciple.lifespan
-        isAlive[id] = if (disciple.isAlive) 1 else 0
-        soulPowers[id] = disciple.soulPower
-
-        cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
-        cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
-
-        autoLearnFromWarehouse[id] = if (disciple.autoLearnFromWarehouse) 1 else 0
-        autoEquipFromWarehouse[id] = if (disciple.equipment.autoEquipFromWarehouse) 1 else 0
-
-        manualIds[id] = disciple.manualIds
-        talentIds[id] = disciple.talentIds
-        lifeEvents[id] = disciple.lifeEvents
-        manualMasteries[id] = disciple.manualMasteries
-
-        statuses[id] = disciple.status
-        statusData[id] = disciple.statusData
-
-        val c = disciple.combat
-        baseHps[id] = c.baseHp; baseMps[id] = c.baseMp
-        basePhysicalAttacks[id] = c.basePhysicalAttack
-        baseMagicAttacks[id] = c.baseMagicAttack
-        basePhysicalDefenses[id] = c.basePhysicalDefense
-        baseMagicDefenses[id] = c.baseMagicDefense
-        baseSpeeds[id] = c.baseSpeed
-        hpVariances[id] = c.hpVariance; mpVariances[id] = c.mpVariance
-        physicalAttackVariances[id] = c.physicalAttackVariance
-        magicAttackVariances[id] = c.magicAttackVariance
-        physicalDefenseVariances[id] = c.physicalDefenseVariance
-        magicDefenseVariances[id] = c.magicDefenseVariance
-        speedVariances[id] = c.speedVariance
-        totalCultivations[id] = c.totalCultivation
-        breakthroughCounts[id] = c.breakthroughCount
-        breakthroughFailCounts[id] = c.breakthroughFailCount
-        currentHps[id] = c.currentHp; currentMps[id] = c.currentMp
-
-        val p = disciple.pillEffects
-        pillPhysicalAttackBonuses[id] = p.pillPhysicalAttackBonus
-        pillMagicAttackBonuses[id] = p.pillMagicAttackBonus
-        pillPhysicalDefenseBonuses[id] = p.pillPhysicalDefenseBonus
-        pillMagicDefenseBonuses[id] = p.pillMagicDefenseBonus
-        pillHpBonuses[id] = p.pillHpBonus; pillMpBonuses[id] = p.pillMpBonus
-        pillSpeedBonuses[id] = p.pillSpeedBonus
-        pillEffectDurations[id] = p.pillEffectDuration
-        pillCritRateBonuses[id] = p.pillCritRateBonus
-        pillCritEffectBonuses[id] = p.pillCritEffectBonus
-        pillCultivationSpeedBonuses[id] = p.pillCultivationSpeedBonus
-        pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
-        pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
-        activePillCategories[id] = p.activePillCategory
-        activePillTypes[id] = p.activePillTypes
-
-        val e = disciple.equipment
-        weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
-        bootsIds[id] = e.bootsId; accessoryIds[id] = e.accessoryId
-        weaponNurtures[id] = e.weaponNurture
-        armorNurtures[id] = e.armorNurture
-        bootsNurtures[id] = e.bootsNurture
-        accessoryNurtures[id] = e.accessoryNurture
-        storageBagItems[id] = e.storageBagItems
-        storageBagSpiritStones[id] = e.storageBagSpiritStones
-        discipleSpiritStones[id] = e.spiritStones
-        cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
-        cultivationCompletionPhases[id] = disciple.cultivationCompletionPhase
-        manualCompletionMonths[id] = disciple.manualCompletionMonth
-        manualCompletionPhases[id] = disciple.manualCompletionPhase
-        equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
-        equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
-
-        val s = disciple.social
-        partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
-        parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
-        lastChildYears[id] = s.lastChildYear
-        s.childBirthMonth?.let { childBirthMonths[id] = it }
-        s.griefEndYear?.let { griefEndYears[id] = it }
-        masterIds[id] = s.masterId
-
-        val sk = disciple.skills
-        intelligences[id] = sk.intelligence; charms[id] = sk.charm
-        loyalties[id] = sk.loyalty; comprehensions[id] = sk.comprehension
-        artifactRefinings[id] = sk.artifactRefining; pillRefinings[id] = sk.pillRefining
-        spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
-        teachings[id] = sk.teaching; moralities[id] = sk.morality
-        salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
-
-        val u = disciple.usage
-        usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
-        usedExtendLifePillIds[id] = u.usedExtendLifePillIds
-        usedPermanentPillKeys[id] = u.usedPermanentPillKeys
-        usedExtendLifePillTypes[id] = u.usedExtendLifePillTypes
-        recruitedMonths[id] = u.recruitedMonth
-        hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
-        hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
-        lastTheftMonths[id] = u.lastTheftMonth
-    }
-
-    /**
      * 从组件表组装一个完整的 Disciple 对象。
      * 仅在需要"完整弟子视图"时调用：
      *   - UI 渲染（Screen 层）
@@ -585,120 +474,130 @@ class DiscipleTables {
      *   - 网络同步
      * 不应在 tick 热路径中调用。
      */
-    fun assemble(id: Int): Disciple {
-        return Disciple(
-            id = id.toString(),
-            slotId = slotIds.getOrDefault(id, 0),
-            name = names.getOrNull(id) ?: "",
-            surname = surnames.getOrNull(id) ?: "",
-            realm = realms.getOrDefault(id, 9),
-            realmLayer = realmLayers.getOrDefault(id, 1),
-            cultivation = cultivations.getOrDefault(id, 0.0),
-            cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
-            cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
-            spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
-            age = ages.getOrDefault(id, 16),
-            lifespan = lifespans.getOrDefault(id, 80),
-            isAlive = isAlive.getOrDefault(id, 1) == 1,
-            gender = genders.getOrNull(id) ?: "male",
-            portraitRes = portraitRes.getOrNull(id) ?: "",
-            manualIds = manualIds.getOrNull(id) ?: emptyList(),
-            talentIds = talentIds.getOrNull(id) ?: emptyList(),
-            manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
-            status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
-            statusData = statusData.getOrNull(id) ?: emptyMap(),
-            cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
-            cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
-            discipleType = discipleTypes.getOrNull(id) ?: "outer",
-            autoLearnFromWarehouse = autoLearnFromWarehouse.getOrDefault(id, 0) == 1,
-            soulPower = soulPowers.getOrDefault(id, 0),
-            cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
-            cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
-            manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
-            manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
-            equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
-            equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
-            combat = CombatAttributes(
-                baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
-                basePhysicalAttack = basePhysicalAttacks.getOrDefault(id, 0),
-                baseMagicAttack = baseMagicAttacks.getOrDefault(id, 0),
-                basePhysicalDefense = basePhysicalDefenses.getOrDefault(id, 0),
-                baseMagicDefense = baseMagicDefenses.getOrDefault(id, 0),
-                baseSpeed = baseSpeeds.getOrDefault(id, 0),
-                hpVariance = hpVariances.getOrDefault(id, 0), mpVariance = mpVariances.getOrDefault(id, 0),
-                physicalAttackVariance = physicalAttackVariances.getOrDefault(id, 0),
-                magicAttackVariance = magicAttackVariances.getOrDefault(id, 0),
-                physicalDefenseVariance = physicalDefenseVariances.getOrDefault(id, 0),
-                magicDefenseVariance = magicDefenseVariances.getOrDefault(id, 0),
-                speedVariance = speedVariances.getOrDefault(id, 0),
-                totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
-                breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
-                breakthroughFailCount = breakthroughFailCounts.getOrDefault(id, 0),
-                currentHp = currentHps.getOrDefault(id, 0), currentMp = currentMps.getOrDefault(id, 0)
-            ),
-            pillEffects = PillEffects(
-                pillPhysicalAttackBonus = pillPhysicalAttackBonuses.getOrDefault(id, 0),
-                pillMagicAttackBonus = pillMagicAttackBonuses.getOrDefault(id, 0),
-                pillPhysicalDefenseBonus = pillPhysicalDefenseBonuses.getOrDefault(id, 0),
-                pillMagicDefenseBonus = pillMagicDefenseBonuses.getOrDefault(id, 0),
-                pillHpBonus = pillHpBonuses.getOrDefault(id, 0), pillMpBonus = pillMpBonuses.getOrDefault(id, 0),
-                pillSpeedBonus = pillSpeedBonuses.getOrDefault(id, 0),
-                pillEffectDuration = pillEffectDurations.getOrDefault(id, 0),
-                pillCritRateBonus = pillCritRateBonuses.getOrDefault(id, 0.0),
-                pillCritEffectBonus = pillCritEffectBonuses.getOrDefault(id, 0.0),
-                pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
-                pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
-                pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
-                activePillCategory = activePillCategories.getOrNull(id) ?: "",
-                activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
-            ),
-            equipment = EquipmentSet(
-                weaponId = weaponIds.getOrNull(id) ?: "",
-                armorId = armorIds.getOrNull(id) ?: "",
-                bootsId = bootsIds.getOrNull(id) ?: "",
-                accessoryId = accessoryIds.getOrNull(id) ?: "",
-                weaponNurture = weaponNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-                armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-                bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-                accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-                autoEquipFromWarehouse = autoEquipFromWarehouse.getOrDefault(id, 0) == 1,
-                storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
-                storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
-                spiritStones = discipleSpiritStones.getOrDefault(id, 0)
-            ),
-            social = SocialData(
-                partnerId = partnerIds.getOrNull(id),
-                partnerSectId = partnerSectIds.getOrNull(id),
-                parentId1 = parentId1s.getOrNull(id),
-                parentId2 = parentId2s.getOrNull(id),
-                lastChildYear = lastChildYears.getOrDefault(id, 0),
-                childBirthMonth = childBirthMonths.getOrNull(id),
-                griefEndYear = griefEndYears.getOrNull(id),
-                masterId = masterIds.getOrNull(id)
-            ),
-            skills = SkillStats(
-                intelligence = intelligences.getOrDefault(id, 0), charm = charms.getOrDefault(id, 0),
-                loyalty = loyalties.getOrDefault(id, 0), comprehension = comprehensions.getOrDefault(id, 0),
-                artifactRefining = artifactRefinings.getOrDefault(id, 0),
-                pillRefining = pillRefinings.getOrDefault(id, 0),
-                spiritPlanting = spiritPlantings.getOrDefault(id, 0),
-                mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
-                morality = moralities.getOrDefault(id, 0),
-                salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
-                salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0)
-            ),
-            usage = UsageTracking(
-                usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),
-                usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
-                usedPermanentPillKeys = usedPermanentPillKeys.getOrNull(id) ?: emptySet(),
-                usedExtendLifePillTypes = usedExtendLifePillTypes.getOrNull(id) ?: emptySet(),
-                recruitedMonth = recruitedMonths.getOrDefault(id, 0),
-                hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
-                hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
-                lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
-            )
-        ).also { it.lifeEvents = lifeEvents.getOrNull(id) ?: emptyList() }
-    }
+    fun assemble(id: Int): Disciple = Disciple(
+        id = id.toString(),
+        slotId = slotIds.getOrDefault(id, 0),
+        name = names.getOrNull(id) ?: "",
+        surname = surnames.getOrNull(id) ?: "",
+        realm = realms.getOrDefault(id, 9),
+        realmLayer = realmLayers.getOrDefault(id, 1),
+        cultivation = cultivations.getOrDefault(id, 0.0),
+        cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
+        cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
+        spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
+        age = ages.getOrDefault(id, 16),
+        lifespan = lifespans.getOrDefault(id, 80),
+        isAlive = isAlive.getOrDefault(id, 1) == 1,
+        gender = genders.getOrNull(id) ?: "male",
+        portraitRes = portraitRes.getOrNull(id) ?: "",
+        manualIds = manualIds.getOrNull(id) ?: emptyList(),
+        talentIds = talentIds.getOrNull(id) ?: emptyList(),
+        manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
+        status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
+        statusData = statusData.getOrNull(id) ?: emptyMap(),
+        cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
+        cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
+        discipleType = discipleTypes.getOrNull(id) ?: "outer",
+        autoLearnFromWarehouse = autoLearnFromWarehouse.getOrDefault(id, 0) == 1,
+        soulPower = soulPowers.getOrDefault(id, 0),
+        cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
+        cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
+        manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
+        manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
+        equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
+        equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
+        combat = assembleCombat(id),
+        pillEffects = assemblePillEffects(id),
+        equipment = assembleEquipment(id),
+        social = assembleSocial(id),
+        skills = assembleSkills(id),
+        usage = assembleUsage(id)
+    ).also { it.lifeEvents = lifeEvents.getOrNull(id) ?: emptyList() }
+
+    private fun assembleCombat(id: Int) = CombatAttributes(
+        baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
+        basePhysicalAttack = basePhysicalAttacks.getOrDefault(id, 0),
+        baseMagicAttack = baseMagicAttacks.getOrDefault(id, 0),
+        basePhysicalDefense = basePhysicalDefenses.getOrDefault(id, 0),
+        baseMagicDefense = baseMagicDefenses.getOrDefault(id, 0),
+        baseSpeed = baseSpeeds.getOrDefault(id, 0),
+        hpVariance = hpVariances.getOrDefault(id, 0), mpVariance = mpVariances.getOrDefault(id, 0),
+        physicalAttackVariance = physicalAttackVariances.getOrDefault(id, 0),
+        magicAttackVariance = magicAttackVariances.getOrDefault(id, 0),
+        physicalDefenseVariance = physicalDefenseVariances.getOrDefault(id, 0),
+        magicDefenseVariance = magicDefenseVariances.getOrDefault(id, 0),
+        speedVariance = speedVariances.getOrDefault(id, 0),
+        totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
+        breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
+        breakthroughFailCount = breakthroughFailCounts.getOrDefault(id, 0),
+        currentHp = currentHps.getOrDefault(id, 0), currentMp = currentMps.getOrDefault(id, 0)
+    )
+
+    private fun assemblePillEffects(id: Int) = PillEffects(
+        pillPhysicalAttackBonus = pillPhysicalAttackBonuses.getOrDefault(id, 0),
+        pillMagicAttackBonus = pillMagicAttackBonuses.getOrDefault(id, 0),
+        pillPhysicalDefenseBonus = pillPhysicalDefenseBonuses.getOrDefault(id, 0),
+        pillMagicDefenseBonus = pillMagicDefenseBonuses.getOrDefault(id, 0),
+        pillHpBonus = pillHpBonuses.getOrDefault(id, 0), pillMpBonus = pillMpBonuses.getOrDefault(id, 0),
+        pillSpeedBonus = pillSpeedBonuses.getOrDefault(id, 0),
+        pillEffectDuration = pillEffectDurations.getOrDefault(id, 0),
+        pillCritRateBonus = pillCritRateBonuses.getOrDefault(id, 0.0),
+        pillCritEffectBonus = pillCritEffectBonuses.getOrDefault(id, 0.0),
+        pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
+        pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
+        pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
+        activePillCategory = activePillCategories.getOrNull(id) ?: "",
+        activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
+    )
+
+    private fun assembleEquipment(id: Int) = EquipmentSet(
+        weaponId = weaponIds.getOrNull(id) ?: "",
+        armorId = armorIds.getOrNull(id) ?: "",
+        bootsId = bootsIds.getOrNull(id) ?: "",
+        accessoryId = accessoryIds.getOrNull(id) ?: "",
+        weaponNurture = weaponNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+        armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+        bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+        accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+        autoEquipFromWarehouse = autoEquipFromWarehouse.getOrDefault(id, 0) == 1,
+        storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
+        storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
+        spiritStones = discipleSpiritStones.getOrDefault(id, 0)
+    )
+
+    private fun assembleSocial(id: Int) = SocialData(
+        partnerId = partnerIds.getOrNull(id),
+        partnerSectId = partnerSectIds.getOrNull(id),
+        parentId1 = parentId1s.getOrNull(id),
+        parentId2 = parentId2s.getOrNull(id),
+        lastChildYear = lastChildYears.getOrDefault(id, 0),
+        childBirthMonth = childBirthMonths.getOrNull(id),
+        griefEndYear = griefEndYears.getOrNull(id),
+        masterId = masterIds.getOrNull(id)
+    )
+
+    private fun assembleSkills(id: Int) = SkillStats(
+        intelligence = intelligences.getOrDefault(id, 0), charm = charms.getOrDefault(id, 0),
+        loyalty = loyalties.getOrDefault(id, 0), comprehension = comprehensions.getOrDefault(id, 0),
+        artifactRefining = artifactRefinings.getOrDefault(id, 0),
+        pillRefining = pillRefinings.getOrDefault(id, 0),
+        spiritPlanting = spiritPlantings.getOrDefault(id, 0),
+        mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
+        morality = moralities.getOrDefault(id, 0),
+        salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
+        salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0)
+    )
+
+    private fun assembleUsage(id: Int) = UsageTracking(
+        usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),
+        usedExtendLifePillIds = usedExtendLifePillIds.getOrNull(id) ?: emptyList(),
+        usedPermanentPillKeys = usedPermanentPillKeys.getOrNull(id) ?: emptySet(),
+        usedExtendLifePillTypes = usedExtendLifePillTypes.getOrNull(id) ?: emptySet(),
+        recruitedMonth = recruitedMonths.getOrDefault(id, 0),
+        hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
+        hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
+        lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
+    )
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。 */
     fun assembleAll(): List<Disciple> = ids.distinct().map { assemble(it) }
@@ -762,4 +661,43 @@ class DiscipleTables {
         if (monthsElapsed <= 0) return checkpoint
         return checkpoint + rate * monthsElapsed * 3.0
     }
+
+    /**
+     * 剔除死亡超过 [thresholdYear] 年的弟子，将基本信息保留到 [deathRecords]。
+     * 使用 [deathYears] 组件判断死亡时长，无 deathYear 记录的不会剔除。
+     * 用于 [DiscipleLifecycleProcessor.processYearlyAging] 年变事件。
+     */
+    fun cullDeadDisciples(thresholdYear: Int) {
+        val toRemove = ids.filter { id ->
+            deathYears.contains(id) && deathYears[id] <= thresholdYear
+        }
+        toRemove.forEach { id ->
+            deathRecords.add(DeathRecord(
+                id = id,
+                name = names.getOrNull(id) ?: "",
+                surname = surnames.getOrNull(id) ?: "",
+                realm = realms.getOrDefault(id, 9),
+                realmLayer = realmLayers.getOrDefault(id, 1),
+                deathAge = ages.getOrDefault(id, 0),
+                deathYear = deathYears.getOrDefault(id, 0),
+                cause = "unknown"
+            ))
+            remove(id)
+        }
+    }
 }
+
+/**
+ * 已故弟子的简要死亡记录。
+ * 弟子从 [DiscipleTables] 中剔除时创建，保留基本信息供墓碑/统计使用。
+ */
+data class DeathRecord(
+    val id: Int,
+    val name: String,
+    val surname: String,
+    val realm: Int,
+    val realmLayer: Int,
+    val deathAge: Int,
+    val deathYear: Int,
+    val cause: String
+)

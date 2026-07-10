@@ -57,6 +57,8 @@ class DiscipleMergeCoverageTest {
         "spiritRootType",
         "age",
         "gender",
+        "cultivationCheckpoint",        // 修炼投影检查点，未启用前由 copy() 保留
+        "cultivationCheckpointGameMonth",
         "portraitRes",
         "talentIds",
         "manualMasteries",

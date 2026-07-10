@@ -196,7 +196,7 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String) {
         when (itemType) {
-            "pill" -> usePill(discipleId, itemId)
+            ITEM_TYPE_PILL -> usePill(discipleId, itemId)
         }
     }
 
@@ -236,12 +236,12 @@ class DiscipleFacadeImpl @Inject constructor(
     override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {
         items.forEach { item ->
             when (item.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> rewardEquipment(discipleId, item)
-                "manual" -> rewardManual(discipleId, item)
-                "pill" -> rewardPill(discipleId, item, item.quantity.coerceAtLeast(1))
-                "material" -> rewardMaterial(discipleId, item, item.quantity.coerceAtLeast(1))
-                "herb" -> rewardHerb(discipleId, item, item.quantity.coerceAtLeast(1))
-                "seed" -> rewardSeed(discipleId, item, item.quantity.coerceAtLeast(1))
+                ITEM_TYPE_EQUIPMENT -> rewardEquipment(discipleId, item)
+                ITEM_TYPE_MANUAL -> rewardManual(discipleId, item)
+                ITEM_TYPE_PILL -> rewardPill(discipleId, item, item.quantity.coerceAtLeast(1))
+                ITEM_TYPE_MATERIAL -> rewardMaterial(discipleId, item, item.quantity.coerceAtLeast(1))
+                ITEM_TYPE_HERB -> rewardHerb(discipleId, item, item.quantity.coerceAtLeast(1))
+                ITEM_TYPE_SEED -> rewardSeed(discipleId, item, item.quantity.coerceAtLeast(1))
             }
         }
         return DomainResult.Success(Unit)
@@ -274,7 +274,7 @@ class DiscipleFacadeImpl @Inject constructor(
                             bagStackIds = bagStackIds, excludeStackId = stack.id,
                             gameYear = gameData.gameYear, gameMonth = gameData.gameMonth,
                             gamePhase = gameData.gamePhase,
-                            maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
+                            maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
                         )
                         discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
                         discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
@@ -313,7 +313,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 val existingBagStack = equipmentStacks.all().find {
                     it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
                         && it.id != item.id && it.id in bagStackIds
-                        && it.quantity < inventoryConfig.getMaxStackSize("equipment_stack")
+                        && it.quantity < inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
                 }
                 val bagStackId: String
                 if (existingBagStack != null) {
@@ -326,12 +326,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = bagStackId, itemType = "equipment_stack",
+                    StorageBagItem(itemId = bagStackId, itemType = ITEM_TYPE_EQUIPMENT_STACK,
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
                         forgetPhase = gameData.gamePhase),
-                    inventoryConfig.getMaxStackSize("equipment_stack")
+                    inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
                 )
             }
         }
@@ -363,7 +363,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 val existingBagStack = manualStacks.all().find {
                     it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                         && it.id != item.id && it.id in bagStackIds
-                        && it.quantity < inventoryConfig.getMaxStackSize("manual_stack")
+                        && it.quantity < inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
                 }
                 val storageItemId: String
                 if (existingBagStack != null) {
@@ -376,12 +376,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = storageItemId, itemType = "manual_stack",
+                    StorageBagItem(itemId = storageItemId, itemType = ITEM_TYPE_MANUAL_STACK,
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
                         forgetPhase = gameData.gamePhase),
-                    inventoryConfig.getMaxStackSize("manual_stack")
+                    inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
                 )
             }
         }
@@ -508,7 +508,7 @@ class DiscipleFacadeImpl @Inject constructor(
             if (pill == null || pill.quantity < quantity) return@update
             val id = discipleId.toIntOrNull()
             if (id == null || !discipleTables.ids.contains(id)) return@update
-            val pillItem = StorageBagItem(itemId = item.id, itemType = "pill",
+            val pillItem = StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_PILL,
                 name = pill.name, rarity = pill.rarity, quantity = quantity,
                 obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                 effect = pillManager.pillToItemEffect(pill),
@@ -521,7 +521,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 applyPillEffectsToDisciple(id, pill)
             } else {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id], pillItem, inventoryConfig.getMaxStackSize("pill"))
+                    discipleTables.storageBagItems[id], pillItem, inventoryConfig.getMaxStackSize(ITEM_TYPE_PILL))
             }
         }
     }
@@ -536,10 +536,10 @@ class DiscipleFacadeImpl @Inject constructor(
             if (id != null && discipleTables.ids.contains(id)) {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = "material", name = item.name,
+                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_MATERIAL, name = item.name,
                         rarity = item.rarity, quantity = quantity,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize("material"))
+                    inventoryConfig.getMaxStackSize(ITEM_TYPE_MATERIAL))
             }
         }
     }
@@ -554,10 +554,10 @@ class DiscipleFacadeImpl @Inject constructor(
             if (id != null && discipleTables.ids.contains(id)) {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = "herb", name = item.name,
+                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_HERB, name = item.name,
                         rarity = item.rarity, quantity = quantity,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize("herb"))
+                    inventoryConfig.getMaxStackSize(ITEM_TYPE_HERB))
             }
         }
     }
@@ -572,10 +572,10 @@ class DiscipleFacadeImpl @Inject constructor(
             if (id != null && discipleTables.ids.contains(id)) {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = "seed", name = item.name,
+                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_SEED, name = item.name,
                         rarity = item.rarity, quantity = quantity,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize("seed"))
+                    inventoryConfig.getMaxStackSize(ITEM_TYPE_SEED))
             }
         }
     }
@@ -608,43 +608,43 @@ class DiscipleFacadeImpl @Inject constructor(
             sectId = data.activeSectId
         )
         val updatedSlots = when (elderSlotType) {
-            "herbGarden" -> {
+            SLOT_TYPE_HERB_GARDEN -> {
                 val list = slots.herbGardenDisciples.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(herbGardenDisciples = list)
             }
-            "alchemy" -> {
+            SLOT_TYPE_ALCHEMY -> {
                 val list = slots.alchemyDisciples.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(alchemyDisciples = list)
             }
-            "forge" -> {
+            SLOT_TYPE_FORGE -> {
                 val list = slots.forgeDisciples.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(forgeDisciples = list)
             }
-            "preaching" -> {
+            SLOT_TYPE_PREACHING -> {
                 val list = slots.preachingMasters.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(preachingMasters = list)
             }
-            "lawEnforcement" -> {
+            SLOT_TYPE_LAW_ENFORCEMENT -> {
                 val list = slots.lawEnforcementDisciples.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(lawEnforcementDisciples = list)
             }
-            "qingyunPreaching" -> {
+            SLOT_TYPE_QINGYUN -> {
                 val list = slots.qingyunPreachingMasters.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
                 slots.copy(qingyunPreachingMasters = list)
             }
-            "spiritMineDeacon" -> {
+            SLOT_TYPE_SPIRIT_MINE_DEACON -> {
                 val list = slots.spiritMineDeaconDisciples.toMutableList()
                 while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
                 list[slotIndex] = newSlot
@@ -663,37 +663,37 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
         val slots = stateStore.gameData.value.elderSlots
         val updatedSlots = when (elderSlotType) {
-            "herbGarden" -> {
+            SLOT_TYPE_HERB_GARDEN -> {
                 val list = slots.herbGardenDisciples.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(herbGardenDisciples = list)
             }
-            "alchemy" -> {
+            SLOT_TYPE_ALCHEMY -> {
                 val list = slots.alchemyDisciples.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(alchemyDisciples = list)
             }
-            "forge" -> {
+            SLOT_TYPE_FORGE -> {
                 val list = slots.forgeDisciples.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(forgeDisciples = list)
             }
-            "preaching" -> {
+            SLOT_TYPE_PREACHING -> {
                 val list = slots.preachingMasters.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(preachingMasters = list)
             }
-            "lawEnforcement" -> {
+            SLOT_TYPE_LAW_ENFORCEMENT -> {
                 val list = slots.lawEnforcementDisciples.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(lawEnforcementDisciples = list)
             }
-            "qingyunPreaching" -> {
+            SLOT_TYPE_QINGYUN -> {
                 val list = slots.qingyunPreachingMasters.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(qingyunPreachingMasters = list)
             }
-            "spiritMineDeacon" -> {
+            SLOT_TYPE_SPIRIT_MINE_DEACON -> {
                 val list = slots.spiritMineDeaconDisciples.toMutableList()
                 if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
                 slots.copy(spiritMineDeaconDisciples = list)
@@ -757,7 +757,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 val disciple = discipleTables.assemble(id)
                 val itemEffect = pillManager.pillToItemEffect(pill)
                 val bagItem = StorageBagItem(
-                    itemId = pillId, itemType = "pill",
+                    itemId = pillId, itemType = ITEM_TYPE_PILL,
                     name = pill.name, rarity = pill.rarity, quantity = 1,
                     effect = itemEffect
                 )
@@ -851,7 +851,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 gameYear = gameData.gameYear,
                 gameMonth = gameData.gameMonth,
                 gamePhase = gameData.gamePhase,
-                maxStackSize = inventoryConfig.getMaxStackSize("manual_stack")
+                maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
             )
 
             // Write back updated fields from result.updatedDisciple

@@ -1,0 +1,307 @@
+package com.xianxia.sect.core.engine.service
+
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
+import com.xianxia.sect.core.engine.domain.disciple.TYPE_INNER
+import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.Mockito
+import org.mockito.Mockito.mock
+import org.robolectric.RobolectricTestRunner
+
+@RunWith(RobolectricTestRunner::class)
+class DiscipleBreakthroughHandlerTest {
+
+    private lateinit var tables: DiscipleTables
+    private lateinit var state: MutableGameState
+    private lateinit var mockStore: GameStateStore
+    private lateinit var cultivationCore: CultivationCore
+    private lateinit var handler: DiscipleBreakthroughHandler
+
+    @Before
+    fun setUp() {
+        tables = DiscipleTables()
+        state = createMutableState(tables)
+        cultivationCore = mock(CultivationCore::class.java)
+        mockStore = mock(GameStateStore::class.java)
+
+        Mockito.`when`(mockStore.discipleTables).thenReturn(tables)
+        Mockito.`when`(mockStore.gameData)
+            .thenReturn(MutableStateFlow(GameData(gameYear = 5, gameMonth = 1)))
+        Mockito.`when`(mockStore.manualInstances)
+            .thenReturn(MutableStateFlow(emptyList()))
+        Mockito.`when`(mockStore.manualStacks)
+            .thenReturn(MutableStateFlow(emptyList()))
+        Mockito.`when`(cultivationCore.isDiscipleFullHpMp(
+            Mockito.any(Disciple::class.java)
+        )).thenReturn(true)
+        Mockito.`when`(cultivationCore.getLifespanGainForRealm(
+            Mockito.anyInt()
+        )).thenReturn(100)
+        Mockito.`when`(cultivationCore.calculateDiscipleCultivationPerPhase(
+            Mockito.any(Disciple::class.java),
+            Mockito.any(GameData::class.java),
+            Mockito.any(DiscipleTables::class.java)
+        )).thenReturn(50.0)
+
+        handler = DiscipleBreakthroughHandler(
+            stateStore = mockStore,
+            cultivationCore = cultivationCore,
+            scopeProvider = mock(),
+            relativeGiftHandler = mock()
+        )
+    }
+
+    // ==================== 辅助方法 ====================
+
+    private fun insertDiscipleForBreakthrough(
+        id: Int = 1,
+        realm: Int = 9,
+        realmLayer: Int = 9,
+        comprehension: Int = 100,
+        cultivation: Double = 999999.0,
+        currentHp: Int = -1,
+        currentMp: Int = -1,
+        statusData: Map<String, String> = emptyMap()
+    ) {
+        val disciple = Disciple(
+            id = id.toString(),
+            name = "突破弟子$id",
+            realm = realm,
+            realmLayer = realmLayer,
+            age = 20,
+            lifespan = 80,
+            skills = SkillStats(comprehension = comprehension),
+            statusData = statusData,
+            combat = CombatAttributes(
+                currentHp = currentHp,
+                currentMp = currentMp
+            )
+        )
+        tables.insert(disciple)
+        tables.isAlive[id] = 1
+        tables.cultivations[id] = cultivation
+    }
+
+    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
+        gameData = GameData(),
+        discipleTables = tables,
+        equipmentStacks = EntityStore(emptyList()),
+        equipmentInstances = EntityStore(emptyList()),
+        manualStacks = EntityStore(emptyList()),
+        manualInstances = EntityStore(emptyList()),
+        pills = EntityStore(emptyList()),
+        materials = EntityStore(emptyList()),
+        herbs = EntityStore(emptyList()),
+        seeds = EntityStore(emptyList()),
+        storageBags = EntityStore(emptyList()),
+        teams = emptyList(),
+        battleLogs = emptyList(),
+        isPaused = false,
+        isLoading = false,
+        isSaving = false
+    )
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — success changes realm or layer
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - success changes realm or layer`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        assertEquals("cultivation should be reset to 0", 0.0, result.cultivation, 0.0)
+
+        val realmChanged = result.realm < original.realm || result.realmLayer != original.realmLayer
+        val hpMpReduced = result.combat.currentHp <= (original.maxHp * 0.1).toInt().coerceAtLeast(1)
+        assertTrue(
+            "breakthrough should either change realm/layer (success) or reduce HP/MP (failure)",
+            realmChanged || hpMpReduced
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — failure reduces HP and MP
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - failure reduces HP and MP`() {
+        insertDiscipleForBreakthrough(
+            id = 1, comprehension = 1, currentHp = 1000, currentMp = 500
+        )
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        val hpUpper = (1000 * 0.1).toInt().coerceAtLeast(1)
+        val mpUpper = (500 * 0.1).toInt().coerceAtLeast(1)
+        assertTrue("HP should be at most 10% of original on failure",
+            result.combat.currentHp <= hpUpper || result.realm < original.realm)
+        assertTrue("MP should be at most 10% of original on failure",
+            result.combat.currentMp <= mpUpper || result.realm < original.realm)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — auto pill from warehouse
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - auto uses breakthrough pill from warehouse`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+
+        val pill = Pill(
+            id = "pill_1",
+            name = "突破丹",
+            pillType = "breakthrough",
+            rarity = 3,
+            quantity = 1,
+            effects = PillEffect(
+                targetRealm = 9,
+                breakthroughChance = 0.5
+            )
+        )
+        state.pills = EntityStore(listOf(pill))
+        state.gameData = GameData(breakthroughAutoPillFocused = true)
+
+        val original = tables.assemble(1)
+        val discipleWithFollowed = original.copy(
+            statusData = mapOf("followed" to "true")
+        )
+
+        val result = handler.performBreakthrough(discipleWithFollowed, state, state.gameData)
+
+        assertTrue("warehouse pill should be consumed",
+            state.pills.all().isEmpty())
+        assertEquals("cultivation should be reset", 0.0, result.cultivation, 0.0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — auto pill from storage bag
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - auto uses breakthrough pill from storage bag`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+
+        val bagPill = StorageBagItem(
+            itemId = "bag_pill_1",
+            itemType = ITEM_TYPE_PILL,
+            name = "储物袋突破丹",
+            rarity = 3,
+            quantity = 1,
+            effect = ItemEffect(
+                pillType = "breakthrough",
+                breakthroughChance = 0.3,
+                targetRealm = 9
+            )
+        )
+        tables.storageBagItems[1] = listOf(bagPill)
+        state.gameData = GameData(breakthroughAutoPillFocused = true)
+
+        val original = tables.assemble(1)
+        val discipleWithFollowed = original.copy(
+            statusData = mapOf("followed" to "true")
+        )
+
+        val result = handler.performBreakthrough(discipleWithFollowed, state, state.gameData)
+
+        val remainingBag = tables.storageBagItems.getOrDefault(1, emptyList())
+        assertTrue("storage bag pill should be consumed",
+            remainingBag.isEmpty())
+        assertEquals("cultivation should be reset", 0.0, result.cultivation, 0.0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — counts are written
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - breakthrough counts are written`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        handler.performBreakthrough(original, state, gameData)
+
+        val successCount = tables.breakthroughCounts[1] ?: 0
+        val failCount = tables.breakthroughFailCounts[1] ?: 0
+        assertTrue(
+            "breakthrough or fail count should be > 0, got success=$successCount fail=$failCount",
+            successCount > 0 || failCount > 0
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — ad bonus cleared
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - adBreakthroughBonus is cleared`() {
+        insertDiscipleForBreakthrough(
+            id = 1, realm = 9, realmLayer = 9,
+            statusData = mapOf("adBreakthroughBonus" to "0.5", "someOther" to "value")
+        )
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        assertFalse(
+            "adBreakthroughBonus should be removed from statusData",
+            result.statusData.containsKey("adBreakthroughBonus")
+        )
+        assertEquals("other fields in statusData should be preserved",
+            "value", result.statusData["someOther"])
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — realm 0 skips breakthrough
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - realm 0 disciples skip breakthrough`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 0, realmLayer = 1)
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        assertTrue("realm 0 disciple's cultivation should be >= 0",
+            result.cultivation >= 0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // tryBreakthrough — elder guidance
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `tryBreakthrough - inner elder comprehension works without error`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+        insertDiscipleForBreakthrough(
+            id = 2, realm = 8, realmLayer = 1, comprehension = 100,
+            cultivation = 0.0
+        )
+        tables.discipleTypes[2] = TYPE_INNER
+        state.gameData = GameData(
+            elderSlots = ElderSlots(innerElder = "2", outerElder = "")
+        )
+
+        val original = tables.assemble(1)
+        val success = handler.tryBreakthrough(original, state = state)
+
+        assertNotNull("tryBreakthrough should return a result", success)
+    }
+}

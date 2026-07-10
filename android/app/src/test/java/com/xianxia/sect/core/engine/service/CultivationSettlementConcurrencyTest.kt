@@ -69,7 +69,8 @@ class CultivationSettlementConcurrencyTest {
             stateStore,
             InventoryConfig(),
             scopeProvider,
-            mock(ProductionSlotRepository::class.java)
+            mock(ProductionSlotRepository::class.java),
+            mock(com.xianxia.sect.core.event.EventBusPort::class.java)
         )
         runBlocking {
             stateStore.reset()

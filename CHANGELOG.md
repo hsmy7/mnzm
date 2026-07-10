@@ -20,6 +20,21 @@
 
 - **修复：Build.MANUFACTURER 空指针风险** — 定制 ROM 可能返回 null，`?.lowercase() ?: return false` 空安全保护
 
+### 代码质量优化
+
+- **重构：弟子系统代码质量全面优化** — 14个文件 +1178/-1019 行优化，涉及所有核心弟子系统模块
+  - **安全修复**：CancellationException 重抛（23处 catch 块），防止协程取消被静默吞噬
+  - **死亡处理重构**：`handleDiscipleDeath()` 从 113 行拆分为 7 个 ≤20 行函数（悲伤传播/伴侣解绑/师徒解绑/丧亲日志/设备回收等），消除内外死亡分支重复
+  - **组件表去重**：`DiscipleTables.insert/update` 合并为 `writeAllFields()`（245→130行），`assemble()` 拆 6 个域级函数
+  - **StatCalculator 去重**：8 对 Disciple/DiscipleAggregate 方法重载提取内部 `compute*` 函数，消除 ~400 行重复代码
+  - **函数拆分**：`performBreakthrough()` 117行→7函数、`syncAllDiscipleStatuses()` 98行→15行+10辅助函数
+  - **常量提取**：20+魔法数字→命名 const val（LAYER_MULTIPLIER/BASE_CRIT_RATE 等），21个硬编码字符串→顶层常量
+  - **死亡记录**：新增 `DeathRecord` 数据类 + `deathYears` 组件列 + `cullDeadDisciples()`，`processYearlyAging()` 从空函数实现为年度死亡剔除
+  - **死亡事件**：新增 `DeathEvent` 领域事件，弟子死亡时通过 EventBus 发布（死亡ID/姓名/原因/年份）
+  - **事务修复**：`syncAllDiscipleStatuses()` 中直接写组件表操作包裹 `stateStore.update{}`，消除多协程数据不一致
+  - **对抗性审查修复**：4个严重问题（deathYear 筛选条件、异常静默、丧亲日志丢失、锻造槽清理遗漏）+ 3个中等问题
+- **测试覆盖**：新增 3 个测试文件，覆盖死亡处理、CRUD、突破流程
+
 ### 预存问题修复
 
 - **修复：SectRelationLevel.fromFavor(favor>100) 误返回 HOSTILE** — 超出 INTIMATE 上限(100)时应返回 INTIMATE 而非 HOSTILE

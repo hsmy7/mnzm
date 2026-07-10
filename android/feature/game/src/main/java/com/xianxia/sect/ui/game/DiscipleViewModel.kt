@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -60,6 +61,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.getDiscipleAggregate(id)
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Error getting selected disciple", e)
             showError("获取选中弟子信息失败")
             null
@@ -83,6 +85,7 @@ class DiscipleViewModel @Inject constructor(
         return try {
             gameEngine.getDiscipleAggregate(id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Error getting disciple by id: $id", e)
             null
         }
@@ -154,6 +157,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.recruitDisciple()
                 showSuccess("成功招募弟子")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "招募失败")
             }
         }
@@ -166,6 +170,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.dismissDisciple(discipleId)
                 showSuccess("已将${disciple.name}逐出宗门")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "逐出失败")
             }
         }
@@ -177,6 +182,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.giveItemToDisciple(discipleId, itemId, itemType)
                 showSuccess("物品使用成功")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "使用失败")
             }
         }
@@ -192,6 +198,7 @@ class DiscipleViewModel @Inject constructor(
                     is DomainResult.Partial -> showSuccess("装备部分成功")
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "装备失败")
             }
         }
@@ -207,6 +214,7 @@ class DiscipleViewModel @Inject constructor(
                     is DomainResult.Partial -> showSuccess("卸下装备部分成功")
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "卸下失败")
             }
         }
@@ -218,6 +226,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.assignManual(discipleId, manualId)
                 showSuccess("功法分配成功")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "分配失败")
             }
         }
@@ -229,6 +238,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.removeManual(discipleId, manualId)
                 showSuccess("功法已收回")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "收回失败")
             }
         }
@@ -241,6 +251,7 @@ class DiscipleViewModel @Inject constructor(
                 gameEngine.usePill(discipleId, pillId)
                 showSuccess("${disciple.name}尝试突破")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 showError(e.message ?: "突破失败")
             }
         }

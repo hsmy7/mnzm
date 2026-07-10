@@ -240,6 +240,7 @@ fun PortraitDiscipleCard(
                 ) {
                     val spiritRootColor = try {
                         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e
                     } catch (_: Exception) { Color.Black }
                     Text(
                         text = disciple.realmName,

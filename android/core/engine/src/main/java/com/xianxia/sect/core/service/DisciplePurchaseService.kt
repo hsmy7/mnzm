@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.util.DomainLog
 import java.util.Locale
 import javax.inject.Inject
@@ -297,12 +298,12 @@ class DisciplePurchaseService @Inject constructor(
         manualInstances: List<ManualInstance>,
         decisions: MutableList<PurchaseEntry>
     ) {
-        for (item in listedItems.filter { it.type == "manual" }) {
+        for (item in listedItems.filter { it.type == ITEM_TYPE_MANUAL }) {
             if (item.quantity <= 0) continue
 
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
-                if (countPurchases(decisions, ctx.id, "manual")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_MANUAL)
                     >= MAX_MANUAL_PURCHASES) return@filter false
                 val highestNeeded =
                     calculateHighestNeededPrice(listOf(item), ctx.realm)
@@ -329,9 +330,9 @@ class DisciplePurchaseService @Inject constructor(
                 .shuffled()
 
             for (ctx in (groupA + groupB)) {
-                if (countPurchases(decisions, ctx.id, "manual")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_MANUAL)
                     >= MAX_MANUAL_PURCHASES) continue
-                decisions.add(PurchaseEntry(ctx.id, item, "manual"))
+                decisions.add(PurchaseEntry(ctx.id, item, ITEM_TYPE_MANUAL))
                 break
             }
         }
@@ -343,14 +344,14 @@ class DisciplePurchaseService @Inject constructor(
         equipmentInstances: List<EquipmentInstance>,
         decisions: MutableList<PurchaseEntry>
     ) {
-        for (item in listedItems.filter { it.type == "equipment" }) {
+        for (item in listedItems.filter { it.type == ITEM_TYPE_EQUIPMENT }) {
             if (item.quantity <= 0) continue
 
             val eq = MerchantItemConverter.toEquipment(item)
 
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
-                if (countPurchases(decisions, ctx.id, "equipment")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_EQUIPMENT)
                     >= MAX_EQUIPMENT_PURCHASES) return@filter false
                 val highestNeeded =
                     calculateHighestNeededPrice(listOf(item), ctx.realm)
@@ -376,9 +377,9 @@ class DisciplePurchaseService @Inject constructor(
                 .shuffled()
 
             for (ctx in (groupA + groupB)) {
-                if (countPurchases(decisions, ctx.id, "equipment")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_EQUIPMENT)
                     >= MAX_EQUIPMENT_PURCHASES) continue
-                decisions.add(PurchaseEntry(ctx.id, item, "equipment"))
+                decisions.add(PurchaseEntry(ctx.id, item, ITEM_TYPE_EQUIPMENT))
                 break
             }
         }
@@ -390,22 +391,22 @@ class DisciplePurchaseService @Inject constructor(
         decisions: MutableList<PurchaseEntry>
     ) {
         val pillItems = listedItems
-            .filter { it.type == "pill" && it.quantity > 0 }
+            .filter { it.type == ITEM_TYPE_PILL && it.quantity > 0 }
             .sortedByDescending { it.rarity }
 
         for (item in pillItems) {
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
-                if (countPurchases(decisions, ctx.id, "pill")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_PILL)
                     >= MAX_PILL_PURCHASES) return@filter false
                 val budget = calculateBudget(ctx.totalFunds, 0L)
                 budget >= item.price
             }.shuffled()
 
             for (ctx in interested) {
-                if (countPurchases(decisions, ctx.id, "pill")
+                if (countPurchases(decisions, ctx.id, ITEM_TYPE_PILL)
                     >= MAX_PILL_PURCHASES) continue
-                decisions.add(PurchaseEntry(ctx.id, item, "pill"))
+                decisions.add(PurchaseEntry(ctx.id, item, ITEM_TYPE_PILL))
                 break
             }
         }
@@ -483,7 +484,7 @@ class DisciplePurchaseService @Inject constructor(
         month: Int
     ) {
         when (item.type.lowercase(Locale.ROOT)) {
-            "equipment" -> {
+            ITEM_TYPE_EQUIPMENT -> {
                 val stack = MerchantItemConverter.toEquipment(item)
                     .copy(quantity = 1)
                 val existing = equipmentStacks.all().find {
@@ -503,7 +504,7 @@ class DisciplePurchaseService @Inject constructor(
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
                         itemId = stackId,
-                        itemType = "equipment_stack",
+                        itemType = ITEM_TYPE_EQUIPMENT_STACK,
                         name = item.name,
                         rarity = item.rarity,
                         quantity = 1,
@@ -511,7 +512,7 @@ class DisciplePurchaseService @Inject constructor(
                         obtainedMonth = month
                     )
             }
-            "manual" -> {
+            ITEM_TYPE_MANUAL -> {
                 val stack = MerchantItemConverter.toManual(item)
                     .copy(quantity = 1)
                 val existing = manualStacks.all().find {
@@ -531,7 +532,7 @@ class DisciplePurchaseService @Inject constructor(
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
                         itemId = stackId,
-                        itemType = "manual_stack",
+                        itemType = ITEM_TYPE_MANUAL_STACK,
                         name = item.name,
                         rarity = item.rarity,
                         quantity = 1,
@@ -539,7 +540,7 @@ class DisciplePurchaseService @Inject constructor(
                         obtainedMonth = month
                     )
             }
-            "pill" -> {
+            ITEM_TYPE_PILL -> {
                 val pill = MerchantItemConverter.toPill(item)
                     .copy(quantity = 1)
                 val existing = pills.all().find {
@@ -548,7 +549,7 @@ class DisciplePurchaseService @Inject constructor(
                 }
                 val pillId = if (existing != null) {
                     val newQty = (existing.quantity + 1)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
+                        .coerceAtMost(inventoryConfig.getMaxStackSize(ITEM_TYPE_PILL))
                     pills.update(existing.id) {
                         it.copy(quantity = newQty)
                     }
@@ -561,7 +562,7 @@ class DisciplePurchaseService @Inject constructor(
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
                         itemId = pillId,
-                        itemType = "pill",
+                        itemType = ITEM_TYPE_PILL,
                         name = item.name,
                         rarity = item.rarity,
                         quantity = 1,

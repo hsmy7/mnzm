@@ -15,73 +15,61 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import kotlin.math.roundToInt
 
 object DiscipleStatCalculator {
+    // ---- 魔法数字命名常量 ----
+    private const val LAYER_MULTIPLIER = 0.1
+    private const val BASE_CRIT_RATE = 0.05
+    private const val MIN_CULTIVATION_PER_PHASE = 1.0
+    private const val BASE_MANUAL_SLOTS = 6
+    private const val ELDER_BONUS_PER_STEP = 0.01
+    private const val SOUL_POWER_DIVISOR = 20
+    private const val SOUL_POWER_MAX_STEPS = 5
+    private const val TEACHING_BASELINE = 80
+    private const val ELDER_TEACHING_RATE = 0.01
+    private const val MASTER_TEACHING_RATE = 0.005
 
-    fun getBaseStats(disciple: Disciple): DiscipleStats {
-        val realmConfig = GameConfig.Realm.get(disciple.realm)
-        val layerMult = 1.0 + (disciple.realmLayer - 1) * 0.1
-        val c = disciple.combat
+    // ==================== 天赋效果 ====================
 
-        val talentEffects = getTalentEffects(disciple)
-        val hpBonus = talentEffects["maxHp"] ?: 0.0
-        val mpBonus = talentEffects["maxMp"] ?: 0.0
-        val attackBonus = talentEffects["physicalAttack"] ?: 0.0
-        val magicAttackBonus = talentEffects["magicAttack"] ?: 0.0
-        val defenseBonus = talentEffects["physicalDefense"] ?: 0.0
-        val magicDefenseBonus = talentEffects["magicDefense"] ?: 0.0
-        val speedBonus = talentEffects["speed"] ?: 0.0
-        val critBonus = talentEffects["critRate"] ?: 0.0
-        val intelligenceFlat = (talentEffects["intelligenceFlat"] ?: 0.0).toInt()
-        val charmFlat = (talentEffects["charmFlat"] ?: 0.0).toInt()
-        val loyaltyFlat = (talentEffects["loyaltyFlat"] ?: 0.0).toInt()
-        val comprehensionFlat = (talentEffects["comprehensionFlat"] ?: 0.0).toInt()
-        val teachingFlat = (talentEffects["teachingFlat"] ?: 0.0).toInt()
-        val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
-        val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
-
-        val hpVar = 1.0 + c.hpVariance / 100.0
-        val mpVar = 1.0 + c.mpVariance / 100.0
-        val paVar = 1.0 + c.physicalAttackVariance / 100.0
-        val maVar = 1.0 + c.magicAttackVariance / 100.0
-        val pdVar = 1.0 + c.physicalDefenseVariance / 100.0
-        val mdVar = 1.0 + c.magicDefenseVariance / 100.0
-        val spdVar = 1.0 + c.speedVariance / 100.0
-
-        val base = DiscipleStats(
-            hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
-            maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
-            mp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt(),
-            maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt(),
-            physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt(),
-            magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt(),
-            physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt(),
-            magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt(),
-            speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt(),
-            critRate = 0.05 + critBonus,
-            intelligence = disciple.skills.intelligence + intelligenceFlat,
-            charm = disciple.skills.charm + charmFlat,
-            loyalty = disciple.skills.loyalty + loyaltyFlat,
-            comprehension = disciple.skills.comprehension + comprehensionFlat,
-            teaching = disciple.skills.teaching + teachingFlat,
-            morality = disciple.skills.morality + moralityFlat,
-            mining = disciple.skills.mining + miningFlat
-        )
-
-        return base
+    private fun computeTalentEffects(talentIds: List<String>): Map<String, Double> {
+        val effects = mutableMapOf<String, Double>()
+        val talents = TalentDatabase.getTalentsByIds(talentIds)
+        talents.forEach { talent ->
+            talent.effects.forEach { (key, value) ->
+                effects[key] = (effects[key] ?: 0.0) + value
+            }
+        }
+        return effects
     }
 
-    fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats {
-        val realmConfig = GameConfig.Realm.get(aggregate.realm)
-        val layerMult = 1.0 + (aggregate.realmLayer - 1) * 0.1
-        val cs = aggregate.combatStats
-        val hpVar = if (cs != null) 1.0 + cs.hpVariance / 100.0 else 1.0
-        val mpVar = if (cs != null) 1.0 + cs.mpVariance / 100.0 else 1.0
-        val paVar = if (cs != null) 1.0 + cs.physicalAttackVariance / 100.0 else 1.0
-        val maVar = if (cs != null) 1.0 + cs.magicAttackVariance / 100.0 else 1.0
-        val pdVar = if (cs != null) 1.0 + cs.physicalDefenseVariance / 100.0 else 1.0
-        val mdVar = if (cs != null) 1.0 + cs.magicDefenseVariance / 100.0 else 1.0
-        val spdVar = if (cs != null) 1.0 + cs.speedVariance / 100.0 else 1.0
+    fun getTalentEffects(disciple: Disciple): Map<String, Double> =
+        computeTalentEffects(disciple.talentIds)
 
-        val talentEffects = getTalentEffects(aggregate)
+    fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> =
+        computeTalentEffects(aggregate.talentIds)
+
+    // ==================== 基础属性 ====================
+
+    private fun computeBaseStats(
+        realm: Int,
+        realmLayer: Int,
+        hpVariance: Int,
+        mpVariance: Int,
+        physicalAttackVariance: Int,
+        magicAttackVariance: Int,
+        physicalDefenseVariance: Int,
+        magicDefenseVariance: Int,
+        speedVariance: Int,
+        talentEffects: Map<String, Double>,
+        intelligence: Int,
+        charm: Int,
+        loyalty: Int,
+        comprehension: Int,
+        teaching: Int,
+        morality: Int,
+        mining: Int
+    ): DiscipleStats {
+        val realmConfig = GameConfig.Realm.get(realm)
+        val layerMult = 1.0 + (realmLayer - 1) * LAYER_MULTIPLIER
+
         val hpBonus = talentEffects["maxHp"] ?: 0.0
         val mpBonus = talentEffects["maxMp"] ?: 0.0
         val attackBonus = talentEffects["physicalAttack"] ?: 0.0
@@ -98,7 +86,14 @@ object DiscipleStatCalculator {
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
         val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
 
-        val attr = aggregate.attributes
+        val hpVar = 1.0 + hpVariance / 100.0
+        val mpVar = 1.0 + mpVariance / 100.0
+        val paVar = 1.0 + physicalAttackVariance / 100.0
+        val maVar = 1.0 + magicAttackVariance / 100.0
+        val pdVar = 1.0 + physicalDefenseVariance / 100.0
+        val mdVar = 1.0 + magicDefenseVariance / 100.0
+        val spdVar = 1.0 + speedVariance / 100.0
+
         return DiscipleStats(
             hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
             maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
@@ -109,222 +104,247 @@ object DiscipleStatCalculator {
             physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt(),
             magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt(),
             speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt(),
-            critRate = 0.05 + critBonus,
-            intelligence = (attr?.intelligence ?: 50) + intelligenceFlat,
-            charm = (attr?.charm ?: 50) + charmFlat,
-            loyalty = (attr?.loyalty ?: 50) + loyaltyFlat,
-            comprehension = (attr?.comprehension ?: 50) + comprehensionFlat,
-            teaching = (attr?.teaching ?: 50) + teachingFlat,
-            morality = (attr?.morality ?: 50) + moralityFlat,
-            mining = (attr?.mining ?: 50) + miningFlat
+            critRate = BASE_CRIT_RATE + critBonus,
+            intelligence = intelligence + intelligenceFlat,
+            charm = charm + charmFlat,
+            loyalty = loyalty + loyaltyFlat,
+            comprehension = comprehension + comprehensionFlat,
+            teaching = teaching + teachingFlat,
+            morality = morality + moralityFlat,
+            mining = mining + miningFlat
         )
     }
 
-    fun getTalentEffects(disciple: Disciple): Map<String, Double> {
-        val effects = mutableMapOf<String, Double>()
-        val talents = TalentDatabase.getTalentsByIds(disciple.talentIds)
-        talents.forEach { talent ->
-            talent.effects.forEach { (key, value) ->
-                effects[key] = (effects[key] ?: 0.0) + value
-            }
-        }
-        return effects
+    fun getBaseStats(disciple: Disciple): DiscipleStats {
+        val c = disciple.combat
+        return computeBaseStats(
+            realm = disciple.realm,
+            realmLayer = disciple.realmLayer,
+            hpVariance = c.hpVariance,
+            mpVariance = c.mpVariance,
+            physicalAttackVariance = c.physicalAttackVariance,
+            magicAttackVariance = c.magicAttackVariance,
+            physicalDefenseVariance = c.physicalDefenseVariance,
+            magicDefenseVariance = c.magicDefenseVariance,
+            speedVariance = c.speedVariance,
+            talentEffects = getTalentEffects(disciple),
+            intelligence = disciple.skills.intelligence,
+            charm = disciple.skills.charm,
+            loyalty = disciple.skills.loyalty,
+            comprehension = disciple.skills.comprehension,
+            teaching = disciple.skills.teaching,
+            morality = disciple.skills.morality,
+            mining = disciple.skills.mining
+        )
     }
 
-    fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> {
-        val effects = mutableMapOf<String, Double>()
-        val talents = TalentDatabase.getTalentsByIds(aggregate.talentIds)
-        talents.forEach { talent ->
-            talent.effects.forEach { (key, value) ->
-                effects[key] = (effects[key] ?: 0.0) + value
-            }
-        }
-        return effects
-    }
-
-    fun getStatsWithEquipment(
-        disciple: Disciple,
-        equipments: Map<String, EquipmentInstance>
-    ): DiscipleStats {
-        val base = getBaseStats(disciple)
-        var total = base
-        var totalCritChance = 0.0
-
-        listOfNotNull(
-            disciple.equipment.weaponId,
-            disciple.equipment.armorId,
-            disciple.equipment.bootsId,
-            disciple.equipment.accessoryId
-        ).forEach { equipId ->
-            val equipment = equipments[equipId]
-            if (equipment != null) {
-                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-                totalCritChance += equipment.critChance
-            }
-        }
-
-        return total.copy(critRate = total.critRate + totalCritChance)
-    }
-
-    fun getStatsWithEquipment(
-        aggregate: DiscipleAggregate,
-        equipments: Map<String, EquipmentInstance>
-    ): DiscipleStats {
-        val base = getBaseStats(aggregate)
-        var total = base
-        var totalCritChance = 0.0
-
-        val eq = aggregate.equipment
-        listOfNotNull(
-            eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
-        ).filter { it.isNotEmpty() }.forEach { equipId ->
-            val equipment = equipments[equipId]
-            if (equipment != null) {
-                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-                totalCritChance += equipment.critChance
-            }
-        }
-
-        return total.copy(critRate = total.critRate + totalCritChance)
-    }
-
-    fun getFinalStats(
-        disciple: Disciple,
-        equipments: Map<String, EquipmentInstance>,
-        manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
-    ): DiscipleStats {
-        val baseStats = getBaseStats(disciple)
-        var total = baseStats
-        var totalCritRate = total.critRate
-
-        listOfNotNull(
-            disciple.equipment.weaponId,
-            disciple.equipment.armorId,
-            disciple.equipment.bootsId,
-            disciple.equipment.accessoryId
-        ).forEach { equipId ->
-            val equipment = equipments[equipId]
-            if (equipment != null) {
-                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-                totalCritRate += equipment.critChance
-            }
-        }
-
-        disciple.manualIds.forEach { manualId ->
-            val manual = manuals[manualId]
-            if (manual != null) {
-                val proficiencyData = manualProficiencies[manualId]
-                val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-
-                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
-                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
-                val manualStats = DiscipleStats(
-                    hp = (hpValue * masteryBonus).toInt(),
-                    maxHp = (hpValue * masteryBonus).toInt(),
-                    mp = (mpValue * masteryBonus).toInt(),
-                    maxMp = (mpValue * masteryBonus).toInt(),
-                    physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
-                    magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
-                    physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
-                    magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
-                    speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
-                    critRate = 1.0
-                )
-                total = total + manualStats
-                totalCritRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
-            }
-        }
-
-        if (disciple.pillEffects.pillEffectDuration > 0) {
-            val pe = disciple.pillEffects
-            val pillBonus = DiscipleStats(
-                hp = pe.pillHpBonus,
-                maxHp = pe.pillHpBonus,
-                mp = pe.pillMpBonus,
-                maxMp = pe.pillMpBonus,
-                physicalAttack = pe.pillPhysicalAttackBonus,
-                magicAttack = pe.pillMagicAttackBonus,
-                physicalDefense = pe.pillPhysicalDefenseBonus,
-                magicDefense = pe.pillMagicDefenseBonus,
-                speed = pe.pillSpeedBonus,
-                critRate = pe.pillCritRateBonus
-            )
-            total = total + pillBonus
-            totalCritRate += pe.pillCritRateBonus
-        }
-
-        return total.copy(critRate = totalCritRate)
-    }
-
-    fun getFinalStats(
-        aggregate: DiscipleAggregate,
-        equipments: Map<String, EquipmentInstance>,
-        manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
-    ): DiscipleStats {
-        val baseStats = getBaseStats(aggregate)
-        var total = baseStats
-        var totalCritRate = total.critRate
-
-        val eq = aggregate.equipment
-        listOfNotNull(
-            eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
-        ).filter { it.isNotEmpty() }.forEach { equipId ->
-            val equipment = equipments[equipId]
-            if (equipment != null) {
-                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-                totalCritRate += equipment.critChance
-            }
-        }
-
-        aggregate.manualIds.forEach { manualId ->
-            val manual = manuals[manualId]
-            if (manual != null) {
-                val proficiencyData = manualProficiencies[manualId]
-                val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-
-                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
-                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
-                val manualStats = DiscipleStats(
-                    hp = (hpValue * masteryBonus).toInt(),
-                    maxHp = (hpValue * masteryBonus).toInt(),
-                    mp = (mpValue * masteryBonus).toInt(),
-                    maxMp = (mpValue * masteryBonus).toInt(),
-                    physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
-                    magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
-                    physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
-                    magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
-                    speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
-                    critRate = 1.0
-                )
-                total = total + manualStats
-                totalCritRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
-            }
-        }
-
+    fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats {
         val cs = aggregate.combatStats
-        if (cs != null && cs.pillEffectDuration > 0) {
+        val attr = aggregate.attributes
+        return computeBaseStats(
+            realm = aggregate.realm,
+            realmLayer = aggregate.realmLayer,
+            hpVariance = cs?.hpVariance ?: 0,
+            mpVariance = cs?.mpVariance ?: 0,
+            physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
+            magicAttackVariance = cs?.magicAttackVariance ?: 0,
+            physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
+            magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+            speedVariance = cs?.speedVariance ?: 0,
+            talentEffects = getTalentEffects(aggregate),
+            intelligence = attr?.intelligence ?: 50,
+            charm = attr?.charm ?: 50,
+            loyalty = attr?.loyalty ?: 50,
+            comprehension = attr?.comprehension ?: 50,
+            teaching = attr?.teaching ?: 50,
+            morality = attr?.morality ?: 50,
+            mining = attr?.mining ?: 50
+        )
+    }
+
+    // ==================== 装备属性 ====================
+
+    private fun computeStatsWithEquipment(
+        baseStats: DiscipleStats,
+        equipmentIds: List<String>,
+        equipments: Map<String, EquipmentInstance>
+    ): DiscipleStats {
+        var total = baseStats
+        var totalCritChance = 0.0
+        equipmentIds.forEach { equipId ->
+            val equipment = equipments[equipId]
+            if (equipment != null) {
+                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
+                totalCritChance += equipment.critChance
+            }
+        }
+        return total.copy(critRate = total.critRate + totalCritChance)
+    }
+
+    fun getStatsWithEquipment(
+        disciple: Disciple,
+        equipments: Map<String, EquipmentInstance>
+    ): DiscipleStats {
+        val equipmentIds = listOfNotNull(
+            disciple.equipment.weaponId,
+            disciple.equipment.armorId,
+            disciple.equipment.bootsId,
+            disciple.equipment.accessoryId
+        )
+        return computeStatsWithEquipment(getBaseStats(disciple), equipmentIds, equipments)
+    }
+
+    fun getStatsWithEquipment(
+        aggregate: DiscipleAggregate,
+        equipments: Map<String, EquipmentInstance>
+    ): DiscipleStats {
+        val eq = aggregate.equipment
+        val equipmentIds = listOfNotNull(
+            eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
+        ).filter { it.isNotEmpty() }
+        return computeStatsWithEquipment(getBaseStats(aggregate), equipmentIds, equipments)
+    }
+
+    // ==================== 最终属性（含装备+功法+丹药） ====================
+
+    private fun computeFinalStats(
+        baseStats: DiscipleStats,
+        equipmentIds: List<String>,
+        manualIds: List<String>,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData>,
+        hasPillEffect: Boolean,
+        pillHpBonus: Int,
+        pillMpBonus: Int,
+        pillPhysicalAttackBonus: Int,
+        pillMagicAttackBonus: Int,
+        pillPhysicalDefenseBonus: Int,
+        pillMagicDefenseBonus: Int,
+        pillSpeedBonus: Int,
+        pillCritRateBonus: Double
+    ): DiscipleStats {
+        var total = baseStats
+        var totalCritRate = total.critRate
+
+        // 装备
+        equipmentIds.forEach { equipId ->
+            val equipment = equipments[equipId]
+            if (equipment != null) {
+                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
+                totalCritRate += equipment.critChance
+            }
+        }
+
+        // 功法
+        manualIds.forEach { manualId ->
+            val manual = manuals[manualId]
+            if (manual != null) {
+                val proficiencyData = manualProficiencies[manualId]
+                val masteryLevel = proficiencyData?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+
+                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+                val manualStats = DiscipleStats(
+                    hp = (hpValue * masteryBonus).toInt(),
+                    maxHp = (hpValue * masteryBonus).toInt(),
+                    mp = (mpValue * masteryBonus).toInt(),
+                    maxMp = (mpValue * masteryBonus).toInt(),
+                    physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
+                    magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
+                    physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
+                    magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
+                    speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
+                    critRate = 1.0
+                )
+                total = total + manualStats
+                totalCritRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
+            }
+        }
+
+        // 丹药
+        if (hasPillEffect) {
             val pillBonus = DiscipleStats(
-                hp = cs.pillHpBonus,
-                maxHp = cs.pillHpBonus,
-                mp = cs.pillMpBonus,
-                maxMp = cs.pillMpBonus,
-                physicalAttack = cs.pillPhysicalAttackBonus,
-                magicAttack = cs.pillMagicAttackBonus,
-                physicalDefense = cs.pillPhysicalDefenseBonus,
-                magicDefense = cs.pillMagicDefenseBonus,
-                speed = cs.pillSpeedBonus,
-                critRate = cs.pillCritRateBonus
+                hp = pillHpBonus,
+                maxHp = pillHpBonus,
+                mp = pillMpBonus,
+                maxMp = pillMpBonus,
+                physicalAttack = pillPhysicalAttackBonus,
+                magicAttack = pillMagicAttackBonus,
+                physicalDefense = pillPhysicalDefenseBonus,
+                magicDefense = pillMagicDefenseBonus,
+                speed = pillSpeedBonus,
+                critRate = pillCritRateBonus
             )
             total = total + pillBonus
-            totalCritRate += cs.pillCritRateBonus
+            totalCritRate += pillCritRateBonus
         }
 
         return total.copy(critRate = totalCritRate)
     }
+
+    fun getFinalStats(
+        disciple: Disciple,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+    ): DiscipleStats {
+        val pe = disciple.pillEffects
+        return computeFinalStats(
+            baseStats = getBaseStats(disciple),
+            equipmentIds = listOfNotNull(
+                disciple.equipment.weaponId,
+                disciple.equipment.armorId,
+                disciple.equipment.bootsId,
+                disciple.equipment.accessoryId
+            ),
+            manualIds = disciple.manualIds,
+            equipments = equipments,
+            manuals = manuals,
+            manualProficiencies = manualProficiencies,
+            hasPillEffect = pe.pillEffectDuration > 0,
+            pillHpBonus = pe.pillHpBonus,
+            pillMpBonus = pe.pillMpBonus,
+            pillPhysicalAttackBonus = pe.pillPhysicalAttackBonus,
+            pillMagicAttackBonus = pe.pillMagicAttackBonus,
+            pillPhysicalDefenseBonus = pe.pillPhysicalDefenseBonus,
+            pillMagicDefenseBonus = pe.pillMagicDefenseBonus,
+            pillSpeedBonus = pe.pillSpeedBonus,
+            pillCritRateBonus = pe.pillCritRateBonus
+        )
+    }
+
+    fun getFinalStats(
+        aggregate: DiscipleAggregate,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+    ): DiscipleStats {
+        val eq = aggregate.equipment
+        val cs = aggregate.combatStats
+        return computeFinalStats(
+            baseStats = getBaseStats(aggregate),
+            equipmentIds = listOfNotNull(
+                eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
+            ).filter { it.isNotEmpty() },
+            manualIds = aggregate.manualIds,
+            equipments = equipments,
+            manuals = manuals,
+            manualProficiencies = manualProficiencies,
+            hasPillEffect = cs != null && cs.pillEffectDuration > 0,
+            pillHpBonus = cs?.pillHpBonus ?: 0,
+            pillMpBonus = cs?.pillMpBonus ?: 0,
+            pillPhysicalAttackBonus = cs?.pillPhysicalAttackBonus ?: 0,
+            pillMagicAttackBonus = cs?.pillMagicAttackBonus ?: 0,
+            pillPhysicalDefenseBonus = cs?.pillPhysicalDefenseBonus ?: 0,
+            pillMagicDefenseBonus = cs?.pillMagicDefenseBonus ?: 0,
+            pillSpeedBonus = cs?.pillSpeedBonus ?: 0,
+            pillCritRateBonus = cs?.pillCritRateBonus ?: 0.0
+        )
+    }
+
+    // ==================== 修炼速度乘区 ====================
 
     /**
      * 修炼速度乘区分组。
@@ -363,7 +383,61 @@ object DiscipleStatCalculator {
             * (1.0 + zones.socialBonus)
             * (1.0 + zones.statusBonus)
             * (1.0 + zones.temporaryBonus)
-        ).coerceAtLeast(1.0)
+        ).coerceAtLeast(MIN_CULTIVATION_PER_PHASE)
+    }
+
+    private fun computeCultivationZones(
+        talentEffects: Map<String, Double>,
+        manualIds: List<String>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData>,
+        buildingBonus: Double,
+        preachingElderBonus: Double,
+        preachingMastersBonus: Double,
+        parentCultivationBonus: Double,
+        masterDiscipleBonus: Double,
+        cultivationSubsidyBonus: Double,
+        griefCultivationSpeedPenalty: Double,
+        age: Int,
+        lifespan: Int,
+        temporaryBonus: Double
+    ): CultivationSpeedZones {
+        // ── 资质乘区：天赋 ──
+        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
+
+        // ── 资源乘区：功法 + 建筑 ──
+        var resourceBonus = (buildingBonus - 1.0)
+        if (manuals.isNotEmpty()) {
+            manualIds.forEach { manualId ->
+                val manual = manuals[manualId] ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
+            }
+        } else if (manualIds.isNotEmpty()) {
+            manualIds.forEach { manualId ->
+                val manual = ManualDatabase.getById(manualId) ?: return@forEach
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
+            }
+        }
+
+        // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
+        val socialBonus = preachingElderBonus + preachingMastersBonus +
+            parentCultivationBonus + masterDiscipleBonus
+
+        // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
+        val lifespanPenalty = calculateLifespanCultivationPenalty(age, lifespan)
+        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
+
+        return CultivationSpeedZones(
+            aptitudeBonus = aptitudeBonus,
+            resourceBonus = resourceBonus,
+            socialBonus = socialBonus,
+            statusBonus = statusBonus,
+            temporaryBonus = temporaryBonus
+        )
     }
 
     /**
@@ -381,37 +455,6 @@ object DiscipleStatCalculator {
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
     ): CultivationSpeedZones {
-        // ── 资质乘区：天赋 ──
-        val talentEffects = getTalentEffects(disciple)
-        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
-
-        // ── 资源乘区：功法 + 建筑 ──
-        var resourceBonus = (buildingBonus - 1.0)
-        if (manuals.isNotEmpty()) {
-            disciple.manualIds.forEach { manualId ->
-                val manual = manuals[manualId] ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
-            }
-        } else if (disciple.manualIds.isNotEmpty()) {
-            disciple.manualIds.forEach { manualId ->
-                val manual = ManualDatabase.getById(manualId) ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
-            }
-        }
-
-        // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
-        val socialBonus = preachingElderBonus + preachingMastersBonus +
-            parentCultivationBonus + masterDiscipleBonus
-
-        // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
-        val lifespanPenalty = calculateLifespanCultivationPenalty(disciple.age, disciple.lifespan)
-        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
-
-        // ── 临时乘区：丹药临时加速 ──
         var temporaryBonus = 0.0
         if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedBonus > 0.0) {
             temporaryBonus += disciple.cultivationSpeedBonus
@@ -419,16 +462,67 @@ object DiscipleStatCalculator {
         if (disciple.pillEffects.pillEffectDuration > 0 && disciple.pillEffects.pillCultivationSpeedBonus > 0.0) {
             temporaryBonus += disciple.pillEffects.pillCultivationSpeedBonus
         }
-
-        return CultivationSpeedZones(
-            aptitudeBonus = aptitudeBonus,
-            resourceBonus = resourceBonus,
-            socialBonus = socialBonus,
-            statusBonus = statusBonus,
+        return computeCultivationZones(
+            talentEffects = getTalentEffects(disciple),
+            manualIds = disciple.manualIds,
+            manuals = manuals,
+            manualProficiencies = manualProficiencies,
+            buildingBonus = buildingBonus,
+            preachingElderBonus = preachingElderBonus,
+            preachingMastersBonus = preachingMastersBonus,
+            parentCultivationBonus = parentCultivationBonus,
+            masterDiscipleBonus = masterDiscipleBonus,
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+            age = disciple.age,
+            lifespan = disciple.lifespan,
             temporaryBonus = temporaryBonus
         )
     }
 
+    /**
+     * 组装修炼速度乘区（从 DiscipleAggregate 对象提取各加成）。
+     */
+    fun buildCultivationZones(
+        aggregate: DiscipleAggregate,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): CultivationSpeedZones {
+        var temporaryBonus = 0.0
+        val ext = aggregate.extended
+        if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
+            temporaryBonus += ext.cultivationSpeedBonus
+        }
+        return computeCultivationZones(
+            talentEffects = getTalentEffects(aggregate),
+            manualIds = aggregate.manualIds,
+            manuals = manuals,
+            manualProficiencies = manualProficiencies,
+            buildingBonus = buildingBonus,
+            preachingElderBonus = preachingElderBonus,
+            preachingMastersBonus = preachingMastersBonus,
+            parentCultivationBonus = parentCultivationBonus,
+            masterDiscipleBonus = masterDiscipleBonus,
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+            age = aggregate.age,
+            lifespan = aggregate.lifespan,
+            temporaryBonus = temporaryBonus
+        )
+    }
+
+    // ==================== 修炼乘区便捷计算（公共） ====================
+
+    /**
+     * 使用乘区制计算每旬修炼值（Disciple 版本便捷入口）。
+     */
     fun calculateCultivationPerPhase(
         disciple: Disciple,
         manuals: Map<String, ManualInstance> = emptyMap(),
@@ -472,67 +566,8 @@ object DiscipleStatCalculator {
     )
 
     /**
-     * 组装修炼速度乘区（从 DiscipleAggregate 对象提取各加成）。
+     * 使用乘区制计算每旬修炼值（DiscipleAggregate 版本便捷入口）。
      */
-    fun buildCultivationZones(
-        aggregate: DiscipleAggregate,
-        manuals: Map<String, ManualInstance> = emptyMap(),
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        buildingBonus: Double = 1.0,
-        preachingElderBonus: Double = 0.0,
-        preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0,
-        parentCultivationBonus: Double = 0.0,
-        griefCultivationSpeedPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
-    ): CultivationSpeedZones {
-        // ── 资质乘区：天赋 ──
-        val talentEffects = getTalentEffects(aggregate)
-        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
-
-        // ── 资源乘区：功法 + 建筑 ──
-        var resourceBonus = (buildingBonus - 1.0)
-        val manualIds = aggregate.manualIds
-        if (manuals.isNotEmpty()) {
-            manualIds.forEach { manualId ->
-                val manual = manuals[manualId] ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
-            }
-        } else if (manualIds.isNotEmpty()) {
-            manualIds.forEach { manualId ->
-                val manual = ManualDatabase.getById(manualId) ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
-                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
-            }
-        }
-
-        // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
-        val socialBonus = preachingElderBonus + preachingMastersBonus +
-            parentCultivationBonus + masterDiscipleBonus
-
-        // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
-        val lifespanPenalty = calculateLifespanCultivationPenalty(aggregate.age, aggregate.lifespan)
-        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
-
-        // ── 临时乘区：丹药临时加速 ──
-        var temporaryBonus = 0.0
-        val ext = aggregate.extended
-        if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
-            temporaryBonus += ext.cultivationSpeedBonus
-        }
-
-        return CultivationSpeedZones(
-            aptitudeBonus = aptitudeBonus,
-            resourceBonus = resourceBonus,
-            socialBonus = socialBonus,
-            statusBonus = statusBonus,
-            temporaryBonus = temporaryBonus
-        )
-    }
-
     fun calculateCultivationPerPhase(
         aggregate: DiscipleAggregate,
         manuals: Map<String, ManualInstance> = emptyMap(),
@@ -575,6 +610,8 @@ object DiscipleStatCalculator {
         griefCultivationSpeedPenalty, masterDiscipleBonus
     )
 
+    // ==================== 突破概率乘区 ====================
+
     /**
      * 突破概率乘区（Breakthrough Zone）。
      *
@@ -590,6 +627,35 @@ object DiscipleStatCalculator {
         val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲+寿命（正值 = 惩罚幅度）
     )
 
+    private fun computeBreakthroughZones(
+        realm: Int,
+        realmLayer: Int,
+        spiritRootCount: Int,
+        soulPower: Int,
+        age: Int,
+        lifespan: Int,
+        talentBreakthroughBonus: Double,
+        innerElderComprehension: Int,
+        outerElderComprehension: Int,
+        pillBonus: Double,
+        adBonus: Double,
+        griefBreakthroughPenalty: Double,
+        masterDiscipleBonus: Double
+    ): BreakthroughZones {
+        val baseZone = GameConfig.Realm.getBreakthroughChance(realm, spiritRootCount, realmLayer)
+        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
+        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(soulPower)
+        val lifespanPenalty = calculateLifespanBreakthroughPenalty(age, lifespan)
+
+        return BreakthroughZones(
+            baseZone = baseZone,
+            elderGuidance = innerElderBonus + outerElderBonus,
+            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
+            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
+        )
+    }
+
     /**
      * 构建突破概率乘区（从 Disciple 对象提取各加成）。
      */
@@ -601,29 +667,48 @@ object DiscipleStatCalculator {
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
-    ): BreakthroughZones {
-        val rootCount = disciple.spiritRoot.types.size
-        val baseZone = GameConfig.Realm.getBreakthroughChance(
-            disciple.realm, rootCount, disciple.realmLayer
-        )
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
-        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
+    ): BreakthroughZones = computeBreakthroughZones(
+        realm = disciple.realm,
+        realmLayer = disciple.realmLayer,
+        spiritRootCount = disciple.spiritRoot.types.size,
+        soulPower = disciple.soulPower,
+        age = disciple.age,
+        lifespan = disciple.lifespan,
+        talentBreakthroughBonus = getTalentEffects(disciple)["breakthroughChance"] ?: 0.0,
+        innerElderComprehension = innerElderComprehension,
+        outerElderComprehension = outerElderComprehension,
+        pillBonus = pillBonus,
+        adBonus = adBonus,
+        griefBreakthroughPenalty = griefBreakthroughPenalty,
+        masterDiscipleBonus = masterDiscipleBonus
+    )
 
-        val talentEffects = getTalentEffects(disciple)
-        val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-        val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
-
-        val lifespanPenalty = calculateLifespanBreakthroughPenalty(
-            disciple.age, disciple.lifespan
-        )
-
-        return BreakthroughZones(
-            baseZone = baseZone,
-            elderGuidance = innerElderBonus + outerElderBonus,
-            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
-            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
-        )
-    }
+    /**
+     * 构建突破概率乘区（从 DiscipleAggregate 对象提取各加成）。
+     */
+    fun buildBreakthroughZones(
+        aggregate: DiscipleAggregate,
+        innerElderComprehension: Int = 0,
+        outerElderComprehension: Int = 0,
+        pillBonus: Double = 0.0,
+        adBonus: Double = 0.0,
+        griefBreakthroughPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): BreakthroughZones = computeBreakthroughZones(
+        realm = aggregate.realm,
+        realmLayer = aggregate.realmLayer,
+        spiritRootCount = aggregate.spiritRoot.types.size,
+        soulPower = aggregate.soulPower,
+        age = aggregate.age,
+        lifespan = aggregate.lifespan,
+        talentBreakthroughBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
+        innerElderComprehension = innerElderComprehension,
+        outerElderComprehension = outerElderComprehension,
+        pillBonus = pillBonus,
+        adBonus = adBonus,
+        griefBreakthroughPenalty = griefBreakthroughPenalty,
+        masterDiscipleBonus = masterDiscipleBonus
+    )
 
     /**
      * 使用乘区法计算最终突破概率。
@@ -650,9 +735,12 @@ object DiscipleStatCalculator {
             GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR
         return steps.coerceAtMost(
             GameConfig.PolicyConfig.ELDER_BREAKTHROUGH_MAX_STEPS
-        ) * 0.01
+        ) * ELDER_BONUS_PER_STEP
     }
 
+    /**
+     * 计算突破概率（Disciple 版本便捷入口）。
+     */
     fun getBreakthroughChance(
         disciple: Disciple,
         innerElderComprehension: Int = 0,
@@ -671,40 +759,8 @@ object DiscipleStatCalculator {
     }
 
     /**
-     * 构建突破概率乘区（从 DiscipleAggregate 对象提取各加成）。
+     * 计算突破概率（DiscipleAggregate 版本便捷入口）。
      */
-    fun buildBreakthroughZones(
-        aggregate: DiscipleAggregate,
-        innerElderComprehension: Int = 0,
-        outerElderComprehension: Int = 0,
-        pillBonus: Double = 0.0,
-        adBonus: Double = 0.0,
-        griefBreakthroughPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
-    ): BreakthroughZones {
-        val rootCount = aggregate.spiritRoot.types.size
-        val baseZone = GameConfig.Realm.getBreakthroughChance(
-            aggregate.realm, rootCount, aggregate.realmLayer
-        )
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
-        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
-
-        val talentEffects = getTalentEffects(aggregate)
-        val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
-
-        val lifespanPenalty = calculateLifespanBreakthroughPenalty(
-            aggregate.age, aggregate.lifespan
-        )
-
-        return BreakthroughZones(
-            baseZone = baseZone,
-            elderGuidance = innerElderBonus + outerElderBonus,
-            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
-            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
-        )
-    }
-
     fun getBreakthroughChance(
         aggregate: DiscipleAggregate,
         innerElderComprehension: Int = 0,
@@ -723,7 +779,7 @@ object DiscipleStatCalculator {
     }
 
     fun getSoulPowerBreakthroughBonus(soulPower: Int): Double {
-        return ((soulPower / 20).coerceAtMost(5)) / 100.0
+        return ((soulPower / SOUL_POWER_DIVISOR).coerceAtMost(SOUL_POWER_MAX_STEPS)) / 100.0
     }
 
     data class BreakthroughBonusDetail(
@@ -770,16 +826,48 @@ object DiscipleStatCalculator {
         )
     }
 
-    fun getMaxManualSlots(disciple: Disciple): Int {
-        val talentEffects = getTalentEffects(disciple)
+    // ==================== 功法/灵根槽位 ====================
+
+    private fun computeMaxManualSlots(talentEffects: Map<String, Double>): Int {
         val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        return 6 + manualSlotBonus
+        return BASE_MANUAL_SLOTS + manualSlotBonus
     }
 
-    fun getMaxManualSlots(aggregate: DiscipleAggregate): Int {
-        val talentEffects = getTalentEffects(aggregate)
-        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        return 6 + manualSlotBonus
+    fun getMaxManualSlots(disciple: Disciple): Int =
+        computeMaxManualSlots(getTalentEffects(disciple))
+
+    fun getMaxManualSlots(aggregate: DiscipleAggregate): Int =
+        computeMaxManualSlots(getTalentEffects(aggregate))
+
+    // ==================== 传道加成 ====================
+
+    private fun computePreachingBonus(
+        discipleType: String,
+        realm: Int,
+        targetDiscipleType: String,
+        preachingElder: Disciple?,
+        preachingMasters: List<Disciple>
+    ): Pair<Double, Double> {
+        if (discipleType != targetDiscipleType) return 0.0 to 0.0
+
+        var elderBonus = 0.0
+        var mastersBonus = 0.0
+
+        if (preachingElder != null && preachingElder.isAlive) {
+            val elderTeaching = getBaseStats(preachingElder).teaching
+            if (realm >= preachingElder.realm && elderTeaching >= TEACHING_BASELINE) {
+                elderBonus = (elderTeaching - TEACHING_BASELINE) * ELDER_TEACHING_RATE
+            }
+        }
+
+        preachingMasters.filter { it.isAlive }.forEach { master ->
+            val masterTeaching = getBaseStats(master).teaching
+            if (realm >= master.realm && masterTeaching >= TEACHING_BASELINE) {
+                mastersBonus += (masterTeaching - TEACHING_BASELINE) * MASTER_TEACHING_RATE
+            }
+        }
+
+        return elderBonus to mastersBonus
     }
 
     fun calculatePreachingBonus(
@@ -787,56 +875,26 @@ object DiscipleStatCalculator {
         targetDiscipleType: String,
         preachingElder: Disciple?,
         preachingMasters: List<Disciple>
-    ): Pair<Double, Double> {
-        if (disciple.discipleType != targetDiscipleType) return 0.0 to 0.0
-
-        var elderBonus = 0.0
-        var mastersBonus = 0.0
-
-        if (preachingElder != null && preachingElder.isAlive) {
-            val elderTeaching = getBaseStats(preachingElder).teaching
-            if (disciple.realm >= preachingElder.realm && elderTeaching >= 80) {
-                elderBonus = (elderTeaching - 80) * 0.01
-            }
-        }
-
-        preachingMasters.filter { it.isAlive }.forEach { master ->
-            val masterTeaching = getBaseStats(master).teaching
-            if (disciple.realm >= master.realm && masterTeaching >= 80) {
-                mastersBonus += (masterTeaching - 80) * 0.005
-            }
-        }
-
-        return elderBonus to mastersBonus
-    }
+    ): Pair<Double, Double> = computePreachingBonus(
+        discipleType = disciple.discipleType,
+        realm = disciple.realm,
+        targetDiscipleType = targetDiscipleType,
+        preachingElder = preachingElder,
+        preachingMasters = preachingMasters
+    )
 
     fun calculatePreachingBonus(
         aggregate: DiscipleAggregate,
         targetDiscipleType: String,
         preachingElder: Disciple?,
         preachingMasters: List<Disciple>
-    ): Pair<Double, Double> {
-        if (aggregate.discipleType != targetDiscipleType) return 0.0 to 0.0
-
-        var elderBonus = 0.0
-        var mastersBonus = 0.0
-
-        if (preachingElder != null && preachingElder.isAlive) {
-            val elderTeaching = getBaseStats(preachingElder).teaching
-            if (aggregate.realm >= preachingElder.realm && elderTeaching >= 80) {
-                elderBonus = (elderTeaching - 80) * 0.01
-            }
-        }
-
-        preachingMasters.filter { it.isAlive }.forEach { master ->
-            val masterTeaching = getBaseStats(master).teaching
-            if (aggregate.realm >= master.realm && masterTeaching >= 80) {
-                mastersBonus += (masterTeaching - 80) * 0.005
-            }
-        }
-
-        return elderBonus to mastersBonus
-    }
+    ): Pair<Double, Double> = computePreachingBonus(
+        discipleType = aggregate.discipleType,
+        realm = aggregate.realm,
+        targetDiscipleType = targetDiscipleType,
+        preachingElder = preachingElder,
+        preachingMasters = preachingMasters
+    )
 
     fun calculateQingyunPeakCultivationSpeedBonus(
         disciple: Disciple,
@@ -846,7 +904,7 @@ object DiscipleStatCalculator {
     ): Double {
         val (elderBonus, mastersBonus) = calculatePreachingBonus(
             disciple = disciple,
-            targetDiscipleType = "inner",
+            targetDiscipleType = TYPE_INNER,
             preachingElder = qingyunPreachingElder,
             preachingMasters = qingyunPreachingMasters
         )
@@ -861,7 +919,7 @@ object DiscipleStatCalculator {
     ): Double {
         val (elderBonus, mastersBonus) = calculatePreachingBonus(
             aggregate = aggregate,
-            targetDiscipleType = "inner",
+            targetDiscipleType = TYPE_INNER,
             preachingElder = qingyunPreachingElder,
             preachingMasters = qingyunPreachingMasters
         )

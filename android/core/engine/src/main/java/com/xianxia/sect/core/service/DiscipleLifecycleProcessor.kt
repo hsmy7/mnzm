@@ -5,11 +5,14 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.event.DomainEvent
+import com.xianxia.sect.core.event.EventBusPort
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
@@ -21,12 +24,16 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val scopeProvider: CoroutineScopeProvider,
-    private val productionSlotRepository: ProductionSlotRepository
+    private val productionSlotRepository: ProductionSlotRepository,
+    private val eventBus: EventBusPort
 ) {
     private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "DiscipleLifecycle"
+        private const val CULL_DEAD_AFTER_YEARS = 1
+        private const val REFLECTION_RELEASE_MORALITY_BONUS = 5
+        private const val REFLECTION_RELEASE_LOYALTY_BONUS = 5
     }
 
     // ── 弟子老化/死亡 ──────────────────────────────────────────────────
@@ -80,27 +87,58 @@ class DiscipleLifecycleProcessor @Inject constructor(
     suspend fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         clearDiscipleFromAllSlots(disciple.id)
 
-        val currentDiscipleList = stateStore.disciples.value
+        val originalList = stateStore.disciples.value
         val currentYear = stateStore.gameData.value.gameYear
 
-        val griefUpdated = DiscipleStatCalculator.applyGriefToRelatives(
-            currentDiscipleList, listOf(disciple), currentYear
-        ).toMutableList()
+        val griefUpdated = propagateGriefToRelatives(originalList, disciple, currentYear)
+        unbindPartnerRelationship(griefUpdated, disciple)
+        unbindMasterRelationships(griefUpdated, disciple)
+        val tables = stateStore.discipleTables
+        val lifeEventsToWrite = computeBereavementLifeEvents(griefUpdated, originalList, disciple, tables)
 
-        // 清除死亡弟子的伴侣关系：若死者有伴侣，清除伴侣的 partnerId 指向
-        val partnerId = disciple.social.partnerId
-        if (partnerId != null) {
-            val partnerIndex = griefUpdated.indexOfFirst { it.id == partnerId }
-            if (partnerIndex >= 0) {
-                griefUpdated[partnerIndex] = griefUpdated[partnerIndex].copy(
-                    social = griefUpdated[partnerIndex].social.copy(partnerId = null)
-                )
+        stateStore.update {
+            discipleTables.clear()
+            griefUpdated.forEach { discipleTables.insert(it) }
+            // 写回丧亲日志（griefUpdated 的 lifeEvents 在 clear+insert 中丢失，
+            // 因为 lifeEvents 不是 data class 构造参数，copy() 不保留）
+            val idInt = disciple.id.toInt()
+            discipleTables.deathYears[idInt] = currentYear
+            lifeEventsToWrite.forEach { (grievingId, event) ->
+                val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
+                discipleTables.lifeEvents[grievingId] = prevEvents + event
             }
         }
 
-        // 师徒关系因一方死亡而解绑：师父死亡 → 清除所有徒弟的 masterId 指向。
-        // 徒弟死亡无需额外清理（师父的徒弟数按存活弟子统计，自然剔除死者；
-        // 死者的 masterId 随死亡失效）。
+        // 发布死亡事件
+        eventBus.emit(DeathEvent(
+            discipleId = disciple.id,
+            discipleName = disciple.name,
+            cause = if (isOutsideSect) "combat" else "age",
+            deathYear = currentYear
+        ))
+
+        cleanupEquipmentAndManuals(disciple, isOutsideSect)
+    }
+
+    // ── 以下为 handleDiscipleDeath 的拆分子函数 ────────────────────────────
+
+    private fun propagateGriefToRelatives(
+        currentList: List<Disciple>, disciple: Disciple, year: Int
+    ): MutableList<Disciple> = DiscipleStatCalculator.applyGriefToRelatives(
+        currentList, listOf(disciple), year
+    ).toMutableList()
+
+    private fun unbindPartnerRelationship(griefUpdated: MutableList<Disciple>, disciple: Disciple) {
+        val partnerId = disciple.social.partnerId ?: return
+        val partnerIndex = griefUpdated.indexOfFirst { it.id == partnerId }
+        if (partnerIndex >= 0) {
+            griefUpdated[partnerIndex] = griefUpdated[partnerIndex].copy(
+                social = griefUpdated[partnerIndex].social.copy(partnerId = null)
+            )
+        }
+    }
+
+    private fun unbindMasterRelationships(griefUpdated: MutableList<Disciple>, disciple: Disciple) {
         val deadId = disciple.id
         griefUpdated.indices.forEach { i ->
             if (griefUpdated[i].social.masterId == deadId) {
@@ -109,92 +147,99 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 )
             }
         }
+    }
 
-        // 记录丧亲日志：为因本次死亡而新陷入悲痛的亲属追加事件
-        val deceasedName = disciple.name
-        val tables = stateStore.discipleTables
+    private fun computeBereavementLifeEvents(
+        griefUpdated: List<Disciple>,
+        originalList: List<Disciple>,
+        deceased: Disciple,
+        tables: DiscipleTables
+    ): Map<Int, String> {
+        val events = mutableMapOf<Int, String>()
+        val deadId = deceased.id
         for (grievingD in griefUpdated) {
-            val originalD = currentDiscipleList.find { it.id == grievingD.id } ?: continue
+            val originalD = originalList.find { it.id == grievingD.id } ?: continue
             val wasGrieving = originalD.social.griefEndYear != null
             val isNowGrieving = grievingD.social.griefEndYear != null
             if (wasGrieving || !isNowGrieving) continue
-            // 判定亲属关系
-            val relationship = when {
-                originalD.social.partnerId == deadId -> "道侣"
-                deadId == originalD.social.partnerId -> "道侣"
-                originalD.social.parentId1 == deadId || originalD.social.parentId2 == deadId -> "父/母"
-                deadId == originalD.social.parentId1 || deadId == originalD.social.parentId2 -> "子女"
-                else -> "亲属"
-            }
+
+            val relationship = deduceRelationship(originalD, deadId)
             val grievingId = grievingD.id.toIntOrNull() ?: continue
             val grievingAge = tables.ages[grievingId]
-            val currentLifeEvents = tables.lifeEvents.getOrDefault(
-                grievingId, emptyList()
-            )
-            tables.lifeEvents[grievingId] = currentLifeEvents +
-                "${grievingAge}岁：因${relationship}${deceasedName}离世陷入悲痛，修炼速度降低50%"
+            events[grievingId] = "${grievingAge}岁：因${relationship}${deceased.name}离世陷入悲痛，修炼速度降低50%"
         }
+        return events
+    }
 
-        stateStore.update {
-            discipleTables.clear()
-            griefUpdated.forEach { discipleTables.insert(it) }
-        }
+    private fun deduceRelationship(disciple: Disciple, deadId: String): String = when {
+        disciple.social.partnerId == deadId -> "道侣"
+        deadId == disciple.social.partnerId -> "道侣"
+        disciple.social.parentId1 == deadId || disciple.social.parentId2 == deadId -> "父/母"
+        deadId == disciple.social.parentId1 || deadId == disciple.social.parentId2 -> "子女"
+        else -> "亲属"
+    }
 
+    private suspend fun cleanupEquipmentAndManuals(disciple: Disciple, isOutsideSect: Boolean) {
         if (isOutsideSect) {
-            disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.equipment.armorId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.equipment.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.equipment.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-
-            val manualIdSet = disciple.manualIds.toSet()
-            stateStore.update {
-                manualInstances = manualInstances.map {
-                    if (it.id in manualIdSet) it.copy(isLearned = false, ownerId = null) else it
-                }
-            }
-
-            val data = stateStore.gameData.value
-            val updatedProficiencies = data.manualProficiencies.toMutableMap()
-            updatedProficiencies.remove(disciple.id)
-            if (updatedProficiencies != data.manualProficiencies) {
-                stateStore.update {
-                    gameData = gameData.copy(manualProficiencies = updatedProficiencies)
-                }
-            }
+            clearExternalEquipmentAndManuals(disciple)
         } else {
-            disciple.equipment.weaponId?.let { returnEquipmentToWarehouse(it) }
-            disciple.equipment.armorId?.let { returnEquipmentToWarehouse(it) }
-            disciple.equipment.bootsId?.let { returnEquipmentToWarehouse(it) }
-            disciple.equipment.accessoryId?.let { returnEquipmentToWarehouse(it) }
+            clearInternalEquipmentAndManuals(disciple)
+        }
+    }
 
-            disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { bagItem ->
-                returnEquipmentToWarehouse(bagItem.itemId)
+    private suspend fun clearExternalEquipmentAndManuals(disciple: Disciple) {
+        disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+        disciple.equipment.armorId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+        disciple.equipment.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+        disciple.equipment.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+
+        val manualIdSet = disciple.manualIds.toSet()
+        stateStore.update {
+            manualInstances = manualInstances.map {
+                if (it.id in manualIdSet) it.copy(isLearned = false, ownerId = null) else it
             }
+        }
 
-            val storageBagManualIds = disciple.equipment.storageBagItems
-                .filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }
-                .map { it.itemId }
-                .toSet()
-            val allManualIds = storageBagManualIds + disciple.manualIds.toSet()
+        removeProficiencies(disciple.id)
+    }
+
+    private suspend fun clearInternalEquipmentAndManuals(disciple: Disciple) {
+        disciple.equipment.weaponId?.let { returnEquipmentToWarehouse(it) }
+        disciple.equipment.armorId?.let { returnEquipmentToWarehouse(it) }
+        disciple.equipment.bootsId?.let { returnEquipmentToWarehouse(it) }
+        disciple.equipment.accessoryId?.let { returnEquipmentToWarehouse(it) }
+
+        disciple.equipment.storageBagItems
+            .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
+            .forEach { returnEquipmentToWarehouse(it.itemId) }
+
+        val storageBagManualIds = disciple.equipment.storageBagItems
+            .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
+            .map { it.itemId }.toSet()
+        val allManualIds = storageBagManualIds + disciple.manualIds.toSet()
+        stateStore.update {
+            manualInstances = manualInstances.map {
+                if (it.id in allManualIds) it.copy(isLearned = false, ownerId = null) else it
+            }
+        }
+
+        removeProficiencies(disciple.id)
+    }
+
+    private suspend fun removeProficiencies(discipleId: String) {
+        val data = stateStore.gameData.value
+        val updated = data.manualProficiencies.toMutableMap()
+        updated.remove(discipleId)
+        if (updated != data.manualProficiencies) {
             stateStore.update {
-                manualInstances = manualInstances.map {
-                    if (it.id in allManualIds) it.copy(isLearned = false, ownerId = null) else it
-                }
-            }
-
-            val data = stateStore.gameData.value
-            val updatedProficiencies = data.manualProficiencies.toMutableMap()
-            updatedProficiencies.remove(disciple.id)
-            if (updatedProficiencies != data.manualProficiencies) {
-                stateStore.update {
-                    gameData = gameData.copy(manualProficiencies = updatedProficiencies)
-                }
+                gameData = gameData.copy(manualProficiencies = updated)
             }
         }
     }
 
-    fun processYearlyAging(year: Int) {
-        // 当前版本：年度老化效果尚未实现，保留为扩展点。
+    suspend fun processYearlyAging(currentYear: Int) {
+        val cullThreshold = currentYear - CULL_DEAD_AFTER_YEARS
+        stateStore.discipleTables.cullDeadDisciples(cullThreshold)
     }
 
     suspend fun processReflectionRelease(year: Int) {
@@ -213,8 +258,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     status = DiscipleStatus.IDLE,
                     statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
                     skills = disciple.skills.copy(
-                        morality = disciple.skills.morality + 5,
-                        loyalty = disciple.skills.loyalty + 5
+                        morality = disciple.skills.morality + REFLECTION_RELEASE_MORALITY_BONUS,
+                        loyalty = disciple.skills.loyalty + REFLECTION_RELEASE_LOYALTY_BONUS
                     )
                 )
             }
@@ -232,10 +277,14 @@ class DiscipleLifecycleProcessor @Inject constructor(
             gameData = cleaned
         }
 
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        clearForgeSlotsIfNeeded(discipleId)
+    }
+
+    private suspend fun clearForgeSlotsIfNeeded(discipleId: String) {
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
-            if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+            if (slot.assignedDiscipleId == discipleId) {
+                productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
@@ -252,7 +301,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
         stateStore.update {
             if (existingStack != null) {
-                val maxQty = inventoryConfig.getMaxStackSize("equipment_stack")
+                val maxQty = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
                 val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxQty)
                 equipmentStacks = equipmentStacks.map { s ->
                     if (s.id == existingStack.id) s.copy(quantity = newQty) else s
@@ -277,3 +326,12 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 }
+
+/** 弟子死亡事件 */
+data class DeathEvent(
+    val discipleId: String,
+    val discipleName: String,
+    val cause: String,
+    val deathYear: Int,
+    override val type: String = "disciple.death"
+) : DomainEvent

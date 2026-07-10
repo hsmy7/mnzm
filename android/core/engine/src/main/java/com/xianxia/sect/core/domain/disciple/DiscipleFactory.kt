@@ -13,6 +13,20 @@ import com.xianxia.sect.core.util.PortraitPool
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// ---- 魔法数字命名常量 ----
+private const val VARIANCE_MIN = -50
+private const val VARIANCE_MAX = 51
+private const val COMPREHENSION_1_ROOT_MIN = 80
+private const val COMPREHENSION_1_ROOT_MAX = 101
+private const val COMPREHENSION_2_ROOT_MIN = 60
+private const val COMPREHENSION_2_ROOT_MAX = 101
+private const val COMPREHENSION_3_ROOT_MIN = 40
+private const val COMPREHENSION_3_ROOT_MAX = 101
+private const val COMPREHENSION_4_ROOT_MIN = 20
+private const val COMPREHENSION_4_ROOT_MAX = 101
+private const val COMPREHENSION_5_ROOT_MIN = 1
+private const val COMPREHENSION_5_ROOT_MAX = 101
+
 /**
  * 统一弟子构造工厂。
  *
@@ -52,22 +66,22 @@ class DiscipleFactory @Inject constructor() {
         val r = seed.nextInt
 
         // 1. 六维方差（三站点字符级一致）
-        val hpVariance = r(-50, 51)
-        val mpVariance = r(-50, 51)
-        val physicalAttackVariance = r(-50, 51)
-        val magicAttackVariance = r(-50, 51)
-        val physicalDefenseVariance = r(-50, 51)
-        val magicDefenseVariance = r(-50, 51)
-        val speedVariance = r(-50, 51)
+        val hpVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val mpVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val physicalAttackVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val magicAttackVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val physicalDefenseVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val magicDefenseVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        val speedVariance = r(VARIANCE_MIN, VARIANCE_MAX)
 
         // 2. 灵根数量 → 悟性
         val spiritRootCount = seed.spiritRootType.split(",").size
         val comprehension = when (spiritRootCount) {
-            1 -> r(80, 101)
-            2 -> r(60, 101)
-            3 -> r(40, 101)
-            4 -> r(20, 101)
-            else -> r(1, 101)
+            1 -> r(COMPREHENSION_1_ROOT_MIN, COMPREHENSION_1_ROOT_MAX)
+            2 -> r(COMPREHENSION_2_ROOT_MIN, COMPREHENSION_2_ROOT_MAX)
+            3 -> r(COMPREHENSION_3_ROOT_MIN, COMPREHENSION_3_ROOT_MAX)
+            4 -> r(COMPREHENSION_4_ROOT_MIN, COMPREHENSION_4_ROOT_MAX)
+            else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
         }
 
         // 3. 天赋
@@ -85,7 +99,7 @@ class DiscipleFactory @Inject constructor() {
             realmLayer = seed.realmLayer,
             spiritRootType = seed.spiritRootType,
             status = DiscipleStatus.IDLE,
-            discipleType = "outer",
+            discipleType = TYPE_OUTER,
             talentIds = talentIds,
             combat = CombatAttributes(
                 hpVariance = hpVariance,

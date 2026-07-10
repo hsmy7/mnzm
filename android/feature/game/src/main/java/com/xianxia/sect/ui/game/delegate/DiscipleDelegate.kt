@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
+import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.DomainResult
@@ -7,6 +8,7 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -85,7 +87,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.confiscateStorageBagItem(discipleId, item)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "confiscateStorageBagItem failed", e)
             }
         }
     }
@@ -103,7 +106,8 @@ class DiscipleDelegate(
                     )
                 }
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -121,7 +125,8 @@ class DiscipleDelegate(
                     )
                 }
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -139,7 +144,8 @@ class DiscipleDelegate(
                     )
                 }
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -149,7 +155,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.forgetManual(discipleId, instanceId)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -159,7 +166,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -169,7 +177,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.learnManual(discipleId, stackId)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -179,7 +188,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.usePill(discipleId, pillId)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -189,7 +199,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.usePill(discipleId, pill.id)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -199,7 +210,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -209,7 +221,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.recruitDisciple()
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -221,7 +234,8 @@ class DiscipleDelegate(
                     disciple.copy(name = newName)
                 }
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }
@@ -249,7 +263,8 @@ class DiscipleDelegate(
             try {
                 gameEngine.recruitAllFromList()
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             } finally {
                 isRecruitingAll = false
             }
@@ -335,7 +350,8 @@ class DiscipleDelegate(
                     )
                 }
             } catch (e: Exception) {
-                /* error handled by BaseViewModel */
+                if (e is CancellationException) throw e
+                Log.w("DiscipleDelegate", "operation failed", e)
             }
         }
     }

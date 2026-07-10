@@ -40,15 +40,15 @@ data class DiscipleAggregate(
         return "${com.xianxia.sect.core.GameConfig.Realm.getName(realm)}${realmLayer}层"
     }
     
-    val baseHp: Int get() = combatStats?.baseHp ?: 100
-    val baseMp: Int get() = combatStats?.baseMp ?: 50
+    val baseHp: Int get() = combatStats?.baseHp ?: DEFAULT_HP
+    val baseMp: Int get() = combatStats?.baseMp ?: DEFAULT_MP
     val maxHp: Int get() = getBaseStats().maxHp
     val maxMp: Int get() = getBaseStats().maxMp
-    val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: 7
-    val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: 7
-    val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: 5
-    val baseMagicDefense: Int get() = combatStats?.baseMagicDefense ?: 3
-    val baseSpeed: Int get() = combatStats?.baseSpeed ?: 10
+    val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: DEFAULT_ATTACK
+    val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: DEFAULT_ATTACK
+    val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: DEFAULT_DEFENSE
+    val baseMagicDefense: Int get() = combatStats?.baseMagicDefense ?: DEFAULT_MAGIC_DEFENSE
+    val baseSpeed: Int get() = combatStats?.baseSpeed ?: DEFAULT_SPEED
     
     val hpVariance: Int get() = combatStats?.hpVariance ?: 0
     val mpVariance: Int get() = combatStats?.mpVariance ?: 0
@@ -118,16 +118,16 @@ data class DiscipleAggregate(
     val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
     val autoLearnFromWarehouse: Boolean get() = extended?.autoLearnFromWarehouse ?: false
     
-    val intelligence: Int get() = attributes?.intelligence ?: 50
-    val charm: Int get() = attributes?.charm ?: 50
-    val loyalty: Int get() = attributes?.loyalty ?: 50
-    val comprehension: Int get() = attributes?.comprehension ?: 50
-    val artifactRefining: Int get() = attributes?.artifactRefining ?: 50
-    val pillRefining: Int get() = attributes?.pillRefining ?: 50
-    val spiritPlanting: Int get() = attributes?.spiritPlanting ?: 50
-    val mining: Int get() = attributes?.mining ?: 50
-    val teaching: Int get() = attributes?.teaching ?: 50
-    val morality: Int get() = attributes?.morality ?: 50
+    val intelligence: Int get() = attributes?.intelligence ?: DEFAULT_SKILL
+    val charm: Int get() = attributes?.charm ?: DEFAULT_SKILL
+    val loyalty: Int get() = attributes?.loyalty ?: DEFAULT_SKILL
+    val comprehension: Int get() = attributes?.comprehension ?: DEFAULT_SKILL
+    val artifactRefining: Int get() = attributes?.artifactRefining ?: DEFAULT_SKILL
+    val pillRefining: Int get() = attributes?.pillRefining ?: DEFAULT_SKILL
+    val spiritPlanting: Int get() = attributes?.spiritPlanting ?: DEFAULT_SKILL
+    val mining: Int get() = attributes?.mining ?: DEFAULT_SKILL
+    val teaching: Int get() = attributes?.teaching ?: DEFAULT_SKILL
+    val morality: Int get() = attributes?.morality ?: DEFAULT_SKILL
     val salaryPaidCount: Int get() = attributes?.salaryPaidCount ?: 0
     val salaryMissedCount: Int get() = attributes?.salaryMissedCount ?: 0
     
@@ -332,6 +332,14 @@ data class DiscipleAggregate(
                 realmLayer > 0 && status == DiscipleStatus.IDLE
 
     companion object {
+        private const val DEFAULT_HP = 100
+        private const val DEFAULT_MP = 50
+        private const val DEFAULT_ATTACK = 7
+        private const val DEFAULT_DEFENSE = 5
+        private const val DEFAULT_MAGIC_DEFENSE = 3
+        private const val DEFAULT_SPEED = 10
+        private const val DEFAULT_SKILL = 50
+
         var statsProvider: DiscipleStatsProvider = object : DiscipleStatsProvider {
             // Default no-op implementation - will be replaced by engine module
             override fun getBaseStats(disciple: Disciple) = DiscipleStats()

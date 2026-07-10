@@ -91,8 +91,9 @@ class GameUtilsTest {
     }
 
     @Test
-    fun fromFavor_101_returnsHOSTILE() {
-        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(101))
+    fun fromFavor_101_returnsINTIMATE() {
+        // fromFavor 对超出最高等级上限的值返回最高等级（INTIMATE）
+        assertEquals(SectRelationLevel.INTIMATE, SectRelationLevel.fromFavor(101))
     }
 
     // ============================================================
@@ -342,7 +343,10 @@ class GameUtilsTest {
     @Test
     fun calculateSectTradePriceMultiplier_ally_returnsBiggerDiscount() {
         val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
-        val alliances = listOf(Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player"))
+        val alliances = listOf(
+            Alliance(id = "a1", sectIds = listOf("player", "target"),
+                startYear = 1, initiatorId = "player")
+        )
         val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, alliances, "target", "player")
         // isAlly, favor=80: 0.9 * (1.0 - max(0, 80-70)*0.01) = 0.9 * 0.9 = 0.81, clamp at 0.85
         assertTrue("Expected bigger discount for ally, got $multiplier", multiplier < 0.9)
