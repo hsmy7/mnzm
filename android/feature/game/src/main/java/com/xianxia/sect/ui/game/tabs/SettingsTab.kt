@@ -424,166 +424,228 @@ internal fun SettingsTab(
 
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = "年俸设置",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .width(ButtonSizes.StandardWidth)
-                                .height(ButtonSizes.StandardHeight)
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { showSalaryConfigDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ui_button),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                            Text(
-                                text = "配置年俸",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
+                BoxWithConstraints {
+                    val spacing = 16.dp
+                    val columns = when {
+                        maxWidth >= 720.dp -> 3
+                        maxWidth >= 480.dp -> 2
+                        else -> 1
                     }
-                    Column {
-                        Text(
-                            text = "存档管理",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .width(ButtonSizes.StandardWidth)
-                                .height(ButtonSizes.StandardHeight)
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { showSaveSlotDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ui_button),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                            Text(
-                                text = "查看存档",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
+                    val itemModifier = if (columns <= 1) {
+                        Modifier.fillMaxWidth()
+                    } else {
+                        val w = (maxWidth - spacing * (columns - 1)) / columns
+                        Modifier.width(w)
                     }
-                    Column {
-                        Text(
-                            text = "巡视楼设置",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
-                        ) {
+
+                    @Composable
+                    fun Item1() {
+                        Column(modifier = itemModifier) {
                             Text(
-                                text = "巡视楼弹出战斗结算界面",
+                                text = "年俸设置",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            CircularCheckbox(
-                                checked = gameData.patrolBattleResultPopup,
-                                onToggle = { viewModel.setPatrolBattleResultPopup(!gameData.patrolBattleResultPopup) }
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(ButtonSizes.StandardWidth)
+                                    .height(ButtonSizes.StandardHeight)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { showSalaryConfigDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ui_button),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
+                                )
+                                Text(
+                                    text = "配置年俸",
+                                    fontSize = 12.sp,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
-                    Column {
-                        Text(
-                            text = "灵石补差价设置",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
-                        ) {
+
+                    @Composable
+                    fun Item2() {
+                        Column(modifier = itemModifier) {
                             Text(
-                                text = "自动售卖中品灵石补差价",
+                                text = "存档管理",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            CircularCheckbox(
-                                checked = gameData.autoSellMidGradeForPurchase,
-                                onToggle = {
-                                    viewModel.setAutoSellMidGradeForPurchase(
-                                        !gameData.autoSellMidGradeForPurchase
-                                    )
-                                }
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
-                        ) {
-                            Text(
-                                text = "自动售卖上品灵石补差价",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            CircularCheckbox(
-                                checked = gameData.autoSellHighGradeForPurchase,
-                                onToggle = {
-                                    viewModel.setAutoSellHighGradeForPurchase(
-                                        !gameData.autoSellHighGradeForPurchase
-                                    )
-                                }
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(ButtonSizes.StandardWidth)
+                                    .height(ButtonSizes.StandardHeight)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { showSaveSlotDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ui_button),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
+                                )
+                                Text(
+                                    text = "查看存档",
+                                    fontSize = 12.sp,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
-                    Column {
-                        Text(
-                            text = "弟子脱离设置",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
-                        ) {
+
+                    @Composable
+                    fun Item3() {
+                        Column(modifier = itemModifier) {
                             Text(
-                                text = "弟子脱离宗门弹出提示框",
+                                text = "巡视楼设置",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            CircularCheckbox(
-                                checked = gameData.discipleDesertionPopup,
-                                onToggle = { viewModel.setDiscipleDesertionPopup(!gameData.discipleDesertionPopup) }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "巡视楼弹出战斗结算界面",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                CircularCheckbox(
+                                    checked = gameData.patrolBattleResultPopup,
+                                    onToggle = {
+                                        viewModel.setPatrolBattleResultPopup(
+                                            !gameData.patrolBattleResultPopup
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    @Composable
+                    fun Item4() {
+                        Column(modifier = itemModifier) {
+                            Text(
+                                text = "灵石补差价设置",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "自动售卖中品灵石补差价",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                CircularCheckbox(
+                                    checked = gameData.autoSellMidGradeForPurchase,
+                                    onToggle = {
+                                        viewModel.setAutoSellMidGradeForPurchase(
+                                            !gameData.autoSellMidGradeForPurchase
+                                        )
+                                    }
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "自动售卖上品灵石补差价",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                CircularCheckbox(
+                                    checked = gameData.autoSellHighGradeForPurchase,
+                                    onToggle = {
+                                        viewModel.setAutoSellHighGradeForPurchase(
+                                            !gameData.autoSellHighGradeForPurchase
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    @Composable
+                    fun Item5() {
+                        Column(modifier = itemModifier) {
+                            Text(
+                                text = "弟子脱离设置",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "弟子脱离宗门弹出提示框",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                CircularCheckbox(
+                                    checked = gameData.discipleDesertionPopup,
+                                    onToggle = {
+                                        viewModel.setDiscipleDesertionPopup(
+                                            !gameData.discipleDesertionPopup
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (columns <= 1) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(spacing)
+                        ) {
+                            Item1()
+                            Item2()
+                            Item3()
+                            Item4()
+                            Item5()
+                        }
+                    } else {
+                        val rowSpacing = Arrangement.spacedBy(spacing)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = rowSpacing,
+                            verticalArrangement = rowSpacing
+                        ) {
+                            Item1()
+                            Item2()
+                            Item3()
+                            Item4()
+                            Item5()
                         }
                     }
                 }
