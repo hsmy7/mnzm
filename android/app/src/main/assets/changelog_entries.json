@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-07-10",
+    "version": "4.0.42",
+    "changes": [
+      "优化：外交界面全屏化——宗门外交聊天界面从半屏改为全屏，宗门名称显示在标题栏，聊天区域充分利用全屏空间"
+    ]
+  },
+  {
+    "date": "2026-07-10",
     "version": "4.0.41",
     "changes": [
       "重构：宗门外交好感度系统代码组织优化——好感度逻辑从散落的6+文件（GameUtils/DiplomacyService/DiplomacyEventProcessor/GameData等）集中到8个新文件+15个文件更新，FavorDomain纯函数集统一查询/修改/衰减/事件判定入口，GiftService拆分送礼逻辑，零行为变化",

@@ -127,8 +127,8 @@ internal fun SectDiplomacyDialog(
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = "",
-        mode = DialogMode.Half,
+        title = sect.name,
+        mode = DialogMode.Full,
         scrollableContent = false,
         backgroundRes = bgRes
     ) {
