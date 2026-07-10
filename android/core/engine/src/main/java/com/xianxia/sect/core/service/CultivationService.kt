@@ -330,7 +330,7 @@ class CultivationService @Inject constructor(
         }
     }
 
-    fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
+    suspend fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         eventProcessor.updateDiscipleHpMpAfterBattle(battleMembers)
     }
 

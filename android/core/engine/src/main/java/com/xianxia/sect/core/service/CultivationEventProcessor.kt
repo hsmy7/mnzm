@@ -1,7 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
@@ -396,7 +397,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 月度/年度事件 ──────────────────────────────────────────────────
 
-    suspend fun processMonthlyEvents(year: Int, month: Int) {
+    suspend fun processMonthlyEvents(year: Int, month: Int) = withContext(NonCancellable) {
         safelyRun("aiSectOperations") {
             caveExplorationProcessor.get().processAISectOperations(year, month)
         }
@@ -447,7 +448,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun processYearlyEvents(year: Int) {
+    suspend fun processYearlyEvents(year: Int) = withContext(NonCancellable) {
         safelyRun("yearlyTribute") {
             vassalService.processYearlyTribute()
         }
@@ -460,14 +461,14 @@ class CultivationEventProcessor @Inject constructor(
         safelyRun("sectDisciplesAging") {
             caveExplorationProcessor.get().processSectDisciplesAging(year)
         }
-        safelyRun("sectYearlyRecruitment") {
-            caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
+        safelyRun("refreshRecruitList") {
+            merchantAndRecruitService.refreshRecruitList(year)
         }
         safelyRun("yearlyAging") {
             discipleLifecycleProcessor.processYearlyAging(year)
         }
-        safelyRun("refreshRecruitList") {
-            merchantAndRecruitService.refreshRecruitList(year)
+        safelyRun("sectYearlyRecruitment") {
+            caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
         }
         safelyRun("refreshTravelingMerchant") {
             merchantAndRecruitService.refreshTravelingMerchant(year, 1)
@@ -785,7 +786,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
 
-    fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
+    suspend fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
         val disciples = stateStore.disciples.value.toMutableList()
         var changed = false
@@ -804,11 +805,9 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
         if (changed) {
-            scope.launch {
-                stateStore.update {
-                    discipleTables.clear()
-                    disciples.forEach { discipleTables.insert(it) }
-                }
+            stateStore.update {
+                discipleTables.clear()
+                disciples.forEach { discipleTables.insert(it) }
             }
         }
     }
@@ -838,7 +837,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 侦察/外交 ──────────────────────────────────────────────────────
 
-    fun processScoutInfoExpiryLazy(year: Int, month: Int) {
+    suspend fun processScoutInfoExpiryLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val hasExpired = data.scoutInfo.any { (_, info) ->
             year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
@@ -847,7 +846,7 @@ class CultivationEventProcessor @Inject constructor(
         processScoutInfoExpiry(year, month)
     }
 
-    fun processScoutInfoExpiry(year: Int, month: Int) {
+    suspend fun processScoutInfoExpiry(year: Int, month: Int) {
         val data = stateStore.gameData.value
         var hasExpired = false
 
@@ -881,14 +880,12 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
 
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(
-                        scoutInfo = updatedScoutInfo,
-                        worldMapSects = updatedWorldMapSects,
-                        sectDetails = updatedDetails
-                    )
-                }
+            stateStore.update {
+                gameData = gameData.copy(
+                    scoutInfo = updatedScoutInfo,
+                    worldMapSects = updatedWorldMapSects,
+                    sectDetails = updatedDetails
+                )
             }
         }
     }
@@ -958,24 +955,24 @@ class CultivationEventProcessor @Inject constructor(
                     if (result.combatTriggered && result.victory && result.battleResult != null) {
                         val missionSurvivorIds = result.battleResult.log.teamMembers
                             .filter { it.isAlive }.map { it.id }.toSet()
-                        scope.launch { stateStore.update {
+                        stateStore.update {
                             val mapped = discipleTables.assembleAll().map { d ->
                                 if (d.id in missionSurvivorIds && d.isAlive) d.copy(soulPower = d.soulPower + 1) else d
                             }
                             discipleTables.clear()
                             mapped.forEach { discipleTables.insert(it) }
-                        } }
+                        }
                     }
                 }
 
                 for (did in activeMission.discipleIds) {
-                    scope.launch { stateStore.update {
+                    stateStore.update {
                         val mapped = discipleTables.assembleAll().map {
                             if (it.id == did && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
                         }
                         discipleTables.clear()
                         mapped.forEach { discipleTables.insert(it) }
-                    } }
+                    }
                 }
             } else {
                 remainingActive.add(activeMission)
@@ -983,28 +980,28 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         if (completedIds.isNotEmpty()) {
-            scope.launch { stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) } }
+            stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) }
         }
     }
 
-    fun processMissionRefreshIfDue(month: Int) {
+    suspend fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 1) return
         processMissionRefresh()
     }
 
-    fun processMissionRefresh() {
+    suspend fun processMissionRefresh() {
         val data = stateStore.gameData.value
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
             data.gameYear,
             data.gameMonth
         )
-        scope.launch { stateStore.update { gameData = gameData.copy(availableMissions = result.cleanedMissions) } }
+        stateStore.update { gameData = gameData.copy(availableMissions = result.cleanedMissions) }
     }
 
     // ── 游戏结束 ──────────────────────────────────────────────────────
 
-    fun checkGameOverCondition() {
+    suspend fun checkGameOverCondition() {
         val currentData = stateStore.gameData.value
         if (currentData.isGameOver) return
 
@@ -1017,7 +1014,7 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         if (!playerControlsAnySect) {
-            scope.launch { stateStore.update { this.gameData = this.gameData.copy(isGameOver = true) } }
+            stateStore.update { this.gameData = this.gameData.copy(isGameOver = true) }
         }
     }
 
@@ -1031,11 +1028,11 @@ class CultivationEventProcessor @Inject constructor(
         discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect)
     }
 
-    fun returnEquipmentToWarehouse(equipmentId: String) {
+    suspend fun returnEquipmentToWarehouse(equipmentId: String) {
         discipleLifecycleProcessor.returnEquipmentToWarehouse(equipmentId)
     }
 
-    fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
+    suspend fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
         discipleLifecycleProcessor.removeEquipmentFromDisciple(discipleId, equipmentId)
     }
 

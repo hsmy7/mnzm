@@ -9,10 +9,8 @@ import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.domain.FavorDomain
-import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.random.Random
 import javax.inject.Inject
@@ -27,10 +25,8 @@ import javax.inject.Singleton
 @Singleton
 @GameService("VassalService")
 class VassalService @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider
+    private val stateStore: GameStateStore
 ) {
-    private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "VassalService"
@@ -41,11 +37,9 @@ class VassalService @Inject constructor(
     // ═══════════════════════════
 
     /** 建立附庸关系 */
-    fun establishVassalage(suzerainSectId: String) {
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(suzerainSectId = suzerainSectId)
-            }
+    suspend fun establishVassalage(suzerainSectId: String) {
+        stateStore.update {
+            gameData = gameData.copy(suzerainSectId = suzerainSectId)
         }
     }
 
@@ -76,14 +70,12 @@ class VassalService @Inject constructor(
     }
 
     /** 记录年收入供年贡计算 */
-    fun recordYearlyIncome() {
+    suspend fun recordYearlyIncome() {
         val stones = stateStore.gameData.value.spiritStones
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(
-                    lastYearSpiritStoneIncome = stones
-                )
-            }
+        stateStore.update {
+            gameData = gameData.copy(
+                lastYearSpiritStoneIncome = stones
+            )
         }
     }
 

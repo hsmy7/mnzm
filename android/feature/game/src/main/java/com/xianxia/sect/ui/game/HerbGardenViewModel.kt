@@ -94,7 +94,9 @@ class HerbGardenViewModel @Inject constructor(
     }
 
     fun cancelPlantSlot(slotIndex: Int) {
-        gameEngine.clearPlantSlot(slotIndex)
+        viewModelScope.launch {
+            gameEngine.clearPlantSlot(slotIndex)
+        }
     }
 
     fun toggleAuto(slotIndex: Int) {

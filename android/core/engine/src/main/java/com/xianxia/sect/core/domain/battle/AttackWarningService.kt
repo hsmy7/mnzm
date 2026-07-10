@@ -6,8 +6,6 @@ import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,10 +16,8 @@ import javax.inject.Singleton
 @Singleton
 @GameService("AttackWarningService")
 class AttackWarningService @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider
+    private val stateStore: GameStateStore
 ) {
-    private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "AttackWarningService"
@@ -52,7 +48,7 @@ class AttackWarningService @Inject constructor(
     }
 
     /** 取消指定攻击方的所有预警，返回被取消数量 */
-    fun cancelWarningsForAttacker(attackerSectId: String): Int {
+    suspend fun cancelWarningsForAttacker(attackerSectId: String): Int {
         val data = stateStore.gameData.value
         val warnings = data.activeAttackWarnings
         val remaining = warnings.filter {
@@ -60,17 +56,15 @@ class AttackWarningService @Inject constructor(
         }
         val cancelled = warnings.size - remaining.size
         if (cancelled > 0) {
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(activeAttackWarnings = remaining)
-                }
+            stateStore.update {
+                gameData = gameData.copy(activeAttackWarnings = remaining)
             }
         }
         return cancelled
     }
 
     /** 检查并处理到期的预警，返回需执行战斗的预警列表 */
-    fun checkExpiredWarnings(): List<AttackWarning> {
+    suspend fun checkExpiredWarnings(): List<AttackWarning> {
         val data = stateStore.gameData.value
         val nowMonth = data.gameYear * 12 + data.gameMonth
         val warnings = data.activeAttackWarnings
@@ -82,21 +76,19 @@ class AttackWarningService @Inject constructor(
 
         if (expired.isNotEmpty()) {
             val expiredIds = expired.map { it.warningId }.toSet()
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(
-                        activeAttackWarnings = gameData.activeAttackWarnings.filter {
-                            it.warningId !in expiredIds
-                        }
-                    )
-                }
+            stateStore.update {
+                gameData = gameData.copy(
+                    activeAttackWarnings = gameData.activeAttackWarnings.filter {
+                        it.warningId !in expiredIds
+                    }
+                )
             }
         }
         return expired
     }
 
     /** 推进需要升级阶段的预警（谴责→战书），返回刚升级的预警列表 */
-    fun advanceWarningsIfNeeded(): List<AttackWarning> {
+    suspend fun advanceWarningsIfNeeded(): List<AttackWarning> {
         val data = stateStore.gameData.value
         val nowMonth = data.gameYear * 12 + data.gameMonth
         val newlyAdvanced = mutableListOf<AttackWarning>()
@@ -115,23 +107,19 @@ class AttackWarningService @Inject constructor(
         }
 
         if (newlyAdvanced.isNotEmpty()) {
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(activeAttackWarnings = updatedWarnings)
-                }
+            stateStore.update {
+                gameData = gameData.copy(activeAttackWarnings = updatedWarnings)
             }
         }
         return newlyAdvanced
     }
 
     /** 添加预警到活跃列表 */
-    fun addWarning(warning: AttackWarning) {
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(
-                    activeAttackWarnings = gameData.activeAttackWarnings + warning
-                )
-            }
+    suspend fun addWarning(warning: AttackWarning) {
+        stateStore.update {
+            gameData = gameData.copy(
+                activeAttackWarnings = gameData.activeAttackWarnings + warning
+            )
         }
     }
 

@@ -27,8 +27,8 @@ interface FavorService {
     // ═══════════ 修改 ═══════════
 
     /** 设定玩家对指定宗门的好感度（绝对值） */
-    fun updateFavor(sectId: String, newFavor: Int, year: Int)
+    suspend fun updateFavor(sectId: String, newFavor: Int, year: Int)
 
     /** 增量修改玩家对指定宗门的好感度 */
-    fun modifyFavor(sectId: String, delta: Int)
+    suspend fun modifyFavor(sectId: String, delta: Int)
 }

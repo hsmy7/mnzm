@@ -18,7 +18,7 @@ interface DiscipleFacade {
     fun updateDisciple(disciple: Disciple)
     suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple)
     fun getDiscipleStatus(discipleId: String): DiscipleStatus
-    fun syncAllDiscipleStatuses()
+    suspend fun syncAllDiscipleStatuses()
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
     suspend fun expelDisciple(discipleId: String): DomainResult<Unit>
@@ -29,7 +29,7 @@ interface DiscipleFacade {
     suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean
-    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
+    suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
     fun getAliveDisciplesCount(): Int
     fun getIdleDisciples(): List<Disciple>
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate?

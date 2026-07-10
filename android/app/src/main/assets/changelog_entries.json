@@ -3,7 +3,11 @@
     "date": "2026-07-10",
     "version": "4.0.42",
     "changes": [
-      "优化：外交界面全屏化——宗门外交聊天界面从半屏改为全屏，宗门名称显示在标题栏，聊天区域充分利用全屏空间"
+      "优化：外交界面全屏化——宗门外交聊天界面从半屏改为全屏，宗门名称显示在标题栏，聊天区域充分利用全屏空间",
+      "修复：年度招募不刷新——消除processSectDisciplesYearlyRecruitment与refreshRecruitList之间的fire-and-forget异步竞态（C1异步写回旧列表覆写新候选人），改为suspend fun直接调用stateStore.update",
+      "重构：全项目清理scope.launch{stateStore.update}反模式——批量消除30+文件中所有fire-and-forget异步状态写入（含CaveExplorationProcessor/CultivationEventProcessor/DiscipleService/GiftService/FavorService/VassalService/DiplomacyService/BuildingService/ExplorationService/AttackWarningService等），统一替换为suspend fun直接调用stateStore.update",
+      "修复：NonCancellable保护——processYearlyEvents/processMonthlyEvents包裹withContext(NonCancellable)，防止协程取消导致年度/月度结算部分提交",
+      "清理：测试中残留的delay(100)等待已移除——方法已改为suspend fun后调用即完成无需等待"
     ]
   },
   {

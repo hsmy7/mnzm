@@ -303,7 +303,7 @@ class GameViewModel @Inject constructor(
     fun dismissBattleResult() = navigation.dismissBattleResult()
 
     /** @see [BeastAttackDelegate.resolveBeastAttackPayTribute] */
-    fun resolveBeastAttackPayTribute(beastLevelId: String) = beastAttack.resolveBeastAttackPayTribute(beastLevelId)
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) = beastAttack.resolveBeastAttackPayTribute(beastLevelId)
 
     /** @see [BeastAttackDelegate.resolveBeastAttackFight] */
     fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)

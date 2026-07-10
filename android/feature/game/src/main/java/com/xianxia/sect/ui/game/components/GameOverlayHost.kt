@@ -150,10 +150,12 @@ fun GameOverlayHost(
             attack = currentAttack,
             currentSpiritStones = gdSnapshot.spiritStones,
             onPayTribute = {
-                viewModel.resolveBeastAttackPayTribute(
-                    currentAttack.beastLevel.id
-                )
-                viewModel.clearPendingBeastAttacks()
+                coroutineScope.launch {
+                    viewModel.resolveBeastAttackPayTribute(
+                        currentAttack.beastLevel.id
+                    )
+                    viewModel.clearPendingBeastAttacks()
+                }
             },
             onFight = {
                 coroutineScope.launch {

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -35,8 +34,6 @@ private val scopeProvider: CoroutineScopeProvider,
     private val inventoryConfig: InventoryConfig,
     private val discipleFactory: DiscipleFactory
 ) {
-    private val scope get() = scopeProvider.scope
-
     private val currentDiscipleTables: DiscipleTables
         get() = stateStore.discipleTables
 
@@ -237,7 +234,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Sync all disciples' status based on their assignments
      */
-    fun syncAllDiscipleStatuses() {
+    suspend fun syncAllDiscipleStatuses() {
         var data = stateStore.gameData.value
         val tables = stateStore.discipleTables
         val elderSlots = data.elderSlots
@@ -282,8 +279,7 @@ private val scopeProvider: CoroutineScopeProvider,
                     slot.copy(discipleId = "", discipleName = "")
                 } else slot
             }
-            data = data.copy(spiritMineSlots = fixedSlots)
-            scope.launch { stateStore.update { gameData = data } }
+            stateStore.update { gameData = gameData.copy(spiritMineSlots = fixedSlots) }
         }
 
         val garrisonIds = mutableSetOf<String>()
@@ -966,10 +962,10 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Update yearly salary enabled/disabled for a realm
      */
-    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
+    suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
         val data = stateStore.gameData.value
         val newEnabled = data.yearlySalaryEnabled.toMutableMap()
         newEnabled[realm] = enabled
-        scope.launch { stateStore.update { gameData = data.copy(yearlySalaryEnabled = newEnabled) } }
+        stateStore.update { gameData = gameData.copy(yearlySalaryEnabled = newEnabled) }
     }
 }

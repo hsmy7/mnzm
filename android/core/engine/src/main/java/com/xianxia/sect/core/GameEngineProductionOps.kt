@@ -16,7 +16,7 @@ fun GameEngine.getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex:
 fun GameEngine.getAlchemyFurnaceCount(): Int = buildingFacade.getAlchemyFurnaceCount()
 fun GameEngine.getForgeWorkshopCount(): Int = buildingFacade.getForgeWorkshopCount()
 suspend fun GameEngine.autoHarvestCompletedAlchemySlots(): List<AlchemyResult> = buildingFacade.autoHarvestCompletedAlchemySlots()
-fun GameEngine.clearPlantSlot(slotIndex: Int) = buildingFacade.clearPlantSlot(slotIndex)
+suspend fun GameEngine.clearPlantSlot(slotIndex: Int) = buildingFacade.clearPlantSlot(slotIndex)
 fun GameEngine.getForgeSlots(): List<BuildingSlot> = buildingFacade.getForgeSlots()
 fun GameEngine.clearAlchemySlot(slotIndex: Int) = buildingFacade.clearAlchemySlot(slotIndex)
 fun GameEngine.clearForgeSlot(slotIndex: Int) = buildingFacade.clearForgeSlot(slotIndex)

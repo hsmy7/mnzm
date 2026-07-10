@@ -7,13 +7,11 @@ import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.DomainEventSubscriber
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.model.*
-import kotlinx.coroutines.launch
 import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
@@ -34,14 +32,11 @@ import java.util.UUID
 @Singleton
 class DiplomacyService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider,
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
     private val eventBus: EventBusPort,
     private val favorService: FavorService
 ) {
-    private val scope get() = scopeProvider.scope
-
     private val discipleTables: DiscipleTables
         get() = stateStore.discipleTables
 
@@ -321,7 +316,7 @@ class DiplomacyService @Inject constructor(
         return items
     }
 
-    fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> {
+    suspend fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> {
         val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId } ?: return emptyList()
         val sectDetail = data.sectDetails[sectId] ?: SectDetail(sectId = sectId)
@@ -331,13 +326,13 @@ class DiplomacyService @Inject constructor(
 
         if (shouldRefresh) {
             val newItems = generateSectTradeItems(currentYear, sectId)
-            val updatedSectDetails = data.sectDetails.toMutableMap()
-            updatedSectDetails[sectId] = sectDetail.copy(
-                tradeItems = newItems,
-                tradeLastRefreshYear = currentYear
-            )
-            scope.launch {
-                stateStore.modifyState { gameData = gameData.copy(sectDetails = updatedSectDetails) }
+            stateStore.modifyState {
+                val updatedSectDetails = gameData.sectDetails.toMutableMap()
+                updatedSectDetails[sectId] = (gameData.sectDetails[sectId] ?: SectDetail(sectId = sectId)).copy(
+                    tradeItems = newItems,
+                    tradeLastRefreshYear = currentYear
+                )
+                gameData = gameData.copy(sectDetails = updatedSectDetails)
             }
             return newItems
         }
@@ -422,18 +417,16 @@ class DiplomacyService @Inject constructor(
         "Use buyFromSectTradeSync() — scope.launch 在 swapFromShadow 期间存在竞态风险",
         ReplaceWith("buyFromSectTradeSync(sectId, itemId, quantity)")
     )
-    fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
+    suspend fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
         val data = stateStore.gameData.value
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones - v.totalPrice,
-                    sectDetails = v.updatedSectDetails
-                )
-                addSectTradeItemToMutableState(v.item, v.actualQuantity)
-            }
+        stateStore.update {
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones - v.totalPrice,
+                sectDetails = v.updatedSectDetails
+            )
+            addSectTradeItemToMutableState(v.item, v.actualQuantity)
         }
     }
 

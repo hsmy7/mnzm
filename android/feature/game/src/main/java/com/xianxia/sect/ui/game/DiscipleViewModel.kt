@@ -253,7 +253,9 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun syncAllDiscipleStatuses() {
-        gameEngine.syncAllDiscipleStatuses()
+        viewModelScope.launch {
+            gameEngine.syncAllDiscipleStatuses()
+        }
     }
     
     fun getEquipmentById(id: String): EquipmentInstance? {

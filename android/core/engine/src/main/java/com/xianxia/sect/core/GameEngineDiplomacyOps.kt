@@ -4,9 +4,9 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.DomainLog
 
 fun GameEngine.generateSectTradeItems(year: Int): List<MerchantItem> = diplomacyFacade.generateSectTradeItems(year)
-fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> = diplomacyFacade.getOrRefreshSectTradeItems(sectId)
+suspend fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> = diplomacyFacade.getOrRefreshSectTradeItems(sectId)
 suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTradeSync(sectId, itemId, quantity)
-fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult = diplomacyFacade.giftSpiritStones(sectId, tier, bypassYearLimit)
+suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult = diplomacyFacade.giftSpiritStones(sectId, tier, bypassYearLimit)
 
 /** 攻击预警 — 缓和关系：自动薄礼并取消此宗门的所有攻击预警 */
 suspend fun GameEngine.appeaseAttackingSect(sectId: String): GiftResult {

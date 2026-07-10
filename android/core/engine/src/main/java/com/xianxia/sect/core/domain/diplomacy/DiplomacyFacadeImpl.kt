@@ -15,7 +15,7 @@ class DiplomacyFacadeImpl @Inject constructor(
     private val stateStore: GameStateStore
 ) : DiplomacyFacade {
 
-    override fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean): GiftResult =
+    override suspend fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean): GiftResult =
         giftService.giftSpiritStones(sectId, tier, bypassYearLimit)
 
     override suspend fun requestAllianceSimple(sectId: String): Boolean =
@@ -38,7 +38,7 @@ class DiplomacyFacadeImpl @Inject constructor(
     override fun generateSectTradeItems(year: Int): List<MerchantItem> =
         diplomacyService.generateSectTradeItems(year)
 
-    override fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
+    override suspend fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
         diplomacyService.getOrRefreshSectTradeItems(sectId)
 
     override suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int) =

@@ -123,7 +123,7 @@ class GameEngine @Inject constructor(
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = stateStore.pendingBeastAttacks
     fun clearPendingBeastAttacks() { stateStore.clearPendingBeastAttacks() }
-    fun resolveBeastAttackPayTribute(beastLevelId: String) {
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
         explorationService.resolveBeastAttackPayTribute(beastLevelId)
     }
     suspend fun resolveBeastAttackFight(beastLevelId: String) {

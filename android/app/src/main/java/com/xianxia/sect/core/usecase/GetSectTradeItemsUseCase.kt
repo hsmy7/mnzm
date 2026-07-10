@@ -9,7 +9,7 @@ import javax.inject.Singleton
 class GetSectTradeItemsUseCase @Inject constructor(
     private val diplomacyFacade: DiplomacyFacade
 ) {
-    operator fun invoke(sectId: String): Result<List<MerchantItem>> = runCatching {
+    suspend operator fun invoke(sectId: String): Result<List<MerchantItem>> = runCatching {
         diplomacyFacade.getOrRefreshSectTradeItems(sectId)
     }
 }

@@ -82,11 +82,13 @@ class WorldMapInteractionViewModel @Inject constructor(
     fun getPlayerVassals(): List<String> = gameEngine.getPlayerVassals()
 
     fun openSectTradeDialog(sectId: String) {
-        _dialogs.value = _dialogs.value.copy(
-            showTrade = true,
-            selectedTradeSectId = sectId,
-            tradeItems = gameEngine.getOrRefreshSectTradeItems(sectId)
-        )
+        viewModelScope.launch {
+            _dialogs.value = _dialogs.value.copy(
+                showTrade = true,
+                selectedTradeSectId = sectId,
+                tradeItems = gameEngine.getOrRefreshSectTradeItems(sectId)
+            )
+        }
     }
 
     fun closeSectTradeDialog() {

@@ -611,7 +611,7 @@ private suspend fun GameEngine.applyMissionResult(
 
 // ── Service delegates ───────────────────────────────────────────────
 
-fun GameEngine.completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) = explorationService.completeExploration(teamId, success, survivorIds)
+suspend fun GameEngine.completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) = explorationService.completeExploration(teamId, success, survivorIds)
 suspend fun GameEngine.redeemCode(code: String, usedCodes: List<String>, currentYear: Int, currentMonth: Int): RedeemResult = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
 fun GameEngine.resetCultivationTimer() { cultivationService.resetHighFrequencyData() }
 suspend fun GameEngine.checkpointAllProduction() { cultivationService.checkpointAllProduction() }

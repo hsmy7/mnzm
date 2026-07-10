@@ -24,7 +24,7 @@ class VassalServiceTest {
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
-        service = VassalService(stateStore, scopeProvider)
+        service = VassalService(stateStore)
         runBlocking { stateStore.reset() }
     }
 
@@ -38,8 +38,7 @@ class VassalServiceTest {
     @Test
     fun `establishVassalage sets suzerain`() = runBlocking {
         service.establishVassalage("sect_master")
-        delay(100)
-        assertEquals("sect_master", service.getSuzerainSectId())
+assertEquals("sect_master", service.getSuzerainSectId())
         assertTrue(service.isVassal())
     }
 
@@ -63,8 +62,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyTribute()
-        delay(100)
-        assertEquals(50_000L, stateStore.gameData.value.spiritStones)
+assertEquals(50_000L, stateStore.gameData.value.spiritStones)
     }
 
     // --- 年贡50% ---
@@ -79,8 +77,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyTribute()
-        delay(100)
-        val expectedTribute = (10_000L * 0.5).toLong()
+val expectedTribute = (10_000L * 0.5).toLong()
         assertEquals(50_000L - expectedTribute, stateStore.gameData.value.spiritStones)
     }
 
@@ -96,8 +93,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyTribute()
-        delay(100)
-        assertEquals(50_000L, stateStore.gameData.value.spiritStones)
+assertEquals(50_000L, stateStore.gameData.value.spiritStones)
     }
 
     // --- 年贡最低1灵石 ---
@@ -112,8 +108,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyTribute()
-        delay(100)
-        assertEquals(9L, stateStore.gameData.value.spiritStones)
+assertEquals(9L, stateStore.gameData.value.spiritStones)
     }
 
     // --- 配置常量 ---
@@ -285,8 +280,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyVassalTribute(5)
-        delay(100)
-        // establishedYear(5) >= year(5) → 当年不计贡，灵石保持不变
+// establishedYear(5) >= year(5) → 当年不计贡，灵石保持不变
         assertEquals(0L, stateStore.gameData.value.spiritStones)
     }
 
@@ -313,8 +307,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyVassalTribute(6)
-        delay(100)
-        val expected = 1000L + GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL[1]!!
+val expected = 1000L + GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL[1]!!
         assertEquals(expected, stateStore.gameData.value.spiritStones)
     }
 
@@ -341,8 +334,7 @@ class VassalServiceTest {
             )
         }
         service.processYearlyVassalTribute(6)
-        delay(100)
-        assertEquals(1000L, stateStore.gameData.value.spiritStones)
+assertEquals(1000L, stateStore.gameData.value.spiritStones)
     }
 
     // --- 配置常量 ---

@@ -98,7 +98,7 @@ class BuildingFacadeImpl @Inject constructor(
     override suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
         buildingService.autoHarvestCompletedAlchemySlots()
 
-    override fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
+    override suspend fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
 
     override fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
 

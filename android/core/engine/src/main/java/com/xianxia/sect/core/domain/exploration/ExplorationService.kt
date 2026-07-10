@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
@@ -15,7 +14,6 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.InventorySystem
 
@@ -32,14 +30,11 @@ import kotlin.random.Random
 class ExplorationService @Inject constructor(
     private val stateStore: GameStateStore,
     private val eventBus: EventBusPort,
-    private val scopeProvider: CoroutineScopeProvider,
     private val battleSystem: BattleSystem,
     private val buildingConfigService: BuildingConfigService,
     private val inventorySystem: InventorySystem,
     private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
 ) {
-    private val scope get() = scopeProvider.scope
-
     private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
 
     // 关卡刷新冷却：每3个月刷新一次（绝对月 = year * 12 + month）
@@ -181,7 +176,7 @@ class ExplorationService @Inject constructor(
     /**
      * 玩家选择"上交宝物"：扣除 20% 灵石（至少 2 万），妖兽退去。
      */
-    fun resolveBeastAttackPayTribute(beastLevelId: String) {
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
         val gd = stateStore.gameData.value
         val level = gd.worldLevels.find { it.id == beastLevelId } ?: return
         val targetSect = gd.worldMapSects.find {
@@ -191,26 +186,24 @@ class ExplorationService @Inject constructor(
             GameConfig.WorldMap.BEAST_TRIBUTE_RATIO).toLong()
             .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
 
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(
-                    spiritStones = (gameData.spiritStones - tribute)
-                        .coerceAtLeast(0L),
-                    worldLevels = gameData.worldLevels.map {
-                        if (it.id == beastLevelId)
-                            it.copy(defeated = true) else it
-                    }
-                )
-                battleLogs = (battleLogs + BattleLog(
-                    year = gameData.gameYear,
-                    month = gameData.gameMonth,
-                    type = BattleType.PVE,
-                    attackerName = level.beastName.ifEmpty { "妖兽" },
-                    defenderName = targetSect?.name ?: "",
-                    result = BattleResult.WIN,
-                    details = "上交${tribute}灵石，妖兽退去"
-                )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
-            }
+        stateStore.update {
+            gameData = gameData.copy(
+                spiritStones = (gameData.spiritStones - tribute)
+                    .coerceAtLeast(0L),
+                worldLevels = gameData.worldLevels.map {
+                    if (it.id == beastLevelId)
+                        it.copy(defeated = true) else it
+                }
+            )
+            battleLogs = (battleLogs + BattleLog(
+                year = gameData.gameYear,
+                month = gameData.gameMonth,
+                type = BattleType.PVE,
+                attackerName = level.beastName.ifEmpty { "妖兽" },
+                defenderName = targetSect?.name ?: "",
+                result = BattleResult.WIN,
+                details = "上交${tribute}灵石，妖兽退去"
+            )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         }
     }
 
@@ -996,7 +989,7 @@ class ExplorationService @Inject constructor(
      */
     fun getTeams(): StateFlow<List<ExplorationTeam>> = stateStore.teams
 
-    fun recallDiscipleFromTeam(teamId: String, discipleId: String): Boolean {
+    suspend fun recallDiscipleFromTeam(teamId: String, discipleId: String): Boolean {
         val currentTeams = stateStore.teams.value
         val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
         if (teamIndex < 0) return false
@@ -1012,13 +1005,13 @@ class ExplorationService @Inject constructor(
         }
 
         if (remainingMemberIds.isEmpty()) {
-            scope.launch { stateStore.update { this.teams = this.teams.filter { it.id != teamId } } }
+            stateStore.update { this.teams = this.teams.filter { it.id != teamId } }
         } else {
             val updatedTeam = team.copy(
                 memberIds = remainingMemberIds,
                 memberNames = remainingMemberNames
             )
-            scope.launch { stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } } }
+            stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } }
         }
 
         updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
@@ -1028,7 +1021,7 @@ class ExplorationService @Inject constructor(
     /**
      * Complete exploration (success or failure)
      */
-    fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) {
+    suspend fun completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) {
         val currentTeams = stateStore.teams.value
         val teamIndex = currentTeams.indexOfFirst { it.id == teamId }
         if (teamIndex < 0) return
@@ -1037,7 +1030,7 @@ class ExplorationService @Inject constructor(
 
         // Mark as completed
         val updatedTeam = team.copy(status = ExplorationStatus.COMPLETED)
-        scope.launch { stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } } }
+        stateStore.update { this.teams = this.teams.toMutableList().also { it[teamIndex] = updatedTeam } }
 
         // Reset survivor statuses, mark dead disciples
         team.memberIds.forEach { memberId ->
@@ -1052,10 +1045,10 @@ class ExplorationService @Inject constructor(
     /**
      * Mark disciple as dead
      */
-    private fun markDiscipleDead(discipleId: String) {
+    private suspend fun markDiscipleDead(discipleId: String) {
         val disciple = stateStore.disciples.value.find { it.id == discipleId }
         val gameYear = stateStore.gameData.value.gameYear
-        scope.launch { stateStore.update {
+        stateStore.update {
             val currentList = discipleTables.assembleAll()
             val markedDead = currentList.map {
                 if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.DEAD) else it
@@ -1067,20 +1060,20 @@ class ExplorationService @Inject constructor(
             }
             discipleTables.clear()
             finalList.forEach { discipleTables.insert(it) }
-        } }
+        }
         disciple?.let { d ->
             eventBus.emitSync(DeathEvent(d.id, d.name, "探索阵亡"))
         }
     }
 
-    private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        scope.launch { stateStore.update {
+    private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
+        stateStore.update {
             val currentList = discipleTables.assembleAll()
             val updated = currentList.map {
                 if (it.id == discipleId) it.copy(status = status) else it
             }
             discipleTables.clear()
             updated.forEach { discipleTables.insert(it) }
-        } }
+        }
     }
 }

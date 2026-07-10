@@ -83,7 +83,7 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun getDiscipleStatus(discipleId: String): DiscipleStatus =
         discipleService.getDiscipleStatus(discipleId)
 
-    override fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
+    override suspend fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
 
     override suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 
@@ -132,7 +132,7 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean =
         discipleService.isDiscipleAssignedToSpiritMine(discipleId)
 
-    override fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) =
+    override suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) =
         discipleService.updateYearlySalaryEnabled(realm, enabled)
 
     override fun getAliveDisciplesCount(): Int = discipleService.getAliveDisciplesCount()

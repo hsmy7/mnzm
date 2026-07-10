@@ -7,8 +7,6 @@ import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.model.GiftPreferenceType
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.launch
 import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,11 +31,8 @@ data class GiftResult(
  */
 @Singleton
 class GiftService @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider
+    private val stateStore: GameStateStore
 ) {
-    private val scope get() = scopeProvider.scope
-
     /**
      * 向宗门赠送灵石
      *
@@ -46,7 +41,7 @@ class GiftService @Inject constructor(
      * @param bypassYearLimit 是否绕过每年一次送礼限制（用于缓和关系等紧急外交场合）
      * @return 送礼结果
      */
-    fun giftSpiritStones(
+    suspend fun giftSpiritStones(
         sectId: String,
         tier: Int,
         bypassYearLimit: Boolean = false
@@ -141,28 +136,26 @@ class GiftService @Inject constructor(
         // 缓和关系绕过年度限制时不更新 lastGiftYear
         val shouldUpdateGiftYear = !bypassYearLimit
 
-        scope.launch {
-            stateStore.update {
-                val livePlayerSect = gameData.worldMapSects.find { it.isPlayerSect }
-                if (livePlayerSect == null) return@update
+        stateStore.update {
+            val livePlayerSect = gameData.worldMapSects.find { it.isPlayerSect }
+            if (livePlayerSect == null) return@update
 
-                val liveUpdatedRelations = FavorDomain.updateFavor(
-                    gameData.sectRelations, livePlayerSect.id, sectId, newFavor, currentYear
-                )
+            val liveUpdatedRelations = FavorDomain.updateFavor(
+                gameData.sectRelations, livePlayerSect.id, sectId, newFavor, currentYear
+            )
 
-                val liveUpdatedDetails = gameData.sectDetails.toMutableMap()
-                if (shouldUpdateGiftYear) {
-                    liveUpdatedDetails[sectId] = (liveUpdatedDetails[sectId]
-                        ?: SectDetail(sectId = sectId))
-                        .copy(lastGiftYear = currentYear)
-                }
-
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones - tierConfig.spiritStones,
-                    sectDetails = liveUpdatedDetails,
-                    sectRelations = liveUpdatedRelations
-                )
+            val liveUpdatedDetails = gameData.sectDetails.toMutableMap()
+            if (shouldUpdateGiftYear) {
+                liveUpdatedDetails[sectId] = (liveUpdatedDetails[sectId]
+                    ?: SectDetail(sectId = sectId))
+                    .copy(lastGiftYear = currentYear)
             }
+
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones - tierConfig.spiritStones,
+                sectDetails = liveUpdatedDetails,
+                sectRelations = liveUpdatedRelations
+            )
         }
 
         val responseText = SectResponseTexts.getAcceptResponse(

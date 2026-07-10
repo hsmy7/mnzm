@@ -17,7 +17,7 @@ interface BuildingFacade {
     /** 开始锻造。成功返回 [DomainResult.Success] 含槽位，失败携带具体错误原因。 */
     suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot>
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult>
-    fun clearPlantSlot(slotIndex: Int)
+    suspend fun clearPlantSlot(slotIndex: Int)
     fun getForgeSlots(): List<BuildingSlot>
     fun getAlchemyFurnaceCount(): Int
     fun getForgeWorkshopCount(): Int

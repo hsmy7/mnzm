@@ -16,6 +16,14 @@ import javax.inject.Singleton
 
 @Singleton
 @SystemPriority(order = 240)
+/**
+ * 伴侣系统（道侣配对 + 忠诚度衰减）。
+ *
+ * 收到突破事件后异步增加道侣忠诚度（通过 [scope] + [stateStore.update]）。
+ * 注意：[onEvent] 的 [DomainEventSubscriber] 接口不支持 suspend，因此
+ * stateStore.update 必须通过 scope.launch 异步执行。这是受接口约束的
+ * 必要设计——非标准 fire-and-forget 反模式。
+ */
 class PartnerSystem @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,

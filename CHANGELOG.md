@@ -6,6 +6,13 @@
 
 - **外交界面全屏化** — 宗门外交聊天界面从半屏（83%宽×78%高）改为全屏显示，宗门名称显示在标题栏，聊天区域充分利用全屏空间，关闭按钮在右上角，返回键正常关闭
 
+### 异步状态写入竞态修复
+
+- **修复：年度招募不刷新** — 消除 `processSectDisciplesYearlyRecruitment` 与 `refreshRecruitList` 之间的 fire-and-forget 异步竞态。前者用 `scope.launch { stateStore.update { ... } }` 在 `Dispatchers.Default` 上异步写回 `recruitList`，后者同步调用 `stateStore.update` 写入新候选人，C1 始终在 refresh 之后执行并覆写回旧列表。将 `processSectDisciplesYearlyRecruitment` + `processSectDisciplesAging` 改为 `suspend fun` 直接调用 `stateStore.update`，消除跨线程竞态
+- **全项目清理 scope.launch { stateStore.update } 反模式** — 批量消除 30+ 文件中所有 fire-and-forget 异步 state 写入（CaveExplorationProcessor/CultivationEventProcessor/DiscipleService/GiftService/FavorService/VassalService/DiplomacyService/BuildingService/ExplorationService/AttackWarningService 等），统一替换为 `suspend fun` + 直接 `stateStore.update`，确保 state 更新在调用栈上同步完成
+- **NonCancellable 保护** — `processYearlyEvents`/`processMonthlyEvents` 包裹 `withContext(NonCancellable)`，防止协程取消导致年度/月度结算中途部分提交
+- **防御加固** — `processAIVsAIBattles` for 循环中每个迭代独立 `stateStore.update` 已评估并注释标记；`test` 中 8 处 `delay(100)` 移除（方法已改为 suspend 后调用即完成无需等待）
+
 ## [4.0.41] - 2026-07-10（versionCode=4041）
 
 ### 宗门外交好感度系统重构

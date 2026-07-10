@@ -242,7 +242,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    fun returnEquipmentToWarehouse(equipmentId: String) {
+    suspend fun returnEquipmentToWarehouse(equipmentId: String) {
         val currentInstances = stateStore.equipmentInstances.value
         val eq = currentInstances.find { it.id == equipmentId } ?: return
         val stack = eq.toStack()
@@ -250,7 +250,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val existingStack = currentStacks.find {
             it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
         }
-        scope.launch { stateStore.update {
+        stateStore.update {
             if (existingStack != null) {
                 val maxQty = inventoryConfig.getMaxStackSize("equipment_stack")
                 val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxQty)
@@ -261,19 +261,19 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 equipmentStacks = equipmentStacks + stack
             }
             equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
-        } }
+        }
     }
 
-    fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
+    suspend fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
         val equipment = stateStore.equipmentInstances.value.find { it.id == equipmentId } ?: return
         if (!equipment.isEquipped) return
 
-        scope.launch { stateStore.update {
+        stateStore.update {
             equipmentInstances = equipmentInstances.map { eq ->
                 if (eq.id == equipmentId) {
                     eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
                 } else eq
             }
-        } }
+        }
     }
 }

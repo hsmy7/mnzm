@@ -14,7 +14,7 @@ class BeastAttackDelegate(
     private val scope: CoroutineScope
 ) {
     /** 处理兽袭事件 — 选择进贡物资以平息该兽袭。 */
-    fun resolveBeastAttackPayTribute(beastLevelId: String) {
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
         gameEngine.resolveBeastAttackPayTribute(beastLevelId)
     }
 
