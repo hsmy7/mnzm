@@ -173,7 +173,10 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         val currentTickCount = gameEngineCore.tickCount.value
 
         // Tick 停滞 → 尝试恢复（限频 60s，防止 Doze 退出时频繁调用）
-        if (currentTickCount == lastTickCount && gameEngineCore.isGameLoopRunning) {
+        // ⚠️ 游戏暂停时 tickCount 不递增但 isGameLoopRunning 仍为 true，
+        // 跳过恢复——forceRestartGameLoop 会清除暂停状态，破坏用户暂停操作
+        if (currentTickCount == lastTickCount && gameEngineCore.isGameLoopRunning
+            && !gameEngineCore.isPausedDirect) {
             if ((now - lastRecoveryTimeMs) >= MIN_RECOVERY_INTERVAL_MS) {
                 lastRecoveryTimeMs = now
                 Log.w(TAG, "Tick stalled, force restarting game loop (engine core)")
