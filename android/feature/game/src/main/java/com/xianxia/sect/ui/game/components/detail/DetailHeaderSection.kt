@@ -37,6 +37,7 @@ data class DetailActionCallbacks(
     val onShowApprentice: () -> Unit,
     val onRenameDisciple: (() -> Unit)? = null,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
+    val onShowChat: () -> Unit = {},  // 交谈
 )
 
 @Composable
@@ -178,6 +179,10 @@ fun DetailRightPanel(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
                     .clickable { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF9800))
+                    .clickable { dismissDropdown(); actions.onShowChat() }.padding(horizontal = 6.dp, vertical = 2.dp)
+            ) { Text("交谈", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF00BCD4))
                     .clickable { dismissDropdown(); actions.onShowLifeLog() }.padding(horizontal = 6.dp, vertical = 2.dp)

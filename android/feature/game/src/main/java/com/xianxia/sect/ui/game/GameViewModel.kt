@@ -1243,6 +1243,26 @@ class GameViewModel @Inject constructor(
      */
     fun getDiscipleById(id: String): DiscipleAggregate? = disciple.getDiscipleById(id)
 
+    // ═══════════════════════════
+    // 交谈效果
+    // ═══════════════════════════
+
+    /** 获取弟子上次交谈年份，null 表示从未交谈获得效果 */
+    fun getLastChatYear(discipleId: String): Int? = disciple.getLastChatYear(discipleId)
+
+    /** 应用交谈效果并记录冷却年份 */
+    fun applyConversationEffects(
+        discipleId: String,
+        currentYear: Int,
+        moralityDelta: Int,
+        loyaltyDelta: Int,
+        cultivationDelta: Double,
+        intelligenceDelta: Int
+    ) = disciple.applyConversationEffects(
+        discipleId, currentYear,
+        moralityDelta, loyaltyDelta, cultivationDelta, intelligenceDelta
+    )
+
     /**
      * 按 ID 查询功法实例（已废弃，使用 [getManualInstanceById]）。
      *

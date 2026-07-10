@@ -216,8 +216,12 @@ class DiscipleDelegate(
 
     fun renameDisciple(discipleId: String, newName: String) {
         scope.launch {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copy(name = newName)
+            try {
+                gameEngine.updateDisciple(discipleId) { disciple ->
+                    disciple.copy(name = newName)
+                }
+            } catch (e: Exception) {
+                /* error handled by BaseViewModel */
             }
         }
     }
@@ -293,6 +297,47 @@ class DiscipleDelegate(
 
     fun getDiscipleById(id: String): DiscipleAggregate? {
         return gameEngine.getDiscipleAggregate(id)
+    }
+
+    // ═══════════════════════════════════════════
+    // 交谈效果相关
+    // ═══════════════════════════════════════════
+
+    /** 获取弟子上次获得交谈效果的游戏年份，null 表示从未获得过 */
+    fun getLastChatYear(discipleId: String): Int? {
+        val agg = gameEngine.getDiscipleAggregate(discipleId) ?: return null
+        return agg.sourceRef?.statusData?.get("lastChatYear")?.toIntOrNull()
+    }
+
+    /** 应用交谈效果并记录冷却年份 */
+    fun applyConversationEffects(
+        discipleId: String,
+        currentYear: Int,
+        moralityDelta: Int,
+        loyaltyDelta: Int,
+        cultivationDelta: Double,
+        intelligenceDelta: Int
+    ) {
+        scope.launch {
+            try {
+                gameEngine.updateDisciple(discipleId) { disciple ->
+                    val newStatus = disciple.statusData.toMutableMap().apply {
+                        this["lastChatYear"] = currentYear.toString()
+                    }
+                    disciple.copy(
+                        cultivation = maxOf(0.0, disciple.cultivation + cultivationDelta),
+                        skills = disciple.skills.copy(
+                            morality = (disciple.skills.morality + moralityDelta).coerceIn(1, 100),
+                            loyalty = (disciple.skills.loyalty + loyaltyDelta).coerceIn(1, 100),
+                            intelligence = (disciple.skills.intelligence + intelligenceDelta).coerceIn(1, 100)
+                        ),
+                        statusData = newStatus
+                    )
+                }
+            } catch (e: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {

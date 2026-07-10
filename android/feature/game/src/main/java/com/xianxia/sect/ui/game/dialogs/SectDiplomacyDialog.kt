@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -532,9 +533,11 @@ private fun DialogueBubble(
     ) ?: if (isLeft) R.drawable.dialogue_bubble_left
     else R.drawable.dialogue_bubble_right
 
+    val bubbleMaxWidth = (LocalConfiguration.current.screenWidthDp * 0.65f).dp
+
     Box(
         modifier = modifier
-            .wrapContentWidth()
+            .widthIn(max = bubbleMaxWidth)
             .wrapContentHeight(),
         contentAlignment = Alignment.Center
     ) {
