@@ -180,6 +180,11 @@ class GameForegroundService : Service() {
                 "Game loop will continue without foreground notification. " +
                 "Error: ${e.message}")
             false
+        } catch (e: IllegalStateException) {
+            // Android 14+: ForegroundServiceStartNotAllowedException 继承自 IllegalStateException
+            // 应用处于后台时禁止创建前台通知，但游戏循环可继续运行
+            Log.w(TAG, "startForeground failed (Android 14+ bg restriction): ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed with unexpected exception. " +
                 "Game loop will continue. Error: ${e.message}", e)

@@ -1166,6 +1166,17 @@ class SaveLoadViewModel @Inject constructor(
         gameEngineCore.pauseForBackground()
     }
 
+    /**
+     * 恢复游戏循环（不加载存档）
+     *
+     * 仅恢复游戏循环，不触发存档加载。
+     * 用于 onResume 等切回前台场景，与 [pauseForBackground] 对应。
+     */
+    fun resumeFromBackground() {
+        Log.d(TAG, "resumeFromBackground: resuming game loop")
+        gameEngineCore.resumeFromBackground()
+        _isTimeRunning.value = gameEngineCore.isGameLoopRunning
+    }
 
     fun restartGame() {
         if (!saveLock.compareAndSet(false, true)) {

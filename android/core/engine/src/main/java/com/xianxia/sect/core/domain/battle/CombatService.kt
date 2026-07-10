@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
@@ -134,7 +135,8 @@ class CombatService @Inject constructor(
                 // A. 悲痛期
                 for ((id, griefEndYear) in griefUpdates) {
                     if (id in discipleTables.ids) {
-                        val wasGrieving = discipleTables.griefEndYears.getOrNull(id) != null
+                        val wasGrieving = discipleTables.griefEndYears
+                            .getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL) > 0
                         discipleTables.griefEndYears[id] = griefEndYear
                         // 记录丧亲日志（仅新陷入悲痛时）
                         if (!wasGrieving) {

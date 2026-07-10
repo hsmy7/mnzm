@@ -413,8 +413,10 @@ class GameActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         frameMetricsMonitor.stopMonitoring(window)
-        // 游戏循环继续运行（由 GameForegroundService 持有），不再调用 pauseForBackground
-        // WakeLock 由 Service 持有，Activity 不再管理 release
+        // ★ 进入后台 → 暂停游戏循环（本游戏无离线收益，后台应完全暂停）
+        saveLoadViewModel.pauseForBackground()
+        backgroundTaskScheduler.pause()
+        wakeLockManager.release()
     }
 
     override fun onStop() {
@@ -422,13 +424,9 @@ class GameActivity : ComponentActivity() {
         // FloatingActionMode 尝试弹出 PopupWindow 导致 BadTokenException
         actionModeTracker?.finishActiveActionMode()
         super.onStop()
-        try {
-            saveLoadViewModel.pauseForBackground()
-            backgroundTaskScheduler.pause()
-            Log.d(TAG, "onStop: background tasks paused")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during onStop", e)
-        }
+        // pauseForBackground 已移到 onPause（保证调用），此处不再重复
+        // onPause+onStop 序列中 pauseForBackground 幂等
+        Log.d(TAG, "onStop: background tasks already paused in onPause")
     }
 
     override fun onResume() {
@@ -438,10 +436,13 @@ class GameActivity : ComponentActivity() {
             frameMetricsMonitor.startMonitoring(window)
         }
         backgroundTaskScheduler.resume()
-        Log.d(TAG, "onResume: background tasks resumed")
+        // ★ 回到前台 → 恢复游戏循环
+        saveLoadViewModel.resumeFromBackground()
+        wakeLockManager.acquire()
+        Log.d(TAG, "onResume: background tasks resumed, game loop restored")
 
         // 启动并绑定 GameForegroundService：游戏循环控制权已迁移到 Service
-        // WakeLock 由 Service 持有，Activity 不再管理 acquire/release
+        // WakeLock 由 Activity onPause/onResume 管理（后台暂停时释放，前台恢复时获取）
         val startIntent = Intent(this, GameForegroundService::class.java).apply {
             action = GameForegroundService.ACTION_START
         }

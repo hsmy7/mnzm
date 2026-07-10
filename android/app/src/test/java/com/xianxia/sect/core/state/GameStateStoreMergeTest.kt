@@ -109,7 +109,8 @@ class GameStateStoreMergeTest {
         assertEquals("状态取 current", DiscipleStatus.IDLE, result.statuses[1])
         assertEquals("morality 取 current", 55, result.moralities.getOrDefault(1, 0))
         assertEquals("loyalty 取 current", 55, result.loyalties.getOrDefault(1, 0))
-        assertNull("griefEndYear 取 current", result.griefEndYears.getOrNull(1))
+        assertEquals("griefEndYear 取 current（-1 = 无哀悼期）",
+            DiscipleTables.GRIEF_YEAR_NULL_SENTINEL, result.griefEndYears.getOrDefault(1, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL))
         assertNull("partnerId 取 current", result.partnerIds.getOrNull(1))
         assertNull("masterId 取 current", result.masterIds.getOrNull(1))
         assertEquals("lifespan 取 current", 85, result.lifespans.getOrDefault(1, 0))

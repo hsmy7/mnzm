@@ -15,6 +15,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
@@ -41,15 +43,15 @@ class DiscipleBreakthroughHandlerTest {
         Mockito.`when`(mockStore.manualStacks)
             .thenReturn(MutableStateFlow(emptyList()))
         Mockito.`when`(cultivationCore.isDiscipleFullHpMp(
-            Mockito.any(Disciple::class.java)
+            any<Disciple>()
         )).thenReturn(true)
         Mockito.`when`(cultivationCore.getLifespanGainForRealm(
-            Mockito.anyInt()
+            any<Int>()
         )).thenReturn(100)
         Mockito.`when`(cultivationCore.calculateDiscipleCultivationPerPhase(
-            Mockito.any(Disciple::class.java),
-            Mockito.any(GameData::class.java),
-            Mockito.any(DiscipleTables::class.java)
+            any<Disciple>(),
+            any<GameData>(),
+            any<DiscipleTables>()
         )).thenReturn(50.0)
 
         handler = DiscipleBreakthroughHandler(
@@ -160,7 +162,8 @@ class DiscipleBreakthroughHandlerTest {
 
     @Test
     fun `performBreakthrough - auto uses breakthrough pill from warehouse`() {
-        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+        // realmLayer=8 < maxLayers=9 → pillTargetRealm=realm=9, 匹配 targetRealm=9 的丹药
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 8)
 
         val pill = Pill(
             id = "pill_1",
@@ -194,7 +197,8 @@ class DiscipleBreakthroughHandlerTest {
 
     @Test
     fun `performBreakthrough - auto uses breakthrough pill from storage bag`() {
-        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+        // realmLayer=8 < maxLayers=9 → pillTargetRealm=realm=9, 匹配 targetRealm=9 的丹药
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 8)
 
         val bagPill = StorageBagItem(
             itemId = "bag_pill_1",
@@ -218,9 +222,10 @@ class DiscipleBreakthroughHandlerTest {
 
         val result = handler.performBreakthrough(discipleWithFollowed, state, state.gameData)
 
-        val remainingBag = tables.storageBagItems.getOrDefault(1, emptyList())
-        assertTrue("storage bag pill should be consumed",
-            remainingBag.isEmpty())
+        // performBreakthrough 返回修改后的 Disciple（不写回 table），
+        // 所以检查返回值中的 equipment.storageBagItems
+        assertTrue("storage bag pill should be consumed from result equipment",
+            result.equipment.storageBagItems.isEmpty())
         assertEquals("cultivation should be reset", 0.0, result.cultivation, 0.0)
     }
 

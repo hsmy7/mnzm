@@ -163,15 +163,18 @@ class IntPackedArray @JvmOverloads constructor(
 
     /** 删除 */
     fun delete(key: Int) {
-        val idx = idToIndex.get(key, -1)
-        if (idx < 0) return
+        val rawIdx = idToIndex.get(key, -1)
+        if (rawIdx < 0 || rawIdx >= size_) return
+        // 二次确认索引有效（防御 idToIndex 与 size_ 不一致）
+        val safeIdx = rawIdx.coerceIn(0, size_ - 1)
+        if (safeIdx != rawIdx) return
         idToIndex.delete(key)
         val lastIdx = size_ - 1
-        if (idx != lastIdx) {
+        if (rawIdx != lastIdx) {
             // swap-on-remove：用最后一个有效条目填充空洞
-            keys[idx] = keys[lastIdx]
-            values[idx] = values[lastIdx]
-            idToIndex.put(keys[idx], idx)
+            keys[rawIdx] = keys[lastIdx]
+            values[rawIdx] = values[lastIdx]
+            idToIndex.put(keys[rawIdx], rawIdx)
         }
         size_--
     }
@@ -310,6 +313,8 @@ class IntComponentTable(initialCapacity: Int = 64) {
 
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
+    /** 安全获取，缺失返回 null */
+    fun getOrNull(id: Int): Int? = if (contains(id)) store[id] else null
     operator fun set(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
     inline fun update(id: Int, block: (Int) -> Int) {
         store.put(id, block(store[id])); onWrite?.invoke()

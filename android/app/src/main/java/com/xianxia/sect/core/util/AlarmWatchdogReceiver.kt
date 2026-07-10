@@ -24,10 +24,12 @@ import dagger.hilt.components.SingletonComponent
  *
  * ## 工作机制
  * - [scheduleAlarm] 调度下一次精确闹钟（[ALARM_INTERVAL_MS] 后）
- * - 闹钟触发 → [onReceive] 检查 [GameEngineCore.tickCount] 是否停滞
+ * - 闹钟触发 → [onReceive] 通过 Hilt EntryPoint 获取 [GameEngineCore] 实例，
+ *   检查 [GameEngineCore.tickCount] 是否停滞
  * - 若停滞且 [GameEngineCore.isGameLoopRunning] 为 true（循环应运行但未推进），
- *   启动 [GameForegroundService] 并发送 [GameForegroundService.ACTION_START]，
- *   由 Service 内部看门狗处理 [GameEngineCore] 重启
+ *   直调 [GameEngineCore.forceRestartGameLoop] 重启游戏循环
+ *   （限频每 60 秒一次，防止 Doze 退出时雪崩式恢复）
+ * - 直调失败时降级为启动 [GameForegroundService] 兜底
  * - 无论是否触发恢复，都重新调度下一次闹钟（链式调度）
  *
  * ## 为何不用 setRepeating
@@ -42,8 +44,9 @@ import dagger.hilt.components.SingletonComponent
  * 从 Application 的 SingletonComponent 获取 @Singleton 实例，绕过该限制。
  *
  * 不直接调用 [GameEngineCore.restartGameLoopInternal]（该方法为 private），
- * 而是启动 [GameForegroundService]，由 Service 的 onStartCommand 处理
- * startGameLoop，Service 内部看门狗会进一步恢复卡死的游戏循环。
+ * 而是通过 [GameEngineCore.forceRestartGameLoop]（公有方法、线程安全）
+ * 直调引擎核心重启游戏循环，绕开 Service 生命周期。
+ * 调取失败时降级为启动 [GameForegroundService] 兜底。
  *
  * 参考：
  * - https://developer.android.google.cn/training/scheduling/alarms
@@ -60,12 +63,19 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         /** 闹钟间隔（15 秒） */
         const val ALARM_INTERVAL_MS = 15_000L
 
-        /** PendingIntent 请求码 */
+        /** PendingIntent 请求码（0x7E02 = Watchdog 看门狗编号） */
         const val REQUEST_CODE = 0x7E02
 
         /** 上次检查时的 tickCount，用于检测停滞（-1L 表示尚未采样过） */
         @Volatile
         private var lastTickCount: Long = -1L
+
+        /** 恢复动作最小间隔（ms）：60 秒内不重复恢复，防止 Doze 退出时雪崩式恢复 */
+        private const val MIN_RECOVERY_INTERVAL_MS = 60_000L
+
+        /** 上次恢复执行时间戳（ms） */
+        @Volatile
+        private var lastRecoveryTimeMs: Long = 0L
 
         /**
          * 调度下一次精确闹钟（链式调度）。
@@ -146,57 +156,69 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         }
 
         val appContext = context.applicationContext
-        val tickStalled = checkTickStalled(appContext)
-        if (tickStalled) {
-            Log.w(TAG, "Tick stalled while game loop should be running, starting foreground service")
-            startForegroundService(appContext)
+
+        // 获取 GameEngineCore 实例（不 throw CancellationException——onReceive 非协程上下文）
+        val gameEngineCore = try {
+            EntryPointAccessors.fromApplication(
+                appContext,
+                GameEngineEntryPoint::class.java
+            ).gameEngineCore()
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot obtain GameEngineCore, scheduling next alarm", e)
+            scheduleAlarm(context)
+            return
         }
 
+        val now = System.currentTimeMillis()
+        val currentTickCount = gameEngineCore.tickCount.value
+
+        // Tick 停滞 → 尝试恢复（限频 60s，防止 Doze 退出时频繁调用）
+        if (currentTickCount == lastTickCount && gameEngineCore.isGameLoopRunning) {
+            if ((now - lastRecoveryTimeMs) >= MIN_RECOVERY_INTERVAL_MS) {
+                lastRecoveryTimeMs = now
+                Log.w(TAG, "Tick stalled, force restarting game loop (engine core)")
+                forceRestartGameLoop(appContext)
+            } else {
+                Log.d(TAG, "Tick stalled but recovery throttled (interval=${MIN_RECOVERY_INTERVAL_MS}ms)")
+            }
+        }
+
+        lastTickCount = currentTickCount
         // 链式调度下一次闹钟
         scheduleAlarm(context)
     }
 
     /**
-     * 检查 [GameEngineCore.tickCount] 是否停滞。
+     * 通过 [GameEngineCore] 直接强制重启游戏循环。
      *
-     * 仅当游戏循环声明为活跃（[GameEngineCore.isGameLoopRunning] == true）
-     * 但 tickCount 与上次采样相同时，判定为停滞。
+     * 替代启动 [GameForegroundService] 的路径——绕开 Service 生命周期，
+     * 避免 [Service.startForeground] 的同步 Binder 调用在 system_server
+     * 高负载时触发 "executing service" ANR。
      *
-     * @return true 表示 tick 停滞且循环应运行
+     * 通过 Hilt EntryPoint 获取 [GameEngineCore] 实例后直调
+     * [GameEngineCore.forceRestartGameLoop]，该方法是公有的、
+     * 线程安全的、可被外部调用的。
+     *
+     * 调用失败时降级为启动 [GameForegroundService] 兜底。
      */
-    private fun checkTickStalled(context: Context): Boolean {
-        val gameEngineCore = try {
-            EntryPointAccessors.fromApplication(
+    private fun forceRestartGameLoop(context: Context) {
+        try {
+            val engine = EntryPointAccessors.fromApplication(
                 context,
                 GameEngineEntryPoint::class.java
             ).gameEngineCore()
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
+            engine.forceRestartGameLoop()
+            Log.i(TAG, "Game loop forcefully restarted via engine core")
         } catch (e: Exception) {
-            Log.w(TAG, "Cannot obtain GameEngineCore via EntryPoint: ${e.message}")
-            return false
-        }
-
-        val currentTickCount = gameEngineCore.tickCount.value
-        val stalled = currentTickCount == lastTickCount && gameEngineCore.isGameLoopRunning
-        lastTickCount = currentTickCount
-        return stalled
-    }
-
-    /**
-     * 启动 [GameForegroundService] 并发送 [GameForegroundService.ACTION_START]。
-     *
-     * 由 Service 的 onStartCommand 处理 startGameLoop，Service 内部看门狗
-     * 会进一步恢复卡死的游戏循环（restartGameLoopInternal 为 private，
-     * 不在此处直接调用）。
-     */
-    private fun startForegroundService(context: Context) {
-        val intent = Intent(context, GameForegroundService::class.java)
-            .setAction(GameForegroundService.ACTION_START)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ContextCompat.startForegroundService(context, intent)
-        } else {
-            context.startService(intent)
+            Log.e(TAG, "forceRestartGameLoop failed, falling back to startForegroundService", e)
+            // 降级：启动 GameForegroundService 兜底
+            val intent = Intent(context, GameForegroundService::class.java)
+                .setAction(GameForegroundService.ACTION_START)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(context, intent)
+            } else {
+                context.startService(intent)
+            }
         }
     }
 }

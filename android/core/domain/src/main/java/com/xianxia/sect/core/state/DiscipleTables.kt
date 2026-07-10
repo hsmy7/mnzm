@@ -138,7 +138,7 @@ class DiscipleTables {
     val parentId2s = ComponentTable<String?>()
     val lastChildYears = IntComponentTable()
     val childBirthMonths = ComponentTable<Int?>()    // nullable
-    val griefEndYears = ComponentTable<Int?>()
+    val griefEndYears = IntComponentTable()
     val masterIds = ComponentTable<String?>()        // 师父弟子ID（师徒关系）
 
     // === 技能属性 ===
@@ -307,8 +307,8 @@ class DiscipleTables {
         RefTableRef(partnerSectIds, DiscipleTables::partnerSectIds, "partnerSectIds"),
         RefTableRef(parentId1s, DiscipleTables::parentId1s, "parentId1s"),
         RefTableRef(parentId2s, DiscipleTables::parentId2s, "parentId2s"),
+        IntTableRef(griefEndYears, DiscipleTables::griefEndYears, "griefEndYears"),
         RefTableRef(childBirthMonths, DiscipleTables::childBirthMonths, "childBirthMonths"),
-        RefTableRef(griefEndYears, DiscipleTables::griefEndYears, "griefEndYears"),
         RefTableRef(masterIds, DiscipleTables::masterIds, "masterIds")
     )
 
@@ -442,7 +442,7 @@ class DiscipleTables {
         parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
         lastChildYears[id] = s.lastChildYear
         s.childBirthMonth?.let { childBirthMonths[id] = it }
-        s.griefEndYear?.let { griefEndYears[id] = it }
+        griefEndYears[id] = s.griefEndYear ?: GRIEF_YEAR_NULL_SENTINEL
         masterIds[id] = s.masterId
 
         // 技能
@@ -572,7 +572,8 @@ class DiscipleTables {
         parentId2 = parentId2s.getOrNull(id),
         lastChildYear = lastChildYears.getOrDefault(id, 0),
         childBirthMonth = childBirthMonths.getOrNull(id),
-        griefEndYear = griefEndYears.getOrNull(id),
+        griefEndYear = griefEndYears.getOrDefault(id, GRIEF_YEAR_NULL_SENTINEL)
+            .takeIf { it != GRIEF_YEAR_NULL_SENTINEL },
         masterId = masterIds.getOrNull(id)
     )
 
@@ -684,6 +685,11 @@ class DiscipleTables {
             ))
             remove(id)
         }
+    }
+
+    companion object {
+        /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
+        const val GRIEF_YEAR_NULL_SENTINEL = -1
     }
 }
 

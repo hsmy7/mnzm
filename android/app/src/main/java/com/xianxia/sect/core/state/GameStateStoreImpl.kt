@@ -98,7 +98,7 @@ class GameStateStoreImpl @Inject constructor(
                     result.statusData[id] = current.statusData.getOrDefault(id, emptyMap())
                     result.moralities[id] = current.moralities.getOrDefault(id, 0)
                     result.loyalties[id] = current.loyalties.getOrDefault(id, 0)
-                    result.griefEndYears[id] = current.griefEndYears.getOrNull(id)
+                    result.griefEndYears[id] = current.griefEndYears.getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL)
                     result.partnerIds[id] = current.partnerIds.getOrNull(id)
                     result.masterIds[id] = current.masterIds.getOrNull(id)
                 } else {
