@@ -32,8 +32,8 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.SectRelationLevel
+import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -84,7 +84,7 @@ internal fun WorldMapSectDetailDialog(
         }?.favor ?: 0
     } else 0
 
-    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationLevel = FavorDomain.getLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
 
     UnifiedGameDialog(onDismissRequest = onDismiss, title = "", mode = DialogMode.Half, scrollableContent = false) {

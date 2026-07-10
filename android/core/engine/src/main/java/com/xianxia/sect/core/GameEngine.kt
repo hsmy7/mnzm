@@ -35,7 +35,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import javax.inject.Inject
 import javax.inject.Singleton
 
-typealias GiftResult = DiplomacyService.GiftResult
+typealias GiftResult = com.xianxia.sect.core.domain.favor.GiftResult
 typealias ElderBonusData = FormulaService.ElderBonusData
 
 data class GameStateSnapshot(

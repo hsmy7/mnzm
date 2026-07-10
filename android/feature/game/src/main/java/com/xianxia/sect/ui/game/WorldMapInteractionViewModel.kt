@@ -3,7 +3,7 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
+import com.xianxia.sect.core.domain.favor.GiftResult
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapDialogState
 import com.xianxia.sect.core.model.WorldMapDialogType
@@ -51,7 +51,7 @@ class WorldMapInteractionViewModel @Inject constructor(
     }
 
     /** 送礼并返回结果（聊天式送礼使用） */
-    suspend fun performGiftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult? {
+    suspend fun performGiftSpiritStones(sectId: String, tier: Int): GiftResult? {
         return try {
             gameEngine.giftSpiritStones(sectId, tier)
         } catch (e: CancellationException) { throw e }

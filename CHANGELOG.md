@@ -1,6 +1,10 @@
 # 模拟宗门 - 更新日志
 
-## [4.0.41] - 2026-07-09（versionCode=4041）
+## [4.0.41] - 2026-07-10（versionCode=4041）
+
+### 宗门外交好感度系统重构
+
+- **代码组织优化** — 将好感度（`SectRelation.favor`）从 Diplomacy 大概念中分离为独立领域。新增 `FavorDomain` 纯函数集（统一查询/计算/更新/衰减/事件判定入口），`FavorService`（有状态业务接口），`GiftService`（送礼逻辑拆分），`FavorEventProcessor`（衰减+事件拆分）。`DiplomacyService` 和 `DiplomacyEventProcessor` 大幅变薄。`SectRelation` 和 `SectRelationLevel` 提取为独立文件。共 8 个新增文件 + 15 个修改文件，零行为变化、零数据格式变更、无需 Migration。
 
 ### 宗门地图全面屏适配与自适应缩放
 

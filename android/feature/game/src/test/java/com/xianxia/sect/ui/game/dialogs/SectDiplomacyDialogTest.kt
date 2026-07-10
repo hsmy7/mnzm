@@ -1,6 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import com.xianxia.sect.core.util.SectRelationLevel
+import com.xianxia.sect.core.model.SectRelationLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

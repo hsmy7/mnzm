@@ -2,7 +2,9 @@ package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.domain.FavorDomain
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.random.Random
@@ -331,60 +333,18 @@ class GameUtilsTest {
         assertEquals(result1, result2)
     }
 
-    // ============================================================
-    // getSectRelation
-    // ============================================================
-
-    @Test
-    fun getSectRelation_noPlayerSect_returns0() {
-        val sects = listOf(WorldSect(id = "s1", isPlayerSect = false))
-        val relations = listOf(SectRelation(sectId1 = "s1", sectId2 = "s2", favor = 50))
-        assertEquals(0, GameUtils.getSectRelation(sects, relations, "s2"))
-    }
-
-    @Test
-    fun getSectRelation_relationExists_returnsFavor() {
-        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
-        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 75))
-        assertEquals(75, GameUtils.getSectRelation(sects, relations, "target"))
-    }
-
-    @Test
-    fun getSectRelation_noRelationFound_returns0() {
-        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
-        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "other", favor = 50))
-        assertEquals(0, GameUtils.getSectRelation(sects, relations, "target"))
-    }
-
-    // ============================================================
-    // calculateSectTradePriceMultiplier
-    // ============================================================
-
-    @Test
-    fun calculateSectTradePriceMultiplier_neutralRelation_returns1() {
-        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
-        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 50))
-        val alliances = emptyList<Alliance>()
-        assertEquals(1.0, GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target"), 0.001)
-    }
-
-    @Test
-    fun calculateSectTradePriceMultiplier_highRelation_returnsDiscount() {
-        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
-        val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
-        val alliances = emptyList<Alliance>()
-        val multiplier = GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target")
-        // favor=80, relation >= 70: 1.0 - (80-70)*0.01 = 0.9
-        assertTrue("Expected multiplier < 1.0 for high relation, got $multiplier", multiplier < 1.0)
-    }
+    // ════════════════════════════════════════════════════════════
+    // 以下测试已移至 FavorDomainTest，使用 FavorDomain 替代 GameUtils
+    // · getSectRelation     → FavorDomain.findFavor()
+    // · calculateSectTradePriceMultiplier → FavorDomain.calculateTradePriceMultiplier()
+    // ════════════════════════════════════════════════════════════
 
     @Test
     fun calculateSectTradePriceMultiplier_ally_returnsBiggerDiscount() {
-        val sects = listOf(WorldSect(id = "player", isPlayerSect = true))
         val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
-        val alliances = listOf(Alliance(sectIds = listOf("player", "target")))
-        val multiplier = GameUtils.calculateSectTradePriceMultiplier(sects, relations, alliances, "target")
-        // isAlly, favor=80: 0.9 * (1.0 - max(0, 80-70)*0.01) = 0.9 * 0.9 = 0.81
+        val alliances = listOf(Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player"))
+        val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, alliances, "target", "player")
+        // isAlly, favor=80: 0.9 * (1.0 - max(0, 80-70)*0.01) = 0.9 * 0.9 = 0.81, clamp at 0.85
         assertTrue("Expected bigger discount for ally, got $multiplier", multiplier < 0.9)
     }
 }

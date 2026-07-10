@@ -19,9 +19,10 @@ import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.PortraitPool
-import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -53,7 +54,7 @@ internal fun SectDiplomacyDialog(
     val lastGiftYear = gameData?.sectDetails?.get(sect.id)?.lastGiftYear
     val hasGiftedThisYear = (lastGiftYear ?: 0) == currentYear
 
-    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationLevel = FavorDomain.getLevel(relation)
     val playerPortraitRes = interactionViewModel.getFirstPlayerDisciplePortrait()
     val aiPortraitRes = gameData?.sectDetails?.get(sect.id)?.portraitRes ?: ""
 

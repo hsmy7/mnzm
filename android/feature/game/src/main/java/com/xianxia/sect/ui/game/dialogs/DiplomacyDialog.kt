@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -139,7 +139,7 @@ internal fun DiplomacySectCard(
     onOpenDiplomacyDialogue: () -> Unit,
     onTrade: () -> Unit
 ) {
-    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationLevel = FavorDomain.getLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
 
     Row(

@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.usecase
 
-import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
+import com.xianxia.sect.core.domain.favor.GiftResult
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -105,11 +105,11 @@ class UseCaseModelsTest {
         assertEquals("ok", modified.message)
     }
 
-    // ==================== DiplomacyService.GiftResult ====================
+    // ==================== GiftResult ====================
 
     @Test
     fun giftResult_defaultValues() {
-        val result = DiplomacyService.GiftResult(success = true)
+        val result = GiftResult(success = true)
         assertTrue(result.success)
         assertFalse(result.rejected)
         assertEquals(0, result.favorChange)
@@ -136,14 +136,14 @@ class UseCaseModelsTest {
 
     @Test
     fun giftResult_equality() {
-        val a = DiplomacyService.GiftResult(true, false, 10, 50, "ok", "accept")
-        val b = DiplomacyService.GiftResult(true, false, 10, 50, "ok", "accept")
+        val a = GiftResult(true, false, 10, 50, "ok", "accept")
+        val b = GiftResult(true, false, 10, 50, "ok", "accept")
         assertEquals(a, b)
     }
 
     @Test
     fun giftResult_rejectedState() {
-        val result = DiplomacyService.GiftResult(
+        val result = GiftResult(
             success = false,
             rejected = true,
             responseType = "rejected",

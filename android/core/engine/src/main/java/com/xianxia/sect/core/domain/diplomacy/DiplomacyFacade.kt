@@ -1,9 +1,10 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
+import com.xianxia.sect.core.domain.favor.GiftResult
 import com.xianxia.sect.core.model.MerchantItem
 
 interface DiplomacyFacade {
-    fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): DiplomacyService.GiftResult
+    fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult
     suspend fun requestAllianceSimple(sectId: String): Boolean
     suspend fun dissolveAllianceSimple(sectId: String): Boolean
     fun isAlly(sectId: String): Boolean

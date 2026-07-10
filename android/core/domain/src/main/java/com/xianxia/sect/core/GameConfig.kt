@@ -1,5 +1,6 @@
 package com.xianxia.sect.core
 
+import com.xianxia.sect.core.config.FavorConfig
 import com.xianxia.sect.core.domain.BuildConfig
 import com.xianxia.sect.core.util.GameRandom
 
@@ -790,6 +791,8 @@ object GameConfig {
         const val BORDER_PADDING = 34
         const val TARGET_SECT_COUNT = 80
         const val MAX_ATTEMPTS = 50000
+        /** @deprecated 使用 FavorConfig.INITIAL_FAVOR 替代 */
+        @Deprecated("使用 FavorConfig.INITIAL_FAVOR 替代", ReplaceWith("FavorConfig.INITIAL_FAVOR"))
         const val INITIAL_SECT_FAVOR = 50
         const val CONNECTION_DISTANCE_LIMIT = 280.0
         const val TARGET_CONNECTIONS_PER_SECT = 3
@@ -824,6 +827,8 @@ object GameConfig {
         const val SPIRIT_STONES_PER_ITEM = 20_000L  // 2万灵石=1物品
     }
     
+    /** @deprecated 好感度常量已移至 [FavorConfig]，请使用 FavorConfig 替代。 */
+    @Deprecated("好感度常量已移至 FavorConfig", ReplaceWith("FavorConfig"))
     object Diplomacy {
         const val MIN_ALLIANCE_FAVOR = 80
         const val ALLIANCE_DURATION_YEARS = 5

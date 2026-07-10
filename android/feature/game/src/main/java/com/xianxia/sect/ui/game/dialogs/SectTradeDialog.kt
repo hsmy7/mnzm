@@ -28,8 +28,9 @@ import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogMode
@@ -67,16 +68,17 @@ fun SectTradeDialog(
         }
     }
 
-    val relation = if (gameData != null && sect != null) {
-        GameUtils.getSectRelation(gameData.worldMapSects, gameData.sectRelations, sect.id)
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val relation = if (playerSect != null && sect != null) {
+        FavorDomain.findFavor(gameData!!.sectRelations, playerSect.id, sect.id)
     } else 0
     val isAlly = sect?.let { interactionViewModel.isAlly(it.id) } ?: false
 
-    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationLevel = FavorDomain.getLevel(relation)
     val maxAllowedRarity = relationLevel.maxAllowedRarity
 
-    val priceMultiplier = if (gameData != null && sect != null) {
-        GameUtils.calculateSectTradePriceMultiplier(gameData.worldMapSects, gameData.sectRelations, gameData.alliances, sect.id)
+    val priceMultiplier = if (playerSect != null && gameData != null && sect != null) {
+        FavorDomain.calculateTradePriceMultiplier(gameData.sectRelations, gameData.alliances, sect.id, playerSect.id)
     } else 1.0
 
     val relationColor = Color(relationLevel.colorHex)

@@ -23,6 +23,7 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.util.BattleCalculator
 import android.util.Log
 import kotlin.random.Random
@@ -339,11 +340,7 @@ object AISectAttackManager {
             .filter { it.isAlive }
         if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return false
 
-        val relation = gameData.sectRelations.find {
-            (it.sectId1 == attacker.id && it.sectId2 == defender.id) ||
-            (it.sectId1 == defender.id && it.sectId2 == attacker.id)
-        }
-        val favor = relation?.favor ?: 0
+        val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, defender.id)
         if (favor > 0) return false
 
         if (attacker.allianceId.isNotEmpty() &&
@@ -460,11 +457,7 @@ object AISectAttackManager {
             if (aliveAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
             // ---- 好感度 ----
-            val relation = gameData.sectRelations.find {
-                (it.sectId1 == attacker.id && it.sectId2 == playerSectId) ||
-                (it.sectId1 == playerSectId && it.sectId2 == attacker.id)
-            }
-            val favor = relation?.favor ?: 0
+            val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
             if (favor > 0) continue
 
             // ---- 联盟 ----

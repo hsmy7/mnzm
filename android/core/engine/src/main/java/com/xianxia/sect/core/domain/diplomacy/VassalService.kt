@@ -11,6 +11,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.domain.FavorDomain
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.random.Random
@@ -183,10 +184,7 @@ class VassalService @Inject constructor(
         val playerSect = data.worldMapSects.find {
             it.isPlayerSect
         } ?: return false
-        val favor = data.sectRelations.find {
-            (it.sectId1 == playerSect.id && it.sectId2 == sectId)
-                || (it.sectId1 == sectId && it.sectId2 == playerSect.id)
-        }?.favor ?: 0
+        val favor = FavorDomain.findFavor(data.sectRelations, playerSect.id, sectId)
 
         // 计算战绩（仅宗门战，近3年）
         val recentRecords = data.sectBattleRecords.filter {
@@ -389,12 +387,9 @@ class VassalService @Inject constructor(
         val skirmishScore = skLoss * 0.15
 
         // 好感度 15%
-        val favor = data.sectRelations.find {
-            (it.sectId1 == playerSect.id
-                && it.sectId2 == contract.vassalSectId)
-                || (it.sectId1 == contract.vassalSectId
-                && it.sectId2 == playerSect.id)
-        }?.favor ?: 50
+        val favor = FavorDomain.findRelation(
+            data.sectRelations, playerSect.id, contract.vassalSectId
+        )?.favor ?: 50
         val favorScore =
             max(0.0, (50 - favor).toDouble() / 100.0) * 0.15
 

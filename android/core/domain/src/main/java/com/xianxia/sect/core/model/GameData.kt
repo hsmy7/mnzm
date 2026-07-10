@@ -1049,19 +1049,6 @@ data class VassalContract(
     val lastTributeYear: Int = 0
 )
 
-/**
- * AI 宗门间关系
- */
-@Keep
-@Serializable
-data class SectRelation(
-    val sectId1: String,
-    val sectId2: String,
-    var favor: Int = GameConfig.WorldMap.INITIAL_SECT_FAVOR,
-    var lastInteractionYear: Int = 0,
-    var noGiftYears: Int = 0
-)
-
 @Keep
 @Serializable
 data class GarrisonSlot(

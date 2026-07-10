@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
+import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.domain.favor.FavorService
 import com.xianxia.sect.core.event.BattleCompletedEvent
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.DomainEventSubscriber
@@ -7,7 +9,6 @@ import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.config.GiftConfig
-import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -18,20 +19,26 @@ import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 import java.util.UUID
 
+/**
+ * 外交服务 — 管理宗门之间的联盟、交易。
+ *
+ * 送礼相关逻辑已移至 [com.xianxia.sect.core.domain.favor.GiftService]，
+ * 好感度相关方法和查询委托 [FavorDomain] 和 [FavorService]。
+ */
 @Singleton
 class DiplomacyService @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
-    private val eventBus: EventBusPort
+    private val eventBus: EventBusPort,
+    private val favorService: FavorService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -42,158 +49,7 @@ class DiplomacyService @Inject constructor(
         private const val TAG = "DiplomacyService"
     }
 
-        // ==================== 数据类定义 ====================
-
-    /**
-     * 送礼结果数据类
-     */
-    data class GiftResult(
-        val success: Boolean,
-        val rejected: Boolean = false,
-        val favorChange: Int = 0,
-        val newFavor: Int = 0,
-        val message: String = "",
-        val responseType: String = ""
-    )
-
-    // ==================== 公开方法 ====================
-
-    /**
-     * 向宗门赠送灵石
-     *
-     * @param sectId 目标宗门ID
-     * @param tier 送礼档位
-     * @param bypassYearLimit 是否绕过每年一次送礼限制（用于缓和关系等紧急外交场合）
-     * @return 送礼结果
-     */
-    fun giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult {
-        val data = stateStore.gameData.value
-        val currentYear = data.gameYear
-
-        // 查找目标宗门
-        val sect = data.worldMapSects.find { it.id == sectId }
-        if (sect == null) {
-            return GiftResult(
-                success = false,
-                responseType = "sect_not_found",
-                message = "未找到目标宗门"
-            )
-        }
-
-        // 检查是否为玩家宗门
-        if (sect.isPlayerSect) {
-            return GiftResult(
-                success = false,
-                responseType = "invalid_target",
-                message = "不能向自己的宗门送礼"
-            )
-        }
-
-        // 检查每年一次限制（缓和关系可绕过）
-        if (!bypassYearLimit && (data.sectDetails[sect.id]?.lastGiftYear ?: 0) == currentYear) {
-            return GiftResult(
-                success = false,
-                rejected = false,
-                responseType = "already_gifted",
-                message = "今年已经向${sect.name}送过礼了，请明年再来"
-            )
-        }
-
-        // 获取档位配置
-        val tierConfig = GiftConfig.SpiritStoneGiftConfig.getTier(tier)
-        if (tierConfig == null) {
-            return GiftResult(
-                success = false,
-                responseType = "invalid_tier",
-                message = "无效的送礼档位"
-            )
-        }
-
-        // 检查灵石是否足够
-        if (data.spiritStones < tierConfig.spiritStones) {
-            return GiftResult(
-                success = false,
-                responseType = "insufficient_resources",
-                message = "灵石不足，需要${tierConfig.spiritStones}灵石"
-            )
-        }
-
-        // 计算拒绝概率（灵石送礼使用档位对应的虚拟稀有度）
-        val virtualRarity = (tier + 1).coerceIn(2, 5)
-        val baseRejectProbability = getRejectProbability(sect.level, virtualRarity)
-        val preferenceRejectModifier = calculatePreferenceRejectModifier(
-            data.sectDetails[sect.id]?.giftPreference ?: GiftPreferenceType.NONE,
-            isSpiritStone = true
-        )
-        val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
-
-        val isRejected = Random.nextInt(100) < rejectProbability
-
-        if (isRejected) {
-            val responseText = SectResponseTexts.getRejectResponse(sect.level, "spirit_stones", tierConfig.name)
-
-            return GiftResult(
-                success = false,
-                rejected = true,
-                responseType = "rejected",
-                message = responseText
-            )
-        }
-
-        // 送礼成功：扣除灵石、标记已送礼、增加好感度
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val currentFavor = if (playerSect != null) {
-            data.sectRelations.find {
-                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
-                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
-            }?.favor ?: 0
-        } else 0
-
-        val sectDetail = data.sectDetails[sectId] ?: SectDetail(sectId = sectId)
-        val percentage = GiftConfig.FavorPercentageConfig.getFavorPercentage(sect.level, tier)
-        val preferenceMultiplier = calculatePreferenceMultiplier(
-            sectDetail.giftPreference,
-            isSpiritStone = true
-        )
-        val baseFavor = tierConfig.baseFavor
-        val favorIncrease = if (percentage != null) {
-            val percentageIncrease = currentFavor * percentage / 100
-            val adjustedIncrease = ((baseFavor + percentageIncrease) * preferenceMultiplier).toInt()
-            if (adjustedIncrease == 0) 1 else adjustedIncrease
-        } else {
-            (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
-        }
-        val newFavor = (currentFavor + favorIncrease).coerceAtMost(100)
-
-        val updatedDetails = data.sectDetails.toMutableMap()
-        // 缓和关系绕过年度限制时不更新 lastGiftYear
-        if (!bypassYearLimit) {
-            updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(lastGiftYear = currentYear)
-        }
-
-        val updatedRelations = if (playerSect != null) {
-            updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, currentYear)
-        } else {
-            data.sectRelations
-        }
-
-        scope.launch { stateStore.update { gameData = data.copy(
-            spiritStones = data.spiritStones - tierConfig.spiritStones,
-            sectDetails = updatedDetails,
-            sectRelations = updatedRelations
-        ) } }
-
-        val responseText = SectResponseTexts.getAcceptResponse(sect.level, "spirit_stones", tierConfig.name, favorIncrease)
-
-        return GiftResult(
-            success = true,
-            rejected = false,
-            favorChange = favorIncrease,
-            newFavor = newFavor,
-            responseType = "accept",
-            message = responseText
-        )
-    }
+    // ==================== 联盟系统 ====================
 
     /**
      * 简化版结盟请求（聊天流使用）
@@ -214,22 +70,11 @@ class DiplomacyService @Inject constructor(
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val favor = if (playerSect != null) {
-            data.sectRelations.find {
-                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
-                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
-            }?.favor ?: 0
+            FavorDomain.findFavor(data.sectRelations, playerSect.id, sectId)
         } else 0
 
         // 按好感度计算成功概率
-        val successChance = when {
-            favor >= 90 -> 0.90
-            favor >= 80 -> 0.75
-            favor >= 60 -> 0.60
-            favor >= 40 -> 0.45
-            favor >= 20 -> 0.25
-            else -> 0.10
-        }
-
+        val successChance = FavorDomain.calculateAllianceSuccessChance(favor)
         val success = Random.nextDouble() < successChance
 
         if (success) {
@@ -277,91 +122,6 @@ class DiplomacyService @Inject constructor(
             )
         }
         return true
-    }
-
-    // ==================== 公开查询方法 ====================
-
-    /**
-     * 获取拒绝概率
-     *
-     * @param sectLevel 宗门等级
-     * @param rarity 物品稀有度
-     * @return 拒绝概率（0-100）
-     */
-    fun getRejectProbability(sectLevel: Int, rarity: Int): Int {
-        return GiftConfig.SectRejectConfig.getRejectProbability(sectLevel, rarity)
-    }
-
-    // ==================== 私有辅助方法 ====================
-
-    /**
-     * 计算偏好乘数（用于关系增长）
-     *
-     * @param giftPreference 礼物偏好类型
-     * @param isSpiritStone 是否为灵石
-     * @return 偏好乘数
-     */
-    private fun calculatePreferenceMultiplier(
-        giftPreference: GiftPreferenceType,
-        isSpiritStone: Boolean = false
-    ): Double {
-        if (giftPreference == GiftPreferenceType.NONE) return 1.0
-        return when {
-            isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> 1.3
-            else -> 1.0
-        }
-    }
-
-    private fun calculatePreferenceRejectModifier(
-        giftPreference: GiftPreferenceType,
-        isSpiritStone: Boolean = false
-    ): Int {
-        if (giftPreference == GiftPreferenceType.NONE) return 0
-        return when {
-            isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> -15
-            else -> 0
-        }
-    }
-
-    /**
-     * 更新宗门关系好感度
-     *
-     * @param relations 关系列表
-     * @param sectId1 宗门1 ID
-     * @param sectId2 宗门2 ID
-     * @param newFavor 新好感度
-     * @param year 当前年份
-     * @return 更新后的关系列表
-     */
-    private fun updateSectRelationFavor(
-        relations: List<SectRelation>,
-        sectId1: String,
-        sectId2: String,
-        newFavor: Int,
-        year: Int = 0
-    ): List<SectRelation> {
-        val id1 = minOf(sectId1, sectId2)
-        val id2 = maxOf(sectId1, sectId2)
-
-        val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
-
-        return if (index >= 0) {
-            relations.mapIndexed { i, relation ->
-                if (i == index) {
-                    relation.copy(favor = newFavor.coerceIn(0, 100), lastInteractionYear = year, noGiftYears = 0)
-                } else {
-                    relation
-                }
-            }
-        } else {
-            relations + SectRelation(
-                sectId1 = id1,
-                sectId2 = id2,
-                favor = newFavor.coerceIn(0, 100),
-                lastInteractionYear = year,
-                noGiftYears = 0
-            )
-        }
     }
 
     // ==================== 宗门交易系统 ====================
@@ -591,8 +351,8 @@ class DiplomacyService @Inject constructor(
         val tradeItems = sectDetail?.tradeItems ?: emptyList()
         val item = tradeItems.find { it.id == itemId } ?: return null
 
-        val relation = getSectRelation(data, sectId)
-        val relationLevel = GameUtils.getSectRelationLevel(relation)
+        val relation = favorService.getFavor(sectId)
+        val relationLevel = FavorDomain.getLevel(relation)
         if (relationLevel !in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)) {
             return null
         }
@@ -603,7 +363,7 @@ class DiplomacyService @Inject constructor(
         }
 
         val actualQuantity = minOf(quantity, item.quantity)
-        val priceMultiplier = calculatePriceMultiplier(data, sectId)
+        val priceMultiplier = favorService.getTradePriceMultiplier(sectId)
         val totalPrice = (item.price * priceMultiplier).toLong() * actualQuantity
 
         if (data.spiritStones < totalPrice) {
@@ -762,12 +522,6 @@ class DiplomacyService @Inject constructor(
             }
         }
     }
-
-    private fun calculatePriceMultiplier(data: GameData, sectId: String): Double =
-        GameUtils.calculateSectTradePriceMultiplier(data.worldMapSects, data.sectRelations, data.alliances, sectId)
-
-    private fun getSectRelation(data: GameData, sectId: String): Int =
-        GameUtils.getSectRelation(data.worldMapSects, data.sectRelations, sectId)
 
     private fun selectRarityByMerchantProbabilities(random: Random): Int {
         val rand = random.nextDouble()
