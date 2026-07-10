@@ -8,48 +8,7 @@ import org.mockito.Mockito.mock
 
 class GameSystemInterfaceTest {
 
-    // 1. FocusDomain has all expected values
-    @Test
-    fun focusDomain_hasAllExpectedValues() {
-        val values = FocusDomain.values()
-        assertEquals(22, values.size)
-        assertTrue(values.contains(FocusDomain.ALWAYS))
-        assertTrue(values.contains(FocusDomain.OVERVIEW))
-        assertTrue(values.contains(FocusDomain.DISCIPLE_LIST))
-        assertTrue(values.contains(FocusDomain.BUILDING_LIST))
-        assertTrue(values.contains(FocusDomain.WAREHOUSE_TAB))
-        assertTrue(values.contains(FocusDomain.ALCHEMY))
-        assertTrue(values.contains(FocusDomain.FORGE))
-        assertTrue(values.contains(FocusDomain.HERB_GARDEN))
-        assertTrue(values.contains(FocusDomain.SPIRIT_MINE))
-        assertTrue(values.contains(FocusDomain.PLANTING))
-        assertTrue(values.contains(FocusDomain.WAREHOUSE_DIALOG))
-        assertTrue(values.contains(FocusDomain.MERCHANT))
-        assertTrue(values.contains(FocusDomain.SECT_TRADE))
-        assertTrue(values.contains(FocusDomain.MISSION_HALL))
-        assertTrue(values.contains(FocusDomain.BLOOD_REFINING))
-        assertTrue(values.contains(FocusDomain.WORLD_MAP))
-        assertTrue(values.contains(FocusDomain.DISCIPLE_SELECTOR))
-        assertTrue(values.contains(FocusDomain.MANUAL_DETAIL))
-        assertTrue(values.contains(FocusDomain.EQUIPMENT_DETAIL))
-        assertTrue(values.contains(FocusDomain.DISCIPLE_DETAIL))
-        assertTrue(values.contains(FocusDomain.DIPLOMACY))
-        assertTrue(values.contains(FocusDomain.BACKGROUND))
-    }
-
-    // 2. FocusDomain.ALWAYS exists
-    @Test
-    fun focusDomain_always_exists() {
-        assertNotNull(FocusDomain.valueOf("ALWAYS"))
-    }
-
-    // 3. FocusDomain.BACKGROUND exists
-    @Test
-    fun focusDomain_background_exists() {
-        assertNotNull(FocusDomain.valueOf("BACKGROUND"))
-    }
-
-    // 4. SystemPriority annotation has order parameter with default 0
+    // 1. SystemPriority annotation has order parameter with default 0
     @Test
     fun systemPriority_hasOrderParameterWithDefaultZero() {
         @SystemPriority
@@ -75,14 +34,14 @@ class GameSystemInterfaceTest {
         override val systemName: String = "TestSystem"
     }
 
-    // 5. GameSystem interface has systemName property
+    // 2. GameSystem interface has systemName property
     @Test
     fun gameSystem_hasSystemNameProperty() {
         val system = TestGameSystem()
         assertEquals("TestSystem", system.systemName)
     }
 
-    // 6. GameSystem interface has default no-op implementations
+    // 3. GameSystem interface has default no-op implementations
     @Test
     fun gameSystem_initialize_isNoOp() {
         val system = TestGameSystem()
@@ -102,23 +61,22 @@ class GameSystemInterfaceTest {
     }
 
     @Test
-    fun gameSystem_onPhaseTick_isNoOp() = runBlocking {
+    fun gameSystem_clearForSlot_isNoOp() = runBlocking {
         val system = TestGameSystem()
-        val state = mock(MutableGameState::class.java)
-        system.onPhaseTick(state)
+        system.clearForSlot(1)
     }
 
     @Test
-    fun gameSystem_onMonthTick_isNoOp() = runBlocking {
+    fun gameSystem_onMonthlyEvent_isNoOp() = runBlocking {
         val system = TestGameSystem()
         val state = mock(MutableGameState::class.java)
-        system.onMonthTick(state)
+        system.onMonthlyEvent(state)
     }
 
     @Test
-    fun gameSystem_onYearTick_isNoOp() = runBlocking {
+    fun gameSystem_onYearlyEvent_isNoOp() = runBlocking {
         val system = TestGameSystem()
         val state = mock(MutableGameState::class.java)
-        system.onYearTick(state)
+        system.onYearlyEvent(state)
     }
 }

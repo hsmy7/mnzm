@@ -247,6 +247,33 @@ object VulkanPolicy {
      * 7. PROBLEMATIC 设备 → SOFTWARE_ONLY
      * 8. 其他 → VULKAN_PREFERRED
      */
+    /**
+     * 在 API < 31 设备上判断是否为已知 Vulkan 兼容性良好的设备。
+     *
+     * 对标 Flutter Impeller 的 API 版本门槛策略（API < 29 无条件回退 GLES）
+     * 和 Unity Vulkan Device Filtering 的白名单做法。
+     * 仅 Google Pixel/Nexus 和 Android One 设备在旧 API 上通过了严格的
+     * CTS Vulkan 测试，驱动缺陷较少。
+     */
+    private fun isKnownGoodOldDevice(): Boolean {
+        // Build.MANUFACTURER/Build.BRAND 是 Java 平台类型，定制 ROM 可能返回 null
+        val manufacturer = Build.MANUFACTURER?.lowercase() ?: return false
+        val brand = Build.BRAND?.lowercase() ?: return false
+        // Google 设备 — 原生 Android，驱动经过 CTS 认证
+        if (manufacturer == "google") return true
+        // Android One 设备 — Google 认证的低端设备
+        if (brand == "android one") return true
+        // Essential Phone — 已知 Vulkan 合规性好
+        if (manufacturer == "essential") return true
+        // Fairphone — 接近原生 Android
+        if (manufacturer == "fairphone") return true
+        // Sony Xperia — 部分型号的 Vulkan 合规性记录良好
+        if (manufacturer == "sony") return true
+        // Nokia (HMD Global) — Android One 项目成员
+        if (manufacturer == "hmd global" || manufacturer == "nokia") return true
+        return false
+    }
+
     @Suppress("ReturnCount")
     fun getRenderStrategy(context: Context): RenderStrategy {
         // 1. 崩溃自愈安全模式
@@ -285,6 +312,24 @@ object VulkanPolicy {
             Log.w(TAG, "Previous surface init was killed (SIGSEGV) → SOFTWARE_ONLY")
             CrashRecoveryEngine.recordVulkanInitFailure()
             return RenderStrategy.SOFTWARE_ONLY
+        }
+
+        // ── API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering） ──
+        // 行业数据：Android 8-11 上 Mali/Adreno 6xx/PowerVR 等 GPU 的 Vulkan 驱动
+        // 在非 Google 设备上存在广泛兼容性问题。Unity 6+ 对 Mali-G52/Mali T8xx 等
+        // GPU 自动降级到 OpenGL ES。原神仅白名单设备启用 Vulkan。
+        // 王者荣耀按机型分档，老旧设备直接使用 GLES 2.0。
+        // 本检查在崩溃标记之后，确保：
+        // - 安全模式优先（已有崩溃标记的设备）
+        // - 首次启动（无标记）：非白名单设备走软件渲染
+        // - Google Pixel 等已知兼容设备不受影响
+        if (Build.VERSION.SDK_INT < 31) {
+            if (isKnownGoodOldDevice()) {
+                Log.d(TAG, "API ${Build.VERSION.SDK_INT} known-good device → VULKAN_PREFERRED")
+            } else {
+                Log.w(TAG, "API ${Build.VERSION.SDK_INT} non-whitelist device → SOFTWARE_ONLY")
+                return RenderStrategy.SOFTWARE_ONLY
+            }
         }
 
         // 7. 设备分级检测

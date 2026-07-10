@@ -19,13 +19,11 @@ class AttackWarningServiceTest {
 
     private lateinit var service: AttackWarningService
     private lateinit var stateStore: GameStateStore
-    private lateinit var scopeProvider: ApplicationScopeProvider
 
     @Before
     fun setUp() {
-        scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
-        service = AttackWarningService(stateStore, scopeProvider)
+        stateStore = GameStateStoreImpl(ApplicationScopeProvider(), mock(GameStateRepository::class.java))
+        service = AttackWarningService(stateStore)
         runBlocking { stateStore.reset() }
     }
 

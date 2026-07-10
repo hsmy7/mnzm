@@ -120,7 +120,7 @@ class UseCaseModelsTest {
 
     @Test
     fun giftResult_fullConstruction() {
-        val result = DiplomacyService.GiftResult(
+        val result = GiftResult(
             success = true,
             rejected = false,
             favorChange = 15,

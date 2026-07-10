@@ -33,7 +33,9 @@
 
     <!-- 前台服务：游戏循环需要前台优先级，避免被 OEM 电源管理冻结游戏时间 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+        tools:targetApi="34" />
 
     <!-- 精确闹钟：用于 AlarmWatchdogReceiver 周期性唤醒检查游戏循环状态 -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -190,7 +192,8 @@
         <service
             android:name=".core.util.GameForegroundService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            tools:targetApi="31">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Game loop needs foreground priority to avoid OEM power management freezing game time" />

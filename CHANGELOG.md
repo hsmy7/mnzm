@@ -1,3 +1,22 @@
+## [4.0.43] - 2026-07-10（versionCode=4043）
+
+### 安卓8/10/11兼容性修复
+
+- **修复：安卓8/10/11设备首次启动闪退** — Native渲染库 `native-renderer.so` 硬链接 Vulkan 1.1 API 入口点，API < 31 的非 Google 设备上 Mali/MediaTek/PowerVR GPU 驱动缺陷在首次 Vulkan 初始化时触发 SIGSEGV 崩溃。新增 API 版本门槛检查（对标 Flutter Impeller API < 29 无条件回退 GLES 策略 + Unity Vulkan Device Filtering + 原神设备白名单），API < 31 非白名单设备直接走 Canvas 软件渲染，跳过 Vulkan 初始化路径。Google Pixel / Android One / Sony / Nokia 等已知兼容设备不受影响
+
+- **修复：软件渲染模式下仍加载 native 库** — `NativeSurfaceView.surfaceCreated()` 中 `NativeBridge.ensureLoaded()` 移动到 `SOFTWARE` 模式检查之后，防止 Vulkan `JNI_OnLoad` 二次触发崩溃
+
+- **修复：前台服务兼容性** — `GameActivity.onResume()` 中 `startService()` 改为 `startForegroundService()`（API 26+ 规范用法），增加 `IllegalStateException` 兜底防 Android 12+ 后台启动限制
+
+- **修复：Base64 导出在 API < 26 设备上崩溃** — `java.util.Base64` 替换为 `android.util.Base64`（API 1+），编码标志从 `DEFAULT`（含换行符）改为 `NO_WRAP` 确保单行输出
+
+- **修复：Build.MANUFACTURER 空指针风险** — 定制 ROM 可能返回 null，`?.lowercase() ?: return false` 空安全保护
+
+### 预存问题修复
+
+- **修复：SectRelationLevel.fromFavor(favor>100) 误返回 HOSTILE** — 超出 INTIMATE 上限(100)时应返回 INTIMATE 而非 HOSTILE
+- **清理：5 个预存测试修复** — GameSystemInterfaceTest（FocusDomain 已移除）、AttackWarningServiceTest、UseCaseInvocationTest、UseCaseModelsTest
+
 # 模拟宗门 - 更新日志
 
 ## [4.0.42] - 2026-07-10（versionCode=4042）

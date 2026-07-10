@@ -344,8 +344,10 @@ object ManualDatabase {
         supportManuals.forEach { builder.addSupportManuals(convertToProto(it)) }
         mindManuals.forEach { builder.addMindManuals(convertToProto(it)) }
         
-        @Suppress("NewApi")
-        return java.util.Base64.getEncoder().encodeToString(builder.build().toByteArray())
+        return android.util.Base64.encodeToString(
+            builder.build().toByteArray(),
+            android.util.Base64.NO_WRAP
+        )
     }
     
     /**

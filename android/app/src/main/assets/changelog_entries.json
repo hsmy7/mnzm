@@ -1,6 +1,20 @@
 [
   {
     "date": "2026-07-10",
+    "version": "4.0.43",
+    "changes": [
+      "修复：安卓8/10/11设备首次启动闪退——Native渲染库native-renderer.so硬链接Vulkan 1.1 API入口点，API<31的非Google设备上Mali/MediaTek/PowerVR GPU驱动缺陷在首次Vulkan初始化时触发SIGSEGV崩溃。新增API版本门槛检查（对标Flutter Impeller API<29无条件回退GLES策略），API<31非白名单设备直接走Canvas软件渲染，跳过Vulkan初始化路径。Google Pixel/Android One/Sony/Nokia等已知兼容设备不受影响",
+      "修复：NativeSurfaceView在软件渲染模式下仍加载native-renderer.so——surfaceCreated()中NativeBridge.ensureLoaded()被移动到SOFTWARE模式检查之后，防止Vulkan JNI_OnLoad二次触发崩溃",
+      "修复：前台服务兼容性——GameActivity.onResume()中startService()改为startForegroundService()（API 26+规范用法），并增加IllegalStateException兜底防止Android 12+后台启动限制",
+      "修复：Base64.exportToProtobuf在API<26设备上崩溃——java.util.Base64替换为android.util.Base64（自API 1起可用），编码标志从DEFAULT（含换行符）改为NO_WRAP确保单行输出",
+      "修复：VulkanPolicy.Build.MANUFACTURER空指针风险——定制ROM可能返回null，?.lowercase() ?: return false空安全保护",
+      "修复：AndroidManifest.xml lint警告——FOREGROUND_SERVICE_SPECIAL_USE和foregroundServiceType=\"specialUse\"添加tools:targetApi注解",
+      "修复：SectRelationLevel.fromFavor(favor>100)误返回HOSTILE——超出INTIMATE.maxFavor(100)时应返回INTIMATE而非HOSTILE",
+      "清理：5个预存测试编译/运行时错误修复——GameSystemInterfaceTest(FocusDomain已移除+接口方法更新)、AttackWarningServiceTest(构造参数减少)、UseCaseInvocationTest(suspend函数调用)等"
+    ]
+  },
+  {
+    "date": "2026-07-10",
     "version": "4.0.42",
     "changes": [
       "优化：外交界面全屏化——宗门外交聊天界面从半屏改为全屏，宗门名称显示在标题栏，聊天区域充分利用全屏空间",

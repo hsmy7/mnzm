@@ -337,9 +337,10 @@ class NativeSurfaceView(
     // ============================================================
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        NativeBridge.ensureLoaded()
-        // SOFTWARE 模式不需要 C++ 纹理图集（Java 端 buildAtlasBitmap 已处理）
+        // VULKAN/HYBRID 模式才需要加载 native 库和纹理图集，
+        // SOFTWARE 模式完全使用 Canvas 渲染，不加载 native 库
         if (useRenderMode != RenderMode.SOFTWARE) {
+            NativeBridge.ensureLoaded()
             NativeBridge.initAtlas()
         }
 
@@ -436,12 +437,6 @@ class NativeSurfaceView(
                     )
 
                     if (ok) {
-                        // Layer 2: 成功清除写前标记 + 清除 Vulkan 失败标记
-                        vulkanInitListener?.onSurfaceInitSucceeded()
-
-                        android.util.Log.i("NativeSurfaceView",
-                            "Vulkan init OK in ${System.currentTimeMillis() - initStart}ms")
-
                         post {
                             removeCallbacks(timeoutRunnable)
                             initInProgress = false

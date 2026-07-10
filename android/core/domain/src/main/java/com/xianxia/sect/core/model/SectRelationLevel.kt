@@ -42,6 +42,8 @@ enum class SectRelationLevel(
          * @return 对应的关系等级，默认为 HOSTILE
          */
         fun fromFavor(favor: Int): SectRelationLevel {
+            // favor 超出最高等级上限时仍返回最高等级（如 favor=200 → INTIMATE）
+            if (favor >= INTIMATE.minFavor) return INTIMATE
             return entries.find { favor in it.minFavor..it.maxFavor } ?: HOSTILE
         }
     }

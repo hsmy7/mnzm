@@ -445,7 +445,20 @@ class GameActivity : ComponentActivity() {
         val startIntent = Intent(this, GameForegroundService::class.java).apply {
             action = GameForegroundService.ACTION_START
         }
-        startService(startIntent)
+        // API 26+：前台服务必须使用 startForegroundService 启动
+        // 参见 Android 14 FGS 类型强制要求
+        // 注意：API 31+ 可能抛出 ForegroundServiceStartNotAllowedException
+        //（应用处于后台状态时），此处 try-catch 兜底
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                startForegroundService(startIntent)
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "startForegroundService failed (likely background start restriction)", e)
+                startService(startIntent)
+            }
+        } else {
+            startService(startIntent)
+        }
         // 仅在未绑定时绑定，避免 onResume 多次调用导致重复 bind
         if (!isServiceBound) {
             bindService(

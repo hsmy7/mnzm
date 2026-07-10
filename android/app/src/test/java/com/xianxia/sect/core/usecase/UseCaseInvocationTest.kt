@@ -240,7 +240,7 @@ class UseCaseInvocationTest {
     // ==================== 7. GetSectTradeItemsUseCase ====================
 
     @Test
-    fun `GetSectTradeItemsUseCase - success path`() {
+    fun `GetSectTradeItemsUseCase - success path`() = runTest {
         val diplomacyFacade = mock<DiplomacyFacade>()
         val items = listOf(mock<MerchantItem>(), mock<MerchantItem>())
         whenever(diplomacyFacade.getOrRefreshSectTradeItems("sect-1")).thenReturn(items)
@@ -254,7 +254,7 @@ class UseCaseInvocationTest {
     }
 
     @Test
-    fun `GetSectTradeItemsUseCase - failure when facade throws`() {
+    fun `GetSectTradeItemsUseCase - failure when facade throws`() = runTest {
         val diplomacyFacade = mock<DiplomacyFacade>()
         whenever(diplomacyFacade.getOrRefreshSectTradeItems("sect-1"))
             .thenThrow(RuntimeException("加载失败"))
@@ -266,7 +266,7 @@ class UseCaseInvocationTest {
     }
 
     @Test
-    fun `GetSectTradeItemsUseCase - returns empty list when no items`() {
+    fun `GetSectTradeItemsUseCase - returns empty list when no items`() = runTest {
         val diplomacyFacade = mock<DiplomacyFacade>()
         whenever(diplomacyFacade.getOrRefreshSectTradeItems("sect-new")).thenReturn(emptyList())
         val useCase = GetSectTradeItemsUseCase(diplomacyFacade)
