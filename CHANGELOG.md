@@ -111,6 +111,11 @@
   - 删除：高低配双渲染路径（shouldBakeBuildings分支）统一为单一渲染路径
   - 修复：建筑移动确认时序（movingBuilding = null在状态更新完成后执行，消除竞态）
 
+- **建筑系统统一注册表 BuildingFeature + SlotGroup** — 18 种建筑统一为 `BuildingFeature` data class（含 `isConstructible` 标记），8 种槽位组通过 `SlotGroup` sealed interface 自管理创建/过滤/弟子收集，`BuildingFeatureRegistry` 全局注册表（ConcurrentHashMap 三索引），消除 45 处 `displayName` 硬编码。
+  - 新增：`BuildingFeatureBoot`（:feature:game 模块注册含 R.drawable）、`BuildingFeatureRegistryTest`（10 个测试）
+  - 修复：`BuildingService.startForging` 补负索引校验、`BuildingConfigService` 4 组重复别名删除、`Library.collectDiscipleIds` 返回空、`SpiritMine.createSlots` 未设 `sectId`、`BuildingDelegate.buildingId` 误设为 `displayName`、`syncSpiritMineSlotsAfterPlace` 硬编码灵矿场
+  - 数据模型：`WarehouseGarrisonSlot.slotIndex` + `LibrarySlot.buildingInstanceId` + `BuildingType.SPIRIT_FIELD`
+
 ### 删除
 
 - 双缓冲Bitmap烘焙管线：frontBufferBmp、backBufferBmp、shouldBakeBuildings、bmpConfig
@@ -144,6 +149,10 @@
     - 在 LoadingScreen 阶段预加载 Native 库 + 创建设备 + 编译 SPIR-V → 宗门地图 Surface 首次可见时零延迟
     - Pipeline Cache 随管线重建自动更新，关机前保存
     - resize 不再重新编译着色器（ShaderModule 跨 Surface 尺寸复用）
+
+### 新增
+
+- **加载界面增加游戏玩法文字提示** — 新增 `LoadingTips.kt` 存放 10 条基于代码机制的提示（弟子忠诚/叛逃、长老系统、战斗/生存三类），`LoadingScreen` 进度条下方白色 12sp 文字每 2 秒轮换显示，`maxLines=2` 防撑爆。所有提示已逐条验证对应源码。
 
 ### 设备兼容性强化
 
