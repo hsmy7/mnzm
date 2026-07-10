@@ -397,24 +397,36 @@ class CultivationEventProcessor @Inject constructor(
     // ── 月度/年度事件 ──────────────────────────────────────────────────
 
     suspend fun processMonthlyEvents(year: Int, month: Int) {
-        caveExplorationProcessor.get().processAISectOperations(year, month)
-        checkGameOverCondition()
-        processScoutInfoExpiryLazy(year, month)
-        diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
-        vassalService.processMonthlyBreakawayCheck(year, month)
-        processTheftIfNeeded()
-        processLawEnforcementMonthly()
-        processMissionRefreshIfDue(month)
-        processCompletedMissionsLazy(year, month)
+        safelyRun("aiSectOperations") {
+            caveExplorationProcessor.get().processAISectOperations(year, month)
+        }
+        safelyRun("gameOverCheck") { checkGameOverCondition() }
+        safelyRun("scoutExpiry") { processScoutInfoExpiryLazy(year, month) }
+        safelyRun("monthlyFavorEvents") {
+            diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
+        }
+        safelyRun("monthlyBreakaway") {
+            vassalService.processMonthlyBreakawayCheck(year, month)
+        }
+        safelyRun("theft") { processTheftIfNeeded() }
+        safelyRun("lawEnforcement") { processLawEnforcementMonthly() }
+        safelyRun("missionRefresh") { processMissionRefreshIfDue(month) }
+        safelyRun("completedMissions") {
+            processCompletedMissionsLazy(year, month)
+        }
         if (month == 12) {
-            autoBuyService.executeAutoBuy(year, month)
+            safelyRun("autoBuy") { autoBuyService.executeAutoBuy(year, month) }
         }
         // 灵矿月度产出结算（含政策月度灵石扣除，保证事务原子性）
-        cultivationSettlement.processSpiritMineProductionMonthly()
+        safelyRun("spiritMineProduction") {
+            cultivationSettlement.processSpiritMineProductionMonthly()
+        }
         // 弟子智能购买上架物品
-        disciplePurchaseService.executePurchase(year, month)
+        safelyRun("disciplePurchase") {
+            disciplePurchaseService.executePurchase(year, month)
+        }
         // 月度修炼结算 + HP/MP恢复 + 自动装备/丹药
-        processMonthlyCultivationAndAuto()
+        safelyRun("monthlyCultivation") { processMonthlyCultivationAndAuto() }
     }
 
     /**
@@ -436,27 +448,63 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun processYearlyEvents(year: Int) {
-        // 附庸年贡（每年一月扣除上年灵石收入的50%）
-        vassalService.processYearlyTribute()
-        // 附属年贡（AI附属宗门每年上贡灵石）
-        vassalService.processYearlyVassalTribute(year)
-        discipleLifecycleProcessor.processDiscipleAging(year)
-        caveExplorationProcessor.get().processSectDisciplesAging(year)
-        caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
-        discipleLifecycleProcessor.processYearlyAging(year)
-        merchantAndRecruitService.refreshRecruitList(year)
-        merchantAndRecruitService.refreshTravelingMerchant(year, 1)
-        autoBuyService.executeAutoBuy(year, 1)
-        merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
-        diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
-        diplomacyEventProcessor.checkAllianceExpiry(year)
-        diplomacyEventProcessor.checkAllianceFavorDrop()
-        diplomacyEventProcessor.processAIAlliances(year)
-        discipleLifecycleProcessor.processReflectionRelease(year)
-        diplomacyEventProcessor.processFavorDecay(year)
-        val rotated = AISectGarrisonManager.rotateGarrisonSlots(stateStore.gameData.value)
-        stateStore.update { gameData = rotated }
-        discipleLifecycleProcessor.processGriefExpiry(year)
+        safelyRun("yearlyTribute") {
+            vassalService.processYearlyTribute()
+        }
+        safelyRun("yearlyVassalTribute") {
+            vassalService.processYearlyVassalTribute(year)
+        }
+        safelyRun("discipleAging") {
+            discipleLifecycleProcessor.processDiscipleAging(year)
+        }
+        safelyRun("sectDisciplesAging") {
+            caveExplorationProcessor.get().processSectDisciplesAging(year)
+        }
+        safelyRun("sectYearlyRecruitment") {
+            caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
+        }
+        safelyRun("yearlyAging") {
+            discipleLifecycleProcessor.processYearlyAging(year)
+        }
+        safelyRun("refreshRecruitList") {
+            merchantAndRecruitService.refreshRecruitList(year)
+        }
+        safelyRun("refreshTravelingMerchant") {
+            merchantAndRecruitService.refreshTravelingMerchant(year, 1)
+        }
+        safelyRun("autoBuy") {
+            autoBuyService.executeAutoBuy(year, 1)
+        }
+        safelyRun("refreshAcquisition") {
+            merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
+        }
+        safelyRun("partnerMatching") {
+            diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
+        }
+        safelyRun("allianceExpiry") {
+            diplomacyEventProcessor.checkAllianceExpiry(year)
+        }
+        safelyRun("allianceFavorDrop") {
+            diplomacyEventProcessor.checkAllianceFavorDrop()
+        }
+        safelyRun("aiAlliances") {
+            diplomacyEventProcessor.processAIAlliances(year)
+        }
+        safelyRun("reflectionRelease") {
+            discipleLifecycleProcessor.processReflectionRelease(year)
+        }
+        safelyRun("favorDecay") {
+            diplomacyEventProcessor.processFavorDecay(year)
+        }
+        safelyRun("garrisonRotation") {
+            val rotated = AISectGarrisonManager.rotateGarrisonSlots(
+                stateStore.gameData.value
+            )
+            stateStore.update { gameData = rotated }
+        }
+        safelyRun("griefExpiry") {
+            discipleLifecycleProcessor.processGriefExpiry(year)
+        }
     }
 
     // ── 执法/盗窃 ──────────────────────────────────────────────────────

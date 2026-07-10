@@ -632,7 +632,10 @@ class GameEngineCore @Inject constructor(
         }
         isEmergencyRestarting = true
         try {
-            DomainLog.w(TAG, "EMERGENCY restart triggered from main thread")
+            val gd = stateStore.gameDataSnapshot
+            DomainLog.e(TAG, "EMERGENCY restart: year=${gd.gameYear}, " +
+                "month=${gd.gameMonth}, recruitList.size=" +
+                "${gd.recruitList.size}, sectName=${gd.sectName}")
 
             // 1. 取消旧游戏循环和看门狗
             gameLoopJob?.cancel()

@@ -358,20 +358,6 @@ class MerchantAndRecruitService @Inject constructor(
             val rootCount = disciple.spiritRootType.split(",").size
             rootCount in filter
         }
-        if (autoRecruits.isNotEmpty()) {
-            val currentMonthIndex = year * 12 + 1
-            stateStore.update {
-                autoRecruits.forEach { disciple ->
-                    val id = discipleTables.allocateNextId().toString()
-                    disciple.id = id
-                    disciple.recruitedMonth = currentMonthIndex
-                    discipleTables.insert(disciple)
-                }
-            }
-            newRecruitDisciples.clear()
-            newRecruitDisciples.addAll(manualRecruits)
-            DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, ${manualRecruits.size} left for manual review")
-        }
 
         // F4: 覆写前检查旧列表是否非空，打 WARN 日志
         val previousRecruitCount = stateStore.gameData.value.recruitList.size
@@ -379,7 +365,24 @@ class MerchantAndRecruitService @Inject constructor(
             DomainLog.w(TAG, "refreshRecruitList: year=$year, overwriting $previousRecruitCount unprocessed recruits" +
                 " — 年度刷新覆盖了尚未处理的候选人")
         }
-        stateStore.update { gameData = gameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year) }
-        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits (previous recruitList had $previousRecruitCount)")
+
+        // 单事务：自动招募 + 写入招募列表，保证原子性
+        val generatedCount = manualRecruits.size
+        stateStore.update {
+            if (autoRecruits.isNotEmpty()) {
+                val currentMonthIndex = year * 12 + 1
+                autoRecruits.forEach { disciple ->
+                    val id = discipleTables.allocateNextId().toString()
+                    disciple.id = id
+                    disciple.recruitedMonth = currentMonthIndex
+                    discipleTables.insert(disciple)
+                }
+                DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, " +
+                    "${manualRecruits.size} left for manual review")
+            }
+            gameData = gameData.copy(recruitList = manualRecruits, lastRecruitYear = year)
+        }
+        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated $generatedCount new recruits " +
+            "(previous recruitList had $previousRecruitCount)")
     }
 }

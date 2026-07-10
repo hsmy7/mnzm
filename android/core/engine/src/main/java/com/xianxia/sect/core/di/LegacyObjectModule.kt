@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.di
 
+import com.xianxia.sect.core.domain.favor.FavorService
+import com.xianxia.sect.core.domain.favor.FavorServiceImpl
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
@@ -39,4 +41,7 @@ object LegacyObjectModule {
     @Provides @Singleton
     fun provideInventoryFactories(converter: MerchantItemConverter): InventoryFactories =
         InventoryFactories(converter).also { InventoryFactories.initialize(it) }
+
+    @Provides @Singleton
+    fun provideFavorService(impl: FavorServiceImpl): FavorService = impl
 }

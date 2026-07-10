@@ -58,7 +58,7 @@ class VassalService @Inject constructor(
         stateStore.gameData.value.suzerainSectId
 
     /** 处理年贡（每年一月调用） */
-    fun processYearlyTribute() {
+    suspend fun processYearlyTribute() {
         val data = stateStore.gameData.value
         val suzerainId = data.suzerainSectId
         if (suzerainId.isEmpty()) return
@@ -68,12 +68,10 @@ class VassalService @Inject constructor(
             if (income > 0) GameConfig.AIAttack.VASSAL_TRIBUTE_MIN else 0L
         )
         if (tribute <= 0) return
-        scope.launch {
-            stateStore.update {
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones - tribute
-                )
-            }
+        stateStore.update {
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones - tribute
+            )
         }
     }
 
@@ -247,7 +245,7 @@ class VassalService @Inject constructor(
      * 年贡直接从虚空生成加到玩家灵石。
      * 新建立的契约当年不计贡，从下一年开始。
      */
-    fun processYearlyVassalTribute(year: Int) {
+    suspend fun processYearlyVassalTribute(year: Int) {
         val data = stateStore.gameData.value
         val updatedContracts = data.vassalContracts.toMutableList()
         var totalTribute = 0L
@@ -278,14 +276,12 @@ class VassalService @Inject constructor(
         }
 
         if (changed) {
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(
-                        spiritStones = gameData.spiritStones
-                            + totalTribute,
-                        vassalContracts = updatedContracts
-                    )
-                }
+            stateStore.update {
+                gameData = gameData.copy(
+                    spiritStones = gameData.spiritStones
+                        + totalTribute,
+                    vassalContracts = updatedContracts
+                )
             }
         }
     }
@@ -294,7 +290,7 @@ class VassalService @Inject constructor(
      * 每月判定AI附属是否脱离。
      * 四因素权重同接受逻辑。
      */
-    fun processMonthlyBreakawayCheck(year: Int, month: Int) {
+    suspend fun processMonthlyBreakawayCheck(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val contracts = data.vassalContracts
         if (contracts.isEmpty()) return
@@ -333,14 +329,12 @@ class VassalService @Inject constructor(
         }
 
         if (changed) {
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(
-                        vassalContracts = gameData.vassalContracts.filter {
-                            it.vassalSectId !in removedIds
-                        }
-                    )
-                }
+            stateStore.update {
+                gameData = gameData.copy(
+                    vassalContracts = gameData.vassalContracts.filter {
+                        it.vassalSectId !in removedIds
+                    }
+                )
             }
         }
     }

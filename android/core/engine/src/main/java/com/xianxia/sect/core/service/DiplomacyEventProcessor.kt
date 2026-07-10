@@ -3,11 +3,8 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.domain.favor.FavorEventProcessor
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,11 +19,8 @@ import javax.inject.Singleton
 @GameService("DiplomacyEventProcessor")
 class DiplomacyEventProcessor @Inject constructor(
     private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val sharedState: CultivationSharedState,
     private val favorEventProcessor: FavorEventProcessor
 ) {
-    private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "DiplomacyEventProc"
@@ -34,25 +28,25 @@ class DiplomacyEventProcessor @Inject constructor(
 
     // ── 好感度月度事件（委托 FavorEventProcessor）────
 
-    fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
+    suspend fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
         favorEventProcessor.processMonthlyFavorEventsCapped(year, month)
     }
 
     // ── 好感度衰减（委托 FavorEventProcessor）────
 
-    fun processFavorDecay(currentYear: Int) {
+    suspend fun processFavorDecay(currentYear: Int) {
         favorEventProcessor.processFavorDecay(currentYear)
     }
 
     // ── 联盟好感度检查（委托 FavorEventProcessor）────
 
-    fun checkAllianceFavorDrop() {
+    suspend fun checkAllianceFavorDrop() {
         favorEventProcessor.checkAllianceFavorDrop()
     }
 
     // ── 联盟到期 ─────────────────────────────────────
 
-    fun checkAllianceExpiry(year: Int) {
+    suspend fun checkAllianceExpiry(year: Int) {
         val data = stateStore.gameData.value
         val expiredAlliances = data.alliances.filter { year - it.startYear >= GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS }
 
@@ -65,10 +59,10 @@ class DiplomacyEventProcessor @Inject constructor(
             } else sect
         }
 
-        scope.launch { stateStore.update { gameData = data.copy(
+        stateStore.update { gameData = data.copy(
             alliances = updatedAlliances,
             worldMapSects = updatedSects
-        ) } }
+        ) }
     }
 
     // ── 扩展点 ───────────────────────────────────────
