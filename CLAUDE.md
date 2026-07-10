@@ -338,9 +338,20 @@ for domain groupings: `BuildingDelegate`, `DisciplineDelegate`, `BeastAttackDele
 **0.3 🔴 禁止"当前能跑就行"心态** — 代码审核时如发现以下"应付式"迹象，直接打回：
 - 只处理了正常路径，边界条件和异常情况未处理
 - 日志缺失或信息不足以定位问题
-- 硬编码、魔法数字、重复代码
+- 硬编码、重复代码
 - 违反项目编码规范且无合理说明
 - 明知有更好的实现方式却选择了更快捷但更糟糕的方案
+
+**0.4 🔴 禁止硬编码数字（魔法数字）** — 所有具有业务含义的数字必须定义为命名常量（`const val` 顶层属性或 `companion object` 中的 `val`），禁止在业务逻辑中直接使用原始数字字面量。允许例外：0、1、-1 等自解释的循环/索引/增量上下文、detekt 配置中声明的游戏数学常量。
+
+```kotlin
+// ❌ BAD — 魔法数字 0.8 的含义不明确
+if (progress >= 0.8) onComplete()
+
+// ✅ GOOD — 命名常量说明含义
+private const val COMPLETION_THRESHOLD = 0.8
+if (progress >= COMPLETION_THRESHOLD) onComplete()
+```
 
 ---
 
@@ -680,7 +691,7 @@ empty-blocks:
 
 ### 设计方案基本原则
 
-设计方案必须遵循以下三条基本原则，作为方案评审的核心标准：
+设计方案必须遵循以下基本原则（第1~5条），作为方案评审的核心标准：
 
 **1. 🔴 方案符合编写规范** — 设计方案必须使用统一结构编写，包含：**背景与目标**（需求要点+成功标准）、**技术方案**（架构变化+关键类/接口+数据流）、**影响范围清单**（所有受影响的文件/模块及其变更方式）、**兼容性分析**（Migration/序列化/存档）、**测试方案**（单元测试+对抗性审查要点）、**风险评估与兜底**。禁止使用非结构化的段落描述替代规范方案文档。方案文档必须独立可读，不依赖口头补充。
 
@@ -695,6 +706,20 @@ empty-blocks:
 - **所有 Activity 入口统一检查** — `MainActivity` 和 `GameActivity` 等所有 Activity 的 `onCreate()` 必须在 `super.onCreate()` 前检查 `VulkanPolicy.isAccelerationDisabled()` 并切换主题。仅保护一个 Activity 会导致启动阶段崩溃
 - **API 级别守卫** — 所有 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段必须在访问前用 `Build.VERSION.SDK_INT >= 31` 守卫，禁止在 `Application.onCreate()` 等启动阶段无保护访问，否则低 API 设备触发 `NoSuchFieldError` 直接闪退
 - **GPU 黑名单对齐行业标准** — 参考 Unity Vulkan Device Filtering（Mali GPU Vulkan API<1.0.61 自动降级）、Flutter Impeller（自动检测 MTK SoC 回退 OpenGL ES）、Chromium（Mali-G57 全面禁用 Vulkan）等行业标杆，持续更新已知问题 GPU/SoC 列表。新增黑名单条目需附带 Bugly 崩溃数据或行业报告引用
+
+**5. 🔴 隐私合规与隐私政策同步更新** — 设计方案涉及以下变更时，必须同步评估和更新隐私政策：
+- 新增或变更第三方 SDK（含 SDK 版本升级、初始化时机变化、数据收集范围变化）
+- 新增或变更个人信息收集的类型、目的、方式
+- 新增或变更权限申请（Android 权限或 iOS 隐私权限）
+- 新增网络请求或变更数据传输方式（新增服务器端点、新增请求头信息等）
+- 新增或变更数据共享第三方
+- 新增或变更广告/分析/推送模块
+
+隐私政策更新必须覆盖两个入口：
+1. **游戏内隐私政策**（`PrivacyConsentScreen.kt`）— 更新展示内容或三方 SDK 链接
+2. **网站版隐私政策**（`docs/index.html`，发布在 `https://hsmy7.github.io/mnzm/`）— 更新网页内容
+
+变更说明需记录在方案文档的"影响范围清单"中，标注 `隐私合规` 标签。
 
 **方案必须是可长期维护的成熟方案，禁止分阶段/渐进式交付。** 设计方案应当一次性完整覆盖所有影响点（包括 UI、存储、测试、旧数据兼容），不允许遗留"后续优化"。方案本身即为最终态，执行者照单实施即可，不应需要自行补充或二次设计。
 
