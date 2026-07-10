@@ -135,7 +135,16 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_XianxiaSect)
+        // ── HW 加速决策（与 GameActivity 保持一致） ──
+        // 检测 VulkanPolicy 和 CrashRecoveryEngine 是否要求禁用 HW 加速。
+        // 在 super.onCreate() 之前设置主题，确保窗口创建时 HWUI 使用正确的渲染模式
+        val disableAccel = com.xianxia.sect.core.CrashRecoveryEngine.isSafeMode() ||
+            com.xianxia.sect.core.VulkanPolicy.isAccelerationDisabled()
+        if (disableAccel) {
+            setTheme(R.style.Theme_XianxiaSect_GameSafe)
+        } else {
+            setTheme(R.style.Theme_XianxiaSect)
+        }
 
         super.onCreate(savedInstanceState)
 

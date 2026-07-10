@@ -645,6 +645,8 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新增 UI 界面使用 `SpriteImage()` 或 `SpriteResRegistry.resolve()` 而非直接 `R.drawable.xxx` |
 | 🔴 | 渲染特性变更（地图/Canvas/精灵）已同步实现 Vulkan 和 Canvas 两路径（见 `docs/renderer-feature-checklist.md`） |
 | 🔴 | 新增渲染特性有对应的 `SoftwareCanvasBackend` 单元测试（`SoftwareCanvasBackendTest.kt`） |
+| 🔴 | HW 加速决策已检查所有 Activity 入口（`MainActivity` 和 `GameActivity` 均需在 `super.onCreate()` 前检查 `isAccelerationDisabled()`） |
+| 🔴 | 使用 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段已添加 `Build.VERSION.SDK_INT` 守卫 |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
@@ -685,6 +687,14 @@ empty-blocks:
 **2. 🔴 功能模块化设计** — 新增功能必须设计为可独立发布、可单独测试、可通过配置开关控制启停的模块。模块之间通过接口通信，内部实现变更不影响外部调用方。禁止将新功能硬编码嵌入既有类或函数中形成面条式代码。新增前必须检查是否可通过扩展已有模块（`:core:engine/domain/` 或 `:core:engine/system/`）实现，避免重复造轮。
 
 **3. 🔴 全局视角** — 设计方案必须覆盖变更波及的所有子系统：UI（跨屏适配+输入法避让+对话框栈）、存储（Migration+向前兼容+向后兼容）、渲染（Vulkan + Canvas 双路径验证）、测试（单元测试+集成测试+对抗性审查）、后续平台扩展（iOS 接入点预留）。方案中必须包含**"影响范围清单"**（格式：`文件路径 — 变更类型 — 变更说明`），遗漏视为方案不完整。同时需检查变更是否与进行中或规划中的其他功能存在冲突，必要时协调优先级。
+
+**4. 🔴 低高端设备兼容设计** — 所有涉及渲染、UI 框架、原生库加载的功能变更，必须预先评估在低端/老旧设备上的兼容性。具体要求：
+
+- **渲染管线双路径** — 任何渲染特性变更必须同时验证 Vulkan 和 Canvas（软件渲染）两套路径，确保低端 GPU（Mali-G5x/6x、PowerVR、Adreno 6xx 等）在 Vulkan 驱动缺陷下可用软件渲染降级
+- **系统 HWUI 层同步降级** — 关闭 Vulkan 渲染决策必须同步关闭 Activity 级硬件加速（`android:hardwareAccelerated="false"`），因为定制 ROM（Magic UI、澎湃OS、OriginOS 等）可能在 Android < 15 上回传 SkiaVK/Vulkan HWUI，仅关闭游戏渲染层不够
+- **所有 Activity 入口统一检查** — `MainActivity` 和 `GameActivity` 等所有 Activity 的 `onCreate()` 必须在 `super.onCreate()` 前检查 `VulkanPolicy.isAccelerationDisabled()` 并切换主题。仅保护一个 Activity 会导致启动阶段崩溃
+- **API 级别守卫** — 所有 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段必须在访问前用 `Build.VERSION.SDK_INT >= 31` 守卫，禁止在 `Application.onCreate()` 等启动阶段无保护访问，否则低 API 设备触发 `NoSuchFieldError` 直接闪退
+- **GPU 黑名单对齐行业标准** — 参考 Unity Vulkan Device Filtering（Mali GPU Vulkan API<1.0.61 自动降级）、Flutter Impeller（自动检测 MTK SoC 回退 OpenGL ES）、Chromium（Mali-G57 全面禁用 Vulkan）等行业标杆，持续更新已知问题 GPU/SoC 列表。新增黑名单条目需附带 Bugly 崩溃数据或行业报告引用
 
 **方案必须是可长期维护的成熟方案，禁止分阶段/渐进式交付。** 设计方案应当一次性完整覆盖所有影响点（包括 UI、存储、测试、旧数据兼容），不允许遗留"后续优化"。方案本身即为最终态，执行者照单实施即可，不应需要自行补充或二次设计。
 

@@ -64,4 +64,32 @@ class VulkanPolicyTest {
         // 应返回有效策略（不抛异常即为通过）
         assertNotNull("API 31+ 应返回有效策略", strategy)
     }
+
+    // ── shouldDisableHardwareAcceleration 测试 ──
+
+    @Test
+    @Config(sdk = [Build.VERSION_CODES.O]) // API 26
+    fun `shouldDisableHWAccel API26 非白名单返回true`() {
+        // Robolectric Build.MANUFACTURER = "unknown" → 非白名单
+        // API < 31 非白名单设备应关闭 HW 加速（定制 ROM 可能回传 SkiaVK）
+        val disabled = VulkanPolicy.isAccelerationDisabled()
+        assertTrue("API 26 非白名单设备应关闭硬件加速", disabled)
+    }
+
+    @Test
+    @Config(sdk = [Build.VERSION_CODES.R]) // API 30
+    fun `shouldDisableHWAccel API30 非白名单返回true`() {
+        // 荣耀畅玩30 Plus 的场景：API 30, manufacturer="HONOR" 非白名单
+        val disabled = VulkanPolicy.isAccelerationDisabled()
+        assertTrue("API 30 非白名单设备应关闭硬件加速", disabled)
+    }
+
+    @Test
+    @Config(sdk = [31]) // API 31 (Android 12)
+    fun `shouldDisableHWAccel API31 非白名单返回false`() {
+        // API 31+ 使用 android.graphics.renderer="skiagl" metadata 提示
+        // 硬件加速保持开启
+        val disabled = VulkanPolicy.isAccelerationDisabled()
+        assertFalse("API 31+ 应保持硬件加速开启", disabled)
+    }
 }

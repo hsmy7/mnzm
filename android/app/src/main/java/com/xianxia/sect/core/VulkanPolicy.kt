@@ -360,7 +360,11 @@ object VulkanPolicy {
         val manufacturer = Build.MANUFACTURER.lowercase()
         val board = Build.BOARD.lowercase()
         val hardware = Build.HARDWARE.lowercase()
-        val socManufacturer = Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        val socManufacturer = if (Build.VERSION.SDK_INT >= 31) {
+            Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        } else {
+            ""
+        }
 
         // 0. Vulkan 崩溃专用标记 → PROBLEMATIC
         if (CrashRecoveryEngine.isVulkanCrashDetected()) {
@@ -484,10 +488,28 @@ object VulkanPolicy {
             return true
         }
 
-        // 3. 设备分级检测（仅 Android 15+ 需要关 HW 加速）
-        val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
-        if (!isAndroid15Plus) {
-            // Android < 15 系统使用 OpenGL ES，不受 Vulkan 驱动问题影响
+        // 3. API < 31 保守策略（与 getRenderStrategy 一致）
+        // 行业数据：部分国产定制 ROM（如 Magic UI 5.0）可能在 Android 11 上
+        // 回传 SkiaVK（Vulkan HWUI），而 Mali-G57/PowerVR 等 GPU 的 Vulkan 驱动
+        // 存在广泛兼容性问题（Chromium 已全面禁止 Mali-G57 使用 Vulkan）。
+        // android.graphics.renderer="skiagl" 仅在 API 31+ 被系统识别，对 API 30
+        // 及以下设备无效。详见 docs/vulkan-crash-defense-design.md
+        if (Build.VERSION.SDK_INT < 31) {
+            if (!isKnownGoodOldDevice()) {
+                Log.w(TAG,
+                    "API ${Build.VERSION.SDK_INT} non-whitelist device —" +
+                        " disabling HW acceleration (OEM may use SkiaVK)")
+                return true
+            }
+            // 已知兼容设备（Google Pixel/Android One 等）使用 OpenGL ES，
+            // Android 8-10 的 HWUI 固定使用 OpenGL ES，无需关闭 HW 加速
+            return false
+        }
+
+        // 4. API 31-34（Android 12-14）：使用 android.graphics.renderer="skiagl"
+        //    metadata 提示系统使用 OpenGL ES，硬件加速保持开启
+        //    仅 API 35+（Android 15+）需要检查设备分级
+        if (Build.VERSION.SDK_INT < 35) {
             return false
         }
 
@@ -517,8 +539,15 @@ object VulkanPolicy {
         sb.appendLine("Hardware: ${Build.HARDWARE}")
         sb.appendLine("Product: ${Build.PRODUCT}")
         sb.appendLine("Device: ${Build.DEVICE}")
-        sb.appendLine("SOC Manufacturer: ${Build.SOC_MANUFACTURER ?: "N/A"}")
-        sb.appendLine("SOC Model: ${Build.SOC_MODEL ?: "N/A"}")
+        // Build.SOC_MANUFACTURER/SOC_MODEL 是 API 31+ 字段，旧 API 需要反射兜底
+        // 避免 Startup 阶段（如 Robolectric 测试/低端设备）触发 NoSuchFieldError
+        if (Build.VERSION.SDK_INT >= 31) {
+            sb.appendLine("SOC Manufacturer: ${Build.SOC_MANUFACTURER ?: "N/A"}")
+            sb.appendLine("SOC Model: ${Build.SOC_MODEL ?: "N/A"}")
+        } else {
+            sb.appendLine("SOC Manufacturer: N/A (API < 31)")
+            sb.appendLine("SOC Model: N/A (API < 31)")
+        }
         val sdk = Build.VERSION.SDK_INT
         val release = Build.VERSION.RELEASE
         sb.appendLine("Android: $release (SDK $sdk)")
