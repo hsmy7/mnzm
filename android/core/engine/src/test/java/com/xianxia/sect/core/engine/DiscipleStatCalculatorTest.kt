@@ -540,6 +540,72 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
+    fun `calculateQingyunPeakBonus - 传道长老teaching120上限10percent`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 120)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingElder = elder
+        )
+        assertEquals(0.10, bonus, 0.001)
+    }
+
+    @Test
+    fun `calculateQingyunPeakBonus - 传道长老teaching84每4点1percent`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val elder = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 84)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingElder = elder
+        )
+        assertEquals(0.01, bonus, 0.001)
+    }
+
+    @Test
+    fun `calculateQingyunPeakBonus - 传道师teaching110上限5percent`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 110)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingMasters = listOf(master)
+        )
+        assertEquals(0.05, bonus, 0.001)
+    }
+
+    @Test
+    fun `calculateQingyunPeakBonus - 传道师teaching70每10点1percent`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 70)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingMasters = listOf(master)
+        )
+        assertEquals(0.01, bonus, 0.001)
+    }
+
+    @Test
+    fun `calculateQingyunPeakBonus - 传道师teaching60基线无加成`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 60)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingMasters = listOf(master)
+        )
+        assertEquals(0.0, bonus, 0.001)
+    }
+
+    @Test
+    fun `calculateQingyunPeakBonus - 传道师teaching50低于基线无加成`() {
+        val disciple = createDisciple(discipleType = "inner", realm = 9)
+        val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 50)) }
+        val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
+            disciple,
+            qingyunPreachingMasters = listOf(master)
+        )
+        assertEquals(0.0, bonus, 0.001)
+    }
+
+    @Test
     fun `getTalentEffects - 无天赋返回空map`() {
         val disciple = createDisciple(talentIds = emptyList())
         val effects = DiscipleStatCalculator.getTalentEffects(disciple)

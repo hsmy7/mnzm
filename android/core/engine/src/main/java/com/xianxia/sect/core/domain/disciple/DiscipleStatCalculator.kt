@@ -23,9 +23,12 @@ object DiscipleStatCalculator {
     private const val ELDER_BONUS_PER_STEP = 0.01
     private const val SOUL_POWER_DIVISOR = 20
     private const val SOUL_POWER_MAX_STEPS = 5
-    private const val TEACHING_BASELINE = 80
-    private const val ELDER_TEACHING_RATE = 0.01
-    private const val MASTER_TEACHING_RATE = 0.005
+    private const val ELDER_TEACHING_BASELINE = 80
+    private const val MASTER_TEACHING_BASELINE = 60
+    private const val ELDER_TEACHING_RATE = 0.0025
+    private const val MASTER_TEACHING_RATE = 0.001
+    private const val ELDER_TEACHING_MAX_BONUS = 0.10
+    private const val MASTER_TEACHING_MAX_BONUS = 0.05
 
     // ==================== 天赋效果 ====================
 
@@ -855,15 +858,18 @@ object DiscipleStatCalculator {
 
         if (preachingElder != null && preachingElder.isAlive) {
             val elderTeaching = getBaseStats(preachingElder).teaching
-            if (realm >= preachingElder.realm && elderTeaching >= TEACHING_BASELINE) {
-                elderBonus = (elderTeaching - TEACHING_BASELINE) * ELDER_TEACHING_RATE
+            if (realm >= preachingElder.realm && elderTeaching >= ELDER_TEACHING_BASELINE) {
+                elderBonus = ((elderTeaching - ELDER_TEACHING_BASELINE) * ELDER_TEACHING_RATE)
+                    .coerceAtMost(ELDER_TEACHING_MAX_BONUS)
             }
         }
 
         preachingMasters.filter { it.isAlive }.forEach { master ->
             val masterTeaching = getBaseStats(master).teaching
-            if (realm >= master.realm && masterTeaching >= TEACHING_BASELINE) {
-                mastersBonus += (masterTeaching - TEACHING_BASELINE) * MASTER_TEACHING_RATE
+            if (realm >= master.realm && masterTeaching >= MASTER_TEACHING_BASELINE) {
+                val bonus = ((masterTeaching - MASTER_TEACHING_BASELINE) * MASTER_TEACHING_RATE)
+                    .coerceAtMost(MASTER_TEACHING_MAX_BONUS)
+                mastersBonus += bonus
             }
         }
 

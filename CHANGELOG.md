@@ -1,5 +1,9 @@
 ## [4.0.44] - 2026-07-11（versionCode=4044）
 
+### 调整
+
+- **调整：传道加成公式改为基线+步长+上限制** — 传道长老：teaching 80 基准，每 4 点 +1%，最多 +10%；传道师：teaching 60 基准，每 10 点 +1%，最多 +5%。上限消除极端高传道弟子带来的超额加成，传道师基线从 80 降至 60 使低传道弟子也能提供少量加成。调整涉及 5 文件（DiscipleStatCalculator/CultivationCore/DetailCultivationSection/ElderBonusInfoButton/测试）
+
 ### 修复
 
 - **修复：弟子交谈关闭按钮被内容区遮挡** — Dialog 的 Box 布局中 `CloseButton` 声明在 `Row(fillMaxSize)` 之前，z-order 较低被覆盖。重构为 `UnifiedGameDialog`（同外交界面），关闭按钮在 header 行与内容区垂直分离，标题栏显示弟子姓名。移除手写 Box/BackHandler/CloseButton

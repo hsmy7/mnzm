@@ -59,7 +59,7 @@ internal fun calculatePreachingBonusesForDisplay(
             if (elder != null && elder.isAlive) {
                 val t = elder.getBaseStats().teaching
                 if (dRealm >= elder.realm && t >= 80) {
-                    elderBonus += (t - 80) * 0.01
+                    elderBonus += ((t - 80) * 0.0025).coerceAtMost(0.10)
                 }
             }
         }
@@ -69,8 +69,8 @@ internal fun calculatePreachingBonusesForDisplay(
                 val m = allDisciplesById[mid]
                 if (m != null && m.isAlive) {
                     val t = m.getBaseStats().teaching
-                    if (dRealm >= m.realm && t >= 80) {
-                        mastersBonus += (t - 80) * 0.005
+                    if (dRealm >= m.realm && t >= 60) {
+                        mastersBonus += ((t - 60) * 0.001).coerceAtMost(0.05)
                     }
                 }
             }
@@ -84,7 +84,7 @@ internal fun calculatePreachingBonusesForDisplay(
             if (elder != null && elder.isAlive) {
                 val t = elder.getBaseStats().teaching
                 if (dRealm >= elder.realm && t >= 80) {
-                    elderBonus += (t - 80) * 0.01
+                    elderBonus += ((t - 80) * 0.0025).coerceAtMost(0.10)
                 }
             }
         }
@@ -94,8 +94,8 @@ internal fun calculatePreachingBonusesForDisplay(
                 val m = allDisciplesById[mid]
                 if (m != null && m.isAlive) {
                     val t = m.getBaseStats().teaching
-                    if (dRealm >= m.realm && t >= 80) {
-                        mastersBonus += (t - 80) * 0.005
+                    if (dRealm >= m.realm && t >= 60) {
+                        mastersBonus += ((t - 60) * 0.001).coerceAtMost(0.05)
                     }
                 }
             }

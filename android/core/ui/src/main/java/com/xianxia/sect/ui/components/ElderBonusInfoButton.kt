@@ -249,28 +249,28 @@ object ElderBonusInfoProvider {
         title = "问道塔传道长老",
         requiredAttribute = "传道",
         effectDescription = "提升外门弟子修炼速度",
-        bonusFormula = "传道以80为基准，每多1点增加1%修炼速度。\n仅对外门弟子有效，弟子境界超过长老境界时不享受增益。"
+        bonusFormula = "传道以80为基准，每4点增加1%修炼速度，最多增加10%。\n仅对外门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
     fun getQingyunPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "青云塔传道长老",
         requiredAttribute = "传道",
         effectDescription = "提升内门弟子修炼速度",
-        bonusFormula = "传道以80为基准，每多1点增加1%修炼速度。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
+        bonusFormula = "传道以80为基准，每4点增加1%修炼速度，最多增加10%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
     fun getPreachingMasterInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "问道塔传道师",
         requiredAttribute = "传道",
         effectDescription = "提升外门弟子修炼速度（仅外门弟子有效，弟子境界超过传道师时不生效）",
-        bonusFormula = "传道属性以80为基准，每高1点增加0.5%修炼速度。\n传道低于80时无加成效果。\n仅对境界不超过传道师的外门弟子生效。\n多名传道师加成可叠加。"
+        bonusFormula = "传道以60为基准，每10点增加1%修炼速度，最多增加5%。\n传道低于60时无加成效果。\n仅对境界不超过传道师的外门弟子生效。\n多名传道师加成可叠加。"
     )
 
     fun getQingyunPreachingMasterInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "青云塔传道师",
         requiredAttribute = "传道",
         effectDescription = "提升内门弟子修炼速度",
-        bonusFormula = "传道以80为基准，每多1点增加0.5%修炼速度。\n仅对内门弟子有效，弟子境界超过传道师境界时不享受增益。\n多名传道师加成可叠加。"
+        bonusFormula = "传道以60为基准，每10点增加1%修炼速度，最多增加5%。\n传道低于60时无加成效果。\n仅对内门弟子有效，弟子境界超过传道师境界时不享受增益。\n多名传道师加成可叠加。"
     )
 
     fun getSpiritMineDeaconInfo(): ElderBonusInfo = ElderBonusInfo(

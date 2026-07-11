@@ -209,7 +209,7 @@ class CultivationCore @Inject constructor(
             if (!tables.names.contains(id) || tables.isAlive[id] != 1) return 0.0
             val teaching = tables.teachings[id]
             val realm = tables.realms[id]
-            if (disciple.realm >= realm && teaching >= 80) return (teaching - 80) * 0.01
+            if (disciple.realm >= realm && teaching >= 80) return ((teaching - 80) * 0.0025).coerceAtMost(0.10)
             return 0.0
         }
 
@@ -220,7 +220,7 @@ class CultivationCore @Inject constructor(
                 if (!tables.names.contains(id) || tables.isAlive[id] != 1) continue
                 val teaching = tables.teachings[id]
                 val realm = tables.realms[id]
-                if (disciple.realm >= realm && teaching >= 80) total += (teaching - 80) * 0.005
+                if (disciple.realm >= realm && teaching >= 60) total += ((teaching - 60) * 0.001).coerceAtMost(0.05)
             }
             return total
         }
