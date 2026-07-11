@@ -27,8 +27,11 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 internal fun ScoutDialog(
@@ -125,6 +128,7 @@ internal fun ScoutDialog(
             disciples = disciples,
             currentSlotDiscipleId = slots[currentSlotIndex]?.id,
             alreadySelectedIds = alreadySelectedIds,
+            viewModel = viewModel,
             onSelect = { disciple ->
                 slots[currentSlotIndex] = disciple
                 showDiscipleSelection = false
@@ -160,6 +164,7 @@ private fun ScoutDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     currentSlotDiscipleId: String? = null,
     alreadySelectedIds: Set<String> = emptySet(),
+    viewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -169,13 +174,21 @@ private fun ScoutDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val availableDisciples = remember(disciples, alreadySelectedIds) {
-        disciples.filter {
-            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 &&
-            (it.id == currentSlotDiscipleId || it.id !in alreadySelectedIds)
-        }
-            .sortedByFollowAndRealm()
+    val collectedGameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = collectedGameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(collectedGameData) {
+        val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val availableDisciples = remember(disciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
+        }).sortedByFollowAndRealm()
     }
 
     val realmCounts = remember(availableDisciples) {
@@ -214,7 +227,10 @@ private fun ScoutDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -247,7 +263,14 @@ private fun ScoutDiscipleSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = disciple.id == currentSlotDiscipleId,
-                                onClick = { onSelect(disciple) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple)
+                                    }
+                                }
                             )
                         }
                     }

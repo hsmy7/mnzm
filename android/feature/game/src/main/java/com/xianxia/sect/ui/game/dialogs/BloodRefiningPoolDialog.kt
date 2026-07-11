@@ -34,6 +34,8 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun BloodRefiningPoolDialog(
@@ -192,15 +194,29 @@ fun BloodRefiningPoolDialog(
 
     // 弟子选择弹窗
     if (showDiscipleSelection) {
-        val eligibleDisciples = disciples.filter {
-            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE
+        val scope = rememberCoroutineScope()
+        val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+        val battleAndExplorationIds = remember(gameData, viewModel.teams) {
+            val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()
+            val allExplorationIds = viewModel.teams.value.flatMap { it.memberIds }
+            (allBattleIds + allExplorationIds).toSet()
         }
+        val eligibleDisciples = disciples.filter { it.isAlive }
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(title = "选择弟子", emptyMessage = "没有空闲弟子"),
             disciples = eligibleDisciples,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = { showDiscipleSelection = false },
             onConfirm = { selected ->
-                selected.firstOrNull()?.let { bloodRefiningViewModel.selectDisciple(it) }
+                selected.firstOrNull()?.let {
+                    scope.launch {
+                        if (showAllEnabled && it.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE) {
+                            viewModel.releaseDiscipleFromAllSlotsAtomic(it.id)
+                        }
+                        bloodRefiningViewModel.selectDisciple(it)
+                    }
+                }
                 showDiscipleSelection = false
             },
             viewModel = viewModel

@@ -79,6 +79,18 @@ fun SpiritMineDialog(
 
     val emptySlotCount = slots.count { !it.isActive }
 
+    val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    val battleAndExplorationIds = remember {
+        val gd = gameData
+        if (gd != null) {
+            val battleIds = gd.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gd.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else {
+            emptySet()
+        }
+    }
+
     val deaconSlots = gameData?.elderSlots?.spiritMineDeaconDisciples ?: emptyList()
     val deaconDisciples = (0 until 2).map { index ->
         deaconSlots.find { it.index == index } ?: DirectDiscipleSlot(index = index)
@@ -215,7 +227,9 @@ fun SpiritMineDialog(
                     showDiscipleSelection = false
                     swappingSlotIndex = null
                 },
-                viewModel = viewModel
+                viewModel = viewModel,
+                showAllEnabled = showAllEnabled,
+                battleAndExplorationIds = battleAndExplorationIds
             )
         } else {
             DiscipleSelectorDialog(
@@ -226,7 +240,9 @@ fun SpiritMineDialog(
                     spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected, mineIndex)
                     showDiscipleSelection = false
                 },
-                viewModel = viewModel
+                viewModel = viewModel,
+                showAllEnabled = showAllEnabled,
+                battleAndExplorationIds = battleAndExplorationIds
             )
         }
     }
@@ -248,7 +264,9 @@ fun SpiritMineDialog(
                 showDeaconSelection = null
             },
             onDismiss = { showDeaconSelection = null },
-            viewModel = viewModel
+            viewModel = viewModel,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds
         )
     }
 

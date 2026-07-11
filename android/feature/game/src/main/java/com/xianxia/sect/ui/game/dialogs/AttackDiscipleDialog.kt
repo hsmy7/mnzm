@@ -37,9 +37,12 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.GameColors
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 internal fun AttackDiscipleDialog(
@@ -143,6 +146,7 @@ internal fun AttackDiscipleDialog(
             disciples = disciples,
             currentSlotDiscipleId = slots[currentSlotIndex]?.id,
             alreadySelectedIds = alreadySelectedIds,
+            viewModel = viewModel,
             onSelect = { disciple ->
                 slots[currentSlotIndex] = disciple
                 showDiscipleSelection = false
@@ -179,6 +183,7 @@ private fun AttackDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     currentSlotDiscipleId: String? = null,
     alreadySelectedIds: Set<String> = emptySet(),
+    viewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -188,14 +193,22 @@ private fun AttackDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val gameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = gameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(gameData) {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
 
     // Only IDLE disciples, exclude already selected ones (except current slot)
-    val availableDisciples = remember(disciples, alreadySelectedIds) {
-        disciples.filter {
-            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 &&
-            (it.id == currentSlotDiscipleId || it.id !in alreadySelectedIds)
-        }
-            .sortedByFollowAndRealm()
+    val availableDisciples = remember(disciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
+        }).sortedByFollowAndRealm()
     }
 
     val realmCounts = remember(availableDisciples) {
@@ -234,7 +247,10 @@ private fun AttackDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -268,7 +284,14 @@ private fun AttackDiscipleSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = disciple.id == currentSlotDiscipleId,
-                                onClick = { onSelect(disciple) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple)
+                                    }
+                                }
                             )
                         }
                     }

@@ -395,7 +395,8 @@ fun ProductionElderSelectionDialog(
     currentElderId: String?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    viewModel: GameViewModel? = null
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -404,8 +405,11 @@ fun ProductionElderSelectionDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
 
-    val filteredDisciplesBase = remember(disciples, elderSlots) {
-        disciples.filter { it.isEligibleForProductionPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
+    val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
+
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled) {
+        disciples.filter { !elderSlots.isDiscipleInAnyPosition(it.id) }
+            .filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= 5 })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -451,7 +455,10 @@ fun ProductionElderSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -499,7 +506,8 @@ fun ProductionDirectDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    viewModel: GameViewModel? = null
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -507,6 +515,8 @@ fun ProductionDirectDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+
+    val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
     val allDirectDiscipleIds = remember(elderSlots) {
         listOf(
@@ -516,8 +526,9 @@ fun ProductionDirectDiscipleSelectionDialog(
         ).flatten().mapNotNull { it.discipleId }
     }
 
-    val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds) {
-        disciples.filter { theme.directDiscipleEligibility(it) && !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
+    val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds, showAllEnabled) {
+        disciples.filter { !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= 5 })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -563,7 +574,10 @@ fun ProductionDirectDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {

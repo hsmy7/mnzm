@@ -24,6 +24,7 @@ import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.game.GameViewModel
@@ -203,10 +204,14 @@ fun ResidenceDialog(
 
     // Disciple selector
     if (showDiscipleSelector) {
-        val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
-        val eligibleDisciples = disciples.filter {
-            it.isAlive && it.status != DiscipleStatus.REFLECTING && it.id !in occupiedIds
+        val showAllEnabled = gameData.showAllAvailableDisciples
+        val battleAndExplorationIds = remember {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
         }
+        val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
+        val eligibleDisciples = disciples.filter { it.isAlive && it.id !in occupiedIds }
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(
                 title = if (isSwapping) "更换弟子" else "选择入住弟子",
@@ -221,7 +226,9 @@ fun ResidenceDialog(
                 showDiscipleSelector = false
                 isSwapping = false
             },
-            viewModel = viewModel
+            viewModel = viewModel,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds
         )
     }
 }

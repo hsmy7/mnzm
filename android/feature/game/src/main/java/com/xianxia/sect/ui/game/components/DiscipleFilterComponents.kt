@@ -52,6 +52,7 @@ import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.CircularCheckbox
 
 @Composable
 internal fun DropdownFilterButton(
@@ -120,7 +121,10 @@ internal fun SpiritRootAttributeFilterBar(
     onSpiritRootExpandToggle: () -> Unit,
     onAttributeExpandToggle: () -> Unit,
     onRealmExpandToggle: () -> Unit = {},
-    isCompact: Boolean = false
+    isCompact: Boolean = false,
+    showAllCheckboxVisible: Boolean = false,
+    showAllEnabled: Boolean = false,
+    onShowAllToggle: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -154,6 +158,21 @@ internal fun SpiritRootAttributeFilterBar(
                     onClick = onRealmExpandToggle,
                     isCompact = isCompact,
                 )
+            }
+            if (showAllCheckboxVisible) {
+                Spacer(modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "显示所有可用弟子",
+                        fontSize = if (isCompact) 9.sp else 11.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    CircularCheckbox(
+                        checked = showAllEnabled,
+                        onToggle = onShowAllToggle
+                    )
+                }
             }
         }
 

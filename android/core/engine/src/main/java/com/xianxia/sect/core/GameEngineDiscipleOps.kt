@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 
 fun GameEngine.addDisciple(disciple: Disciple) = discipleFacade.addDisciple(disciple)
 fun GameEngine.removeDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.removeDisciple(discipleId)
@@ -38,3 +39,20 @@ fun GameEngine.removeDirectDisciple(elderSlotType: String, slotIndex: Int) = dis
 suspend fun GameEngine.updateDiscipleStatus(discipleId: String, status: DiscipleStatus) = discipleFacade.updateDiscipleStatus(discipleId, status)
 fun GameEngine.assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) = discipleFacade.assignDiscipleToLibrarySlot(slotIndex, discipleId, discipleName)
 fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) = discipleFacade.removeDiscipleFromLibrarySlot(slotIndex)
+
+/**
+ * 原子操作：清除指定弟子在所有槽位中的引用，并将其状态重置为 IDLE。
+ * 在同一 [stateStore.update] 事务中完成，保证清除 + 重置的一致性。
+ * 用于"显示所有可用弟子"功能中选中非空闲弟子时的自动释放。
+ *
+ * 注意：血炼中(REFINING)弟子被释放时，血炼已消耗的灵石和材料不返还。
+ */
+suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
+    stateStore.update {
+        gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
+        val id = discipleId.toIntOrNull()
+        if (id != null && id in discipleTables.ids) {
+            discipleTables.statuses[id] = DiscipleStatus.IDLE
+        }
+    }
+}

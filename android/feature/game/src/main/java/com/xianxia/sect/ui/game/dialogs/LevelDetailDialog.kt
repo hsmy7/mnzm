@@ -43,10 +43,13 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.map.MapItem
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -244,6 +247,7 @@ fun LevelDetailDialog(
         LevelSlotSelectionDialog(
             disciples = disciples,
             alreadySelectedIds = alreadySelectedIds,
+            viewModel = viewModel,
             onSelect = { discipleId ->
                 slots[targetSlotIndex] = discipleId
                 showDiscipleSelection = false
@@ -283,6 +287,7 @@ private fun LevelSlotBox(
 private fun LevelSlotSelectionDialog(
     disciples: List<DiscipleAggregate>,
     alreadySelectedIds: Set<String> = emptySet(),
+    viewModel: GameViewModel,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -292,11 +297,21 @@ private fun LevelSlotSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val idleDisciples = remember(disciples, alreadySelectedIds) {
-        disciples.filter {
-            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5 && it.id !in alreadySelectedIds
-        }
+    val stateGameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = stateGameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(stateGameData) {
+        val battleIds = stateGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = stateGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val idleDisciples = remember(disciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && d.age >= 5 && d.id !in alreadySelectedIds
+        })
     }
 
     val realmCounts = remember(idleDisciples) {
@@ -344,7 +359,10 @@ private fun LevelSlotSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }) {
         Column(
@@ -386,7 +404,14 @@ private fun LevelSlotSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = false,
-                                onClick = { onSelect(disciple.id) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple.id)
+                                    }
+                                }
                             )
                         }
                     }

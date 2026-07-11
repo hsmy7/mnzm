@@ -51,12 +51,15 @@ import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 internal fun WorldMapSectDetailDialog(
@@ -410,11 +413,10 @@ internal fun WorldMapSectDetailDialog(
         val slotIndex = showGarrisonSelection ?: return
         val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
         val garrisonedIds = latestSect.garrisonSlots.map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
-        val idleDisciples = disciples.filter {
-            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.id !in garrisonedIds
-        }
         GarrisonDiscipleSelectionDialog(
-            disciples = idleDisciples,
+            disciples = disciples,
+            garrisonedIds = garrisonedIds,
+            viewModel = viewModel,
             onSelect = { disciple ->
                 garrisonViewModel.assignGarrisonDisciple(sect.id, slotIndex, disciple.id)
                 showGarrisonSelection = null
@@ -470,6 +472,8 @@ private fun GarrisonSlotBox(
 @Composable
 private fun GarrisonDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
+    garrisonedIds: Set<String> = emptySet(),
+    viewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -479,10 +483,21 @@ private fun GarrisonDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val availableDisciples = remember(disciples) {
-        disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.realmLayer > 0 }
-            .sortedByFollowAndRealm()
+    val collectedGameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = collectedGameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(collectedGameData) {
+        val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val availableDisciples = remember(disciples, garrisonedIds, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && d.id !in garrisonedIds
+        }).sortedByFollowAndRealm()
     }
 
     val realmCounts = remember(availableDisciples) {
@@ -517,7 +532,10 @@ private fun GarrisonDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -546,7 +564,14 @@ private fun GarrisonDiscipleSelectionDialog(
                     items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
                         PortraitDiscipleCard(
                             disciple = disciple,
-                            onClick = { onSelect(disciple) }
+                            onClick = {
+                                scope.launch {
+                                    if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                        viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                    }
+                                    onSelect(disciple)
+                                }
+                            }
                         )
                     }
                 }

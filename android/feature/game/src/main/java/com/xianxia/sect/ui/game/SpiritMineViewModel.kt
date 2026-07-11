@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
@@ -24,9 +25,13 @@ class SpiritMineViewModel @Inject constructor(
         val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
+        val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
+                it.discipleType == "inner" && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+            })
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -116,11 +121,14 @@ class SpiritMineViewModel @Inject constructor(
         val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         val assignedMiningIds = gameEngine.gameDataSnapshot.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
+        val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForOuterPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
+            .filter { !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
+            .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
+                it.discipleType == "outer" && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+            })
             .sortedWith(compareByDescending<DiscipleAggregate> { it.mining }
                 .thenBy { it.realm }
                 .thenByDescending { it.realmLayer })

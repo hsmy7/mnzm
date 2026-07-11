@@ -53,6 +53,9 @@ import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
 @Composable
@@ -84,6 +87,8 @@ fun AlchemyDialog(
     val discipleMap = disciples.associateBy { it.id }
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
         else discipleMap[assignedDiscipleId]
+    val coroutineScope = rememberCoroutineScope()
+    val showAllEnabled = viewModel.gameData.value.showAllAvailableDisciples
 
     UnifiedGameDialog(
         onDismissRequest = { viewModel.closeCurrentDialog() },
@@ -225,10 +230,17 @@ fun AlchemyDialog(
             disciples = alchemyViewModel.getAvailableWorkers(),
             currentElderId = assignedDiscipleId,
             elderSlots = gameData?.elderSlots ?: ElderSlots(),
+            viewModel = viewModel,
             onDismiss = { showWorkerSelection = false },
             onSelect = { discipleId ->
-                val d = discipleMap[discipleId]
-                alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
+                val disciple = discipleMap[discipleId]
+                coroutineScope.launch {
+                    if (showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
+                        viewModel.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                    }
+                    val d = discipleMap[discipleId]
+                    alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
+                }
                 showWorkerSelection = false
             }
         )

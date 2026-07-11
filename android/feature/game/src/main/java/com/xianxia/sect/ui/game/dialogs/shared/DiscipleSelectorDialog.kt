@@ -19,6 +19,7 @@ import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 
 data class DiscipleSelectorConfig(
     val title: String,
@@ -35,7 +36,9 @@ fun DiscipleSelectorDialog(
     disciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit,
     onConfirm: (List<DiscipleAggregate>) -> Unit,
-    viewModel: GameViewModel? = null
+    viewModel: GameViewModel? = null,
+    showAllEnabled: Boolean = false,
+    battleAndExplorationIds: Set<String> = emptySet()
 ) {
     DisposableEffect(Unit) {
         viewModel?.activateSubDialogDomain("DiscipleSelector")
@@ -45,11 +48,16 @@ fun DiscipleSelectorDialog(
     }
 
     val filterState = rememberDiscipleFilterState(config.defaultSortAttribute)
-    val realmCounts = remember(disciples) { filterState.realmCounts(disciples) }
-    val spiritRootCounts = remember(disciples) { filterState.spiritRootCounts(disciples) }
 
-    val filtered = remember(disciples, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
-        filterState.filtered(disciples)
+    val statusFiltered = remember(disciples, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds)
+    }
+
+    val realmCounts = remember(statusFiltered) { filterState.realmCounts(statusFiltered) }
+    val spiritRootCounts = remember(statusFiltered) { filterState.spiritRootCounts(statusFiltered) }
+
+    val filtered = remember(statusFiltered, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
+        statusFiltered.let { filterState.filtered(it) }
     }
 
     UnifiedGameDialog(
@@ -75,7 +83,10 @@ fun DiscipleSelectorDialog(
                 onRealmFilterRemoved = { filterState.realmFilter -= it },
                 onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
                 onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
-                onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded }
+                onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded },
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {

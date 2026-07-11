@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.util.isFollowed
 
 internal data class AttributeFilterOption(
@@ -95,4 +96,30 @@ internal fun List<DiscipleAggregate>.applyFilters(
         result = result.filter { it.getSpiritRootCount() in spiritRootFilter }
     }
     return result
+}
+
+/**
+ * 根据"显示所有可用弟子"开关过滤弟子列表：
+ * - 勾选时：排除 [REFLECTING]、[ON_MISSION]、[IN_TEAM] 及
+ *   [battleAndExplorationIds] 中的弟子（战斗中），其余状态均显示
+ * - 不勾选时：仅显示 [IDLE]
+ * [additionalCheck] 用于叠加其他过滤条件（如 realmLayer、年龄、弟子类型等）
+ */
+internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
+    showAllEnabled: Boolean,
+    battleAndExplorationIds: Set<String> = emptySet(),
+    additionalCheck: (DiscipleAggregate) -> Boolean = { true }
+): List<DiscipleAggregate> {
+    return filter { d ->
+        val statusOk = if (showAllEnabled) {
+            d.status !in setOf(
+                DiscipleStatus.REFLECTING,
+                DiscipleStatus.ON_MISSION,
+                DiscipleStatus.IN_TEAM
+            ) && d.id !in battleAndExplorationIds
+        } else {
+            d.status == DiscipleStatus.IDLE
+        }
+        statusOk && d.isAlive && additionalCheck(d)
+    }
 }

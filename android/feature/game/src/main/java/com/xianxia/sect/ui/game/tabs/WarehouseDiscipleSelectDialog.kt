@@ -24,6 +24,7 @@ import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.theme.GameColors
@@ -46,8 +47,22 @@ internal fun DiscipleSelectForRewardDialog(
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
 
-    val aliveDisciples = remember {
-        disciples.filter { it.isAlive && it.status != DiscipleStatus.REFLECTING }
+    var isRewarding by remember { mutableStateOf(false) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val gameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = gameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(gameData) {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
     }
 
     val currentQuantity by remember(itemType, itemId) {
@@ -64,14 +79,9 @@ internal fun DiscipleSelectForRewardDialog(
         }
     }
 
-    var isRewarding by remember { mutableStateOf(false) }
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    val aliveDisciples = remember(disciples, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds)
+    }
 
     val realmCounts = remember(aliveDisciples) {
         aliveDisciples.groupingBy { it.realm }.eachCount()
@@ -129,7 +139,10 @@ internal fun DiscipleSelectForRewardDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
 
             if (currentQuantity <= 0) {

@@ -31,12 +31,15 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun LibraryDialog(
@@ -93,12 +96,9 @@ fun LibraryDialog(
     showDiscipleSelection?.let { slotIndex ->
         val currentDiscipleId = slots.getOrNull(slotIndex)?.discipleId
         LibraryDiscipleSelectionDialog(
-            disciples = disciples.filter { disciple ->
-                disciple.isAlive &&
-                disciple.status != DiscipleStatus.REFLECTING &&
-                (disciple.status == DiscipleStatus.IDLE || disciple.id == currentDiscipleId)
-            },
+            disciples = disciples,
             currentDiscipleId = currentDiscipleId,
+            viewModel = viewModel,
             onSelect = { disciple ->
                 productionViewModel.assignDiscipleToLibrarySlot(slotIndex, disciple.id, disciple.name)
                 showDiscipleSelection = null
@@ -153,6 +153,7 @@ private fun LibrarySlotItem(
 private fun LibraryDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     currentDiscipleId: String?,
+    viewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -162,17 +163,38 @@ private fun LibraryDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val realmCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.realm }.eachCount()
+    val collectedGameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = collectedGameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(collectedGameData) {
+        val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
     }
 
-    val spiritRootCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.getSpiritRootCount() }.eachCount()
+    val statusFiltered = remember(disciples, showAllEnabled, battleAndExplorationIds, currentDiscipleId) {
+        val base = disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds)
+        // Always include current disciple (允许当前已分配的弟子无论如何都显示)
+        if (currentDiscipleId != null && disciples.any { it.id == currentDiscipleId && it.isAlive }) {
+            val current = disciples.filter { it.id == currentDiscipleId && it.isAlive }
+            (base + current).distinctBy { it.id }
+        } else {
+            base
+        }
     }
 
-    val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.sortedByFollowAndRealm()
+    val realmCounts = remember(statusFiltered) {
+        statusFiltered.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.realm }.eachCount()
+    }
+
+    val spiritRootCounts = remember(statusFiltered) {
+        statusFiltered.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val sortedDisciples = remember(statusFiltered) {
+        statusFiltered.filter { it.realmLayer > 0 && it.age >= 5 }.sortedByFollowAndRealm()
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
@@ -202,12 +224,15 @@ private fun LibraryDiscipleSelectionDialog(
                 onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded }
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (disciples.isEmpty()) {
+            if (statusFiltered.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -237,7 +262,14 @@ private fun LibraryDiscipleSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isCurrent = isCurrent,
-                                onClick = { onSelect(disciple) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple)
+                                    }
+                                }
                             )
                         }
                     }

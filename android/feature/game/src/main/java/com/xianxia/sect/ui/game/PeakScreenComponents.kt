@@ -37,8 +37,12 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 data class PeakElderSlotConfig(
     val title: String,
@@ -343,6 +347,7 @@ fun PeakDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     currentDiscipleId: String?,
     requirementText: String,
+    viewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit,
     defaultSortAttribute: String? = null
@@ -353,9 +358,16 @@ fun PeakDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val baseDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }
+    val showAllEnabled = viewModel.showAllAvailableDisciplesSnapshot
+
+    val battleAndExplorationIds = viewModel.battleAndExplorationIdsSnapshot
+
+    val baseDisciples = remember(disciples, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0
+        })
     }
 
     val realmCounts = remember(baseDisciples) {
@@ -394,7 +406,10 @@ fun PeakDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -415,7 +430,14 @@ fun PeakDiscipleSelectionDialog(
                                 PortraitDiscipleCard(
                                     disciple = disciple,
                                     isCurrent = isCurrent,
-                                    onClick = { onSelect(disciple) }
+                                    onClick = {
+                                        scope.launch {
+                                            if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                                viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                            }
+                                            onSelect(disciple)
+                                        }
+                                    }
                                 )
                             }
                         }

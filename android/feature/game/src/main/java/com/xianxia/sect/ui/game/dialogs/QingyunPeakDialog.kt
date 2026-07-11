@@ -107,7 +107,8 @@ fun QingyunPeakDialog(
                 showInnerElderSelection = false
             },
             onDismiss = { showInnerElderSelection = false },
-            defaultSortAttribute = "comprehension"
+            defaultSortAttribute = "comprehension",
+            viewModel = viewModel
         )
     }
 
@@ -122,7 +123,8 @@ fun QingyunPeakDialog(
                 showPreachingElderSelection = false
             },
             onDismiss = { showPreachingElderSelection = false },
-            defaultSortAttribute = "teaching"
+            defaultSortAttribute = "teaching",
+            viewModel = viewModel
         )
     }
 
@@ -138,7 +140,8 @@ fun QingyunPeakDialog(
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null },
-            defaultSortAttribute = "teaching"
+            defaultSortAttribute = "teaching",
+            viewModel = viewModel
         )
     }
 

@@ -27,8 +27,11 @@ import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun HeavenlyTrialDiscipleDialog(
@@ -103,6 +106,7 @@ fun HeavenlyTrialDiscipleDialog(
                 .filterIndexed { idx, d -> idx != pickerSlotIndex && d != null }
                 .mapNotNull { it?.id }
                 .toSet(),
+            gameViewModel = gameViewModel,
             onSelect = { disciple ->
                 selectedDisciples[pickerSlotIndex] = disciple
                 showDisciplePicker = false
@@ -117,6 +121,7 @@ private fun DisciplePickerDialog(
     aliveDisciples: List<DiscipleAggregate>,
     currentSlotDiscipleId: String?,
     alreadySelectedIds: Set<String>,
+    gameViewModel: GameViewModel,
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -126,12 +131,21 @@ private fun DisciplePickerDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val availableDisciples = remember(aliveDisciples, alreadySelectedIds) {
-        aliveDisciples.filter {
-            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 &&
-            (it.id == currentSlotDiscipleId || it.id !in alreadySelectedIds)
-        }.sortedByFollowAndRealm()
+    val gameData by gameViewModel.gameData.collectAsState()
+    val showAllEnabled = gameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(gameData) {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val availableDisciples = remember(aliveDisciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
+        aliveDisciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
+        }).sortedByFollowAndRealm()
     }
 
     val realmCounts = remember(availableDisciples) {
@@ -170,7 +184,10 @@ private fun DisciplePickerDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { gameViewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -192,7 +209,14 @@ private fun DisciplePickerDialog(
                     PortraitDiscipleCard(
                         disciple = disciple,
                         isSelected = disciple.id == currentSlotDiscipleId,
-                        onClick = { onSelect(disciple) }
+                        onClick = {
+                            scope.launch {
+                                if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                    gameViewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                }
+                                onSelect(disciple)
+                            }
+                        }
                     )
                 }
             }

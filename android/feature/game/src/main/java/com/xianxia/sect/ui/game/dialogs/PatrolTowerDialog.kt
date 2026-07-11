@@ -33,6 +33,8 @@ import com.xianxia.sect.ui.game.PatrolTowerViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun PatrolTowerDialog(
@@ -56,6 +58,7 @@ fun PatrolTowerDialog(
     var requireFullStatus by remember(patrolConfig) { mutableStateOf(patrolConfig.requireFullStatus) }
     var selectingSlotIndex by remember { mutableStateOf(-1) }
     var isSwapMode by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val slots = remember(allSlots, towerIndex) {
         val list = allSlots.toMutableList()
@@ -65,8 +68,14 @@ fun PatrolTowerDialog(
 
     val assignedIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
     val discipleMap = disciples.associateBy { it.id }
+    val showAllEnabled = gd.showAllAvailableDisciples
+    val battleAndExplorationIds = remember(gd, viewModel.teams) {
+        val allBattleIds = gd.battleTeams.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } }
+        val allExplorationIds = viewModel.teams.value.flatMap { it.memberIds }
+        (allBattleIds + allExplorationIds).toSet()
+    }
     val availableDisciples = remember(allSlots, disciples, towerIndex) {
-        disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
+        disciples.filter { it.isAlive && it.id !in assignedIds }
             .sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
     }
 
@@ -163,12 +172,19 @@ fun PatrolTowerDialog(
                 title = if (isSwapMode) "更换巡视弟子" else "选择巡视弟子"
             ),
             disciples = availableDisciples,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = { selectingSlotIndex = -1 },
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     val id = selected.first().id
-                    if (isSwapMode) patrolTowerViewModel.swapDisciple(towerIndex, selectingSlotIndex, id)
-                    else patrolTowerViewModel.assignDisciple(towerIndex, selectingSlotIndex, id)
+                    scope.launch {
+                        if (showAllEnabled && selected.first().status != DiscipleStatus.IDLE) {
+                            viewModel.releaseDiscipleFromAllSlotsAtomic(id)
+                        }
+                        if (isSwapMode) patrolTowerViewModel.swapDisciple(towerIndex, selectingSlotIndex, id)
+                        else patrolTowerViewModel.assignDisciple(towerIndex, selectingSlotIndex, id)
+                    }
                 }
                 selectingSlotIndex = -1
             },

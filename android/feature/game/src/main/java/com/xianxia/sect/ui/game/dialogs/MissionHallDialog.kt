@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 
 @Composable
 fun MissionHallDialog(
@@ -538,15 +539,24 @@ private fun MissionDispatchDialog(
     val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
     var selectingSlotIndex by remember { mutableStateOf(-1) }
 
-    val eligibleDisciples = remember(allDisciples, busyDiscipleIds) {
-        allDisciples.filter { disciple ->
+    val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else {
+            emptySet()
+        }
+    }
+
+    val eligibleDisciples = remember(allDisciples, busyDiscipleIds, showAllEnabled, battleAndExplorationIds) {
+        allDisciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { disciple ->
             val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
-            disciple.isAlive &&
-            disciple.status == DiscipleStatus.IDLE &&
             disciple.id !in busyDiscipleIds &&
             disciplePosition in mission.difficulty.allowedPositions &&
             disciple.realm <= mission.difficulty.minRealm
-        }
+        })
     }
 
     val filledCount = selectedSlotIds.filterNotNull().size
@@ -567,7 +577,9 @@ private fun MissionDispatchDialog(
                 selectingSlotIndex = -1
             },
             onDismiss = { selectingSlotIndex = -1 },
-            viewModel = viewModel
+            viewModel = viewModel,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds
         )
     } else {
         UnifiedGameDialog(

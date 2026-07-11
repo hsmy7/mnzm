@@ -80,6 +80,7 @@ import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.DropdownFilterButton
 import com.xianxia.sect.ui.game.components.FilterChip
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.theme.GameColors
@@ -276,6 +277,7 @@ internal fun DirectDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     requiredAttribute: Pair<String, String>?,
     elderSlots: ElderSlots,
+    viewModel: GameViewModel,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
@@ -285,16 +287,21 @@ internal fun DirectDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val filteredDisciplesBase = remember(disciples, elderSlots) {
-        disciples.filter {
-            it.isAlive &&
-            it.realmLayer > 0 &&
-            it.age >= 5 &&
-            it.status == DiscipleStatus.IDLE &&
-            it.discipleType == "inner" &&
-            !elderSlots.isDiscipleInAnyPosition(it.id)
-        }
+    val collectedGameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = collectedGameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(collectedGameData) {
+        val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && d.age >= 5 && d.discipleType == "inner" && !elderSlots.isDiscipleInAnyPosition(d.id)
+        })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -334,7 +341,10 @@ internal fun DirectDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -384,7 +394,14 @@ internal fun DirectDiscipleSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 extraAttributes = extraAttrs,
-                                onClick = { onSelect(disciple.id) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple.id)
+                                    }
+                                }
                             )
                         }
                     }
@@ -399,6 +416,7 @@ internal fun ElderDiscipleSelectionDialog(
     currentElderId: String?,
     requiredAttribute: Pair<String, String>?,
     elderSlots: ElderSlots,
+    viewModel: GameViewModel,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
@@ -408,16 +426,21 @@ internal fun ElderDiscipleSelectionDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val filteredDisciplesBase = remember(disciples, elderSlots) {
-        disciples.filter {
-            it.isAlive &&
-            it.realmLayer > 0 &&
-            it.age >= 5 &&
-            it.status == DiscipleStatus.IDLE &&
-            it.discipleType == "inner" &&
-            !elderSlots.isDiscipleInAnyPosition(it.id)
-        }
+    val gameData by viewModel.gameData.collectAsState()
+    val showAllEnabled = gameData.showAllAvailableDisciples
+
+    val battleAndExplorationIds = remember(gameData) {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
+            d.realmLayer > 0 && d.age >= 5 && d.discipleType == "inner" && !elderSlots.isDiscipleInAnyPosition(d.id)
+        })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -457,7 +480,10 @@ internal fun ElderDiscipleSelectionDialog(
                 onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                 onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                 onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
+                isCompact = true,
+                showAllCheckboxVisible = true,
+                showAllEnabled = showAllEnabled,
+                onShowAllToggle = { viewModel.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
@@ -504,7 +530,14 @@ internal fun ElderDiscipleSelectionDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 extraAttributes = extraAttrs,
-                                onClick = { onSelect(disciple.id) }
+                                onClick = {
+                                    scope.launch {
+                                        if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        }
+                                        onSelect(disciple.id)
+                                    }
+                                }
                             )
                         }
                     }

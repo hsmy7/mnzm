@@ -364,6 +364,10 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var discipleDesertionPopup: Boolean = true,
 
+    // 弟子选择界面：显示所有可用弟子（非空闲中，但始终排除思过/任务/战斗中）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var showAllAvailableDisciples: Boolean = false,
+
     // 弟子管理：突破自动使用仓库丹药
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var breakthroughAutoPillFocused: Boolean = false,

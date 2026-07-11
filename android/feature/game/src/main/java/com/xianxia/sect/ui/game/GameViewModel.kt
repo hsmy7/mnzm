@@ -990,6 +990,50 @@ class GameViewModel @Inject constructor(
     }
 
     /**
+     * 设置弟子选择界面"显示所有可用弟子"的开关。
+     * 勾选后选择界面将同时显示非空闲弟子（但始终排除思过/任务/战斗中弟子），
+     * 选中非空闲弟子时将自动释放其原槽位。
+     *
+     * @param enabled 是否显示所有可用弟子（而非仅空闲中）
+     */
+    fun setShowAllAvailableDisciples(enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateGameData {
+                it.copy(showAllAvailableDisciples = enabled)
+            }
+        }
+    }
+
+    /**
+     * 从所有槽位原子性地释放指定弟子，将其状态重置为 IDLE。
+     * 用于"显示所有可用弟子"功能中选中非空闲弟子时的自动释放。
+     *
+     * 注意：血炼中(REFINING)弟子被释放时，血炼已消耗的灵石和材料不返还。
+     */
+    /**
+     * 释放指定弟子所有槽位引用并重置为空闲（用于"显示所有可用弟子"功能）。
+     * 调用方需在协程作用域中调用（scope.launch { viewModel.releaseDiscipleFromAllSlotsAtomic(id) }）。
+     */
+    suspend fun releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
+        gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+    }
+
+    /** 当前"显示所有可用弟子"开关状态 */
+    val showAllAvailableDisciplesSnapshot: Boolean
+        get() = gameEngine.gameDataSnapshot?.showAllAvailableDisciples ?: false
+
+    /** 当前战斗中/探索中弟子 ID 集合（供 filterByDiscipleStatus 排除使用） */
+    val battleAndExplorationIdsSnapshot: Set<String>
+        get() {
+            val data = gameEngine.gameDataSnapshot ?: return emptySet()
+            val battleIds = data.battleTeams.flatMap { t ->
+                t.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) }
+            }
+            val explorationIds = gameEngine.teams.value?.flatMap { it.memberIds } ?: emptyList()
+            return (battleIds + explorationIds).toSet()
+        }
+
+    /**
      * 设置当前激活的界面 Tab。
      *
      * @param tab Tab 标识
