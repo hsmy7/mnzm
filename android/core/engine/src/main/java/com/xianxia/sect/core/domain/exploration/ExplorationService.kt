@@ -192,7 +192,7 @@ class ExplorationService @Inject constructor(
             .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
 
         stateStore.update {
-            spiritStoneWallet.applyDeduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.BeastTribute, SpiritStoneSource.Internal)
+            spiritStoneWallet.deduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.BeastTribute, SpiritStoneSource.Internal)
             gameData = gameData.copy(
                 worldLevels = gameData.worldLevels.map {
                     if (it.id == beastLevelId)
@@ -414,7 +414,7 @@ class ExplorationService @Inject constructor(
 
             val sr = result.rewards["spiritStones"] ?: 0
             if (sr > 0) {
-                spiritStoneWallet.applyAdd(this, sr.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
+                spiritStoneWallet.add(this, sr.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
                 allRewards.add(BattleRewardItem(
                     name = "灵石", quantity = sr,
                     rarity = 1, type = "spiritStones"
@@ -657,7 +657,7 @@ class ExplorationService @Inject constructor(
     ) {
         // 扣除灵石 — Wallet 直接修改 state.gameData，无需 gd 同步
         if (loot.stolenSpiritStones > 0) {
-            spiritStoneWallet.applyDeduct(state, loot.stolenSpiritStones, SpiritStoneGrade.LOW, SpiritStoneReason.Theft, SpiritStoneSource.Exploration)
+            spiritStoneWallet.deduct(state, loot.stolenSpiritStones, SpiritStoneGrade.LOW, SpiritStoneReason.Theft, SpiritStoneSource.Exploration)
         }
 
         // 扣除储物袋
@@ -956,7 +956,7 @@ class ExplorationService @Inject constructor(
                 // 灵石奖励
                 val spiritStoneReward = result.rewards["spiritStones"] ?: 0
                 if (spiritStoneReward > 0) {
-                    spiritStoneWallet.applyAdd(state, spiritStoneReward.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
+                    spiritStoneWallet.add(state, spiritStoneReward.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
                     gd = state.gameData
                     allRewards.add(BattleRewardItem(name = "灵石", quantity = spiritStoneReward, rarity = 1, type = "spiritStones"))
                 }

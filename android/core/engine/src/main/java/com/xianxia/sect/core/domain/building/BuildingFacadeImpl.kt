@@ -376,7 +376,7 @@ class BuildingFacadeImpl @Inject constructor(
     ): GameData {
         val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return gameData
         // 通过钱包记录灵石返还
-        spiritStoneWallet.applyAdd(this, refund, SpiritStoneGrade.LOW, SpiritStoneSource.Refund)
+        spiritStoneWallet.add(this, refund, SpiritStoneGrade.LOW, SpiritStoneSource.Refund)
         // 移除建筑 + 清洁关联槽位（灵石已由 applyAdd 处理）
         var gd = gameData.copy(
             placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId }

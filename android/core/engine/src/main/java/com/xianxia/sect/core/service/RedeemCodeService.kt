@@ -107,7 +107,7 @@ class RedeemCodeService @Inject constructor(
     private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>) {
         // 灵石通过 SpiritStoneWallet 独立发放
         rewards.filter { it.type == "spiritStones" }.forEach { reward ->
-            spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+            stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
         }
 
         stateStore.update {
@@ -316,7 +316,7 @@ class RedeemCodeService @Inject constructor(
 
         // 灵石通过 SpiritStoneWallet 独立发放
         result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
-            spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+            stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
         }
 
         stateStore.update {

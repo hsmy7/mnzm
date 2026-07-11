@@ -1142,13 +1142,9 @@ class InventorySystem @Inject constructor(
     /** @deprecated 使用 [SpiritStoneWallet.deduct] 替代 */
     @Deprecated("Use spiritStoneWallet.deduct()")
     suspend fun deductSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
-        val result = spiritStoneWallet.deduct(
-            amount = amount,
-            grade = grade,
-            reason = SpiritStoneReason.Internal,
-            source = SpiritStoneSource.Internal,
-            autoConvert = true
-        )
+        val result = stateStore.updateAndReturn {
+            spiritStoneWallet.deduct(this, amount, grade, SpiritStoneReason.Internal, SpiritStoneSource.Internal, true)
+        }
         return when (result) {
             is DeductResult.Success -> result.balanceAfter
             is DeductResult.Insufficient -> result.balance
@@ -1164,7 +1160,9 @@ class InventorySystem @Inject constructor(
     /** @deprecated 使用 [SpiritStoneWallet.add] 替代 */
     @Deprecated("Use spiritStoneWallet.add()")
     suspend fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
-        return spiritStoneWallet.add(amount, grade, SpiritStoneSource.Internal)
+        return stateStore.updateAndReturn {
+            spiritStoneWallet.add(this, amount, grade, SpiritStoneSource.Internal)
+        }
     }
 
     /** @deprecated 使用 [SpiritStoneWallet.batch] 替代 */
@@ -1180,20 +1178,18 @@ class InventorySystem @Inject constructor(
         val (converted, remaining) = SpiritStoneExchange.exchange(quantity, source, target)
         if (converted <= 0) return false
 
-        spiritStoneWallet.batch(listOf(
-            SpiritStoneOperation(
-                delta = -(quantity - remaining),
-                grade = source,
-                reason = SpiritStoneReason.Exchange,
-                source = SpiritStoneSource.Internal
-            ),
-            SpiritStoneOperation(
-                delta = converted,
-                grade = target,
-                reason = SpiritStoneReason.Exchange,
-                source = SpiritStoneSource.Internal
-            )
-        ))
+        stateStore.modifyState {
+            spiritStoneWallet.batch(this, listOf(
+                SpiritStoneOperation(
+                    delta = -(quantity - remaining), grade = source,
+                    reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal
+                ),
+                SpiritStoneOperation(
+                    delta = converted, grade = target,
+                    reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal
+                )
+            ))
+        }
         return true
     }
 

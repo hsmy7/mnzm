@@ -156,7 +156,7 @@ class GiftService @Inject constructor(
                     .copy(lastGiftYear = currentYear)
             }
 
-            spiritStoneWallet.applyDeduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)
+            spiritStoneWallet.deduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)
             gameData = gameData.copy(
                 sectDetails = liveUpdatedDetails,
                 sectRelations = liveUpdatedRelations

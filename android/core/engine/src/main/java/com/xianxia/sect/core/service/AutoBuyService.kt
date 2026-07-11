@@ -95,7 +95,7 @@ class AutoBuyService @Inject constructor(
                 val cost = merchantItem.price * buyQty
 
                 // 通过钱包扣除灵石
-                spiritStoneWallet.applyDeduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+                spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
 
                 // 减少商人库存
                 val remaining = merchantItem.quantity - buyQty

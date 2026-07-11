@@ -223,7 +223,7 @@ class InventoryFacadeImpl @Inject constructor(
                 } else {
                     s.update(itemId) { it.withQuantity(newQty) as T }
                 }
-                spiritStoneWallet.applyAdd(
+                spiritStoneWallet.add(
                     this,
                     amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity),
                     grade = SpiritStoneGrade.LOW,
@@ -368,7 +368,7 @@ stateStore.update {
                 if (sold) soldItemNames.add("${op.name} ${op.quantity}") else failedItemNames.add(op.name)
             }
             if (totalEarned > 0) {
-                spiritStoneWallet.applyAdd(this, totalEarned, SpiritStoneGrade.LOW, SpiritStoneSource.Sell("bulk"))
+                spiritStoneWallet.add(this, totalEarned, SpiritStoneGrade.LOW, SpiritStoneSource.Sell("bulk"))
             }
         }
         return InventoryFacade.BulkSellResult(soldCount, totalEarned, soldItemNames, failedItemNames)
@@ -427,7 +427,7 @@ stateStore.update {
         }
 
 stateStore.update {
-            val deductResult = spiritStoneWallet.applyDeduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            val deductResult = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             if (deductResult !is DeductResult.Success) return@update
             gameData = gameData.copy(
                 travelingMerchantItems = gameData.travelingMerchantItems.map { item ->
@@ -569,7 +569,7 @@ stateStore.update {
             }
 
             val totalPrice = acquisitionItem.price * actualQuantity
-            spiritStoneWallet.applyAdd(this, totalPrice, SpiritStoneGrade.LOW, SpiritStoneSource.MerchantTrade)
+            spiritStoneWallet.add(this, totalPrice, SpiritStoneGrade.LOW, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
                 merchantAcquisitionItems = gameData.merchantAcquisitionItems.map { item ->
                     if (item.id == acquisitionItemId) item.copy(quantity = item.quantity - actualQuantity) else item
@@ -793,7 +793,7 @@ stateStore.update {
                 }
                 6 -> {
                     val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
-                    spiritStoneWallet.add(amount, SpiritStoneGrade.LOW, SpiritStoneSource.StorageBag)
+                    stateStore.update { spiritStoneWallet.add(this, amount, SpiritStoneGrade.LOW, SpiritStoneSource.StorageBag) }
                     val existing = rewards.find { it.type == "spiritStones" }
                     if (existing != null) {
                         rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())

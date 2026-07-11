@@ -165,7 +165,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
             }
 
             if (totalSpiritStones > 0) {
-                spiritStoneWallet.applyAdd(this, totalSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.SectLevelReward)
+                spiritStoneWallet.add(this, totalSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.SectLevelReward)
             }
 
             val newRecord = SectLevelClaimRecord(

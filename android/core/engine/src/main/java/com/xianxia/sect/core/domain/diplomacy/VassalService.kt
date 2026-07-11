@@ -68,7 +68,7 @@ class VassalService @Inject constructor(
         )
         if (tribute <= 0) return
         stateStore.update {
-            spiritStoneWallet.applyDeduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.VassalTribute, SpiritStoneSource.Internal)
+            spiritStoneWallet.deduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.VassalTribute, SpiritStoneSource.Internal)
         }
     }
 
@@ -272,7 +272,7 @@ class VassalService @Inject constructor(
 
         if (changed) {
             stateStore.update {
-                spiritStoneWallet.applyAdd(this, totalTribute, SpiritStoneGrade.LOW, SpiritStoneSource.Internal)
+                spiritStoneWallet.add(this, totalTribute, SpiritStoneGrade.LOW, SpiritStoneSource.Internal)
                 gameData = gameData.copy(
                     vassalContracts = updatedContracts
                 )

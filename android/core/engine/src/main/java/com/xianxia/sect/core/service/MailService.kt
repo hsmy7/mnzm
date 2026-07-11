@@ -429,7 +429,7 @@ class MailService @Inject constructor(
         attachments.forEach { attachment ->
             when (attachment.type) {
                 "spiritStones" -> {
-                    spiritStoneWallet.applyAdd(
+                    spiritStoneWallet.add(
                         state = state,
                         amount = attachment.quantity.toLong(),
                         grade = SpiritStoneGrade.LOW,

@@ -945,11 +945,11 @@ class CultivationEventProcessor @Inject constructor(
                         activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                     )
                     if (result.spiritStones > 0) {
-                        spiritStoneWallet.add(
+                        stateStore.update { spiritStoneWallet.add(this,
                             result.spiritStones.toLong(),
                             SpiritStoneGrade.LOW,
                             SpiritStoneSource.Quest
-                        )
+                        ) }
                     }
                     result.materials.forEach { material ->
                         inventorySystem.addMaterial(material)

@@ -340,7 +340,7 @@ class HeavenlyTrialService @Inject constructor(
         for (item in reward.items) {
             when (item.itemType) {
                 "spiritStones" -> {
-                    spiritStoneWallet.applyAdd(this, item.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.HeavenlyTrial)
+                    spiritStoneWallet.add(this, item.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.HeavenlyTrial)
                     generatedCards.add(RewardCardItem(
                         itemName = "灵石", itemType = "spiritStones",
                         rarity = 1, quantity = item.quantity

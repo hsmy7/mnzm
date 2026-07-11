@@ -48,7 +48,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启增强治安政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(enhancedSecurity = true))
             }
@@ -73,7 +73,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启丹道激励政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = true))
             }
@@ -98,7 +98,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启锻造激励政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = true))
             }
@@ -123,7 +123,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启灵药培育政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = true))
             }
@@ -148,7 +148,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启修行津贴政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = true))
             }
@@ -171,7 +171,7 @@ class SectPolicyToggleUseCase @Inject constructor(
             if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
                 return ToggleResult.Error("灵石不足${requiredStones}，无法开启功法研习政策")
             }
-            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.stateStore.modifyState { spiritStoneWallet.deduct(this, requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal) }
             gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(manualResearch = true))
             }

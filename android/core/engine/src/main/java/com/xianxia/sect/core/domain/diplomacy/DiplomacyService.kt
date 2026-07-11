@@ -426,7 +426,7 @@ class DiplomacyService @Inject constructor(
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
         stateStore.update {
-            spiritStoneWallet.applyDeduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails
             )
@@ -439,7 +439,7 @@ class DiplomacyService @Inject constructor(
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
         stateStore.update {
-            spiritStoneWallet.applyDeduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails
             )
@@ -511,7 +511,7 @@ class DiplomacyService @Inject constructor(
             }
             "spiritstone" -> {
                 val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return
-                spiritStoneWallet.applyAdd(this, actualQuantity.toLong(), grade, SpiritStoneSource.MerchantTrade)
+                spiritStoneWallet.add(this, actualQuantity.toLong(), grade, SpiritStoneSource.MerchantTrade)
             }
         }
     }

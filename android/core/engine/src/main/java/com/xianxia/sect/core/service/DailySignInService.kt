@@ -218,7 +218,7 @@ class DailySignInService @Inject constructor(
             if (currentStones + reward.quantity > maxSpiritStones) {
                 capacityError = "下品灵石已达上限，无法签到领取"
             } else {
-                spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.SignIn)
+                stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.SignIn) }
                 generatedCards.add(RewardCardItem(
                     itemName = "下品灵石", itemType = "spiritStones",
                     rarity = 1, quantity = reward.quantity

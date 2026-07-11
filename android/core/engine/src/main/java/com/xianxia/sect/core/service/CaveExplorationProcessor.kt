@@ -302,11 +302,11 @@ class CaveExplorationProcessor @Inject constructor(
         rewards.items.forEach { reward ->
             when (reward.type) {
                 "spiritStones" -> {
-                    spiritStoneWallet.add(
+                    stateStore.update { spiritStoneWallet.add(this,
                         amount = reward.quantity.toLong(),
                         grade = SpiritStoneGrade.LOW,
                         source = SpiritStoneSource.Cave
-                    )
+                    ) }
                     battleRewardItems.add(BattleRewardItem(
                         itemId = reward.itemId,
                         name = reward.name,

@@ -86,135 +86,88 @@ class CultivationSettlement @Inject constructor(
     /**
      * 年度年俸发放 — 每年 1 月在年度结算路径执行。
      *
-     * 规则：
-     * - 遍历所有存活弟子，按境界计算年俸
-     * - 宗门灵石充足 → 全员发放：扣灵石，弟子忠诚 +1，灵石进储物袋
-     * - 宗门灵石不足 → 全员不发（开启中品/上品补差价则自动折合，找零退回下品）
-     * - 忠诚度已满的弟子跳过
+     * 自动售卖逻辑统一通过 [SpiritStoneWallet] 处理，消除重复。
      */
     suspend fun processAnnualSalary(year: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val midRatio = SpiritStoneExchange.EFFECTIVE_RATIO
-        val highRatio = SpiritStoneExchange.EFFECTIVE_RATIO * SpiritStoneExchange.EFFECTIVE_RATIO
+        val plan = calculateSalaryPlan(maxLoyalty) ?: return
+
+        val deductResult = stateStore.updateAndReturn {
+            spiritStoneWallet.deduct(this, plan.totalRequired, SpiritStoneGrade.LOW,
+                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
+        }
+        if (deductResult !is DeductResult.Success) return
 
         stateStore.update {
-            val plan = calculateSalaryPlan(maxLoyalty, midRatio, highRatio) ?: return@update
-            applySalaryPlan(plan, maxLoyalty)
+            val currentDisciples = discipleTables.assembleAll()
+            discipleTables.clear()
+            currentDisciples.forEach { disciple ->
+                val salary = plan.eligibleSalaries[disciple.id]
+                if (salary != null && salary > 0L) {
+                    discipleTables.insert(disciple.copy(
+                        equipment = disciple.equipment.copy(
+                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
+                        ),
+                        skills = disciple.skills.copy(
+                            salaryPaidCount = disciple.skills.salaryPaidCount + 1,
+                            loyalty = (disciple.skills.loyalty + 1).coerceAtMost(maxLoyalty)
+                        )
+                    ))
+                } else {
+                    discipleTables.insert(disciple)
+                }
+            }
         }
     }
 
     private data class SalaryPlan(
         val eligibleSalaries: Map<String, Long>,
-        val lowDeduct: Long,
-        val midDeduct: Long,
-        val highDeduct: Long,
-        val change: Long
+        val totalRequired: Long
     )
 
-    private fun MutableGameState.calculateSalaryPlan(
-        maxLoyalty: Int,
-        midRatio: Long,
-        highRatio: Long
-    ): SalaryPlan? {
-        val data = gameData
+    private fun calculateSalaryPlan(maxLoyalty: Int): SalaryPlan? {
+        val data = stateStore.gameData.value
         val salaryConfig = data.yearlySalary
         val enabledConfig = data.yearlySalaryEnabled
-
-        val eligible = discipleTables.assembleAll()
+        val tables = stateStore.discipleTables
+        val eligible = tables.assembleAll()
             .filter { it.isAlive && enabledConfig[it.realm] == true }
             .filter { it.skills.loyalty < maxLoyalty }
             .map { it to (salaryConfig[it.realm]?.toLong() ?: 0L) }
             .filter { it.second > 0L }
-
         val totalRequired = eligible.sumOf { it.second }
         if (totalRequired <= 0L) return null
-
-        var available = data.spiritStones
-        if (data.autoSellMidGradeForPurchase) {
-            available += data.midGradeSpiritStones * midRatio
-        }
-        if (data.autoSellHighGradeForPurchase) {
-            available += data.highGradeSpiritStones * highRatio
-        }
-        if (available < totalRequired) return null
-
-        var remaining = totalRequired
-        val lowDeduct = minOf(remaining, data.spiritStones)
-        remaining -= lowDeduct
-        var midDeduct = 0L
-        var highDeduct = 0L
-
-        if (remaining > 0 && data.autoSellMidGradeForPurchase) {
-            val need = (remaining + midRatio - 1) / midRatio
-            midDeduct = minOf(need, data.midGradeSpiritStones)
-            remaining -= midDeduct * midRatio
-        }
-        if (remaining > 0 && data.autoSellHighGradeForPurchase) {
-            val need = (remaining + highRatio - 1) / highRatio
-            highDeduct = minOf(need, data.highGradeSpiritStones)
-            remaining -= highDeduct * highRatio
-        }
-        val change = if (remaining < 0) -remaining else 0L
-
+        if (!spiritStoneWallet.canAfford(totalRequired)) return null
         return SalaryPlan(
             eligibleSalaries = eligible.associate { it.first.id to it.second },
-            lowDeduct = lowDeduct,
-            midDeduct = midDeduct,
-            highDeduct = highDeduct,
-            change = change
+            totalRequired = totalRequired
         )
     }
-
-    private fun MutableGameState.applySalaryPlan(plan: SalaryPlan, maxLoyalty: Int) {
-        val data = gameData
-        gameData = data.copy(
-            spiritStones = data.spiritStones - plan.lowDeduct + plan.change,
-            midGradeSpiritStones = data.midGradeSpiritStones - plan.midDeduct,
-            highGradeSpiritStones = data.highGradeSpiritStones - plan.highDeduct
-        )
-
-        val currentDisciples = discipleTables.assembleAll()
-        discipleTables.clear()
-        currentDisciples.forEach { disciple ->
-            val salary = plan.eligibleSalaries[disciple.id]
-            if (salary != null && salary > 0L) {
-                discipleTables.insert(disciple.copy(
-                    equipment = disciple.equipment.copy(
-                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
-                    ),
-                    skills = disciple.skills.copy(
-                        salaryPaidCount = disciple.skills.salaryPaidCount + 1,
-                        loyalty = (disciple.skills.loyalty + 1).coerceAtMost(maxLoyalty)
-                    )
-                ))
-            } else {
-                discipleTables.insert(disciple)
-            }
-        }
-    }
-
 
     /**
      * 突破时补发当年年俸 — 仅发当年 1 年份，不累年。
-     * 灵石不足则不发。
+     * 灵石不足则不发（自动售卖由 [SpiritStoneWallet] 统一处理）。
      */
     suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+        val data = stateStore.gameData.value
+        val enabledConfig = data.yearlySalaryEnabled
+        val salaryConfig = data.yearlySalary
+        val tables = stateStore.discipleTables
+        val disciple = tables.assembleAll().find { it.id == discipleId && it.isAlive } ?: return
+        if (enabledConfig[disciple.realm] != true) return
+        if (disciple.skills.loyalty >= maxLoyalty) return
+        val salary = (salaryConfig[disciple.realm] ?: 0).toLong()
+        if (salary <= 0) return
+
+        val deductResult = stateStore.updateAndReturn {
+            spiritStoneWallet.deduct(this, salary, SpiritStoneGrade.LOW,
+                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
+        }
+        if (deductResult !is DeductResult.Success) return
 
         stateStore.update {
-            val data = gameData
-            val enabledConfig = data.yearlySalaryEnabled
             val currentDisciples = discipleTables.assembleAll()
-            val disciple = currentDisciples.find { it.id == discipleId && it.isAlive } ?: return@update
-            if (enabledConfig[disciple.realm] != true) return@update
-            if (disciple.skills.loyalty >= maxLoyalty) return@update
-
-            val salaryConfig = data.yearlySalary
-            val salary = (salaryConfig[disciple.realm] ?: 0).toLong()
-            if (salary <= 0) return@update
-            if (data.spiritStones < salary) return@update  // 不够则不发
-
-            gameData = data.copy(spiritStones = data.spiritStones - salary)
             discipleTables.clear()
             currentDisciples.forEach {
                 if (it.id == discipleId) {
@@ -388,7 +341,7 @@ class CultivationSettlement @Inject constructor(
             val lastSettled = data.spiritMineLastSettledMonth
             if (currentMonth > lastSettled && monthlyRate > 0L) {
                 val delta = currentMonth - lastSettled
-                spiritStoneWallet.applyAdd(this, monthlyRate * delta, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
+                spiritStoneWallet.add(this, monthlyRate * delta, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
             }
             gameData = gameData.copy(spiritMineLastSettledMonth = currentMonth)
             applyMinerLoyaltyDecay(this)
