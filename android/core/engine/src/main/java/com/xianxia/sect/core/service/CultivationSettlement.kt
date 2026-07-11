@@ -92,13 +92,11 @@ class CultivationSettlement @Inject constructor(
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         val plan = calculateSalaryPlan(maxLoyalty) ?: return
 
-        val deductResult = stateStore.updateAndReturn {
-            spiritStoneWallet.deduct(this, plan.totalRequired, SpiritStoneGrade.LOW,
-                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
-        }
-        if (deductResult !is DeductResult.Success) return
-
         stateStore.update {
+            val result = spiritStoneWallet.deduct(this, plan.totalRequired, SpiritStoneGrade.LOW,
+                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
+            if (result !is DeductResult.Success) return@update
+
             val currentDisciples = discipleTables.assembleAll()
             discipleTables.clear()
             currentDisciples.forEach { disciple ->
@@ -151,22 +149,18 @@ class CultivationSettlement @Inject constructor(
      */
     suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val data = stateStore.gameData.value
-        val enabledConfig = data.yearlySalaryEnabled
-        val salaryConfig = data.yearlySalary
-        val tables = stateStore.discipleTables
-        val disciple = tables.assembleAll().find { it.id == discipleId && it.isAlive } ?: return
-        if (enabledConfig[disciple.realm] != true) return
-        val salary = (salaryConfig[disciple.realm] ?: 0).toLong()
-        if (salary <= 0) return
-
-        val deductResult = stateStore.updateAndReturn {
-            spiritStoneWallet.deduct(this, salary, SpiritStoneGrade.LOW,
-                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
-        }
-        if (deductResult !is DeductResult.Success) return
 
         stateStore.update {
+            val tables = discipleTables
+            val disciple = tables.assembleAll().find { it.id == discipleId && it.isAlive } ?: return@update
+            val enabledConfig = gameData.yearlySalaryEnabled
+            if (enabledConfig[disciple.realm] != true) return@update
+            val salary = (gameData.yearlySalary[disciple.realm] ?: 0).toLong()
+            if (salary <= 0) return@update
+
+            val result = spiritStoneWallet.deduct(this, salary, SpiritStoneGrade.LOW,
+                SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
+            if (result !is DeductResult.Success) return@update
             val currentDisciples = discipleTables.assembleAll()
             discipleTables.clear()
             currentDisciples.forEach {

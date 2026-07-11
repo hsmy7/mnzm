@@ -93,7 +93,7 @@ class SpiritStoneWallet @Inject constructor(
         if (grade == SpiritStoneGrade.LOW && autoConvert && current < amount) {
             val plan = calculateAutoSell(state, amount - current)
             if (plan != null && state.gameData.spiritStones + plan.gainedLow >= amount) {
-                autoSellHigherGrades(state, plan)
+                autoSellHigherGrades(state, plan, metadata)
             } else {
                 return DeductResult.Insufficient(balance = current, required = amount)
             }
@@ -101,9 +101,10 @@ class SpiritStoneWallet @Inject constructor(
             return DeductResult.Insufficient(balance = current, required = amount)
         }
 
-        val newAmount = (state.gameData.spiritStoneCount(grade) - amount).coerceAtLeast(0L)
+        val balanceBefore = state.gameData.spiritStoneCount(grade)
+        val newAmount = (balanceBefore - amount).coerceAtLeast(0L)
         state.gameData = updateGrade(state.gameData, grade, newAmount)
-        recordAndEmit(state, -(amount), grade, current, newAmount,
+        recordAndEmit(state, -(amount), grade, balanceBefore, newAmount,
             reason = reason.key, source = source.key, metadata = metadata)
         return DeductResult.Success(balanceAfter = newAmount)
     }
@@ -245,7 +246,7 @@ class SpiritStoneWallet @Inject constructor(
                 .coerceAtMost(gd.midGradeSpiritStones)
             if (sellMidCount > 0) {
                 gainedLow += SpiritStoneExchange.toLowGrade(sellMidCount, SpiritStoneGrade.MID)
-                remaining = (shortfall - gainedLow).coerceAtLeast(0L)
+                remaining = (remaining - SpiritStoneExchange.toLowGrade(sellMidCount, SpiritStoneGrade.MID)).coerceAtLeast(0L)
             }
         }
         if (gd.autoSellHighGradeForPurchase && remaining > 0 && gd.highGradeSpiritStones > 0) {
@@ -259,7 +260,7 @@ class SpiritStoneWallet @Inject constructor(
         return AutoSellPlan(sellMidCount, sellHighCount, gainedLow)
     }
 
-    private fun autoSellHigherGrades(state: MutableGameState, plan: AutoSellPlan) {
+    private fun autoSellHigherGrades(state: MutableGameState, plan: AutoSellPlan, metadata: Map<String, String> = emptyMap()) {
         if (plan.sellMidCount > 0) {
             val gainedLow = SpiritStoneExchange.toLowGrade(plan.sellMidCount, SpiritStoneGrade.MID)
             state.gameData = state.gameData.copy(
@@ -268,10 +269,10 @@ class SpiritStoneWallet @Inject constructor(
             )
             recordAndEmit(state, -plan.sellMidCount, SpiritStoneGrade.MID,
                 state.gameData.midGradeSpiritStones + plan.sellMidCount, state.gameData.midGradeSpiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
             recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
                 state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
         }
         if (plan.sellHighCount > 0) {
             val gainedLow = SpiritStoneExchange.toLowGrade(plan.sellHighCount, SpiritStoneGrade.HIGH)
@@ -281,10 +282,10 @@ class SpiritStoneWallet @Inject constructor(
             )
             recordAndEmit(state, -plan.sellHighCount, SpiritStoneGrade.HIGH,
                 state.gameData.highGradeSpiritStones + plan.sellHighCount, state.gameData.highGradeSpiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
             recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
                 state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
-                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, metadata)
         }
     }
 
