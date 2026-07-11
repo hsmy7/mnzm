@@ -1,5 +1,19 @@
 [
   {
+    "date": "2026-07-11",
+    "version": "4.0.44",
+    "changes": [
+      "修复：弟子忠诚度不再每月自动减少——伴侣系统忠诚度衰减机制已移除",
+      "修复：天道试炼治疗功法不加血——applyBuffToTarget新增healFixed（固定数值治疗）支持，同步修复healPercent+healFixed联合计算、skill.buffs多buff列表、死亡目标守卫、effectiveMaxHp上限、Buff去重、负值防护等6项对抗性审查发现",
+      "修复：天道试炼AoE治疗/辅助技能无效果——技能选择面板AoE分支缺少辅助else分支",
+      "修复：天道试炼敌方治疗双重生效——BUFF_ALLY/BUFF_SELF跳过动画回调二次加血",
+      "修复：天道试炼跳过按钮可在动画中点击——添加isAnimating守卫防止竞态",
+      "修复：advanceTurn使用陈旧闭包——3处改为实时读取playerTeam/enemyTeam过滤存活",
+      "修复：天道试炼弟子技能MP双倍扣除——移除executePlayerSkill中重复MP扣除",
+      "新增测试：17个applyBuffToTarget单元测试覆盖全场景"
+    ]
+  },
+  {
     "date": "2026-07-10",
     "version": "4.0.43",
     "changes": [

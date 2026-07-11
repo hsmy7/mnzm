@@ -1,3 +1,26 @@
+## [4.0.44] - 2026-07-11（versionCode=4044）
+
+### 修复
+
+- **修复：弟子忠诚度每月减一** — 移除伴侣系统的月度忠诚度衰减机制（processLoyaltyDecay），弟子忠诚度不再每月自动减少1点
+- **修复：天道试炼战斗中加血功法不加血** — `applyBuffToTarget` 遗漏 `skill.healFixed`（固定数值治疗）处理，只处理了百分比治疗。合入 `BattleCalculator` 的正确实现，同时新增 `skill.buffs` 多 buff 列表支持
+- **修复：天道试炼 AoE 治疗/辅助技能无效** — 技能选择面板的 `if(skill.isAoe)` 分支只有攻击处理，缺少辅助/治疗else分支
+- **修复：天道试炼敌方治疗双重生效** — BUFF_ALLY/BUFF_SELF 先通过 `applyBuffToTarget` 预应用治疗，动画回调 `applyAnimationResult` 再第二次加血。现直接跳过动画回调的治疗重应用
+
+### 对抗性审查修复
+
+- **修复：跳过按钮动画竞态** — 跳过按钮缺少 `!isAnimating` 守卫，在技能动画播放期间可并发执行 skip 结算导致状态互相覆盖
+- **修复：advanceTurn 陈旧闭包** — 使用组合时捕获的 `alivePlayers`/`aliveEnemies`（3处调用），改为实时读取 `playerTeam.filter{!it.isDead}` 避免无法及时检测全灭
+- **修复：applyBuffToTarget 可复活死亡目标** — 添加 `if (target.isDead) return target` 守卫
+- **修复：治疗上限未使用 effectiveMaxHp** — 改为 `effectiveMaxHp`/`effectiveMaxMp` 含 HP_BOOST/MP_BOOST buff 加成
+- **修复：同类型 Buff 无限堆积** — 同类型 buff 自动覆盖替换（刷新持续时间），避免战斗多轮后 buff 列表膨胀
+- **修复：负值 healPercent/healFixed 静默不生效** — `.coerceAtLeast(0)` 负值防护
+- **修复：BUFF_ALLY/BUFF_SELF 视觉数字缺 healFixed** — 治疗数字显示加入固定治疗量
+
+### 测试覆盖
+
+- **新增测试**：17个单元测试覆盖 `applyBuffToTarget` 全场景（healPercent/healFixed 组合、MP恢复、上限 clamp、死亡目标、buff 去重、负值防护、effectiveMaxHp）
+
 ## [4.0.43] - 2026-07-10（versionCode=4043）
 
 ### 新增功能

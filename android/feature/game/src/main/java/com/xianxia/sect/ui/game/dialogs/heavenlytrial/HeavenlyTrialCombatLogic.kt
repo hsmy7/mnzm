@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs.heavenlytrial
 
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.HealType
+import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.engine.domain.battle.BattleAI
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
@@ -71,13 +72,8 @@ internal fun executePlayerSkill(
 ): Pair<List<Combatant>, List<Combatant>> {
     var updatedPlayers = playerTeam.toMutableList()
     var updatedEnemies = enemyTeam.toMutableList()
-
+    // MP 已在 HeavenlyTrialCombatScreen 调用前统一扣除，此处不再重复扣除
     val attackerIdx = updatedPlayers.indexOfFirst { it.id == attacker.id }
-    if (attackerIdx >= 0) {
-        updatedPlayers[attackerIdx] = updatedPlayers[attackerIdx].copy(
-            mp = (updatedPlayers[attackerIdx].mp - skill.mpCost).coerceAtLeast(0)
-        )
-    }
 
     val isAttackSkill = skill.skillType == SkillType.ATTACK || skill.damageMultiplier > 0
 
@@ -124,20 +120,48 @@ internal fun executePlayerSkill(
 
 /**
  * 应用 Buff/治疗到目标，返回更新后的 Combatant。
+ * 支持百分比治疗 ([skill.healPercent]) 和固定数值治疗 ([skill.healFixed])，
+ * 以及单 buff ([skill.buffType]) 和多 buff 列表 ([skill.buffs])。
+ *
+ * 治疗上限使用 [Combatant.effectiveMaxHp] / [Combatant.effectiveMaxMp]
+ * （含 HP_BOOST / MP_BOOST buff 加成）。同类型 buff 自动覆盖（刷新持续时间）。
+ * 死亡目标直接返回不变。
  */
 internal fun applyBuffToTarget(
     target: Combatant, skill: CombatSkill
 ): Combatant {
-    var newHp = target.hp; var newMp = target.mp
-    if (skill.healPercent > 0) {
+    if (target.isDead) return target
+    var hpHeal = 0; var mpHeal = 0
+    val effMaxHp = target.effectiveMaxHp
+    val effMaxMp = target.effectiveMaxMp
+
+    val pct = skill.healPercent.coerceAtLeast(0.0)
+    if (pct > 0) {
         if (skill.healType == HealType.HP)
-            newHp = (target.hp + (target.maxHp * skill.healPercent).toInt()).coerceAtMost(target.maxHp)
-        else newMp = (target.mp + (target.maxMp * skill.healPercent).toInt()).coerceAtMost(target.maxMp)
+            hpHeal = (effMaxHp * pct).toInt()
+        else mpHeal = (effMaxMp * pct).toInt()
     }
-    val newBuffs = skill.buffType?.let { bt ->
-        target.buffs + CombatBuff(bt, skill.buffValue, skill.buffDuration)
-    } ?: target.buffs
-    return target.copy(hp = newHp, mp = newMp, buffs = newBuffs)
+    val fixed = skill.healFixed.coerceAtLeast(0)
+    if (fixed > 0) {
+        if (skill.healType == HealType.HP)
+            hpHeal += fixed
+        else mpHeal += fixed
+    }
+    val newHp = (target.hp + hpHeal).coerceAtMost(effMaxHp)
+    val newMp = (target.mp + mpHeal).coerceAtMost(effMaxMp)
+
+    // 合并单 buff + buffs 列表，同类型自动覆盖
+    val allBuffs = target.buffs.toMutableList()
+    val addOrReplace = { type: BuffType, value: Double, dur: Int ->
+        val idx = allBuffs.indexOfFirst { it.type == type }
+        val buff = CombatBuff(type, value, dur)
+        if (idx >= 0) allBuffs[idx] = buff else allBuffs.add(buff)
+    }
+    skill.buffType?.let { addOrReplace(it, skill.buffValue, skill.buffDuration) }
+    skill.buffs.forEach { (type, value, duration) ->
+        addOrReplace(type, value, duration)
+    }
+    return target.copy(hp = newHp, mp = newMp, buffs = allBuffs)
 }
 
 /**

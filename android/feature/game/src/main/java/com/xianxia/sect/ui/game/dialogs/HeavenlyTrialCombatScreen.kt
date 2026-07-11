@@ -81,34 +81,20 @@ fun HeavenlyTrialCombatScreen(
     // Animation helpers defined inside composable for state capture
 
     fun applyAnimationResult(event: AttackAnimationEvent) {
+        // 治疗已在 BUFF_ALLY / BUFF_SELF 中预应用，此处只应用伤害
+        if (event.isHeal) return
         val isTargetPlayer = playerTeam.any { it.id == event.targetId }
-        if (event.isHeal) {
-            if (isTargetPlayer) {
-                playerTeam = playerTeam.map { c ->
-                    if (c.id == event.targetId) c.copy(
-                        hp = (c.hp + event.damage).coerceAtMost(c.maxHp)
-                    ) else c
-                }
-            } else {
-                enemyTeam = enemyTeam.map { c ->
-                    if (c.id == event.targetId) c.copy(
-                        hp = (c.hp + event.damage).coerceAtMost(c.maxHp)
-                    ) else c
-                }
+        if (isTargetPlayer) {
+            playerTeam = playerTeam.map { c ->
+                if (c.id == event.targetId) c.copy(
+                    hp = (c.hp - event.damage).coerceAtLeast(0)
+                ) else c
             }
         } else {
-            if (isTargetPlayer) {
-                playerTeam = playerTeam.map { c ->
-                    if (c.id == event.targetId) c.copy(
-                        hp = (c.hp - event.damage).coerceAtLeast(0)
-                    ) else c
-                }
-            } else {
-                enemyTeam = enemyTeam.map { c ->
-                    if (c.id == event.targetId) c.copy(
-                        hp = (c.hp - event.damage).coerceAtLeast(0)
-                    ) else c
-                }
+            enemyTeam = enemyTeam.map { c ->
+                if (c.id == event.targetId) c.copy(
+                    hp = (c.hp - event.damage).coerceAtLeast(0)
+                ) else c
             }
         }
     }
@@ -238,10 +224,11 @@ fun HeavenlyTrialCombatScreen(
                             enemyTeam = enemyTeam.map {
                                 if (it.id == target.id) buffed else it
                             }
+                            val healDisplay = (target.maxHp * skill.healPercent).toInt() + skill.healFixed
                             AnimEvent.Single(AttackAnimationEvent(
                                 attackerId = target.id,
                                 targetId = target.id,
-                                damage = (target.maxHp * skill.healPercent).toInt(),
+                                damage = healDisplay,
                                 isCrit = false,
                                 isPhysical = false,
                                 isHeal = true,
@@ -255,10 +242,11 @@ fun HeavenlyTrialCombatScreen(
                             enemyTeam = enemyTeam.map {
                                 if (it.id == enemy.id) buffed else it
                             }
+                            val healDisplay = (enemy.maxHp * skill.healPercent).toInt() + skill.healFixed
                             AnimEvent.Single(AttackAnimationEvent(
                                 attackerId = enemy.id,
                                 targetId = enemy.id,
-                                damage = (enemy.maxHp * skill.healPercent).toInt(),
+                                damage = healDisplay,
                                 isCrit = false,
                                 isPhysical = false,
                                 isHeal = true,
@@ -495,7 +483,7 @@ fun HeavenlyTrialCombatScreen(
                                 RoundedCornerShape(4.dp)
                             )
                             .background(Color.White)
-                            .clickable {
+                            .clickable(enabled = !isAnimating) {
                                 coroutineScope.launch {
                                     isAnimating = true
                                     val (finalPlayers, finalEnemies) =
@@ -593,7 +581,7 @@ fun HeavenlyTrialCombatScreen(
                                             .toMutableSet()
                                             .apply { add(currentCombatant.id) }
                                         advanceTurn(
-                                            alivePlayers, aliveEnemies,
+                                            playerTeam.filter { !it.isDead }, enemyTeam.filter { !it.isDead },
                                             currentPlayerIdx, isDefending
                                         ) { ni, np, nd ->
                                             currentPlayerIdx = ni
@@ -674,6 +662,15 @@ fun HeavenlyTrialCombatScreen(
                                                                 { e -> applyAoeResult(e) }
                                                             )
                                                         }
+                                                    } else {
+                                                    // AoE 辅助/治疗：立即应用
+                                                    val result = executePlayerSkill(
+                                                        currentCombatant, skill,
+                                                        selectedTargetId, selectedIsAlly,
+                                                        playerTeam, enemyTeam, isDefending
+                                                    )
+                                                    playerTeam = result.first
+                                                    enemyTeam = result.second
                                                     }
                                                 } else {
                                                     if (isAttackSkill) {
@@ -727,7 +724,7 @@ fun HeavenlyTrialCombatScreen(
                                                 selectedIsAlly = false
                                                 isAnimating = false
                                                 advanceTurn(
-                                                    alivePlayers, aliveEnemies,
+                                                    playerTeam.filter { !it.isDead }, enemyTeam.filter { !it.isDead },
                                                     currentPlayerIdx, isDefending
                                                 ) { ni, np, nd ->
                                                     currentPlayerIdx = ni
@@ -795,7 +792,7 @@ fun HeavenlyTrialCombatScreen(
                                             selectedIsAlly = false
                                             isAnimating = false
                                             advanceTurn(
-                                                alivePlayers, aliveEnemies,
+                                                playerTeam.filter { !it.isDead }, enemyTeam.filter { !it.isDead },
                                                 currentPlayerIdx, isDefending
                                             ) { ni, np, nd ->
                                                 currentPlayerIdx = ni

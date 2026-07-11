@@ -17,7 +17,7 @@ import javax.inject.Singleton
 @Singleton
 @SystemPriority(order = 240)
 /**
- * 伴侣系统（道侣配对 + 忠诚度衰减）。
+ * 伴侣系统（道侣配对）。
  *
  * 收到突破事件后异步增加道侣忠诚度（通过 [scope] + [stateStore.update]）。
  * 注意：[onEvent] 的 [DomainEventSubscriber] 接口不支持 suspend，因此
@@ -62,9 +62,8 @@ class PartnerSystem @Inject constructor(
     override suspend fun clearForSlot(slotId: Int) {}
 
     override suspend fun onMonthlyEvent(state: MutableGameState) {
-        // 月度伴侣配对 + 忠诚度衰减
+        // 月度伴侣配对
         processPartnerMatching(state)
-        processLoyaltyDecay(state)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -115,16 +114,6 @@ class PartnerSystem @Inject constructor(
         if (pairedFemaleIds.isNotEmpty()) {
             state.discipleTables.clear()
             currentList.forEach { state.discipleTables.insert(it) }
-        }
-    }
-
-    /** 月度忠诚度衰减 */
-    private fun processLoyaltyDecay(state: MutableGameState) {
-        val tables = state.discipleTables
-        for (id in tables.ids) {
-            if (tables.isAlive[id] == 1 && (tables.loyalties.getOrDefault(id, 0)) > 0) {
-                tables.loyalties[id] = (tables.loyalties[id] - 1).coerceAtLeast(0)
-            }
         }
     }
 
