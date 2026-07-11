@@ -119,6 +119,8 @@ class GameActivity : ComponentActivity() {
         override fun onServiceDisconnected(name: ComponentName?) {
             gameService = null
             gameEngineCore = null
+            // 服务崩溃后重置绑定标志，允许 onResume 重新 bindService
+            isServiceBound = false
         }
     }
 

@@ -131,17 +131,31 @@ class IntPackedArray @JvmOverloads constructor(
     @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
 
+    // === 私有辅助 ===
+
+    /**
+     * 安全查询 idToIndex 中的索引。
+     *
+     * Android SDK stub 的 [SparseIntArray.indexOfKey] 在空表时返回错误的正数值，
+     * 导致缺失 key 被误判为「存在」并返回错误的 values[idx]。此守卫在所有
+     * idToIndex 查询前检查 size_，空表时直接返回 -1 绕过 SparseIntArray 调用。
+     */
+    private fun safeIndex(key: Int): Int {
+        if (size_ <= 0) return -1
+        return idToIndex.indexOfKey(key)
+    }
+
     // === 读取 ===
 
     /** O(log N) 获取值，不存在返回 0 */
     operator fun get(key: Int): Int {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         return if (idx >= 0) values[idx] else 0
     }
 
     /** O(log N) 获取值，不存在返回 [default] */
     fun get(key: Int, default: Int): Int {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         return if (idx >= 0) values[idx] else default
     }
 
@@ -149,7 +163,7 @@ class IntPackedArray @JvmOverloads constructor(
 
     /** 设置值（存在则更新，否则插入） */
     fun put(key: Int, value: Int) {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         if (idx >= 0) {
             values[idx] = value
             return
@@ -163,11 +177,8 @@ class IntPackedArray @JvmOverloads constructor(
 
     /** 删除 */
     fun delete(key: Int) {
-        val rawIdx = idToIndex.get(key, -1)
+        val rawIdx = safeIndex(key)
         if (rawIdx < 0 || rawIdx >= size_) return
-        // 二次确认索引有效（防御 idToIndex 与 size_ 不一致）
-        val safeIdx = rawIdx.coerceIn(0, size_ - 1)
-        if (safeIdx != rawIdx) return
         idToIndex.delete(key)
         val lastIdx = size_ - 1
         if (rawIdx != lastIdx) {
@@ -197,7 +208,7 @@ class IntPackedArray @JvmOverloads constructor(
     fun valueAt(index: Int): Int = values[index]
 
     /** 包含检测（返回 >= 0 表示存在，与 SparseIntArray.indexOfKey 行为兼容） */
-    fun indexOfKey(key: Int): Int = if (idToIndex.get(key, -1) >= 0) 1 else -1
+    fun indexOfKey(key: Int): Int = if (safeIndex(key) >= 0) 1 else -1
 
     // === 内部 ===
 
@@ -222,17 +233,23 @@ class DoublePackedArray @JvmOverloads constructor(
     @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
 
+    /** 安全查询 idToIndex 索引（空表时返回 -1 绕过 SparseIntArray stub bug） */
+    private fun safeIndex(key: Int): Int {
+        if (size_ <= 0) return -1
+        return idToIndex.indexOfKey(key)
+    }
+
     // === 读取 ===
 
     /** O(log N) 获取值，不存在返回 0.0 */
     operator fun get(key: Int): Double {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         return if (idx >= 0) values[idx] else 0.0
     }
 
     /** O(log N) 获取值，不存在返回 [default] */
     fun get(key: Int, default: Double): Double {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         return if (idx >= 0) values[idx] else default
     }
 
@@ -240,7 +257,7 @@ class DoublePackedArray @JvmOverloads constructor(
 
     /** 设置值（存在则更新，否则插入） */
     fun put(key: Int, value: Double) {
-        val idx = idToIndex.get(key, -1)
+        val idx = safeIndex(key)
         if (idx >= 0) {
             values[idx] = value
             return
@@ -254,15 +271,15 @@ class DoublePackedArray @JvmOverloads constructor(
 
     /** 删除 */
     fun delete(key: Int) {
-        val idx = idToIndex.get(key, -1)
-        if (idx < 0) return
+        val rawIdx = safeIndex(key)
+        if (rawIdx < 0 || rawIdx >= size_) return
         idToIndex.delete(key)
         val lastIdx = size_ - 1
-        if (idx != lastIdx) {
+        if (rawIdx != lastIdx) {
             // swap-on-remove
-            keys[idx] = keys[lastIdx]
-            values[idx] = values[lastIdx]
-            idToIndex.put(keys[idx], idx)
+            keys[rawIdx] = keys[lastIdx]
+            values[rawIdx] = values[lastIdx]
+            idToIndex.put(keys[rawIdx], rawIdx)
         }
         size_--
     }
@@ -285,7 +302,7 @@ class DoublePackedArray @JvmOverloads constructor(
     fun valueAt(index: Int): Double = values[index]
 
     /** 包含检测 */
-    fun indexOfKey(key: Int): Int = if (idToIndex.get(key, -1) >= 0) 1 else -1
+    fun indexOfKey(key: Int): Int = if (safeIndex(key) >= 0) 1 else -1
 
     // === 内部 ===
 

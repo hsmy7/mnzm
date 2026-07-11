@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
@@ -277,11 +276,16 @@ class DiscipleLifecycleProcessorTest {
     // ══════════════════════════════════════
 
     @Test
-    @Ignore("IntPackedArray.delete 存在 idToIndex/keys/size_ 不一致的预存 bug，" +
-        "cullDeadDisciples 时触发 ArrayIndexOutOfBounds 损坏 ids 列表。" +
-        "需单独修复 IntPackedArray 内部状态同步。")
     fun `processYearlyAging - no dead disciples does nothing`() = runTest {
         insertDisciple(1, age = 70)
+        // 诊断：最低验证——空表查询
+        val dy = DiscipleTables().deathYears
+        assertFalse("fresh IntPackedArray should not contain key 1",
+            dy.contains(1))
+        assertEquals("fresh IntPackedArray getOrDefault should return -1",
+            -1, dy.getOrDefault(1, -1))
+        assertTrue("tables should have the inserted disciple",
+            tables.ids.contains(1))
         processor.processYearlyAging(currentYear = 10)
         assertTrue("disciple should remain when no one is dead",
             tables.ids.contains(1))
