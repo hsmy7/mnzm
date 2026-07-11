@@ -378,10 +378,13 @@ class GameViewModel @Inject constructor(
     val gameData: StateFlow<GameData> get() = gameEngine.gameData
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
+    // 运行在 Default 调度器上，使 sample(100) 内部的 BufferedChannel
+    // 不在主线程上挂起（见 Bugly #3042/#8024）。
     val gameDataUi: StateFlow<GameData> = merge(
         gameEngine.gameData.sample(100),
         _dialogOpenTrigger.map { gameEngine.gameData.value ?: GameData() }
-    ).stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+    ).flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
 
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
         .map { it.placedBuildings }

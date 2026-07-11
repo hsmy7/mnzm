@@ -79,13 +79,12 @@ class GameForegroundService : Service() {
         // Hilt 字段注入在 super.onCreate() 中完成
         gameNotificationHelper.createChannel(this)
         wakeLockManager.acquire()
-        // 初始化引擎（幂等）：原由 GameActivity.onCreate 调用，
-        // 迁移到 Service 后由 Service 负责，确保 startGameLoop 前系统已就绪
-        gameEngineCore.initialize()
+        // 初始化引擎推迟到 onStartCommand 中 safeStartForeground() 之后执行，
+        // 避免 onCreate 中耗时阻塞导致 Service ANR（onCreate 超时 → onStartCommand
+        // 不执行 → safeStartForeground 不调用 → 系统 ANR 触发）。
         // 注册 AlarmManager 精确闹钟兜底唤醒（链式调度，每 15s 一次）
         AlarmWatchdogReceiver.scheduleAlarm(this)
-        // 不在此启动游戏循环，等 onStartCommand 收到 ACTION_START
-        Log.d(TAG, "onCreate: channel created, wakeLock acquired, engine initialized, alarm scheduled")
+        Log.d(TAG, "onCreate: channel created, wakeLock acquired, alarm scheduled")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -93,6 +92,10 @@ class GameForegroundService : Service() {
         // 包装为安全方法：即使前台通知启动失败（如 POST_NOTIFICATIONS 权限
         // 被拒绝导致 SecurityException），游戏循环仍需正常启动。
         safeStartForeground()
+
+        // 前台通知已启动（或已安全失败），现在初始化引擎（幂等）。
+        // 确保 startGameLoop 前系统已就绪。
+        gameEngineCore.initialize()
 
         when (intent?.action) {
             ACTION_START, null -> {

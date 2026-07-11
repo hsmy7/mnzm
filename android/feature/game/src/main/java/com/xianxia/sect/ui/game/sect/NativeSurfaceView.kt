@@ -74,6 +74,14 @@ class NativeSurfaceView(
     @Volatile
     private var pendingInit: Boolean = false
 
+    /**
+     * Surface 版本计数器，每次 surfaceChanged 递增。
+     * 用于检测 VulkanInit 线程的 post Runnable 是否在 surface 已被销毁后执行。
+     * post Runnable 在捕获时的 generation 与当前值不匹配时跳过执行。
+     */
+    @Volatile
+    private var surfaceGeneration: Int = 0
+
     /** VulkanInit 后台线程引用，供 surfaceDestroyed 时中断取消 */
     @Volatile
     private var vulkanInitThread: Thread? = null
@@ -367,6 +375,10 @@ class NativeSurfaceView(
             if (initInProgress) return  // 防止重复调用
             initInProgress = true
 
+            // 递增 Surface 版本，所有 post Runnable 通过此检测 stale 回调
+            surfaceGeneration++
+            val currentGen = surfaceGeneration
+
             // ★ 渲染模式预判：若策略要求 SOFTWARE 则直接走软件渲染
             if (useRenderMode == RenderMode.SOFTWARE) {
                 android.util.Log.i("NativeSurfaceView",
@@ -387,6 +399,7 @@ class NativeSurfaceView(
                 pendingInit = true
                 post {
                     // ★ 修复：检查 surfaceDestroyed 后 stale post 不执行
+                    if (currentGen != surfaceGeneration) return@post
                     if (pendingInit && !isReady) {
                         // 先设置渲染模式和软件后端，再通知上层上传纹理
                         // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
@@ -438,6 +451,7 @@ class NativeSurfaceView(
 
                     if (ok) {
                         post {
+                            if (currentGen != surfaceGeneration) return@post
                             removeCallbacks(timeoutRunnable)
                             initInProgress = false
                             vulkanInitThread = null
@@ -458,6 +472,7 @@ class NativeSurfaceView(
                             "falling back to software renderer")
 
                         post {
+                            if (currentGen != surfaceGeneration) return@post
                             removeCallbacks(timeoutRunnable)
                             initInProgress = false
                             vulkanInitThread = null
@@ -485,6 +500,7 @@ class NativeSurfaceView(
                         "Vulkan init crashed: ${t.message}", t)
                     vulkanInitListener?.onSurfaceInitFailed()
                     post {
+                        if (currentGen != surfaceGeneration) return@post
                         removeCallbacks(timeoutRunnable)
                         initInProgress = false
                         vulkanInitThread = null

@@ -168,6 +168,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
         delete g_atlas;
         g_atlas = nullptr;
     }
+
+    // 清理视口与投影残留状态，防止意外残留的渲染线程通过全局变量访问已释放内存
+    memset(g_projMatrix, 0, sizeof(g_projMatrix));
+    g_viewLeft = g_viewTop = g_viewRight = g_viewBottom = 0.0f;
+    g_worldPixelsW = g_worldPixelsH = 0;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

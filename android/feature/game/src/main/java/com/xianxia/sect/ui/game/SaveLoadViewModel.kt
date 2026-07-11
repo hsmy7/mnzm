@@ -236,22 +236,22 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            while (isActive) {
-                gameEngineCore.autoSaveTrigger.collect {
-                    try {
-                        if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
-                            Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
-                            return@collect
-                        }
-                        withTimeoutOrNull(30_000L) {
-                            performAutoSave()
-                        } ?: Log.w(TAG, "Auto save cancelled due to timeout")
-                    } catch (e: CancellationException) {
-                        Log.w(TAG, "Auto save cancelled", e)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Auto save error", e)
+        // 系统自动存档收集 — 运行在 Default 调度器上，避免 BufferedChannel.hasNext()
+        // 在主线程上挂起导致 ANR（见 Bugly #3042/#8024）。
+        viewModelScope.launch(Dispatchers.Default) {
+            gameEngineCore.autoSaveTrigger.collect {
+                try {
+                    if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
+                        Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
+                        return@collect
                     }
+                    withTimeoutOrNull(30_000L) {
+                        performAutoSave()
+                    } ?: Log.w(TAG, "Auto save cancelled due to timeout")
+                } catch (e: CancellationException) {
+                    Log.w(TAG, "Auto save cancelled", e)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto save error", e)
                 }
             }
         }
