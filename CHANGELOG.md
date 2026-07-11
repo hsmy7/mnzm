@@ -19,6 +19,18 @@
 - **修复：天道试炼敌方治疗双重生效** — BUFF_ALLY/BUFF_SELF 先通过 `applyBuffToTarget` 预应用治疗，动画回调 `applyAnimationResult` 再第二次加血。现直接跳过动画回调的治疗重应用
 - **修复：天道试炼第6关奖励领取按钮无响应** — randomEquipment/randomManual 从玩家已有装备堆叠中筛选模板（需先有地品装备才能领地品装备），改为从 `EquipmentDatabase`/`ManualDatabase` 数据库直接生成，不再依赖玩家库存
 
+### 崩溃修复
+
+- **修复：AutoSaveTrigger ANR #10002** — SaveLoadViewModel.init 中 getSaveSlotsSuspend/savePipeline.saveResults 从 Main 线程移至 IO/Default 调度器；autoSaveTrigger 从 Channel（close/replace 生命周期竞态）迁移为 SharedFlow，消除 BufferedChannel.getCloseCause 反射阻塞
+
+- **修复：TapTap 云游戏 vkCreateShaderModule SIGSEGV #9024** — 新增 isTapTapCloudGaming() 4 信号检测（maps/Build.HOST/installer/SystemProperties），命中后直接走 Canvas 软件渲染；C++ compileShader 新增 sigsetjmp/siglongjmp SIGSEGV 信号捕获 + 空 VkDevice 检查，驱动缺陷时优雅降级
+
+- **修复：SQLite libsqlite.so SIGSEGV #5037** — 禁用 mmap（mmap_size=0）；移除独立 ScheduledExecutorService checkpoint 线程消除 WAL 竞争；flushDirtyState 13 并发事务合并为单事务；启动时 PRAGMA integrity_check；<4GB RAM 设备跳过 temp_store=MEMORY
+
+- **修复：VulkanPolicyTest 3 个预存测试失败** — 模拟器路径在 API<31 非白名单设备上提前返回 SOFTWARE_ONLY
+
+- **新增：MIGRATION_14_15 迁移测试 + GameDatabase SQLite PRAGMA 运行时配置测试**
+
 ### 对抗性审查修复
 
 - **修复：跳过按钮动画竞态** — 跳过按钮缺少 `!isAnimating` 守卫，在技能动画播放期间可并发执行 skip 结算导致状态互相覆盖

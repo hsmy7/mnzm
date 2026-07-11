@@ -8,6 +8,8 @@
 #include <set>
 #include <android/log.h>
 #include <cstdio>
+#include <signal.h>
+#include <setjmp.h>
 
 // SPIR-V 着色器字节码（由 gen_header.py 从 .spv 生成）
 #include "shaders.h"
@@ -15,6 +17,20 @@
 #define LOG_TAG "VulkanBackend"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+// ── SIGSEGV 信号保护（用于 vkCreateShaderModule 等驱动缺陷场景） ──
+// 某些 GPU 驱动（TapTap 云游戏 Hook 层/部分 Mali 驱动）在创建 ShaderModule
+// 时可能触发 SIGSEGV。使用 sigsetjmp/siglongjmp 捕获后优雅降级到软件渲染。
+// 注意：Android API 30+ seccomp-bpf 可能限制 sigaction(SIGSEGV)，此保护
+// 作为防御兜底而非主要方案。
+static thread_local sigjmp_buf g_vk_jmpbuf;
+static thread_local bool g_vk_jmpbuf_set = false;
+
+static void vk_signal_handler(int sig) {
+    if (g_vk_jmpbuf_set) {
+        siglongjmp(g_vk_jmpbuf, sig);
+    }
+}
 
 // Vulkan 最低 API 版本要求：1.1（VK_API_VERSION_1_1 = (1 << 22)）
 // 参考 Unity Device Filtering 内置规则和 Flutter Impeller 的 Vulkan 选择逻辑
@@ -760,13 +776,56 @@ bool VulkanBackend::loadShaders() {
 }
 
 VkShaderModule VulkanBackend::compileShader(const uint32_t* code, size_t size) {
+    // 空 device 守卫 — 避免驱动缺陷前附加检查
+    if (m_device == VK_NULL_HANDLE) {
+        LOGE("compileShader: m_device is null");
+        return VK_NULL_HANDLE;
+    }
+    if (code == nullptr || size == 0) {
+        LOGE("compileShader: invalid SPIR-V code (null or empty)");
+        return VK_NULL_HANDLE;
+    }
+
     VkShaderModuleCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     info.codeSize = size;
     info.pCode = code;
     VkShaderModule module;
-    if (vkCreateShaderModule(m_device, &info, nullptr, &module) != VK_SUCCESS) {
-        LOGE("Failed to create shader module");
+
+    // ── SIGSEGV 信号捕获保护 ──
+    // 某些 GPU 驱动（云游戏 Hook 层/部分 Mali 驱动）在 vkCreateShaderModule 中
+    // 存在内存访问越界缺陷。使用信号处理捕获后返回 VK_NULL_HANDLE 而非崩溃。
+    // 注意：Android API 30+ seccomp-bpf 可能限制 sigaction(SIGSEGV)，
+    // 此时信号保护不可用但代码正常降级（跳过信号保护直接调用）。
+    struct sigaction old_act, new_act;
+    memset(&new_act, 0, sizeof(new_act));
+    new_act.sa_handler = vk_signal_handler;
+    sigemptyset(&new_act.sa_mask);
+    bool signal_installed = (sigaction(SIGSEGV, &new_act, &old_act) == 0);
+
+    if (signal_installed) {
+        g_vk_jmpbuf_set = true;
+        if (sigsetjmp(g_vk_jmpbuf, 1) == 0) {
+            VkResult result = vkCreateShaderModule(
+                m_device, &info, nullptr, &module);
+            sigaction(SIGSEGV, &old_act, nullptr);
+            g_vk_jmpbuf_set = false;
+            if (result != VK_SUCCESS) {
+                LOGE("Failed to create shader module: %d", result);
+                return VK_NULL_HANDLE;
+            }
+            return module;
+        } else {
+            LOGE("SIGSEGV caught in vkCreateShaderModule");
+            sigaction(SIGSEGV, &old_act, nullptr);
+            g_vk_jmpbuf_set = false;
+            return VK_NULL_HANDLE;
+        }
+    }
+    // signal not installed (API 30+ seccomp) — call directly
+    VkResult result = vkCreateShaderModule(m_device, &info, nullptr, &module);
+    if (result != VK_SUCCESS) {
+        LOGE("Failed to create shader module: %d", result);
         return VK_NULL_HANDLE;
     }
     return module;

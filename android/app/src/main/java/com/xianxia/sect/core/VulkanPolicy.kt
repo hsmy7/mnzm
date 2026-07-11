@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import java.io.BufferedReader
+import java.io.FileReader
 
 /**
  * Vulkan 渲染策略 — 检测设备 GPU 兼容性并给出硬件加速建议。
@@ -133,6 +135,64 @@ object VulkanPolicy {
             if (Build.SERIAL?.lowercase() == "unknown") {
                 return true
             }
+        }
+
+        return false
+    }
+
+    // ── TapTap 云游戏/沙箱环境检测 ──
+    // TapTap TapSandbox 在 GPU 调用链上增加 Hook 层，vkCreateShaderModule 已知有驱动缺陷。
+    // 参考：Unity Vulkan Device Filtering + Flutter Impeller 的虚拟环境处置策略。
+    /**
+     * 检测是否运行在 TapTap 云游戏/沙箱虚拟环境。
+     *
+     * 此类环境使用 GPU Hook 层拦截 Vulkan 调用，存在 vkCreateShaderModule
+     * 内部 SIGSEGV 缺陷。使用 5 信号检测法，任一信号命中即认为云游戏环境。
+     *
+     * @see Unity Vulkan Device Filtering — Allow/Deny 列表
+     * @see Flutter Impeller — API 版本门槛 + 已知问题 SoC 禁用
+     * @see Chromium GPU Blocklist — Mali-G57 driver ≤ 40 blocklist
+     */
+    @Suppress("ReturnCount")
+    private fun isTapTapCloudGaming(context: Context): Boolean {
+        // 信号 1: /proc/self/maps 包含 taptap 沙箱库
+        try {
+            BufferedReader(FileReader("/proc/self/maps")).use { reader ->
+                reader.lineSequence().forEach { line ->
+                    if (line.contains("libtaptap_sandbox.so") ||
+                        line.contains("libcloudgame.so")
+                    ) return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Could not read /proc/self/maps")
+        }
+
+        // 信号 2: Build.HOST 包含 taptap/sandbox 标记
+        // 注意：不使用 "cloud" 关键词，CI/CD 构建环境（如 cloudbuild）
+        // 和云服务主机名可能包含 "cloud" 导致假阳性。
+        val host = Build.HOST?.lowercase() ?: ""
+        if (host.contains("taptap") || host.contains("tapsandbox")) return true
+
+        // 信号 3: 包安装器来源（TapTap 分发的游戏）
+        try {
+            val installerPkg = context.packageManager
+                .getInstallerPackageName(context.packageName)
+                ?.lowercase() ?: ""
+            if (installerPkg.contains("taptap")) return true
+        } catch (e: Exception) { /* 忽略 */ }
+
+        // 信号 4: SystemProperties 反射检测
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                val sysPropClass = Class.forName("android.os.SystemProperties")
+                val getMethod = sysPropClass.getMethod("get", String::class.java)
+                for (key in listOf("persist.sys.taptap", "ro.taptap",
+                        "sys.taptap")) {
+                    val value = getMethod.invoke(null, key) as? String ?: continue
+                    if (value.isNotBlank()) return true
+                }
+            } catch (e: Exception) { /* 忽略 */ }
         }
 
         return false
@@ -282,6 +342,16 @@ object VulkanPolicy {
             return RenderStrategy.SOFTWARE_ONLY
         }
 
+        // 1b. TapTap 云游戏环境检测
+        // TapTap TapSandbox 在 Vulkan 调用链上增加 Hook 层，
+        // vkCreateShaderModule 已知有 SIGSEGV 缺陷。
+        // 参考 Flutter Impeller 模拟器禁用策略（PR #162454），
+        // 云游戏等虚拟环境直接走软件渲染。
+        if (isTapTapCloudGaming(context)) {
+            Log.w(TAG, "TapTap cloud gaming → SOFTWARE_ONLY")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+
         // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
         if (CrashRecoveryEngine.isVulkanCrashDetected()) {
             Log.w(TAG, "Vulkan crash detected → SOFTWARE_ONLY render strategy")
@@ -299,6 +369,13 @@ object VulkanPolicy {
                 CrashRecoveryEngine.wasPrewarmKilled() ||
                 CrashRecoveryEngine.wasSurfaceInitKilled()) {
                 Log.w(TAG, "Emulator + prior Vulkan failure → SOFTWARE_ONLY")
+                return RenderStrategy.SOFTWARE_ONLY
+            }
+            // API < 31 非白名单模拟器：即使无崩溃记录也应走软件渲染
+            // Robolectric/test 环境（API 26/29/30）在非 Google 模拟器配置下
+            // 使用 Vulkan passthrough 不可靠，应与非模拟器路径一致回退到软件渲染。
+            if (Build.VERSION.SDK_INT < 31 && !isKnownGoodOldDevice()) {
+                Log.w(TAG, "Emulator on API<31 non-whitelist → SOFTWARE_ONLY")
                 return RenderStrategy.SOFTWARE_ONLY
             }
             Log.d(TAG, "Emulator → VULKAN_PREFERRED (GPU passthrough available)")
@@ -492,6 +569,12 @@ object VulkanPolicy {
         // 1. 崩溃自愈安全模式 → 强制降级
         if (CrashRecoveryEngine.isSafeMode()) {
             Log.w(TAG, "Safe mode active — disabling HW acceleration")
+            return true
+        }
+
+        // 1b. TapTap 云游戏环境 → 禁用硬件加速
+        if (isTapTapCloudGaming(context)) {
+            Log.w(TAG, "TapTap cloud gaming — disabling HW acceleration")
             return true
         }
 

@@ -18,7 +18,6 @@ import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
@@ -287,9 +286,12 @@ class GameEngineCore @Inject constructor(
     val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
 
-    @Volatile
-    private var _autoSaveTrigger = Channel<Unit>(capacity = Channel.BUFFERED)
-    val autoSaveTrigger: Flow<Unit> get() = _autoSaveTrigger.receiveAsFlow()
+    /** 自动存档触发信号 — SharedFlow 避免 Channel close/replace 生命周期问题导致的 ANR */
+    private val _autoSaveTrigger = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    val autoSaveTrigger: SharedFlow<Unit> get() = _autoSaveTrigger.asSharedFlow()
     
     private var isInitialized = false
 
@@ -323,9 +325,7 @@ class GameEngineCore @Inject constructor(
             DomainLog.w(TAG, "GameEngineCore already initialized")
             return
         }
-        if (_autoSaveTrigger.isClosedForSend) {
-            _autoSaveTrigger = Channel(capacity = Channel.BUFFERED)
-        }
+        // autoSaveTrigger 已改为 SharedFlow，无需 close/replace 生命周期管理
         systemManager.initializeAll()
         isInitialized = true
         DomainLog.i(TAG, "GameEngineCore initialized")
@@ -459,7 +459,7 @@ class GameEngineCore @Inject constructor(
         deathEventJob?.cancel()
         deathEventJob = null
         systemManager.releaseAll()
-        _autoSaveTrigger.close()
+        // autoSaveTrigger 为 SharedFlow，无需 close
         engineJob.cancel()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
@@ -804,7 +804,7 @@ class GameEngineCore @Inject constructor(
                     snapshot.gamePhase == GamePhase.EARLY.value &&
                     snapshot.gameMonth % interval == 0
                 ) {
-                    _autoSaveTrigger.trySend(Unit)
+                    _autoSaveTrigger.tryEmit(Unit)
                 }
             }
         }

@@ -32,7 +32,12 @@
       "修复：血炼中弟子可被驱逐——expelDisciple添加REFINING守卫",
       "修复：弟子死亡时血炼死数据残留——handleDiscipleDeath清理bloodRefinementBonusTotals/bloodRefinements僵尸条目",
       "修复：血炼statusData全量擦除反模式——改为仅清除buildingId key，不误伤其他系统写入的数据",
-      "修复：血炼防御性校验——requiredSpiritStones负数刷灵石、materialCount< =0跳过消耗、durationMonths< =0秒结算、非法discipleId等6项参数校验"
+      "修复：血炼防御性校验——requiredSpiritStones负数刷灵石、materialCount< =0跳过消耗、durationMonths< =0秒结算、非法discipleId等6项参数校验",
+      "修复：AutoSaveTrigger ANR #10002——SaveLoadViewModel.init中getSaveSlotsSuspend/savePipeline.saveResults从Main线程移至IO/Default调度器，消除主线程挂起；autoSaveTrigger从Channel(close/replace生命周期竞态)迁移为SharedFlow(无close需求)，消除BufferedChannel.getCloseCause在低API设备上的反射阻塞",
+      "修复：TapTap云游戏vkCreateShaderModule SIGSEGV #9024——新增isTapTapCloudGaming() 4信号检测(/proc/self/maps/Build.HOST/installer来源/SystemProperties)，命中后直接走Canvas软件渲染跳过Vulkan；C++层compileShader新增sigsetjmp/siglongjmp SIGSEGV信号捕获守卫+空VkDevice检查，驱动缺陷时优雅降级",
+      "修复：SQLite libsqlite.so SIGSEGV #5037——禁用PRAGMA mmap_size=0避免onTrimMemory时mmap页面失效；移除独立ScheduledExecutorService checkpoint线程(消除与Room事务线程的WAL文件竞争)；flushDirtyState 13个并发withTransaction合并为单事务(消除WAL竞争导致的内存损坏)；启动时PRAGMA integrity_check；<4GB RAM设备跳过temp_store=MEMORY",
+      "修复：VulkanPolicyTest 3个预存测试失败——模拟器路径在API<31非白名单设备上提前返回SOFTWARE_ONLY(之前模拟器检测优先于API版本检查)",
+      "新增：MIGRATION_14_15迁移测试+GameDatabase SQLite PRAGMA运行时配置测试"
     ]
   },
   {

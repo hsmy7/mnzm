@@ -19,12 +19,8 @@ import com.xianxia.sect.data.archive.ArchivedBattleLogDao
 import com.xianxia.sect.data.archive.ArchivedDiscipleDao
 import java.io.File
 import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 object GameDatabaseConfig {
     const val MEMORY_CACHE_SIZE = 64 * 1024 * 1024
@@ -124,88 +120,33 @@ abstract class GameDatabase : RoomDatabase() {
 
     abstract fun discipleCompactDao(): DiscipleCompactDao
 
-    private val checkpointExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
-        Thread(r, "GameDB-Checkpoint")
-    }
-
-    private val isCheckpointRunning = AtomicBoolean(false)
-    private val lastCheckpointTime = AtomicLong(0)
+    // ── WAL Checkpoint 管理（简化版） ──
+    // 移除独立 ScheduledExecutorService 线程，避免与 Room 事务线程发生 WAL 文件竞争。
+    // 运行时仅使用 PASSIVE 模式（在 post-save 中调用），TRUNCATE 仅在 shutdown 时使用。
+    // 参考: SQLite WAL checkpoint 分析 — TRUNCATE 在并发时自动降级为 PASSIVE 不报错
+    //       Room KMP ConnectionPool — WAL 模式使用 1 writer + N readers
     private val totalCheckpoints = AtomicLong(0)
     private val totalWalSizeFreed = AtomicLong(0)
+    private val lastCheckpointTimeMs = AtomicLong(0)
 
     @Volatile
     private var isShuttingDown = false
 
-    private var checkpointJob: ScheduledFuture<*>? = null
-
-    fun startAutoCheckpoint() {
-        checkpointJob = checkpointExecutor.scheduleWithFixedDelay({
-            if (!isShuttingDown) {
-                checkAndCheckpoint()
-            }
-        }, GameDatabaseConfig.WAL_CHECK_INTERVAL_SECONDS,
-           GameDatabaseConfig.WAL_CHECK_INTERVAL_SECONDS,
-           TimeUnit.SECONDS)
-        Log.d(TAG, "Auto-checkpoint started")
-    }
-
+    /** 在保存完成后执行 PASSIVE checkpoint（在 Room 事务线程上运行） */
     fun performPostSaveCheckpoint() {
         try {
+            if (isShuttingDown) return
             performCheckpointSync(CheckpointMode.PASSIVE)
         } catch (e: Exception) {
             Log.w(TAG, "Post-save checkpoint failed", e)
         }
     }
 
-    private fun checkAndCheckpoint() {
-        try {
-            val dbPath = openHelper.writableDatabase.path ?: return
-            val walFile = File(dbPath + "-wal")
-            if (!walFile.exists()) return
-
-            val walSizeMB = walFile.length() / (1024 * 1024)
-
-            if (walSizeMB >= GameDatabaseConfig.WAL_SIZE_THRESHOLD_MB &&
-                System.currentTimeMillis() - lastCheckpointTime.get() >= GameDatabaseConfig.CHECKPOINT_COOLDOWN_MS &&
-                isCheckpointRunning.compareAndSet(false, true)) {
-
-                try {
-                    val beforeSize = walFile.length()
-
-                    val mode = if (walSizeMB >= GameDatabaseConfig.WAL_CRITICAL_SIZE_MB) {
-                        Log.w(TAG, "CRITICAL: WAL size ${walSizeMB}MB, forcing TRUNCATE checkpoint")
-                        CheckpointMode.TRUNCATE
-                    } else {
-                        CheckpointMode.PASSIVE
-                    }
-
-                    performCheckpointSync(mode)
-
-                    val afterSize = walFile.length()
-                    val freed = beforeSize - afterSize
-
-                    if (freed > 0) {
-                        totalWalSizeFreed.addAndGet(freed)
-                    }
-
-                    lastCheckpointTime.set(System.currentTimeMillis())
-                    totalCheckpoints.incrementAndGet()
-
-                    Log.d(TAG, "Checkpoint completed: WAL ${walSizeMB}MB -> ${afterSize / (1024 * 1024)}MB")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during checkpoint", e)
-                } finally {
-                    isCheckpointRunning.set(false)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during auto-checkpoint check", e)
-        }
-    }
-
     private fun performCheckpointSync(mode: CheckpointMode) {
         try {
             openHelper.writableDatabase.execSQL(mode.query)
+            totalCheckpoints.incrementAndGet()
+            lastCheckpointTimeMs.set(System.currentTimeMillis())
             Log.d(TAG, "Checkpoint performed: ${mode.name}")
         } catch (e: android.database.sqlite.SQLiteException) {
             if (e.message?.contains("query or rawQuery") == true) {
@@ -267,7 +208,7 @@ abstract class GameDatabase : RoomDatabase() {
             totalSize = dbSize + walSize + shmSize,
             totalCheckpoints = totalCheckpoints.get(),
             totalWalFreed = totalWalSizeFreed.get(),
-            lastCheckpointTime = lastCheckpointTime.get()
+            lastCheckpointTime = lastCheckpointTimeMs.get()
         )
     }
 
@@ -275,29 +216,14 @@ abstract class GameDatabase : RoomDatabase() {
         Log.i(TAG, "Shutting down unified database instance")
         isShuttingDown = true
 
-        checkpointJob?.cancel(false)
-        checkpointJob = null
-
-        checkpointExecutor.shutdown()
-        try {
-            if (!checkpointExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
-                Log.w(TAG, "Checkpoint executor did not terminate in time, forcing shutdown")
-                checkpointExecutor.shutdownNow()
-                if (!checkpointExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
-                    Log.e(TAG, "Checkpoint executor did not terminate after forced shutdown")
-                }
-            }
-        } catch (e: InterruptedException) {
-            Log.w(TAG, "Interrupted while waiting for checkpoint executor termination")
-            checkpointExecutor.shutdownNow()
-            Thread.currentThread().interrupt()
-        }
+        // checkpoint executor 已移除，WAL checkpoint 由 post-save 处理
 
         try {
             val db = openHelper.writableDatabase
             if (!db.isOpen) {
                 Log.w(TAG, "Database already closed, skipping final checkpoint")
             } else {
+                // shutdown 时无并发事务，可使用 TRUNCATE 确保 WAL 完全落盘
                 performCheckpointSync(CheckpointMode.TRUNCATE)
                 Log.i(TAG, "Final TRUNCATE checkpoint completed - WAL data flushed to main DB")
             }
@@ -883,6 +809,9 @@ abstract class GameDatabase : RoomDatabase() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database opened")
                         optimizeDatabase(db)
+                        // 启动时检查数据库完整性（PRAGMA integrity_check）
+                        // 在 MIGRATION_12_13/13_14 的 create-copy-drop-rename 后确保 schema 正确
+                        checkDatabaseIntegrity(db)
                     }
                 })
                 .fallbackToDestructiveMigration()
@@ -916,39 +845,40 @@ abstract class GameDatabase : RoomDatabase() {
         private fun configureDatabase(db: SupportSQLiteDatabase, context: Context? = null) {
             Log.d(TAG, "Configuring database parameters")
 
-            val dynamicMmapSize = resolveDynamicMmapSize(context)
             val dynamicCacheSize = resolveDynamicCacheSize(context)
 
             executeSafely(db, "PRAGMA journal_mode = WAL")
             executeSafely(db, "PRAGMA synchronous = NORMAL")
             executeSafely(db, "PRAGMA cache_size = $dynamicCacheSize")
-            executeSafely(db, "PRAGMA temp_store = MEMORY")
-            executeSafely(db, "PRAGMA mmap_size = $dynamicMmapSize")
+            // temp_store: 仅在 >= 4GB RAM 设备上使用 MEMORY，避免低端设备内存压力
+            val totalMemMB = resolveTotalMem(context)
+            if (totalMemMB >= 4096) {
+                executeSafely(db, "PRAGMA temp_store = MEMORY")
+            } else {
+                executeSafely(db, "PRAGMA temp_store = FILE")
+            }
+            // mmap_size = 0: 禁用内存映射，避免 onTrimMemory 时内核解除 mmap 页面导致 SIGSEGV
+            // 参考: SQLite 官方文档及 Bugly #5037 多个设备 libsqlite.so native 崩溃
+            executeSafely(db, "PRAGMA mmap_size = 0")
             executeSafely(db, "PRAGMA foreign_keys = ON")
             executeSafely(db, "PRAGMA wal_autocheckpoint = 1000")
             executeSafely(db, "PRAGMA busy_timeout = 5000")
             executeSafely(db, "PRAGMA journal_size_limit = 5242880")
 
-            Log.d(TAG, "Database configuration completed (mmap=${dynamicMmapSize / 1024 / 1024}MB, cache=${-dynamicCacheSize / 1024}MB, journal_limit=5MB)")
+            Log.d(TAG, "Database configuration completed (mmap=0, cache=${-dynamicCacheSize / 1024}MB, temp_store=${if (totalMemMB >= 4096) "MEMORY" else "FILE"}, journal_limit=5MB)")
         }
 
-        private fun resolveDynamicMmapSize(context: Context?): Long {
-            val defaultMmap = 268435456L
-            if (context == null) return defaultMmap
+        private fun resolveTotalMem(context: Context?): Long {
+            if (context == null) return 4096L
             return try {
                 val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
-                    ?: return defaultMmap
+                    ?: return 4096L
                 val memInfo = android.app.ActivityManager.MemoryInfo()
                 am.getMemoryInfo(memInfo)
-                val totalMemMB = memInfo.totalMem / (1024 * 1024)
-                when {
-                    totalMemMB < 2048 -> 67108864L
-                    totalMemMB < 4096 -> 134217728L
-                    else -> defaultMmap
-                }
+                (memInfo.totalMem) / (1024 * 1024)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to detect memory for mmap sizing", e)
-                defaultMmap
+                Log.w(TAG, "Failed to detect memory", e)
+                4096L
             }
         }
 
@@ -976,6 +906,29 @@ abstract class GameDatabase : RoomDatabase() {
             executeSafely(db, "PRAGMA analysis_limit = 2000")
             executeSafely(db, "PRAGMA optimize")
             Log.d(TAG, "Database optimization completed (analysis_limit=2000)")
+        }
+
+        /**
+         * 检查数据库完整性（PRAGMA integrity_check）。
+         * 用于发现 MIGRATION 后的 schema 损坏或 mmap 破损。
+         * 记录到 Bugly 以便排查 #5037 等 native 崩溃。
+         */
+        private fun checkDatabaseIntegrity(db: SupportSQLiteDatabase) {
+            try {
+                val cursor = db.query("PRAGMA integrity_check", emptyArray())
+                try {
+                    if (cursor.moveToFirst()) {
+                        val result = cursor.getString(0)
+                        if (result != "ok") {
+                            Log.wtf(TAG, "DB INTEGRITY FAILED: $result")
+                        }
+                    }
+                } finally {
+                    cursor.close()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check database integrity", e)
+            }
         }
 
         private fun executeSafely(db: SupportSQLiteDatabase, pragma: String) {

@@ -138,76 +138,54 @@ class GameStateRepository @Inject constructor(
 
         val slotId = currentSlotId
         try {
-            coroutineScope {
-                if (snapshot.gameData) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        gameDataDao.insert(gameData.copy(id = "game_data_$slotId", slotId = slotId))
-                    }
+            // 单事务写入：所有表在同一个 withTransaction 中串行写入，
+            // 消除 13 个并发 withTransaction 之间的 WAL 竞争（之前导致 #5037 SIGSEGV）。
+            // 参考 Room KMP ConnectionPool: WAL 模式使用 1 writer + N readers
+            database.withTransaction {
+                if (snapshot.gameData) {
+                    gameDataDao.insert(gameData.copy(id = "game_data_$slotId", slotId = slotId))
                 }
-                if (snapshot.disciples) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        discipleDao.upsertAll(disciples.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.disciples) {
+                    discipleDao.upsertAll(disciples.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.equipmentStacks) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.equipmentStacks) {
+                    equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.equipmentInstances) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        equipmentInstanceDao.upsertAll(equipmentInstances.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.equipmentInstances) {
+                    equipmentInstanceDao.upsertAll(equipmentInstances.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.manualStacks) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        manualStackDao.upsertAll(manualStacks.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.manualStacks) {
+                    manualStackDao.upsertAll(manualStacks.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.manualInstances) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        manualInstanceDao.upsertAll(manualInstances.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.manualInstances) {
+                    manualInstanceDao.upsertAll(manualInstances.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.pills) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        pillDao.upsertAll(pills.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.pills) {
+                    pillDao.upsertAll(pills.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.materials) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        materialDao.upsertAll(materials.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.materials) {
+                    materialDao.upsertAll(materials.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.herbs) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        herbDao.upsertAll(herbs.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.herbs) {
+                    herbDao.upsertAll(herbs.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.seeds) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        seedDao.upsertAll(seeds.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.seeds) {
+                    seedDao.upsertAll(seeds.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.storageBags) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.storageBags) {
+                    storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.teams) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.teams) {
+                    explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.battleLogs) launch(Dispatchers.IO) {
-                    database.withTransaction {
-                        battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
-                    }
+                if (snapshot.battleLogs) {
+                    battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
                 }
             }
             dirty = DirtySet()
-            Log.d(TAG, "Flushed dirty state for slot $slotId")
-        } catch (e: Exception) {
+            Log.d(TAG, "Flushed dirty state for slot $slotId (single transaction)")
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
             Log.e(TAG, "Failed to flush dirty state", e)
         }
     }

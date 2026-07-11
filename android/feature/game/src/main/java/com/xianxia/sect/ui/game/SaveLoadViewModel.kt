@@ -220,7 +220,8 @@ class SaveLoadViewModel @Inject constructor(
     val restartVersion: StateFlow<Int> = _restartVersion.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        // 加载存档元数据 — 运行在 IO 调度器上，避免主线程等待 Room 查询
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 _saveSlots.value = storageFacade.getSaveSlotsSuspend()
             } catch (e: CancellationException) { throw e }
@@ -239,34 +240,45 @@ class SaveLoadViewModel @Inject constructor(
         // 系统自动存档收集 — 运行在 Default 调度器上，避免 BufferedChannel.hasNext()
         // 在主线程上挂起导致 ANR（见 Bugly #3042/#8024）。
         viewModelScope.launch(Dispatchers.Default) {
-            gameEngineCore.autoSaveTrigger.collect {
-                try {
-                    if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
-                        Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
-                        return@collect
+            try {
+                gameEngineCore.autoSaveTrigger.collect { _ ->
+                    try {
+                        if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
+                            Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
+                            return@collect
+                        }
+                        withTimeoutOrNull(30_000L) {
+                            performAutoSave()
+                        } ?: Log.w(TAG, "Auto save cancelled due to timeout")
+                    } catch (e: CancellationException) {
+                        Log.w(TAG, "Auto save cancelled", e)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Auto save error", e)
                     }
-                    withTimeoutOrNull(30_000L) {
-                        performAutoSave()
-                    } ?: Log.w(TAG, "Auto save cancelled due to timeout")
-                } catch (e: CancellationException) {
-                    Log.w(TAG, "Auto save cancelled", e)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Auto save error", e)
                 }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "autoSaveTrigger collector crashed, will restart on next trigger", e)
             }
         }
 
-        viewModelScope.launch {
-            savePipeline.saveResults.collect { result ->
-                if (result.success) {
-                    try {
-                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.e(TAG, "Failed to refresh slots after pipeline save: ${e.message}", e)
+        // 管道保存结果收集 — 运行在 Default 调度器上
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                savePipeline.saveResults.collect { result ->
+                    if (result.success) {
+                        try {
+                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
+                            Log.e(TAG, "Failed to refresh slots after pipeline save: ${e.message}", e)
+                        }
+                        Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
                     }
-                    Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
                 }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "saveResults collector crashed", e)
             }
         }
     }
