@@ -491,6 +491,16 @@ fun MainGameScreen(
                 // 始终同步视口到 touchEngine（手势引擎与帧率无关）
                 view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
 
+                // ★ 在门控外读取相机状态，维持 Compose 订阅活跃。
+                // 门控内读取时，若门控未通过则 Compose 移除依赖跟踪，
+                // 导致后续 cameraState.pan() 不再触发重组，地图停滞。
+                val snapCamX = cameraState.cameraX
+                val snapCamY = cameraState.cameraY
+                val snapScale = cameraState.scale
+
+                // ★ 独立推送相机（不经过帧率门控），确保拖拽时相机响应无延迟
+                view.setCamera(snapCamX, snapCamY, snapScale)
+
                 // 帧率门控：低于间隔直接跳过 RenderFrame 推送
                 if (now - lastRenderDataSyncNs >= minIntervalNs) {
                     lastRenderDataSyncNs = now
@@ -540,9 +550,9 @@ fun MainGameScreen(
                         tileData = flatTileData,
                         cols = worldWidthCells,
                         rows = worldHeightCells,
-                        camX = cameraState.cameraX,
-                        camY = cameraState.cameraY,
-                        scale = cameraState.scale,
+                        camX = snapCamX,
+                        camY = snapCamY,
+                        scale = snapScale,
                         buildingVisible = true,
                         buildingData = buildingData,
                         buildingCount = effectivePlacedBuildings.size,

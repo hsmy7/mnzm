@@ -2,22 +2,19 @@ package com.xianxia.sect.ui.game.sect
 
 import android.graphics.*
 import com.xianxia.sect.core.render.SpriteAtlasDef
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * SoftwareCanvasBackend — Canvas 软件回退渲染器 v3（Scroll Compositing + Chunk 缓存版）。
+ * SoftwareCanvasBackend — Canvas 软件回退渲染器 v3（Chunk 缓存版）。
+ *
+ * ## 渲染策略
+ * 1. Chunk 缓存（32×32 tiles）：相机移动不失效，~4 次 drawBitmap/帧
+ * 2. EWMA 帧时间追踪：动态切换 60/45/30/20fps，消除帧间隔抖动
  *
  * ## 行业参考
- * - CoC 分层 tile 组装：offscreen buffer 大 1 tile，跨 tile 边界才触发重绘
+ * - CoC 分层 tile 组装：offscreen buffer 大 1 tile
  * - Godot batching：`renderingQuadrantSize=16`，预光栅化 CPU 100%→10%
- * - SurfaceView 7×7 网格：滚动边缘 shift 只重绘新暴露 tile，稳定 60fps
  * - Mozilla SW-WR：scissored clear + 帧时间追踪自适应帧率
- *
- * ## 三层缓存策略
- * 1. Scroll-Frame Compositing（偏移帧合成）：仅平移+填充新暴露边缘（~90% 绘制量减少）
- * 2. Chunk 缓存（32×32 tiles）：相机移动不失效，~4 次 drawBitmap/帧
- * 3. EWMA 帧时间追踪：动态切换 60/45/30/20fps，消除帧间隔抖动
  *
  * @param config NativeRenderConfig（tileSize, worldWidthCells 等）
  */
@@ -37,10 +34,6 @@ class SoftwareCanvasBackend(
         private const val EWMA_ALPHA = 0.3f
         private const val FPS_HYSTERESIS_MS = 1000L
 
-        // ── Scroll Compositing 常量 ──
-        /** 偏移量超过视口此比例时不做 scroll compositing，降级全量重绘 */
-        private const val SCROLL_COMPOSIT_THRESHOLD = 0.8f
-
         // ── 缩放保护常量 ──
         private const val MIN_SCALE = 0.1f
         private const val MAX_SCALE = 3.0f
@@ -53,7 +46,7 @@ class SoftwareCanvasBackend(
 
         /**
          * 工具方法：绘制建筑列表到指定 Canvas。
-         * 被 [ChunkTile.rebuild] 和 [renderFrame] 的 scroll compositing 路径调用。
+         * 被 [ChunkTile.rebuild] 调用。
          */
         private fun drawBuildingsToCanvas(
             canvas: Canvas,
@@ -150,13 +143,13 @@ class SoftwareCanvasBackend(
     @Volatile
     private var resizeRequestedH: Int = 0
 
-    // ── Scroll Compositing 缓存 ──
+    // ── Chunk 缓存追踪 ──
 
-    private var compositedFrame: Bitmap? = null
-    private var lastScrollCamX: Float = 0f
-    private var lastScrollCamY: Float = 0f
-    private var scrollTileHash: Int = 0
-    private var scrollBuildingHash: Int = 0
+    /** 上一次渲染的 tile hash（用于 chunk 失效检测） */
+    private var chunkTileHash: Int = 0
+    /** 上一次渲染的 building hash */
+    private var chunkBuildingHash: Int = 0
+    /** 上一次的 preview 状态 */
     private var lastShowPreview: Boolean = false
 
     // ── Chunk 缓存 ──
@@ -261,8 +254,6 @@ class SoftwareCanvasBackend(
         }
     }
 
-    private var chunkTileHash: Int = 0
-    private var chunkBuildingHash: Int = 0
     /** decorationsDisabled 版本号，变化时失效所有 chunk */
     private var chunkDecorVersion: Int = 0
     /** 上一次记录的 decorationsDisabled 值 */
@@ -384,56 +375,11 @@ class SoftwareCanvasBackend(
 
         val tileHash = td.contentHashCode()
         val buildingHash = buildingArray?.contentHashCode() ?: 0
-        val dataUnchanged = tileHash == scrollTileHash && buildingHash == scrollBuildingHash
         val previewActive = frame.showPreview
 
         // ═══════════════════════════════════════════════════════
-        // 策略 1: Scroll-Frame Compositing（偏移帧合成）
-        // 使用 32 位 contentHashCode 检测数据变化，碰撞概率约 1/2^32。
-        // 碰撞后果：一帧内显示陈旧缓存帧，随后因相机偏移或 hash 变化恢复。
-        // 不引入完整 contentEquals（16384 元素 O(n) 代价远超碰撞损失）。
+        // Chunk 缓存完整渲染（Scroll Compositing 已废弃）
         // ═══════════════════════════════════════════════════════
-        if (dataUnchanged && compositedFrame != null && !previewActive && !lastShowPreview) {
-            val dx = frame.camX - lastScrollCamX
-            val dy = frame.camY - lastScrollCamY
-            val pixelDx = (dx * scale).roundToInt()
-            val pixelDy = (dy * scale).roundToInt()
-
-            if (abs(pixelDx) <= 1 && abs(pixelDy) <= 1) {
-                // 亚像素偏移 — 直接复用上一帧
-                return compositedFrame
-            }
-
-            if (abs(pixelDx) < vpW * SCROLL_COMPOSIT_THRESHOLD &&
-                abs(pixelDy) < vpH * SCROLL_COMPOSIT_THRESHOLD) {
-                // 偏移在合理范围 → Scroll Compositing
-                val cf = compositedFrame ?: return compositedFrame
-                canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
-                canvas.save()
-                canvas.translate(pixelDx.toFloat(), pixelDy.toFloat())
-                canvas.drawBitmap(cf, 0f, 0f, paint)
-                canvas.restore()
-
-                // 仅绘制新暴露的边际区域
-                drawMarginalTiles(canvas, atlas, frame, pixelDx, pixelDy, scale, vpW, vpH)
-
-                // 保存合成结果
-                buildCompositedFrame(fb, vpW, vpH)
-
-                lastScrollCamX = frame.camX
-                lastScrollCamY = frame.camY
-                return compositedFrame
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════
-        // 策略 2: Chunk 缓存完整渲染
-        // ═══════════════════════════════════════════════════════
-        // 更新 scroll compositing 状态
-        if (!dataUnchanged) {
-            scrollTileHash = tileHash
-            scrollBuildingHash = buildingHash
-        }
         lastShowPreview = previewActive
 
         // Chunk 失效检查
@@ -541,15 +487,20 @@ class SoftwareCanvasBackend(
 
         canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
         val reuseRect = Rect()
+        // ★ 修复：以首个可见 Chunk 为基准计算屏幕位置，后续 Chunk 递推。
+        // 独立计算每个 Chunk 时 roundToInt 可能产生 ±1px 偏差，
+        // 导致相邻 Chunk 之间出现 1px 背景色裂缝（白线闪烁）。
+        val firstChunkWorldX = (firstChunkCol * CHUNK_SIZE_TILES * tileSize).toFloat()
+        val firstChunkWorldY = (firstChunkRow * CHUNK_SIZE_TILES * tileSize).toFloat()
+        val baseScreenX = ((firstChunkWorldX - frame.camX) * scale).roundToInt()
+        val baseScreenY = ((firstChunkWorldY - frame.camY) * scale).roundToInt()
+        val scaledW = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
+        val scaledH = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
         for (chunkCol in firstChunkCol..lastChunkCol) {
             for (chunkRow in firstChunkRow..lastChunkRow) {
                 val chunk = chunkCaches[chunkCol][chunkRow]
-                val chunkWorldX = (chunkCol * CHUNK_SIZE_TILES * tileSize).toFloat()
-                val chunkWorldY = (chunkRow * CHUNK_SIZE_TILES * tileSize).toFloat()
-                val screenX = ((chunkWorldX - frame.camX) * scale).roundToInt()
-                val screenY = ((chunkWorldY - frame.camY) * scale).roundToInt()
-                val scaledW = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
-                val scaledH = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
+                val screenX = baseScreenX + (chunkCol - firstChunkCol) * scaledW
+                val screenY = baseScreenY + (chunkRow - firstChunkRow) * scaledH
                 if (screenX + scaledW < 0 || screenY + scaledH < 0 ||
                     screenX > vpW || screenY > vpH) continue
                 reuseRect.set(screenX, screenY, screenX + scaledW, screenY + scaledH)
@@ -563,133 +514,7 @@ class SoftwareCanvasBackend(
             drawPreview(canvas, atlas, frame, tileSize, scale, frame.camX, frame.camY)
         }
 
-        // 保存 Scroll Compositing 缓存
-        buildCompositedFrame(fb, vpW, vpH)
-        lastScrollCamX = frame.camX
-        lastScrollCamY = frame.camY
-
         return fb
-    }
-
-    // ============================================================
-    // Scroll Compositing 辅助
-    // ============================================================
-
-    private fun buildCompositedFrame(source: Bitmap, vpW: Int, vpH: Int) {
-        val cf = compositedFrame
-        if (cf == null || cf.width != vpW || cf.height != vpH) {
-            compositedFrame?.recycle()
-            compositedFrame = Bitmap.createBitmap(vpW.coerceAtLeast(1), vpH.coerceAtLeast(1),
-                Bitmap.Config.ARGB_8888)
-        }
-        val target = compositedFrame ?: return
-        val cfCanvas = Canvas(target)
-        cfCanvas.drawBitmap(source, 0f, 0f, null)
-    }
-
-    private fun drawMarginalTiles(
-        canvas: Canvas,
-        atlas: Bitmap,
-        frame: RenderFrame,
-        pixelDx: Int,
-        pixelDy: Int,
-        scale: Float,
-        vpW: Int,
-        vpH: Int
-    ) {
-        val tileSize = config.tileSize
-        val td = frame.tileData
-        val cols = frame.cols
-        val rows = frame.rows
-        val buildingArray = frame.buildingData
-
-        val viewLeft = frame.camX
-        val viewTop = frame.camY
-        val firstCol = (viewLeft / tileSize).toInt().coerceIn(0, cols - 1)
-        val firstRow = (viewTop / tileSize).toInt().coerceIn(0, rows - 1)
-        val lastCol = ((viewLeft + vpW / scale) / tileSize).toInt().coerceIn(0, cols - 1)
-        val lastRow = ((viewTop + vpH / scale) / tileSize).toInt().coerceIn(0, rows - 1)
-
-        val reuseRect = Rect()
-
-        // 计算填充边界（新暴露的条带区域）
-        val fillLeft = if (pixelDx > 0) 0f else (vpW + pixelDx).toFloat()
-        val fillRight = if (pixelDx < 0) vpW.toFloat() else (vpW).toFloat()
-        val fillTop = if (pixelDy > 0) 0f else (vpH + pixelDy).toFloat()
-        val fillBottom = if (pixelDy < 0) vpH.toFloat() else (vpH).toFloat()
-
-        for (row in firstRow..lastRow) {
-            val rowBase = row * cols
-            for (col in firstCol..lastCol) {
-                val wx = col * tileSize
-                val wy = row * tileSize
-                val camOffX = wx - frame.camX
-                val camOffY = wy - frame.camY
-                val dstLeft = (camOffX * scale).roundToInt()
-                val dstTop = (camOffY * scale).roundToInt()
-                val dstRight = ((camOffX + tileSize) * scale).roundToInt()
-                val dstBottom = ((camOffY + tileSize) * scale).roundToInt()
-
-                if (dstLeft >= vpW || dstTop >= vpH || dstRight <= 0 || dstBottom <= 0) continue
-
-                // 检查 tile 是否在填充区域内
-                val inFillX = when {
-                    pixelDx > 0 -> dstLeft < fillRight
-                    pixelDx < 0 -> dstRight > fillLeft
-                    else -> true
-                }
-                val inFillY = when {
-                    pixelDy > 0 -> dstTop < fillBottom
-                    pixelDy < 0 -> dstBottom > fillTop
-                    else -> true
-                }
-                if (!inFillX || !inFillY) continue
-
-                // 地面
-                val tile = td[rowBase + col]
-                val gIdx = if (tile == GROUND_V2_SRC_INDEX) GROUND_V2_SRC_INDEX else 0
-                val groundSrc = tileSrcRects.getOrNull(gIdx) ?: continue
-                reuseRect.set(dstLeft, dstTop, dstRight, dstBottom)
-                canvas.drawBitmap(atlas, groundSrc, reuseRect, paint)
-
-                // 装饰
-                if (!decorationsDisabled && tile in 1..5) {
-                    val decorSrc = tileSrcRects.getOrNull(tile) ?: continue
-                    if (tile >= 4) {
-                        val tCamOffX = wx - tileSize - frame.camX
-                        val tCamOffY = wy - tileSize - frame.camY
-                        val treeLeft = (tCamOffX * scale).roundToInt()
-                        val treeTop = (tCamOffY * scale).roundToInt()
-                        val treeRight = ((tCamOffX + 2 * tileSize) * scale).roundToInt()
-                        val treeBottom = ((tCamOffY + 2 * tileSize) * scale).roundToInt()
-                        reuseRect.set(treeLeft, treeTop, treeRight, treeBottom)
-                    } else {
-                        reuseRect.set(dstLeft, dstTop, dstRight, dstBottom)
-                    }
-                    canvas.drawBitmap(atlas, decorSrc, reuseRect, paint)
-                }
-            }
-        }
-
-        // 建筑（在边缘区域绘制，保证完整建筑入画）
-        if (buildingArray != null && frame.buildingVisible) {
-            drawBuildingsToCanvas(
-                canvas = canvas,
-                atlas = atlas,
-                buildingArray = buildingArray,
-                buildingCount = frame.buildingCount,
-                tileSize = tileSize,
-                buildingSrcRects = buildingSrcRects,
-                floorTileSrcRects = floorTileSrcRects,
-                paint = paint,
-                reuseRect = reuseRect,
-                camX = frame.camX,
-                camY = frame.camY,
-                scale = scale,
-                vpW = vpW,
-                vpH = vpH
-            )
-        }
     }
 
     // ============================================================
@@ -719,8 +544,6 @@ class SoftwareCanvasBackend(
             chunkDecorVersion = 0
             lastDecorationsDisabled = this.decorationsDisabled
             lastQualityFactor = qualityFactor
-            compositedFrame?.recycle()
-            compositedFrame = null
         }
     }
 
@@ -751,10 +574,10 @@ class SoftwareCanvasBackend(
 
         val atlasW = atlas.width
         val atlasH = atlas.height
-        val srcLeft = (frame.previewU0 * atlasW).toInt()
-        val srcTop = (frame.previewV0 * atlasH).toInt()
-        val srcRight = (frame.previewU1 * atlasW).toInt()
-        val srcBottom = (frame.previewV1 * atlasH).toInt()
+        val srcLeft = (frame.previewU0 * atlasW).roundToInt()
+        val srcTop = (frame.previewV0 * atlasH).roundToInt()
+        val srcRight = (frame.previewU1 * atlasW).roundToInt()
+        val srcBottom = (frame.previewV1 * atlasH).roundToInt()
 
         val alpha = frame.previewAlpha.coerceIn(0f, 1f)
         previewPaint.alpha = (alpha * 255).toInt()
@@ -790,8 +613,6 @@ class SoftwareCanvasBackend(
 
     fun release() {
         chunkCaches.forEach { col -> col.forEach { it.bitmap?.recycle() } }
-        compositedFrame?.recycle()
-        compositedFrame = null
         frameBuffer?.recycle()
         frameBuffer = null
         frameCanvas = null

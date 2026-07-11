@@ -35,6 +35,9 @@ static float g_viewTop    = 0.0f;
 static float g_viewRight  = 0.0f;
 static float g_viewBottom = 0.0f;
 
+// 当前缩放值（由 setCamera 更新，用于 GAP_EPSILON 计算）
+static float g_scale = 1.0f;
+
 // 世界像素尺寸（由 initRenderer 设置）
 static int g_worldPixelsW = 0;
 static int g_worldPixelsH = 0;
@@ -217,6 +220,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
     jfloat camX, jfloat camY, jfloat scale,
     jint vpW, jint vpH) {
 
+    g_scale = scale;
     cameraProjMatrix(g_projMatrix, camX, camY, scale, (float)vpW, (float)vpH);
     if (g_renderer) g_renderer->setProjection(g_projMatrix);
 
@@ -242,6 +246,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloatArray floorTileUVMap) { // 建筑 UV 映射 + 地砖 UV 映射
 
     if (!g_renderer || !tileData || !uvMap) return;
+
+    // ★ 瓦片几何扩展因子：每个瓦片扩展 0.5 屏幕像素，消除相邻瓦片间 1px 裂缝。
+    // 当 scale 极小（<0.001）时用 scale=1 防止除零。
+    const float EPS_SCALE = (g_scale > 0.001f) ? g_scale : 1.0f;
+    const float GAP_EPSILON = 0.5f / EPS_SCALE;
 
     jint* tiles = env->GetIntArrayElements(tileData, nullptr);
     jfloat* uvs = env->GetFloatArrayElements(uvMap, nullptr);
@@ -278,8 +287,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             int gIdx = (tile == TILE_GROUND_V2) ? 7 : 0;
             // uvCount 是条目数（每组 4 个 float = 1 组 UV），gIdx 直接比较
             if (gIdx < (int)uvCount) {
-                batcher.add(atlasTexId, wx, wy,
-                    (float)tileSize, (float)tileSize,
+                batcher.add(atlasTexId,
+                    wx - GAP_EPSILON, wy - GAP_EPSILON,
+                    (float)tileSize + 2.0f * GAP_EPSILON,
+                    (float)tileSize + 2.0f * GAP_EPSILON,
                     uvs[gIdx * 4] + UV_EPSILON,
                     uvs[gIdx * 4 + 1] + UV_EPSILON,
                     uvs[gIdx * 4 + 2] - UV_EPSILON,
@@ -297,14 +308,20 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 
                     if (tile >= 4) {
                         // 树（2×2 格，偏移 (-1,-1)）
+                        float treeW = (float)(tileSize * 2);
+                        float treeH = (float)(tileSize * 2);
                         batcher.add(atlasTexId,
-                            wx - (float)tileSize, wy - (float)tileSize,
-                            (float)(tileSize * 2), (float)(tileSize * 2),
+                            wx - (float)tileSize - GAP_EPSILON,
+                            wy - (float)tileSize - GAP_EPSILON,
+                            treeW + 2.0f * GAP_EPSILON,
+                            treeH + 2.0f * GAP_EPSILON,
                             u0, v0, u1, v1);
                     } else {
                         // 草（1×1 格）
-                        batcher.add(atlasTexId, wx, wy,
-                            (float)tileSize, (float)tileSize,
+                        batcher.add(atlasTexId,
+                            wx - GAP_EPSILON, wy - GAP_EPSILON,
+                            (float)tileSize + 2.0f * GAP_EPSILON,
+                            (float)tileSize + 2.0f * GAP_EPSILON,
                             u0, v0, u1, v1);
                     }
                 }

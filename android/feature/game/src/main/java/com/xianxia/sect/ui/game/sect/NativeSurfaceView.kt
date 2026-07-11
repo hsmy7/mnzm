@@ -308,6 +308,31 @@ class NativeSurfaceView(
      */
     val cameraDirty = AtomicBoolean(false)
 
+    // ── 独立相机通道（不经过 RenderFrame 帧率门控） ──
+
+    /** 相机 X 位置（最新值，渲染线程原子读取） */
+    @Volatile
+    var renderCamX: Float = 0f
+
+    /** 相机 Y 位置（最新值，渲染线程原子读取） */
+    @Volatile
+    var renderCamY: Float = 0f
+
+    /** 相机缩放（最新值，渲染线程原子读取） */
+    @Volatile
+    var renderScale: Float = 1f
+
+    /**
+     * 从 Compose 层独立推送相机状态（不经过 [updateRenderState] 的帧率门控）。
+     * 触摸拖拽时每帧调用，确保相机响应不延迟。
+     */
+    fun setCamera(camX: Float, camY: Float, scale: Float) {
+        renderCamX = camX
+        renderCamY = camY
+        renderScale = scale
+        cameraDirty.set(true)
+    }
+
     /** 从 Compose 层原子更新渲染帧数据 */
     fun updateRenderState(frame: RenderFrame) {
         // ★ 防御：拷贝 IntArray/FloatArray，防止 Compose 线程后续修改导致数据竞争
@@ -642,8 +667,9 @@ class NativeSurfaceView(
             val frame = currentFrame ?: return
 
             if (cameraDirty.compareAndSet(true, false)) {
+                // ★ 使用独立相机通道，不依赖 frame.camX/Y（可能被帧率门控延迟）
                 NativeBridge.setCamera(
-                    frame.camX, frame.camY, frame.scale, width, height)
+                    renderCamX, renderCamY, renderScale, width, height)
             }
 
             NativeBridge.beginFrame()
@@ -691,9 +717,12 @@ class NativeSurfaceView(
 
             val startNs = System.nanoTime()
 
+            // ★ 使用独立相机通道覆盖 frame 中的相机值
+            val cameraFrame = frame.copy(camX = renderCamX, camY = renderCamY, scale = renderScale)
+
             val rendered = try {
                 sb.renderFrame(
-                    frame = frame,
+                    frame = cameraFrame,
                     atlas = atlas,
                     vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
                     vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
