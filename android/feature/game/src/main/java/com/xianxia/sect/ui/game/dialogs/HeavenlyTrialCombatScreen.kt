@@ -483,7 +483,7 @@ fun HeavenlyTrialCombatScreen(
                                 RoundedCornerShape(4.dp)
                             )
                             .background(Color.White)
-                            .clickable(enabled = !isAnimating) {
+                            .clickable {
                                 coroutineScope.launch {
                                     isAnimating = true
                                     val (finalPlayers, finalEnemies) =
