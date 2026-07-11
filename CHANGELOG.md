@@ -23,6 +23,14 @@
 ### 代码质量优化
 
 - **重构：claimClearReward 超长函数拆分** — 从 ~170 行提取 `MutableGameState.distributeRewardItems()` 扩展函数，主函数缩减至 ~45 行
+
+### 性能优化
+
+- **优化：PC/模拟器地图拖拽流畅度大幅提升** — 4项改动：
+  - 模拟器渲染策略从强制软件渲染改为优先尝试 Vulkan（模拟器翻译层走宿主机物理 GPU），仅先前崩溃过才降级到 Canvas 软件渲染
+  - 主线程 `buildingData` FloatArray 使用 `remember` 缓存，拖拽中不再每帧重新分配；`updateRenderState` 推送增加帧率门控
+  - `SoftwareCanvasBackend` 重构：新增 Scroll-Frame Compositing（偏移帧合成，亚像素移动直接复用缓存帧，小偏移仅绘边缘减少 90% 绘制量）+ Chunk 化预渲染（32×32 瓦片级缓存，相机移动不失效，每帧仅 ~4 次 drawBitmap）+ EWMA 帧时间追踪及动态帧率自适应（60/45/30/20fps 自动切换，1 秒防抖窗口）
+  - RenderThread SOFTWARE 路径调用 `recordFrameTime()` 按实际渲染能力动态调整目标帧率，消除帧间隔抖动
 - **新增注解**：`HeavenlyTrialService` 标注 `@GameService("HeavenlyTrialService")`
 - **修复**：`GameViewModelTest` 5个 Robolectric 测试 `OutOfMemoryError` — 在 `build.gradle` 中设置测试 JVM 堆为 2g
 

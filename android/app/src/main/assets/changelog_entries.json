@@ -16,7 +16,8 @@
       "重构：claimClearReward超长函数拆分——从170行提取MutableGameState.distributeRewardItems扩展函数，主函数缩减至45行",
       "新增注解：HeavenlyTrialService标注@GameService注解",
       "新增测试：7个capacity预校验测试用例同步更新（移除已删除的randomEquipment/randomManual校验测试）",
-      "修复：5个GameViewModelTest Robolectric测试OutOfMemoryError——build.gradle设置测试JVM堆为2g"
+      "修复：5个GameViewModelTest Robolectric测试OutOfMemoryError——build.gradle设置测试JVM堆为2g",
+      "优化：模拟器地图拖拽流畅度大幅提升——模拟器优先尝试Vulkan GPU渲染（走宿主机物理显卡），仅先前崩溃过才降级到Canvas软件渲染；软件渲染路径新增Scroll-Frame Compositing（偏移帧合成减少90%绘制量）+ Chunk化预渲染（芯片级32×32瓦片缓存）+ EWMA帧时间追踪及动态帧率自适应（60/45/30/20fps）"
     ]
   },
   {

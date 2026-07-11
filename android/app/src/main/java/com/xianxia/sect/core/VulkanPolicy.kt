@@ -289,9 +289,20 @@ object VulkanPolicy {
         }
 
         // 3. 模拟器检测
+        // 行业调研确认：模拟器 Vulkan 翻译层（Gfxstream/Virtio-gpu）走宿主机物理 GPU，
+        // 非纯 CPU 渲染。蓝叠/MuMu/雷电均支持 Vulkan 原生命令透传（零拷贝渲染）。
+        // 不应直接跳过硬件加速——仅在先前崩溃/初始化失败后才降级。
+        // 参考：MuMu 12 WHPX+Vulkan 零拷贝渲染、LDPlayer 9 Vulkan 支持、Flutter Impeller 模拟器策略
         if (isEmulator()) {
-            Log.w(TAG, "Emulator detected → SOFTWARE_ONLY render strategy")
-            return RenderStrategy.SOFTWARE_ONLY
+            if (CrashRecoveryEngine.isVulkanCrashDetected() ||
+                CrashRecoveryEngine.hasVulkanInitFailure() ||
+                CrashRecoveryEngine.wasPrewarmKilled() ||
+                CrashRecoveryEngine.wasSurfaceInitKilled()) {
+                Log.w(TAG, "Emulator + prior Vulkan failure → SOFTWARE_ONLY")
+                return RenderStrategy.SOFTWARE_ONLY
+            }
+            Log.d(TAG, "Emulator → VULKAN_PREFERRED (GPU passthrough available)")
+            return RenderStrategy.VULKAN_PREFERRED
         }
 
         // 4. 持久化 Vulkan 初始化失败标记（前次运行软失败）
@@ -356,10 +367,12 @@ object VulkanPolicy {
      */
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "NestedBlockDepth", "LongMethod")
     fun detectTier(context: Context): DeviceTier {
-        val model = Build.MODEL.lowercase()
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val board = Build.BOARD.lowercase()
-        val hardware = Build.HARDWARE.lowercase()
+        // ★ 对抗性审查防御：Build.MODEL/Manufacturer/BOARD/HARDWARE 在定制 ROM、
+        // Robolectric 测试中可能返回 null，.lowercase() 会抛出 NPE
+        val model = (Build.MODEL ?: "").lowercase()
+        val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+        val board = (Build.BOARD ?: "").lowercase()
+        val hardware = (Build.HARDWARE ?: "").lowercase()
         val socManufacturer = if (Build.VERSION.SDK_INT >= 31) {
             Build.SOC_MANUFACTURER?.lowercase() ?: ""
         } else {

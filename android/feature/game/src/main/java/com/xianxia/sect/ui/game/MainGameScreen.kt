@@ -437,6 +437,18 @@ fun MainGameScreen(
         // 统一 UV 映射表（来自 SpriteAtlasDef，与 C++ TextureAtlas.h 一致）
         val decorUvMap = SpriteAtlasDef.TILE_UV_MAP
 
+        // ★ 优化：缓存 buildingData FloatArray，仅在建筑列表变化时重建
+        // 拖拽时 cameraState 变化触发的重组不重新分配
+        val buildingDataArray = remember(effectivePlacedBuildings, buildingSpriteSizes) {
+            if (effectivePlacedBuildings.isNotEmpty()) {
+                buildBuildingDataArray(effectivePlacedBuildings, buildingSpriteSizes)
+            } else null
+        }
+
+        // ★ 优化：RenderFrame 推送帧率门控
+        // SOFTWARE 路径下限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
+        var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
+
         // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
         AndroidView(
             factory = { ctx ->
@@ -470,8 +482,18 @@ fun MainGameScreen(
                 }
             },
             update = { view ->
-                // 同步视口到 touchEngine
+                // ★ 优化：RenderFrame 推送帧率门控
+                // SOFTWARE 路径限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
+                // Vulkan 路径也限制不高于 60fps
+                val now = System.nanoTime()
+                val minIntervalNs = if (forceSoftwareRendering) 33_000_000L else 16_000_000L
+
+                // 始终同步视口到 touchEngine（手势引擎与帧率无关）
                 view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
+
+                // 帧率门控：低于间隔直接跳过 RenderFrame 推送
+                if (now - lastRenderDataSyncNs >= minIntervalNs) {
+                    lastRenderDataSyncNs = now
 
                 // Camera + 预览 + 建筑数据通过 RenderFrame 推送
                 // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
@@ -510,11 +532,8 @@ fun MainGameScreen(
                 // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
                 // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
                 // 会导致软件渲染器清屏后无法重绘建筑）
-                val buildingData = if (effectivePlacedBuildings.isNotEmpty()) {
-                    buildBuildingDataArray(effectivePlacedBuildings, buildingSpriteSizes)
-                } else {
-                    null
-                }
+                // ★ 优化：使用 remember 缓存的 buildingDataArray，拖拽时不重新分配
+                val buildingData = buildingDataArray
 
                 view.updateRenderState(
                     RenderFrame(
@@ -541,8 +560,9 @@ fun MainGameScreen(
                         previewTintBlue = if (pValid == GridSnapHelper.PlacementValidity.Valid) 0.25f else 0.25f,
                         previewAlpha = 0.5f
                     )
-                )
-            },
+                )   // view.updateRenderState()
+                }   // if (now - lastRenderDataSyncNs >= minIntervalNs)
+            },  // update = { view ->
             modifier = Modifier.fillMaxSize()
         )
 

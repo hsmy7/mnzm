@@ -324,6 +324,10 @@ class NativeSurfaceView(
             android.util.Log.e("NativeSurfaceView",
                 "RenderFrame tileData size mismatch: ${frame.tileData.size} " +
                 "vs expected ${config.worldWidthCells * config.worldHeightCells}")
+
+            // ★ 修复：尺寸不匹配时不更新 currentFrame，防止 SoftwareCanvasBackend
+            // ChunkTile.rebuild 中 ArrayIndexOutOfBoundsException 被 catch 吞掉后永久黑屏
+            return
         }
     }
 
@@ -525,6 +529,9 @@ class NativeSurfaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // ★ 修复：递增 surfaceGeneration，使所有已 post 但未执行的
+        // Vulkan init 回调被 currentGen != surfaceGeneration 守卫拦截
+        surfaceGeneration++
         isReady = false
         initInProgress = false
         pendingInit = false
@@ -532,7 +539,18 @@ class NativeSurfaceView(
         vulkanInitThread?.interrupt()
         vulkanInitThread = null
         // 等待渲染线程安全停止后再释放资源
-        renderThread?.apply { running = false; join(500) }
+        // 使用循环等待（每次 500ms，最多 3 次 = 1.5s）而非单次 join(500)，
+        // 防止 lockCanvas 阻塞导致 Bitmap 在 RenderThread 运行时被回收
+        renderThread?.let { thread ->
+            thread.running = false
+            for (i in 0 until 3) {
+                try { thread.join(500); break } catch (_: InterruptedException) { break }
+            }
+            if (thread.isAlive) {
+                android.util.Log.w("NativeSurfaceView",
+                    "RenderThread did not stop after 1.5s — proceeding with release")
+            }
+        }
         renderThread = null
         // ★ 修复：在 RenderThread 停止后显式释放 backend 资源
         softwareBackend?.release()
@@ -671,6 +689,8 @@ class NativeSurfaceView(
             val atlas = atlasBitmap ?: return
             val frame = currentFrame ?: return
 
+            val startNs = System.nanoTime()
+
             val rendered = try {
                 sb.renderFrame(
                     frame = frame,
@@ -696,6 +716,17 @@ class NativeSurfaceView(
                 return
             }
 
+            // ★ 优化：EWMA 帧时间追踪 + 动态帧率自适应
+            // SOFTWARE 路径根据实际渲染能力动态调整 targetFps。
+            // 注意：仅做降级（绝不提升），升帧由外部场景/热控 Flow 控制。
+            // 使用 MIN + 严格小于语义避免写写竞争覆盖热控/场景帧率。
+            val elapsedNs = System.nanoTime() - startNs
+            val ewmaFps = sb.recordFrameTime(elapsedNs, System.currentTimeMillis())
+            val capped = ewmaFps.coerceAtMost(targetFps)
+            if (capped < targetFps && running) {
+                targetFps = capped
+            }
+
             RenderMetrics.softwareFrames.incrementAndGet()
             RenderMetrics.totalFrames.incrementAndGet()
             RenderMetrics.recordFrame()
@@ -708,6 +739,8 @@ class NativeSurfaceView(
                     val surfaceCanvas = holder.lockCanvas() ?: run {
                         RenderMetrics.lockCanvasRetries.incrementAndGet()
                         retries--
+                        // ★ 对抗性审查修复：continue 前检查退出标志，防止中断检测时序竞争
+                        if (!running || !isReady || Thread.interrupted()) break
                         continue
                     }
                     surfaceCanvas.drawBitmap(rendered, 0f, 0f, null)
