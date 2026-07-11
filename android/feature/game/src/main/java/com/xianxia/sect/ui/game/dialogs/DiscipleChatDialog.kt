@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,8 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import kotlinx.coroutines.delay
 import kotlin.random.Random
@@ -211,7 +211,6 @@ fun DiscipleChatDialog(
     disciple: DiscipleAggregate, gameYear: Int, hasCooldown: Boolean,
     viewModel: GameViewModel?, onDismiss: () -> Unit
 ) {
-    BackHandler(onBack = onDismiss)
     val bgRes = SpriteResRegistry.resolve("dialogue_bg") ?: R.drawable.dialogue_bg
 
     var greetingText by remember { mutableStateOf("") }
@@ -290,10 +289,13 @@ fun DiscipleChatDialog(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0x99000000))) {
-        Image(painter = painterResource(id = bgRes), contentDescription = null,
-            modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-        CloseButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = disciple.name,
+        mode = DialogMode.Full,
+        scrollableContent = false,
+        backgroundRes = bgRes
+    ) {
         Row(modifier = Modifier.fillMaxSize()) {
             ChatLeftPanel(disciple = disciple, modifier = Modifier.weight(0.2f).fillMaxHeight())
             VerticalDivider(modifier = Modifier.fillMaxHeight(), thickness = 1.dp, color = Color(0xFFBDBDBD))
