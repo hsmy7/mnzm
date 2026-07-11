@@ -104,13 +104,15 @@ class CultivationSettlement @Inject constructor(
             currentDisciples.forEach { disciple ->
                 val salary = plan.eligibleSalaries[disciple.id]
                 if (salary != null && salary > 0L) {
+                    val newLoyalty = if (disciple.skills.loyalty < maxLoyalty)
+                        disciple.skills.loyalty + 1 else disciple.skills.loyalty
                     discipleTables.insert(disciple.copy(
                         equipment = disciple.equipment.copy(
                             storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
                         ),
                         skills = disciple.skills.copy(
                             salaryPaidCount = disciple.skills.salaryPaidCount + 1,
-                            loyalty = (disciple.skills.loyalty + 1).coerceAtMost(maxLoyalty)
+                            loyalty = newLoyalty
                         )
                     ))
                 } else {
@@ -132,7 +134,6 @@ class CultivationSettlement @Inject constructor(
         val tables = stateStore.discipleTables
         val eligible = tables.assembleAll()
             .filter { it.isAlive && enabledConfig[it.realm] == true }
-            .filter { it.skills.loyalty < maxLoyalty }
             .map { it to (salaryConfig[it.realm]?.toLong() ?: 0L) }
             .filter { it.second > 0L }
         val totalRequired = eligible.sumOf { it.second }
@@ -156,7 +157,6 @@ class CultivationSettlement @Inject constructor(
         val tables = stateStore.discipleTables
         val disciple = tables.assembleAll().find { it.id == discipleId && it.isAlive } ?: return
         if (enabledConfig[disciple.realm] != true) return
-        if (disciple.skills.loyalty >= maxLoyalty) return
         val salary = (salaryConfig[disciple.realm] ?: 0).toLong()
         if (salary <= 0) return
 
