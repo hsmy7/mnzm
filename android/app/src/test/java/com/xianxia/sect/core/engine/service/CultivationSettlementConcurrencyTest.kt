@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -48,6 +49,7 @@ class CultivationSettlementConcurrencyTest {
     private lateinit var scopeProvider: ApplicationScopeProvider
     private lateinit var cultivationSettlement: CultivationSettlement
     private lateinit var lifecycleProcessor: DiscipleLifecycleProcessor
+    private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
 
     @Before
     fun setUp() {
@@ -63,7 +65,8 @@ class CultivationSettlementConcurrencyTest {
             mock(DiscipleService::class.java),
             mock(com.xianxia.sect.core.engine.service.CultivationCore::class.java),
             mock(DiscipleBreakthroughHandler::class.java),
-            scopeProvider
+            scopeProvider,
+            spiritStoneWallet
         )
         lifecycleProcessor = DiscipleLifecycleProcessor(
             stateStore,

@@ -36,7 +36,23 @@
 
 - **新增：MIGRATION_14_15 迁移测试 + GameDatabase SQLite PRAGMA 运行时配置测试**
 
+### 重构
+
+- **灵石系统统一网关（SpiritStoneWallet）** — 新建 `wallet/` 包（SpiritStoneWallet/Ledger/Transaction），单一入口接管所有灵石变更（add/deduct/batch/applyAdd/applyDeduct），消除 21 文件 40+ 处直接 `gameData.copy(spiritStones=)` 分散修改。`CultivationSettlement` 重复自动售卖逻辑消除（-100行），`InventorySystem` 委托到 Wallet。`SpiritStoneLedger` 环形缓冲区（O(1)）审计账本记录每笔操作来源/原因/变化量/前后余额。`HighFreqState` 补充中品/上品字段。21 文件 +320/-335 行
+
 ### 对抗性审查修复
+
+- **3 Agent 对抗性审查（边界狂魔/状态破坏者/数据篡改者）共发现 22 项问题，全部修复：**
+  - `deduct()`/`applyDeduct()` 双倍计数漏洞（`gameData.spiritStones + supplemented` 两次累加）
+  - `batch()` `-Long.MIN_VALUE` 溢出可清零灵石 + `SpiritStoneOperation.init` 校验（`require(delta != 0 && delta != MIN_VALUE)`）
+  - `autoSellHigherGrades` 在余额检查前不可逆修改 state → 拆分为 `calculateAutoSell`（只读计算）+ `autoSellHigherGrades(plan)`（执行）
+  - `canAfford()` 乘法无溢出保护 → `SpiritStoneExchange.toLowGrade()` safeMultiply
+  - `batch()` 预检查 all-or-nothing 原子性 + autoConvert 通路
+  - 灵矿产出双事务导致灵石重复发放 → 合并为单 `stateStore.update { applyAdd }`
+  - `buyMerchantItem` 未检查 `applyDeduct` 返回值
+  - `confiscateStorageBagItem` 模板查找失败物品静默丢失 → 添加 `DomainLog.w` 警告
+  - `Ledger` 环形缓冲区 O(1) 替代 `removeAt(0)` O(n)
+  - 新增 `SpiritStoneWalletTest` 16 用例边界覆盖
 
 - **修复：跳过按钮动画竞态** — 跳过按钮缺少 `!isAnimating` 守卫，在技能动画播放期间可并发执行 skip 结算导致状态互相覆盖
 - **修复：advanceTurn 陈旧闭包** — 使用组合时捕获的 `alivePlayers`/`aliveEnemies`（3处调用），改为实时读取 `playerTeam.filter{!it.isDead}` 避免无法及时检测全灭

@@ -16,6 +16,10 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 
 
 import java.util.UUID
@@ -33,7 +37,8 @@ class ExplorationService @Inject constructor(
     private val battleSystem: BattleSystem,
     private val buildingConfigService: BuildingConfigService,
     private val inventorySystem: InventorySystem,
-    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
+    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
 
@@ -187,9 +192,8 @@ class ExplorationService @Inject constructor(
             .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
 
         stateStore.update {
+            spiritStoneWallet.applyDeduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.BeastTribute, SpiritStoneSource.Internal)
             gameData = gameData.copy(
-                spiritStones = (gameData.spiritStones - tribute)
-                    .coerceAtLeast(0L),
                 worldLevels = gameData.worldLevels.map {
                     if (it.id == beastLevelId)
                         it.copy(defeated = true) else it
@@ -410,9 +414,7 @@ class ExplorationService @Inject constructor(
 
             val sr = result.rewards["spiritStones"] ?: 0
             if (sr > 0) {
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones + sr.toLong()
-                )
+                spiritStoneWallet.applyAdd(this, sr.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
                 allRewards.add(BattleRewardItem(
                     name = "灵石", quantity = sr,
                     rarity = 1, type = "spiritStones"
@@ -653,12 +655,9 @@ class ExplorationService @Inject constructor(
     private fun applyMaterialLoot(
         state: MutableGameState, loot: BeastLootData
     ) {
-        var gd = state.gameData
-        // 扣除灵石
+        // 扣除灵石 — Wallet 直接修改 state.gameData，无需 gd 同步
         if (loot.stolenSpiritStones > 0) {
-            gd = gd.copy(spiritStones =
-                (gd.spiritStones - loot.stolenSpiritStones)
-                    .coerceAtLeast(0L))
+            spiritStoneWallet.applyDeduct(state, loot.stolenSpiritStones, SpiritStoneGrade.LOW, SpiritStoneReason.Theft, SpiritStoneSource.Exploration)
         }
 
         // 扣除储物袋
@@ -747,8 +746,7 @@ class ExplorationService @Inject constructor(
         state.herbs.filterInPlace { it.quantity > 0 }
         state.seeds.filterInPlace { it.quantity > 0 }
         state.equipmentStacks.filterInPlace { it.quantity > 0 }
-        state.manualStacks.filterInPlace { it.quantity > 0 }
-        state.gameData = gd
+        // 灵石已由 SpiritStoneWallet 直接修改 state.gameData，无需额外写回
     }
 
     private suspend fun processPatrolAttacks(state: MutableGameState) {
@@ -958,7 +956,8 @@ class ExplorationService @Inject constructor(
                 // 灵石奖励
                 val spiritStoneReward = result.rewards["spiritStones"] ?: 0
                 if (spiritStoneReward > 0) {
-                    gd = gd.copy(spiritStones = gd.spiritStones + spiritStoneReward.toLong())
+                    spiritStoneWallet.applyAdd(state, spiritStoneReward.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
+                    gd = state.gameData
                     allRewards.add(BattleRewardItem(name = "灵石", quantity = spiritStoneReward, rarity = 1, type = "spiritStones"))
                 }
             }

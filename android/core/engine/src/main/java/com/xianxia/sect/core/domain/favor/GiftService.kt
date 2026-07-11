@@ -6,7 +6,11 @@ import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.model.GiftPreferenceType
 import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,7 +35,8 @@ data class GiftResult(
  */
 @Singleton
 class GiftService @Inject constructor(
-    private val stateStore: GameStateStore
+    private val stateStore: GameStateStore,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     /**
      * 向宗门赠送灵石
@@ -151,8 +156,8 @@ class GiftService @Inject constructor(
                     .copy(lastGiftYear = currentYear)
             }
 
+            spiritStoneWallet.applyDeduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)
             gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - tierConfig.spiritStones,
                 sectDetails = liveUpdatedDetails,
                 sectRelations = liveUpdatedRelations
             )

@@ -15,6 +15,8 @@ import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.repository.MailRepository
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.HttpClientProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -58,6 +60,7 @@ class MailService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
+    private val spiritStoneWallet: SpiritStoneWallet,
     @ApplicationContext private val appContext: android.content.Context
 ) {
     companion object {
@@ -426,8 +429,11 @@ class MailService @Inject constructor(
         attachments.forEach { attachment ->
             when (attachment.type) {
                 "spiritStones" -> {
-                    state.gameData = state.gameData.copy(
-                        spiritStones = state.gameData.spiritStones + attachment.quantity
+                    spiritStoneWallet.applyAdd(
+                        state = state,
+                        amount = attachment.quantity.toLong(),
+                        grade = SpiritStoneGrade.LOW,
+                        source = SpiritStoneSource.Mail
                     )
                 }
                 "spiritHerbs" -> {

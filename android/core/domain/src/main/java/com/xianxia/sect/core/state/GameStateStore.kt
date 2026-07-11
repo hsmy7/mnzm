@@ -40,7 +40,9 @@ interface GameStateStore : GameStateSnapshotProvider {
     // === 三层 StateFlow 架构 ===
     @Immutable
     data class HighFreqState(
-        val spiritStones: Long = 0L,
+        val lowGradeSpiritStones: Long = 0L,
+        val midGradeSpiritStones: Long = 0L,
+        val highGradeSpiritStones: Long = 0L,
         val gameYear: Int = 1,
         val gameMonth: Int = 1,
         val gamePhase: Int = 1,

@@ -2,12 +2,17 @@ package com.xianxia.sect.core.usecase
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SectPolicyToggleUseCase @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     sealed class ToggleResult {
         data object Success : ToggleResult()
@@ -38,23 +43,21 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleEnhancedSecurity(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.ENHANCED_SECURITY_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.enhancedSecurity) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启增强治安政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(enhancedSecurity = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.enhancedSecurity) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启增强治安政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(enhancedSecurity = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(enhancedSecurity = false))
             }
         }
-        return result
+        return ToggleResult.Success
     }
 
     fun isEnhancedSecurityEnabled(): Boolean {
@@ -65,25 +68,23 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleAlchemyIncentive(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.alchemyIncentive) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启丹道激励政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(alchemyIncentive = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.alchemyIncentive) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启丹道激励政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = false))
             }
         }
         // Checkpoint：政策变化后重算炼丹 duration
         gameEngine.checkpointAllProduction()
-        return result
+        return ToggleResult.Success
     }
 
     fun isAlchemyIncentiveEnabled(): Boolean {
@@ -92,25 +93,23 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleForgeIncentive(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.FORGE_INCENTIVE_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.forgeIncentive) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启锻造激励政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(forgeIncentive = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.forgeIncentive) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启锻造激励政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = false))
             }
         }
         // Checkpoint：政策变化后重算锻造 duration
         gameEngine.checkpointAllProduction()
-        return result
+        return ToggleResult.Success
     }
 
     fun isForgeIncentiveEnabled(): Boolean {
@@ -119,25 +118,23 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleHerbCultivation(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.HERB_CULTIVATION_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.herbCultivation) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启灵药培育政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(herbCultivation = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.herbCultivation) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启灵药培育政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = false))
             }
         }
         // Checkpoint：政策变化后重算灵田/灵植 duration
         gameEngine.checkpointAllProduction()
-        return result
+        return ToggleResult.Success
     }
 
     fun isHerbCultivationEnabled(): Boolean {
@@ -146,23 +143,21 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleCultivationSubsidy(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.cultivationSubsidy) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启修行津贴政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(cultivationSubsidy = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.cultivationSubsidy) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启修行津贴政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = false))
             }
         }
-        return result
+        return ToggleResult.Success
     }
 
     fun isCultivationSubsidyEnabled(): Boolean {
@@ -171,23 +166,21 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleManualResearch(): ToggleResult {
         val requiredStones = GameConfig.PolicyConfig.MANUAL_RESEARCH_COST
-        var result: ToggleResult = ToggleResult.Success
-        gameEngine.updateGameData {
-            if (!it.sectPolicies.manualResearch) {
-                if (it.spiritStones < requiredStones) {
-                    result = ToggleResult.Error("灵石不足${requiredStones}，无法开启功法研习政策")
-                    it
-                } else {
-                    it.copy(
-                        spiritStones = it.spiritStones - requiredStones,
-                        sectPolicies = it.sectPolicies.copy(manualResearch = true)
-                    )
-                }
-            } else {
+        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+        if (!gd.sectPolicies.manualResearch) {
+            if (!spiritStoneWallet.canAfford(requiredStones.toLong())) {
+                return ToggleResult.Error("灵石不足${requiredStones}，无法开启功法研习政策")
+            }
+            spiritStoneWallet.deduct(requiredStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal)
+            gameEngine.updateGameData {
+                it.copy(sectPolicies = it.sectPolicies.copy(manualResearch = true))
+            }
+        } else {
+            gameEngine.updateGameData {
                 it.copy(sectPolicies = it.sectPolicies.copy(manualResearch = false))
             }
         }
-        return result
+        return ToggleResult.Success
     }
 
     fun isManualResearchEnabled(): Boolean {

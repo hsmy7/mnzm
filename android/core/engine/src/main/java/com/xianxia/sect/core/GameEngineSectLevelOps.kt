@@ -4,6 +4,7 @@ import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.SpiritStoneSource
 import java.util.UUID
 
 // ── 宗门等级结果类型 ────────────────────────────────────────────
@@ -164,9 +165,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
             }
 
             if (totalSpiritStones > 0) {
-                gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones + totalSpiritStones
-                )
+                spiritStoneWallet.applyAdd(this, totalSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.SectLevelReward)
             }
 
             val newRecord = SectLevelClaimRecord(

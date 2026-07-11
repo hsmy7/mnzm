@@ -27,6 +27,8 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import javax.inject.Inject
@@ -36,6 +38,7 @@ import javax.inject.Singleton
 @GameService("CultivationEventProcessor")
 class CultivationEventProcessor @Inject constructor(
     private val stateStore: GameStateStore,
+    private val spiritStoneWallet: SpiritStoneWallet,
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
     private val scopeProvider: CoroutineScopeProvider,
@@ -942,8 +945,11 @@ class CultivationEventProcessor @Inject constructor(
                         activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                     )
                     if (result.spiritStones > 0) {
-                        val sp = result.spiritStones.toLong()
-                        stateStore.update { gameData = gameData.copy(spiritStones = gameData.spiritStones + sp) }
+                        spiritStoneWallet.add(
+                            result.spiritStones.toLong(),
+                            SpiritStoneGrade.LOW,
+                            SpiritStoneSource.Quest
+                        )
                     }
                     result.materials.forEach { material ->
                         inventorySystem.addMaterial(material)

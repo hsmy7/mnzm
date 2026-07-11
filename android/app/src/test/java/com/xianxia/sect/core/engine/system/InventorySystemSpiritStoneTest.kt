@@ -5,6 +5,9 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.wallet.SpiritStoneLedger
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
@@ -23,13 +26,15 @@ class InventorySystemSpiritStoneTest {
     private lateinit var stateStore: GameStateStore
     private lateinit var scopeProvider: ApplicationScopeProvider
     private lateinit var inventoryConfig: InventoryConfig
+    private lateinit var spiritStoneWallet: SpiritStoneWallet
 
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
         inventoryConfig = InventoryConfig()
-        system = InventorySystem(stateStore, inventoryConfig)
+        spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
+        system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet)
         system.initialize()
         runBlocking {
             stateStore.reset()
@@ -84,10 +89,11 @@ class InventorySystemSpiritStoneTest {
     }
 
     @Test
-    fun `deductSpiritStones - cannot go below zero`() = runBlocking {
+    fun `deductSpiritStones - insufficient returns current balance`() = runBlocking {
         system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        system.deductSpiritStones(500L, SpiritStoneGrade.LOW)
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        val balance = system.deductSpiritStones(500L, SpiritStoneGrade.LOW)
+        assertEquals(100L, balance) // Wallet 不修改余额
+        assertEquals(100L, system.getSpiritStones(SpiritStoneGrade.LOW))
     }
 
     @Test

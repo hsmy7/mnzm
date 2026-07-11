@@ -31,6 +31,7 @@ import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -84,7 +85,8 @@ class GameEngine @Inject constructor(
     internal val inventoryFacade: InventoryFacade,
     internal val diplomacyFacade: DiplomacyFacade,
     internal val productionFacade: ProductionFacade,
-    internal val saveFacade: SaveFacade
+    internal val saveFacade: SaveFacade,
+    internal val spiritStoneWallet: SpiritStoneWallet
 ) {
     init {
         // 注入任务完成检测回调到 GameEngineCore，

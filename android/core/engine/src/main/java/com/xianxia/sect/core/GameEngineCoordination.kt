@@ -492,7 +492,8 @@ fun GameEngine.updatePatrolConfigs(configs: List<PatrolConfig>) { updateGameData
 
 fun GameEngine.addSpiritStones(amount: Long) {
     gameEngineCore.launchInScope {
-        stateStore.modifyState { gameData = gameData.copy(spiritStones = gameData.spiritStones + amount) }
+        spiritStoneWallet.add(amount, com.xianxia.sect.core.model.SpiritStoneGrade.LOW,
+            com.xianxia.sect.core.wallet.SpiritStoneSource.Internal)
     }
 }
 

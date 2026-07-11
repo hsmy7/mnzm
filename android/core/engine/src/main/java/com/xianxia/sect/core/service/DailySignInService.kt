@@ -11,6 +11,9 @@ import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,7 +22,8 @@ import javax.inject.Singleton
 @Singleton
 class DailySignInService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     companion object {
         private const val TAG = "DailySignInService"
@@ -206,22 +210,25 @@ class DailySignInService @Inject constructor(
     ): Pair<String?, List<RewardCardItem>> {
         var capacityError: String? = null
         val generatedCards = mutableListOf<RewardCardItem>()
+
+        // 灵石通过 SpiritStoneWallet 独立发放（不与其他物品在同一个事务中）
+        if (reward.type == "spiritStones") {
+            val maxSpiritStones = Int.MAX_VALUE
+            val currentStones = stateStore.gameData.value.spiritStones
+            if (currentStones + reward.quantity > maxSpiritStones) {
+                capacityError = "下品灵石已达上限，无法签到领取"
+            } else {
+                spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.SignIn)
+                generatedCards.add(RewardCardItem(
+                    itemName = "下品灵石", itemType = "spiritStones",
+                    rarity = 1, quantity = reward.quantity
+                ))
+            }
+            return Pair(capacityError, generatedCards)
+        }
+
         stateStore.update {
             when (reward.type) {
-                "spiritStones" -> {
-                    val maxSpiritStones = Int.MAX_VALUE
-                    if (gameData.spiritStones + reward.quantity > maxSpiritStones) {
-                        capacityError = "下品灵石已达上限，无法签到领取"
-                    } else {
-                        gameData = gameData.copy(
-                            spiritStones = gameData.spiritStones + reward.quantity
-                        )
-                        generatedCards.add(RewardCardItem(
-                            itemName = "下品灵石", itemType = "spiritStones",
-                            rarity = 1, quantity = reward.quantity
-                        ))
-                    }
-                }
                 "beastMaterial" -> {
                     val beastMat = BeastMaterialDatabase.getMaterialByName(reward.itemName)
                     val actualName: String

@@ -273,14 +273,31 @@ class GameStateStoreImpl @Inject constructor(
 
     // === 三层 StateFlow 架构 ===
     // HighFreq: 高频变化字段，sample 降频
-    override val highFreqState: StateFlow<GameStateStore.HighFreqState> = combine(
+    // 使用分组 combine 避免 5+ 参数限制
+    private val highFreqStones = combine(
         _gameDataFlow.map { it.spiritStones }.distinctUntilChanged(),
+        _gameDataFlow.map { it.midGradeSpiritStones }.distinctUntilChanged(),
+        _gameDataFlow.map { it.highGradeSpiritStones }.distinctUntilChanged()
+    ) { low, mid, high -> Triple(low, mid, high) }
+
+    private val highFreqTime = combine(
         _gameDataFlow.map { it.gameYear }.distinctUntilChanged(),
         _gameDataFlow.map { it.gameMonth }.distinctUntilChanged(),
-        _gameDataFlow.map { it.gamePhase }.distinctUntilChanged(),
-        _isPaused
-    ) { spiritStones, year, month, phase, paused ->
-        GameStateStore.HighFreqState(spiritStones, year, month, phase, paused)
+        _gameDataFlow.map { it.gamePhase }.distinctUntilChanged()
+    ) { year, month, phase -> Triple(year, month, phase) }
+
+    override val highFreqState: StateFlow<GameStateStore.HighFreqState> = combine(
+        highFreqStones, highFreqTime, _isPaused
+    ) { stones, time, paused ->
+        GameStateStore.HighFreqState(
+            lowGradeSpiritStones = stones.first,
+            midGradeSpiritStones = stones.second,
+            highGradeSpiritStones = stones.third,
+            gameYear = time.first,
+            gameMonth = time.second,
+            gamePhase = time.third,
+            isPaused = paused
+        )
     }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.HighFreqState())
 
     // EntityFlow: 实体数据，distinctUntilChanged

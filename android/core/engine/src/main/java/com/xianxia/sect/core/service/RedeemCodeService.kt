@@ -14,6 +14,9 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.core.util.HttpClientProvider
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -42,6 +45,7 @@ class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
+    private val spiritStoneWallet: SpiritStoneWallet,
     @ApplicationContext private val appContext: Context
 ) {
     companion object {
@@ -101,19 +105,19 @@ class RedeemCodeService @Inject constructor(
     }
 
     private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>) {
+        // 灵石通过 SpiritStoneWallet 独立发放
+        rewards.filter { it.type == "spiritStones" }.forEach { reward ->
+            spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+        }
+
         stateStore.update {
             gameData = gameData.copy(
                 usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
                     .distinct()
                     .takeLast(GameData.MAX_REDEEM_CODES)
             )
-            rewards.forEach { reward ->
+            rewards.filter { it.type != "spiritStones" }.forEach { reward ->
                 when (reward.type) {
-                    "spiritStones" -> {
-                        gameData = gameData.copy(
-                            spiritStones = gameData.spiritStones + reward.quantity
-                        )
-                    }
                     "equipment" -> {
                         val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(
@@ -310,14 +314,14 @@ class RedeemCodeService @Inject constructor(
 
         val data = stateStore.gameData.value
 
+        // 灵石通过 SpiritStoneWallet 独立发放
+        result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
+            spiritStoneWallet.add(reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+        }
+
         stateStore.update {
-            result.rewards.forEach { reward ->
+            result.rewards.filter { it.type != "spiritStones" }.forEach { reward ->
                 when (reward.type) {
-                    "spiritStones" -> {
-                        gameData = gameData.copy(
-                            spiritStones = gameData.spiritStones + reward.quantity
-                        )
-                    }
                     "equipment" -> {
                         val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(

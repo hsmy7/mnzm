@@ -7,6 +7,9 @@ import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,7 +20,8 @@ class AutoBuyService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
-    private val merchantAndRecruitService: MerchantAndRecruitService
+    private val merchantAndRecruitService: MerchantAndRecruitService,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     companion object {
         private const val TAG = "AutoBuyService"
@@ -63,7 +67,6 @@ class AutoBuyService @Inject constructor(
         var skippedNoFunds = 0
 
         stateStore.update {
-            var stones = gameData.spiritStones
             val newMerchantItems = gameData.travelingMerchantItems.toMutableList()
 
             for (entry in autoBuyList) {
@@ -84,14 +87,15 @@ class AutoBuyService @Inject constructor(
 
                 // 计算可买数量
                 val buyQty = calculateBuyQuantity(
-                    stones, merchantItem.price, merchantItem.quantity)
+                    gameData.spiritStones, merchantItem.price, merchantItem.quantity)
                 if (buyQty <= 0) {
                     skippedNoFunds++
                     continue
                 }
                 val cost = merchantItem.price * buyQty
 
-                stones -= cost
+                // 通过钱包扣除灵石
+                spiritStoneWallet.applyDeduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
 
                 // 减少商人库存
                 val remaining = merchantItem.quantity - buyQty
@@ -108,7 +112,6 @@ class AutoBuyService @Inject constructor(
             }
 
             gameData = gameData.copy(
-                spiritStones = stones,
                 travelingMerchantItems = newMerchantItems
             )
         }

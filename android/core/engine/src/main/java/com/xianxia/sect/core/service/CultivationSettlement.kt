@@ -36,6 +36,10 @@ import kotlin.random.Random
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.ZoneCalculator
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.DeductResult
 
 /**
  * 政策月度扣除结果。
@@ -70,7 +74,8 @@ class CultivationSettlement @Inject constructor(
     private val discipleService: DiscipleService,
     private val cultivationCore: CultivationCore,
     private val breakthroughHandler: DiscipleBreakthroughHandler,
-    private val scopeProvider: CoroutineScopeProvider
+    private val scopeProvider: CoroutineScopeProvider,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -377,24 +382,15 @@ class CultivationSettlement @Inject constructor(
         stateStore.update {
             val data = gameData
             val currentMonth = data.gameYear * 12 + data.gameMonth
-
             val zones = buildSpiritMineZones(data, discipleTables)
             val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
             val monthlyRate: Long = zones.calculateMonthly(baseOutput.toDouble())
-
-            // 时间戳差分 + 回档保护
             val lastSettled = data.spiritMineLastSettledMonth
             if (currentMonth > lastSettled && monthlyRate > 0L) {
                 val delta = currentMonth - lastSettled
-                gameData = data.copy(
-                    spiritStones = data.spiritStones + monthlyRate * delta
-                )
+                spiritStoneWallet.applyAdd(this, monthlyRate * delta, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
             }
-
-            // 更新结算时间戳
             gameData = gameData.copy(spiritMineLastSettledMonth = currentMonth)
-
-            // 忠诚度扣减
             applyMinerLoyaltyDecay(this)
         }
     }

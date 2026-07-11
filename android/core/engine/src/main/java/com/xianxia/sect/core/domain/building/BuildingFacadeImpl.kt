@@ -12,6 +12,8 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,7 +23,8 @@ class BuildingFacadeImpl @Inject constructor(
     private val stateStore: GameStateStore,
     private val gameEngineCore: GameEngineCore,
     private val productionCoordinator: ProductionCoordinator,
-    private val inventorySystem: InventorySystem
+    private val inventorySystem: InventorySystem,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) : BuildingFacade {
 
     override suspend fun placeBuilding(building: GridBuildingData) {
@@ -372,9 +375,11 @@ class BuildingFacadeImpl @Inject constructor(
         name: String, instanceId: String, refund: Long
     ): GameData {
         val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return gameData
+        // 通过钱包记录灵石返还
+        spiritStoneWallet.applyAdd(this, refund, SpiritStoneGrade.LOW, SpiritStoneSource.Refund)
+        // 移除建筑 + 清洁关联槽位（灵石已由 applyAdd 处理）
         var gd = gameData.copy(
-            placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId },
-            spiritStones = gameData.spiritStones + refund
+            placedBuildings = gameData.placedBuildings.filter { it.instanceId != instanceId }
         )
         for (group in feature.slotGroups) {
             gd = group.filterFromGameData(gd, instanceId, feature)

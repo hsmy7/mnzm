@@ -50,7 +50,8 @@
       "移除：职务限制机制——移除内门/外门弟子身份作为槽位/任务的过滤条件。所有弟子选择界面不再按内/外门过滤；任务派遣移除身份和境界限制仅过滤忙碌弟子；删除DisciplePositionHelper等职务查询代码；移除任职资格属性；长老分配冲突检查移除完全依赖DiscipleStatus状态过滤；对抗性审查修复4处TYPE_OUTER残留过滤",
       "修复：setViceSectMaster/setViceSectMaster改用elderManagement确保副宗主变更时DiscipleStatus正确同步",
       "修复：GameEngineCoordination加载时按TYPE_OUTER清理采矿槽位导致内门采矿弟子静默丢失",
-      "修复：DiscipleService三处TYPE_OUTER过滤——buildMiningIds/fixInvalidMiningSlots/getDiscipleStatus采矿分支移除内门外门限制"
+      "修复：DiscipleService三处TYPE_OUTER过滤——buildMiningIds/fixInvalidMiningSlots/getDiscipleStatus采矿分支移除内门外门限制",
+      "重构：灵石系统统一网关——SpiritStoneWallet单一入口接管所有灵石变更（add/deduct/batch/applyAdd/applyDeduct），消除21文件40+处直接gameData.copy(spiritStones=)分散修改。CultivationSettlement重复自动售卖逻辑消除（-100行），InventorySystem委托到Wallet。SpiritStoneLedger审计账本（环形缓冲区O(1)）记录每笔操作来源/原因/变化量/前后余额。HighFreqState补充中品/上品字段。21文件+320/-335行。对抗性审查3Agent(Boundary Maniac/State Destroyer/Data Tamperer)共发现22项问题全部修复：deduct双倍计数(batch/disp)，canAfford乘法溢出，autoSellHigherGrades分离计算与执行(batch/disp/site)，batch()预检查all-or-nothing+autoConvert通路，Ledger循环缓冲区O(1)，SpiritStoneOperation.init校验，canAfford溢出保护。新增SpiritStoneWalletTest 16用例边界覆盖"
     ]
   },
   {

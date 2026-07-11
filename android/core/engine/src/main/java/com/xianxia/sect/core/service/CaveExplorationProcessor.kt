@@ -26,6 +26,8 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,7 +43,8 @@ class CaveExplorationProcessor @Inject constructor(
     private val thermalMonitor: ThermalMonitor,
     private val attackWarningService: AttackWarningService,
     private val sectWarehouseManager: SectWarehouseManager,
-    private val cultivationService: CultivationService
+    private val cultivationService: CultivationService,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -299,11 +302,11 @@ class CaveExplorationProcessor @Inject constructor(
         rewards.items.forEach { reward ->
             when (reward.type) {
                 "spiritStones" -> {
-                    stateStore.update {
-                        gameData = gameData.copy(
-                            spiritStones = gameData.spiritStones + reward.quantity.toLong()
-                        )
-                    }
+                    spiritStoneWallet.add(
+                        amount = reward.quantity.toLong(),
+                        grade = SpiritStoneGrade.LOW,
+                        source = SpiritStoneSource.Cave
+                    )
                     battleRewardItems.add(BattleRewardItem(
                         itemId = reward.itemId,
                         name = reward.name,

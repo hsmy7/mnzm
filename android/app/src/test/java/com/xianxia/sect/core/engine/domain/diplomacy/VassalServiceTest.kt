@@ -4,6 +4,9 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.wallet.SpiritStoneLedger
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.data.GameStateRepository
 import kotlinx.coroutines.delay
@@ -19,12 +22,14 @@ class VassalServiceTest {
     private lateinit var service: VassalService
     private lateinit var stateStore: GameStateStore
     private lateinit var scopeProvider: ApplicationScopeProvider
+    private lateinit var spiritStoneWallet: SpiritStoneWallet
 
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
-        service = VassalService(stateStore)
+        spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
+        service = VassalService(stateStore, spiritStoneWallet)
         runBlocking { stateStore.reset() }
     }
 

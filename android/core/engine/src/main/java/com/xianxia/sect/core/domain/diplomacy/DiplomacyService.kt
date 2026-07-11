@@ -18,6 +18,9 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -35,7 +38,8 @@ class DiplomacyService @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val inventoryConfig: InventoryConfig,
     private val eventBus: EventBusPort,
-    private val favorService: FavorService
+    private val favorService: FavorService,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     private val discipleTables: DiscipleTables
         get() = stateStore.discipleTables
@@ -422,8 +426,8 @@ class DiplomacyService @Inject constructor(
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
         stateStore.update {
+            spiritStoneWallet.applyDeduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - v.totalPrice,
                 sectDetails = v.updatedSectDetails
             )
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
@@ -435,8 +439,8 @@ class DiplomacyService @Inject constructor(
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
         stateStore.update {
+            spiritStoneWallet.applyDeduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - v.totalPrice,
                 sectDetails = v.updatedSectDetails
             )
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
@@ -507,11 +511,7 @@ class DiplomacyService @Inject constructor(
             }
             "spiritstone" -> {
                 val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return
-                gameData = gameData.copy(
-                    spiritStones = if (grade == SpiritStoneGrade.LOW) gameData.spiritStones + actualQuantity else gameData.spiritStones,
-                    midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) gameData.midGradeSpiritStones + actualQuantity else gameData.midGradeSpiritStones,
-                    highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) gameData.highGradeSpiritStones + actualQuantity else gameData.highGradeSpiritStones
-                )
+                spiritStoneWallet.applyAdd(this, actualQuantity.toLong(), grade, SpiritStoneSource.MerchantTrade)
             }
         }
     }

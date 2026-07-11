@@ -11,6 +11,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialClearReward
@@ -28,6 +29,8 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.mergeStackable
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -46,7 +49,8 @@ data class EnemyAction(
 @GameService("HeavenlyTrialService")
 class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
@@ -336,9 +340,7 @@ class HeavenlyTrialService @Inject constructor(
         for (item in reward.items) {
             when (item.itemType) {
                 "spiritStones" -> {
-                    gameData = gameData.copy(
-                        spiritStones = gameData.spiritStones + item.quantity
-                    )
+                    spiritStoneWallet.applyAdd(this, item.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.HeavenlyTrial)
                     generatedCards.add(RewardCardItem(
                         itemName = "灵石", itemType = "spiritStones",
                         rarity = 1, quantity = item.quantity

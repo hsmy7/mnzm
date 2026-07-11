@@ -9,6 +9,7 @@ import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.data.GameStateRepository
@@ -39,6 +40,7 @@ class MailServiceTest {
     private lateinit var inventoryConfig: InventoryConfig
     private lateinit var httpClient: HttpClientProvider
     private lateinit var scopeProvider: ApplicationScopeProvider
+    private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
 
     // 测试常量
     private val testSlotId = 1
@@ -93,6 +95,7 @@ class MailServiceTest {
             stateStore = stateStore,
             inventoryConfig = inventoryConfig,
             httpClient = httpClient,
+            spiritStoneWallet = spiritStoneWallet,
             appContext = mock(android.content.Context::class.java)
         )
 

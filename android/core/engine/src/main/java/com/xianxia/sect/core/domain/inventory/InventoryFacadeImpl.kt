@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.engine.domain.inventory
 
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.DeductResult
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -9,8 +13,11 @@ import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.mergeStackable
+import com.xianxia.sect.core.util.StackableItem
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +28,8 @@ class InventoryFacadeImpl @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
-    private val gameEngineCore: GameEngineCore
+    private val gameEngineCore: GameEngineCore,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) : InventoryFacade {
     companion object {
         private const val TAG = "InventoryFacade"
@@ -83,6 +91,8 @@ class InventoryFacadeImpl @Inject constructor(
                         } else {
                             equipmentStacks.add(stack.copy(quantity = 1))
                         }
+                    } else {
+                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板，物品已从弟子储物袋移除但未加入仓库")
                     }
                 }
                 "manual" -> {
@@ -94,6 +104,8 @@ class InventoryFacadeImpl @Inject constructor(
                         } else {
                             manualStacks.add(com.xianxia.sect.core.registry.ManualDatabase.createFromTemplate(template).copy(quantity = 1))
                         }
+                    } else {
+                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板，物品已从弟子储物袋移除但未加入仓库")
                     }
                 }
                 "pill" -> {
@@ -107,6 +119,8 @@ class InventoryFacadeImpl @Inject constructor(
                         } else {
                             pills.add(pill)
                         }
+                    } else {
+                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板，物品已从弟子储物袋移除但未加入仓库")
                     }
                 }
                 "herb" -> {
@@ -190,113 +204,54 @@ class InventoryFacadeImpl @Inject constructor(
 
     // ── Sell operations ──────────────────────────────────────────────────
 
-    override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean {
+    @Suppress("UNCHECKED_CAST")
+    private suspend inline fun <T> sellItem(
+        itemId: String,
+        quantity: Int,
+        crossinline store: (MutableGameState) -> EntityStore<T>,
+        crossinline getBasePrice: (T) -> Int,
+        itemType: String
+    ): Boolean where T : HasId, T : StackableItem {
         var success = false
         stateStore.update {
-            val stack = equipmentStacks.get(equipmentId)
-            if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
-                val newQty = stack.quantity - quantity
+            val s = store(this)
+            val item = s.get(itemId)
+            if (item != null && !item.isLocked && quantity in 1..item.quantity) {
+                val newQty = item.quantity - quantity
                 if (newQty <= 0) {
-                    equipmentStacks.remove(equipmentId)
+                    s.remove(itemId)
                 } else {
-                    equipmentStacks.update(equipmentId) { it.copy(quantity = newQty) }
+                    s.update(itemId) { it.withQuantity(newQty) as T }
                 }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
+                spiritStoneWallet.applyAdd(
+                    this,
+                    amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity),
+                    grade = SpiritStoneGrade.LOW,
+                    source = SpiritStoneSource.Sell(itemType)
+                )
                 success = true
             }
         }
         return success
     }
 
-    override suspend fun sellManual(manualId: String, quantity: Int): Boolean {
-        var success = false
-        stateStore.update {
-            val stack = manualStacks.get(manualId)
-            if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
-                val newQty = stack.quantity - quantity
-                if (newQty <= 0) {
-                    manualStacks.remove(manualId)
-                } else {
-                    manualStacks.update(manualId) { it.copy(quantity = newQty) }
-                }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
-                success = true
-            }
-        }
-        return success
-    }
+    override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean =
+        sellItem(equipmentId, quantity, { it.equipmentStacks }, { it.basePrice }, "equipment")
 
-    override suspend fun sellPill(pillId: String, quantity: Int): Boolean {
-        var success = false
-        stateStore.update {
-            val pill = pills.get(pillId)
-            if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
-                val newQty = pill.quantity - quantity
-                if (newQty <= 0) {
-                    pills.remove(pillId)
-                } else {
-                    pills.update(pillId) { it.copy(quantity = newQty) }
-                }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(pill.basePrice, quantity))
-                success = true
-            }
-        }
-        return success
-    }
+    override suspend fun sellManual(manualId: String, quantity: Int): Boolean =
+        sellItem(manualId, quantity, { it.manualStacks }, { it.basePrice }, "manual")
 
-    override suspend fun sellMaterial(materialId: String, quantity: Int): Boolean {
-        var success = false
-        stateStore.update {
-            val material = materials.get(materialId)
-            if (material != null && !material.isLocked && quantity in 1..material.quantity) {
-                val newQty = material.quantity - quantity
-                if (newQty <= 0) {
-                    materials.remove(materialId)
-                } else {
-                    materials.update(materialId) { it.copy(quantity = newQty) }
-                }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(material.basePrice, quantity))
-                success = true
-            }
-        }
-        return success
-    }
+    override suspend fun sellPill(pillId: String, quantity: Int): Boolean =
+        sellItem(pillId, quantity, { it.pills }, { it.basePrice }, "pill")
 
-    override suspend fun sellHerb(herbId: String, quantity: Int): Boolean {
-        var success = false
-        stateStore.update {
-            val herb = herbs.get(herbId)
-            if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
-                val newQty = herb.quantity - quantity
-                if (newQty <= 0) {
-                    herbs.remove(herbId)
-                } else {
-                    herbs.update(herbId) { it.copy(quantity = newQty) }
-                }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(herb.basePrice, quantity))
-                success = true
-            }
-        }
-        return success
-    }
+    override suspend fun sellMaterial(materialId: String, quantity: Int): Boolean =
+        sellItem(materialId, quantity, { it.materials }, { it.basePrice }, "material")
 
-    override suspend fun sellSeed(seedId: String, quantity: Int): Boolean {
-        var success = false
-        stateStore.update {
-            val seed = seeds.get(seedId)
-            if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
-                val newQty = seed.quantity - quantity
-                if (newQty <= 0) {
-                    seeds.remove(seedId)
-                } else {
-                    seeds.update(seedId) { it.copy(quantity = newQty) }
-                }
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(seed.basePrice, quantity))
-                success = true
-            }
-        }
-        return success
-    }
+    override suspend fun sellHerb(herbId: String, quantity: Int): Boolean =
+        sellItem(herbId, quantity, { it.herbs }, { it.basePrice }, "herb")
+
+    override suspend fun sellSeed(seedId: String, quantity: Int): Boolean =
+        sellItem(seedId, quantity, { it.seeds }, { it.basePrice }, "seed")
 
     override suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean {
         var remaining = quantity
@@ -327,7 +282,7 @@ class InventoryFacadeImpl @Inject constructor(
         val soldItemNames = mutableListOf<String>()
         val failedItemNames = mutableListOf<String>()
 
-        stateStore.update {
+stateStore.update {
             for (op in operations) {
                 var sold = false
                 when (op.itemType) {
@@ -413,7 +368,7 @@ class InventoryFacadeImpl @Inject constructor(
                 if (sold) soldItemNames.add("${op.name} ${op.quantity}") else failedItemNames.add(op.name)
             }
             if (totalEarned > 0) {
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + totalEarned)
+                spiritStoneWallet.applyAdd(this, totalEarned, SpiritStoneGrade.LOW, SpiritStoneSource.Sell("bulk"))
             }
         }
         return InventoryFacade.BulkSellResult(soldCount, totalEarned, soldItemNames, failedItemNames)
@@ -471,9 +426,10 @@ class InventoryFacadeImpl @Inject constructor(
             "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
         }
 
-        stateStore.update {
+stateStore.update {
+            val deductResult = spiritStoneWallet.applyDeduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            if (deductResult !is DeductResult.Success) return@update
             gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - cost,
                 travelingMerchantItems = gameData.travelingMerchantItems.map { item ->
                     if (item.id == itemId) {
                         if (quantity >= item.quantity) null else item.copy(quantity = item.quantity - quantity)
@@ -562,7 +518,7 @@ class InventoryFacadeImpl @Inject constructor(
         val acquisitionItem = stateStore.gameData.value.merchantAcquisitionItems.find { it.id == acquisitionItemId } ?: return
         if (quantity <= 0 || quantity > acquisitionItem.quantity) return
 
-        stateStore.update {
+stateStore.update {
             val warehouseQty = warehouseCount(acquisitionItem)
             val actualQuantity = quantity.coerceAtMost(warehouseQty).coerceAtMost(acquisitionItem.quantity)
             if (actualQuantity <= 0) return@update
@@ -613,8 +569,8 @@ class InventoryFacadeImpl @Inject constructor(
             }
 
             val totalPrice = acquisitionItem.price * actualQuantity
+            spiritStoneWallet.applyAdd(this, totalPrice, SpiritStoneGrade.LOW, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
-                spiritStones = gameData.spiritStones + totalPrice,
                 merchantAcquisitionItems = gameData.merchantAcquisitionItems.map { item ->
                     if (item.id == acquisitionItemId) item.copy(quantity = item.quantity - actualQuantity) else item
                 }
@@ -837,7 +793,7 @@ class InventoryFacadeImpl @Inject constructor(
                 }
                 6 -> {
                     val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
-                    stateStore.update { gameData = gameData.copy(spiritStones = gameData.spiritStones + amount) }
+                    spiritStoneWallet.add(amount, SpiritStoneGrade.LOW, SpiritStoneSource.StorageBag)
                     val existing = rewards.find { it.type == "spiritStones" }
                     if (existing != null) {
                         rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())

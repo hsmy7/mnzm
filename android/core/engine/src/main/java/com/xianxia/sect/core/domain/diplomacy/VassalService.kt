@@ -6,11 +6,15 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SectBattleType
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlin.math.max
 import kotlin.random.Random
 import javax.inject.Inject
@@ -25,7 +29,8 @@ import javax.inject.Singleton
 @Singleton
 @GameService("VassalService")
 class VassalService @Inject constructor(
-    private val stateStore: GameStateStore
+    private val stateStore: GameStateStore,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
 
     companion object {
@@ -63,9 +68,7 @@ class VassalService @Inject constructor(
         )
         if (tribute <= 0) return
         stateStore.update {
-            gameData = gameData.copy(
-                spiritStones = gameData.spiritStones - tribute
-            )
+            spiritStoneWallet.applyDeduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.VassalTribute, SpiritStoneSource.Internal)
         }
     }
 
@@ -269,9 +272,8 @@ class VassalService @Inject constructor(
 
         if (changed) {
             stateStore.update {
+                spiritStoneWallet.applyAdd(this, totalTribute, SpiritStoneGrade.LOW, SpiritStoneSource.Internal)
                 gameData = gameData.copy(
-                    spiritStones = gameData.spiritStones
-                        + totalTribute,
                     vassalContracts = updatedContracts
                 )
             }

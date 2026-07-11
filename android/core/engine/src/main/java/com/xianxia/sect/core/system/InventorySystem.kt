@@ -28,6 +28,11 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.DeductResult
+import com.xianxia.sect.core.wallet.SpiritStoneOperation
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
@@ -41,7 +46,8 @@ import javax.inject.Singleton
 @Singleton
 class InventorySystem @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) : GameSystem, ItemAdder {
 
     companion object {
@@ -1110,152 +1116,84 @@ class InventorySystem @Inject constructor(
         return currentStones >= required
     }
 
-    /** 按下品灵石结算：判断余额是否足够 */
-    fun canAfford(amount: Long): Boolean = canAfford(amount, SpiritStoneGrade.LOW)
+    // ── Spirit Stone operations (delegated to SpiritStoneWallet) ──────────
 
-    /** 按指定品阶判断余额是否足够 */
-    fun canAfford(amount: Long, grade: SpiritStoneGrade): Boolean {
-        return stateStore.gameData.value.spiritStoneCount(grade) >= amount
-    }
-
-    /** 按品阶获取当前灵石数量 */
+    /** @deprecated 使用 [SpiritStoneWallet.balance] 替代 */
+    @Deprecated("Use spiritStoneWallet.balance()")
     fun getSpiritStones(grade: SpiritStoneGrade): Long {
-        return stateStore.gameData.value.spiritStoneCount(grade)
+        return spiritStoneWallet.balance(grade)
     }
 
-    suspend fun deductSpiritStones(amount: Long): Long = deductSpiritStones(amount, SpiritStoneGrade.LOW)
+    /** @deprecated 使用 [SpiritStoneWallet.canAfford] 替代 */
+    @Deprecated("Use spiritStoneWallet.canAfford()")
+    fun canAfford(amount: Long): Boolean = spiritStoneWallet.canAfford(amount)
 
+    /** @deprecated 使用 [SpiritStoneWallet.canAfford] 替代 */
+    @Deprecated("Use spiritStoneWallet.canAfford()")
+    fun canAfford(amount: Long, grade: SpiritStoneGrade): Boolean {
+        return spiritStoneWallet.canAfford(amount, grade)
+    }
+
+    /** @deprecated 使用 [SpiritStoneWallet.deduct] 替代 */
+    @Deprecated("Use spiritStoneWallet.deduct()")
+    suspend fun deductSpiritStones(amount: Long): Long =
+        deductSpiritStones(amount, SpiritStoneGrade.LOW)
+
+    /** @deprecated 使用 [SpiritStoneWallet.deduct] 替代 */
+    @Deprecated("Use spiritStoneWallet.deduct()")
     suspend fun deductSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
-        if (amount <= 0) return getSpiritStones(grade)
-        return stateStore.updateAndReturn {
-            applyDeductSpiritStones(this, amount, grade)
-        }
-    }
-
-    /**
-     * 在事务中执行灵石扣除。当扣除下品灵石余额不足时，
-     * 根据 [GameData.autoSellMidGradeForPurchase] /
-     * [GameData.autoSellHighGradeForPurchase] 设置自动按售卖价
-     * 卖出中品/上品灵石补足差额。
-     */
-    private fun applyDeductSpiritStones(
-        ts: MutableGameState,
-        amount: Long,
-        grade: SpiritStoneGrade
-    ): Long {
-        val gd = ts.gameData
-        val current = gd.spiritStoneCount(grade)
-        val newAmount: Long
-
-        // 下品扣除 + 余额不足 → 检查自动补差价
-        if (grade == SpiritStoneGrade.LOW && current < amount) {
-            val shortfall = amount - current
-            var supplemented = 0L
-
-            // 1) 自动售卖中品补差价
-            if (gd.autoSellMidGradeForPurchase && supplemented < shortfall) {
-                val stillNeed = shortfall - supplemented
-                val midCount = gd.midGradeSpiritStones
-                if (midCount > 0) {
-                    val midLowEquiv = SpiritStoneExchange.EFFECTIVE_RATIO
-                    // 需要卖出多少中品（向上取整）
-                    val sellMidCount =
-                        (stillNeed + midLowEquiv - 1) / midLowEquiv
-                    val actualSellMid =
-                        sellMidCount.coerceAtMost(midCount)
-                    val gainedLow =
-                        SpiritStoneExchange.toLowGrade(actualSellMid, SpiritStoneGrade.MID)
-                    ts.gameData = ts.gameData.copy(
-                        midGradeSpiritStones = gd.midGradeSpiritStones - actualSellMid,
-                        spiritStones = gd.spiritStones + gainedLow
-                    )
-                    supplemented += gainedLow
-                }
-            }
-
-            // 2) 自动售卖上品补差价
-            if (gd.autoSellHighGradeForPurchase && supplemented < shortfall) {
-                val stillNeed = shortfall - supplemented
-                val highCount = ts.gameData.highGradeSpiritStones
-                if (highCount > 0) {
-                    val highLowEquiv =
-                        SpiritStoneExchange.EFFECTIVE_RATIO *
-                        SpiritStoneExchange.EFFECTIVE_RATIO
-                    val sellHighCount =
-                        (stillNeed + highLowEquiv - 1) / highLowEquiv
-                    val actualSellHigh =
-                        sellHighCount.coerceAtMost(highCount)
-                    val gainedLow =
-                        SpiritStoneExchange.toLowGrade(actualSellHigh, SpiritStoneGrade.HIGH)
-                    ts.gameData = ts.gameData.copy(
-                        highGradeSpiritStones =
-                            ts.gameData.highGradeSpiritStones - actualSellHigh,
-                        spiritStones = ts.gameData.spiritStones + gainedLow
-                    )
-                    supplemented += gainedLow
-                }
-            }
-
-            newAmount = (ts.gameData.spiritStones - amount).coerceAtLeast(0L)
-        } else {
-            newAmount = (current - amount).coerceAtLeast(0L)
-        }
-
-        ts.gameData = ts.gameData.copy(
-            spiritStones = if (grade == SpiritStoneGrade.LOW) newAmount
-                else ts.gameData.spiritStones,
-            midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) newAmount
-                else ts.gameData.midGradeSpiritStones,
-            highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) newAmount
-                else ts.gameData.highGradeSpiritStones
+        val result = spiritStoneWallet.deduct(
+            amount = amount,
+            grade = grade,
+            reason = SpiritStoneReason.Internal,
+            source = SpiritStoneSource.Internal,
+            autoConvert = true
         )
-        return newAmount
-    }
-
-    suspend fun addSpiritStones(amount: Long): Long = addSpiritStones(amount, SpiritStoneGrade.LOW)
-
-    suspend fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
-        if (amount <= 0) return getSpiritStones(grade)
-        return stateStore.updateAndReturn {
-            val current = gameData.spiritStoneCount(grade)
-            val newAmount = current + amount
-            gameData = gameData.copy(
-                spiritStones = if (grade == SpiritStoneGrade.LOW) newAmount else gameData.spiritStones,
-                midGradeSpiritStones = if (grade == SpiritStoneGrade.MID) newAmount else gameData.midGradeSpiritStones,
-                highGradeSpiritStones = if (grade == SpiritStoneGrade.HIGH) newAmount else gameData.highGradeSpiritStones
-            )
-            newAmount
+        return when (result) {
+            is DeductResult.Success -> result.balanceAfter
+            is DeductResult.Insufficient -> result.balance
+            DeductResult.Invalid -> spiritStoneWallet.balance(grade)
         }
     }
 
-    /**
-     * 兑换灵石：source 转 target，数量不足时返回 false 且不做任何修改。
-     * 兑换结果按汇率取整，无法兑换的部分（remaining）以 source 品阶保留。
-     */
-    suspend fun exchangeSpiritStones(quantity: Long, source: SpiritStoneGrade, target: SpiritStoneGrade): Boolean {
+    /** @deprecated 使用 [SpiritStoneWallet.add] 替代 */
+    @Deprecated("Use spiritStoneWallet.add()")
+    suspend fun addSpiritStones(amount: Long): Long =
+        addSpiritStones(amount, SpiritStoneGrade.LOW)
+
+    /** @deprecated 使用 [SpiritStoneWallet.add] 替代 */
+    @Deprecated("Use spiritStoneWallet.add()")
+    suspend fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
+        return spiritStoneWallet.add(amount, grade, SpiritStoneSource.Internal)
+    }
+
+    /** @deprecated 使用 [SpiritStoneWallet.batch] 替代 */
+    @Deprecated("Use spiritStoneWallet.batch()")
+    suspend fun exchangeSpiritStones(
+        quantity: Long,
+        source: SpiritStoneGrade,
+        target: SpiritStoneGrade
+    ): Boolean {
         if (quantity <= 0 || source == target) return false
-        if (!canAfford(quantity, source)) return false
+        if (!spiritStoneWallet.canAfford(quantity, source)) return false
 
         val (converted, remaining) = SpiritStoneExchange.exchange(quantity, source, target)
         if (converted <= 0) return false
 
-        stateStore.modifyState {
-            gameData = when {
-                source == SpiritStoneGrade.LOW -> gameData.copy(spiritStones = gameData.spiritStones - quantity + remaining)
-                target == SpiritStoneGrade.LOW -> gameData.copy(spiritStones = gameData.spiritStones + converted)
-                else -> gameData
-            }
-            gameData = when {
-                source == SpiritStoneGrade.MID -> gameData.copy(midGradeSpiritStones = gameData.midGradeSpiritStones - quantity + remaining)
-                target == SpiritStoneGrade.MID -> gameData.copy(midGradeSpiritStones = gameData.midGradeSpiritStones + converted)
-                else -> gameData
-            }
-            gameData = when {
-                source == SpiritStoneGrade.HIGH -> gameData.copy(highGradeSpiritStones = gameData.highGradeSpiritStones - quantity + remaining)
-                target == SpiritStoneGrade.HIGH -> gameData.copy(highGradeSpiritStones = gameData.highGradeSpiritStones + converted)
-                else -> gameData
-            }
-        }
+        spiritStoneWallet.batch(listOf(
+            SpiritStoneOperation(
+                delta = -(quantity - remaining),
+                grade = source,
+                reason = SpiritStoneReason.Exchange,
+                source = SpiritStoneSource.Internal
+            ),
+            SpiritStoneOperation(
+                delta = converted,
+                grade = target,
+                reason = SpiritStoneReason.Exchange,
+                source = SpiritStoneSource.Internal
+            )
+        ))
         return true
     }
 
