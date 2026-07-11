@@ -171,13 +171,13 @@ class AISectAttackManagerTest {
         DiscipleStatus.ON_MISSION,
         DiscipleStatus.IN_TEAM,
         DiscipleStatus.REFLECTING,
-        DiscipleStatus.GARRISONING
+        DiscipleStatus.GARRISONING,
+        DiscipleStatus.REFINING
     )
 
     private fun isEligibleForSectDefense(d: Disciple): Boolean {
         return d.isAlive &&
-            d.status !in SECT_DEFENSE_EXCLUDED &&
-            d.statusData["bloodRefining"] != "true"
+            d.status !in SECT_DEFENSE_EXCLUDED
     }
 
     @Test
@@ -189,7 +189,7 @@ class AISectAttackManagerTest {
     @Test
     fun `主宗门防御 - 血炼中弟子被排除`() {
         val d = makeDisciple("d1",
-            statusData = mapOf("bloodRefining" to "true"))
+            status = DiscipleStatus.REFINING)
         assertFalse(isEligibleForSectDefense(d))
     }
 

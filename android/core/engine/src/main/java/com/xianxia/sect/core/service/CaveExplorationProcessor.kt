@@ -691,8 +691,7 @@ class CaveExplorationProcessor @Inject constructor(
                 it.isAlive &&
                     it.status !in setOf(DiscipleStatus.ON_MISSION,
                         DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING,
-                        DiscipleStatus.GARRISONING) &&
-                    it.statusData["bloodRefining"] != "true"
+                        DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
             }
             .sortedBy { it.realm }
             .take(AISectAttackManager.TEAM_SIZE)

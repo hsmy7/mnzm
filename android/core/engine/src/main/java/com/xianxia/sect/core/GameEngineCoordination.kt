@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -815,6 +816,16 @@ suspend fun GameEngine.startBloodRefinementAtomic(
     requiredSpiritStones: Long,
     progress: BloodRefinementProgress
 ): BloodRefinementStartResult {
+    if (requiredSpiritStones <= 0) {
+        return BloodRefinementStartResult.Error("灵石消耗必须为正数")
+    }
+    if (materialCount <= 0) {
+        return BloodRefinementStartResult.Error("材料消耗必须为正数")
+    }
+    if (progress.durationMonths <= 0 || progress.bonusPercent <= 0.0) {
+        return BloodRefinementStartResult.Error("血炼配置异常（duration/bonus）")
+    }
+    progress.discipleId.toIntOrNull() ?: return BloodRefinementStartResult.Error("非法弟子ID")
     try {
         stateStore.update {
             checkStones(requiredSpiritStones)
@@ -828,6 +839,21 @@ suspend fun GameEngine.startBloodRefinementAtomic(
         DomainLog.e("GameEngine", "血炼原子启动失败: ${e.message}", e)
         return BloodRefinementStartResult.Error(e.message ?: "未知错误")
     }
+}
+
+/** 原子化取消血炼：移除进度 + 恢复弟子状态为空闲 */
+suspend fun GameEngine.cancelBloodRefinement(
+    buildingInstanceId: String,
+    discipleId: String
+) {
+    stateStore.update {
+        cancelBloodRefinement(buildingInstanceId, discipleId)
+    }
+}
+
+/** 月度结算 — 处理所有到期血炼 */
+suspend fun GameEngine.processBloodRefinementCompletions() {
+    stateStore.update { processBloodRefinementCompletions() }
 }
 
 /** 校验灵石是否足够 */
@@ -862,6 +888,16 @@ private fun MutableGameState.commitBloodRefinement(
     requiredSpiritStones: Long,
     progress: BloodRefinementProgress
 ) {
+    // 排他性检查：该建筑已有血炼
+    if (buildingInstanceId in gameData.activeBloodRefinements) {
+        error("该血炼池已有进行中的血炼")
+    }
+    // 排他性检查：该弟子已在其他血炼池中
+    if (gameData.activeBloodRefinements.values.any {
+        it.discipleId == progress.discipleId
+    }) {
+        error("该弟子已在其他血炼池中")
+    }
     val filledProgress = progress.copy(
         startYear = gameData.gameYear, startMonth = gameData.gameMonth
     )
@@ -872,10 +908,138 @@ private fun MutableGameState.commitBloodRefinement(
     )
     val dId = progress.discipleId.toIntOrNull()
     if (dId != null && dId in discipleTables.ids) {
-        discipleTables.statuses[dId] = DiscipleStatus.IDLE
+        discipleTables.statuses[dId] = DiscipleStatus.REFINING
         discipleTables.statusData[dId] = mapOf(
-            "bloodRefining" to "true",
             "buildingId" to buildingInstanceId
         )
+    }
+}
+
+/** 血炼属性 key → 显示名映射 */
+private val STAT_DISPLAY_NAMES = mapOf(
+    "hp" to "生命",
+    "physicalAttack" to "物攻",
+    "magicAttack" to "法攻",
+    "physicalDefense" to "物防",
+    "magicDefense" to "法防",
+    "speed" to "速度"
+)
+
+/**
+ * 月度结算 — 检查并处理所有到期血炼。
+ * 遍历 [activeBloodRefinements]，对已到期的条目逐条结算。
+ */
+fun MutableGameState.processBloodRefinementCompletions() {
+    if (gameData.activeBloodRefinements.isEmpty()) return
+    val remaining = mutableMapOf<String, BloodRefinementProgress>()
+    val originals = gameData.activeBloodRefinements
+    for ((buildingId, progress) in originals) {
+        val elapsed = TimeProgressUtil.calculateElapsedMonths(
+            progress.startYear, progress.startMonth,
+            gameData.gameYear, gameData.gameMonth
+        )
+        if (elapsed < progress.durationMonths) {
+            remaining[buildingId] = progress
+        } else {
+            settleSingleRefinement(buildingId, progress)
+        }
+    }
+    if (remaining.size != originals.size) {
+        gameData = gameData.copy(activeBloodRefinements = remaining)
+    }
+}
+
+/**
+ * 结算单条到期血炼：计算单利加成、更新属性、记录完成、
+ * 重置弟子状态、发送通知。
+ */
+private fun MutableGameState.settleSingleRefinement(
+    buildingId: String,
+    progress: BloodRefinementProgress
+) {
+    val dId = progress.discipleId.toIntOrNull()
+    if (dId == null || dId !in discipleTables.ids) return
+    val statKey = progress.selectedStat
+    if (statKey.isEmpty()) return
+
+    val currentBase = discipleTables.getBaseStat(dId, statKey)
+    val existingTotal = gameData.bloodRefinementBonusTotals[progress.discipleId]
+    val accumulatedBonus = DiscipleStatCalculator.getAccumulatedBonus(
+        existingTotal, statKey
+    )
+    val bonus = DiscipleStatCalculator.calculateSimpleInterestBonus(
+        currentBase, accumulatedBonus, progress.bonusPercent
+    )
+
+    discipleTables.setBaseStat(dId, statKey, currentBase + bonus)
+
+    val updatedTotal = if (existingTotal != null) {
+        DiscipleStatCalculator.addBonusToTotal(existingTotal, statKey, bonus)
+    } else {
+        DiscipleStatCalculator.addBonusToTotal(
+            BloodRefinementBonusTotal(discipleId = progress.discipleId),
+            statKey, bonus
+        )
+    }
+
+    val existingRefinements =
+        gameData.bloodRefinements[progress.discipleId] ?: emptyList()
+    val updatedRefinements = existingRefinements + progress.materialId
+    gameData = gameData.copy(
+        bloodRefinements = gameData.bloodRefinements +
+            (progress.discipleId to updatedRefinements),
+        bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals +
+            (progress.discipleId to updatedTotal)
+    )
+
+    discipleTables.statuses[dId] = DiscipleStatus.IDLE
+    discipleTables.clearBloodRefinementStatusData(dId)
+
+    val statName = STAT_DISPLAY_NAMES[statKey] ?: statKey
+    pendingNotification = GameNotification.BloodRefinementComplete(
+        discipleName = progress.discipleName,
+        statName = statName
+    )
+}
+private fun MutableGameState.cancelBloodRefinement(
+    buildingInstanceId: String,
+    discipleId: String
+) {
+    gameData = gameData.copy(
+        activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
+    )
+    val dId = discipleId.toIntOrNull()
+    if (dId != null && dId in discipleTables.ids) {
+        discipleTables.statuses[dId] = DiscipleStatus.IDLE
+        discipleTables.clearBloodRefinementStatusData(dId)
+    }
+}
+
+/** 仅清除血炼相关的 statusData key，不擦除其他系统写入的数据 */
+private fun DiscipleTables.clearBloodRefinementStatusData(dId: Int) {
+    val current = statusData.getOrDefault(dId, emptyMap())
+    statusData[dId] = current - "buildingId"
+}
+
+/** 从 [DiscipleTables] 读取指定属性的当前 base 值 */
+private fun DiscipleTables.getBaseStat(dId: Int, statKey: String): Int = when (statKey) {
+    "speed" -> baseSpeeds[dId]
+    "hp" -> baseHps[dId]
+    "physicalAttack" -> basePhysicalAttacks[dId]
+    "magicAttack" -> baseMagicAttacks[dId]
+    "physicalDefense" -> basePhysicalDefenses[dId]
+    "magicDefense" -> baseMagicDefenses[dId]
+    else -> 0
+}
+
+/** 写入指定属性的 base 值到 [DiscipleTables] */
+private fun DiscipleTables.setBaseStat(dId: Int, statKey: String, value: Int) {
+    when (statKey) {
+        "speed" -> baseSpeeds[dId] = value
+        "hp" -> baseHps[dId] = value
+        "physicalAttack" -> basePhysicalAttacks[dId] = value
+        "magicAttack" -> baseMagicAttacks[dId] = value
+        "physicalDefense" -> basePhysicalDefenses[dId] = value
+        "magicDefense" -> baseMagicDefenses[dId] = value
     }
 }

@@ -831,7 +831,10 @@ class GameEngineCore @Inject constructor(
                     "spirit stones, checkpointAllProduction triggered")
             }
             cultivationService.processMonthlyEvents()
-            stateStore.update { systemManager.onMonthlyEvent(this) }
+            stateStore.update {
+                systemManager.onMonthlyEvent(this)
+                processBloodRefinementCompletions()
+            }
             missionCheck?.invoke()
         }
     }

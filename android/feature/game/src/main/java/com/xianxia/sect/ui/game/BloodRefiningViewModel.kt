@@ -147,12 +147,13 @@ class BloodRefiningViewModel @Inject constructor(
     }
 
     fun cancelRefine(buildingInstanceId: String) {
+        val state = _uiState.value
+        val progress = state.currentProgress ?: return
         viewModelScope.launch {
-            gameEngine.updateGameData { gameData ->
-                gameData.copy(
-                    activeBloodRefinements = gameData.activeBloodRefinements - buildingInstanceId
-                )
-            }
+            gameEngine.cancelBloodRefinement(
+                buildingInstanceId = buildingInstanceId,
+                discipleId = progress.discipleId
+            )
             _uiState.update { it.copy(
                 isRefining = false,
                 currentProgress = null,

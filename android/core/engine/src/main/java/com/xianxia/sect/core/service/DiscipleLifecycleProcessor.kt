@@ -109,6 +109,16 @@ class DiscipleLifecycleProcessor @Inject constructor(
             }
         }
 
+        // 清理血炼死数据
+        stateStore.update {
+            val updatedTotals = gameData.bloodRefinementBonusTotals - disciple.id
+            val updatedRefinements = gameData.bloodRefinements - disciple.id
+            gameData = gameData.copy(
+                bloodRefinementBonusTotals = updatedTotals,
+                bloodRefinements = updatedRefinements
+            )
+        }
+
         // 发布死亡事件
         eventBus.emit(DeathEvent(
             discipleId = disciple.id,

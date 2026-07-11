@@ -182,6 +182,7 @@ private val scopeProvider: CoroutineScopeProvider,
         val status = tables.statuses[id]
         if (status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
         if (status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
+        if (status == DiscipleStatus.REFINING) return DiscipleStatus.REFINING
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
@@ -264,6 +265,7 @@ private val scopeProvider: CoroutineScopeProvider,
                 if (!isAlive) continue
                 if (status == DiscipleStatus.REFLECTING) continue
                 if (status == DiscipleStatus.ON_MISSION) continue
+                if (status == DiscipleStatus.REFINING) continue
 
                 val discipleId = id.toString()
                 val newStatus = when {
@@ -380,30 +382,31 @@ private val scopeProvider: CoroutineScopeProvider,
         val data = stateStore.gameData.value
         val tables = stateStore.discipleTables
 
-        val reflectingIds = mutableSetOf<String>()
+        val protectedIds = mutableSetOf<String>()
         for (id in tables.ids) {
-            if (tables.statuses[id] == DiscipleStatus.REFLECTING) {
-                reflectingIds.add(id.toString())
+            val status = tables.statuses[id]
+            if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
+                protectedIds.add(id.toString())
             }
         }
 
         val clearedSpiritMineSlots = data.spiritMineSlots.map {
-            if (it.discipleId.isNotEmpty() && it.discipleId !in reflectingIds)
+            if (it.discipleId.isNotEmpty() && it.discipleId !in protectedIds)
                 it.copy(discipleId = "", discipleName = "") else it
         }
 
         val clearedLibrarySlots = data.librarySlots.map {
-            if (it.discipleId.isNotEmpty() && it.discipleId !in reflectingIds)
+            if (it.discipleId.isNotEmpty() && it.discipleId !in protectedIds)
                 it.copy(discipleId = "", discipleName = "") else it
         }
 
-        val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, reflectingIds)
+        val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, protectedIds)
 
         val clearedGarrisonSects = data.worldMapSects.map { sect ->
             if (sect.isPlayerSect) {
                 sect.copy(
                     garrisonSlots = sect.garrisonSlots.map { slot ->
-                        if (slot.discipleId.isNotEmpty() && slot.discipleId !in reflectingIds)
+                        if (slot.discipleId.isNotEmpty() && slot.discipleId !in protectedIds)
                             GarrisonSlot(index = slot.index)
                         else slot
                     }
@@ -412,7 +415,7 @@ private val scopeProvider: CoroutineScopeProvider,
         }
 
         val clearedCaveTeams = data.caveExplorationTeams.map { team ->
-            if (team.memberIds.any { it !in reflectingIds }) {
+            if (team.memberIds.any { it !in protectedIds }) {
                 team.copy(
                     memberIds = emptyList(),
                     memberNames = emptyList(),
@@ -422,12 +425,12 @@ private val scopeProvider: CoroutineScopeProvider,
         }
 
         val clearedActiveMissions = data.activeMissions.filter { mission ->
-            mission.discipleIds.all { it in reflectingIds }
+            mission.discipleIds.all { it in protectedIds }
         }
 
         val teamsSnapshot = stateStore.teams.value
         val updatedTeams = teamsSnapshot.map { team ->
-            if (team.memberIds.any { it !in reflectingIds }) {
+            if (team.memberIds.any { it !in protectedIds }) {
                 team.copy(
                     memberIds = emptyList(),
                     memberNames = emptyList(),
@@ -450,7 +453,7 @@ private val scopeProvider: CoroutineScopeProvider,
 
         val allSlots = productionSlotRepository.getSlots()
         for (slot in allSlots) {
-            if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in reflectingIds && !slot.isWorking) {
+            if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in protectedIds && !slot.isWorking) {
                 productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
@@ -462,42 +465,43 @@ private val scopeProvider: CoroutineScopeProvider,
             val status = tables.statuses[id]
             if (!isAlive) continue
             if (status == DiscipleStatus.REFLECTING) continue
+            if (status == DiscipleStatus.REFINING) continue
             if (status == DiscipleStatus.IDLE) continue
             tables.statuses[id] = DiscipleStatus.IDLE
             tables.statusData[id] = emptyMap()
         }
     }
 
-    private fun clearAllDisciplesFromElderSlots(slots: ElderSlots, reflectingIds: Set<String>): ElderSlots {
+    private fun clearAllDisciplesFromElderSlots(slots: ElderSlots, protectedIds: Set<String>): ElderSlots {
         var updated = slots
 
-        if (updated.viceSectMaster.isNotEmpty() && updated.viceSectMaster !in reflectingIds)
+        if (updated.viceSectMaster.isNotEmpty() && updated.viceSectMaster !in protectedIds)
             updated = updated.copy(viceSectMaster = "")
-        if (updated.herbGardenElder.isNotEmpty() && updated.herbGardenElder !in reflectingIds)
+        if (updated.herbGardenElder.isNotEmpty() && updated.herbGardenElder !in protectedIds)
             updated = updated.copy(herbGardenElder = "")
-        if (updated.alchemyElder.isNotEmpty() && updated.alchemyElder !in reflectingIds)
+        if (updated.alchemyElder.isNotEmpty() && updated.alchemyElder !in protectedIds)
             updated = updated.copy(alchemyElder = "")
-        if (updated.forgeElder.isNotEmpty() && updated.forgeElder !in reflectingIds)
+        if (updated.forgeElder.isNotEmpty() && updated.forgeElder !in protectedIds)
             updated = updated.copy(forgeElder = "")
-        if (updated.outerElder.isNotEmpty() && updated.outerElder !in reflectingIds)
+        if (updated.outerElder.isNotEmpty() && updated.outerElder !in protectedIds)
             updated = updated.copy(outerElder = "")
-        if (updated.preachingElder.isNotEmpty() && updated.preachingElder !in reflectingIds)
+        if (updated.preachingElder.isNotEmpty() && updated.preachingElder !in protectedIds)
             updated = updated.copy(preachingElder = "")
-        if (updated.lawEnforcementElder.isNotEmpty() && updated.lawEnforcementElder !in reflectingIds)
+        if (updated.lawEnforcementElder.isNotEmpty() && updated.lawEnforcementElder !in protectedIds)
             updated = updated.copy(lawEnforcementElder = "")
-        if (updated.innerElder.isNotEmpty() && updated.innerElder !in reflectingIds)
+        if (updated.innerElder.isNotEmpty() && updated.innerElder !in protectedIds)
             updated = updated.copy(innerElder = "")
-        if (updated.qingyunPreachingElder.isNotEmpty() && updated.qingyunPreachingElder !in reflectingIds)
+        if (updated.qingyunPreachingElder.isNotEmpty() && updated.qingyunPreachingElder !in protectedIds)
             updated = updated.copy(qingyunPreachingElder = "")
 
         updated = updated.copy(
-            preachingMasters = updated.preachingMasters.filter { it.discipleId in reflectingIds },
-            lawEnforcementDisciples = updated.lawEnforcementDisciples.filter { it.discipleId in reflectingIds },
-            qingyunPreachingMasters = updated.qingyunPreachingMasters.filter { it.discipleId in reflectingIds },
-            herbGardenDisciples = updated.herbGardenDisciples.filter { it.discipleId in reflectingIds },
-            alchemyDisciples = updated.alchemyDisciples.filter { it.discipleId in reflectingIds },
-            forgeDisciples = updated.forgeDisciples.filter { it.discipleId in reflectingIds },
-            spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.filter { it.discipleId in reflectingIds }
+            preachingMasters = updated.preachingMasters.filter { it.discipleId in protectedIds },
+            lawEnforcementDisciples = updated.lawEnforcementDisciples.filter { it.discipleId in protectedIds },
+            qingyunPreachingMasters = updated.qingyunPreachingMasters.filter { it.discipleId in protectedIds },
+            herbGardenDisciples = updated.herbGardenDisciples.filter { it.discipleId in protectedIds },
+            alchemyDisciples = updated.alchemyDisciples.filter { it.discipleId in protectedIds },
+            forgeDisciples = updated.forgeDisciples.filter { it.discipleId in protectedIds },
+            spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.filter { it.discipleId in protectedIds }
         )
 
         return updated
@@ -562,6 +566,11 @@ private val scopeProvider: CoroutineScopeProvider,
             val isAlive = discipleTables.isAlive[id] == 1
             if (!isAlive) {
                 error = AppError.Domain.Disciple.NotAlive(discipleId)
+                return@update
+            }
+
+            if (discipleTables.statuses[id] == DiscipleStatus.REFINING) {
+                error = AppError.Domain.Disciple.SlotInvalid("弟子正在血炼中，无法驱逐")
                 return@update
             }
 

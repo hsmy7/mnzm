@@ -20,7 +20,18 @@
       "优化：模拟器地图拖拽流畅度大幅提升——模拟器优先尝试Vulkan GPU渲染（走宿主机物理显卡），仅先前崩溃过才降级到Canvas软件渲染；软件渲染路径新增Scroll-Frame Compositing（偏移帧合成减少90%绘制量）+ Chunk化预渲染（芯片级32×32瓦片缓存）+ EWMA帧时间追踪及动态帧率自适应（60/45/30/20fps）",
       "修复：任务阁任务不刷新——processMissionRefreshIfDue guard条件month%3!=1（1/4/7/10月放行）与MissionSystem.processMonthlyRefresh内部条件month%3==0（3/6/9/12月才生成/清理任务）偏移1个月，导致刷新永不执行。改为month%3!=0使guard与引擎逻辑对齐，任务阁每3个月正常刷新任务",
       "清理：移除GameEngineCoordination.kt中从未调用的死代码processMonthlyMissionRefresh",
-      "新增测试：2个月份守卫条件测试验证processMissionRefreshIfDue在3/6/9/12月放行其他月份跳过"
+      "新增测试：2个月份守卫条件测试验证processMissionRefreshIfDue在3/6/9/12月放行其他月份跳过",
+      "新增：血炼池功能闭环——弟子血炼中状态从IDLE伪装改为正式REFINING状态，系统级保护防止状态被覆盖",
+      "新增：血炼月度自动结算——到期血炼按单利计算属性加成，自动写入战斗属性、更新累计记录、重置状态、弹窗提醒",
+      "新增：血炼池排他性校验——同一建筑/弟子不可重复启动血炼，引擎层灵石/材料/duration负值防护",
+      "修复：血炼取消时同时重置弟子状态回来空闲——旧实现仅删除进度不重置弟子状态，取消后弟子卡在REFINING",
+      "修复：syncAllDiscipleStatuses未保护REFINING——长老变更/读档/藏经阁变更等8+触发路径静默覆盖血炼中弟子为IDLE",
+      "修复：getDiscipleStatus未处理REFINING——防御战等依赖此方法的判断漏掉血炼状态",
+      "修复：resetAllDisciplesStatus未跳过REFINING——设置界面重置状态后activeBloodRefinements残留，血炼后台继续结算",
+      "修复：血炼中弟子可被驱逐——expelDisciple添加REFINING守卫",
+      "修复：弟子死亡时血炼死数据残留——handleDiscipleDeath清理bloodRefinementBonusTotals/bloodRefinements僵尸条目",
+      "修复：血炼statusData全量擦除反模式——改为仅清除buildingId key，不误伤其他系统写入的数据",
+      "修复：血炼防御性校验——requiredSpiritStones负数刷灵石、materialCount< =0跳过消耗、durationMonths< =0秒结算、非法discipleId等6项参数校验"
     ]
   },
   {
