@@ -123,19 +123,25 @@ class SpiritStoneWallet @Inject constructor(
         if (operations.isEmpty()) return BatchResult(0, 0, emptyList())
 
         // 预检查所有扣除操作确保原子性
+        // 先保存快照，预检查失败时回滚 autoSell
+        val preSnapshot = state.gameData
+        var hasAutoSold = false
         for (op in operations) {
             if (op.delta >= 0) continue
             val absAmount = -op.delta
             val curr = state.gameData.spiritStoneCount(op.grade)
             if (curr < absAmount) {
                 if (!autoConvert || op.grade != SpiritStoneGrade.LOW) {
+                    if (hasAutoSold) state.gameData = preSnapshot
                     return BatchResult(0, operations.size, emptyList())
                 }
                 val plan = calculateAutoSell(state, absAmount - curr)
                 if (plan == null || state.gameData.spiritStones + plan.gainedLow < absAmount) {
+                    if (hasAutoSold) state.gameData = preSnapshot
                     return BatchResult(0, operations.size, emptyList())
                 }
                 autoSellHigherGrades(state, plan)
+                hasAutoSold = true
             }
         }
 
@@ -180,7 +186,11 @@ class SpiritStoneWallet @Inject constructor(
 
     // ── 查询 ──────────────────────────────────────────────────────────────
 
-    /** 按品阶获取当前灵石数量 */
+    /**
+     * 按品阶获取当前灵石数量。
+     * ⚠️ 在 [stateStore.update] 闭包内调用时读到的是闭包外的旧值，
+     * 如需在事务内读取请直接用 [MutableGameState.gameData.spiritStoneCount]。
+     */
     fun balance(grade: SpiritStoneGrade): Long {
         return stateStore.gameData.value.spiritStoneCount(grade)
     }
@@ -188,7 +198,11 @@ class SpiritStoneWallet @Inject constructor(
     /** 检查下品灵石是否足够 */
     fun canAfford(amount: Long): Boolean = canAfford(amount, SpiritStoneGrade.LOW)
 
-    /** 按品阶检查灵石是否足够 */
+    /**
+     * 按品阶检查灵石是否足够。
+     * ⚠️ 在 [stateStore.update] 闭包内调用时读到的是闭包外的旧值，
+     * 如需在事务内检查请直接用 [MutableGameState.gameData.spiritStoneCount]。
+     */
     fun canAfford(amount: Long, grade: SpiritStoneGrade): Boolean {
         val current = stateStore.gameData.value.spiritStoneCount(grade)
         if (current >= amount) return true
@@ -252,6 +266,12 @@ class SpiritStoneWallet @Inject constructor(
                 midGradeSpiritStones = state.gameData.midGradeSpiritStones - plan.sellMidCount,
                 spiritStones = state.gameData.spiritStones + gainedLow
             )
+            recordAndEmit(state, -plan.sellMidCount, SpiritStoneGrade.MID,
+                state.gameData.midGradeSpiritStones + plan.sellMidCount, state.gameData.midGradeSpiritStones,
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+            recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
+                state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
         }
         if (plan.sellHighCount > 0) {
             val gainedLow = SpiritStoneExchange.toLowGrade(plan.sellHighCount, SpiritStoneGrade.HIGH)
@@ -259,6 +279,12 @@ class SpiritStoneWallet @Inject constructor(
                 highGradeSpiritStones = state.gameData.highGradeSpiritStones - plan.sellHighCount,
                 spiritStones = state.gameData.spiritStones + gainedLow
             )
+            recordAndEmit(state, -plan.sellHighCount, SpiritStoneGrade.HIGH,
+                state.gameData.highGradeSpiritStones + plan.sellHighCount, state.gameData.highGradeSpiritStones,
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
+            recordAndEmit(state, gainedLow, SpiritStoneGrade.LOW,
+                state.gameData.spiritStones - gainedLow, state.gameData.spiritStones,
+                SpiritStoneReason.AutoSell.key, SpiritStoneSource.Internal.key, emptyMap())
         }
     }
 

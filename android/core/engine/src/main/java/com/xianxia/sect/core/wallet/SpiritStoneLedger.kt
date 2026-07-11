@@ -25,7 +25,7 @@ class SpiritStoneLedger @Inject constructor() {
     private var count = 0
 
     val recentTransactions: List<SpiritStoneTransaction>
-        get() = (0 until count).map { buffer[(head + it) % MAX_RECORDS]!! }
+        get() = (0 until count).map { requireNotNull(buffer[(head + it) % MAX_RECORDS]) }
 
     fun record(tx: SpiritStoneTransaction) {
         buffer[(head + count) % MAX_RECORDS] = tx
