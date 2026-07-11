@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -14,8 +13,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DiscipleViewModel @Inject constructor(
-    private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase
+    private val gameEngine: GameEngine
 ) : BaseViewModel() {
     
     companion object {
@@ -139,18 +137,6 @@ class DiscipleViewModel @Inject constructor(
         }
     }
     
-    fun isPositionWorkStatus(discipleId: String): Boolean {
-        return disciplePositionQuery.isPositionWorkStatus(discipleId)
-    }
-    
-    fun getDisciplePosition(discipleId: String): String? {
-        return disciplePositionQuery.getDisciplePosition(discipleId)
-    }
-    
-    fun hasDisciplePosition(discipleId: String): Boolean {
-        return disciplePositionQuery.hasDisciplePosition(discipleId)
-    }
-
     fun recruitDisciple() {
         viewModelScope.launch {
             try {

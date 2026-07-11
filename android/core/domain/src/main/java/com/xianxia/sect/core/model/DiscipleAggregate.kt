@@ -314,23 +314,6 @@ data class DiscipleAggregate(
         return toDisciple()
     }
 
-    // ==================== 任职资格检查 ====================
-
-    /** 是否可担任内门职务（长老/亲传弟子/执事/传道师/副宗主） */
-    val isEligibleForInnerPosition: Boolean
-        get() = isAlive && discipleType == "inner" && age >= GameConfig.Disciple.MIN_AGE &&
-                realmLayer > 0 && status == DiscipleStatus.IDLE
-
-    /** 是否可担任生产职务（锻造/炼丹），不限制内外门 */
-    val isEligibleForProductionPosition: Boolean
-        get() = isAlive && age >= GameConfig.Disciple.MIN_AGE &&
-                realmLayer > 0 && status == DiscipleStatus.IDLE
-
-    /** 是否可担任外门职务（采矿） */
-    val isEligibleForOuterPosition: Boolean
-        get() = isAlive && discipleType == "outer" && age >= GameConfig.Disciple.MIN_AGE &&
-                realmLayer > 0 && status == DiscipleStatus.IDLE
-
     companion object {
         private const val DEFAULT_HP = 100
         private const val DEFAULT_MP = 50

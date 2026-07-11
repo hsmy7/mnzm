@@ -32,7 +32,6 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.state.UnifiedGameState
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.ui.navigation.GameRoute
 import io.mockk.MockKAnnotations
@@ -87,7 +86,6 @@ class GameViewModelTest {
     private val gameEngineCore: GameEngineCore = mockk(relaxed = true)
     private val appContext: Context = mockk(relaxed = true)
     private val systemManager: SystemManager = mockk(relaxed = true)
-    private val disciplePositionQuery: DisciplePositionQueryUseCase = mockk(relaxed = true)
     private val buildingConfigService: BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
     private val dailySignInService: DailySignInService = mockk(relaxed = true)
@@ -139,7 +137,7 @@ class GameViewModelTest {
 
         viewModel = GameViewModel(
             gameEngine, gameEngineCore, appContext, systemManager,
-            disciplePositionQuery, buildingConfigService, mailService,
+            buildingConfigService, mailService,
             dailySignInService, discipleFacade, productionFacade,
             inventoryFacade, buildingFacade, battleFacade,
             diplomacyFacade, saveFacade, thermalMonitor

@@ -34,19 +34,9 @@ enum class MissionDifficulty {
         FORBIDDEN -> 58
     }
 
-    val allowedPositions: List<String> get() = when (this) {
-        SIMPLE -> listOf("外门弟子")
-        NORMAL -> listOf("外门弟子", "内门弟子")
-        HARD -> listOf("内门弟子")
-        FORBIDDEN -> listOf("内门弟子")
-    }
+    val allowedPositions: List<String> get() = listOf("外门弟子", "内门弟子")
 
-    val conditionText: String get() = when (this) {
-        SIMPLE -> "外门弟子"
-        NORMAL -> "无条件"
-        HARD -> "内门弟子"
-        FORBIDDEN -> "内门弟子"
-    }
+    val conditionText: String get() = "无条件"
 
     val minRealm: Int get() = when (this) {
         SIMPLE -> 9
@@ -55,12 +45,7 @@ enum class MissionDifficulty {
         FORBIDDEN -> 3
     }
 
-    val allowedDiscipleTypes: List<String> get() = when (this) {
-        SIMPLE -> listOf("outer")
-        NORMAL -> listOf("outer", "inner")
-        HARD -> listOf("inner")
-        FORBIDDEN -> listOf("inner")
-    }
+    val allowedDiscipleTypes: List<String> get() = listOf("outer", "inner")
 
     val enemyRealmMin: Int get() = when (this) {
         SIMPLE -> 8

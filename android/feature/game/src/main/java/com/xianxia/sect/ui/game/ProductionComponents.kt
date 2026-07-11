@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
@@ -57,7 +58,7 @@ data class ProductionTheme(
     val getDirectDisciples: (ElderSlots) -> List<DirectDiscipleSlot>,
     val elderSortComparator: Comparator<DiscipleAggregate>,
     val directDiscipleSortComparator: Comparator<DiscipleAggregate>,
-    val directDiscipleEligibility: (DiscipleAggregate) -> Boolean = { it.isEligibleForInnerPosition }
+    val directDiscipleEligibility: (DiscipleAggregate) -> Boolean = { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
 )
 
 val ALCHEMY_THEME = ProductionTheme(
@@ -408,8 +409,7 @@ fun ProductionElderSelectionDialog(
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled) {
-        disciples.filter { !elderSlots.isDiscipleInAnyPosition(it.id) }
-            .filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= 5 })
+        disciples.filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -518,17 +518,8 @@ fun ProductionDirectDiscipleSelectionDialog(
 
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
-    val allDirectDiscipleIds = remember(elderSlots) {
-        listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples
-        ).flatten().mapNotNull { it.discipleId }
-    }
-
-    val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds, showAllEnabled) {
-        disciples.filter { !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
-            .filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= 5 })
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled) {
+        disciples.filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {

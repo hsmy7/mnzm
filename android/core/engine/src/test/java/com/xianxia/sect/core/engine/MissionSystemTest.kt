@@ -190,8 +190,8 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `MissionDifficulty - FORBIDDEN不允许外门弟子`() {
-        assertFalse(MissionDifficulty.FORBIDDEN.allowedPositions.contains("外门弟子"))
+    fun `MissionDifficulty - FORBIDDEN也允许外门弟子`() {
+        assertTrue(MissionDifficulty.FORBIDDEN.allowedPositions.contains("外门弟子"))
     }
 
     @Test
@@ -364,7 +364,7 @@ class MissionSystemTest {
         )
         val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "outer", realm = 5) }
         val result = MissionSystem.validateDisciplesForMission(mission, disciples)
-        assertFalse(result.valid)
+        assertTrue(result.valid)
     }
 
     @Test
@@ -379,7 +379,7 @@ class MissionSystemTest {
         )
         val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "inner", realm = 9) }
         val result = MissionSystem.validateDisciplesForMission(mission, disciples)
-        assertFalse(result.valid)
+        assertTrue(result.valid)
     }
 
     @Test

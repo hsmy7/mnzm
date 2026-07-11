@@ -1,17 +1,15 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
 
 @HiltViewModel
 class BattleViewModel @Inject constructor(
-    private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase
+    private val gameEngine: GameEngine
 ) : BaseViewModel() {
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
@@ -25,16 +23,4 @@ class BattleViewModel @Inject constructor(
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
-
-    fun isPositionWorkStatus(discipleId: String): Boolean {
-        return disciplePositionQuery.isPositionWorkStatus(discipleId)
-    }
-
-    fun getDisciplePosition(discipleId: String): String? {
-        return disciplePositionQuery.getDisciplePosition(discipleId)
-    }
-
-    fun hasDisciplePosition(discipleId: String): Boolean {
-        return disciplePositionQuery.hasDisciplePosition(discipleId)
-    }
 }

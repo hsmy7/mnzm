@@ -468,7 +468,7 @@ fun GameEngine.validateAndFixSpiritMineData() {
         for (offset in 0 until 3) {
             val existing = data.spiritMineSlots.getOrNull(slotIdx + offset)
             val slot = if (existing != null) {
-                if (existing.discipleId.isNotEmpty() && (existing.discipleId !in discipleMap || discipleMap[existing.discipleId]?.discipleType != "outer")) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size, buildingInstanceId = mine.instanceId) else existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
+                if (existing.discipleId.isNotEmpty() && existing.discipleId !in discipleMap) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size, buildingInstanceId = mine.instanceId) else existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
             } else SpiritMineSlot(index = rebuiltSlots.size, sectId = mine.sectId, buildingInstanceId = mine.instanceId)
             rebuiltSlots.add(slot)
         }

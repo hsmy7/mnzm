@@ -40,7 +40,6 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.ui.navigation.GameRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -55,7 +54,6 @@ class GameViewModel @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     @ApplicationContext private val appContext: Context,
     private val systemManager: SystemManager,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val buildingConfigService: BuildingConfigService,
     private val mailService: com.xianxia.sect.core.engine.service.MailService,
     private val dailySignInService: DailySignInService,
@@ -560,36 +558,6 @@ class GameViewModel @Inject constructor(
     val highFrequencyData: StateFlow<HighFrequencyData> get() = gameEngine.highFrequencyData
 
     val realtimeCultivation: StateFlow<Map<String, Double>> get() = gameEngine.realtimeCultivation
-
-    /**
-     * 判断弟子是否已分配到某个职位。
-     *
-     * @param discipleId 弟子 ID
-     * @return true 表示已分配职位
-     */
-    fun hasDisciplePosition(discipleId: String): Boolean {
-        return disciplePositionQuery.hasDisciplePosition(discipleId)
-    }
-
-    /**
-     * 获取弟子的职位描述。
-     *
-     * @param discipleId 弟子 ID
-     * @return 职位描述；未分配时返回 null
-     */
-    fun getDisciplePosition(discipleId: String): String? {
-        return disciplePositionQuery.getDisciplePosition(discipleId)
-    }
-
-    /**
-     * 判断弟子当前职位是否为工作状态。
-     *
-     * @param discipleId 弟子 ID
-     * @return true 表示职位处于工作状态
-     */
-    fun isPositionWorkStatus(discipleId: String): Boolean {
-        return disciplePositionQuery.isPositionWorkStatus(discipleId)
-    }
 
     // 防止重复点击标志
 

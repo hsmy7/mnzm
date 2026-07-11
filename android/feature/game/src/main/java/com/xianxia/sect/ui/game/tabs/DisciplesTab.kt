@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -300,7 +301,7 @@ internal fun DirectDiscipleSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
         disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
-            d.realmLayer > 0 && d.age >= 5 && d.discipleType == "inner" && !elderSlots.isDiscipleInAnyPosition(d.id)
+            d.realmLayer > 0 && d.age >= GameConfig.Disciple.MIN_AGE
         })
     }
 
@@ -439,7 +440,7 @@ internal fun ElderDiscipleSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
         disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
-            d.realmLayer > 0 && d.age >= 5 && d.discipleType == "inner" && !elderSlots.isDiscipleInAnyPosition(d.id)
+            d.realmLayer > 0 && d.age >= GameConfig.Disciple.MIN_AGE
         })
     }
 

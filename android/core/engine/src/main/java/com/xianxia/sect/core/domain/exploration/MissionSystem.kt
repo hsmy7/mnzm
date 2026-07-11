@@ -312,22 +312,9 @@ object MissionSystem {
             return ValidationResult(false, "队伍需要${mission.memberCount}名弟子")
         }
 
-        val allowedTypes = mission.difficulty.allowedDiscipleTypes
-        val minRealm = mission.difficulty.minRealm
-
         for (disciple in disciples) {
             if (disciple.status != DiscipleStatus.IDLE) {
                 return ValidationResult(false, "弟子${disciple.name}状态不允许")
-            }
-
-            if (disciple.discipleType !in allowedTypes) {
-                val required = allowedTypes.joinToString("/") { if (it == "outer") "外门" else "内门" }
-                return ValidationResult(false, "弟子${disciple.name}职务不符合，需要${required}弟子")
-            }
-
-            if (disciple.realm > minRealm) {
-                val realmName = com.xianxia.sect.core.GameConfig.Realm.getName(minRealm)
-                return ValidationResult(false, "弟子${disciple.name}境界不足，需要${realmName}及以上")
             }
         }
 

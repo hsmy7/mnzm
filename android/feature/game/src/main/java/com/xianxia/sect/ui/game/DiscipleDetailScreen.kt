@@ -204,8 +204,6 @@ fun DiscipleDetailDialog(
                                         allEquipment = allEquipment,
                                         allManuals = allManuals,
                                         manualProficiencies = manualProficiencies,
-                                        position = viewModel?.getDisciplePosition(disciple.id),
-                                        isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
                                         elderSlots = elderSlots,
                                         allDisciples = allDisciples,
                                         sectPolicies = sectPolicies,

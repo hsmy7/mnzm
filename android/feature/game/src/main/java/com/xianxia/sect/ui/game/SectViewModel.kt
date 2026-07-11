@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +14,6 @@ import javax.inject.Inject
 @HiltViewModel
 class SectViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val sectPolicyToggle: SectPolicyToggleUseCase,
     private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
@@ -42,58 +40,11 @@ class SectViewModel @Inject constructor(
         return gameEngine.getDiscipleAggregate(elderId)
     }
     
-    fun setViceSectMaster(discipleId: String) {
-        viewModelScope.launch {
-            try {
-                val disciple = gameEngine.getDiscipleAggregate(discipleId)
-                if (disciple == null) {
-                    showError(("弟子不存在"))
-                    return@launch
-                }
-                val currentGameData = gameEngine.gameData.value
-                val elderSlots = currentGameData.elderSlots
-                val allElderIds = listOf(
-                    elderSlots.viceSectMaster,
-                    elderSlots.herbGardenElder,
-                    elderSlots.alchemyElder,
-                    elderSlots.forgeElder,
-                    elderSlots.outerElder,
-                    elderSlots.preachingElder,
-                    elderSlots.lawEnforcementElder,
-                    elderSlots.innerElder,
-                    elderSlots.qingyunPreachingElder
-                ).filterNotNull().filter { it.isNotBlank() }
+    fun setViceSectMaster(discipleId: String) =
+        launchElderAction({ elderManagement.assignElder(ElderSlotType.VICE_SECT_MASTER, discipleId) }, "任命失败")
 
-                if (!allElderIds.contains(discipleId)) {
-                    showError(("副宗主需要由长老担任"))
-                    return@launch
-                }
-
-                gameEngine.updateGameData {
-                    it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
-                }
-                showSuccess(("副宗主任命成功"))
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError((e.message ?: "任命失败"))
-            }
-        }
-    }
-
-    fun removeViceSectMaster() {
-        viewModelScope.launch {
-            try {
-                val currentGameData = gameEngine.gameData.value
-                gameEngine.updateGameData {
-                    it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = ""))
-                }
-                showSuccess(("副宗主已卸任"))
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError((e.message ?: "卸任失败"))
-            }
-        }
-    }
+    fun removeViceSectMaster() =
+        launchElderAction({ elderManagement.removeElder(ElderSlotType.VICE_SECT_MASTER) }, "卸任失败")
 
     fun assignElder(slotType: ElderSlotType, discipleId: String) =
         launchElderAction({ elderManagement.assignElder(slotType, discipleId) }, "任命失败")

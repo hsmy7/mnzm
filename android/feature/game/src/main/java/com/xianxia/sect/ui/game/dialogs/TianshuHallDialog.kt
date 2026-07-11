@@ -308,7 +308,7 @@ fun TianshuHallDialog(
 
         ProductionElderSelectionDialog(
             theme = recruitingTheme,
-            disciples = disciples.filter { it.isEligibleForInnerPosition },
+            disciples = disciples,
             currentElderId = recruitingElderId,
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showRecruitingElderSelectDialog = false },

@@ -552,10 +552,7 @@ private fun MissionDispatchDialog(
 
     val eligibleDisciples = remember(allDisciples, busyDiscipleIds, showAllEnabled, battleAndExplorationIds) {
         allDisciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { disciple ->
-            val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
-            disciple.id !in busyDiscipleIds &&
-            disciplePosition in mission.difficulty.allowedPositions &&
-            disciple.realm <= mission.difficulty.minRealm
+            disciple.id !in busyDiscipleIds
         })
     }
 

@@ -22,15 +22,11 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForSpiritMineDeacon(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
-                it.discipleType == "inner" && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+                it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
@@ -44,26 +40,8 @@ class SpiritMineViewModel @Inject constructor(
                     return@launch
                 }
 
-                if (disciple.discipleType != "inner") {
-                    showError("执事只能由内门弟子担任")
-                    return@launch
-                }
-
                 val currentGameData = gameEngine.gameDataSnapshot
                 val elderSlots = currentGameData.elderSlots
-
-                val allElderIds = elderSlots.getAllElderIds()
-                val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
-                if (allElderIds.contains(discipleId)) {
-                    showError("该弟子已担任长老职位")
-                    return@launch
-                }
-
-                if (allDirectDiscipleIds.contains(discipleId)) {
-                    showError("该弟子已是其他长老的亲传弟子")
-                    return@launch
-                }
 
                 val currentDeacons = elderSlots.spiritMineDeaconDisciples.toMutableList()
                 val existingSlot = currentDeacons.find { it.index == slotIndex }
@@ -118,16 +96,13 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForSpiritMining(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
         val assignedMiningIds = gameEngine.gameDataSnapshot.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
+            .filter { it.id !in assignedMiningIds }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
-                it.discipleType == "outer" && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
+                it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })
             .sortedWith(compareByDescending<DiscipleAggregate> { it.mining }
                 .thenBy { it.realm }
@@ -245,11 +220,4 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
-    private fun ElderSlots.getAllElderIds(): List<String> {
-        return elderManagement.run { getAllElderIds() }
-    }
-
-    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
-        return elderManagement.run { getAllDirectDiscipleIds() }
-    }
 }

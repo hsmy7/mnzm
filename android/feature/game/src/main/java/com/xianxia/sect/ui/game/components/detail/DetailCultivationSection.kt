@@ -115,8 +115,6 @@ fun BasicInfoSection(
     allEquipment: List<EquipmentInstance> = emptyList(),
     allManuals: List<ManualInstance> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
-    position: String? = null,
-    isWorkStatusPosition: Boolean = false,
     elderSlots: ElderSlots? = null,
     allDisciples: List<DiscipleAggregate> = emptyList(),
     sectPolicies: SectPolicies? = null,
@@ -160,14 +158,6 @@ fun BasicInfoSection(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            if (position != null) {
-                Text(
-                    text = position,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isWorkStatusPosition) Color(0xFFFF9800) else Color(0xFF4CAF50)
-                )
-            }
             Text(
                 text = disciple.status.displayName,
                 fontSize = 12.sp,

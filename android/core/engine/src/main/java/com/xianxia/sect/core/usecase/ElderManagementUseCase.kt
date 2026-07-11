@@ -78,17 +78,6 @@ class ElderManagementUseCase @Inject constructor(
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
 
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
-        if (allElderIds.contains(discipleId)) {
-            return ElderResult.Error("该弟子已担任长老职位")
-        }
-
-        if (allDirectDiscipleIds.contains(discipleId)) {
-            return ElderResult.Error("该弟子已是其他长老的亲传弟子")
-        }
-
         val newElderSlots = when (slotType) {
             ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                 herbGardenElder = discipleId,
@@ -202,17 +191,6 @@ class ElderManagementUseCase @Inject constructor(
 
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
-
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
-        if (allElderIds.contains(discipleId)) {
-            return ElderResult.Error("该弟子已担任长老职位")
-        }
-
-        if (allDirectDiscipleIds.contains(discipleId)) {
-            return ElderResult.Error("该弟子已是其他长老的亲传弟子")
-        }
 
         gameEngine.assignDirectDisciple(
             elderSlotType = elderSlotType,

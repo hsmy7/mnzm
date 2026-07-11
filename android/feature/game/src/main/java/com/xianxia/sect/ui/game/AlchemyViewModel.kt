@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
@@ -21,7 +20,6 @@ import javax.inject.Inject
 @HiltViewModel
 class AlchemyViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
 
@@ -169,29 +167,10 @@ class AlchemyViewModel @Inject constructor(
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
-        val data = gameEngine.gameDataSnapshot
         val assignedIds = gameEngine.productionSlots.value
             .filter { it.buildingType == BuildingType.ALCHEMY && it.assignedDiscipleId.isNullOrEmpty().not() }
             .mapNotNull { it.assignedDiscipleId }.toSet()
-        // Also exclude disciples already in elder/direct disciple/reserve positions
-        val elderSlots = data.elderSlots
-        val elderIds = setOf(
-            elderSlots.alchemyElder,
-            elderSlots.forgeElder,
-            elderSlots.herbGardenElder,
-            elderSlots.viceSectMaster
-        ).filter { it.isNotEmpty() }
-        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples)
-            .mapNotNull { it.discipleId }.toSet()
-        return all.filter { it.isAlive && it.id !in assignedIds && it.id !in elderIds && it.id !in directIds }
+        return all.filter { it.isAlive && it.id !in assignedIds }
             .sortedByDescending { it.pillRefining }
-    }
-
-    private fun ElderSlots.getAllElderIds(): List<String> {
-        return elderManagement.run { getAllElderIds() }
-    }
-
-    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
-        return elderManagement.run { getAllDirectDiscipleIds() }
     }
 }

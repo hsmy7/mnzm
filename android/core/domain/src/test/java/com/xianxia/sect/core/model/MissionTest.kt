@@ -33,18 +33,18 @@ class MissionTest {
 
     @Test
     fun missionDifficulty_allowedPositions() {
-        assertEquals(listOf("外门弟子"), MissionDifficulty.SIMPLE.allowedPositions)
+        assertEquals(listOf("外门弟子", "内门弟子"), MissionDifficulty.SIMPLE.allowedPositions)
         assertEquals(listOf("外门弟子", "内门弟子"), MissionDifficulty.NORMAL.allowedPositions)
-        assertEquals(listOf("内门弟子"), MissionDifficulty.HARD.allowedPositions)
-        assertEquals(listOf("内门弟子"), MissionDifficulty.FORBIDDEN.allowedPositions)
+        assertEquals(listOf("外门弟子", "内门弟子"), MissionDifficulty.HARD.allowedPositions)
+        assertEquals(listOf("外门弟子", "内门弟子"), MissionDifficulty.FORBIDDEN.allowedPositions)
     }
 
     @Test
     fun missionDifficulty_conditionText() {
-        assertEquals("外门弟子", MissionDifficulty.SIMPLE.conditionText)
+        assertEquals("无条件", MissionDifficulty.SIMPLE.conditionText)
         assertEquals("无条件", MissionDifficulty.NORMAL.conditionText)
-        assertEquals("内门弟子", MissionDifficulty.HARD.conditionText)
-        assertEquals("内门弟子", MissionDifficulty.FORBIDDEN.conditionText)
+        assertEquals("无条件", MissionDifficulty.HARD.conditionText)
+        assertEquals("无条件", MissionDifficulty.FORBIDDEN.conditionText)
     }
 
     @Test
@@ -57,10 +57,10 @@ class MissionTest {
 
     @Test
     fun missionDifficulty_allowedDiscipleTypes() {
-        assertEquals(listOf("outer"), MissionDifficulty.SIMPLE.allowedDiscipleTypes)
+        assertEquals(listOf("outer", "inner"), MissionDifficulty.SIMPLE.allowedDiscipleTypes)
         assertEquals(listOf("outer", "inner"), MissionDifficulty.NORMAL.allowedDiscipleTypes)
-        assertEquals(listOf("inner"), MissionDifficulty.HARD.allowedDiscipleTypes)
-        assertEquals(listOf("inner"), MissionDifficulty.FORBIDDEN.allowedDiscipleTypes)
+        assertEquals(listOf("outer", "inner"), MissionDifficulty.HARD.allowedDiscipleTypes)
+        assertEquals(listOf("outer", "inner"), MissionDifficulty.FORBIDDEN.allowedDiscipleTypes)
     }
 
     @Test

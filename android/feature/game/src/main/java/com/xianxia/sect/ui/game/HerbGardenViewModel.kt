@@ -6,7 +6,6 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -16,7 +15,6 @@ import javax.inject.Inject
 @HiltViewModel
 class HerbGardenViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
 
@@ -127,11 +125,4 @@ class HerbGardenViewModel @Inject constructor(
         return true
     }
 
-    private fun ElderSlots.getAllElderIds(): List<String> {
-        return elderManagement.run { getAllElderIds() }
-    }
-
-    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
-        return elderManagement.run { getAllDirectDiscipleIds() }
-    }
 }

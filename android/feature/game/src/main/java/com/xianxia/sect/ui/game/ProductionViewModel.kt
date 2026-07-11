@@ -1,10 +1,10 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
@@ -16,7 +16,6 @@ import javax.inject.Inject
 @HiltViewModel
 class ProductionViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase,
     private val sectPolicyToggle: SectPolicyToggleUseCase,
     private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
@@ -213,48 +212,32 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForLawEnforcementDisciple(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedByFollowAndRealm()
     }
 
     fun getAvailableDisciplesForOuterElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingMaster(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot?.elderSlots ?: return emptyList()
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -273,40 +256,20 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForInnerElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingMaster(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
-    }
-
-    private fun ElderSlots.getAllElderIds(): List<String> {
-        return elderManagement.run { getAllElderIds() }
-    }
-
-    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
-        return elderManagement.run { getAllDirectDiscipleIds() }
     }
 }

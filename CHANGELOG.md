@@ -62,6 +62,17 @@
 - **新增测试**：17个单元测试覆盖 `applyBuffToTarget` 全场景（healPercent/healFixed 组合、MP恢复、上限 clamp、死亡目标、buff 去重、负值防护、effectiveMaxHp）
 - **清理**：`HeavenlyTrialRewardCapacityTest` 移除 randomEquipment/randomManual 相关的 7 个测试用例（校验已删除，不再需要）
 
+### 优化调整
+
+- **移除：职务限制机制** — 彻底移除内门/外门弟子身份（discipleType）作为槽位/任务的过滤条件：
+  - 所有弟子选择界面不再按内/外门过滤，任何弟子均可担任长老、亲传弟子、生产、采矿等职务
+  - 任务派遣移除身份和境界限制，仅过滤忙碌弟子
+  - 删除 `DisciplePositionHelper.kt`、`DisciplePositionQueryUseCase.kt` 及相关职务查询代码
+  - 删除 `isEligibleForInnerPosition`/`isEligibleForOuterPosition` 任职资格属性
+  - 长老分配冲突检查移除，完全依赖 `DiscipleStatus` 状态过滤
+  - 对抗性审查修复 4 处 `TYPE_OUTER` 残留过滤（`DiscipleService.buildMiningIds`/`fixInvalidMiningSlots`/`getDiscipleStatus`、`GameEngineCoordination.kt` 加载时采矿槽清理）
+  - `setViceSectMaster`/`removeViceSectMaster` 改为委托 `elderManagement` 确保状态同步
+
 ### 修复
 
 - **修复：任务阁任务不刷新** — `CultivationEventProcessor.processMissionRefreshIfDue` guard 条件 `month % 3 != 1`（1/4/7/10 月放行）与 `MissionSystem.processMonthlyRefresh` 内部条件 `month % 3 == 0`（3/6/9/12 月才生成/清理任务）偏移 1 个月，导致刷新永不执行。改为 `month % 3 != 0` 使 guard 与引擎逻辑对齐，任务阁每 3 个月（3/6/9/12 月）正常刷新任务

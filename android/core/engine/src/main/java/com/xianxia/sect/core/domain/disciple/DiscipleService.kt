@@ -231,8 +231,7 @@ private val scopeProvider: CoroutineScopeProvider,
             return DiscipleStatus.STUDYING
         }
 
-        val discipleType = tables.discipleTypes[id]
-        if (data.spiritMineSlots.any { it.discipleId == discipleId } && discipleType == TYPE_OUTER) {
+        if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
             return DiscipleStatus.MINING
         }
 
@@ -329,18 +328,18 @@ private val scopeProvider: CoroutineScopeProvider,
     private fun buildMiningIds(data: GameData, tables: DiscipleTables): Set<String> =
         data.spiritMineSlots
             .mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }
-            .filter { id -> tables.ids.contains(id.toInt()) && tables.discipleTypes[id.toInt()] == TYPE_OUTER }
+            .filter { id -> tables.ids.contains(id.toInt()) }
             .toSet()
 
     private suspend fun fixInvalidMiningSlots(data: GameData, tables: DiscipleTables) {
         val hasInvalid = data.spiritMineSlots.any { slot ->
             slot.discipleId.isNotEmpty() &&
-                (!tables.ids.contains(slot.discipleId.toInt()) || tables.discipleTypes[slot.discipleId.toInt()] != TYPE_OUTER)
+                !tables.ids.contains(slot.discipleId.toInt())
         }
         if (hasInvalid) {
             val fixed = data.spiritMineSlots.map { slot ->
                 if (slot.discipleId.isNotEmpty() &&
-                    (!tables.ids.contains(slot.discipleId.toInt()) || tables.discipleTypes[slot.discipleId.toInt()] != TYPE_OUTER)
+                    !tables.ids.contains(slot.discipleId.toInt())
                 ) slot.copy(discipleId = "", discipleName = "") else slot
             }
             stateStore.update { gameData = gameData.copy(spiritMineSlots = fixed) }
