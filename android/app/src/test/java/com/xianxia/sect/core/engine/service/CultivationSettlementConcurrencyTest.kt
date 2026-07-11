@@ -222,7 +222,7 @@ class CultivationSettlementConcurrencyTest {
         // clear+insert 未触发 _disciplesFlow 刷新（引用未变，mutationVersion
         // 在 reentrantBuffer 提交路径中可能被跳过）。
         // 直接读 stateStore 的 _discipleTables 确认写入已生效。
-        assertTrue("忠诚度应提升, actual=" + d1.skills.loyalty, d1.skills.loyalty >= 50)
+        assertTrue("忠诚度应提升, actual=" + d1.skills.loyalty, d1.skills.loyalty > 50)
     }
 
     @Test

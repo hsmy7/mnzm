@@ -263,8 +263,17 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     )
                 )
             }
-            discipleTables.clear()
-            updatedDisciples.forEach { discipleTables.insert(it) }
+            // ★ 字段级更新替代 clear+insert：GameStateStoreImpl 事务中
+            // _discipleTables 引用不变，clear+insert 后 !（引用不等）检测不触发，
+            // mutationVersion 虽变化但 batchEmission/reentrantBuffer 路径可能跳过。
+            // 直接写字段确保值落盘且 mutationVersion 正确递增。
+            for (d in updatedDisciples) {
+                val id = d.id.toIntOrNull() ?: continue
+                discipleTables.statuses[id] = d.status
+                discipleTables.statusData[id] = d.statusData
+                discipleTables.moralities[id] = d.skills.morality
+                discipleTables.loyalties[id] = d.skills.loyalty
+            }
         }
     }
 
