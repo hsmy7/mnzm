@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
@@ -479,7 +480,10 @@ fun BreakthroughDetailDialog(
         if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

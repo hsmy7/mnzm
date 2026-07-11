@@ -90,6 +90,7 @@ fun UnifiedGameDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
             dismissOnBackPress = false,
             dismissOnClickOutside = false
         )
@@ -129,10 +130,11 @@ fun UnifiedGameDialog(
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Unified header
                     val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
+                    val headerTopPadding = if (mode == DialogMode.Full) headerH else 4.dp
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = headerH, end = headerH, top = 4.dp),
+                            .padding(start = headerH, end = headerH, top = headerTopPadding),
                         contentAlignment = titleAlignment
                     ) {
                         Text(

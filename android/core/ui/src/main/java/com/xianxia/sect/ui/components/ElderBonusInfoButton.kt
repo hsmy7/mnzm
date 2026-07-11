@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.annotation.DrawableRes
 import com.xianxia.sect.core.ui.R
 import com.xianxia.sect.ui.components.CloseButton
@@ -73,7 +74,10 @@ fun ElderBonusInfoDialog(
     @DrawableRes backgroundRes: Int = R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

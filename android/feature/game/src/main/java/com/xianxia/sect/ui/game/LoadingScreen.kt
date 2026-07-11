@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -68,7 +69,10 @@ fun LoadingDialog(
     phaseText: String = "",
     onDismiss: () -> Unit = {}
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
         LoadingScreenContent(
             progress = progress,
             showProgress = showProgress,

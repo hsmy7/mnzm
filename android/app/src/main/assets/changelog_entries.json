@@ -4,7 +4,8 @@
     "version": "4.0.44",
     "changes": [
       "修复：弟子交谈界面右上角关闭按钮被内容区域遮挡无法点击——Box布局中CloseButton声明在Row(fillMaxSize)之前被覆盖。改为沿用外交界面UnifiedGameDialog组件，关闭按钮在header行与内容区垂直分离，不再重叠",
-      "重构：DiscipleChatDialog改用UnifiedGameDialog——移除手写Box/Image/CloseButton/BackHandler，统一使用全屏UnifiedGameDialog(mode=Full)，标题栏显示弟子姓名，背景图和关闭按钮由组件内部管理。与SectDiplomacyDialog布局结构完全一致"
+      "重构：DiscipleChatDialog改用UnifiedGameDialog——移除手写Box/Image/CloseButton/BackHandler，统一使用全屏UnifiedGameDialog(mode=Full)，标题栏显示弟子姓名，背景图和关闭按钮由组件内部管理。与SectDiplomacyDialog布局结构完全一致",
+      "修复：对话框半透明遮罩未覆盖全屏——UnifiedGameDialog/InlineStandardPromptDialog的DialogProperties缺少decorFitsSystemWindows=false，Compose Dialog独立窗口不继承Activity的edge-to-edge设置，半透明遮罩被系统栏inset，在状态栏/导航栏区域露出游戏画面。同步补齐SettingsTab等5处inline Dialog及ElderBonusInfoButton等3处Dialog缺失的DialogProperties，修复Full模式标题顶部padding（4→32dp）防挖孔遮挡"
     ]
   },
   {

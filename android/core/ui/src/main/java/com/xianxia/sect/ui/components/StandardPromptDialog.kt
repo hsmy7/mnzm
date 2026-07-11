@@ -269,6 +269,7 @@ fun InlineStandardPromptDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
             dismissOnBackPress = false,
             dismissOnClickOutside = false
         )

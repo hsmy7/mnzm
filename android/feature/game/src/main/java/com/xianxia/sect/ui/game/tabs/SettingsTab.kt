@@ -328,11 +328,12 @@ internal fun SettingsTab(
                         DialogSoftInputGuard()
                         Dialog(
                             onDismissRequest = { showEditIntervalDialog = false },
-                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
                         ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .imePadding()
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -818,7 +819,7 @@ internal fun SettingsTab(
     if (showOtherSettingsDialog) {
         Dialog(
             onDismissRequest = { showOtherSettingsDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
             Box(
                 modifier = Modifier
@@ -975,7 +976,7 @@ internal fun SettingsTab(
     if (showSalaryConfigDialog) {
         Dialog(
             onDismissRequest = { showSalaryConfigDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
         Box(
             modifier = Modifier
@@ -1094,7 +1095,7 @@ internal fun SaveSlotDialog(
     
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
     Box(
         modifier = Modifier
@@ -1395,7 +1396,7 @@ internal fun SaveSlotCard(
 private fun ChangelogDialog(onDismiss: () -> Unit) {
         Dialog(
             onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
     Box(
         modifier = Modifier

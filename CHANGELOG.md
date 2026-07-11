@@ -3,6 +3,7 @@
 ### 修复
 
 - **修复：弟子交谈关闭按钮被内容区遮挡** — Dialog 的 Box 布局中 `CloseButton` 声明在 `Row(fillMaxSize)` 之前，z-order 较低被覆盖。重构为 `UnifiedGameDialog`（同外交界面），关闭按钮在 header 行与内容区垂直分离，标题栏显示弟子姓名。移除手写 Box/BackHandler/CloseButton
+- **修复：对话框半透明遮罩未覆盖全屏** — UnifiedGameDialog/InlineStandardPromptDialog 的 DialogProperties 缺少 `decorFitsSystemWindows=false`，Compose Dialog 独立窗口不继承 Activity 的 edge-to-edge 设置，半透明遮罩被系统栏 inset，在状态栏/导航栏区域露出游戏画面。同步补齐 SettingsTab 等 5 处 inline Dialog 及 ElderBonusInfoButton 等 3 处 Dialog 缺失的 DialogProperties，修复 Full 模式标题顶部 padding（4→32dp）防挖孔遮挡。对抗性审查 3 个 Agent 共发现 14 项问题，已逐项确认处理
 
 ### 新功能
 
