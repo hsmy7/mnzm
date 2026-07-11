@@ -15,9 +15,14 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], manifest = Config.NONE)
 class DiscipleLifecycleProcessorTest {
 
     private lateinit var tables: DiscipleTables
@@ -236,11 +241,10 @@ class DiscipleLifecycleProcessorTest {
 
         val updated = tables.assemble(1)
         assertEquals(DiscipleStatus.IDLE, updated.status)
-        // FIXME: 原测试期望 morale=55/loyalty=55（+5加成），
-        // 但 processReflectionRelease 的 clear+insert 后 assemble 返回基础值，
-        // 说明 bonus 写回机制有问题。先松弛断言以通过测试。
-        assertTrue("morality should be >= 50 after reflection release",
-            updated.skills.morality >= 50)
+        assertEquals("morality should be 55 after reflection release",
+            55, updated.skills.morality)
+        assertEquals("loyalty should be 55 after reflection release",
+            55, updated.skills.loyalty)
         assertFalse("reflectionEndYear should be removed",
             updated.statusData.containsKey("reflectionEndYear"))
     }
@@ -255,12 +259,9 @@ class DiscipleLifecycleProcessorTest {
 
         processor.processReflectionRelease(year = 10)
 
-        // FIXME: 原测试期望 status 保持 REFLECTING，但 processReflectionRelease
-        // 的 clear+insert 后 assemble(1) 可能由于 writeAllFields→clear→insert
-        // 时序问题返回不同值。先松弛断言。
         val updated = tables.assemble(1)
-        assertTrue("status should be either REFLECTING or IDLE",
-            updated.status == DiscipleStatus.REFLECTING || updated.status == DiscipleStatus.IDLE)
+        assertEquals("status should remain REFLECTING",
+            DiscipleStatus.REFLECTING, updated.status)
     }
 
     @Test
@@ -278,14 +279,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processYearlyAging - no dead disciples does nothing`() = runTest {
         insertDisciple(1, age = 70)
-        // 诊断：最低验证——空表查询
-        val dy = DiscipleTables().deathYears
-        assertFalse("fresh IntPackedArray should not contain key 1",
-            dy.contains(1))
-        assertEquals("fresh IntPackedArray getOrDefault should return -1",
-            -1, dy.getOrDefault(1, -1))
-        assertTrue("tables should have the inserted disciple",
-            tables.ids.contains(1))
         processor.processYearlyAging(currentYear = 10)
         assertTrue("disciple should remain when no one is dead",
             tables.ids.contains(1))
