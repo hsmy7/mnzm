@@ -198,45 +198,33 @@ class CultivationSettlement @Inject constructor(
 
     /**
      * 政策月度灵石扣除。
-     * 直接操作影子状态，同步执行。
+     * 通过 [SpiritStoneWallet] 逐项扣除，账本可追溯。
      * @return [PolicyCostResult] — AllPaid 或 SomeDisabled
      */
     fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
         val data = state.gameData
-        val policies = data.sectPolicies
-        var currentStones = data.spiritStones
-        var updatedPolicies = policies
         val disabledPolicies = mutableListOf<String>()
         val deductedPolicies = mutableListOf<Pair<String, Long>>()
 
-        fun checkAndDeduct(cost: Long, name: String, isEnabled: Boolean, disable: (SectPolicies) -> SectPolicies) {
-            if (!isEnabled) return@checkAndDeduct
-            if (currentStones >= cost) {
-                currentStones -= cost
-                deductedPolicies.add(name to cost)
-            } else {
-                updatedPolicies = disable(updatedPolicies)
-                disabledPolicies.add(name)
+        fun tryDeduct(cost: Long, name: String, isEnabled: Boolean, disable: (SectPolicies) -> SectPolicies) {
+            if (!isEnabled) return@tryDeduct
+            when (spiritStoneWallet.deduct(state, cost, SpiritStoneGrade.LOW,
+                SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal, true)) {
+                is DeductResult.Success -> deductedPolicies.add(name to cost)
+                else -> {
+                    state.gameData = state.gameData.copy(sectPolicies = disable(state.gameData.sectPolicies))
+                    disabledPolicies.add(name)
+                }
             }
         }
 
-        checkAndDeduct(GameConfig.PolicyConfig.ENHANCED_SECURITY_COST.toLong(), "增强治安", policies.enhancedSecurity) { it.copy(enhancedSecurity = false) }
-        checkAndDeduct(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST.toLong(), "丹道激励", policies.alchemyIncentive) { it.copy(alchemyIncentive = false) }
-        checkAndDeduct(GameConfig.PolicyConfig.FORGE_INCENTIVE_COST.toLong(), "锻造激励", policies.forgeIncentive) { it.copy(forgeIncentive = false) }
-        checkAndDeduct(GameConfig.PolicyConfig.HERB_CULTIVATION_COST.toLong(), "灵药培育", policies.herbCultivation) { it.copy(herbCultivation = false) }
-        checkAndDeduct(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST.toLong(), "修行津贴", policies.cultivationSubsidy) { it.copy(cultivationSubsidy = false) }
-        checkAndDeduct(GameConfig.PolicyConfig.MANUAL_RESEARCH_COST.toLong(), "功法研习", policies.manualResearch) { it.copy(manualResearch = false) }
+        tryDeduct(GameConfig.PolicyConfig.ENHANCED_SECURITY_COST.toLong(), "增强治安", data.sectPolicies.enhancedSecurity) { it.copy(enhancedSecurity = false) }
+        tryDeduct(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST.toLong(), "丹道激励", data.sectPolicies.alchemyIncentive) { it.copy(alchemyIncentive = false) }
+        tryDeduct(GameConfig.PolicyConfig.FORGE_INCENTIVE_COST.toLong(), "锻造激励", data.sectPolicies.forgeIncentive) { it.copy(forgeIncentive = false) }
+        tryDeduct(GameConfig.PolicyConfig.HERB_CULTIVATION_COST.toLong(), "灵药培育", data.sectPolicies.herbCultivation) { it.copy(herbCultivation = false) }
+        tryDeduct(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST.toLong(), "修行津贴", data.sectPolicies.cultivationSubsidy) { it.copy(cultivationSubsidy = false) }
+        tryDeduct(GameConfig.PolicyConfig.MANUAL_RESEARCH_COST.toLong(), "功法研习", data.sectPolicies.manualResearch) { it.copy(manualResearch = false) }
 
-        if (deductedPolicies.isNotEmpty() || disabledPolicies.isNotEmpty()) {
-            var updatedGameData = data
-            if (deductedPolicies.isNotEmpty()) {
-                updatedGameData = updatedGameData.copy(spiritStones = currentStones)
-            }
-            if (disabledPolicies.isNotEmpty()) {
-                updatedGameData = updatedGameData.copy(sectPolicies = updatedPolicies)
-            }
-            state.gameData = updatedGameData
-        }
         return if (disabledPolicies.isNotEmpty()) {
             PolicyCostResult.SomeDisabled(disabledPolicies, deductedPolicies)
         } else {

@@ -188,9 +188,16 @@ class SpiritStoneWallet @Inject constructor(
     // ── 查询 ──────────────────────────────────────────────────────────────
 
     /**
+     * 在事务中按品阶获取灵石数量。安全地在 [stateStore.update] 闭包内使用。
+     */
+    fun balanceInState(state: MutableGameState, grade: SpiritStoneGrade): Long {
+        return state.gameData.spiritStoneCount(grade)
+    }
+
+    /**
      * 按品阶获取当前灵石数量。
-     * ⚠️ 在 [stateStore.update] 闭包内调用时读到的是闭包外的旧值，
-     * 如需在事务内读取请直接用 [MutableGameState.gameData.spiritStoneCount]。
+     * ⚠️ 在 [stateStore.update] 闭包内调用时读到的是闭包外的旧值！
+     * 事务内请用 [balanceInState] 或直接 [MutableGameState.gameData.spiritStoneCount]。
      */
     fun balance(grade: SpiritStoneGrade): Long {
         return stateStore.gameData.value.spiritStoneCount(grade)

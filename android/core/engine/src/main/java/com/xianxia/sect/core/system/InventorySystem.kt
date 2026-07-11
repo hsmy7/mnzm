@@ -1173,12 +1173,11 @@ class InventorySystem @Inject constructor(
         target: SpiritStoneGrade
     ): Boolean {
         if (quantity <= 0 || source == target) return false
-        if (!spiritStoneWallet.canAfford(quantity, source)) return false
 
         val (converted, remaining) = SpiritStoneExchange.exchange(quantity, source, target)
         if (converted <= 0) return false
 
-        stateStore.modifyState {
+        val result = stateStore.updateAndReturn {
             spiritStoneWallet.batch(this, listOf(
                 SpiritStoneOperation(
                     delta = -(quantity - remaining), grade = source,
@@ -1188,9 +1187,9 @@ class InventorySystem @Inject constructor(
                     delta = converted, grade = target,
                     reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal
                 )
-            ))
+            ), autoConvert = true)
         }
-        return true
+        return result.failedCount == 0
     }
 
     fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack =
