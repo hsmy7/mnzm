@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.ActivityDef
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
@@ -49,6 +50,14 @@ fun ActivityDialog(
     val trialViewModel = if (selectedActivity?.id == "heavenly_trial") {
         hiltViewModel<HeavenlyTrialViewModel>()
     } else null
+    var trialError by remember { mutableStateOf<String?>(null) }
+    if (trialViewModel != null) {
+        LaunchedEffect(Unit) {
+            trialViewModel.errorEvents.collect { message ->
+                trialError = message
+            }
+        }
+    }
     val trialScreen by trialViewModel?.currentScreen?.collectAsStateWithLifecycle()
         ?: remember { mutableStateOf(null) }
     val isTrialChallenge = trialViewModel != null && trialScreen != null &&
@@ -221,6 +230,16 @@ fun ActivityDialog(
                             }
                         },
                         onDismiss = { trialViewModel.dismissClearRewards() }
+                    )
+                }
+
+                // 天道试炼错误提示（覆在内容之上）
+                trialError?.let { message ->
+                    StandardPromptDialog(
+                        onDismissRequest = { trialError = null },
+                        title = "错误",
+                        text = message,
+                        confirmLabel = "确定"
                     )
                 }
             }

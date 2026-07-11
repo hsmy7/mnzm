@@ -6,6 +6,7 @@
 - **修复：天道试炼战斗中加血功法不加血** — `applyBuffToTarget` 遗漏 `skill.healFixed`（固定数值治疗）处理，只处理了百分比治疗。合入 `BattleCalculator` 的正确实现，同时新增 `skill.buffs` 多 buff 列表支持
 - **修复：天道试炼 AoE 治疗/辅助技能无效** — 技能选择面板的 `if(skill.isAoe)` 分支只有攻击处理，缺少辅助/治疗else分支
 - **修复：天道试炼敌方治疗双重生效** — BUFF_ALLY/BUFF_SELF 先通过 `applyBuffToTarget` 预应用治疗，动画回调 `applyAnimationResult` 再第二次加血。现直接跳过动画回调的治疗重应用
+- **修复：天道试炼第6关奖励领取按钮无响应** — randomEquipment/randomManual 从玩家已有装备堆叠中筛选模板（需先有地品装备才能领地品装备），改为从 `EquipmentDatabase`/`ManualDatabase` 数据库直接生成，不再依赖玩家库存
 
 ### 对抗性审查修复
 
@@ -16,10 +17,19 @@
 - **修复：同类型 Buff 无限堆积** — 同类型 buff 自动覆盖替换（刷新持续时间），避免战斗多轮后 buff 列表膨胀
 - **修复：负值 healPercent/healFixed 静默不生效** — `.coerceAtLeast(0)` 负值防护
 - **修复：BUFF_ALLY/BUFF_SELF 视觉数字缺 healFixed** — 治疗数字显示加入固定治疗量
+- **修复：第6关奖励错误静默丢失** — `HeavenlyTrialViewModel.errorEvents` Channel 无人收集导致 `CapacityInsufficient` 错误被吞。改为 `ActivityDialog` 内收集并用 `StandardPromptDialog` 显示
+- **修复：并发重复领取漏洞** — 快速双击奖励领取按钮可绕过外层 `claimedRewardLevels` 检查（Mutex 外），在 `stateStore.update` 内增加原子二次检查防止双倍发放
+
+### 代码质量优化
+
+- **重构：claimClearReward 超长函数拆分** — 从 ~170 行提取 `MutableGameState.distributeRewardItems()` 扩展函数，主函数缩减至 ~45 行
+- **新增注解**：`HeavenlyTrialService` 标注 `@GameService("HeavenlyTrialService")`
+- **修复**：`GameViewModelTest` 5个 Robolectric 测试 `OutOfMemoryError` — 在 `build.gradle` 中设置测试 JVM 堆为 2g
 
 ### 测试覆盖
 
 - **新增测试**：17个单元测试覆盖 `applyBuffToTarget` 全场景（healPercent/healFixed 组合、MP恢复、上限 clamp、死亡目标、buff 去重、负值防护、effectiveMaxHp）
+- **清理**：`HeavenlyTrialRewardCapacityTest` 移除 randomEquipment/randomManual 相关的 7 个测试用例（校验已删除，不再需要）
 
 ## [4.0.43] - 2026-07-10（versionCode=4043）
 

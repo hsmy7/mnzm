@@ -10,7 +10,13 @@
       "修复：天道试炼跳过按钮可在动画中点击——添加isAnimating守卫防止竞态",
       "修复：advanceTurn使用陈旧闭包——3处改为实时读取playerTeam/enemyTeam过滤存活",
       "修复：天道试炼弟子技能MP双倍扣除——移除executePlayerSkill中重复MP扣除",
-      "新增测试：17个applyBuffToTarget单元测试覆盖全场景"
+      "修复：天道试炼第6关奖励领取按钮无响应——randomEquipment从玩家已有装备堆叠中筛选模板（需先有地品装备才能领地品装备），改为从EquipmentDatabase/ManualDatabase数据库直接生成，不依赖玩家库存",
+      "修复：天道试炼奖励错误静默丢失——HeavenlyTrialViewModel.errorEvents无人收集导致CapacityInsufficient错误被吞，改为ActivityDialog内收集并用弹窗显示",
+      "修复：奖励领取并发重复漏洞——快速双击领取按钮可绕过外层claimedRewardLevels检查，在stateStore.update内增加原子二次检查防止双倍发放",
+      "重构：claimClearReward超长函数拆分——从170行提取MutableGameState.distributeRewardItems扩展函数，主函数缩减至45行",
+      "新增注解：HeavenlyTrialService标注@GameService注解",
+      "新增测试：7个capacity预校验测试用例同步更新（移除已删除的randomEquipment/randomManual校验测试）",
+      "修复：5个GameViewModelTest Robolectric测试OutOfMemoryError——build.gradle设置测试JVM堆为2g"
     ]
   },
   {

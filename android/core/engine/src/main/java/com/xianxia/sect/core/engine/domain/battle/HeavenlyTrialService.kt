@@ -20,10 +20,13 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
+import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.mergeStackable
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +43,7 @@ data class EnemyAction(
 )
 
 @Singleton
+@GameService("HeavenlyTrialService")
 class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig
@@ -296,8 +300,6 @@ class HeavenlyTrialService @Inject constructor(
         val capacityCheck = checkRewardCapacity(
             reward = reward,
             storageBags = stateStore.storageBagsSnapshot,
-            equipmentStacks = stateStore.equipmentStacksSnapshot,
-            manualStacks = stateStore.manualStacksSnapshot,
             inventoryConfig = inventoryConfig
         )
         if (capacityCheck is RewardCapacityCheck.Failed) {
@@ -307,150 +309,11 @@ class HeavenlyTrialService @Inject constructor(
         val generatedCards = mutableListOf<RewardCardItem>()
 
         stateStore.update {
-            // 追踪是否有物品因并发修改而跳过发放
-            var distributeFailed = false
-            for (item in reward.items) {
-                when (item.itemType) {
-                    "spiritStones" -> {
-                        gameData = gameData.copy(
-                            spiritStones = gameData.spiritStones + item.quantity
-                        )
-                        generatedCards.add(RewardCardItem(
-                            itemName = "灵石", itemType = "spiritStones",
-                            rarity = 1, quantity = item.quantity
-                        ))
-                    }
-                    "storageBag" -> {
-                        val qty = item.quantity.coerceAtLeast(1)
-                        val rarity = item.rarity.coerceIn(1, 6)
-                        val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                        val maxStack = inventoryConfig.getMaxStackSize("storageBag")
-                        val newBag = StorageBag(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = bagName,
-                            rarity = rarity,
-                            description = "${bagName}，可开启获得随机物品",
-                            quantity = qty
-                        )
-                        // 使用 mergeStackable 处理溢出：合并到同类堆叠，超过上限时新建堆叠，
-                        // 替代旧的 coerceAtMost 截断模式（避免数量静默丢失）。
-                        storageBags = storageBags.mergeStackable(
-                            item = newBag,
-                            matchPredicate = { it.rarity == rarity },
-                            maxStack = maxStack
-                        )
-                        generatedCards.add(RewardCardItem(
-                            itemName = bagName, itemType = "storageBag",
-                            rarity = rarity, quantity = qty
-                        ))
-                    }
-                    "randomPill" -> {
-                        val qty = item.quantity.coerceAtLeast(1)
-                        val generated = mutableListOf<RewardCardItem>()
-                        val minRarity = item.rarity
-                        val maxRarity = item.rarity
-                        val maxStack = inventoryConfig.getMaxStackSize("pill")
-                        repeat(qty) {
-                            val pill = ItemDatabase.generateRandomPill(
-                                minRarity = minRarity, maxRarity = maxRarity
-                            ).copy(
-                                id = java.util.UUID.randomUUID().toString(), quantity = 1
-                            )
-                            // 使用 mergeStackable 处理溢出，替代旧的"达上限静默丢弃"模式。
-                            // 修复历史 bug：原实现仅当 existing.quantity < maxStack 才合并，
-                            // 否则静默丢弃且未设置 capacityError，导致奖励物品消失。
-                            pills = pills.mergeStackable(
-                                item = pill,
-                                matchPredicate = {
-                                    it.name == pill.name && it.rarity == pill.rarity &&
-                                        it.category == pill.category
-                                },
-                                maxStack = maxStack
-                            )
-                            generated.add(RewardCardItem(
-                                itemName = pill.name, itemType = "pill",
-                                rarity = pill.rarity, quantity = 1
-                            ))
-                        }
-                        generatedCards.addAll(mergeCardsByName(generated))
-                    }
-                    "randomEquipment" -> {
-                        val qty = item.quantity.coerceAtLeast(1)
-                        val targetRarity = item.rarity
-                        val eligible = equipmentStacks
-                            .filter { it.rarity == targetRarity }
-                        // 预校验已确保 eligible 非空；事务内再次校验防御并发修改
-                        if (eligible.isEmpty()) {
-                            // 理论不可达：预校验通过才进入此块。
-                            // 若并发修改导致池变空，标记发放失败，
-                            // 阻止 claimedRewardLevels 写入，用户可重领
-                            distributeFailed = true
-                            continue
-                        } else {
-                            val generated = mutableListOf<RewardCardItem>()
-                            repeat(qty) {
-                                val stack = eligible.random()
-                                val instance = EquipmentInstance(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = stack.name,
-                                    rarity = stack.rarity,
-                                    description = stack.description,
-                                    slot = stack.slot,
-                                    physicalAttack = stack.physicalAttack,
-                                    magicAttack = stack.magicAttack,
-                                    physicalDefense = stack.physicalDefense,
-                                    magicDefense = stack.magicDefense,
-                                    speed = stack.speed,
-                                    hp = stack.hp,
-                                    mp = stack.mp,
-                                    critChance = stack.critChance,
-                                    minRealm = stack.minRealm
-                                )
-                                equipmentInstances = equipmentInstances + instance
-                                generated.add(RewardCardItem(
-                                    itemName = instance.name, itemType = "equipment",
-                                    rarity = instance.rarity, quantity = 1
-                                ))
-                            }
-                            generatedCards.addAll(mergeCardsByName(generated))
-                        }
-                    }
-                    "randomManual" -> {
-                        val qty = item.quantity.coerceAtLeast(1)
-                        val targetRarity = item.rarity
-                        val eligible = manualStacks
-                            .filter { it.rarity == targetRarity }
-                        if (eligible.isEmpty()) {
-                            // 理论不可达：预校验通过才进入此块。
-                            // 若并发修改导致池变空，标记发放失败，
-                            // 阻止 claimedRewardLevels 写入，用户可重领
-                            distributeFailed = true
-                            continue
-                        } else {
-                            val generated = mutableListOf<RewardCardItem>()
-                            repeat(qty) {
-                                val stack = eligible.random()
-                                val instance = stack.toInstance(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    isLearned = false
-                                )
-                                manualInstances = manualInstances + instance
-                                generated.add(RewardCardItem(
-                                    itemName = instance.name, itemType = "manual",
-                                    rarity = instance.rarity, quantity = 1
-                                ))
-                            }
-                            generatedCards.addAll(mergeCardsByName(generated))
-                        }
-                    }
-                }
+            // 原子内二次检查：防止并发重复领取（外层检查在 mutex 外，快速双击可能绕过）
+            if (levelIndex in gameData.heavenlyTrialState.claimedRewardLevels) {
+                return@update
             }
-
-            // 若中途因并发修改导致物品跳过发放，抛异常触发事务回滚，
-            // 确保已写入的物品也被撤销，用户可完整重领。
-            if (distributeFailed) {
-                error("Claim reward aborted: item pool became empty during distribution for level $levelIndex")
-            }
+            distributeRewardItems(reward, inventoryConfig, generatedCards)
             gameData = gameData.copy(
                 heavenlyTrialState = gameData.heavenlyTrialState.copy(
                     claimedRewardLevels = gameData.heavenlyTrialState.claimedRewardLevels + levelIndex
@@ -459,6 +322,138 @@ class HeavenlyTrialService @Inject constructor(
         }
 
         return ClaimClearRewardResult.Success(generatedCards)
+    }
+
+    /**
+     * 在 [MutableGameState] 上下文中发放通关奖励物品。
+     * 从 [claimClearReward] 提取，控制函数在 60 行以内。
+     */
+    private fun MutableGameState.distributeRewardItems(
+        reward: HeavenlyTrialClearReward,
+        inventoryConfig: InventoryConfig,
+        generatedCards: MutableList<RewardCardItem>
+    ) {
+        for (item in reward.items) {
+            when (item.itemType) {
+                "spiritStones" -> {
+                    gameData = gameData.copy(
+                        spiritStones = gameData.spiritStones + item.quantity
+                    )
+                    generatedCards.add(RewardCardItem(
+                        itemName = "灵石", itemType = "spiritStones",
+                        rarity = 1, quantity = item.quantity
+                    ))
+                }
+                "storageBag" -> {
+                    val qty = item.quantity.coerceAtLeast(1)
+                    val rarity = item.rarity.coerceIn(1, 6)
+                    val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+                    val maxStack = inventoryConfig.getMaxStackSize("storageBag")
+                    val newBag = StorageBag(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = bagName,
+                        rarity = rarity,
+                        description = "${bagName}，可开启获得随机物品",
+                        quantity = qty
+                    )
+                    // 使用 mergeStackable 处理溢出：合并到同类堆叠，超过上限时新建堆叠，
+                    // 替代旧的 coerceAtMost 截断模式（避免数量静默丢失）。
+                    storageBags = storageBags.mergeStackable(
+                        item = newBag,
+                        matchPredicate = { it.rarity == rarity },
+                        maxStack = maxStack
+                    )
+                    generatedCards.add(RewardCardItem(
+                        itemName = bagName, itemType = "storageBag",
+                        rarity = rarity, quantity = qty
+                    ))
+                }
+                "randomPill" -> {
+                    val qty = item.quantity.coerceAtLeast(1)
+                    val generated = mutableListOf<RewardCardItem>()
+                    val minRarity = item.rarity
+                    val maxRarity = item.rarity
+                    val maxStack = inventoryConfig.getMaxStackSize("pill")
+                    repeat(qty) {
+                        val pill = ItemDatabase.generateRandomPill(
+                            minRarity = minRarity, maxRarity = maxRarity
+                        ).copy(
+                            id = java.util.UUID.randomUUID().toString(), quantity = 1
+                        )
+                        // 使用 mergeStackable 处理溢出，替代旧的"达上限静默丢弃"模式。
+                        // 修复历史 bug：原实现仅当 existing.quantity < maxStack 才合并，
+                        // 否则静默丢弃且未设置 capacityError，导致奖励物品消失。
+                        pills = pills.mergeStackable(
+                            item = pill,
+                            matchPredicate = {
+                                it.name == pill.name && it.rarity == pill.rarity &&
+                                    it.category == pill.category
+                            },
+                            maxStack = maxStack
+                        )
+                        generated.add(RewardCardItem(
+                            itemName = pill.name, itemType = "pill",
+                            rarity = pill.rarity, quantity = 1
+                        ))
+                    }
+                    generatedCards.addAll(mergeCardsByName(generated))
+                }
+                "randomEquipment" -> {
+                    val qty = item.quantity.coerceAtLeast(1)
+                    val targetRarity = item.rarity
+                    val generated = mutableListOf<RewardCardItem>()
+                    repeat(qty) {
+                        val stack = EquipmentDatabase.generateRandom(
+                            minRarity = targetRarity,
+                            maxRarity = targetRarity
+                        )
+                        val instance = EquipmentInstance(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = stack.name,
+                            rarity = stack.rarity,
+                            description = stack.description,
+                            slot = stack.slot,
+                            physicalAttack = stack.physicalAttack,
+                            magicAttack = stack.magicAttack,
+                            physicalDefense = stack.physicalDefense,
+                            magicDefense = stack.magicDefense,
+                            speed = stack.speed,
+                            hp = stack.hp,
+                            mp = stack.mp,
+                            critChance = stack.critChance,
+                            minRealm = stack.minRealm
+                        )
+                        equipmentInstances = equipmentInstances + instance
+                        generated.add(RewardCardItem(
+                            itemName = instance.name, itemType = "equipment",
+                            rarity = instance.rarity, quantity = 1
+                        ))
+                    }
+                    generatedCards.addAll(mergeCardsByName(generated))
+                }
+                "randomManual" -> {
+                    val qty = item.quantity.coerceAtLeast(1)
+                    val targetRarity = item.rarity
+                    val generated = mutableListOf<RewardCardItem>()
+                    repeat(qty) {
+                        val stack = ManualDatabase.generateRandom(
+                            minRarity = targetRarity,
+                            maxRarity = targetRarity
+                        )
+                        val instance = stack.toInstance(
+                            id = java.util.UUID.randomUUID().toString(),
+                            isLearned = false
+                        )
+                        manualInstances = manualInstances + instance
+                        generated.add(RewardCardItem(
+                            itemName = instance.name, itemType = "manual",
+                            rarity = instance.rarity, quantity = 1
+                        ))
+                    }
+                    generatedCards.addAll(mergeCardsByName(generated))
+                }
+            }
+        }
     }
 
     private fun mergeCardsByName(cards: List<RewardCardItem>): List<RewardCardItem> {
@@ -475,8 +470,8 @@ class HeavenlyTrialService @Inject constructor(
     /**
      * 奖励容量预校验结果。
      *
-     * - [Ok]：所有可堆叠物品有足够容量、可生成池非空，可进入事务写入
-     * - [Failed]：存在容量不足或池为空，应返回 [ClaimClearRewardResult.CapacityInsufficient]
+     * - [Ok]：所有可堆叠物品有足够容量，可进入事务写入
+     * - [Failed]：存在容量不足，应返回 [ClaimClearRewardResult.CapacityInsufficient]
      */
     internal sealed class RewardCapacityCheck {
         data object Ok : RewardCapacityCheck()
@@ -490,8 +485,9 @@ class HeavenlyTrialService @Inject constructor(
      *
      * 校验项：
      * - storageBag：现有同类堆叠未达上限（达上限则用户应先清理背包）
-     * - randomEquipment：存在指定品阶的装备堆叠作为生成模板
-     * - randomManual：存在指定品阶的功法堆叠作为生成模板
+     *
+     * 不校验 randomEquipment/randomManual：使用 EquipmentDatabase/ManualDatabase
+     * 直接生成，不依赖玩家现有库存。
      *
      * 不校验 randomPill：丹药生成是随机的，且 mergeStackable 会自动新建堆叠处理溢出，
      * 不存在"无法发放"的前置失败条件。
@@ -502,8 +498,6 @@ class HeavenlyTrialService @Inject constructor(
         fun checkRewardCapacity(
             reward: HeavenlyTrialClearReward,
             storageBags: List<StorageBag>,
-            equipmentStacks: List<EquipmentStack>,
-            manualStacks: List<ManualStack>,
             inventoryConfig: InventoryConfig
         ): RewardCapacityCheck {
             for (item in reward.items) {
@@ -518,24 +512,8 @@ class HeavenlyTrialService @Inject constructor(
                             )
                         }
                     }
-                    "randomEquipment" -> {
-                        val targetRarity = item.rarity
-                        val eligible = equipmentStacks.filter { it.rarity == targetRarity }
-                        if (eligible.isEmpty()) {
-                            return RewardCapacityCheck.Failed(
-                                "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}装备"
-                            )
-                        }
-                    }
-                    "randomManual" -> {
-                        val targetRarity = item.rarity
-                        val eligible = manualStacks.filter { it.rarity == targetRarity }
-                        if (eligible.isEmpty()) {
-                            return RewardCapacityCheck.Failed(
-                                "没有可生成的${StorageBag.TIER_NAMES.getOrElse(targetRarity - 1) { "" }}功法"
-                            )
-                        }
-                    }
+                    // randomEquipment/randomManual 使用 EquipmentDatabase/ManualDatabase
+                    // 直接生成，不依赖玩家库存，无需预校验
                 }
             }
             return RewardCapacityCheck.Ok

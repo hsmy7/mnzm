@@ -2,11 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.ClearRewardItem
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.HeavenlyTrialClearReward
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.StorageBag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,6 +18,9 @@ import org.junit.Test
  *
  * 修复方案：提取纯函数 [HeavenlyTrialService.checkRewardCapacity] 在事务外预校验，
  * 通过后才进入事务写入 flag。
+ *
+ * randomEquipment/randomManual 已改为使用 EquipmentDatabase/ManualDatabase
+ * 直接生成，不再依赖玩家库存，无需预校验。
  */
 class HeavenlyTrialRewardCapacityTest {
 
@@ -45,8 +44,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = storageBags,
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -70,8 +67,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = storageBags,
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -93,8 +88,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -119,161 +112,13 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = storageBags,
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
         assertTrue("不同品阶应独立校验", result is HeavenlyTrialService.RewardCapacityCheck.Ok)
     }
 
-    // ── randomEquipment 分支 ────────────────────────────────────────
-
-    @Test
-    fun `checkRewardCapacity - 装备池为空时返回Failed`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 5,
-            label = "第六关",
-            items = listOf(
-                ClearRewardItem("随机地品装备", 5, "randomEquipment", 5)
-            )
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("装备池为空应失败", result is HeavenlyTrialService.RewardCapacityCheck.Failed)
-        val message = (result as HeavenlyTrialService.RewardCapacityCheck.Failed).message
-        assertTrue("应提示装备", message.contains("装备"))
-    }
-
-    @Test
-    fun `checkRewardCapacity - 装备池有指定品阶时返回Ok`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 5,
-            label = "第六关",
-            items = listOf(
-                ClearRewardItem("随机地品装备", 5, "randomEquipment", 5)
-            )
-        )
-        val equipmentStacks = listOf(
-            EquipmentStack(id = "eq1", name = "地品剑", rarity = 5, slot = EquipmentSlot.WEAPON)
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = equipmentStacks,
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("有指定品阶装备应通过", result is HeavenlyTrialService.RewardCapacityCheck.Ok)
-    }
-
-    @Test
-    fun `checkRewardCapacity - 装备池品阶不匹配时返回Failed`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 5,
-            label = "第六关",
-            items = listOf(
-                ClearRewardItem("随机地品装备", 5, "randomEquipment", 5)
-            )
-        )
-        // 只有玄品装备（rarity=4），但奖励需要地品（rarity=5）
-        val equipmentStacks = listOf(
-            EquipmentStack(id = "eq1", name = "玄品剑", rarity = 4, slot = EquipmentSlot.WEAPON)
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = equipmentStacks,
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("品阶不匹配应失败", result is HeavenlyTrialService.RewardCapacityCheck.Failed)
-    }
-
-    // ── randomManual 分支 ───────────────────────────────────────────
-
-    @Test
-    fun `checkRewardCapacity - 功法池为空时返回Failed`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 6,
-            label = "第七关",
-            items = listOf(
-                ClearRewardItem("随机地品功法", 5, "randomManual", 5)
-            )
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("功法池为空应失败", result is HeavenlyTrialService.RewardCapacityCheck.Failed)
-        val message = (result as HeavenlyTrialService.RewardCapacityCheck.Failed).message
-        assertTrue("应提示功法", message.contains("功法"))
-    }
-
-    @Test
-    fun `checkRewardCapacity - 功法池有指定品阶时返回Ok`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 6,
-            label = "第七关",
-            items = listOf(
-                ClearRewardItem("随机地品功法", 5, "randomManual", 5)
-            )
-        )
-        val manualStacks = listOf(
-            ManualStack(id = "m1", name = "地品功法", rarity = 5, type = ManualType.ATTACK)
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = manualStacks,
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("有指定品阶功法应通过", result is HeavenlyTrialService.RewardCapacityCheck.Ok)
-    }
-
     // ── 组合校验 ────────────────────────────────────────────────────
-
-    @Test
-    fun `checkRewardCapacity - 多物品中任一失败则整体失败`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 5,
-            label = "第六关",
-            items = listOf(
-                ClearRewardItem("灵石", 300_000, "spiritStones", 1),
-                ClearRewardItem("随机地品装备", 5, "randomEquipment", 5),
-                ClearRewardItem("玄品储物袋", 5, "storageBag", 4)
-            )
-        )
-        // 装备池为空，应整体失败
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        )
-
-        assertTrue("任一物品失败应整体失败", result is HeavenlyTrialService.RewardCapacityCheck.Failed)
-    }
 
     @Test
     fun `checkRewardCapacity - spiritStones不校验直接通过`() {
@@ -288,8 +133,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -298,7 +141,7 @@ class HeavenlyTrialRewardCapacityTest {
 
     @Test
     fun `checkRewardCapacity - randomPill不校验直接通过`() {
-        // 修复说明：randomPill 不在预校验范围内，
+        // randomPill 不在预校验范围内，
         // 因为 mergeStackable 会自动新建堆叠处理溢出，不存在"无法发放"的前置失败条件
         val reward = HeavenlyTrialClearReward(
             levelIndex = 4,
@@ -311,8 +154,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -330,33 +171,10 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
         assertTrue("空物品列表应通过", result is HeavenlyTrialService.RewardCapacityCheck.Ok)
-    }
-
-    @Test
-    fun `checkRewardCapacity - Failed消息非空`() {
-        val reward = HeavenlyTrialClearReward(
-            levelIndex = 5,
-            label = "第六关",
-            items = listOf(
-                ClearRewardItem("随机地品装备", 5, "randomEquipment", 5)
-            )
-        )
-
-        val result = HeavenlyTrialService.checkRewardCapacity(
-            reward = reward,
-            storageBags = emptyList(),
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
-            inventoryConfig = inventoryConfig
-        ) as HeavenlyTrialService.RewardCapacityCheck.Failed
-
-        assertTrue("失败消息应非空", result.message.isNotEmpty())
     }
 
     @Test
@@ -377,8 +195,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = storageBags,
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
 
@@ -391,8 +207,6 @@ class HeavenlyTrialRewardCapacityTest {
         val result2 = HeavenlyTrialService.checkRewardCapacity(
             reward = reward,
             storageBags = storageBags2,
-            equipmentStacks = emptyList(),
-            manualStacks = emptyList(),
             inventoryConfig = inventoryConfig
         )
         assertTrue("quantity==maxStack-1 应通过", result2 is HeavenlyTrialService.RewardCapacityCheck.Ok)
