@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -299,5 +300,29 @@ class CultivationEventProcessorTest {
         val loyalNow = 25
         val shouldSkip = loyalNow >= 30
         assertFalse("loyalty=25仍低于阈值不应跳过", shouldSkip)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // processMissionRefreshIfDue — 月份守卫条件验证
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `processMissionRefreshIfDue guard - 刷新月份3-6-9-12应放行`() {
+        for (month in listOf(3, 6, 9, 12)) {
+            assertTrue(
+                "Month $month should trigger refresh (month % 3 == 0)",
+                month % MissionSystem.REFRESH_INTERVAL_MONTHS == 0
+            )
+        }
+    }
+
+    @Test
+    fun `processMissionRefreshIfDue guard - 非刷新月份应跳过`() {
+        for (month in listOf(1, 2, 4, 5, 7, 8, 10, 11)) {
+            assertFalse(
+                "Month $month should NOT trigger refresh (month % 3 != 0)",
+                month % MissionSystem.REFRESH_INTERVAL_MONTHS == 0
+            )
+        }
     }
 }

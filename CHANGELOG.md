@@ -39,6 +39,18 @@
 - **新增测试**：17个单元测试覆盖 `applyBuffToTarget` 全场景（healPercent/healFixed 组合、MP恢复、上限 clamp、死亡目标、buff 去重、负值防护、effectiveMaxHp）
 - **清理**：`HeavenlyTrialRewardCapacityTest` 移除 randomEquipment/randomManual 相关的 7 个测试用例（校验已删除，不再需要）
 
+### 修复
+
+- **修复：任务阁任务不刷新** — `CultivationEventProcessor.processMissionRefreshIfDue` guard 条件 `month % 3 != 1`（1/4/7/10 月放行）与 `MissionSystem.processMonthlyRefresh` 内部条件 `month % 3 == 0`（3/6/9/12 月才生成/清理任务）偏移 1 个月，导致刷新永不执行。改为 `month % 3 != 0` 使 guard 与引擎逻辑对齐，任务阁每 3 个月（3/6/9/12 月）正常刷新任务
+
+### 代码质量
+
+- **清理**：移除 `GameEngineCoordination.kt` 中从未调用的死代码 `processMonthlyMissionRefresh()`
+
+### 测试覆盖
+
+- **新增测试**：2个月份守卫条件测试，验证 `processMissionRefreshIfDue` 在 3/6/9/12 月放行、其他月份跳过
+
 ## [4.0.43] - 2026-07-10（versionCode=4043）
 
 ### 新增功能

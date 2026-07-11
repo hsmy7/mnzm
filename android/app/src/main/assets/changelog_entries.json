@@ -17,7 +17,10 @@
       "新增注解：HeavenlyTrialService标注@GameService注解",
       "新增测试：7个capacity预校验测试用例同步更新（移除已删除的randomEquipment/randomManual校验测试）",
       "修复：5个GameViewModelTest Robolectric测试OutOfMemoryError——build.gradle设置测试JVM堆为2g",
-      "优化：模拟器地图拖拽流畅度大幅提升——模拟器优先尝试Vulkan GPU渲染（走宿主机物理显卡），仅先前崩溃过才降级到Canvas软件渲染；软件渲染路径新增Scroll-Frame Compositing（偏移帧合成减少90%绘制量）+ Chunk化预渲染（芯片级32×32瓦片缓存）+ EWMA帧时间追踪及动态帧率自适应（60/45/30/20fps）"
+      "优化：模拟器地图拖拽流畅度大幅提升——模拟器优先尝试Vulkan GPU渲染（走宿主机物理显卡），仅先前崩溃过才降级到Canvas软件渲染；软件渲染路径新增Scroll-Frame Compositing（偏移帧合成减少90%绘制量）+ Chunk化预渲染（芯片级32×32瓦片缓存）+ EWMA帧时间追踪及动态帧率自适应（60/45/30/20fps）",
+      "修复：任务阁任务不刷新——processMissionRefreshIfDue guard条件month%3!=1（1/4/7/10月放行）与MissionSystem.processMonthlyRefresh内部条件month%3==0（3/6/9/12月才生成/清理任务）偏移1个月，导致刷新永不执行。改为month%3!=0使guard与引擎逻辑对齐，任务阁每3个月正常刷新任务",
+      "清理：移除GameEngineCoordination.kt中从未调用的死代码processMonthlyMissionRefresh",
+      "新增测试：2个月份守卫条件测试验证processMissionRefreshIfDue在3/6/9/12月放行其他月份跳过"
     ]
   },
   {

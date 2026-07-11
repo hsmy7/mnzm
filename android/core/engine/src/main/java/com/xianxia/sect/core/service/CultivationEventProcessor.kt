@@ -985,7 +985,7 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     suspend fun processMissionRefreshIfDue(month: Int) {
-        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 1) return
+        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
         processMissionRefresh()
     }
 

@@ -531,12 +531,6 @@ suspend fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
     return completedIds
 }
 
-fun GameEngine.processMonthlyMissionRefresh() {
-    val data = stateStore.gameDataSnapshot
-    val result = MissionSystem.processMonthlyRefresh(data.availableMissions, data.gameYear, data.gameMonth)
-    updateGameDataSync { it.copy(availableMissions = result.cleanedMissions) }
-}
-
 private suspend fun GameEngine.applyMissionResult(
     result: MissionSystem.MissionResult,
     activeMission: ActiveMission,
