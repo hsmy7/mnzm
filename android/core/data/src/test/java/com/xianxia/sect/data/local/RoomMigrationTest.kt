@@ -42,6 +42,7 @@ class RoomMigrationTest {
         private val M12_13 = GameDatabase.MIGRATION_12_13
         private val M13_14 = GameDatabase.MIGRATION_13_14
         private val M14_15 = GameDatabase.MIGRATION_14_15
+        private val M15_16 = GameDatabase.MIGRATION_15_16
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -186,19 +187,26 @@ class RoomMigrationTest {
         )
     }
 
+    @Test
+    fun `MIGRATION_15_TO_16 adds showAllAvailableDisciples to game_data`() {
+        testSingleMigration(
+            "m_15_16", 15, 16, listOf(M15_16), "game_data", "showAllAvailableDisciples"
+        )
+    }
+
     // ==================== 全量迁移测试 ====================
 
     @Test
-    fun `full migration from v2 to v15 applies all steps without crash`() {
+    fun `full migration from v2 to v16 applies all steps without crash`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val dbName = "full_migrate"
         context.deleteDatabase(dbName)
         try {
             // 注意：早期版本（v2-v11）缺少后来加入实体的列（如 merchantAcquisitionItems），
             // 而部分列没有对应的 ALTER TABLE ADD COLUMN 迁移，因此全量迁移测试跳过 v2→v12 段，
-            // 直接从 v12 schema 开始测试 v12→v15 的核心迁移路径
+            // 直接从 v12 schema 开始测试 v12→v16 的核心迁移路径
             val db = createDatabaseFromSchema(context, dbName, 12)
-            applyMigrationsSequentially(db, listOf(M12_13, M13_14, M14_15))
+            applyMigrationsSequentially(db, listOf(M12_13, M13_14, M14_15, M15_16))
 
             verifyGameDataColumnsExist(db)
             verifyDisciplesColumnsExist(db)
@@ -216,6 +224,9 @@ class RoomMigrationTest {
             // 验证 v15 新增列存在
             assertTrue("discipleDesertionPopup should exist after v15 migration",
                 columnExists(db, "game_data", "discipleDesertionPopup"))
+            // 验证 v16 新增列存在
+            assertTrue("showAllAvailableDisciples should exist after v16 migration",
+                columnExists(db, "game_data", "showAllAvailableDisciples"))
 
             db.close()
         } finally {
