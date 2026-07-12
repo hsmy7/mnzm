@@ -51,10 +51,6 @@ fun AutoManagementDialog(
     var mineRootCounts by remember { mutableStateOf(policies?.autoMineRootCounts ?: emptyList<Int>()) }
     var mineThreshold by remember { mutableStateOf((policies?.autoMineThreshold ?: 1).toString()) }
 
-    var plantFocused by remember { mutableStateOf(policies?.autoPlantFocused ?: false) }
-    var plantRootCounts by remember { mutableStateOf(policies?.autoPlantRootCounts ?: emptyList<Int>()) }
-    var plantThreshold by remember { mutableStateOf((policies?.autoPlantThreshold ?: 1).toString()) }
-
     var alchemyFocused by remember { mutableStateOf(policies?.autoAlchemyFocused ?: false) }
     var alchemyRootCounts by remember { mutableStateOf(policies?.autoAlchemyRootCounts ?: emptyList<Int>()) }
     var alchemyThreshold by remember { mutableStateOf((policies?.autoAlchemyThreshold ?: 1).toString()) }
@@ -66,9 +62,6 @@ fun AutoManagementDialog(
     val hasChanges = mineFocused != (policies?.autoMineFocused ?: false) ||
             mineRootCounts != (policies?.autoMineRootCounts ?: emptyList<Int>()) ||
             mineThreshold != (policies?.autoMineThreshold ?: 1).toString() ||
-            plantFocused != (policies?.autoPlantFocused ?: false) ||
-            plantRootCounts != (policies?.autoPlantRootCounts ?: emptyList<Int>()) ||
-            plantThreshold != (policies?.autoPlantThreshold ?: 1).toString() ||
             alchemyFocused != (policies?.autoAlchemyFocused ?: false) ||
             alchemyRootCounts != (policies?.autoAlchemyRootCounts ?: emptyList<Int>()) ||
             alchemyThreshold != (policies?.autoAlchemyThreshold ?: 1).toString() ||
@@ -81,7 +74,6 @@ fun AutoManagementDialog(
     val saveAndDismiss = {
         viewModel.setAutoAssignSettings(
             mineFocused, mineRootCounts, mineThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 1,
-            plantFocused, plantRootCounts, plantThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 1,
             alchemyFocused, alchemyRootCounts, alchemyThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 1,
             forgeFocused, forgeRootCounts, forgeThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 1
         )
@@ -115,19 +107,6 @@ fun AutoManagementDialog(
                         mineRootCounts = if (count in mineRootCounts) mineRootCounts - count else mineRootCounts + count
                     },
                     onThresholdChange = { mineThreshold = it }
-                )
-
-                AutoAssignSection(
-                    title = "空闲弟子自动种植（灵植阁）",
-                    attrLabel = "灵植属性 ≥",
-                    focused = plantFocused,
-                    rootCounts = plantRootCounts,
-                    threshold = plantThreshold,
-                    onFocusedToggle = { plantFocused = !plantFocused },
-                    onRootToggle = { count ->
-                        plantRootCounts = if (count in plantRootCounts) plantRootCounts - count else plantRootCounts + count
-                    },
-                    onThresholdChange = { plantThreshold = it }
                 )
 
                 AutoAssignSection(

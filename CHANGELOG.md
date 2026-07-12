@@ -1,3 +1,9 @@
+## [4.0.45] - 2026-07-12（versionCode=4045）
+
+### 重构
+
+- **重构：灵植阁移除种植/收获系统** — 灵植阁（Herb Garden）的 ProductionSlot 种植/收获系统已整体移除，仅保留作为灵田速度加成建筑的功能（执事长老/光环弟子/政策加速）。灵田的种子种植通过 PlantingDialog 手动操作，收获和自动续种由 PlantingSystem 月变自动处理。涉及12文件-426/+178行。对抗性审查3 Agent 共发现16项问题并全部修复，含CRITICAL级速度公式错误（totalMultiplier zoneToMultiplier导致加速翻倍）和收获静默吞没Bug
+
 ## [4.0.44] - 2026-07-11（versionCode=4044）
 
 ### 调整

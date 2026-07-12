@@ -101,8 +101,6 @@ class BuildingFacadeImpl @Inject constructor(
     override suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
         buildingService.autoHarvestCompletedAlchemySlots()
 
-    override suspend fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
-
     override fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
 
     override fun getAlchemyFurnaceCount(): Int {
@@ -197,47 +195,6 @@ class BuildingFacadeImpl @Inject constructor(
 
     override suspend fun addProductionSlot(slot: ProductionSlot) {
         productionCoordinator.repository.addSlot(slot)
-    }
-
-    override suspend fun startManualPlanting(slotIndex: Int, seedId: String) {
-        val seed = stateStore.getCurrentSeeds().find { it.id == seedId } ?: return
-        if (seed.quantity <= 0) return
-
-        val data = stateStore.gameData.value
-        val existingSlot = productionCoordinator.repository.getSlotByBuildingId(BuildingNames.HERB_GARDEN, slotIndex)
-
-        if (existingSlot != null && existingSlot.isCompleted) {
-            harvestHerbFromCompletedSlot(existingSlot)
-        }
-
-        val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
-        val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
-        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
-        val newSlot = ProductionSlot(
-            id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
-            slotIndex = slotIndex,
-            buildingType = BuildingType.HERB_GARDEN,
-            buildingId = BuildingNames.HERB_GARDEN,
-            status = ProductionSlotStatus.WORKING,
-            recipeId = herbDbSeedId ?: seedId,
-            recipeName = seed.name,
-            startYear = data.gameYear,
-            startMonth = data.gameMonth,
-            duration = seed.growTime,
-            outputItemId = herbId ?: "",
-            outputItemName = seed.name,
-            expectedYield = seed.yield,
-            completionMonth = currentAbsoluteMonth + seed.growTime.coerceAtLeast(1),
-            completionPhase = 3  // 种植下旬
-        )
-
-        if (existingSlot != null) {
-            productionCoordinator.repository.updateSlotByBuildingId(BuildingNames.HERB_GARDEN, slotIndex) { newSlot }
-        } else {
-            productionCoordinator.repository.addSlot(newSlot)
-        }
-
-        inventorySystem.removeSeedSync(seedId, 1)
     }
 
     override suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
@@ -402,24 +359,6 @@ class BuildingFacadeImpl @Inject constructor(
                 discipleTables.statuses[id] = status
             }
         }
-    }
-
-    private suspend fun harvestHerbFromCompletedSlot(slot: ProductionSlot) {
-        val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
-            ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
-            ?: return
-
-        val herbGrowthBonus = if (stateStore.gameData.value.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-        val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-
-        val herbItem = Herb(
-            name = herb.name,
-            rarity = herb.rarity,
-            description = herb.description,
-            category = herb.category,
-            quantity = actualYield
-        )
-        inventorySystem.addHerb(herbItem)
     }
 
     internal companion object {

@@ -66,7 +66,6 @@ import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlotStatus

@@ -40,11 +40,6 @@ private val inventorySystem: InventorySystem
         return productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY).map { it.toAlchemySlot() }
     }
 
-    @Suppress("DEPRECATION")
-    fun getPlantSlots(): List<PlantSlotData> {
-        return productionSlotRepository.getSlotsByType(BuildingType.HERB_GARDEN).map { it.toPlantSlotData() }
-    }
-
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
         if (discipleId.isEmpty()) {
             removeDiscipleFromBuildingInternal(buildingId, slotIndex)
@@ -363,24 +358,6 @@ private val inventorySystem: InventorySystem
         autoCollectSlotResult(slot)
     }
 
-    suspend fun clearPlantSlot(slotIndex: Int) {
-        val slot = productionSlotRepository.getSlotByBuildingId("herbGarden", slotIndex)
-        if (slot != null) {
-            // Auto-harvest if slot is in COMPLETED state before clearing
-            if (slot.isCompleted) {
-                completeBuildingTaskFromProductionSlot(slot)
-            }
-            productionSlotRepository.updateSlotByBuildingId("herbGarden", slotIndex) { s ->
-                ProductionSlot.createIdle(
-                    id = s.id,
-                    slotIndex = slotIndex,
-                    buildingType = BuildingType.HERB_GARDEN,
-                    buildingId = "herbGarden"
-                )
-            }
-        }
-    }
-
     private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         stateStore.update {
             val currentList = discipleTables.assembleAll()
@@ -493,23 +470,6 @@ private val inventorySystem: InventorySystem
                     inventorySystem.addPill(pill)
                 }
             }
-            "herbGarden" -> {
-                val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
-                    ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
-                if (herb != null) {
-                    val data = stateStore.gameData.value
-                    val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-                    val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-                    val herbItem = Herb(
-                        name = herb.name,
-                        rarity = herb.rarity,
-                        description = herb.description,
-                        category = herb.category,
-                        quantity = actualYield
-                    )
-                    inventorySystem.addHerb(herbItem)
-                }
-            }
             else -> {
             }
         }
@@ -554,19 +514,4 @@ private val inventorySystem: InventorySystem
         requiredMaterials = requiredMaterials
     )
 
-    @Deprecated("Use ProductionSlot directly")
-    private fun ProductionSlot.toPlantSlotData(): PlantSlotData = PlantSlotData(
-        index = slotIndex,
-        status = when (status) {
-            ProductionSlotStatus.IDLE -> "idle"
-            ProductionSlotStatus.WORKING -> "growing"
-            ProductionSlotStatus.COMPLETED -> "mature"
-        },
-        seedId = recipeId ?: "",
-        seedName = recipeName,
-        startYear = startYear,
-        startMonth = startMonth,
-        growTime = duration,
-        expectedYield = expectedYield
-    )
 }

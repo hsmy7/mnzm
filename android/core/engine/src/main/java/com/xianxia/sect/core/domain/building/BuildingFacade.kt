@@ -17,7 +17,6 @@ interface BuildingFacade {
     /** 开始锻造。成功返回 [DomainResult.Success] 含槽位，失败携带具体错误原因。 */
     suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot>
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult>
-    suspend fun clearPlantSlot(slotIndex: Int)
     fun getForgeSlots(): List<BuildingSlot>
     fun getAlchemyFurnaceCount(): Int
     fun getForgeWorkshopCount(): Int
@@ -31,7 +30,6 @@ interface BuildingFacade {
     fun removeDiscipleFromProductionSlot(buildingType: BuildingType, slotIndex: Int)
     suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int)
     suspend fun addProductionSlot(slot: ProductionSlot)
-    suspend fun startManualPlanting(slotIndex: Int, seedId: String)
     suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String)
     suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String)
     suspend fun removePlantFromSpiritField(buildingInstanceId: String)

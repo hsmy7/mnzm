@@ -344,14 +344,6 @@ class CultivationService @Inject constructor(
         productionProcessor.processBuildingProduction(year, month)
     }
 
-    internal suspend fun processHerbGardenGrowth(state: MutableGameState) {
-        productionProcessor.processHerbGardenGrowth(state)
-    }
-
-    internal suspend fun processAutoPlant(state: MutableGameState) {
-        productionProcessor.processAutoPlant(state)
-    }
-
     internal suspend fun processSpiritFieldHarvest(state: MutableGameState) {
         productionProcessor.processSpiritFieldHarvest(state)
     }

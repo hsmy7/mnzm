@@ -653,9 +653,6 @@ class GameViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val plantSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> = productionSlots
-        .map { slots -> slots.filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN } }
-        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val allForgeRecipes: StateFlow<List<ForgeRecipeDatabase.ForgeRecipe>> = flow {
         emit(ForgeRecipeDatabase.getAllRecipes())
@@ -871,11 +868,9 @@ class GameViewModel @Inject constructor(
     /** @see [AutoAssignDelegate.setAutoAssignSettings] */
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
-        plantFocused: Boolean, plantRootCounts: List<Int>, plantThreshold: Int,
         alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
         forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
     ) = autoAssign.setAutoAssignSettings(mineFocused, mineRootCounts, mineThreshold,
-        plantFocused, plantRootCounts, plantThreshold,
         alchemyFocused, alchemyRootCounts, alchemyThreshold,
         forgeFocused, forgeRootCounts, forgeThreshold)
 
@@ -1153,23 +1148,6 @@ class GameViewModel @Inject constructor(
      * @param disciple 弟子聚合数据
      */
     fun recruitDisciple(disciple: DiscipleAggregate) = this@GameViewModel.disciple.recruitDisciple(disciple)
-
-    /**
-     * 在指定槽位种植种子。
-     *
-     * @param slotIndex 槽位序号
-     * @param seed 种子
-     */
-    fun plantSeed(slotIndex: Int, seed: com.xianxia.sect.core.model.Seed) {
-        viewModelScope.launch {
-            try {
-                buildingFacade.startManualPlanting(slotIndex, seed.id)
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "种植失败")
-            }
-        }
-    }
 
     /**
      * 在指定灵田种植种子，委托给 [PlantingDelegate]

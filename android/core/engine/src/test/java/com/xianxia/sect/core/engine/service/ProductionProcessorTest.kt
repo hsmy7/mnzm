@@ -2,9 +2,25 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
+import org.mockito.Mockito
+import org.mockito.kotlin.mock
 
 /**
  * ProductionProcessor 自动分配逻辑单元测试。
@@ -456,5 +472,180 @@ class ProductionProcessorTest {
         // 种植无候选人可用
         val plantFilled = simulateBatchFill(2, candidates)
         assertEquals("种植无候选人应安排0人", 0, plantFilled)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // processSpiritFieldHarvest — 灵田收获 + 自动续种
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun createProcessor(): ProductionProcessor {
+        return ProductionProcessor(
+            stateStore = mock(),
+            inventorySystem = mock(),
+            inventoryConfig = InventoryConfig(),
+            scopeProvider = mock(),
+            productionCoordinator = mock(),
+            productionSlotRepository = mock(),
+            cultivationSettlement = mock(),
+            sharedState = mock(),
+            formulaService = mock()
+        )
+    }
+
+    private fun createState(
+        plants: List<SpiritFieldPlant> = emptyList(),
+        seeds: List<Seed> = emptyList(),
+        herbs: List<Herb> = emptyList(),
+        gameYear: Int = 1,
+        gameMonth: Int = 1
+    ): MutableGameState {
+        return MutableGameState(
+            gameData = GameData(
+                gameYear = gameYear,
+                gameMonth = gameMonth,
+                spiritFieldPlants = plants
+            ),
+            discipleTables = DiscipleTables(),
+            equipmentStacks = EntityStore(emptyList()),
+            equipmentInstances = EntityStore(emptyList()),
+            manualStacks = EntityStore(emptyList()),
+            manualInstances = EntityStore(emptyList()),
+            pills = EntityStore(emptyList()),
+            materials = EntityStore(emptyList()),
+            herbs = EntityStore(herbs),
+            seeds = EntityStore(seeds),
+            storageBags = EntityStore(emptyList()),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 未成熟灵田跳过`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plant = SpiritFieldPlant(
+            buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1  // 种下未满 36 月
+        )
+        val herbsBefore = emptyList<Herb>()
+        val seedsBefore = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+            rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3))
+        val state = createState(
+            plants = listOf(plant),
+            seeds = seedsBefore,
+            gameYear = 1, gameMonth = 6  // 仅过了 5 个月，不到 36
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        assertEquals("未成熟不应收获", 0, state.herbs.all().size)
+        assertEquals("种子不应被消耗", 3, state.seeds.all().first().quantity)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 成熟灵田收获产生灵草`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val dbHerb = HerbDatabase.getHerbFromSeedName("聚灵草种") ?: return@runTest
+        val plant = SpiritFieldPlant(
+            buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1
+        )
+        val state = createState(
+            plants = listOf(plant),
+            seeds = emptyList(),  // 无种子 → 清空
+            gameYear = 4, gameMonth = 1  // 过了 36 月
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        val herbs = state.herbs.all()
+        assertEquals("应收获 1 种灵草", 1, herbs.size)
+        assertEquals("灵草名称正确", dbHerb.name, herbs.first().name)
+        assertEquals("产量正确", 5, herbs.first().quantity)
+        // 灵田被清空
+        val updatedPlants = state.gameData.spiritFieldPlants
+        assertEquals("灵田应清空", "", updatedPlants.first().seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 无同种种子时清空不消耗种子`() = runTest {
+        val plant = SpiritFieldPlant(
+            buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1
+        )
+        val otherSeed = Seed(id = "s2", slotId = 1, name = "云雾花种",
+            rarity = 1, growTime = 36, yield = 4, quantity = 3)
+        val state = createState(
+            plants = listOf(plant),
+            seeds = listOf(otherSeed),  // 只有其他种子，非同种
+            gameYear = 4, gameMonth = 1
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        val updatedPlants = state.gameData.spiritFieldPlants
+        assertEquals("灵田应清空", "", updatedPlants.first().seedId)
+        assertEquals("其他种子不应被消耗", 3, state.seeds.all().first().quantity)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 有同种种子时自动续种消耗种子`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plant = SpiritFieldPlant(
+            buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1
+        )
+        val sameSeed = Seed(id = "s2", slotId = 1, name = "聚灵草种",
+            rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 2)
+        val state = createState(
+            plants = listOf(plant),
+            seeds = listOf(sameSeed),
+            gameYear = 4, gameMonth = 1
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        // 种子被消耗 1 颗
+        assertEquals("种子应剩余 1 颗", 1, state.seeds.all().first().quantity)
+        // 灵田被续种（seedName 不变，plantYear/Month 更新到当前时间）
+        val updatedPlant = state.gameData.spiritFieldPlants.first()
+        assertEquals("续种后 seedName 不变", "聚灵草种", updatedPlant.seedName)
+        assertEquals("续种后 plantYear 更新", 4, updatedPlant.plantYear)
+        assertEquals("续种后 plantMonth 更新", 1, updatedPlant.plantMonth)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 多块灵田同时成熟各自收获续种`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plant1 = SpiritFieldPlant(
+            buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1
+        )
+        val plant2 = SpiritFieldPlant(
+            buildingInstanceId = "field2", seedId = "s2",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+            plantYear = 1, plantMonth = 1
+        )
+        val seeds = listOf(
+            Seed(id = "seed1", slotId = 1, name = "聚灵草种",
+                rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 2)
+            // 只有 2 颗，但 2 块田都需要续种 → 刚好够
+        )
+        val state = createState(
+            plants = listOf(plant1, plant2),
+            seeds = seeds,
+            gameYear = 4, gameMonth = 1
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        // 2 块田都收获 → 同种灵草合并为 1 条记录 quantity=10
+        assertEquals("应收获 1 条灵草记录（已合并）", 1, state.herbs.all().size)
+        assertEquals("总产量 10", 10, state.herbs.all().first().quantity)
+        // 2 颗种子都被消耗完
+        assertTrue("种子应被消耗完", state.seeds.all().isEmpty())
     }
 }

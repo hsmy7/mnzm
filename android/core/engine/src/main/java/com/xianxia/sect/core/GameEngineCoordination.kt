@@ -21,7 +21,6 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -618,19 +617,6 @@ private suspend fun GameEngine.checkAndCollectCompletedSlots() {
     autoHarvestCompletedAlchemySlots()
     val forgeSlots = productionCoordinator.repository.getSlotsByBuildingId("forge")
     forgeSlots.forEach { slot -> if (slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED) buildingService.autoHarvestForgeSlot(slot) }
-    val herbSlots = productionCoordinator.repository.getSlotsByType(BuildingType.HERB_GARDEN)
-    herbSlots.forEach { slot ->
-        if (slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED) {
-            harvestHerbFromCompletedSlot(slot); buildingService.clearPlantSlot(slot.slotIndex)
-        }
-    }
-}
-
-private suspend fun GameEngine.harvestHerbFromCompletedSlot(slot: ProductionSlot) {
-    val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeedName(slot.recipeName) ?: slot.recipeId?.let { com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeed(it) } ?: return
-    val herbGrowthBonus = if (stateStore.gameData.value.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-    val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-    inventorySystem.addHerb(Herb(name = herb.name, rarity = herb.rarity, description = herb.description, category = herb.category, quantity = actualYield))
 }
 
 private fun fixAlchemyForgeSlotCount(slots: List<ProductionSlot>, alchemyCount: Int, forgeCount: Int): List<ProductionSlot> {

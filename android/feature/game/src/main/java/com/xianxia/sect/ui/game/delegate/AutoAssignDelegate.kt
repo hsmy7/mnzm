@@ -31,7 +31,6 @@ class AutoAssignDelegate(
     /** 批量设置各生产建筑的自动分配策略。 */
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
-        plantFocused: Boolean, plantRootCounts: List<Int>, plantThreshold: Int,
         alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
         forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
     ) {
@@ -40,9 +39,6 @@ class AutoAssignDelegate(
                 autoMineFocused = mineFocused,
                 autoMineRootCounts = mineRootCounts,
                 autoMineThreshold = mineThreshold,
-                autoPlantFocused = plantFocused,
-                autoPlantRootCounts = plantRootCounts,
-                autoPlantThreshold = plantThreshold,
                 autoAlchemyFocused = alchemyFocused,
                 autoAlchemyRootCounts = alchemyRootCounts,
                 autoAlchemyThreshold = alchemyThreshold,

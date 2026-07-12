@@ -12,7 +12,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
-import com.xianxia.sect.core.engine.domain.building.HerbGardenSystem
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -141,93 +140,6 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processHerbGardenGrowth(state: MutableGameState) {
-        val data = state.gameData
-        val year = data.gameYear
-        val month = data.gameMonth
-
-        val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
-        herbGardenSlots.forEach { slot ->
-            if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
-                val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
-                    ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
-                if (herb != null) {
-                    val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-                    val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-                    val herbItem = Herb(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = herb.name,
-                        rarity = herb.rarity,
-                        description = herb.description,
-                        category = herb.category,
-                        quantity = actualYield
-                    )
-                    val result = inventorySystem.addHerb(herbItem)
-                    if (!result.isSuccess) {
-                        DomainLog.w(TAG, "HerbGarden harvest addHerb failed: ${herb.name} x${actualYield}, result=$result")
-                    }
-                }
-
-                productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { s ->
-                    ProductionSlot.createIdle(
-                        id = s.id,
-                        slotIndex = slot.slotIndex,
-                        buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-                        buildingId = "herbGarden",
-                        autoRestartEnabled = slot.autoRestartEnabled,
-                        recipeId = slot.recipeId
-                    )
-                }
-            }
-        }
-    }
-
-    suspend fun processAutoPlant(state: MutableGameState) {
-        val data = state.gameData
-
-        val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
-        val idleSlots = herbGardenSlots.filter {
-            it.autoRestartEnabled && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
-        }
-        if (idleSlots.isEmpty()) return
-
-        for (slot in idleSlots) {
-            val seeds = state.seeds.all().filter { it.quantity > 0 }.sortedByDescending { it.rarity }
-            val seedToPlant = seeds.firstOrNull() ?: break
-
-            val herbDbSeedId = HerbDatabase.getSeedByName(seedToPlant.name)?.id
-            val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
-            val newSlot = com.xianxia.sect.core.model.production.ProductionSlot(
-                id = slot.id,
-                slotIndex = slot.slotIndex,
-                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-                buildingId = "herbGarden",
-                status = com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING,
-                recipeId = herbDbSeedId ?: seedToPlant.id,
-                recipeName = seedToPlant.name,
-                startYear = data.gameYear,
-                startMonth = data.gameMonth,
-                duration = seedToPlant.growTime,
-                baseDuration = seedToPlant.growTime,
-                outputItemId = herbId ?: "",
-                outputItemName = seedToPlant.name,
-                expectedYield = seedToPlant.yield,
-                autoRestartEnabled = slot.autoRestartEnabled,
-                completionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth) + seedToPlant.growTime.coerceAtLeast(1),
-                completionPhase = 3
-            )
-
-            productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { newSlot }
-            // 消耗种子：直接在影子状态中扣减
-            val newQuantity = seedToPlant.quantity - 1
-            if (newQuantity <= 0) {
-                state.seeds.remove(seedToPlant.id)
-            } else {
-                state.seeds.update(seedToPlant.id) { it.copy(quantity = newQuantity) }
-            }
-        }
-    }
-
     suspend fun processSpiritFieldHarvest(state: MutableGameState) {
         val data = state.gameData
         val currentYear = data.gameYear
@@ -247,13 +159,16 @@ class ProductionProcessor @Inject constructor(
         plants.forEach { plant ->
             if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
 
-            val elapsedMonths = (currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)
+            val elapsedMonths = ((currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)).coerceAtLeast(0)
             val speedBonus = calculateSpiritFieldMaturityBonus(plant, data, allDisciples)
             val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(plant.growTime, speedBonus)
 
             if (elapsedMonths >= effectiveGrowTime) {
                 val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
-                if (dbHerb != null) {
+                if (dbHerb == null) {
+                    DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 ${plant.seedName} 对应的灵草定义，跳过收获")
+                    return@forEach
+                }
                     val finalYield = plant.expectedYield.coerceAtLeast(1)
                     val herbName = dbHerb.name
                     val herbRarity = dbHerb.rarity
@@ -278,7 +193,6 @@ class ProductionProcessor @Inject constructor(
                         )
                         state.herbs.add(newHerb)
                     }
-                }
 
                 val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
                 if (idx >= 0) {
@@ -331,11 +245,9 @@ class ProductionProcessor @Inject constructor(
         val auraZone: Double = 0.0,    // 光环弟子乘区
         val policyZone: Double = 0.0,  // 灵药培育政策乘区
     ) {
-        /** 计算总加速倍率（用于传入 calculateEffectiveGrowTime） */
+        /** 计算总加速倍率（纯加成值，如 0.155 = 15.5%） */
         fun totalMultiplier(): Double =
-            ZoneCalculator.zoneToMultiplier(
-                ZoneCalculator.calculate(1.0, elderZone, auraZone, policyZone)
-            ) - 1.0
+            ZoneCalculator.calculate(1.0, elderZone, auraZone, policyZone) - 1.0
     }
 
     fun calculateSpiritFieldMaturityBonus(
@@ -534,14 +446,6 @@ class ProductionProcessor @Inject constructor(
             }
         }
 
-        if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
-            batchAssignToProductionSlots(
-                com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN, "herbGarden"
-            ) {
-                takeCandidate(policies.autoPlantFocused, policies.autoPlantRootCounts, policies.autoPlantThreshold) { it.spiritPlanting }
-            }
-        }
-
         if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
             batchAssignToProductionSlots(
                 com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, BuildingNames.ALCHEMY
@@ -626,9 +530,7 @@ class ProductionProcessor @Inject constructor(
             batchAutoAlchemy(slots, state)
             batchAutoForge(slots, state)
             batchBuildingCompletion(slots, state)
-            batchHerbGardenGrowth(slots, state)
             batchSpiritFieldHarvest(slots, state)
-            batchAutoPlant(slots, state)
         }
     }
 
@@ -791,46 +693,6 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    /** 影子版药园生长完成 */
-    private suspend fun batchHerbGardenGrowth(
-        slots: MutableList<ProductionSlot>,
-        state: MutableGameState
-    ) {
-        val year = state.gameData.gameYear
-        val month = state.gameData.gameMonth
-        val herbPolicyBonus = if (state.gameData.sectPolicies.herbCultivation)
-            GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-
-        for (i in slots.indices) {
-            val slot = slots[i]
-            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN) continue
-            if (slot.status != ProductionSlotStatus.WORKING) continue
-            if (!isSlotCompleteDynamic(slot, year, month)) continue
-
-            val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
-                ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
-            if (herb != null) {
-                val baseYield = slot.expectedYield.coerceAtLeast(1)
-                val actualYield = if (herbPolicyBonus > 0.0)
-                    (baseYield + (baseYield * herbPolicyBonus).toInt()).coerceAtLeast(1)
-                else baseYield
-                state.herbs.add(Herb(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = herb.name, rarity = herb.rarity,
-                    description = herb.description, category = herb.category,
-                    quantity = actualYield
-                ))
-            }
-            slots[i] = ProductionSlot.createIdle(
-                id = slot.id, slotIndex = slot.slotIndex,
-                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-                buildingId = slot.buildingId,
-                autoRestartEnabled = slot.autoRestartEnabled,
-                recipeId = slot.recipeId
-            )
-        }
-    }
-
     /** 影子版灵田收获（已用 state，直接复用） */
     suspend fun batchSpiritFieldHarvest(
         slots: MutableList<ProductionSlot>,
@@ -840,51 +702,7 @@ class ProductionProcessor @Inject constructor(
         processSpiritFieldHarvest(state)
     }
 
-    /** 影子版自动种植 */
-    private suspend fun batchAutoPlant(
-        slots: MutableList<ProductionSlot>,
-        state: MutableGameState
-    ) {
-        val gd = state.gameData
-        val idleSlots = slots.filter {
-            it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN &&
-                it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
-        }
-        if (idleSlots.isEmpty()) return
 
-        val sortedSeeds = state.seeds.all().filter { it.quantity > 0 }
-            .sortedByDescending { it.rarity }
-        val plantedIds = mutableSetOf<String>()
-
-        for (slot in idleSlots) {
-            val seed = sortedSeeds.firstOrNull { it.id !in plantedIds } ?: break
-            plantedIds.add(seed.id)
-            val idx = slots.indexOfFirst { it.id == slot.id }
-            if (idx < 0) continue
-
-            val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
-            val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
-            val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
-
-            slots[idx] = com.xianxia.sect.core.model.production.ProductionSlot(
-                id = slot.id, slotIndex = slot.slotIndex, slotId = slot.slotId,
-                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-                buildingId = slot.buildingId,
-                status = ProductionSlotStatus.WORKING,
-                recipeId = herbDbSeedId ?: seed.id, recipeName = seed.name,
-                startYear = gd.gameYear, startMonth = gd.gameMonth,
-                duration = seed.growTime,
-                outputItemId = herbId ?: "", outputItemName = seed.name,
-                expectedYield = seed.yield,
-                autoRestartEnabled = slot.autoRestartEnabled,
-                completionMonth = absoluteMonth + seed.growTime.coerceAtLeast(1),
-                completionPhase = 3
-            )
-            val newQty = seed.quantity - 1
-            state.seeds.remove(seed.id)
-            if (newQty > 0) state.seeds.add(seed.copy(quantity = newQty))
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // 影子版工具方法

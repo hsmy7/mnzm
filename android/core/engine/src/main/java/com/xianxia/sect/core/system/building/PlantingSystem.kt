@@ -20,6 +20,5 @@ class PlantingSystem @Inject constructor(
 
     override suspend fun onMonthlyEvent(state: MutableGameState) {
         cultivationService.processSpiritFieldHarvest(state)
-        cultivationService.processAutoPlant(state)
     }
 }
