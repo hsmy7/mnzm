@@ -756,7 +756,7 @@ class ExplorationService @Inject constructor(
         val configs = gd.patrolConfigs
         if (allSlots.isEmpty()) return
 
-        val numTowers = gd.placedBuildings.count { it.displayName == "巡视楼" }
+        val towerBuildings = gd.placedBuildings.filter { it.displayName == "巡视楼" }
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = gd.manualProficiencies.mapValues { (_, list) ->
@@ -766,11 +766,18 @@ class ExplorationService @Inject constructor(
         val claimedBeasts = mutableSetOf<String>()
 
         val slotsPerTower = buildingConfigService.getSlotCountByDisplayName("巡视楼")
-        for (towerIndex in 0 until numTowers) {
+        for ((towerIndex, tower) in towerBuildings.withIndex()) {
             val config = configs.getOrElse(towerIndex) { PatrolConfig() }
-            val start = towerIndex * slotsPerTower
-            val end = (start + slotsPerTower).coerceAtMost(allSlots.size)
-            val towerSlots = allSlots.subList(start, end).filter { it.discipleId.isNotEmpty() }
+
+            // 优先用 buildingInstanceId 精确匹配；旧存档无 instanceId 时回退索引分割并加越界保护
+            val towerSlots = if (tower.instanceId.isNotEmpty()) {
+                allSlots.filter { it.buildingInstanceId == tower.instanceId && it.discipleId.isNotEmpty() }
+            } else {
+                val start = towerIndex * slotsPerTower
+                if (start >= allSlots.size) continue
+                val end = (start + slotsPerTower).coerceAtMost(allSlots.size)
+                allSlots.subList(start, end).filter { it.discipleId.isNotEmpty() }
+            }
             if (towerSlots.isEmpty()) continue
 
             val towerDiscipleIds = towerSlots.map { it.discipleId }.toSet()
