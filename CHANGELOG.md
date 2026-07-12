@@ -1,5 +1,10 @@
 ## [4.0.45] - 2026-07-12（versionCode=4045）
 
+### 修复
+
+- **修复：弟子境界随机跳变（如筑基→练气）** — 根因是 `IntPackedArray.safeIndex()` 使用了 `SparseIntArray.indexOfKey()` 查询 packed 索引，但 `indexOfKey` 返回的是 SparseIntArray 内部排序位置，不是存储的 packed 数组索引值。非连续 ID 或删除+再插入后两个索引不一致，导致约 90 个 Int/Double 组件表字段数据错位。修正为 `SparseIntArray.get(key, -1)` 正确读取 packed 数组索引。涉及 1 文件 2 行改动
+- **修复：灵植阁重构遗留的 GameViewModelTest 编译失败** — `setAutoAssignSettings` 已移除 `plantFocused/plantRootCounts/plantThreshold` 参数，同步清理测试中的对应调用和断言
+
 ### 重构
 
 - **重构：灵植阁移除种植/收获系统** — 灵植阁（Herb Garden）的 ProductionSlot 种植/收获系统已整体移除，仅保留作为灵田速度加成建筑的功能（执事长老/光环弟子/政策加速）。灵田的种子种植通过 PlantingDialog 手动操作，收获和自动续种由 PlantingSystem 月变自动处理。涉及12文件-426/+178行。对抗性审查3 Agent 共发现16项问题并全部修复，含CRITICAL级速度公式错误（totalMultiplier zoneToMultiplier导致加速翻倍）和收获静默吞没Bug

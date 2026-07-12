@@ -523,13 +523,12 @@ class GameViewModelTest {
     // 六个方法是否正确将参数写入 GameData。
 
     @Test
-    fun `setAutoAssignSettings - 12参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
+    fun `setAutoAssignSettings - 9参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setAutoAssignSettings(
             mineFocused = true, mineRootCounts = listOf(1, 2), mineThreshold = 5,
-            plantFocused = false, plantRootCounts = listOf(3), plantThreshold = 8,
             alchemyFocused = true, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
             forgeFocused = false, forgeRootCounts = listOf(1, 3, 5), forgeThreshold = 10
         )
@@ -541,10 +540,6 @@ class GameViewModelTest {
         assertTrue("灵矿 focused 应为 true", p.autoMineFocused)
         assertEquals("灵矿 rootCounts", listOf(1, 2), p.autoMineRootCounts)
         assertEquals("灵矿 threshold", 5, p.autoMineThreshold)
-
-        assertFalse("灵植 focused 应为 false", p.autoPlantFocused)
-        assertEquals("灵植 rootCounts", listOf(3), p.autoPlantRootCounts)
-        assertEquals("灵植 threshold", 8, p.autoPlantThreshold)
 
         assertTrue("炼丹 focused 应为 true", p.autoAlchemyFocused)
         assertEquals("炼丹 rootCounts", emptyList<Int>(), p.autoAlchemyRootCounts)
@@ -562,7 +557,6 @@ class GameViewModelTest {
 
         viewModel.setAutoAssignSettings(
             mineFocused = false, mineRootCounts = emptyList(), mineThreshold = 1,
-            plantFocused = false, plantRootCounts = emptyList(), plantThreshold = 1,
             alchemyFocused = false, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
             forgeFocused = false, forgeRootCounts = emptyList(), forgeThreshold = 1
         )
@@ -573,8 +567,6 @@ class GameViewModelTest {
         assertFalse("灵矿 focused 应为 false", p.autoMineFocused)
         assertEquals("灵矿 rootCounts 应为空", emptyList<Int>(), p.autoMineRootCounts)
         assertEquals("灵矿 threshold", 1, p.autoMineThreshold)
-        assertFalse("灵植 focused 应为 false", p.autoPlantFocused)
-        assertEquals("灵植 rootCounts 应为空", emptyList<Int>(), p.autoPlantRootCounts)
         assertFalse("炼丹 focused 应为 false", p.autoAlchemyFocused)
         assertEquals("炼丹 rootCounts 应为空", emptyList<Int>(), p.autoAlchemyRootCounts)
         assertFalse("炼器 focused 应为 false", p.autoForgeFocused)

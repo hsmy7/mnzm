@@ -134,15 +134,17 @@ class IntPackedArray @JvmOverloads constructor(
     // === 私有辅助 ===
 
     /**
-     * 安全查询 idToIndex 中的索引。
+     * 安全获取 idToIndex 中存储的 packed 数组索引。
      *
-     * Android SDK stub 的 [SparseIntArray.indexOfKey] 在空表时返回错误的正数值，
-     * 导致缺失 key 被误判为「存在」并返回错误的 values[idx]。此守卫在所有
-     * idToIndex 查询前检查 size_，空表时直接返回 -1 绕过 SparseIntArray 调用。
+     * 使用 [SparseIntArray.get] 而非 [SparseIntArray.indexOfKey] 提取值。
+     * indexOfKey 返回的是 SparseIntArray 内部的排序位置（O(log N) 二分查找结果），
+     * 而非存储的值；而 idToIndex 存的是 packed 数组索引（值本身），必须用 get 读取。
+     *
+     * size_ 守卫绕过 Android SDK stub（Robolectric）在空表时返回错误正数值的 bug。
      */
     private fun safeIndex(key: Int): Int {
         if (size_ <= 0) return -1
-        return idToIndex.indexOfKey(key)
+        return idToIndex.get(key, -1)
     }
 
     // === 读取 ===
@@ -233,10 +235,10 @@ class DoublePackedArray @JvmOverloads constructor(
     @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
 
-    /** 安全查询 idToIndex 索引（空表时返回 -1 绕过 SparseIntArray stub bug） */
+    /** 安全获取 idToIndex 中存储的 packed 数组索引（同 [IntPackedArray.safeIndex]） */
     private fun safeIndex(key: Int): Int {
         if (size_ <= 0) return -1
-        return idToIndex.indexOfKey(key)
+        return idToIndex.get(key, -1)
     }
 
     // === 读取 ===
