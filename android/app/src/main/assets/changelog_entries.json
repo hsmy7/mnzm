@@ -47,7 +47,7 @@
       "修复：SQLite libsqlite.so SIGSEGV #5037——禁用PRAGMA mmap_size=0避免onTrimMemory时mmap页面失效；移除独立ScheduledExecutorService checkpoint线程(消除与Room事务线程的WAL文件竞争)；flushDirtyState 13个并发withTransaction合并为单事务(消除WAL竞争导致的内存损坏)；启动时PRAGMA integrity_check；<4GB RAM设备跳过temp_store=MEMORY",
       "修复：VulkanPolicyTest 3个预存测试失败——模拟器路径在API<31非白名单设备上提前返回SOFTWARE_ONLY(之前模拟器检测优先于API版本检查)",
       "新增：MIGRATION_14_15迁移测试+GameDatabase SQLite PRAGMA运行时配置测试",
-      "调整：传道加成公式改为基线+步长+上限制——传道长老teaching以80为基准每4点+1%最多+10%，传道师以60为基准每10点+1%最多+5%。上限消除极端高传道弟子超额加成，传道师基线从80降至60使低传道弟子也能提供少量加成"
+      "调整：传道加成公式改为基线+步长+上限制——传道长老teaching以80为基准每4点+1%最多+10%，传道师以60为基准每10点+1%最多+5%。上限消除极端高传道弟子超额加成，传道师基线从80降至60使低传道弟子也能提供少量加成",
       "移除：职务限制机制——移除内门/外门弟子身份作为槽位/任务的过滤条件。所有弟子选择界面不再按内/外门过滤；任务派遣移除身份和境界限制仅过滤忙碌弟子；删除DisciplePositionHelper等职务查询代码；移除任职资格属性；长老分配冲突检查移除完全依赖DiscipleStatus状态过滤；对抗性审查修复4处TYPE_OUTER残留过滤",
       "修复：setViceSectMaster/setViceSectMaster改用elderManagement确保副宗主变更时DiscipleStatus正确同步",
       "修复：GameEngineCoordination加载时按TYPE_OUTER清理采矿槽位导致内门采矿弟子静默丢失",

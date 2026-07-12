@@ -6,10 +6,12 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -49,12 +51,25 @@ class CultivationSettlementConcurrencyTest {
     private lateinit var scopeProvider: ApplicationScopeProvider
     private lateinit var cultivationSettlement: CultivationSettlement
     private lateinit var lifecycleProcessor: DiscipleLifecycleProcessor
-    private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
+    private lateinit var spiritStoneWallet: SpiritStoneWallet
+    private val ledger = SpiritStoneLedger()
+    private val eventBus = mock(EventBus::class.java)
 
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        spiritStoneWallet = SpiritStoneWallet(stateStore, ledger, eventBus)
+        runBlocking {
+            stateStore.reset()
+            stateStore.update {
+                gameData = GameData(
+                    gameYear = 2,
+                    gameMonth = 1,
+                    spiritStones = 100_000L
+                )
+            }
+        }
         cultivationSettlement = CultivationSettlement(
             stateStore,
             mock(InventorySystem::class.java),
@@ -75,16 +90,6 @@ class CultivationSettlementConcurrencyTest {
             mock(ProductionSlotRepository::class.java),
             mock(com.xianxia.sect.core.event.EventBusPort::class.java)
         )
-        runBlocking {
-            stateStore.reset()
-            stateStore.update {
-                gameData = GameData(
-                    gameYear = 2,
-                    gameMonth = 1,
-                    spiritStones = 100_000L
-                )
-            }
-        }
     }
 
     @After
