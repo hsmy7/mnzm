@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import android.util.SparseArray
-import android.util.SparseIntArray
 
 /**
  * 组件表：存储"所有实体的同一种属性"。
@@ -99,220 +98,197 @@ class ComponentTable<T> @JvmOverloads constructor(
 }
 
 // ============================================================
-// Packed Array 实现：基于 dense array + id→index 映射 +
-// swap-on-remove 的 Sparse Set 模式。
+// 平铺数组实现：ID 直接索引 + 紧凑 keys 迭代列表。
 //
-// 相比 SparseIntArray 的优势：
-// - 值存储在连续 IntArray 中，缓存友好、零装箱
-// - 删除操作为 O(1)，无需移动后续元素（swap-on-remove）
-// - 迭代全部有效元素，无空洞
-// - grow 策略简单：capacity 翻倍
+// IntPackedArray 原使用 SparseIntArray(id→packed索引) 做 O(log N)
+// 查找，safeIndex 的 indexOfKey/get 混淆曾导致数据损坏 bug。
 //
-// 注意：swap-on-remove 会使迭代顺序在删除后改变，
-// 但不影响 `contains`/`get`/`put` 等操作的正确性。
+// 重构为平铺 IntArray 后：
+// - values[id] 直接 O(1) 访问，零查找开销
+// - idToSlot 是平铺 IntArray（非 SparseIntArray），O(1) 存在性检测
+// - 紧凑 keys 列表仅含存活 ID，供 forEach/copyTo 遍历
+// - 消除整个 id→packed索引 映射层，从根源消灭索引混淆 bug 类
 // ============================================================
 
 /**
- * 基于 packed array + swap-on-remove 的 int→int 稀疏集合。
+ * 平铺 int→int 映射：ID 直接作为数组索引。
  *
  * 内部结构：
- * - `values: IntArray` — 连续排列的 dense 值数组
- * - `keys: IntArray` — 连续排列的 key 数组（与 values 一一对应）
- * - `idToIndex: SparseIntArray` — id → index 映射，O(log N) 查询
- * - `size_` — 有效条目数
+ * - `values: IntArray` — 由 ID 直接索引，O(1) 读写
+ * - `idToSlot: IntArray` — ID → keys[] 索引，-1=不存在；O(1) 存在性检测
+ * - `keys: IntArray` — 紧凑的存活 ID 列表，用于迭代
+ * - `size_` — 存活条目数
  *
- * swap-on-remove：删除条目时，用最后一个有效条目填充空洞，使 dense 数组保持连续。
+ * 删除使用 swap-on-remove 维护 keys 紧凑性。
+ * 不依赖 [android.util.SparseIntArray]，无二分查找，无索引混淆风险。
  */
-class IntPackedArray @JvmOverloads constructor(
+class IntFlatArray @JvmOverloads constructor(
     initialCapacity: Int = 64
 ) {
+    /** 平铺值数组，由弟子 ID 直接索引 */
     @PublishedApi internal var values = IntArray(initialCapacity)
+    /** ID → keys[] 索引；-1=该 ID 不存在 */
+    @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
+    /** 紧凑的存活 ID 列表，供迭代使用 */
     @PublishedApi internal var keys = IntArray(initialCapacity)
-    @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
+    /** 存活条目数 */
     @PublishedApi internal var size_ = 0
 
-    // === 私有辅助 ===
+    private fun ensureCapacity(key: Int) {
+        if (key >= values.size) {
+            val oldSize = values.size
+            val newSize = maxOf(values.size * 2, key + 1 + 64)
+            values = values.copyOf(newSize)
+            idToSlot = idToSlot.copyOf(newSize)
+            for (i in oldSize until newSize) idToSlot[i] = -1
+        }
+    }
 
-    /**
-     * 安全获取 idToIndex 中存储的 packed 数组索引。
-     *
-     * 使用 [SparseIntArray.get] 而非 [SparseIntArray.indexOfKey] 提取值。
-     * indexOfKey 返回的是 SparseIntArray 内部的排序位置（O(log N) 二分查找结果），
-     * 而非存储的值；而 idToIndex 存的是 packed 数组索引（值本身），必须用 get 读取。
-     *
-     * size_ 守卫绕过 Android SDK stub（Robolectric）在空表时返回错误正数值的 bug。
-     */
-    private fun safeIndex(key: Int): Int {
-        if (size_ <= 0) return -1
-        return idToIndex.get(key, -1)
+    private fun growKeys() {
+        keys = keys.copyOf(maxOf(keys.size * 2, 8))
     }
 
     // === 读取 ===
 
-    /** O(log N) 获取值，不存在返回 0 */
-    operator fun get(key: Int): Int {
-        val idx = safeIndex(key)
-        return if (idx >= 0) values[idx] else 0
-    }
+    /** O(1) 获取值，不存在返回 0 */
+    operator fun get(key: Int): Int = if (key < values.size) values[key] else 0
 
-    /** O(log N) 获取值，不存在返回 [default] */
-    fun get(key: Int, default: Int): Int {
-        val idx = safeIndex(key)
-        return if (idx >= 0) values[idx] else default
-    }
+    /** O(1) 获取值，不存在返回 [default] */
+    fun get(key: Int, default: Int): Int = if (key < values.size) values[key] else default
+
+    /** O(1) 存在性检测 */
+    fun contains(key: Int): Boolean = key < values.size && idToSlot[key] >= 0
 
     // === 写入 ===
 
-    /** 设置值（存在则更新，否则插入） */
+    /** O(1) 设置值：存在则更新，否则插入 */
     fun put(key: Int, value: Int) {
-        val idx = safeIndex(key)
-        if (idx >= 0) {
-            values[idx] = value
-            return
+        ensureCapacity(key)
+        values[key] = value
+        if (idToSlot[key] < 0) {
+            // 新 ID：加入紧凑 keys 列表
+            if (size_ >= keys.size) growKeys()
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
         }
-        if (size_ >= values.size) grow()
-        keys[size_] = key
-        values[size_] = value
-        idToIndex.put(key, size_)
-        size_++
     }
 
-    /** 删除 */
+    /** O(1) 删除：标记为不存在，keys 中使用 swap-on-remove */
     fun delete(key: Int) {
-        val rawIdx = safeIndex(key)
-        if (rawIdx < 0 || rawIdx >= size_) return
-        idToIndex.delete(key)
+        if (key >= values.size || idToSlot[key] < 0) return
+        val slot = idToSlot[key]
         val lastIdx = size_ - 1
-        if (rawIdx != lastIdx) {
-            // swap-on-remove：用最后一个有效条目填充空洞
-            keys[rawIdx] = keys[lastIdx]
-            values[rawIdx] = values[lastIdx]
-            idToIndex.put(keys[rawIdx], rawIdx)
+        if (slot != lastIdx) {
+            keys[slot] = keys[lastIdx]
+            idToSlot[keys[slot]] = slot
         }
+        idToSlot[key] = -1
+        values[key] = 0
         size_--
     }
 
-    /** 清空（保留容量） */
+    /** 清空 */
     fun clear() {
-        idToIndex.clear()
+        for (i in 0 until values.size) values[i] = 0
+        for (i in 0 until idToSlot.size) idToSlot[i] = -1
         size_ = 0
     }
 
-    // === 迭代兼容 API（与 SparseIntArray 保持方法签名一致） ===
+    // === 迭代 ===
 
-    /** 有效条目数 */
+    /** 存活条目数 */
     fun size(): Int = size_
 
-    /** 返回第 [index] 个条目的 key */
+    /** 返回第 [index] 个存活条目的 ID */
     fun keyAt(index: Int): Int = keys[index]
 
-    /** 返回第 [index] 个条目的 value */
-    fun valueAt(index: Int): Int = values[index]
+    /** 返回第 [index] 个存活条目的值 */
+    fun valueAt(index: Int): Int = values[keys[index]]
 
-    /** 包含检测（返回 >= 0 表示存在，与 SparseIntArray.indexOfKey 行为兼容） */
-    fun indexOfKey(key: Int): Int = if (safeIndex(key) >= 0) 1 else -1
-
-    // === 内部 ===
-
-    private fun grow() {
-        val newSize = maxOf(values.size * 2, 8)
-        values = values.copyOf(newSize)
-        keys = keys.copyOf(newSize)
-    }
+    /** 包含检测，兼容 SparseIntArray.indexOfKey 语义 */
+    fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
 }
 
 /**
- * 基于 packed array + swap-on-remove 的 int→double 稀疏集合。
+ * 平铺 int→double 映射：ID 直接作为数组索引。
  *
- * 与 [IntPackedArray] 结构相同，但值类型为 [Double]。
- * 替代 [android.util.SparseArray]<Double>，避免装箱。
+ * 与 [IntFlatArray] 结构相同，但值类型为 [Double]。
  */
-class DoublePackedArray @JvmOverloads constructor(
+class DoubleFlatArray @JvmOverloads constructor(
     initialCapacity: Int = 64
 ) {
     @PublishedApi internal var values = DoubleArray(initialCapacity)
+    @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
     @PublishedApi internal var keys = IntArray(initialCapacity)
-    @PublishedApi internal var idToIndex = SparseIntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
 
-    /** 安全获取 idToIndex 中存储的 packed 数组索引（同 [IntPackedArray.safeIndex]） */
-    private fun safeIndex(key: Int): Int {
-        if (size_ <= 0) return -1
-        return idToIndex.get(key, -1)
+    private fun ensureCapacity(key: Int) {
+        if (key >= values.size) {
+            val oldSize = values.size
+            val newSize = maxOf(values.size * 2, key + 1 + 64)
+            values = values.copyOf(newSize)
+            idToSlot = idToSlot.copyOf(newSize)
+            for (i in oldSize until newSize) idToSlot[i] = -1
+        }
+    }
+
+    private fun growKeys() {
+        keys = keys.copyOf(maxOf(keys.size * 2, 8))
     }
 
     // === 读取 ===
 
-    /** O(log N) 获取值，不存在返回 0.0 */
-    operator fun get(key: Int): Double {
-        val idx = safeIndex(key)
-        return if (idx >= 0) values[idx] else 0.0
-    }
+    /** O(1) 获取值，不存在返回 0.0 */
+    operator fun get(key: Int): Double = if (key < values.size) values[key] else 0.0
 
-    /** O(log N) 获取值，不存在返回 [default] */
-    fun get(key: Int, default: Double): Double {
-        val idx = safeIndex(key)
-        return if (idx >= 0) values[idx] else default
-    }
+    /** O(1) 获取值，不存在返回 [default] */
+    fun get(key: Int, default: Double): Double = if (key < values.size) values[key] else default
+
+    /** O(1) 存在性检测 */
+    fun contains(key: Int): Boolean = key < values.size && idToSlot[key] >= 0
 
     // === 写入 ===
 
-    /** 设置值（存在则更新，否则插入） */
+    /** O(1) 设置值 */
     fun put(key: Int, value: Double) {
-        val idx = safeIndex(key)
-        if (idx >= 0) {
-            values[idx] = value
-            return
+        ensureCapacity(key)
+        values[key] = value
+        if (idToSlot[key] < 0) {
+            if (size_ >= keys.size) growKeys()
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
         }
-        if (size_ >= values.size) grow()
-        keys[size_] = key
-        values[size_] = value
-        idToIndex.put(key, size_)
-        size_++
     }
 
-    /** 删除 */
+    /** O(1) 删除 */
     fun delete(key: Int) {
-        val rawIdx = safeIndex(key)
-        if (rawIdx < 0 || rawIdx >= size_) return
-        idToIndex.delete(key)
+        if (key >= values.size || idToSlot[key] < 0) return
+        val slot = idToSlot[key]
         val lastIdx = size_ - 1
-        if (rawIdx != lastIdx) {
-            // swap-on-remove
-            keys[rawIdx] = keys[lastIdx]
-            values[rawIdx] = values[lastIdx]
-            idToIndex.put(keys[rawIdx], rawIdx)
+        if (slot != lastIdx) {
+            keys[slot] = keys[lastIdx]
+            idToSlot[keys[slot]] = slot
         }
+        idToSlot[key] = -1
+        values[key] = 0.0
         size_--
     }
 
-    /** 清空（保留容量） */
+    /** 清空 */
     fun clear() {
-        idToIndex.clear()
+        for (i in 0 until values.size) values[i] = 0.0
+        for (i in 0 until idToSlot.size) idToSlot[i] = -1
         size_ = 0
     }
 
-    // === 迭代兼容 API ===
+    // === 迭代 ===
 
-    /** 有效条目数 */
     fun size(): Int = size_
-
-    /** 返回第 [index] 个条目的 key */
     fun keyAt(index: Int): Int = keys[index]
-
-    /** 返回第 [index] 个条目的 value */
-    fun valueAt(index: Int): Double = values[index]
-
-    /** 包含检测 */
-    fun indexOfKey(key: Int): Int = if (safeIndex(key) >= 0) 1 else -1
-
-    // === 内部 ===
-
-    private fun grow() {
-        val newSize = maxOf(values.size * 2, 8)
-        values = values.copyOf(newSize)
-        keys = keys.copyOf(newSize)
-    }
+    fun valueAt(index: Int): Double = values[keys[index]]
+    fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
 }
 
 // ============================================================
@@ -321,11 +297,11 @@ class DoublePackedArray @JvmOverloads constructor(
 
 /**
  * 基本类型组件表：int 值，无装箱。
- * 底层使用 [IntPackedArray]（dense array + swap-on-remove），
- * 比原 [android.util.SparseIntArray] 更优的缓存局部性和迭代性能。
+ * 底层使用 [IntFlatArray]（平铺数组 + ID 直接索引），
+ * O(1) 读写，迭代使用紧凑 keys 列表。
  */
 class IntComponentTable(initialCapacity: Int = 64) {
-    @PublishedApi internal val store = IntPackedArray(initialCapacity)
+    @PublishedApi internal val store = IntFlatArray(initialCapacity)
 
     /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
     @JvmField var onWrite: (() -> Unit)? = null
@@ -333,7 +309,7 @@ class IntComponentTable(initialCapacity: Int = 64) {
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
     /** 安全获取，缺失返回 null */
-    fun getOrNull(id: Int): Int? = if (contains(id)) store[id] else null
+    fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
     operator fun set(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
     inline fun update(id: Int, block: (Int) -> Int) {
         store.put(id, block(store[id])); onWrite?.invoke()
@@ -360,11 +336,11 @@ class IntComponentTable(initialCapacity: Int = 64) {
 
 /**
  * 基本类型组件表：double 值，无装箱。
- * 底层使用 [DoublePackedArray]（dense array + swap-on-remove），
+ * 底层使用 [DoubleFlatArray]（平铺数组 + ID 直接索引），
  * 替代原 [android.util.SparseArray]<Double> 的装箱开销。
  */
 class DoubleComponentTable(initialCapacity: Int = 64) {
-    @PublishedApi internal val store = DoublePackedArray(initialCapacity)
+    @PublishedApi internal val store = DoubleFlatArray(initialCapacity)
 
     /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
     @JvmField var onWrite: (() -> Unit)? = null
