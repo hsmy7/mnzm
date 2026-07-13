@@ -259,8 +259,8 @@ object VulkanPolicy {
         Regex("mali-g(510|610|615|710|715|720|925)", RegexOption.IGNORE_CASE),
         // Mali T8xx 系列（较旧但仍在使用）
         Regex("mali.*t(8[56]0|9[05]0)", RegexOption.IGNORE_CASE),
-        // Adreno 600 系列低端（610/615/640 驱动异常）
-        Regex("adreno.*6(1[05]|4)0", RegexOption.IGNORE_CASE),
+        // Adreno 600 系列（610/615/618/620/630/640/650/660/680 驱动异常）
+        Regex("adreno.*6([1-9][05]|20|30|40|80)0", RegexOption.IGNORE_CASE),
         // Adreno 700 系列（730/740 计算着色器 bug / 750/758 写越界 / 830 内存泄漏）
         Regex("adreno.*73[0-9]", RegexOption.IGNORE_CASE),
         Regex("adreno.*75[0-9]", RegexOption.IGNORE_CASE),

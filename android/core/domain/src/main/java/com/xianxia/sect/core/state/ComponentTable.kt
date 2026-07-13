@@ -17,83 +17,103 @@ class ComponentTable<T> @JvmOverloads constructor(
 ) {
     @PublishedApi internal val store = SparseArray<T>(initialCapacity)
 
+    /** 锁对象 — 保护 store 并发访问（kotlinx Mutex 在协程挂起时会释放锁） */
+    @PublishedApi internal val lock = Any()
+
     /** 可选写入回调，由 DiscipleTables 注入以自动 bump mutationVersion */
     @JvmField var onWrite: (() -> Unit)? = null
 
     // === 读取 ===
 
     /** O(log n) 获取 */
-    operator fun get(id: Int): T = store[id]
-        ?: throw NoSuchElementException("ComponentTable: no entry for id=$id")
+    operator fun get(id: Int): T = synchronized(lock) {
+        store[id]
+    } ?: throw NoSuchElementException("ComponentTable: no entry for id=$id")
 
     /** O(log n) 获取，可能为 null */
-    fun getOrNull(id: Int): T? = store[id]
+    fun getOrNull(id: Int): T? = synchronized(lock) { store[id] }
 
     /** O(log n) 用默认值获取 */
-    fun getOrDefault(id: Int, default: T): T = store[id] ?: default
+    fun getOrDefault(id: Int, default: T): T = synchronized(lock) { store[id] ?: default }
 
     // === 写入 ===
 
     /** 设置值 */
     operator fun set(id: Int, value: T) {
-        store.put(id, value); onWrite?.invoke()
+        synchronized(lock) { store.put(id, value) }
+        onWrite?.invoke()
     }
 
     /** 原子更新（读取 → 变换 → 写回） */
     inline fun update(id: Int, block: (T) -> T) {
-        store[id] = block(store[id]); onWrite?.invoke()
+        synchronized(lock) { store[id] = block(store[id]) }
+        onWrite?.invoke()
     }
 
     // === 遍历 ===
 
     /** 所有键 */
-    fun ids(): IntArray {
+    fun ids(): IntArray = synchronized(lock) {
         val result = IntArray(store.size())
         for (i in 0 until store.size()) result[i] = store.keyAt(i)
-        return result
+        result
     }
 
     /** 大小 */
-    val size: Int get() = store.size()
+    val size: Int get() = synchronized(lock) { store.size() }
 
     /** 是否为空 */
-    fun isEmpty(): Boolean = store.size() == 0
+    fun isEmpty(): Boolean = synchronized(lock) { store.size() == 0 }
 
     /** 包含 ID */
-    fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
+    fun contains(id: Int): Boolean = synchronized(lock) { store.indexOfKey(id) >= 0 }
 
     /** 迭代 */
     inline fun forEach(action: (Int, T) -> Unit) {
-        for (i in 0 until store.size()) {
-            action(store.keyAt(i), store.valueAt(i))
+        synchronized(lock) {
+            for (i in 0 until store.size()) {
+                action(store.keyAt(i), store.valueAt(i))
+            }
         }
     }
 
     /** 迭代（仅值） */
     inline fun forEachValue(action: (T) -> Unit) {
-        for (i in 0 until store.size()) action(store.valueAt(i))
+        synchronized(lock) {
+            for (i in 0 until store.size()) action(store.valueAt(i))
+        }
     }
 
     /** 映射为列表（仅值） */
-    fun values(): List<T> {
-        return (0 until store.size()).map { store.valueAt(it) }
+    fun values(): List<T> = synchronized(lock) {
+        (0 until store.size()).map { store.valueAt(it) }
     }
 
     // === 增删 ===
 
     /** 插入 */
     fun put(id: Int, value: T) {
-        store.put(id, value); onWrite?.invoke()
+        synchronized(lock) { store.put(id, value) }
+        onWrite?.invoke()
     }
 
     /** 删除 */
     fun remove(id: Int) {
-        store.remove(id); onWrite?.invoke()
+        synchronized(lock) { store.remove(id) }
+        onWrite?.invoke()
     }
 
     /** 清空 */
     fun clear() {
-        store.clear(); onWrite?.invoke()
+        synchronized(lock) { store.clear() }
+        onWrite?.invoke()
+    }
+
+    /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用，避免直接 store 访问） */
+    @PublishedApi internal fun forEachEntry(action: (Int, T) -> Unit) = synchronized(lock) {
+        for (i in 0 until store.size()) {
+            action(store.keyAt(i), store.valueAt(i))
+        }
     }
 }
 
@@ -151,17 +171,21 @@ class IntFlatArray @JvmOverloads constructor(
     // === 读取 ===
 
     /** O(1) 获取值，不存在返回 0 */
+    @Synchronized
     operator fun get(key: Int): Int = if (key < values.size) values[key] else 0
 
     /** O(1) 获取值，不存在返回 [default] */
+    @Synchronized
     fun get(key: Int, default: Int): Int = if (key < values.size) values[key] else default
 
     /** O(1) 存在性检测 */
+    @Synchronized
     fun contains(key: Int): Boolean = key < values.size && idToSlot[key] >= 0
 
     // === 写入 ===
 
     /** O(1) 设置值：存在则更新，否则插入 */
+    @Synchronized
     fun put(key: Int, value: Int) {
         ensureCapacity(key)
         values[key] = value
@@ -175,6 +199,7 @@ class IntFlatArray @JvmOverloads constructor(
     }
 
     /** O(1) 删除：标记为不存在，keys 中使用 swap-on-remove */
+    @Synchronized
     fun delete(key: Int) {
         if (key >= values.size || idToSlot[key] < 0) return
         val slot = idToSlot[key]
@@ -189,6 +214,7 @@ class IntFlatArray @JvmOverloads constructor(
     }
 
     /** 清空 */
+    @Synchronized
     fun clear() {
         for (i in 0 until values.size) values[i] = 0
         for (i in 0 until idToSlot.size) idToSlot[i] = -1
@@ -198,15 +224,19 @@ class IntFlatArray @JvmOverloads constructor(
     // === 迭代 ===
 
     /** 存活条目数 */
+    @Synchronized
     fun size(): Int = size_
 
     /** 返回第 [index] 个存活条目的 ID */
+    @Synchronized
     fun keyAt(index: Int): Int = keys[index]
 
     /** 返回第 [index] 个存活条目的值 */
+    @Synchronized
     fun valueAt(index: Int): Int = values[keys[index]]
 
     /** 包含检测，兼容 SparseIntArray.indexOfKey 语义 */
+    @Synchronized
     fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
 }
 
@@ -240,17 +270,21 @@ class DoubleFlatArray @JvmOverloads constructor(
     // === 读取 ===
 
     /** O(1) 获取值，不存在返回 0.0 */
+    @Synchronized
     operator fun get(key: Int): Double = if (key < values.size) values[key] else 0.0
 
     /** O(1) 获取值，不存在返回 [default] */
+    @Synchronized
     fun get(key: Int, default: Double): Double = if (key < values.size) values[key] else default
 
     /** O(1) 存在性检测 */
+    @Synchronized
     fun contains(key: Int): Boolean = key < values.size && idToSlot[key] >= 0
 
     // === 写入 ===
 
     /** O(1) 设置值 */
+    @Synchronized
     fun put(key: Int, value: Double) {
         ensureCapacity(key)
         values[key] = value
@@ -263,6 +297,7 @@ class DoubleFlatArray @JvmOverloads constructor(
     }
 
     /** O(1) 删除 */
+    @Synchronized
     fun delete(key: Int) {
         if (key >= values.size || idToSlot[key] < 0) return
         val slot = idToSlot[key]
@@ -277,6 +312,7 @@ class DoubleFlatArray @JvmOverloads constructor(
     }
 
     /** 清空 */
+    @Synchronized
     fun clear() {
         for (i in 0 until values.size) values[i] = 0.0
         for (i in 0 until idToSlot.size) idToSlot[i] = -1
@@ -285,9 +321,13 @@ class DoubleFlatArray @JvmOverloads constructor(
 
     // === 迭代 ===
 
+    @Synchronized
     fun size(): Int = size_
+    @Synchronized
     fun keyAt(index: Int): Int = keys[index]
+    @Synchronized
     fun valueAt(index: Int): Double = values[keys[index]]
+    @Synchronized
     fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
 }
 
@@ -328,6 +368,11 @@ class IntComponentTable(initialCapacity: Int = 64) {
     fun put(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
     fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
     fun clear() { store.clear(); onWrite?.invoke() }
+
+    /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用） */
+    @PublishedApi internal fun forEachEntry(action: (Int, Int) -> Unit) {
+        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+    }
 }
 
 // ============================================================
@@ -365,6 +410,11 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     fun put(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
     fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
     fun clear() { store.clear(); onWrite?.invoke() }
+
+    /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用） */
+    @PublishedApi internal fun forEachEntry(action: (Int, Double) -> Unit) {
+        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+    }
 }
 
 // ============================================================
@@ -399,9 +449,7 @@ class IntTableRef(
     override val size: Int get() = table.size
     override fun copyTo(dest: DiscipleTables) {
         val dst = destProp.get(dest)
-        for (i in 0 until table.store.size()) {
-            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
-        }
+        table.forEachEntry { key, value -> dst.store.put(key, value) }
     }
 }
 
@@ -416,9 +464,7 @@ class DoubleTableRef(
     override val size: Int get() = table.size
     override fun copyTo(dest: DiscipleTables) {
         val dst = destProp.get(dest)
-        for (i in 0 until table.store.size()) {
-            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
-        }
+        table.forEachEntry { key, value -> dst.store.put(key, value) }
     }
 }
 
@@ -433,9 +479,7 @@ class RefTableRef<T>(
     override val size: Int get() = table.size
     override fun copyTo(dest: DiscipleTables) {
         val dst = destProp.get(dest)
-        for (i in 0 until table.store.size()) {
-            dst.store.put(table.store.keyAt(i), table.store.valueAt(i))
-        }
+        table.forEachEntry { key, value -> dst.store.put(key, value) }
     }
 }
 
@@ -451,8 +495,6 @@ class MutableTableRef<T>(
     override val size: Int get() = table.size
     override fun copyTo(dest: DiscipleTables) {
         val dst = destProp.get(dest)
-        for (i in 0 until table.store.size()) {
-            dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i)))
-        }
+        table.forEachEntry { key, value -> dst.store.put(key, deepCopyFn(value)) }
     }
 }
