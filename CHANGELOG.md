@@ -13,6 +13,7 @@
 
 ### 修复
 
+- **修复：读档自动存档弹出「存档为空或已损坏」** — 根因：`loadFromDatabase()` 用 Room suspending `withTransaction` 包裹读取操作，但内部的 `buildSaveDataFromDatabase()` 使用 `withContext(Dispatchers.IO)` + `async {}` 在 IO 线程池并行执行同步 DAO 查询。Room 检测到同步调用线程 ≠ 事务线程，抛出 `IllegalStateException`，返回值 null 被上层解释为「存档为空」。修复：移除读路径中多余的 `withTransaction`（`load()` 入口已有 `withReadLockLight` 排它锁，无需事务）
 - **修复：游戏中读档 IllegalLifecycleTransition(PLAYING→DATA_READY)** — 根因：`transitionTo()` 只允许 forward +1，但 reload 路径从 PLAYING→DATA_READY 是回退。修复：`forceLifecycle(UNINITIALIZED)` 在 stopGameLoop 后重置生命周期，现由 `BootSequenceController.boot()` 内部通过 `setReloading()+resetBootPhase()` 统一处理
 
 ## [4.0.47] - 2026-07-13（versionCode=4047）

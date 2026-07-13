@@ -3,7 +3,8 @@
     "date": "2026-07-13",
     "version": "4.0.48",
     "changes": [
-      "重构：游戏生命周期BootPhase/RunState双层状态机——旧GameLifecycle单向不可逆设计与实际reload/restart场景不匹配，forceLifecycle散落4处+_isGameLoaded双真相源。新BootPhase(5态启动序列，单向)+RunState(4态运行时：IDLE/LOADING/PLAYING/RELOADING)，gameLifecycle组合派生兼容。提取BootSequenceController.boot()统一管理启动序列、RunState切换、资源预加载、游戏循环、地图生成、错误恢复。ViewModel减~200行。对抗性审查3 Agent修复15项问题(重入保护/Cancellation清理/setPlaying守卫/mapData回补/runState重置等)。游戏中读档IllegalLifecycleTransition崩溃根除"
+      "重构：游戏生命周期BootPhase/RunState双层状态机——旧GameLifecycle单向不可逆设计与实际reload/restart场景不匹配，forceLifecycle散落4处+_isGameLoaded双真相源。新BootPhase(5态启动序列，单向)+RunState(4态运行时：IDLE/LOADING/PLAYING/RELOADING)，gameLifecycle组合派生兼容。提取BootSequenceController.boot()统一管理启动序列、RunState切换、资源预加载、游戏循环、地图生成、错误恢复。ViewModel减~200行。对抗性审查3 Agent修复15项问题(重入保护/Cancellation清理/setPlaying守卫/mapData回补/runState重置等)。游戏中读档IllegalLifecycleTransition崩溃根除",
+      "修复：读档自动存档弹出「存档为空或已损坏」——loadFromDatabase用Room suspending withTransaction包裹读取，内部buildSaveDataFromDatabase用withContext(IO)+async并行执行同步DAO查询，Room检测到线程不匹配抛IllegalStateException返回null。修复：移除读路径中多余的withTransaction（load入口已有withReadLockLight排它锁）"
     ]
   },
   {

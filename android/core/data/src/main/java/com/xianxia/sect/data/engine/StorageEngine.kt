@@ -740,11 +740,14 @@ class StorageEngine @Inject constructor(
         }
     }
 
+    /**
+     * 从数据库加载完整存档数据。
+     * 注意：调用方必须持有 [core.lockManager] 的读锁（[load] 已持有），
+     *       否则在无事务包裹的并行读取中可能出现数据不一致。
+     */
     private suspend fun loadFromDatabase(slot: Int): SaveData? {
         return try {
-            core.database.withTransaction {
-                loadFromDatabaseInternal(slot, loadHeavyData = true)
-            }
+            loadFromDatabaseInternal(slot, loadHeavyData = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
