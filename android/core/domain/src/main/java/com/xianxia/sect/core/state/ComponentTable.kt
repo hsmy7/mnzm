@@ -172,11 +172,11 @@ class IntFlatArray @JvmOverloads constructor(
 
     /** O(1) 获取值，不存在返回 0 */
     @Synchronized
-    operator fun get(key: Int): Int = if (key < values.size) values[key] else 0
+    operator fun get(key: Int): Int = if (key < values.size && idToSlot[key] >= 0) values[key] else 0
 
     /** O(1) 获取值，不存在返回 [default] */
     @Synchronized
-    fun get(key: Int, default: Int): Int = if (key < values.size) values[key] else default
+    fun get(key: Int, default: Int): Int = if (key < values.size && idToSlot[key] >= 0) values[key] else default
 
     /** O(1) 存在性检测 */
     @Synchronized
@@ -187,11 +187,31 @@ class IntFlatArray @JvmOverloads constructor(
     /** O(1) 设置值：存在则更新，否则插入 */
     @Synchronized
     fun put(key: Int, value: Int) {
+        // ★ ensureCapacity + growKeys 必须在 values[key] 写入前完成，
+        //    否则若 growKeys OOM，values[key] 已提交但 keys 未追踪 → 静默数据丢失
         ensureCapacity(key)
+        if (size_ >= keys.size) growKeys()
         values[key] = value
         if (idToSlot[key] < 0) {
             // 新 ID：加入紧凑 keys 列表
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
+        }
+    }
+
+    /** 原子读-改-写：读取当前值 → 变换 → 写回，整个操作在同一个锁内 */
+    @Synchronized
+    fun update(key: Int, block: (Int) -> Int) {
+        if (key < values.size && idToSlot[key] >= 0) {
+            val result = block(values[key])
+            values[key] = result
+            // keys 已存在，无需 growKeys
+        } else {
+            val result = block(0)
+            ensureCapacity(key)
             if (size_ >= keys.size) growKeys()
+            values[key] = result
             idToSlot[key] = size_
             keys[size_] = key
             size_++
@@ -238,6 +258,12 @@ class IntFlatArray @JvmOverloads constructor(
     /** 包含检测，兼容 SparseIntArray.indexOfKey 语义 */
     @Synchronized
     fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
+
+    /** 安全遍历所有存活条目 （同一锁内迭代，避免 size/keyAt/valueAt 锁间隙） */
+    @Synchronized
+    fun forEachEntry(action: (Int, Int) -> Unit) {
+        for (i in 0 until size_) action(keys[i], values[keys[i]])
+    }
 }
 
 /**
@@ -271,11 +297,11 @@ class DoubleFlatArray @JvmOverloads constructor(
 
     /** O(1) 获取值，不存在返回 0.0 */
     @Synchronized
-    operator fun get(key: Int): Double = if (key < values.size) values[key] else 0.0
+    operator fun get(key: Int): Double = if (key < values.size && idToSlot[key] >= 0) values[key] else 0.0
 
     /** O(1) 获取值，不存在返回 [default] */
     @Synchronized
-    fun get(key: Int, default: Double): Double = if (key < values.size) values[key] else default
+    fun get(key: Int, default: Double): Double = if (key < values.size && idToSlot[key] >= 0) values[key] else default
 
     /** O(1) 存在性检测 */
     @Synchronized
@@ -287,9 +313,26 @@ class DoubleFlatArray @JvmOverloads constructor(
     @Synchronized
     fun put(key: Int, value: Double) {
         ensureCapacity(key)
+        if (size_ >= keys.size) growKeys()
         values[key] = value
         if (idToSlot[key] < 0) {
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
+        }
+    }
+
+    /** 原子读-改-写 */
+    @Synchronized
+    fun update(key: Int, block: (Double) -> Double) {
+        if (key < values.size && idToSlot[key] >= 0) {
+            val result = block(values[key])
+            values[key] = result
+        } else {
+            val result = block(0.0)
+            ensureCapacity(key)
             if (size_ >= keys.size) growKeys()
+            values[key] = result
             idToSlot[key] = size_
             keys[size_] = key
             size_++
@@ -327,8 +370,15 @@ class DoubleFlatArray @JvmOverloads constructor(
     fun keyAt(index: Int): Int = keys[index]
     @Synchronized
     fun valueAt(index: Int): Double = values[keys[index]]
+    /** 包含检测，兼容 SparseIntArray.indexOfKey 语义 */
     @Synchronized
     fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
+
+    /** 安全遍历所有存活条目 （同一锁内迭代，避免 size/keyAt/valueAt 锁间隙） */
+    @Synchronized
+    fun forEachEntry(action: (Int, Double) -> Unit) {
+        for (i in 0 until size_) action(keys[i], values[keys[i]])
+    }
 }
 
 // ============================================================
@@ -351,27 +401,31 @@ class IntComponentTable(initialCapacity: Int = 64) {
     /** 安全获取，缺失返回 null */
     fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
     operator fun set(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
-    inline fun update(id: Int, block: (Int) -> Int) {
-        store.put(id, block(store[id])); onWrite?.invoke()
+    fun update(id: Int, block: (Int) -> Int) {
+        store.update(id, block); onWrite?.invoke()
     }
-    fun ids(): IntArray {
+    fun ids(): IntArray = synchronized(store) {
         val result = IntArray(store.size())
         for (i in 0 until store.size()) result[i] = store.keyAt(i)
-        return result
+        result
     }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
-    inline fun forEach(action: (Int, Int) -> Unit) {
-        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+    fun forEach(action: (Int, Int) -> Unit) {
+        synchronized(store) {
+            for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+        }
     }
-    fun values(): List<Int> = (0 until store.size()).map { store.valueAt(it) }
+    fun values(): List<Int> = synchronized(store) {
+        (0 until store.size()).map { store.valueAt(it) }
+    }
     fun put(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
     fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
     fun clear() { store.clear(); onWrite?.invoke() }
 
     /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用） */
     @PublishedApi internal fun forEachEntry(action: (Int, Int) -> Unit) {
-        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+        store.forEachEntry(action)
     }
 }
 
@@ -393,27 +447,31 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     operator fun get(id: Int): Double = store[id]
     fun getOrDefault(id: Int, default: Double): Double = store.get(id, default)
     operator fun set(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
-    inline fun update(id: Int, block: (Double) -> Double) {
-        store.put(id, block(store[id])); onWrite?.invoke()
+    fun update(id: Int, block: (Double) -> Double) {
+        store.update(id, block); onWrite?.invoke()
     }
-    fun ids(): IntArray {
+    fun ids(): IntArray = synchronized(store) {
         val result = IntArray(store.size())
         for (i in 0 until store.size()) result[i] = store.keyAt(i)
-        return result
+        result
     }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
-    inline fun forEach(action: (Int, Double) -> Unit) {
-        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+    fun forEach(action: (Int, Double) -> Unit) {
+        synchronized(store) {
+            for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+        }
     }
-    fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
+    fun values(): List<Double> = synchronized(store) {
+        (0 until store.size()).map { store.valueAt(it) }
+    }
     fun put(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
     fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
     fun clear() { store.clear(); onWrite?.invoke() }
 
     /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用） */
     @PublishedApi internal fun forEachEntry(action: (Int, Double) -> Unit) {
-        for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i))
+        store.forEachEntry(action)
     }
 }
 
