@@ -33,9 +33,9 @@ class TimeSystem @Inject constructor(
         DomainLog.d(TAG, "TimeSystem released")
     }
 
-    override suspend fun clearForSlot(slotId: Int) {}
+    override fun clearForSlot(slotId: Int) {}
 
-    suspend fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
+    fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         val gd = state.gameData
         var newPhase = gd.gamePhase + 1
         var newMonth = gd.gameMonth

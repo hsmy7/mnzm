@@ -15,18 +15,18 @@ interface GameSystem {
 
     fun initialize() {}
     fun release() {}
-    suspend fun clear() {}
-    suspend fun clearForSlot(slotId: Int) { clear() }
+    fun clear() {}
+    fun clearForSlot(slotId: Int) { clear() }
 
     /**
      * 月变事件（定时事件型系统使用）。
      * 生产类系统由 UI 打开时惰性结算触发，不在此回调。
      */
-    suspend fun onMonthlyEvent(state: MutableGameState) {}
+    fun onMonthlyEvent(state: MutableGameState) {}
 
     /**
      * 年变事件（定时事件型系统使用）。
      * 老化/招募/盟约等。
      */
-    suspend fun onYearlyEvent(state: MutableGameState) {}
+    fun onYearlyEvent(state: MutableGameState) {}
 }

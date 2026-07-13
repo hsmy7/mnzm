@@ -255,6 +255,7 @@ class CaveExplorationProcessor @Inject constructor(
         val survivorIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
         val survivorHpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.hp }
         val survivorMpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.mp }
+        val deadDisciples = mutableListOf<Disciple>()
         stateStore.update {
             val newList = discipleTables.assembleAll().map { disciple ->
                 if (disciple.id in team.memberIds) {
@@ -263,14 +264,13 @@ class CaveExplorationProcessor @Inject constructor(
                         val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
                         disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
                     } else {
-                        eventProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
+                        deadDisciples.add(disciple)
                         disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
                     }
                 } else disciple
             }
             discipleTables.clear()
             newList.forEach { discipleTables.insert(it) }
-            // handleDiscipleDeath 设置的 deathYears 被上面的 clear 清除，单独恢复
             val caveYear = stateStore.gameData.value.gameYear
             newList.filter { !it.isAlive }.forEach {
                 val idInt = it.id.toIntOrNull()
@@ -279,6 +279,7 @@ class CaveExplorationProcessor @Inject constructor(
                 }
             }
         }
+        deadDisciples.forEach { eventProcessor.handleDiscipleDeath(it, isOutsideSect = true) }
 
         if (!battleResult.victory) {
             var updatedAITeams = currentAITeams.filter { it.caveId != cave.id }

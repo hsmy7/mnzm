@@ -573,7 +573,7 @@ private val scopeProvider: CoroutineScopeProvider,
                 return@update
             }
 
-            clearDiscipleFromAllSlots(discipleId)
+            kotlinx.coroutines.runBlocking { clearDiscipleFromAllSlots(discipleId) }
 
             // 仅清除装备/功法所有权，不返还仓库
             val expelEquipIds = mutableListOf<String>()

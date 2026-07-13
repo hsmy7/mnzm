@@ -18,7 +18,7 @@ class PlantingSystem @Inject constructor(
 ) : GameSystem {
     override val systemName = "PlantingSystem"
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         cultivationService.processSpiritFieldHarvest(state)
     }
 }

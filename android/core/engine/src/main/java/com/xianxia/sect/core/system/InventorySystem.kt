@@ -85,7 +85,7 @@ class InventorySystem @Inject constructor(
         DomainLog.d(TAG, "InventorySystem released")
     }
 
-    override suspend fun clear() {
+    override fun clear() {
         stateStore.update {
             equipmentStacks = EntityStore(emptyList())
             equipmentInstances = EntityStore(emptyList())
@@ -98,11 +98,11 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override suspend fun clearForSlot(slotId: Int) {
+    override fun clearForSlot(slotId: Int) {
         clear()
     }
 
-    suspend fun loadInventory(
+    fun loadInventory(
         equipmentStacksList: List<EquipmentStack>,
         equipmentInstancesList: List<EquipmentInstance>,
         manualStacksList: List<ManualStack>,
@@ -289,7 +289,7 @@ class InventorySystem @Inject constructor(
         return DomainResult.Success(Unit)
     }
 
-    override suspend fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
+    override fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -319,7 +319,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override suspend fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance> {
+    override fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance> {
         if (item.id.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
         if (item.name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
         if (item.rarity !in VALID_RARITY_RANGE) return DomainResult.Failure(AppError.Domain.Inventory.InvalidRarity(item.rarity))
@@ -333,7 +333,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override suspend fun addManualStack(item: ManualStack, merge: Boolean): DomainResult<ManualStack> {
+    override fun addManualStack(item: ManualStack, merge: Boolean): DomainResult<ManualStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -364,7 +364,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override suspend fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance> {
+    override fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance> {
         if (item.id.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
         if (item.name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
         if (item.rarity !in VALID_RARITY_RANGE) return DomainResult.Failure(AppError.Domain.Inventory.InvalidRarity(item.rarity))
@@ -378,7 +378,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentStack> {
+    fun returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentStack> {
         return stateStore.updateAndReturn {
             val maxStack = getMaxStackForType("equipment_stack")
 
@@ -405,7 +405,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {
+    fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {
         return stateStore.updateAndReturn {
             val maxStack = getMaxStackForType("manual_stack")
 
@@ -432,7 +432,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = equipmentStacks.find { it.id == id } ?: return@updateAndReturn false
@@ -459,7 +459,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeEquipmentInstance(id: String): Boolean {
+    fun removeEquipmentInstance(id: String): Boolean {
         return stateStore.updateAndReturn {
             val oldSize = equipmentInstances.size
             equipmentInstances = equipmentInstances.filter { it.id != id }
@@ -467,7 +467,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateEquipmentStack(id: String, transform: (EquipmentStack) -> EquipmentStack): Boolean {
+    fun updateEquipmentStack(id: String, transform: (EquipmentStack) -> EquipmentStack): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             equipmentStacks = equipmentStacks.map {
@@ -480,7 +480,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateEquipmentInstance(id: String, transform: (EquipmentInstance) -> EquipmentInstance): Boolean {
+    fun updateEquipmentInstance(id: String, transform: (EquipmentInstance) -> EquipmentInstance): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             equipmentInstances = equipmentInstances.map {
@@ -496,7 +496,7 @@ class InventorySystem @Inject constructor(
     fun getEquipmentStackById(id: String): EquipmentStack? = getById(currentEquipmentStacks(), id)
     fun getEquipmentInstanceById(id: String): EquipmentInstance? = getById(currentEquipmentInstances(), id)
 
-    suspend fun removeManual(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeManual(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = manualStacks.find { it.id == id } ?: return@updateAndReturn false
@@ -523,7 +523,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeManualInstance(id: String): Boolean {
+    fun removeManualInstance(id: String): Boolean {
         return stateStore.updateAndReturn {
             val oldSize = manualInstances.size
             manualInstances = manualInstances.filter { it.id != id }
@@ -531,7 +531,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateManualStack(id: String, transform: (ManualStack) -> ManualStack): Boolean {
+    fun updateManualStack(id: String, transform: (ManualStack) -> ManualStack): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             manualStacks = manualStacks.map {
@@ -544,7 +544,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateManualInstance(id: String, transform: (ManualInstance) -> ManualInstance): Boolean {
+    fun updateManualInstance(id: String, transform: (ManualInstance) -> ManualInstance): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             manualInstances = manualInstances.map {
@@ -560,7 +560,7 @@ class InventorySystem @Inject constructor(
     fun getManualStackById(id: String): ManualStack? = getById(currentManualStacks(), id)
     fun getManualInstanceById(id: String): ManualInstance? = getById(currentManualInstances(), id)
 
-    suspend fun addPill(item: Pill, merge: Boolean = true): DomainResult<Pill> {
+    fun addPill(item: Pill, merge: Boolean = true): DomainResult<Pill> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -590,7 +590,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = pills.find { it.id == id } ?: return@updateAndReturn false
@@ -617,7 +617,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false, grade: PillGrade? = null): Boolean {
+    fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false, grade: PillGrade? = null): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = currentPills().find {
             it.name == name && it.rarity == rarity && (grade == null || it.grade == grade)
@@ -657,7 +657,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updatePill(id: String, transform: (Pill) -> Pill): Boolean {
+    fun updatePill(id: String, transform: (Pill) -> Pill): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             pills = pills.map {
@@ -680,7 +680,7 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    suspend fun addMaterial(item: Material, merge: Boolean = true): DomainResult<Material> {
+    fun addMaterial(item: Material, merge: Boolean = true): DomainResult<Material> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -710,7 +710,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = materials.find { it.id == id } ?: return@updateAndReturn false
@@ -737,7 +737,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = currentMaterials().find { it.name == name && it.rarity == rarity }
             ?: return false
@@ -775,7 +775,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateMaterial(id: String, transform: (Material) -> Material): Boolean {
+    fun updateMaterial(id: String, transform: (Material) -> Material): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             materials = materials.map {
@@ -796,7 +796,7 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    suspend fun addHerb(item: Herb, merge: Boolean = true): DomainResult<Herb> {
+    fun addHerb(item: Herb, merge: Boolean = true): DomainResult<Herb> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -826,7 +826,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = herbs.find { it.id == id } ?: return@updateAndReturn false
@@ -853,7 +853,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = currentHerbs().find { it.name == name && it.rarity == rarity }
             ?: return false
@@ -891,7 +891,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateHerb(id: String, transform: (Herb) -> Herb): Boolean {
+    fun updateHerb(id: String, transform: (Herb) -> Herb): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             herbs = herbs.map {
@@ -912,7 +912,7 @@ class InventorySystem @Inject constructor(
         return item.quantity >= quantity
     }
 
-    suspend fun addSeed(item: Seed, merge: Boolean = true): DomainResult<Seed> {
+    fun addSeed(item: Seed, merge: Boolean = true): DomainResult<Seed> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -942,7 +942,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeSeed(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeSeed(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = seeds.find { it.id == id } ?: return@updateAndReturn false
@@ -969,7 +969,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun addSeedSync(item: Seed, merge: Boolean = true): DomainResult<Seed> {
+    fun addSeedSync(item: Seed, merge: Boolean = true): DomainResult<Seed> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
@@ -997,7 +997,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeSeedSync(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeSeedSync(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (quantity <= 0) return false
         return stateStore.updateAndReturn {
             val existing = seeds.find { it.id == id } ?: return@updateAndReturn false
@@ -1024,7 +1024,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun removeSeedByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removeSeedByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = currentSeeds().find { it.name == name && it.rarity == rarity }
             ?: return false
@@ -1062,7 +1062,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun updateSeed(id: String, transform: (Seed) -> Seed): Boolean {
+    fun updateSeed(id: String, transform: (Seed) -> Seed): Boolean {
         return stateStore.updateAndReturn {
             var found = false
             seeds = seeds.map {
@@ -1099,7 +1099,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    suspend fun sortWarehouse() {
+    fun sortWarehouse() {
         stateStore.update {
             equipmentStacks.replaceAll(equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name }))
             equipmentInstances.replaceAll(equipmentInstances.items.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))
@@ -1136,12 +1136,12 @@ class InventorySystem @Inject constructor(
 
     /** @deprecated 使用 [SpiritStoneWallet.deduct] 替代 */
     @Deprecated("Use spiritStoneWallet.deduct()")
-    suspend fun deductSpiritStones(amount: Long): Long =
+    fun deductSpiritStones(amount: Long): Long =
         deductSpiritStones(amount, SpiritStoneGrade.LOW)
 
     /** @deprecated 使用 [SpiritStoneWallet.deduct] 替代 */
     @Deprecated("Use spiritStoneWallet.deduct()")
-    suspend fun deductSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
+    fun deductSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
         val result = stateStore.updateAndReturn {
             spiritStoneWallet.deduct(this, amount, grade, SpiritStoneReason.Internal, SpiritStoneSource.Internal, true)
         }
@@ -1154,12 +1154,12 @@ class InventorySystem @Inject constructor(
 
     /** @deprecated 使用 [SpiritStoneWallet.add] 替代 */
     @Deprecated("Use spiritStoneWallet.add()")
-    suspend fun addSpiritStones(amount: Long): Long =
+    fun addSpiritStones(amount: Long): Long =
         addSpiritStones(amount, SpiritStoneGrade.LOW)
 
     /** @deprecated 使用 [SpiritStoneWallet.add] 替代 */
     @Deprecated("Use spiritStoneWallet.add()")
-    suspend fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
+    fun addSpiritStones(amount: Long, grade: SpiritStoneGrade): Long {
         return stateStore.updateAndReturn {
             spiritStoneWallet.add(this, amount, grade, SpiritStoneSource.Internal)
         }
@@ -1167,7 +1167,7 @@ class InventorySystem @Inject constructor(
 
     /** @deprecated 使用 [SpiritStoneWallet.batch] 替代 */
     @Deprecated("Use spiritStoneWallet.batch()")
-    suspend fun exchangeSpiritStones(
+    fun exchangeSpiritStones(
         quantity: Long,
         source: SpiritStoneGrade,
         target: SpiritStoneGrade
@@ -1213,8 +1213,8 @@ class InventorySystem @Inject constructor(
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
         InventoryFactories.createSeedFromMerchantItem(item)
 
-    override suspend fun addPill(item: Pill): DomainResult<Pill> = addPill(item, merge = true)
-    override suspend fun addMaterial(item: Material): DomainResult<Material> = addMaterial(item, merge = true)
-    override suspend fun addHerb(item: Herb): DomainResult<Herb> = addHerb(item, merge = true)
-    override suspend fun addSeed(item: Seed): DomainResult<Seed> = addSeed(item, merge = true)
+    override fun addPill(item: Pill): DomainResult<Pill> = addPill(item, merge = true)
+    override fun addMaterial(item: Material): DomainResult<Material> = addMaterial(item, merge = true)
+    override fun addHerb(item: Herb): DomainResult<Herb> = addHerb(item, merge = true)
+    override fun addSeed(item: Seed): DomainResult<Seed> = addSeed(item, merge = true)
 }

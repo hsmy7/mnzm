@@ -91,7 +91,7 @@ class PatrolBattleSystem @Inject constructor(
      * 3. executeBattles — 创建并执行战斗
      * 4. applyResults   — 结算战斗结果（弟子状态/奖励/日志/槽位清理）
      */
-    suspend fun executePatrolRound(state: MutableGameState) {
+    fun executePatrolRound(state: MutableGameState) {
         val gd = state.gameData
         if (gd.patrolSlots.isEmpty()) return
 
@@ -186,7 +186,7 @@ class PatrolBattleSystem @Inject constructor(
 
     // ── 步骤 3: 执行战斗 ──────────────────────────────────────────────────
 
-    private suspend fun executeBattles(
+    private fun executeBattles(
         teams: List<TowerTeam>,
         targets: Map<Int, WorldLevel>,
         equipmentMap: Map<String, EquipmentInstance>,
@@ -225,7 +225,7 @@ class PatrolBattleSystem @Inject constructor(
 
     // ── 步骤 4: 结算战斗结果 ──────────────────────────────────────────────
 
-    private suspend fun applyResults(
+    private fun applyResults(
         results: List<TowerBattleResult>,
         state: MutableGameState,
         gd: GameData,
@@ -321,7 +321,7 @@ class PatrolBattleSystem @Inject constructor(
     }
 
     /** 应用胜利奖励：神魂/属性 + 妖兽材料 + 灵石 */
-    private suspend fun applyVictoryRewards(
+    private fun applyVictoryRewards(
         state: MutableGameState,
         target: WorldLevel,
         survivors: Set<String>,

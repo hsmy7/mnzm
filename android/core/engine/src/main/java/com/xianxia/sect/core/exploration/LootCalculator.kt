@@ -200,7 +200,7 @@ class LootCalculator @Inject constructor() {
      * 从仓库中扣除 [loot] 指定的物品和灵石。
      * 所有扣除操作在 [state] 上原地执行，不涉及外部依赖。
      */
-    suspend fun applyLoot(
+    fun applyLoot(
         state: MutableGameState,
         loot: BeastLootData
     ) {

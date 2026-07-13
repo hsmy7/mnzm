@@ -21,11 +21,11 @@ class MailSystem @Inject constructor(
         mailService.release()
     }
 
-    override suspend fun clearForSlot(slotId: Int) {
+    override fun clearForSlot(slotId: Int) {
         mailService.clearForSlot(slotId)
     }
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         mailService.processMonthlyMails(state)
     }
 }

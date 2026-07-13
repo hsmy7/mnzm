@@ -14,7 +14,7 @@ class ExplorationTickSystem @Inject constructor(
 ) : GameSystem {
     override val systemName: String = "ExplorationTickSystem"
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         explorationService.processMonthlyWorldLevels(state)
     }
 }

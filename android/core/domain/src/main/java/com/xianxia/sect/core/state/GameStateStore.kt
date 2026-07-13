@@ -145,7 +145,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun forceLifecycle(state: GameLifecycle)
 
     // === 核心写入 API ===
-    suspend fun update(block: suspend MutableGameState.() -> Unit)
+    fun update(block: MutableGameState.() -> Unit)
 
     /**
      * 带返回值的事务更新。替代 `update {}` + `var result = false` 闭包捕获反模式。
@@ -167,7 +167,7 @@ interface GameStateStore : GameStateSnapshotProvider {
      * - 若当前已在 [update] 事务内 → 直接执行 block
      * - 否则 → 新开 [update] 事务执行 block
      */
-    suspend fun modifyState(block: MutableGameState.() -> Unit)
+    fun modifyState(block: MutableGameState.() -> Unit)
 
     // === 批量发射模式（结算时抑制个体 StateFlow 发射，减少重组雪崩） ===
     /** 进入批量发射模式：个体 Field StateFlow 暂不发射，仅累积 _updateVersion */

@@ -161,7 +161,7 @@ private class FakeStore : GameStateStore {
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean) {}
     override suspend fun reset() {}
 
-    override suspend fun update(block: suspend MutableGameState.() -> Unit) {
+    override fun update(block: MutableGameState.() -> Unit) {
         val m = newMutable()
         block(m)
         teamList = m.teams
@@ -170,7 +170,7 @@ private class FakeStore : GameStateStore {
         gameData.value = gd
     }
 
-    override suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R {
+    override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         val m = newMutable()
         val result = block(m)
         teamList = m.teams

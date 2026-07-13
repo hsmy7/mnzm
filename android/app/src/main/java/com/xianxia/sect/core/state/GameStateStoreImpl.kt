@@ -20,9 +20,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -122,7 +123,7 @@ class GameStateStoreImpl @Inject constructor(
     private var _discipleTables = DiscipleTables()
     override val discipleTables: DiscipleTables get() = _discipleTables
 
-    private val transactionMutex = Mutex()
+    private val transactionLock = ReentrantLock()
 
     /**
      * 显式重入计数，替代原 thread identity 检测。
@@ -448,7 +449,7 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    override suspend fun modifyState(block: MutableGameState.() -> Unit) {
+    override fun modifyState(block: MutableGameState.() -> Unit) {
         if (reentrantCount.get() > 0) {
             reentrantBuffer.get()?.block()
         } else {
@@ -605,7 +606,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
 
-    override suspend fun update(block: suspend MutableGameState.() -> Unit) {
+    override fun update(block: MutableGameState.() -> Unit) {
 
         // ★ 显式重入检测：reentrantCount > 0 表示最外层 update 已持有锁
         if (reentrantCount.get() > 0) {
@@ -618,7 +619,7 @@ class GameStateStoreImpl @Inject constructor(
 
         var disciplesNeedReassemble = false
 
-        transactionMutex.withLock {
+        transactionLock.withLock {
             reentrantCount.set(1)
             reentrantBuffer.set(reusableMutableState)
             val curGame = _gameDataFlow.value
@@ -783,7 +784,7 @@ class GameStateStoreImpl @Inject constructor(
         isLoading: Boolean,
         isSaving: Boolean
     ) {
-        transactionMutex.withLock {
+        transactionLock.withLock {
             // 缓存清除在所有写入之前执行
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
@@ -863,7 +864,7 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     override suspend fun reset() {
-        transactionMutex.withLock {
+        transactionLock.withLock {
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
             _gameDataFlow.value = GameData()

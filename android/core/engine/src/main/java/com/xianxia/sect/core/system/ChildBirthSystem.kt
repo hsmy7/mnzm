@@ -25,13 +25,13 @@ class ChildBirthSystem @Inject constructor(
 
     override fun initialize() {}
     override fun release() {}
-    override suspend fun clearForSlot(slotId: Int) {}
+    override fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         processMonthlyBirth(state)
     }
 
-    override suspend fun onYearlyEvent(state: MutableGameState) {
+    override fun onYearlyEvent(state: MutableGameState) {
         processYearlyConception(state)
     }
 

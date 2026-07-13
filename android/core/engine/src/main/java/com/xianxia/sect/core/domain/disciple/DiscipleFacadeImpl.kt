@@ -586,8 +586,9 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 gameData = gameData.copy(elderSlots = newElderSlots)
-                discipleService.syncAllDiscipleStatuses()
+                
             }
+                discipleService.syncAllDiscipleStatuses()
         }
     }
 
@@ -657,8 +658,9 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 gameData = gameData.copy(elderSlots = updatedSlots)
-                discipleService.syncAllDiscipleStatuses()
+                
             }
+                discipleService.syncAllDiscipleStatuses()
         }
     }
 
@@ -705,8 +707,9 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 gameData = gameData.copy(elderSlots = updatedSlots)
-                discipleService.syncAllDiscipleStatuses()
+                
             }
+                discipleService.syncAllDiscipleStatuses()
         }
     }
 
@@ -725,8 +728,9 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 gameData = gameData.copy(librarySlots = slots)
-                discipleService.syncAllDiscipleStatuses()
+                
             }
+                discipleService.syncAllDiscipleStatuses()
         }
     }
 
@@ -738,8 +742,9 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 gameData = gameData.copy(librarySlots = slots)
-                discipleService.syncAllDiscipleStatuses()
+                
             }
+                discipleService.syncAllDiscipleStatuses()
         }
     }
 

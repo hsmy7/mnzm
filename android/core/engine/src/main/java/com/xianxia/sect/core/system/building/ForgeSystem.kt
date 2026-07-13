@@ -18,7 +18,7 @@ class ForgeSystem @Inject constructor(
 ) : GameSystem {
     override val systemName = "ForgeSystem"
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         cultivationService.processAutoForge()
         cultivationService.processBuildingProduction(
             state.gameData.gameYear, state.gameData.gameMonth

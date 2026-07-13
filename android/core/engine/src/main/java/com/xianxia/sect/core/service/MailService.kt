@@ -99,17 +99,21 @@ class MailService @Inject constructor(
     fun release() {
     }
 
-    suspend fun clearForSlot(slotId: Int) {
-        getMutex(slotId).withLock {
-            mailRepo.deleteAllForSlot(slotId)
+    fun clearForSlot(slotId: Int) {
+        kotlinx.coroutines.runBlocking {
+            getMutex(slotId).withLock {
+                mailRepo.deleteAllForSlot(slotId)
+            }
         }
     }
 
-    suspend fun processMonthlyMails(state: MutableGameState) {
+    fun processMonthlyMails(state: MutableGameState) {
         val slotId = state.gameData.currentSlot.coerceAtLeast(1)
         try {
-            fetchOnlineMails(slotId)
-            cleanExpired(slotId)
+            kotlinx.coroutines.runBlocking {
+                fetchOnlineMails(slotId)
+                cleanExpired(slotId)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

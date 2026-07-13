@@ -296,8 +296,17 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
             }
         }
         val allRewards = mutableListOf<BattleRewardItem>()
+        if (level.isBeast) {
+            allRewards.addAll(handleBeastLevelVictory(level))
+            val engineSsRewards = result.rewards["spiritStones"] ?: 0
+            if (engineSsRewards > 0) {
+                addSpiritStones(engineSsRewards.toLong())
+                allRewards.add(BattleRewardItem(name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"))
+            }
+        } else {
+            allRewards.addAll(handleCaveLevelVictory(level))
+        }
         stateStore.update {
-            if (level.isBeast) { allRewards.addAll(handleBeastLevelVictory(level)); val engineSsRewards = result.rewards["spiritStones"] ?: 0; if (engineSsRewards > 0) { addSpiritStones(engineSsRewards.toLong()); allRewards.add(BattleRewardItem(name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones")) } } else allRewards.addAll(handleCaveLevelVictory(level))
             gameData = gameData.copy(worldLevels = gameData.worldLevels.map { l -> if (l.id == levelId) l.copy(defeated = true) else l }); battleLogs = updatedLogs
         }
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = allRewards))

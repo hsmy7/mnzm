@@ -72,7 +72,7 @@ class SystemManager @Inject constructor(
     }
 
     /** 通知所有系统进行月变处理 */
-    suspend fun onMonthlyEvent(state: MutableGameState) {
+    fun onMonthlyEvent(state: MutableGameState) {
         for (system in systemMap.values) {
             try {
                 system.onMonthlyEvent(state)
@@ -86,7 +86,7 @@ class SystemManager @Inject constructor(
     }
 
     /** 通知所有系统进行年变处理 */
-    suspend fun onYearlyEvent(state: MutableGameState) {
+    fun onYearlyEvent(state: MutableGameState) {
         for (system in systemMap.values) {
             try {
                 system.onYearlyEvent(state)

@@ -204,8 +204,10 @@ class CultivationService @Inject constructor(
         cultivationSettlement.processAnnualSalary(year)
     }
 
-    suspend fun processResidenceLoyalty() {
+    fun processResidenceLoyalty() {
+        kotlinx.coroutines.runBlocking {
         cultivationSettlement.processResidenceLoyalty()
+        }
     }
 
     internal fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
@@ -231,9 +233,11 @@ class CultivationService @Inject constructor(
      * 必须在 shadow transaction 外部调用，因为内部方法使用
      * [GameStateStore.update] 不可在 shadow 期间调用。
      */
-    suspend fun processYearlyEvents() {
+    fun processYearlyEvents() {
         val year = stateStore.gameData.value.gameYear
-        eventProcessor.processYearlyEvents(year)
+        kotlinx.coroutines.runBlocking {
+            eventProcessor.processYearlyEvents(year)
+        }
     }
 
     /**
@@ -241,27 +245,35 @@ class CultivationService @Inject constructor(
      * 必须在 shadow transaction 外部调用，因为内部方法使用
      * [GameStateStore.update] 不可在 shadow 期间调用。
      */
-    suspend fun processMonthlyEvents() {
+    fun processMonthlyEvents() {
         val data = stateStore.gameData.value
-        eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
-        // 空闲弟子自动分配：月度结算路径，一月判定一次
-        productionProcessor.processAutoAssign()
-        // 居所弟子每月忠诚度加成（年俸改为年发后，居所加成是月度忠诚度的主要来源）
-        cultivationSettlement.processResidenceLoyalty()
+        kotlinx.coroutines.runBlocking {
+            eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        }
+        kotlinx.coroutines.runBlocking {
+            productionProcessor.processAutoAssign()
+        }
+        kotlinx.coroutines.runBlocking {
+            cultivationSettlement.processResidenceLoyalty()
+        }
     }
 
     /**
      * @deprecated 月度事件已移至 shadow 外部处理（见 [processMonthlyEvents]），
      * 此方法不再从 SettlementCoordinator 调用。保留供兼容。
      */
-    suspend fun processMonthlyEventsOnShadow(state: MutableGameState) {
+    fun processMonthlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
-        eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        kotlinx.coroutines.runBlocking {
+            eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        }
     }
 
-    suspend fun processYearlyEventsOnShadow(state: MutableGameState) {
+    fun processYearlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
-        eventProcessor.processYearlyEvents(data.gameYear)
+        kotlinx.coroutines.runBlocking {
+            eventProcessor.processYearlyEvents(data.gameYear)
+        }
     }
 
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData
@@ -340,20 +352,28 @@ class CultivationService @Inject constructor(
 
     // ── 委托方法：ProductionProcessor ─────────────────────────────────
 
-    internal suspend fun processBuildingProduction(year: Int, month: Int) {
-        productionProcessor.processBuildingProduction(year, month)
+    internal fun processBuildingProduction(year: Int, month: Int) {
+        kotlinx.coroutines.runBlocking {
+            productionProcessor.processBuildingProduction(year, month)
+        }
     }
 
-    internal suspend fun processSpiritFieldHarvest(state: MutableGameState) {
-        productionProcessor.processSpiritFieldHarvest(state)
+    internal fun processSpiritFieldHarvest(state: MutableGameState) {
+        kotlinx.coroutines.runBlocking {
+            productionProcessor.processSpiritFieldHarvest(state)
+        }
     }
 
-    internal suspend fun processAutoAlchemy() {
-        productionProcessor.processAutoAlchemy()
+    internal fun processAutoAlchemy() {
+        kotlinx.coroutines.runBlocking {
+            productionProcessor.processAutoAlchemy()
+        }
     }
 
-    internal suspend fun processAutoForge() {
-        productionProcessor.processAutoForge()
+    internal fun processAutoForge() {
+        kotlinx.coroutines.runBlocking {
+            productionProcessor.processAutoForge()
+        }
     }
 
     /** 影子状态批量生产循环（委托 ProductionProcessor 的 shadow 版方法） */

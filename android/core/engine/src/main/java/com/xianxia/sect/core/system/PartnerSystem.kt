@@ -59,9 +59,9 @@ class PartnerSystem @Inject constructor(
         eventBus.unsubscribe(this)
     }
 
-    override suspend fun clearForSlot(slotId: Int) {}
+    override fun clearForSlot(slotId: Int) {}
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         // 月度伴侣配对
         processPartnerMatching(state)
     }

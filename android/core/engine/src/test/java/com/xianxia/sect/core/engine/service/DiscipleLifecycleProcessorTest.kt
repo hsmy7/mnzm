@@ -70,14 +70,14 @@ class DiscipleLifecycleProcessorTest {
             override val battleLogs: StateFlow<List<BattleLog>>
                 get() = MutableStateFlow(emptyList())
 
-            override suspend fun update(
-                block: suspend MutableGameState.() -> Unit
+            override fun update(
+        block: MutableGameState.() -> Unit
             ) {
                 block.invoke(mutableState)
             }
 
-            override suspend fun <R> updateAndReturn(
-                block: suspend MutableGameState.() -> R
+            override fun <R> updateAndReturn(
+        block: MutableGameState.() -> R
             ): R {
                 return block.invoke(mutableState)
             }

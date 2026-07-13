@@ -18,7 +18,7 @@ class AlchemySystem @Inject constructor(
 ) : GameSystem {
     override val systemName = "AlchemySystem"
 
-    override suspend fun onMonthlyEvent(state: MutableGameState) {
+    override fun onMonthlyEvent(state: MutableGameState) {
         cultivationService.processAutoAlchemy()
         cultivationService.processBuildingProduction(
             state.gameData.gameYear, state.gameData.gameMonth

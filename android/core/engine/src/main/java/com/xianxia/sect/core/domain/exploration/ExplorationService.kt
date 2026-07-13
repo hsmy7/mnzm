@@ -63,7 +63,7 @@ class ExplorationService @Inject constructor(
      * 2. BeastAttackDetector — 检测妖兽攻击
      * 3. PatrolBattleSystem — 巡视楼自动攻击
      */
-    suspend fun processMonthlyWorldLevels(state: MutableGameState) {
+    fun processMonthlyWorldLevels(state: MutableGameState) {
         // Step 1: 世界关卡惰性管理（纯函数）
         state.gameData = worldLevelManager.processMonthly(state.gameData)
 
@@ -133,7 +133,7 @@ class ExplorationService @Inject constructor(
 
     // ── 内部战斗逻辑（保留，不迁移） ─────────────────────────────────────
 
-    private suspend fun MutableGameState.resolveBeastFightInternal(
+    private fun MutableGameState.resolveBeastFightInternal(
         beastLevelId: String, level: WorldLevel
     ) {
         val gd = gameData

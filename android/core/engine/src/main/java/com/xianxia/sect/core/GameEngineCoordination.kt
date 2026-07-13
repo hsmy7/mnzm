@@ -283,12 +283,13 @@ suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: Str
     stateStore.update {
         val id = discipleId.toInt()
         if (id in discipleTables.ids) discipleTables.discipleTypes[id] = newType
-        discipleFacade.syncAllDiscipleStatuses()
     }
+    discipleFacade.syncAllDiscipleStatuses()
 }
 
 suspend fun GameEngine.updateGameDataAndSync(update: (GameData) -> GameData) {
-    stateStore.update { gameData = update(gameData); discipleFacade.syncAllDiscipleStatuses() }
+    stateStore.update { gameData = update(gameData) }
+    discipleFacade.syncAllDiscipleStatuses()
 }
 
 // ── Cross-domain: Sect / Map ────────────────────────────────────────
