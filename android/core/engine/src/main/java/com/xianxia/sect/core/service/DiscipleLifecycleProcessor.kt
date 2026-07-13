@@ -38,7 +38,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     // ── 弟子老化/死亡 ──────────────────────────────────────────────────
 
-    suspend fun processGriefExpiry(currentYear: Int) {
+    fun processGriefExpiry(currentYear: Int) {
         stateStore.update {
             val updated = discipleTables.assembleAll().map { disciple ->
                 val griefEnd = disciple.social.griefEndYear
@@ -53,7 +53,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    suspend fun processDiscipleAging(currentYear: Int) {
+    fun processDiscipleAging(currentYear: Int) {
         val data = stateStore.gameData.value
         val currentList = stateStore.disciples.value
         val updatedDisciples = currentList.mapNotNull { disciple ->
@@ -95,7 +95,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    suspend fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
+    fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         clearDiscipleFromAllSlots(disciple.id)
 
         val originalList = stateStore.disciples.value
@@ -131,7 +131,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
 
         // 发布死亡事件
-        eventBus.emit(DeathEvent(
+        eventBus.emitSync(DeathEvent(
             discipleId = disciple.id,
             discipleName = disciple.name,
             cause = if (isOutsideSect) "combat" else "age",
@@ -200,7 +200,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         else -> "亲属"
     }
 
-    private suspend fun cleanupEquipmentAndManuals(disciple: Disciple, isOutsideSect: Boolean) {
+    private fun cleanupEquipmentAndManuals(disciple: Disciple, isOutsideSect: Boolean) {
         if (isOutsideSect) {
             clearExternalEquipmentAndManuals(disciple)
         } else {
@@ -208,7 +208,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    private suspend fun clearExternalEquipmentAndManuals(disciple: Disciple) {
+    private fun clearExternalEquipmentAndManuals(disciple: Disciple) {
         val externalEquipIds = mutableSetOf<String>()
         disciple.equipment.weaponId?.let { externalEquipIds.add(it) }
         disciple.equipment.armorId?.let { externalEquipIds.add(it) }
@@ -225,7 +225,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         removeProficiencies(disciple.id)
     }
 
-    private suspend fun clearInternalEquipmentAndManuals(disciple: Disciple) {
+    private fun clearInternalEquipmentAndManuals(disciple: Disciple) {
         // 直接删除装备/功法实例，不返还仓库
         val deleteEquipIds = mutableSetOf<String>()
         disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
@@ -249,7 +249,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         removeProficiencies(disciple.id)
     }
 
-    private suspend fun removeProficiencies(discipleId: String) {
+    private fun removeProficiencies(discipleId: String) {
         val data = stateStore.gameData.value
         val updated = data.manualProficiencies.toMutableMap()
         updated.remove(discipleId)
@@ -260,12 +260,12 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    suspend fun processYearlyAging(currentYear: Int) {
+    fun processYearlyAging(currentYear: Int) {
         val cullThreshold = currentYear - CULL_DEAD_AFTER_YEARS
         stateStore.discipleTables.cullDeadDisciples(cullThreshold)
     }
 
-    suspend fun processReflectionRelease(year: Int) {
+    fun processReflectionRelease(year: Int) {
         stateStore.update {
             val currentList = discipleTables.assembleAll()
             val reflectingDisciples = currentList.filter { it.status == DiscipleStatus.REFLECTING && it.isAlive }
@@ -302,7 +302,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     // ── 辅助方法 ──────────────────────────────────────────────────────
 
-    suspend fun clearDiscipleFromAllSlots(discipleId: String) {
+    fun clearDiscipleFromAllSlots(discipleId: String) {
         val data = stateStore.gameData.value
         val cleaned = DiscipleSlotCleanup.clearAllSlots(data, discipleId)
         stateStore.update {
@@ -312,7 +312,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         clearForgeSlotsIfNeeded(discipleId)
     }
 
-    private suspend fun clearForgeSlotsIfNeeded(discipleId: String) {
+    private fun clearForgeSlotsIfNeeded(discipleId: String) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId) {
@@ -323,7 +323,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    suspend fun returnEquipmentToWarehouse(equipmentId: String) {
+    fun returnEquipmentToWarehouse(equipmentId: String) {
         val currentInstances = stateStore.equipmentInstances.value
         val eq = currentInstances.find { it.id == equipmentId } ?: return
         val stack = eq.toStack()
@@ -345,7 +345,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
     }
 
-    suspend fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
+    fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
         stateStore.update {
             equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
         }

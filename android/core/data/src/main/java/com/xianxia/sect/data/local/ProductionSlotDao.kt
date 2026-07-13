@@ -15,22 +15,22 @@ interface ProductionSlotDao {
     fun getAll(): Flow<List<ProductionSlot>>
     
     @Query("SELECT * FROM production_slots")
-    suspend fun getAllSync(): List<ProductionSlot>
+    fun getAllSync(): List<ProductionSlot>
 
     @Query("SELECT * FROM production_slots WHERE slot_id = :slotId ORDER BY buildingType, slotIndex")
-    suspend fun getBySlotSync(slotId: Int): List<ProductionSlot>
+    fun getBySlotSync(slotId: Int): List<ProductionSlot>
     
     @Query("SELECT * FROM production_slots WHERE buildingType = :buildingType")
     fun getByBuildingTypeSync(buildingType: BuildingType): Flow<List<ProductionSlot>>
     
     @Query("SELECT * FROM production_slots WHERE id = :id")
-    suspend fun getById(id: String): ProductionSlot?
+    fun getById(id: String): ProductionSlot?
     
     @Query("SELECT * FROM production_slots WHERE buildingId = :buildingId ORDER BY slotIndex")
     fun getByBuildingId(buildingId: String): Flow<List<ProductionSlot>>
     
     @Query("SELECT * FROM production_slots WHERE buildingId = :buildingId AND slotIndex = :slotIndex LIMIT 1")
-    suspend fun getByBuildingIdAndIndex(buildingId: String, slotIndex: Int): ProductionSlot?
+    fun getByBuildingIdAndIndex(buildingId: String, slotIndex: Int): ProductionSlot?
     
     @Query("SELECT * FROM production_slots WHERE buildingType = :buildingType AND status = :status")
     fun getByTypeAndStatus(buildingType: BuildingType, status: ProductionSlotStatus): Flow<List<ProductionSlot>>
@@ -59,55 +59,55 @@ interface ProductionSlotDao {
         WHERE status = 'WORKING' 
           AND (startYear * 12 + startMonth + duration) <= :currentYear * 12 + :currentMonth
     """)
-    suspend fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot>
+    fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(slot: ProductionSlot)
+    fun insert(slot: ProductionSlot)
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(slots: List<ProductionSlot>)
+    fun insertAll(slots: List<ProductionSlot>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(slots: List<ProductionSlot>)
+    fun upsertAll(slots: List<ProductionSlot>)
     
     @Update
-    suspend fun update(slot: ProductionSlot)
+    fun update(slot: ProductionSlot)
     
     @Update
-    suspend fun updateAll(slots: List<ProductionSlot>)
+    fun updateAll(slots: List<ProductionSlot>)
 
     /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
     @Query("SELECT id FROM production_slots WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    fun getIdsBySlot(slotId: Int): List<String>
 
     @Delete
-    suspend fun delete(slot: ProductionSlot)
+    fun delete(slot: ProductionSlot)
     
     @Query("DELETE FROM production_slots WHERE id = :id")
-    suspend fun deleteById(id: String)
+    fun deleteById(id: String)
 
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    fun deleteById(slotId: Int, id: String)
 
     @Query("DELETE FROM production_slots WHERE buildingType = :buildingType")
-    suspend fun deleteByBuildingType(buildingType: BuildingType)
+    fun deleteByBuildingType(buildingType: BuildingType)
     
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
+    fun deleteBySlot(slotId: Int)
 
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND buildingType = :buildingType")
-    suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
+    fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
 
     @Query("DELETE FROM production_slots")
-    suspend fun deleteAll()
+    fun deleteAll()
     
     @Transaction
-    suspend fun updateBatch(slots: List<ProductionSlot>) {
+    fun updateBatch(slots: List<ProductionSlot>) {
         slots.forEach { update(it) }
     }
     
     @Transaction
-    suspend fun replaceSlotsForBuilding(buildingType: BuildingType, slots: List<ProductionSlot>) {
+    fun replaceSlotsForBuilding(buildingType: BuildingType, slots: List<ProductionSlot>) {
         deleteByBuildingType(buildingType)
         insertAll(slots)
     }
@@ -117,5 +117,5 @@ interface ProductionSlotDao {
         SET status = :newStatus 
         WHERE id IN (:ids)
     """)
-    suspend fun batchUpdateStatus(ids: List<String>, newStatus: ProductionSlotStatus)
+    fun batchUpdateStatus(ids: List<String>, newStatus: ProductionSlotStatus)
 }

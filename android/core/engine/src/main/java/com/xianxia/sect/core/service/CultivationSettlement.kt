@@ -311,7 +311,7 @@ class CultivationSettlement @Inject constructor(
      *
      * 由 [CultivationEventProcessor.processMonthlyEvents] 调用。
      */
-    suspend fun processSpiritMineProductionMonthly() {
+    fun processSpiritMineProductionMonthly() {
         stateStore.update {
             val data = gameData
             val currentMonth = data.gameYear * 12 + data.gameMonth

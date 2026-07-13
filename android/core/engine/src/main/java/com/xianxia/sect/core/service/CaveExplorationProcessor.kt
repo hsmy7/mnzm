@@ -91,7 +91,7 @@ class CaveExplorationProcessor @Inject constructor(
 
     // ── 洞府探索 ──────────────────────────────────────────────────────
 
-    suspend fun processCaveLifecycle(year: Int, month: Int) {
+    fun processCaveLifecycle(year: Int, month: Int) {
         val data = stateStore.gameData.value
 
         val expiredCaveIds = data.cultivatorCaves.filter { cave ->
@@ -222,7 +222,7 @@ class CaveExplorationProcessor @Inject constructor(
         )
     }
 
-    private suspend fun executeCaveExploration(
+    private fun executeCaveExploration(
         team: CaveExplorationTeam,
         cave: CultivatorCave,
         currentAITeams: List<AICaveTeam>
@@ -538,7 +538,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    suspend fun resetCaveExplorationTeamMembersStatus(team: CaveExplorationTeam) {
+    fun resetCaveExplorationTeamMembersStatus(team: CaveExplorationTeam) {
         val memberIds = team.memberIds.toList()
         stateStore.update {
             val idsToReset = memberIds.filter { memberId ->
@@ -587,7 +587,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    suspend fun processAISectOperations(year: Int, month: Int) {
+    fun processAISectOperations(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples
 
@@ -659,7 +659,7 @@ class CaveExplorationProcessor @Inject constructor(
     /**
      * AI 攻打玩家：预警生命周期 + 战斗结算。
      */
-    private suspend fun processPlayerDefenseBattles() {
+    private fun processPlayerDefenseBattles() {
         val data = stateStore.gameData.value
 
         // 1. 推进预警阶段（谴责 → 战书）
@@ -695,7 +695,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    private suspend fun executePlayerDefenseBattle(expired: AttackWarning) {
+    private fun executePlayerDefenseBattle(expired: AttackWarning) {
         val data = stateStore.gameData.value
         val allDisciples = stateStore.discipleTables.assembleAll()
         val selectedDefenders = allDisciples
@@ -896,7 +896,7 @@ class CaveExplorationProcessor @Inject constructor(
      * AI-vs-AI 战斗月度结算（含玩家占领宗门防御）。
      * 同步执行，不通过 scope.launch 异步写入。
      */
-    private suspend fun processAIVsAIBattles() {
+    private fun processAIVsAIBattles() {
         val data = stateStore.gameData.value
         val playerSectId = data.worldMapSects
             .find { it.isPlayerSect }?.id
@@ -1119,7 +1119,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    suspend fun processSectDisciplesYearlyRecruitment(year: Int) {
+    fun processSectDisciplesYearlyRecruitment(year: Int) {
         val data = stateStore.gameData.value
         var updatedAiDisciples = data.aiSectDisciples.toMutableMap()
         var updatedRecruitList = data.recruitList
@@ -1154,7 +1154,7 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    suspend fun processSectDisciplesAging(year: Int) {
+    fun processSectDisciplesAging(year: Int) {
         val data = stateStore.gameData.value
         val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }

@@ -11,8 +11,8 @@ import com.xianxia.sect.core.repository.ProductionSlotDataPort
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.withLock
+import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,7 +46,7 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     private val shardedLock = ShardedSlotLock()
-    private val globalMutex = Mutex()
+    private val globalMutex = ReentrantLock()
     private val cache = SlotCache()
     private val scope get() = scopeProvider.scope
 
@@ -77,7 +77,7 @@ class ProductionSlotRepository @Inject constructor(
             initialValue = emptyList()
         )
 
-    suspend fun initialize() {
+    fun initialize() {
         globalMutex.withLock {
             val loaded = dao.getAllSync()
             _slots.value = loaded
@@ -86,7 +86,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun loadSlots(slots: List<ProductionSlot>) {
+    fun loadSlots(slots: List<ProductionSlot>) {
         globalMutex.withLock {
             _slots.value = slots
             cache.updateCache(slots)
@@ -130,7 +130,7 @@ class ProductionSlotRepository @Inject constructor(
         return cache.getById(slotId)
     }
 
-    suspend fun updateSlot(
+    fun updateSlot(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
@@ -140,7 +140,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    private suspend fun updateSlotInternal(
+    private fun updateSlotInternal(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
@@ -169,15 +169,14 @@ class ProductionSlotRepository @Inject constructor(
         _slots.value = newSlots
         cache.updateCache(newSlots)
 
-        withContext(Dispatchers.IO) {
+        dao.update(newSlot)
             dao.update(newSlot)
-        }
 
         DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
         return Result.success(newSlot)
     }
 
-    suspend fun updateSlotByBuildingId(
+    fun updateSlotByBuildingId(
         buildingId: String,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
@@ -310,7 +309,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun initializeAllSlots(slotId: Int) {
+    fun initializeAllSlots(slotId: Int) {
         globalMutex.withLock {
             val allSlots = mutableListOf<ProductionSlot>()
             BuildingType.entries.forEach { buildingType ->
@@ -335,7 +334,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
+    fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
         // Alchemy and Forge slots are created dynamically when buildings are placed
         if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return
         globalMutex.withLock {

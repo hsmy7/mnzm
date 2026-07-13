@@ -1,9 +1,9 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
+//import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
+//import kotlinx.coroutines.yield
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -71,7 +71,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 时间推进 ──────────────────────────────────────────────────────
 
-    suspend fun advancePhase(state: MutableGameState? = null) {
+    fun advancePhase(state: MutableGameState? = null) {
         val targetState = state ?: return
         val data = targetState.gameData
         val phase = data.gamePhase
@@ -84,7 +84,7 @@ class CultivationEventProcessor @Inject constructor(
         processPhaseEvents(phase, month, year, targetState)
     }
 
-    suspend fun advanceMonth(state: MutableGameState? = null) {
+    fun advanceMonth(state: MutableGameState? = null) {
         val data = state?.gameData ?: stateStore.gameData.value
         var newMonth = data.gameMonth + 1
         var newYear = data.gameYear
@@ -110,7 +110,7 @@ class CultivationEventProcessor @Inject constructor(
         processMonthlyEvents(newYear, newMonth)
     }
 
-    suspend fun advanceYear(state: MutableGameState? = null) {
+    fun advanceYear(state: MutableGameState? = null) {
         val data = state?.gameData ?: stateStore.gameData.value
         val newYear = data.gameYear + 1
 
@@ -126,7 +126,7 @@ class CultivationEventProcessor @Inject constructor(
         processMonthlyEvents(newYear, 1)
     }
 
-    private suspend fun safelyRun(name: String, block: suspend () -> Unit) {
+    private fun safelyRun(name: String, block: () -> Unit) {
         try {
             block()
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -136,7 +136,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    private suspend fun processPhaseEvents(phase: Int, month: Int, year: Int, state: MutableGameState) {
+    private fun processPhaseEvents(phase: Int, month: Int, year: Int, state: MutableGameState) {
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
         safelyRun("processPhaseTick") { processPhaseTick(year, month, phase, state) }
         safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
@@ -144,7 +144,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── Phase Tick ──────────────────────────────────────────────────────
 
-    private suspend fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
+    private fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
         val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
         val manualMap = stateStore.manualInstances.value.associateBy { it.id }
         val proficienciesMap = stateStore.gameData.value.manualProficiencies
@@ -211,9 +211,9 @@ class CultivationEventProcessor @Inject constructor(
                 )
             )
             if ((index + 1) % batchSize == 0) {
-                yield()
+                Thread.yield()
                 if (thermalMonitor.shouldReduceWorkload()) {
-                    delay(5)
+                    Thread.sleep(5)
                 }
             }
         }
@@ -400,7 +400,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 月度/年度事件 ──────────────────────────────────────────────────
 
-    suspend fun processMonthlyEvents(year: Int, month: Int) = withContext(NonCancellable) {
+    fun processMonthlyEvents(year: Int, month: Int) {
         safelyRun("aiSectOperations") {
             caveExplorationProcessor.get().processAISectOperations(year, month)
         }
@@ -439,7 +439,7 @@ class CultivationEventProcessor @Inject constructor(
      * 对标 RimWorld Long Tick 模式 — 每月一次性处理
      * 修炼经验累积、HP/MP恢复、自动装备/学习/丹药。
      */
-    private suspend fun processMonthlyCultivationAndAuto() {
+    private fun processMonthlyCultivationAndAuto() {
         stateStore.update {
             val data = gameData
             val tables = discipleTables
@@ -451,7 +451,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun processYearlyEvents(year: Int) = withContext(NonCancellable) {
+    fun processYearlyEvents(year: Int) {
         safelyRun("yearlyTribute") {
             vassalService.processYearlyTribute()
         }
@@ -545,7 +545,7 @@ class CultivationEventProcessor @Inject constructor(
         return captureRate.coerceIn(0.0, 1.0)
     }
 
-    suspend fun processLawEnforcementMonthly() {
+    fun processLawEnforcementMonthly() {
         val data = stateStore.gameData.value
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
@@ -630,7 +630,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun processTheftMonthly() {
+    fun processTheftMonthly() {
         val currentData = stateStore.gameData.value
         if (currentData.spiritStones <= 0) return
 
@@ -821,7 +821,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
 
-    suspend fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
+    fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
         val disciples = stateStore.disciples.value.toMutableList()
         var changed = false
@@ -853,7 +853,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
+    fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
         val currentDisciplesList = stateStore.disciples.value.toMutableList()
         team.memberIds.forEach { memberId ->
             val index = currentDisciplesList.indexOfFirst { it.id == memberId }
@@ -886,7 +886,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 侦察/外交 ──────────────────────────────────────────────────────
 
-    suspend fun processScoutInfoExpiryLazy(year: Int, month: Int) {
+    fun processScoutInfoExpiryLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val hasExpired = data.scoutInfo.any { (_, info) ->
             year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
@@ -895,7 +895,7 @@ class CultivationEventProcessor @Inject constructor(
         processScoutInfoExpiry(year, month)
     }
 
-    suspend fun processScoutInfoExpiry(year: Int, month: Int) {
+    fun processScoutInfoExpiry(year: Int, month: Int) {
         val data = stateStore.gameData.value
         var hasExpired = false
 
@@ -939,7 +939,7 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun processTheftIfNeeded() {
+    fun processTheftIfNeeded() {
         if (stateStore.gameData.value.spiritStones <= 0) return
         val tables = stateStore.discipleTables
         val moralThreshold =
@@ -959,7 +959,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 任务 ──────────────────────────────────────────────────────────
 
-    suspend fun processCompletedMissionsLazy(year: Int, month: Int) {
+    fun processCompletedMissionsLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val completedIds = mutableListOf<String>()
@@ -1036,12 +1036,12 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
-    suspend fun processMissionRefreshIfDue(month: Int) {
+    fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
         processMissionRefresh()
     }
 
-    suspend fun processMissionRefresh() {
+    fun processMissionRefresh() {
         val data = stateStore.gameData.value
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
@@ -1053,7 +1053,7 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 游戏结束 ──────────────────────────────────────────────────────
 
-    suspend fun checkGameOverCondition() {
+    fun checkGameOverCondition() {
         val currentData = stateStore.gameData.value
         if (currentData.isGameOver) return
 
@@ -1072,19 +1072,19 @@ class CultivationEventProcessor @Inject constructor(
 
     // ── 辅助方法 ──────────────────────────────────────────────────────
 
-    suspend fun clearDiscipleFromAllSlots(discipleId: String) {
+    fun clearDiscipleFromAllSlots(discipleId: String) {
         discipleLifecycleProcessor.clearDiscipleFromAllSlots(discipleId)
     }
 
-    suspend fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
+    fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect)
     }
 
-    suspend fun returnEquipmentToWarehouse(equipmentId: String) {
+    fun returnEquipmentToWarehouse(equipmentId: String) {
         discipleLifecycleProcessor.returnEquipmentToWarehouse(equipmentId)
     }
 
-    suspend fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
+    fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
         discipleLifecycleProcessor.removeEquipmentFromDisciple(discipleId, equipmentId)
     }
 

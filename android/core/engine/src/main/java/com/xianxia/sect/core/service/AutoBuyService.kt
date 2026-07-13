@@ -55,7 +55,7 @@ class AutoBuyService @Inject constructor(
      * 执行自动购买：遍历 autoBuyList，匹配当前商人商品，买入最大数量。
      * 灵石不足或仓库满时跳过该物品。在 stateStore.update {} 中原子执行。
      */
-    suspend fun executeAutoBuy(year: Int, month: Int) {
+    fun executeAutoBuy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val autoBuyList = data.autoBuyList
         if (autoBuyList.isEmpty()) return

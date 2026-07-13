@@ -241,7 +241,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Sync all disciples' status based on their assignments
      */
-    suspend fun syncAllDiscipleStatuses() {
+    fun syncAllDiscipleStatuses() {
         val data = stateStore.gameData.value
         val tables = stateStore.discipleTables
 
@@ -331,7 +331,7 @@ private val scopeProvider: CoroutineScopeProvider,
             .filter { id -> tables.ids.contains(id.toInt()) }
             .toSet()
 
-    private suspend fun fixInvalidMiningSlots(data: GameData, tables: DiscipleTables) {
+    private fun fixInvalidMiningSlots(data: GameData, tables: DiscipleTables) {
         val hasInvalid = data.spiritMineSlots.any { slot ->
             slot.discipleId.isNotEmpty() &&
                 !tables.ids.contains(slot.discipleId.toInt())
@@ -573,7 +573,7 @@ private val scopeProvider: CoroutineScopeProvider,
                 return@update
             }
 
-            kotlinx.coroutines.runBlocking { clearDiscipleFromAllSlots(discipleId) }
+            clearDiscipleFromAllSlots(discipleId)
 
             // 仅清除装备/功法所有权，不返还仓库
             val expelEquipIds = mutableListOf<String>()
@@ -864,7 +864,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Clear disciple from all slots and assignments
      */
-    suspend fun clearDiscipleFromAllSlots(discipleId: String) {
+    fun clearDiscipleFromAllSlots(discipleId: String) {
         stateStore.update { gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId) }
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)

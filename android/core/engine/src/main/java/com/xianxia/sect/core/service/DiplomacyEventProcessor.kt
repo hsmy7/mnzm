@@ -28,25 +28,25 @@ class DiplomacyEventProcessor @Inject constructor(
 
     // ── 好感度月度事件（委托 FavorEventProcessor）────
 
-    suspend fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
+    fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
         favorEventProcessor.processMonthlyFavorEventsCapped(year, month)
     }
 
     // ── 好感度衰减（委托 FavorEventProcessor）────
 
-    suspend fun processFavorDecay(currentYear: Int) {
+    fun processFavorDecay(currentYear: Int) {
         favorEventProcessor.processFavorDecay(currentYear)
     }
 
     // ── 联盟好感度检查（委托 FavorEventProcessor）────
 
-    suspend fun checkAllianceFavorDrop() {
+    fun checkAllianceFavorDrop() {
         favorEventProcessor.checkAllianceFavorDrop()
     }
 
     // ── 联盟到期 ─────────────────────────────────────
 
-    suspend fun checkAllianceExpiry(year: Int) {
+    fun checkAllianceExpiry(year: Int) {
         val data = stateStore.gameData.value
         val expiredAlliances = data.alliances.filter { year - it.startYear >= GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS }
 

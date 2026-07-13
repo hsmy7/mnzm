@@ -150,7 +150,7 @@ class DisciplePurchaseService @Inject constructor(
     /**
      * 执行弟子智能购买。在 [CultivationEventProcessor.processMonthlyEvents] 中调用。
      */
-    suspend fun executePurchase(year: Int, month: Int) {
+    fun executePurchase(year: Int, month: Int) {
         val currentData = stateStore.gameData.value
         val listedItems = currentData.playerListedItems
         if (listedItems.isEmpty()) return
@@ -215,7 +215,7 @@ class DisciplePurchaseService @Inject constructor(
     /**
      * 在 [stateStore.update] 事务中原子写入所有购买决策。
      */
-    private suspend fun applyPurchaseDecisions(
+    private fun applyPurchaseDecisions(
         currentData: GameData,
         decisions: List<PurchaseEntry>,
         year: Int,

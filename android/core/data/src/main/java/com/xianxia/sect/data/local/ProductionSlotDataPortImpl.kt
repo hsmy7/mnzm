@@ -11,20 +11,20 @@ class ProductionSlotDataPortImpl @Inject constructor(
     private val dao: ProductionSlotDao
 ) : ProductionSlotDataPort {
 
-    override suspend fun getAllSync(): List<ProductionSlot> = dao.getAllSync()
+    override fun getAllSync(): List<ProductionSlot> = dao.getAllSync()
 
-    override suspend fun insertAll(slots: List<ProductionSlot>) = dao.insertAll(slots)
+    override fun insertAll(slots: List<ProductionSlot>) = dao.insertAll(slots)
 
-    override suspend fun update(slot: ProductionSlot) = dao.update(slot)
+    override fun update(slot: ProductionSlot) = dao.update(slot)
 
-    override suspend fun updateAll(slots: List<ProductionSlot>) = dao.updateAll(slots)
+    override fun updateAll(slots: List<ProductionSlot>) = dao.updateAll(slots)
 
-    override suspend fun insert(slot: ProductionSlot) = dao.insert(slot)
+    override fun insert(slot: ProductionSlot) = dao.insert(slot)
 
-    override suspend fun deleteById(id: String) = dao.deleteById(id)
+    override fun deleteById(id: String) = dao.deleteById(id)
 
-    override suspend fun deleteBySlot(slotId: Int) = dao.deleteBySlot(slotId)
+    override fun deleteBySlot(slotId: Int) = dao.deleteBySlot(slotId)
 
-    override suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType) =
+    override fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType) =
         dao.deleteBySlotAndBuildingType(slotId, buildingType)
 }

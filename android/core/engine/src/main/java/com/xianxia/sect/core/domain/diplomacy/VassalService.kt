@@ -57,7 +57,7 @@ class VassalService @Inject constructor(
         stateStore.gameData.value.suzerainSectId
 
     /** 处理年贡（每年一月调用） */
-    suspend fun processYearlyTribute() {
+    fun processYearlyTribute() {
         val data = stateStore.gameData.value
         val suzerainId = data.suzerainSectId
         if (suzerainId.isEmpty()) return
@@ -240,7 +240,7 @@ class VassalService @Inject constructor(
      * 年贡直接从虚空生成加到玩家灵石。
      * 新建立的契约当年不计贡，从下一年开始。
      */
-    suspend fun processYearlyVassalTribute(year: Int) {
+    fun processYearlyVassalTribute(year: Int) {
         val data = stateStore.gameData.value
         val updatedContracts = data.vassalContracts.toMutableList()
         var totalTribute = 0L
@@ -284,7 +284,7 @@ class VassalService @Inject constructor(
      * 每月判定AI附属是否脱离。
      * 四因素权重同接受逻辑。
      */
-    suspend fun processMonthlyBreakawayCheck(year: Int, month: Int) {
+    fun processMonthlyBreakawayCheck(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val contracts = data.vassalContracts
         if (contracts.isEmpty()) return

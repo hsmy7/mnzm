@@ -34,7 +34,7 @@ class FavorEventProcessor @Inject constructor(
     /**
      * 月度外交事件处理（带每月上限的封装版本）。
      */
-    suspend fun processMonthlyFavorEventsCapped(year: Int, month: Int) {
+    fun processMonthlyFavorEventsCapped(year: Int, month: Int) {
         val currentAbsoluteMonth =
             com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         if (currentAbsoluteMonth != sharedState.diplomacyEventsMonth) {
@@ -49,7 +49,7 @@ class FavorEventProcessor @Inject constructor(
     /**
      * 月度外交事件处理：对所有关系以 1% 概率触发好感度变化事件。
      */
-    suspend fun processMonthlyFavorEvents(year: Int, month: Int) {
+    fun processMonthlyFavorEvents(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
         val playerSectId = playerSect.id
@@ -109,7 +109,7 @@ class FavorEventProcessor @Inject constructor(
      * 好感度自然衰减处理。
      * 仅处理玩家相关的关系：好感度超过阈值且超过设定年数未送礼时衰减。
      */
-    suspend fun processFavorDecay(currentYear: Int) {
+    fun processFavorDecay(currentYear: Int) {
         val data = stateStore.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
 
@@ -141,7 +141,7 @@ class FavorEventProcessor @Inject constructor(
      * 检查好感度过低导致联盟自动解散。
      * 当玩家与盟友的好感度低于 MIN_ALLIANCE_FAVOR 时自动解除盟约。
      */
-    suspend fun checkAllianceFavorDrop() {
+    fun checkAllianceFavorDrop() {
         val data = stateStore.gameData.value
         val dissolvedAlliances = mutableListOf<com.xianxia.sect.core.model.Alliance>()
         val playerSect = data.worldMapSects.find { it.isPlayerSect }

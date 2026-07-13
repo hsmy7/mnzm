@@ -83,7 +83,7 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun getDiscipleStatus(discipleId: String): DiscipleStatus =
         discipleService.getDiscipleStatus(discipleId)
 
-    override suspend fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
+    override fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
 
     override suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 

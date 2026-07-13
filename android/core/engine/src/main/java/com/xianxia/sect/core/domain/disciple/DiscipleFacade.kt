@@ -18,7 +18,7 @@ interface DiscipleFacade {
     fun updateDisciple(disciple: Disciple)
     suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple)
     fun getDiscipleStatus(discipleId: String): DiscipleStatus
-    suspend fun syncAllDiscipleStatuses()
+    fun syncAllDiscipleStatuses()
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
     suspend fun expelDisciple(discipleId: String): DomainResult<Unit>

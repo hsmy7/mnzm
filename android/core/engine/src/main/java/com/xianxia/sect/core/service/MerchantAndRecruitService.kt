@@ -63,7 +63,7 @@ class MerchantAndRecruitService @Inject constructor(
 
     // ── 商人 ──────────────────────────────────────────────────────────
 
-    suspend fun refreshTravelingMerchant(year: Int, month: Int) {
+    fun refreshTravelingMerchant(year: Int, month: Int) {
         val pools = buildMerchantItemPools()
 
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
@@ -280,7 +280,7 @@ class MerchantAndRecruitService @Inject constructor(
 
     // ── 招募 ──────────────────────────────────────────────────────────
 
-    suspend fun refreshMerchantAcquisition(year: Int, month: Int) {
+    fun refreshMerchantAcquisition(year: Int, month: Int) {
         val pools = buildMerchantItemPools()
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
 
@@ -316,7 +316,7 @@ class MerchantAndRecruitService @Inject constructor(
         return Companion.calcRecruitBonusCap(elderCharm)
     }
 
-    suspend fun refreshRecruitList(year: Int) {
+    fun refreshRecruitList(year: Int) {
         val playerSect = stateStore.gameData.value.worldMapSects
             .find { it.isPlayerSect }
         val recruitCount = if (playerSect != null) {

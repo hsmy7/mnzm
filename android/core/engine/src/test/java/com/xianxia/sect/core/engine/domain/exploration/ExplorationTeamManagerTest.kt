@@ -180,7 +180,7 @@ private class FakeStore : GameStateStore {
         return result
     }
 
-    override suspend fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
+    override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
     override fun enterBatchEmissionMode() {}
     override fun exitBatchEmissionMode() {}
 
