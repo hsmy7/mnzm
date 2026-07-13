@@ -165,8 +165,9 @@ Compose UI Thread(Main)            Android 主线程
 **关键设计决策：**
 
 - **无并行结算** — `ParallelExecutionContext`、`CultivationBatchResult`、`ParallelPhaseResult` 已全部移除。所有结算在 GameEngine-Thread 上串行执行
-- **`stateStore.update` Mutex** — 唯一的写锁，所有状态变更在此事务内原子完成
-- **生产系统 Checkpoint** — 政策/长老变化时通过 `suspend fun checkpointAllProduction()` 在 GameEngine-Thread 上重算所有活跃槽位的 `duration` 和 `completionMonth`
+- **`stateStore.update` ReentrantLock** — 唯一的写锁，所有状态变更在此事务内原子完成。挂起时不会释放锁（与 `Mutex` 不同），消除协程交错导致的并发崩溃。DAO/Repository/Service 全链路非挂起化，无 `runBlocking` 桥接
+- **`_discipleTables` 进入 deepCopy** — 每次 `stateStore.update {}` 在副本上操作，退出时原子替换引用，保证协程挂起后其他 update 看到完整一致的状态
+- **生产系统 Checkpoint** — 政策/长老变化时通过 `fun checkpointAllProduction()` 在 GameEngine-Thread 上重算所有活跃槽位的 `duration` 和 `completionMonth`
 
 ### GameSystem 生命周期
 
@@ -174,12 +175,12 @@ Compose UI Thread(Main)            Android 主线程
 
 ```kotlin
 interface GameSystem {
-    suspend fun onMonthlyEvent(state: MutableGameState)  // 月变事件
-    suspend fun onYearlyEvent(state: MutableGameState)   // 年变事件
+    fun onMonthlyEvent(state: MutableGameState)  // 月变事件（非挂起）
+    fun onYearlyEvent(state: MutableGameState)   // 年变事件（非挂起）
 }
 ```
 
-不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
+`onMonthlyEvent`/`onYearlyEvent` 均非挂起（全链路同步化），在 `stateStore.update {}` 事务内调用。异步操作（网络/DB I/O）使用 `runBlocking` 在事务外执行。不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
 
 ### Formula Architecture: Zone Multiplier System（乘区法）
 
@@ -229,7 +230,7 @@ interface GameSystem {
 
 - **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
 - **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
-- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生
+- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)

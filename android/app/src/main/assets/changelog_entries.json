@@ -4,6 +4,7 @@
     "version": "4.0.47",
     "changes": [
       "重构：探索系统拆分为6个子系统——ExplorationService降为Facade，提取WorldLevelManager(关卡惰性管理)/BeastAttackDetector(妖兽攻击检测)/PatrolBattleSystem(巡视塔战斗拆4步)/LootCalculator(掠夺计算+双重扣除修复)/DiscipleDeathHandler(死亡标记+装备断言)/ExplorationTeamManager(队伍管理单事务竞态安全)。原processPatrolAttacks 241行God Method拆为4个≤60行方法",
+      "重构：stateStore.update全链路非挂起化——锁原语Mutex→ReentrantLock(挂起时不释放锁)，消除协程交错SparseArray崩溃。_discipleTables进入deepCopy快照隔离。DAO→Service全链路移除suspend，50+文件无runBlocking。移除ComponentTable冗余synchronized。对抗性审查3 Agent共发现~30项问题全部修复",
       "新增：确定性RNG系统——PCG-XSH-RR算法DeterministicRng(16字节可序列化)+GameRngManager(4分区BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM)+RngPartition枚举。所有随机操作走分区PRNG，存档exportStates/读档restoreStates确保跨存档随机序列一致。LevelGenerator从object改为class注入RNG",
       "修复：Wallet灵石变更事件部分状态窗口——SpiritStoneWallet改为暂存事件到pendingEvents，由GameEngineCore在stateStore.update事务外统一flushPendingEvents。消除事务内emit时UI层读到灵石已变、其他状态未提交的部分中间状态",
       "修复：ExplorationService.resolveBeastAttackPayTribute纳贡不扣灵石但妖兽标记已击败——deduct返回的DeductResult被忽略。新增DeductResult.Success检查，扣除失败时跳过击败标记",

@@ -3,6 +3,7 @@
 ### 架构
 
 - **重构：探索系统拆分为6个子系统** — ExplorationService降为Facade，提取WorldLevelManager(关卡惰性管理：刷新/过期清理/妖兽移动)/BeastAttackDetector(妖兽攻击检测)/PatrolBattleSystem(巡视塔战斗拆4步：组队→索敌→战斗→结算)/LootCalculator(掠夺计算纯函数+双重扣除修复)/DiscipleDeathHandler(死亡标记+装备断言守卫)/ExplorationTeamManager(队伍管理单事务竞态安全)。原processPatrolAttacks 241行God Method拆为4个≤60行方法
+- **重构：stateStore.update 全链路非挂起化** — 锁原语 `Mutex` → `ReentrantLock`（挂起时不释放锁），消除协程交错导致的 SparseArray 并发崩溃。`_discipleTables` 进入 `deepCopy()` 提供快照隔离。DAO/Repository/Service/Processor 全链路移除 `suspend`，50+ 文件无 `runBlocking`。移除 ComponentTable/IntFlatArray 冗余 `synchronized`。对抗性审查 3 Agent 共发现 ~30 项问题并全部修复
 - **新增：确定性RNG系统** — PCG-XSH-RR算法DeterministicRng(16字节状态可序列化)+GameRngManager(4分区BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM)+RngPartition枚举。所有随机操作走分区PRNG，存档exportStates/读档restoreStates确保跨存档随机序列一致。LevelGenerator从object改为class注入RNG，测试用固定种子42锁定结果
 
 ### 修复
