@@ -107,19 +107,16 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val tables = stateStore.discipleTables
         val lifeEventsToWrite = computeBereavementLifeEvents(griefUpdated, originalList, disciple, tables)
 
-        val externalEquipIds = if (isOutsideSect) {
-            mutableSetOf<String>().apply {
-                disciple.equipment.weaponId?.let { add(it) }
-                disciple.equipment.armorId?.let { add(it) }
-                disciple.equipment.bootsId?.let { add(it) }
-                disciple.equipment.accessoryId?.let { add(it) }
-            }
-        } else emptySet()
-        val externalManualIds = if (isOutsideSect) disciple.manualIds.toSet() else emptySet()
+        // 收集要删除的装备/功法 ID（不论内外都是直接删除）
+        val deleteEquipIds = mutableSetOf<String>()
+        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
+        val deleteManualIds = disciple.manualIds.toSet()
 
         // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除
         stateStore.update {
-            // 1. 弟子表更新
             discipleTables.clear()
             griefUpdated.forEach { discipleTables.insert(it) }
             val idInt = disciple.id.toInt()
@@ -128,27 +125,12 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
                 discipleTables.lifeEvents[grievingId] = prevEvents + event
             }
-
-            // 2. 血炼清理
             gameData = gameData.copy(
                 bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
                 bloodRefinements = gameData.bloodRefinements - disciple.id
             )
-
-            // 3. 装备/功法清除（外部死亡清除所有权，内部死亡直接删除）
-            if (externalEquipIds.isNotEmpty()) {
-                equipmentInstances = equipmentInstances.filter { it.id !in externalEquipIds }
-                manualInstances = manualInstances.filter { it.id !in externalManualIds }
-            } else {
-                val delEquip = mutableSetOf<String>()
-                disciple.equipment.weaponId?.let { delEquip.add(it) }
-                disciple.equipment.armorId?.let { delEquip.add(it) }
-                disciple.equipment.bootsId?.let { delEquip.add(it) }
-                disciple.equipment.accessoryId?.let { delEquip.add(it) }
-                val delManual = disciple.manualIds.toSet()
-                equipmentInstances = equipmentInstances.filter { it.id !in delEquip }
-                manualInstances = manualInstances.filter { it.id !in delManual }
-            }
+            equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
+            manualInstances = manualInstances.filter { it.id !in deleteManualIds }
         }
 
         if (isOutsideSect) removeProficiencies(disciple.id)
