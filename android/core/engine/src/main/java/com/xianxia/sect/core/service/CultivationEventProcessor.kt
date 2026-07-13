@@ -596,6 +596,15 @@ class CultivationEventProcessor @Inject constructor(
                     if (currentLoyal >= threshold) continue
 
                     val snapshot = tables.assemble(id) ?: continue
+                    val desertEquipIds = listOfNotNull(
+                        snapshot.equipment.weaponId,
+                        snapshot.equipment.armorId,
+                        snapshot.equipment.bootsId,
+                        snapshot.equipment.accessoryId
+                    )
+                    val desertManualIds = snapshot.manualIds.toSet()
+                    val desertProfId = id.toString()
+
                     discipleLifecycleProcessor
                         .clearDiscipleFromAllSlots(id.toString())
                     stateStore.update {
@@ -604,6 +613,16 @@ class CultivationEventProcessor @Inject constructor(
                                 id, 0
                             ) < threshold
                         ) {
+                            // 清理叛逃弟子的装备/功法所有权
+                            equipmentInstances = equipmentInstances.map { e ->
+                                if (e.id in desertEquipIds) e.copy(isEquipped = false, ownerId = null) else e
+                            }
+                            manualInstances = manualInstances.map { m ->
+                                if (m.id in desertManualIds) m.copy(isLearned = false, ownerId = null) else m
+                            }
+                            val mutableProf = gameData.manualProficiencies.toMutableMap()
+                            mutableProf.remove(desertProfId)
+                            gameData = gameData.copy(manualProficiencies = mutableProf)
                             discipleTables.remove(id)
                         }
                     }
@@ -757,7 +776,8 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        // 偷盗后叛逃：设置小卡片通知 + 清除槽位 + 移除弟子
+        // 偷盗后叛逃：设置小卡片通知 + 清除槽位 + 清理装备/移除弟子
+        val theftDesertCleanup = mutableMapOf<Int, Pair<List<String>, Set<String>>>()
         for (thiefId in thiefIds) {
             // 防御性二次校验
             val currentLoyal =
@@ -766,6 +786,15 @@ class CultivationEventProcessor @Inject constructor(
 
             val snapshot = tables.assemble(thiefId)
             if (snapshot != null) {
+                val equipIds = listOfNotNull(
+                    snapshot.equipment.weaponId,
+                    snapshot.equipment.armorId,
+                    snapshot.equipment.bootsId,
+                    snapshot.equipment.accessoryId
+                )
+                val manualIds = snapshot.manualIds.toSet()
+                theftDesertCleanup[thiefId] = equipIds to manualIds
+
                 stateStore.setPendingNotification(
                     GameNotification.DiscipleTheftDesertion(snapshot)
                 )
@@ -780,6 +809,17 @@ class CultivationEventProcessor @Inject constructor(
                             thiefId, 0
                         ) < loyalThreshold
                     ) {
+                        // 清理叛逃弟子的装备/功法所有权
+                        val (equipIds, manualIds) = theftDesertCleanup[thiefId] ?: (emptyList<String>() to emptySet())
+                        equipmentInstances = equipmentInstances.map { e ->
+                            if (e.id in equipIds) e.copy(isEquipped = false, ownerId = null) else e
+                        }
+                        manualInstances = manualInstances.map { m ->
+                            if (m.id in manualIds) m.copy(isLearned = false, ownerId = null) else m
+                        }
+                        val mutableProf = gameData.manualProficiencies.toMutableMap()
+                        mutableProf.remove(thiefId.toString())
+                        gameData = gameData.copy(manualProficiencies = mutableProf)
                         discipleTables.remove(thiefId)
                     }
                 }
