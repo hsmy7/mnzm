@@ -107,38 +107,58 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val tables = stateStore.discipleTables
         val lifeEventsToWrite = computeBereavementLifeEvents(griefUpdated, originalList, disciple, tables)
 
+        val externalEquipIds = if (isOutsideSect) {
+            mutableSetOf<String>().apply {
+                disciple.equipment.weaponId?.let { add(it) }
+                disciple.equipment.armorId?.let { add(it) }
+                disciple.equipment.bootsId?.let { add(it) }
+                disciple.equipment.accessoryId?.let { add(it) }
+            }
+        } else emptySet()
+        val externalManualIds = if (isOutsideSect) disciple.manualIds.toSet() else emptySet()
+
+        // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除
         stateStore.update {
+            // 1. 弟子表更新
             discipleTables.clear()
             griefUpdated.forEach { discipleTables.insert(it) }
-            // 写回丧亲日志（griefUpdated 的 lifeEvents 在 clear+insert 中丢失，
-            // 因为 lifeEvents 不是 data class 构造参数，copy() 不保留）
             val idInt = disciple.id.toInt()
             discipleTables.deathYears[idInt] = currentYear
             lifeEventsToWrite.forEach { (grievingId, event) ->
                 val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
                 discipleTables.lifeEvents[grievingId] = prevEvents + event
             }
-        }
 
-        // 清理血炼死数据
-        stateStore.update {
-            val updatedTotals = gameData.bloodRefinementBonusTotals - disciple.id
-            val updatedRefinements = gameData.bloodRefinements - disciple.id
+            // 2. 血炼清理
             gameData = gameData.copy(
-                bloodRefinementBonusTotals = updatedTotals,
-                bloodRefinements = updatedRefinements
+                bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
+                bloodRefinements = gameData.bloodRefinements - disciple.id
             )
+
+            // 3. 装备/功法清除（外部死亡清除所有权，内部死亡直接删除）
+            if (externalEquipIds.isNotEmpty()) {
+                equipmentInstances = equipmentInstances.filter { it.id !in externalEquipIds }
+                manualInstances = manualInstances.filter { it.id !in externalManualIds }
+            } else {
+                val delEquip = mutableSetOf<String>()
+                disciple.equipment.weaponId?.let { delEquip.add(it) }
+                disciple.equipment.armorId?.let { delEquip.add(it) }
+                disciple.equipment.bootsId?.let { delEquip.add(it) }
+                disciple.equipment.accessoryId?.let { delEquip.add(it) }
+                val delManual = disciple.manualIds.toSet()
+                equipmentInstances = equipmentInstances.filter { it.id !in delEquip }
+                manualInstances = manualInstances.filter { it.id !in delManual }
+            }
         }
 
-        // 发布死亡事件
+        if (isOutsideSect) removeProficiencies(disciple.id)
+
         eventBus.emitSync(DeathEvent(
             discipleId = disciple.id,
             discipleName = disciple.name,
             cause = if (isOutsideSect) "combat" else "age",
             deathYear = currentYear
         ))
-
-        cleanupEquipmentAndManuals(disciple, isOutsideSect)
     }
 
     // ── 以下为 handleDiscipleDeath 的拆分子函数 ────────────────────────────
