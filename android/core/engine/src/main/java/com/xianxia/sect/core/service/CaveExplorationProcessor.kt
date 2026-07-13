@@ -270,6 +270,14 @@ class CaveExplorationProcessor @Inject constructor(
             }
             discipleTables.clear()
             newList.forEach { discipleTables.insert(it) }
+            // handleDiscipleDeath 设置的 deathYears 被上面的 clear 清除，单独恢复
+            val caveYear = stateStore.gameData.value.gameYear
+            newList.filter { !it.isAlive }.forEach {
+                val idInt = it.id.toIntOrNull()
+                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                    discipleTables.deathYears[idInt] = caveYear
+                }
+            }
         }
 
         if (!battleResult.victory) {
@@ -765,6 +773,13 @@ class CaveExplorationProcessor @Inject constructor(
             }
             discipleTables.clear()
             newDisciples.forEach { discipleTables.insert(it) }
+            // 为阵亡弟子补充 deathYears
+            newDisciples.filter { !it.isAlive }.forEach {
+                val idInt = it.id.toIntOrNull()
+                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                    discipleTables.deathYears[idInt] = gameData.gameYear
+                }
+            }
 
             val attackerDisc = gameData.aiSectDisciples[
                 result.attackerSectId] ?: emptyList()
@@ -935,7 +950,7 @@ class CaveExplorationProcessor @Inject constructor(
                 // 玩家占领宗门防御：更新驻军弟子状态
                 if (isPlayerOccupied) {
                     updatePlayerGarrisonState(
-                        result, discipleTables
+                        result, discipleTables, data.gameYear
                     )
                 }
 
@@ -1051,7 +1066,8 @@ class CaveExplorationProcessor @Inject constructor(
 
     private fun updatePlayerGarrisonState(
         result: AISectAttackManager.AIAttackResult,
-        tables: DiscipleTables
+        tables: DiscipleTables,
+        gameYear: Int
     ) {
         if (result.deadDefenderIds.isEmpty() &&
             result.defenderSurvivorHpMap.isEmpty()
@@ -1076,6 +1092,13 @@ class CaveExplorationProcessor @Inject constructor(
         }
         tables.clear()
         updated.forEach { tables.insert(it) }
+        // 为阵亡弟子补充 deathYears
+        updated.filter { !it.isAlive }.forEach {
+            val idInt = it.id.toIntOrNull()
+            if (idInt != null && !tables.deathYears.contains(idInt)) {
+                tables.deathYears[idInt] = gameYear
+            }
+        }
     }
 
     private fun buildGarrSlots(

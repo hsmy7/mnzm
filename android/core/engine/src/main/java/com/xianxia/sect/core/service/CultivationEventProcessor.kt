@@ -811,6 +811,12 @@ class CultivationEventProcessor @Inject constructor(
             stateStore.update {
                 discipleTables.clear()
                 disciples.forEach { discipleTables.insert(it) }
+                // 为阵亡弟子补充 deathYears（clear 已擦除，单独恢复）
+                val battleYear = stateStore.gameData.value.gameYear
+                disciples.filter { !it.isAlive }.forEach {
+                    val idInt = it.id.toIntOrNull()
+                    if (idInt != null) discipleTables.deathYears[idInt] = battleYear
+                }
             }
         }
     }
@@ -835,6 +841,14 @@ class CultivationEventProcessor @Inject constructor(
         stateStore.update {
             discipleTables.clear()
             currentDisciplesList.forEach { discipleTables.insert(it) }
+            // handleDiscipleDeath 已设置 deathYears 但被上面的 clear 清除，单独恢复
+            val explorationYear = stateStore.gameData.value.gameYear
+            currentDisciplesList.filter { !it.isAlive }.forEach {
+                val idInt = it.id.toIntOrNull()
+                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                    discipleTables.deathYears[idInt] = explorationYear
+                }
+            }
         }
     }
 

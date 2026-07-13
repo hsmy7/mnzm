@@ -131,6 +131,7 @@ class CombatService @Inject constructor(
         // ── 阶段 2：单事务原子写入 ──
         if (griefUpdates.isNotEmpty() || deadMemberIds.isNotEmpty() || survivorUpdates.isNotEmpty() ||
             proficiencyRemoveIds.isNotEmpty() || equipIdsToUnequip.isNotEmpty() || manualIdsToUnlearn.isNotEmpty()) {
+            val battleCurrentYear = snapshot.gameYear
             stateStore.update {
                 // A. 悲痛期
                 for ((id, griefEndYear) in griefUpdates) {
@@ -172,10 +173,7 @@ class CombatService @Inject constructor(
 
                 // B. 标记死亡
                 for ((id, _) in disciplesToKill) {
-                    if (id in discipleTables.ids) {
-                        discipleTables.isAlive[id] = 0
-                        discipleTables.statuses[id] = DiscipleStatus.DEAD
-                    }
+                    discipleTables.markDead(id, battleCurrentYear)
                 }
 
                 // C. 装备/功法/熟练度

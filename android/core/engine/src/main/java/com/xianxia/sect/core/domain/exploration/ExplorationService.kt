@@ -496,6 +496,13 @@ class ExplorationService @Inject constructor(
 
         discipleTables.clear()
         disciples.forEach { discipleTables.insert(it) }
+        // 为阵亡弟子补充 deathYears
+        disciples.filter { !it.isAlive }.forEach {
+            val idInt = it.id.toIntOrNull()
+            if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                discipleTables.deathYears[idInt] = gameData.gameYear
+            }
+        }
     }
 
     // ==================== 仓库掠夺 ====================
@@ -983,6 +990,13 @@ class ExplorationService @Inject constructor(
         state.gameData = gd
         state.discipleTables.clear()
         disciples.forEach { state.discipleTables.insert(it) }
+        // 为阵亡弟子补充 deathYears
+        disciples.filter { !it.isAlive }.forEach {
+            val idInt = it.id.toIntOrNull()
+            if (idInt != null && !state.discipleTables.deathYears.contains(idInt)) {
+                state.discipleTables.deathYears[idInt] = gd.gameYear
+            }
+        }
     }
     companion object {
         private const val TAG = "ExplorationService"
@@ -1066,6 +1080,13 @@ class ExplorationService @Inject constructor(
             }
             discipleTables.clear()
             finalList.forEach { discipleTables.insert(it) }
+            // 为阵亡弟子补充 deathYears
+            finalList.filter { !it.isAlive }.forEach {
+                val idInt = it.id.toIntOrNull()
+                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                    discipleTables.deathYears[idInt] = gameYear
+                }
+            }
         }
         disciple?.let { d ->
             eventBus.emitSync(DeathEvent(d.id, d.name, "探索阵亡"))

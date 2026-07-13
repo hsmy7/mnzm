@@ -618,6 +618,19 @@ class DiscipleTables {
     }
 
     /**
+     * 集中标记弟子死亡 —— 同时设置 isAlive、status、deathYears。
+     * 所有死亡路径必须调用此方法（或通过 handleDiscipleDeath），禁止手动写三个字段。
+     * 使用方式：
+     *   discipleTables.markDead(id, currentYear)
+     */
+    fun markDead(id: Int, currentYear: Int) {
+        if (!ids.contains(id)) return
+        isAlive[id] = 0
+        statuses[id] = DiscipleStatus.DEAD
+        deathYears[id] = currentYear
+    }
+
+    /**
      * 绑定所有子表的 onWrite → markMutated，确保字段级写自动 bump 版本号。
      * deepCopy() 创建的副本不调用此方法——副本写不应影响原表版本号。
      */

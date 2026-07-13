@@ -99,6 +99,7 @@ class DiscipleFacadeImpl @Inject constructor(
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
+            if (discipleTables.isAlive[id] != 1) return@update
             discipleTables.statuses[id] = DiscipleStatus.REFLECTING
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData + mapOf(
@@ -113,6 +114,7 @@ class DiscipleFacadeImpl @Inject constructor(
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
+            if (discipleTables.isAlive[id] != 1) return@update
             discipleTables.statuses[id] = DiscipleStatus.IDLE
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")

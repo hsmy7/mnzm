@@ -653,6 +653,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
 | 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
 | 🔴 | 新增聊天/对话类对话框使用 `UnifiedGameDialog` 容器（详见 `rules/chat-dialog-design.md`） |
+| 🔴 | 新增标记 `isAlive=0` / `status=DEAD` 的代码路径必须调用 `discipleTables.markDead(id, year)` 而非手动写三个字段；仅 `handleDiscipleDeath` 可豁免（已内置 deathYears 写入） |
 | 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |
 | 🔴 | 新增 UI 界面使用 `SpriteImage()` 或 `SpriteResRegistry.resolve()` 而非直接 `R.drawable.xxx` |
 | 🔴 | 渲染特性变更（地图/Canvas/精灵）已同步实现 Vulkan 和 Canvas 两路径（见 `docs/renderer-feature-checklist.md`） |
