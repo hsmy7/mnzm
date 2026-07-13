@@ -98,12 +98,23 @@ fun ElderBonusInfoDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = bonusInfo.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GameColors.TextPrimary
-                )
+                // Header: title + close button in top-right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = bonusInfo.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GameColors.TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CloseButton(
+                        onClick = onDismiss,
+                        closeButtonRes = closeButtonRes
+                    )
+                }
 
                 HorizontalDivider(
                     color = GameColors.Border,
@@ -170,12 +181,7 @@ fun ElderBonusInfoDialog(
                 }
 
 
-                CloseButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End),
-                    closeButtonRes = closeButtonRes
-                )
-            }
+	            }
         }
         }
     }

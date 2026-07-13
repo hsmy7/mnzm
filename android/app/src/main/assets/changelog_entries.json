@@ -4,7 +4,11 @@
     "version": "4.0.48",
     "changes": [
       "重构：游戏生命周期BootPhase/RunState双层状态机——旧GameLifecycle单向不可逆设计与实际reload/restart场景不匹配，forceLifecycle散落4处+_isGameLoaded双真相源。新BootPhase(5态启动序列，单向)+RunState(4态运行时：IDLE/LOADING/PLAYING/RELOADING)，gameLifecycle组合派生兼容。提取BootSequenceController.boot()统一管理启动序列、RunState切换、资源预加载、游戏循环、地图生成、错误恢复。ViewModel减~200行。对抗性审查3 Agent修复15项问题(重入保护/Cancellation清理/setPlaying守卫/mapData回补/runState重置等)。游戏中读档IllegalLifecycleTransition崩溃根除",
-      "修复：读档自动存档弹出「存档为空或已损坏」——loadFromDatabase用Room suspending withTransaction包裹读取，内部buildSaveDataFromDatabase用withContext(IO)+async并行执行同步DAO查询，Room检测到线程不匹配抛IllegalStateException返回null。修复：移除读路径中多余的withTransaction（load入口已有withReadLockLight排它锁）"
+      "修复：读档自动存档弹出「存档为空或已损坏」——loadFromDatabase用Room suspending withTransaction包裹读取，内部buildSaveDataFromDatabase用withContext(IO)+async并行执行同步DAO查询，Room检测到线程不匹配抛IllegalStateException返回null。修复：移除读路径中多余的withTransaction（load入口已有withReadLockLight排它锁）",
+      "重构：对话框系统统一渲染路径——从GameViewModel拆出DialogManager接口(core/domain零Android依赖)+DialogManagerImpl(Hilt Singleton)。消除三套并行渲染体系：FullScreenOverlay等内联覆盖层改为UnifiedGameDialog(Full)获得decorFitsSystemWindows系统栏保护。消除PathB关闭路径(closeCurrentDialog→Channel→LaunchedEffect)。清理废弃HalfScreenDialog/GameFullDialog。CloseButton触摸目标24dp→48dp(Material标准)。ElderBonusInfoDialog关闭按钮底部→右上角。对抗性审查3Agent发现20+项问题全部修复",
+      "修复：关闭按钮被系统栏遮挡——FullScreenOverlay/ActivityDialog/MailDialog等内联Surface(fillMaxSize)在enableEdgeToEdge()下全屏填充包括系统栏区域，关闭按钮在状态栏后方。改为UnifiedGameDialog(Full)获得Dialog窗口inset保护",
+      "修复：对话框关闭按钮无响应——关闭按钮在状态栏后方触摸落在系统UI区域。Inset保护+触摸目标24dp→48dp",
+      "修复：ElderBonusInfoDialog关闭按钮在右下角——Column末尾Modifier.align(Alignment.End)导致。改为标题行右上角Row"
     ]
   },
   {

@@ -40,6 +40,8 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.domain.dialog.DialogManager
+import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.ui.navigation.GameRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,15 +66,15 @@ class GameViewModel @Inject constructor(
     private val battleFacade: BattleFacade,
     private val diplomacyFacade: DiplomacyFacade,
     private val saveFacade: SaveFacade,
-    private val thermalMonitor: ThermalMonitor
+    private val thermalMonitor: ThermalMonitor,
+    private val dialogManager: DialogManager          // ← NEW
 ) : BaseViewModel() {
 
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
     val disciple = com.xianxia.sect.ui.game.delegate.DiscipleDelegate(gameEngine, viewModelScope)
     val navigation = com.xianxia.sect.ui.game.delegate.NavigationDelegate(
         gameEngine, gameEngineCore, viewModelScope,
-        onNavigate = { _navigationEvents.trySend(it) },
-        onPopBack = { _popBackEvents.trySend(it) }
+        onNavigate = { _navigationEvents.trySend(it) }
     )
     val inventory = com.xianxia.sect.ui.game.delegate.InventoryDelegate(gameEngine, viewModelScope)
 
@@ -98,31 +100,120 @@ class GameViewModel @Inject constructor(
 
 
 
-    // Navigation events — emitted by ViewModel for code-triggered dialogs (GameOver, etc.)
+    // ── Dialog 状态管理（通过 DialogManager） ──
+
+    /** NavigationDelegate 通过此 Channel 发送导航事件 */
     private val _navigationEvents = Channel<GameRoute>(Channel.BUFFERED)
     val navigationEvents: Flow<GameRoute> = _navigationEvents.receiveAsFlow()
-
-    // Pop-back events — emitted by closeCurrentDialog() for dialog-internal dismissal
-    // null = pop one entry, non-null route = pop to that route (e.g. "empty" for root)
-    private val _popBackEvents = Channel<String?>(Channel.CONFLATED)
-    val popBackEvents: Flow<String?> = _popBackEvents.receiveAsFlow()
-
-    private val _currentDialogRoute = MutableStateFlow<DialogRoute>(DialogRoute.None)
-    val currentDialogRoute: StateFlow<DialogRoute> = _currentDialogRoute.asStateFlow()
 
     private val _dialogOpenTrigger = MutableSharedFlow<Unit>(replay = 0)
 
     /**
-     * 打开指定路由的对话框，并通知引擎当前激活的对话框。
-     *
-     * @param route 目标对话框路由
+     * 旧版兼容：将 [DialogRoute] 映射为 [DialogType]。
+     * 在后续步骤中逐步替换为直接使用 [DialogType]。
+     */
+    fun DialogRoute.toDialogType(): DialogType = when (this) {
+        DialogRoute.None -> DialogType.None
+        DialogRoute.Disciples -> DialogType.Disciples
+        DialogRoute.Warehouse -> DialogType.Warehouse
+        DialogRoute.Settings -> DialogType.Settings
+        DialogRoute.Buildings -> DialogType.Buildings
+        DialogRoute.Recruit -> DialogType.Recruit
+        DialogRoute.Diplomacy -> DialogType.Diplomacy
+        DialogRoute.WorldMap -> DialogType.WorldMap
+        DialogRoute.BattleLog -> DialogType.BattleLog
+        DialogRoute.Mail -> DialogType.Mail
+        DialogRoute.Activity -> DialogType.Activity
+        DialogRoute.Planting -> DialogType.Planting
+        DialogRoute.Merchant -> DialogType.Merchant
+        is DialogRoute.SpiritMine -> DialogType.SpiritMine(buildingInstanceId)
+        DialogRoute.HerbGarden -> DialogType.HerbGarden
+        is DialogRoute.Alchemy -> DialogType.Alchemy(buildingInstanceId)
+        is DialogRoute.Forge -> DialogType.Forge(buildingInstanceId)
+        DialogRoute.Library -> DialogType.Library
+        DialogRoute.WenDaoPeak -> DialogType.WenDaoPeak
+        DialogRoute.QingyunPeak -> DialogType.QingyunPeak
+        DialogRoute.TianshuHall -> DialogType.TianshuHall
+        DialogRoute.LawEnforcementHall -> DialogType.LawEnforcementHall
+        DialogRoute.MissionHall -> DialogType.MissionHall
+        DialogRoute.ReflectionCliff -> DialogType.ReflectionCliff
+        is DialogRoute.PatrolTower -> DialogType.PatrolTower(buildingInstanceId)
+        is DialogRoute.BloodRefiningPool -> DialogType.BloodRefiningPool(buildingInstanceId)
+        is DialogRoute.Residence -> DialogType.Residence(buildingInstanceId)
+        is DialogRoute.WarehouseBuilding -> DialogType.WarehouseBuilding(buildingInstanceId)
+        DialogRoute.GameOver -> DialogType.GameOver
+        DialogRoute.SectLevelDetail -> DialogType.SectLevelDetail
+        DialogRoute.RenameSect -> DialogType.RenameSect
+        DialogRoute.SalaryConfig -> DialogType.SalaryConfig
+    }
+
+    /**
+     * 旧版兼容：将 [DialogType] 映射为 [DialogRoute]。
+     * 在 UI 层完全迁移后移除此桥接。
+     */
+    internal fun DialogType.toDialogRoute(): DialogRoute = when (this) {
+        DialogType.None -> DialogRoute.None
+        DialogType.Disciples -> DialogRoute.Disciples
+        DialogType.Warehouse -> DialogRoute.Warehouse
+        DialogType.Settings -> DialogRoute.Settings
+        DialogType.Buildings -> DialogRoute.Buildings
+        DialogType.Recruit -> DialogRoute.Recruit
+        DialogType.Diplomacy -> DialogRoute.Diplomacy
+        DialogType.WorldMap -> DialogRoute.WorldMap
+        DialogType.BattleLog -> DialogRoute.BattleLog
+        DialogType.Mail -> DialogRoute.Mail
+        DialogType.Activity -> DialogRoute.Activity
+        DialogType.Planting -> DialogRoute.Planting
+        DialogType.Merchant -> DialogRoute.Merchant
+        is DialogType.SpiritMine -> DialogRoute.SpiritMine(buildingInstanceId)
+        DialogType.HerbGarden -> DialogRoute.HerbGarden
+        is DialogType.Alchemy -> DialogRoute.Alchemy(buildingInstanceId)
+        is DialogType.Forge -> DialogRoute.Forge(buildingInstanceId)
+        DialogType.Library -> DialogRoute.Library
+        DialogType.WenDaoPeak -> DialogRoute.WenDaoPeak
+        DialogType.QingyunPeak -> DialogRoute.QingyunPeak
+        DialogType.TianshuHall -> DialogRoute.TianshuHall
+        DialogType.LawEnforcementHall -> DialogRoute.LawEnforcementHall
+        DialogType.MissionHall -> DialogRoute.MissionHall
+        DialogType.ReflectionCliff -> DialogRoute.ReflectionCliff
+        is DialogType.PatrolTower -> DialogRoute.PatrolTower(buildingInstanceId)
+        is DialogType.BloodRefiningPool -> DialogRoute.BloodRefiningPool(buildingInstanceId)
+        is DialogType.Residence -> DialogRoute.Residence(buildingInstanceId)
+        is DialogType.WarehouseBuilding -> DialogRoute.WarehouseBuilding(buildingInstanceId)
+        DialogType.GameOver -> DialogRoute.GameOver
+        DialogType.SectLevelDetail -> DialogRoute.SectLevelDetail
+        DialogType.RenameSect -> DialogRoute.RenameSect
+        DialogType.SalaryConfig -> DialogRoute.SalaryConfig
+    }
+
+    /** 当前对话框路由（由 DialogManager 驱动，为兼容保持 StateFlow<DialogRoute> 签名） */
+    private val _currentDialogRoute: MutableStateFlow<DialogRoute> =
+        MutableStateFlow(DialogRoute.None)
+    val currentDialogRoute: StateFlow<DialogRoute> = _currentDialogRoute.asStateFlow()
+
+    init {
+        // 订阅 DialogManager，将 DialogType → DialogRoute 映射
+        viewModelScope.launch {
+            dialogManager.currentDialog.collect { entry ->
+                _currentDialogRoute.value = if (entry == null || entry.type == DialogType.None) {
+                    DialogRoute.None
+                } else {
+                    entry.type.toDialogRoute()
+                }
+            }
+        }
+    }
+
+    /**
+     * 打开指定路由的对话框 — 委托给 DialogManager。
      */
     fun navigateToDialog(route: DialogRoute) {
-        _currentDialogRoute.value = route
-        gameEngine.setActiveDialog(route.toString())
-        viewModelScope.launch {
-            _dialogOpenTrigger.emit(Unit)
-        }
+        if (route is DialogRoute.None) return  // None 不打开任何对话框
+        val type = route.toDialogType()
+        // 先设置引擎状态，再打开 UI（失败安全：引擎若抛异常则 UI 不动）
+        gameEngine.setActiveDialog(route.domainKey)
+        dialogManager.open(type)
+        _dialogOpenTrigger.tryEmit(Unit)
     }
 
     /** 通知引擎有用户交互 — 防止拖动地图等触控操作被误判为空闲 */
@@ -138,10 +229,12 @@ class GameViewModel @Inject constructor(
         gameEngineCore.onSceneChanged(scene)
     }
 
-    /** 关闭当前对话框，将路由重置为 [DialogRoute.None] 并清空引擎侧激活状态 */
+    /** 关闭当前对话框，将路由重置为 None 并清空引擎侧激活状态 */
     fun dismissDialog() {
-        _currentDialogRoute.value = DialogRoute.None
+        // 先清除引擎状态，再关闭 UI（失败安全）
         gameEngine.setActiveDialog(null)
+        dialogManager.close()
+        _dialogOpenTrigger.tryEmit(Unit)
     }
 
     /**
@@ -228,12 +321,22 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * 关闭当前对话框 — dialogs call this internally
+     * 关闭当前对话框 — 现已统一通过 [dismissDialog] 关闭。
+     * @deprecated 直接调用 [dismissDialog] 替代
      */
-    fun closeCurrentDialog() = navigation.closeCurrentDialog()
+    @Deprecated("Use dismissDialog() instead", ReplaceWith("dismissDialog()"), level = DeprecationLevel.ERROR)
+    fun closeCurrentDialog() {
+        dismissDialog()
+    }
 
-    /** 关闭所有对话框，委托给 [NavigationDelegate] */
-    fun closeAllDialogs() = navigation.closeAllDialogs()
+    /**
+     * 关闭所有对话框 — 当前行为等价于 [dismissDialog]（无栈）。
+     * @deprecated 直接调用 [dismissDialog] 替代
+     */
+    @Deprecated("Use dismissDialog() instead", ReplaceWith("dismissDialog()"), level = DeprecationLevel.ERROR)
+    fun closeAllDialogs() {
+        dismissDialog()
+    }
 
     /** 打开灵矿场对话框，委托给 [NavigationDelegate] */
     fun openSpiritMineDialog(mineIndex: Int = 0) = navigation.openSpiritMineDialog(mineIndex)
@@ -380,9 +483,9 @@ class GameViewModel @Inject constructor(
     // 不在主线程上挂起（见 Bugly #3042/#8024）。
     val gameDataUi: StateFlow<GameData> = merge(
         gameEngine.gameData.sample(100),
-        _dialogOpenTrigger.map { gameEngine.gameData.value ?: GameData() }
+        _dialogOpenTrigger.map { gameEngine.gameData.value }
     ).flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value)
 
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
         .map { it.placedBuildings }
@@ -1784,6 +1887,9 @@ class GameViewModel @Inject constructor(
 
     override fun onCleared() {
         Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")
+        // Activity 销毁时清除对话框状态，防止 @Singleton DialogManager 跨生命周期残留
+        dialogManager.close()
+        gameEngine.setActiveDialog(null)
         clearResources()
         super.onCleared()
     }

@@ -16,6 +16,16 @@
 - **修复：读档自动存档弹出「存档为空或已损坏」** — 根因：`loadFromDatabase()` 用 Room suspending `withTransaction` 包裹读取操作，但内部的 `buildSaveDataFromDatabase()` 使用 `withContext(Dispatchers.IO)` + `async {}` 在 IO 线程池并行执行同步 DAO 查询。Room 检测到同步调用线程 ≠ 事务线程，抛出 `IllegalStateException`，返回值 null 被上层解释为「存档为空」。修复：移除读路径中多余的 `withTransaction`（`load()` 入口已有 `withReadLockLight` 排它锁，无需事务）
 - **修复：游戏中读档 IllegalLifecycleTransition(PLAYING→DATA_READY)** — 根因：`transitionTo()` 只允许 forward +1，但 reload 路径从 PLAYING→DATA_READY 是回退。修复：`forceLifecycle(UNINITIALIZED)` 在 stopGameLoop 后重置生命周期，现由 `BootSequenceController.boot()` 内部通过 `setReloading()+resetBootPhase()` 统一处理
 
+### 重构
+
+- **重构：对话框系统统一渲染路径** — 从 GameViewModel 拆出独立 `DialogManager` 接口（`core/domain` 零 Android 依赖）+ `DialogManagerImpl`（Hilt `@Singleton`）。消除三套并行渲染体系：内联覆盖层（`FullScreenOverlay` 等）改为 `UnifiedGameDialog(mode = Full)` 获得 `decorFitsSystemWindows = false` 系统栏保护。消除 Path B 关闭路径（`closeCurrentDialog`→Channel→LaunchedEffect→`dismissDialog`）。清理废弃 `HalfScreenDialog`/`GameFullDialog` 声明。`CloseButton` 触摸目标 24dp→48dp（Material 标准）。`ElderBonusInfoDialog` 关闭按钮底部→右上角。对抗性审查 3 Agent 发现 20+ 项问题全部修复
+
+### 修复
+
+- **修复：关闭按钮被系统栏遮挡** — 根因：`FullScreenOverlay`、`ActivityDialog`、`MailDialog` 使用内联 `Surface(Modifier.fillMaxSize())` 无 `decorFitsSystemWindows = false`，`enableEdgeToEdge()` 下全屏填充包括系统栏区域，关闭按钮在状态栏后方。修复：改为 `UnifiedGameDialog(mode = Full)` 获得 Dialog 窗口 inset 保护
+- **修复：对话框关闭按钮无响应** — 根因：关闭按钮在状态栏后方（上述遮挡），触摸落在系统 UI 区域。修复：inset 保护 + 触摸目标 24dp→48dp
+- **修复：`ElderBonusInfoDialog` 关闭按钮在右下角** — Column 末尾 `Modifier.align(Alignment.End)` 导致。修复：移到标题行右上角 Row
+
 ## [4.0.47] - 2026-07-13（versionCode=4047）
 
 ### 架构

@@ -365,7 +365,7 @@ internal fun WorldMapSectDetailDialog(
                     text = "进入",
                     onClick = {
                         viewModel.enterSect(sect.id)
-                        viewModel.closeAllDialogs()
+                        viewModel.dismissDialog()
                     }
                 )
             }
@@ -383,7 +383,7 @@ internal fun WorldMapSectDetailDialog(
                         text = "进入",
                         onClick = {
                             viewModel.enterSect("")
-                            viewModel.closeAllDialogs()
+                            viewModel.dismissDialog()
                         }
                     )
                 }

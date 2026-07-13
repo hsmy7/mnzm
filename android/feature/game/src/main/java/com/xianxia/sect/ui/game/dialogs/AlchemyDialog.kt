@@ -91,7 +91,7 @@ fun AlchemyDialog(
     val showAllEnabled = viewModel.gameData.value.showAllAvailableDisciples
 
     UnifiedGameDialog(
-        onDismissRequest = { viewModel.closeCurrentDialog() },
+        onDismissRequest = onDismiss,
         title = "炼丹炉",
         mode = DialogMode.Half,
         scrollableContent = false

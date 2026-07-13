@@ -17,8 +17,8 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.RewardSelectedItem
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
@@ -96,30 +96,22 @@ internal fun DiscipleSelectForRewardDialog(
             .distinctBy { it.id }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "赏赐弟子",
+        mode = DialogMode.Half,
+        showCloseButton = true,
+        scrollableContent = false,
+        headerContent = {
+            Text(
+                text = "物品: $itemName (剩余: $currentQuantity)",
+                fontSize = 12.sp,
+                color = Color.Black,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "赏赐弟子",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "物品: $itemName (剩余: $currentQuantity)",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                CloseButton(onClick = onDismiss)
-            }
 
             SpiritRootAttributeFilterBar(
                 selectedSpiritRootFilter = selectedSpiritRootFilter,

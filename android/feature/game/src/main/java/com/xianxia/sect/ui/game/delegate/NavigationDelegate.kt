@@ -10,22 +10,10 @@ class NavigationDelegate(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
     private val scope: CoroutineScope,
-    private val onNavigate: (GameRoute) -> Unit,
-    private val onPopBack: (String?) -> Unit
+    private val onNavigate: (GameRoute) -> Unit
 ) {
     companion object {
         private const val TAG = "NavigationDelegate"
-    }
-
-    /**
-     * 关闭当前对话框 — dialogs call this internally
-     */
-    fun closeCurrentDialog() {
-        onPopBack(null)
-    }
-
-    fun closeAllDialogs() {
-        onPopBack("empty")
     }
 
     fun openSpiritMineDialog(mineIndex: Int = 0) {

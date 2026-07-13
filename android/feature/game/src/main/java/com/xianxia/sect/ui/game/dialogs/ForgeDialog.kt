@@ -88,7 +88,7 @@ fun ForgeDialog(
     val showAllEnabled = viewModel.gameData.value.showAllAvailableDisciples
 
     UnifiedGameDialog(
-        onDismissRequest = { viewModel.closeCurrentDialog() },
+        onDismissRequest = onDismiss,
         title = "锻造坊",
         mode = DialogMode.Half,
         scrollableContent = false

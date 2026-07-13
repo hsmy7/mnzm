@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -89,21 +90,33 @@ fun GameButton(
 fun CloseButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 24.dp,
+    enabled: Boolean = true,
+    visualSize: Dp = 24.dp,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button
 ) {
+    // 触摸目标 ≥ 48dp（Material Design 标准），视觉图标保持 visualSize
+    // 通过 padding 扩展触摸区域，不改变视觉尺寸
+    val touchPadding = ((48.dp - visualSize) / 2).coerceAtLeast(0.dp)
     Box(
         modifier = modifier
-            .size(size)
+            .size(visualSize + touchPadding * 2)
             .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(),
+                enabled = enabled,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = closeButtonRes),
-            contentDescription = "关闭",
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
+        Box(modifier = Modifier.size(visualSize)) {
+            Image(
+                painter = painterResource(id = closeButtonRes),
+                contentDescription = "关闭",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds,
+                alpha = if (enabled) 1f else 0.38f
+            )
+        }
     }
 }

@@ -12,6 +12,8 @@ import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.incremental.ChangeLogDao
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
+import com.xianxia.sect.core.dialog.DialogManagerImpl
+import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
 
 import dagger.Module
@@ -172,4 +174,10 @@ object AppModule {
     fun provideChangeLogPersistence(database: GameDatabase): ChangeLogPersistence {
         return ChangeLogPersistence(database)
     }
+
+    // ==================== 对话框管理 ====================
+
+    @Provides
+    @Singleton
+    fun provideDialogManager(impl: DialogManagerImpl): DialogManager = impl
 }

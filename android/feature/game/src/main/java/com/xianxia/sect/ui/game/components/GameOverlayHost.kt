@@ -51,9 +51,11 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 
 private val CachedColorScheme = XianxiaColorScheme()
 
@@ -130,14 +132,6 @@ fun GameOverlayHost(
         viewModel.warehouseFullEvent.collect { showWarehouseFullDialog = true }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.popBackEvents.collect { target ->
-            if (target == null || target == "empty") {
-                viewModel.dismissDialog()
-            }
-        }
-    }
-
     // 妖兽进攻预警
     val pendingBeastAttacks by viewModel.pendingBeastAttacks
         .collectAsStateWithLifecycle()
@@ -197,9 +191,9 @@ fun GameOverlayHost(
         val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
         key(currentDialogRoute) {
+            @Suppress("UNUSED_EXPRESSION")
             when (val route = currentDialogRoute) {
-                is DialogRoute.None -> { }
-
+                is DialogRoute.None -> Unit
                 is DialogRoute.Disciples -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("DISCIPLES")
@@ -407,6 +401,7 @@ fun GameOverlayHost(
                     gameData = gameData,
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
+                    onDismiss = onDismiss
                 )
             }
         }
@@ -418,6 +413,7 @@ fun GameOverlayHost(
                     gameData = gameData,
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
+                    onDismiss = onDismiss
                 )
             }
         }
@@ -800,44 +796,20 @@ private fun FullScreenOverlay(
     deferContent: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    BackHandler(onBack = onDismiss)
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = GameColors.PageBackground
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Full,
+        showCloseButton = true,
+        dismissOnBackPress = true,
+        dismissOnClickOutside = false,
+        headerActions = actions,
+        scrollableContent = false
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    actions?.invoke()
-                    CloseButton(onClick = onDismiss)
-                }
-                if (deferContent) {
-                    DeferredContent {
-                        content()
-                    }
-                } else {
-                    content()
-                }
-            }
+        if (deferContent) {
+            DeferredContent { content() }
+        } else {
+            content()
         }
     }
 }

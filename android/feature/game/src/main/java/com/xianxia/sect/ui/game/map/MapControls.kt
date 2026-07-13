@@ -18,6 +18,6 @@ fun BoxScope.MapControls(
         modifier = Modifier
             .align(Alignment.TopEnd)
             .padding(8.dp),
-        size = MapStyle.Dimensions.closeButtonSize
+        visualSize = MapStyle.Dimensions.closeButtonSize
     )
 }

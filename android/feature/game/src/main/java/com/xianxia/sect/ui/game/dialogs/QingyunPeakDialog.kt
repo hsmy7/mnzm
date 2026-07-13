@@ -33,6 +33,7 @@ fun QingyunPeakDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    onDismiss: () -> Unit,
 ) {
     var showInnerElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
@@ -42,7 +43,7 @@ fun QingyunPeakDialog(
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
     val discipleMap = disciples.associateBy { it.id }
     UnifiedGameDialog(
-        onDismissRequest = { viewModel.closeCurrentDialog() },
+        onDismissRequest = onDismiss,
         title = "青云塔",
         mode = DialogMode.Half,
         scrollableContent = false

@@ -33,6 +33,7 @@ fun WenDaoPeakDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    onDismiss: () -> Unit,  // ← NEW: use instead of viewModel.closeCurrentDialog()
 ) {
     var showOuterElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
@@ -42,7 +43,7 @@ fun WenDaoPeakDialog(
     val preachingMasters = productionViewModel.getPreachingMasters()
     val discipleMap = disciples.associateBy { it.id }
     UnifiedGameDialog(
-        onDismissRequest = { viewModel.closeCurrentDialog() },
+        onDismissRequest = onDismiss,
         title = "问道塔",
         mode = DialogMode.Half,
         scrollableContent = false

@@ -24,9 +24,10 @@ import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GridRow
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
@@ -123,29 +124,19 @@ internal fun BulkSellDialog(
             sellableHerbs.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
             sellableSeeds.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "一键出售",
+        mode = DialogMode.Half,
+        showCloseButton = true,
+        scrollableContent = false
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "一键出售",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-            }
-
             item {
                 Column(
                     modifier = Modifier.fillMaxWidth(),

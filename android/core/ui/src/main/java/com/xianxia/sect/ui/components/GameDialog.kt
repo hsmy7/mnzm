@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -179,50 +178,6 @@ fun UnifiedGameDialog(
     }
 }
 
-/**
- * 替代 Compose [androidx.compose.ui.window.Dialog]。
- * 无遮罩覆盖层 — 内容直接在当前 Box 层级内渲染，不创建独立窗口。
- * 点击外部区域或按返回键触发 onDismissRequest。
- */
-@Deprecated(
-    message = "Use UnifiedGameDialog(mode = DialogMode.Full) instead",
-    replaceWith = ReplaceWith(
-        "UnifiedGameDialog(onDismissRequest = onDismissRequest, title = \"\", mode = DialogMode.Full, content = content)",
-        "com.xianxia.sect.ui.components.UnifiedGameDialog"
-    ),
-    level = DeprecationLevel.WARNING
-)
-@Composable
-fun GameFullDialog(
-    onDismissRequest: () -> Unit,
-    dismissOnBackPress: Boolean = true,
-    dismissOnClickOutside: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    if (dismissOnBackPress) {
-        BackHandler(onBack = onDismissRequest)
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0x99000000))
-            .then(
-                if (dismissOnClickOutside) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismissRequest
-                    )
-                } else {
-                    Modifier
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
-}
-
 object DialogDefaults {
     /** Width fraction for half-screen dialogs: leaves ~7.5% margin on each side */
     const val HalfScreenWidthFraction = 0.83f
@@ -232,80 +187,4 @@ object DialogDefaults {
     val CommonMaxHeight: Dp = 280.dp
     /** Standard corner radius for dialog boxes */
     val CornerRadius: Dp = 12.dp
-}
-
-/**
- * Unified dialog wrapper for both full-screen and half-screen game dialogs.
- * Full-screen mode: content fills entire window.
- * Half-screen mode: content constrained to standard size (85% width × 78% height), centered.
- * Includes bg_horizontal background image automatically.
- */
-@Deprecated(
-    message = "Use UnifiedGameDialog with DialogMode instead",
-    replaceWith = ReplaceWith(
-        "UnifiedGameDialog(onDismissRequest = onDismissRequest, title = \"\", mode = if (isFullScreen) DialogMode.Full else DialogMode.Half, content = content)",
-        "com.xianxia.sect.ui.components.UnifiedGameDialog"
-    ),
-    level = DeprecationLevel.WARNING
-)
-@Composable
-fun HalfScreenDialog(
-    onDismissRequest: () -> Unit,
-    isFullScreen: Boolean = false,
-    widthFraction: Float = DialogDefaults.HalfScreenWidthFraction,
-    heightFraction: Float = DialogDefaults.HalfScreenHeightFraction,
-    @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
-        ?: R.drawable.bg_horizontal,
-    @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
-        ?: R.drawable.ui_close_button,
-    content: @Composable () -> Unit
-) {
-    if (isFullScreen) {
-        // Box overlay in the Activity window — immune to platform Dialog-window manipulation
-        GameFullDialog(
-            onDismissRequest = onDismissRequest,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Image(
-                    painter = painterResource(id = backgroundRes),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
-                )
-                content()
-            }
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismissRequest,
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color.Transparent
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(widthFraction)
-                            .fillMaxHeight(heightFraction)
-                            .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-                    ) {
-                        Image(
-                            painter = painterResource(id = backgroundRes),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        content()
-                    }
-                }
-            }
-        }
-    }
 }
