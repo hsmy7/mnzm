@@ -183,7 +183,6 @@ class CultivationEventProcessor @Inject constructor(
                 )
             )
             if ((index + 1) % batchSize == 0) {
-                Thread.yield()
                 if (thermalMonitor.shouldReduceWorkload()) {
                     Thread.sleep(5)
                 }

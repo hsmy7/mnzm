@@ -166,10 +166,10 @@ class ProductionSlotRepository @Inject constructor(
 
         val newSlots = currentSlots.toMutableList()
         newSlots[targetIndex] = newSlot
+        dao.update(newSlot)
         _slots.value = newSlots
         cache.updateCache(newSlots)
 
-        dao.update(newSlot)
 
         DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
         return Result.success(newSlot)
@@ -204,10 +204,10 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             currentSlots[index] = newSlot
+            dao.update(newSlot)
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
 
-            dao.update(newSlot)
 
             DomainLog.d(TAG, "Updated slot: $buildingId[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
             Result.success(newSlot)
@@ -247,7 +247,7 @@ class ProductionSlotRepository @Inject constructor(
                     if (validation.isFailure) continue
                 }
 
-                currentSlots[index] = newSlot
+                dao.update(newSlot)
                 updatedSlots.add(newSlot)
             }
 
