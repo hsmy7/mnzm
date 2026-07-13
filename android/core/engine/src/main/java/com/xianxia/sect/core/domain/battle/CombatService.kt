@@ -173,7 +173,7 @@ class CombatService @Inject constructor(
 
                 // B. 标记死亡
                 for ((id, _) in disciplesToKill) {
-                    discipleTables.markDead(id, battleCurrentYear)
+                    discipleTables.markDead(id, battleCurrentYear, "battle")
                 }
 
                 // C. 装备/功法/熟练度

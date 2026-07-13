@@ -79,22 +79,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
 
         stateStore.update {
-            // 备份已有死亡弟子的 deathYears（clear 会擦除全部组件表）
-            val deathYearsBackup = mutableMapOf<Int, Int>()
-            for (id in discipleTables.ids) {
-                if (discipleTables.isAlive[id] == 0 && discipleTables.deathYears.contains(id)) {
-                    deathYearsBackup[id] = discipleTables.deathYears[id]
-                }
-            }
-
             discipleTables.clear()
             updatedDisciples.forEach { discipleTables.insert(it) }
 
-            // 恢复所有备份的 deathYears（clear 已擦除全部组件表）
-            for ((id, year) in deathYearsBackup) {
-                discipleTables.deathYears[id] = year
-            }
-            // 对未备份的死弟子（如首次经修1-5才有 deathYears 的新死亡）补充标记
+            // 安全网：deathYears 由各个死亡路径的 markDead/handleDiscipleDeath 设置，
+            // 此处仅对极少数遗漏情况（如旧存档兼容）做补充
             for (d in updatedDisciples) {
                 if (!d.isAlive) {
                     val id = d.id.toIntOrNull() ?: continue

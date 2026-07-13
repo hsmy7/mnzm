@@ -618,13 +618,24 @@ class DiscipleTables {
     }
 
     /**
-     * 集中标记弟子死亡 —— 同时设置 isAlive、status、deathYears。
+     * 集中标记弟子死亡 —— 设置 isAlive/status/deathYears + 创建 DeathRecord。
      * 所有死亡路径必须调用此方法（或通过 handleDiscipleDeath），禁止手动写三个字段。
+     * [cause] 取值："age" / "battle" / "scout" / "exploration" / "cave" / "unknown"
      * 使用方式：
-     *   discipleTables.markDead(id, currentYear)
+     *   discipleTables.markDead(id, currentYear, "battle")
      */
-    fun markDead(id: Int, currentYear: Int) {
+    fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
         if (!ids.contains(id)) return
+        deathRecords.add(DeathRecord(
+            id = id,
+            name = names.getOrNull(id) ?: "",
+            surname = surnames.getOrNull(id) ?: "",
+            realm = realms.getOrDefault(id, 9),
+            realmLayer = realmLayers.getOrDefault(id, 1),
+            deathAge = ages.getOrDefault(id, 0),
+            deathYear = currentYear,
+            cause = cause
+        ))
         isAlive[id] = 0
         statuses[id] = DiscipleStatus.DEAD
         deathYears[id] = currentYear

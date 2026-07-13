@@ -239,7 +239,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
             val idStr = id.toString()
             val (hp, mp) = hpMap[idStr] ?: continue
             if (idStr !in survivorIds) {
-                discipleTables.markDead(id, data.gameYear)
+                discipleTables.markDead(id, data.gameYear, "battle")
             } else {
                 val maxHp = discipleTables.baseHps[id]
                 val maxMp = discipleTables.baseMps[id]
@@ -354,7 +354,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
             val idStr = id.toString()
             val (hp, mp) = hpMap[idStr] ?: continue
             if (idStr !in survivorIds) {
-                discipleTables.markDead(id, data.gameYear)
+                discipleTables.markDead(id, data.gameYear, "scout")
             } else {
                 val maxHp = discipleTables.baseHps[id]
                 val maxMp = discipleTables.baseMps[id]
