@@ -579,8 +579,7 @@ class GameStateStoreImpl @Inject constructor(
 
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {
         _pendingBeastAttacksFlow.value = attacks
-        _updateVersion.value++
-        _stateDirty = true
+        // 注意：此方法仅在 stateStore.update{} 事务内部调用，_stateDirty/_updateVersion 由外层事务统一管理
     }
 
     override fun clearPendingBeastAttacks() {

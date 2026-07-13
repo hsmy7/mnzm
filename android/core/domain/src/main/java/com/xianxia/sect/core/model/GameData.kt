@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.MSTEdge
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.state.SettlementStrategy
 import com.xianxia.sect.core.state.Strategy
+import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -186,6 +187,12 @@ data class GameData(
     // 世界关卡（妖兽+洞府统一池子）
     @SettlementStrategy(Strategy.CUSTOM)
     var worldLevels: List<WorldLevel> = emptyList(),
+    /** 上次世界关卡刷新的绝对月份（gameYear*12+gameMonth），读档后保持连续 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var worldLevelLastRefreshMonth: Int = 0,
+    /** RNG 分区状态快照（partitionId → PCG state），读档后恢复确定性随机序列 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var rngStates: Map<Int, Long> = emptyMap(),
 
     // 修士洞府（保留兼容）
     @SettlementStrategy(Strategy.USE_SHADOW)
@@ -265,6 +272,9 @@ data class GameData(
     var patrolConfig: PatrolConfig = PatrolConfig(),
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var patrolConfigs: List<PatrolConfig> = emptyList(),
+    /** 巡视塔战斗结果缓存（未展示的弹窗数据），持久化避免读档后丢失 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var pendingPatrolBattleResults: List<BattleResultUIData> = emptyList(),
 
     // 结盟关系
     @SettlementStrategy(Strategy.THREE_WAY_ID)

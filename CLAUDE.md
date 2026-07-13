@@ -235,6 +235,32 @@ interface GameSystem {
 - **`GameData`** — Room @Entity，主键 (id, slot_id)
 - **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()` / `checkpointAllProduction()`
 
+#### 探索系统（v4.1+ 子系统架构）
+
+探索系统从 `ExplorationService`（Facade）拆分为 6 个独立职责的子系统：
+
+| 子系统 | 文件 | 职责 |
+|--------|------|------|
+| `WorldLevelManager` | `exploration/WorldLevelManager.kt` | 关卡惰性管理：刷新/过期清理/妖兽移动（纯函数，分区 RNG） |
+| `BeastAttackDetector` | `exploration/BeastAttackDetector.kt` | 妖兽攻击检测（纯函数，返回预警列表） |
+| `PatrolBattleSystem` | `exploration/PatrolBattleSystem.kt` | 巡视塔战斗（拆 4 步：组队→索敌→战斗→结算） |
+| `LootCalculator` | `exploration/LootCalculator.kt` | 掠夺计算（纯函数 + 副作用分离，修复双重扣除） |
+| `DiscipleDeathHandler` | `exploration/DiscipleDeathHandler.kt` | 死亡标记 + deathYears + 装备断言守卫 |
+| `ExplorationTeamManager` | `exploration/ExplorationTeamManager.kt` | 探索队伍管理（单事务内完成，竞态安全） |
+| `ExplorationService` | `domain/exploration/ExplorationService.kt` | Facade：月度事件编排 + 保留玩家主动操作接口 |
+
+#### 确定性 RNG 系统（v4.1+）
+
+所有随机操作使用分区 PRNG 确保存档/读档后随机序列一致：
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
+| `GameRngManager` | `util/GameRngManager.kt` | 4 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM） |
+| `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
+
+**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
+
 ### Component Table Architecture (v4.0.41) / IntPackedArray + Cultivation Checkpoint
 
 Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntPackedArray`（dense IntArray + idToIndex）和 `DoublePackedArray`（零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
@@ -648,6 +674,10 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新功能有测试 |
 | 🔴 | 代码无"当前能跑就行"迹象（边界/异常/日志/硬编码） |
 | 🔴 | 新增影响修炼速率的操作已添加 `checkpointDisciple()` 调用 |
+| 🔴 | 新增随机数逻辑已使用 `GameRngManager.getRng(RngPartition.xxx)` 替代 `kotlin.random.Random` |
+| 🔴 | 新增 `GameSystem` 已拆分为 ≤60 行/方法的子系统，不可出现 God Method |
+| 🔴 | 新增系统的 `EventBus` 事件 emit 在 `stateStore.update` 事务外（参照 `flushPendingEvents` 模式） |
+| 🔴 | 新增死亡标记路径已调用 `DiscipleDeathHandler.markDead` 或 `handleDiscipleDeath`，非手动写三个字段 |
 | 🔴 | 新增影响炼丹/锻造/灵田速率因子已同步更新 `calculateWorkDurationWithAllDisciples` 或 `calculateSpiritFieldMaturityBonus` |
 | 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |

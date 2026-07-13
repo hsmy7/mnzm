@@ -1,6 +1,24 @@
 [
   {
     "date": "2026-07-13",
+    "version": "4.0.47",
+    "changes": [
+      "重构：探索系统拆分为6个子系统——ExplorationService降为Facade，提取WorldLevelManager(关卡惰性管理)/BeastAttackDetector(妖兽攻击检测)/PatrolBattleSystem(巡视塔战斗拆4步)/LootCalculator(掠夺计算+双重扣除修复)/DiscipleDeathHandler(死亡标记+装备断言)/ExplorationTeamManager(队伍管理单事务竞态安全)。原processPatrolAttacks 241行God Method拆为4个≤60行方法",
+      "新增：确定性RNG系统——PCG-XSH-RR算法DeterministicRng(16字节可序列化)+GameRngManager(4分区BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM)+RngPartition枚举。所有随机操作走分区PRNG，存档exportStates/读档restoreStates确保跨存档随机序列一致。LevelGenerator从object改为class注入RNG",
+      "修复：Wallet灵石变更事件部分状态窗口——SpiritStoneWallet改为暂存事件到pendingEvents，由GameEngineCore在stateStore.update事务外统一flushPendingEvents。消除事务内emit时UI层读到灵石已变、其他状态未提交的部分中间状态",
+      "修复：ExplorationService.resolveBeastAttackPayTribute纳贡不扣灵石但妖兽标记已击败——deduct返回的DeductResult被忽略。新增DeductResult.Success检查，扣除失败时跳过击败标记",
+      "修复：储物袋掠夺双重扣除遗留——applyMaterialLoot重写为单次mapInPlace遍历",
+      "修复：PatrolBattleSystem deathYears手动写入改为DiscipleDeathHandler.markAllDead统一入口",
+      "修复：ExplorationService中2处kotlin.random.Random调用替换为分区RNG",
+      "修复：WorldLevelManager.processMonthly在无玩家宗门时早返回跳过过期清理",
+      "新增：巡视塔战斗结果持久化——GameData.pendingPatrolBattleResults替代内存列表",
+      "新增：测试覆盖——探索包101个单元测试(10套件0失败)",
+      "文档：CLAUDE.md更新Key Classes+PR审查清单新增4条RNG规则",
+      "文档：新增docs/adr/exploration-system-refactoring.md(24条行业参考)"
+    ]
+  },
+  {
+    "date": "2026-07-13",
     "version": "4.0.46",
     "changes": [
       "修复：ComponentTable 线程安全加固——在协程挂起时 kotlinx Mutex 会释放锁，另一协程可能交错写入 SparseArray 导致崩溃。给 ComponentTable/IntFlatArray/DoubleFlatArray 全方法加 synchronized/@Synchronized 保护，修复 3 个 ArrayIndexOutOfBoundsException（#5045/#5043/#5027）。对抗性审查 3 Agent 共发现 20+ 项问题并全部修复",

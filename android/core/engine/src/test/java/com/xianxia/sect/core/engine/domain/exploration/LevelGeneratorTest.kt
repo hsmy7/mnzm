@@ -1,10 +1,21 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 class LevelGeneratorTest {
+
+    private lateinit var generator: LevelGenerator
+
+    @Before
+    fun setUp() {
+        val rngManager = GameRngManager()
+        rngManager.initSystemSeed(42L) // 固定种子保证确定性
+        generator = LevelGenerator(rngManager)
+    }
 
     // ---- getCaveReward ----
 
@@ -100,7 +111,7 @@ class LevelGeneratorTest {
 
     @Test
     fun generateWorldLevels_returnsListWithinMaxNewLevels() {
-        val levels = LevelGenerator.generateWorldLevels(
+        val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
             connectionEdges = emptyList(),
             currentYear = 1,
@@ -113,7 +124,7 @@ class LevelGeneratorTest {
 
     @Test
     fun generateWorldLevels_zeroMaxNewLevels_returnsEmptyList() {
-        val levels = LevelGenerator.generateWorldLevels(
+        val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
             connectionEdges = emptyList(),
             currentYear = 1,
@@ -126,7 +137,7 @@ class LevelGeneratorTest {
 
     @Test
     fun generateWorldLevels_levelHasCorrectSpawnTime() {
-        val levels = LevelGenerator.generateWorldLevels(
+        val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
             connectionEdges = emptyList(),
             currentYear = 5,
@@ -143,7 +154,7 @@ class LevelGeneratorTest {
     @Test
     fun generateWorldLevels_levelTypeIsBeastOrCave() {
         val validTypes = setOf(com.xianxia.sect.core.model.LevelType.BEAST, com.xianxia.sect.core.model.LevelType.CAVE)
-        val levels = LevelGenerator.generateWorldLevels(
+        val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
             connectionEdges = emptyList(),
             currentYear = 1,
@@ -161,7 +172,7 @@ class LevelGeneratorTest {
     @Test
     fun selectBeastRealm_returnsValidRealmRange() {
         for (year in listOf(0, 1, 100, 500, 2000, 9999)) {
-            val realm = LevelGenerator.selectBeastRealm(year)
+            val realm = generator.selectBeastRealm(year)
             assertTrue("realm should be 0..9, got $realm for year=$year",
                 realm in 0..9)
         }
@@ -170,7 +181,7 @@ class LevelGeneratorTest {
     @Test
     fun selectBeastRealm_year1_mostlyLowRealms() {
         // 统计 500 次采样，炼气+筑基应占主导
-        val samples = List(500) { LevelGenerator.selectBeastRealm(1) }
+        val samples = List(500) { generator.selectBeastRealm(1) }
         val lowCount = samples.count { it in 8..9 }  // 炼气/筑基
         val highCount = samples.count { it in 0..2 } // 仙人/渡劫/大乘
         // 炼气+筑基应超过 40%
@@ -184,7 +195,7 @@ class LevelGeneratorTest {
     @Test
     fun selectBeastRealm_year2000_mostlyHighRealms() {
         // 统计 500 次采样，高境界应占主导
-        val samples = List(500) { LevelGenerator.selectBeastRealm(2000) }
+        val samples = List(500) { generator.selectBeastRealm(2000) }
         val lowCount = samples.count { it in 8..9 }  // 炼气/筑基
         val highCount = samples.count { it in 0..2 } // 仙人/渡劫/大乘
         // 高境界应超过 40%
@@ -197,7 +208,7 @@ class LevelGeneratorTest {
 
     @Test
     fun selectBeastRealm_year500_isMidGameDistribution() {
-        val samples = List(500) { LevelGenerator.selectBeastRealm(500) }
+        val samples = List(500) { generator.selectBeastRealm(500) }
         val midCount = samples.count { it in 4..6 }  // 化神/元婴/炼虚
         val lowCount = samples.count { it in 8..9 }
         val highCount = samples.count { it in 0..2 }
@@ -213,9 +224,9 @@ class LevelGeneratorTest {
     @Test
     fun selectBeastRealm_interpolationSmooth() {
         // 验证插值平滑性：year 250 的分布应介于 year 1 和 year 500 之间
-        val year1Avg = List(200) { LevelGenerator.selectBeastRealm(1) }.average()
-        val year250Avg = List(200) { LevelGenerator.selectBeastRealm(250) }.average()
-        val year500Avg = List(200) { LevelGenerator.selectBeastRealm(500) }.average()
+        val year1Avg = List(200) { generator.selectBeastRealm(1) }.average()
+        val year250Avg = List(200) { generator.selectBeastRealm(250) }.average()
+        val year500Avg = List(200) { generator.selectBeastRealm(500) }.average()
         // realm 值越高境界越低，平均值应随年份递减
         assertTrue("year250 应介于 year1($year1Avg) 和 year500($year500Avg) 之间",
             year250Avg < year1Avg)

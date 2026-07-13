@@ -20,6 +20,7 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
@@ -48,7 +49,8 @@ class SaveLoadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     private val resourcePreloader: ResourcePreloader,
-    private val discipleSnapshotCache: DiscipleSnapshotCache
+    private val discipleSnapshotCache: DiscipleSnapshotCache,
+    private val gameRngManager: GameRngManager
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -526,6 +528,10 @@ class SaveLoadViewModel @Inject constructor(
                 gameEngine.createNewGame(sectName, slot)
                 Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
 
+                // 初始化 RNG 系统种子（新世界使用 mapSeed 确保确定性随机序列）
+                gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                Log.d(TAG, "startNewGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
+
                 storageFacade.setCurrentSlot(slot)
                 Log.d(TAG, "Active slot set to $slot")
                 stateStore.transitionTo(GameLifecycle.DATA_READY)
@@ -777,6 +783,13 @@ class SaveLoadViewModel @Inject constructor(
                 )
                 stateStore.transitionTo(GameLifecycle.DATA_READY)
 
+                // 恢复 RNG 分区状态，确保读档后随机序列连续性
+                val loadedGd = gameEngine.gameData.value
+                if (loadedGd.rngStates.isNotEmpty()) {
+                    gameRngManager.restoreStates(loadedGd.rngStates)
+                    Log.d(TAG, "loadGame: Restored ${loadedGd.rngStates.size} RNG partition states")
+                }
+
                 gameEngine.ensureHeavyDataLoaded()
 
                 // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
@@ -938,6 +951,13 @@ class SaveLoadViewModel @Inject constructor(
                         productionSlots = saveData.productionSlots
                     )
                     stateStore.transitionTo(GameLifecycle.DATA_READY)
+
+                    // 恢复 RNG 分区状态，确保读档后随机序列连续性
+                    val loadedGd = gameEngine.gameData.value
+                    if (loadedGd.rngStates.isNotEmpty()) {
+                        gameRngManager.restoreStates(loadedGd.rngStates)
+                        Log.d(TAG, "loadGameFromSlot: Restored ${loadedGd.rngStates.size} RNG partition states")
+                    }
 
                     // 修正已有存档中的建筑网格尺寸，补齐instanceId
                     gameEngine.updateGameData { data ->
@@ -1240,6 +1260,10 @@ class SaveLoadViewModel @Inject constructor(
                 storageFacade.setCurrentSlot(currentSlot)
 
                 gameEngine.restartGameSuspend(sectName, currentSlot)
+
+                // 重置 RNG 系统种子（重启即新世界，初始化确定性随机序列）
+                gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                Log.d(TAG, "restartGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
                 setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
 

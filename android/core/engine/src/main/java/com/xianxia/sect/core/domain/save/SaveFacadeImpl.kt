@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -16,7 +17,8 @@ class SaveFacadeImpl @Inject constructor(
     private val saveService: SaveService,
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
-    private val coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope,
+    private val gameRngManager: GameRngManager
 ) : SaveFacade {
 
     /**
@@ -55,8 +57,11 @@ class SaveFacadeImpl @Inject constructor(
 
     override fun getStateSnapshotSync(): GameStateSnapshot {
         validateWorldMapSectsBeforeSave()
+        // 导出 RNG 分区状态到 gameData，确保存档包含当前 PRNG 快照
+        val exportedRng = gameRngManager.exportStates()
+        val gd = stateStore.gameDataSnapshot
         return GameStateSnapshot(
-            gameData = stateStore.gameDataSnapshot,
+            gameData = gd.copy(rngStates = exportedRng),
             disciples = stateStore.disciplesSnapshot,
             equipmentStacks = stateStore.equipmentStacksSnapshot,
             equipmentInstances = stateStore.equipmentInstancesSnapshot,
@@ -76,9 +81,11 @@ class SaveFacadeImpl @Inject constructor(
 
     override suspend fun getStateSnapshot(): GameStateSnapshot {
         validateWorldMapSectsBeforeSave()
+        // 导出 RNG 分区状态到 gameData，确保存档包含当前 PRNG 快照
+        val exportedRng = gameRngManager.exportStates()
         val gd = stateStore.gameDataSnapshot
         return GameStateSnapshot(
-            gameData = gd,
+            gameData = gd.copy(rngStates = exportedRng),
             disciples = stateStore.disciplesSnapshot,
             equipmentStacks = stateStore.equipmentStacksSnapshot,
             equipmentInstances = stateStore.equipmentInstancesSnapshot,

@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 16,
-    "identityHash": "dad5cb8526abdf6d954226dbd052cf5d",
+    "identityHash": "a52c4018af519af2cbca74da68e45aa5",
     "entities": [
       {
         "tableName": "game_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gamePhase` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `midGradeSpiritStones` INTEGER NOT NULL, `highGradeSpiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `aiSectDisciples` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `merchantAcquisitionItems` TEXT NOT NULL, `merchantAcquisitionLastRefreshYear` INTEGER NOT NULL, `autoBuyList` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `worldLevels` TEXT NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `spiritMineLastSettledMonth` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `placedBuildings` TEXT NOT NULL, `spiritFieldPlants` TEXT NOT NULL, `activeSectId` TEXT NOT NULL, `residenceSlots` TEXT NOT NULL, `warehouseGarrisons` TEXT NOT NULL, `patrolSlots` TEXT NOT NULL, `patrolConfig` TEXT NOT NULL, `patrolConfigs` TEXT NOT NULL, `alliances` TEXT NOT NULL, `vassalContracts` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `mailRecords` TEXT NOT NULL, `sectLevelClaimRecords` TEXT NOT NULL, `save_version` INTEGER NOT NULL DEFAULT 0, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL, `daoCompanionBannedRootCounts` TEXT NOT NULL, `daoCompanionConsentRequired` INTEGER NOT NULL, `patrolBattleResultPopup` INTEGER NOT NULL, `autoSellMidGradeForPurchase` INTEGER NOT NULL, `autoSellHighGradeForPurchase` INTEGER NOT NULL, `discipleDesertionPopup` INTEGER NOT NULL, `showAllAvailableDisciples` INTEGER NOT NULL, `breakthroughAutoPillFocused` INTEGER NOT NULL, `breakthroughAutoPillRootCounts` TEXT NOT NULL, `autoEquipFromWarehouseFocused` INTEGER NOT NULL, `autoEquipFromWarehouseRootCounts` TEXT NOT NULL, `autoLearnFromWarehouseFocused` INTEGER NOT NULL, `autoLearnFromWarehouseRootCounts` TEXT NOT NULL, `isGameOver` INTEGER NOT NULL, `bloodRefinements` TEXT NOT NULL DEFAULT '{}', `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}', `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}', `heavenly_trial_state` TEXT NOT NULL DEFAULT '{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}', `sign_in_state_json` TEXT NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}', `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL, `lastYearSpiritStoneIncome` INTEGER NOT NULL, `activeAttackWarnings` TEXT NOT NULL, `shownWarningStageIds` TEXT NOT NULL, `sectAttackCooldowns` TEXT NOT NULL, `sectBattleRecords` TEXT NOT NULL, `map_seed` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gamePhase` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `midGradeSpiritStones` INTEGER NOT NULL, `highGradeSpiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `aiSectDisciples` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `merchantAcquisitionItems` TEXT NOT NULL, `merchantAcquisitionLastRefreshYear` INTEGER NOT NULL, `autoBuyList` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `worldLevels` TEXT NOT NULL, `worldLevelLastRefreshMonth` INTEGER NOT NULL, `rngStates` TEXT NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `spiritMineLastSettledMonth` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `placedBuildings` TEXT NOT NULL, `spiritFieldPlants` TEXT NOT NULL, `activeSectId` TEXT NOT NULL, `residenceSlots` TEXT NOT NULL, `warehouseGarrisons` TEXT NOT NULL, `patrolSlots` TEXT NOT NULL, `patrolConfig` TEXT NOT NULL, `patrolConfigs` TEXT NOT NULL, `pendingPatrolBattleResults` TEXT NOT NULL, `alliances` TEXT NOT NULL, `vassalContracts` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `mailRecords` TEXT NOT NULL, `sectLevelClaimRecords` TEXT NOT NULL, `save_version` INTEGER NOT NULL DEFAULT 0, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL, `daoCompanionBannedRootCounts` TEXT NOT NULL, `daoCompanionConsentRequired` INTEGER NOT NULL, `patrolBattleResultPopup` INTEGER NOT NULL, `autoSellMidGradeForPurchase` INTEGER NOT NULL, `autoSellHighGradeForPurchase` INTEGER NOT NULL, `discipleDesertionPopup` INTEGER NOT NULL, `showAllAvailableDisciples` INTEGER NOT NULL, `breakthroughAutoPillFocused` INTEGER NOT NULL, `breakthroughAutoPillRootCounts` TEXT NOT NULL, `autoEquipFromWarehouseFocused` INTEGER NOT NULL, `autoEquipFromWarehouseRootCounts` TEXT NOT NULL, `autoLearnFromWarehouseFocused` INTEGER NOT NULL, `autoLearnFromWarehouseRootCounts` TEXT NOT NULL, `isGameOver` INTEGER NOT NULL, `bloodRefinements` TEXT NOT NULL DEFAULT '{}', `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}', `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}', `heavenly_trial_state` TEXT NOT NULL DEFAULT '{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}', `sign_in_state_json` TEXT NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}', `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL, `lastYearSpiritStoneIncome` INTEGER NOT NULL, `activeAttackWarnings` TEXT NOT NULL, `shownWarningStageIds` TEXT NOT NULL, `sectAttackCooldowns` TEXT NOT NULL, `sectBattleRecords` TEXT NOT NULL, `map_seed` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -201,6 +201,18 @@
             "notNull": true
           },
           {
+            "fieldPath": "worldLevelLastRefreshMonth",
+            "columnName": "worldLevelLastRefreshMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rngStates",
+            "columnName": "rngStates",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "cultivatorCaves",
             "columnName": "cultivatorCaves",
             "affinity": "TEXT",
@@ -317,6 +329,12 @@
           {
             "fieldPath": "patrolConfigs",
             "columnName": "patrolConfigs",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pendingPatrolBattleResults",
+            "columnName": "pendingPatrolBattleResults",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -5614,7 +5632,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dad5cb8526abdf6d954226dbd052cf5d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a52c4018af519af2cbca74da68e45aa5')"
     ]
   }
 }

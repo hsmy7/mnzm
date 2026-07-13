@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.wallet
 
 import com.xianxia.sect.core.event.EventBus
+import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.event.SpiritStonesChangedEvent
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SpiritStoneExchange
@@ -36,6 +37,12 @@ class SpiritStoneWallet @Inject constructor(
     companion object {
         private const val TAG = "SpiritStoneWallet"
     }
+
+    /**
+     * 事件暂存列表 — add/deduct 中不直接 emit，而是将事件暂存至此。
+     * 由 [flushPendingEvents] 在事务外统一发出，避免 UI 层读到部分状态窗口。
+     */
+    private val pendingEvents = mutableListOf<SpiritStonesChangedEvent>()
 
     // ── 增加 ──────────────────────────────────────────────────────────────
 
@@ -302,6 +309,19 @@ class SpiritStoneWallet @Inject constructor(
         SpiritStoneGrade.HIGH -> gd.copy(highGradeSpiritStones = newAmount)
     }
 
+    /**
+     * 冲刷暂存的灵石变更事件 — 在事务外调用，避免 UI 层读到部分状态窗口。
+     *
+     * 遍历 [pendingEvents] 逐一 emit 后 clear。
+     * 通常在 [GameEngineCore.processMonthYearChange] 的月变处理之后调用。
+     */
+    fun flushPendingEvents(eventBus: EventBusPort) {
+        if (pendingEvents.isEmpty()) return
+        val events = pendingEvents.toList()
+        pendingEvents.clear()
+        events.forEach { eventBus.emitTyped(it) }
+    }
+
     private fun recordAndEmit(
         state: MutableGameState,
         delta: Long,
@@ -317,7 +337,8 @@ class SpiritStoneWallet @Inject constructor(
             balanceBefore = balanceBefore, balanceAfter = balanceAfter,
             reason = reason, source = source, metadata = metadata
         ))
-        eventBus.emitTyped(SpiritStonesChangedEvent(
+        // ★ 不直接 emit，暂存到 pendingEvents，由 flushPendingEvents 在事务外统一发出
+        pendingEvents.add(SpiritStonesChangedEvent(
             delta = delta, newTotal = balanceAfter, reason = reason
         ))
         DomainLog.d(TAG, "灵石变更: ${if (delta >= 0) "+" else ""}$delta " +

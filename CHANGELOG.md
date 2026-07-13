@@ -1,3 +1,37 @@
+## [4.0.47] - 2026-07-13（versionCode=4047）
+
+### 架构
+
+- **重构：探索系统拆分为6个子系统** — ExplorationService降为Facade，提取WorldLevelManager(关卡惰性管理：刷新/过期清理/妖兽移动)/BeastAttackDetector(妖兽攻击检测)/PatrolBattleSystem(巡视塔战斗拆4步：组队→索敌→战斗→结算)/LootCalculator(掠夺计算纯函数+双重扣除修复)/DiscipleDeathHandler(死亡标记+装备断言守卫)/ExplorationTeamManager(队伍管理单事务竞态安全)。原processPatrolAttacks 241行God Method拆为4个≤60行方法
+- **新增：确定性RNG系统** — PCG-XSH-RR算法DeterministicRng(16字节状态可序列化)+GameRngManager(4分区BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM)+RngPartition枚举。所有随机操作走分区PRNG，存档exportStates/读档restoreStates确保跨存档随机序列一致。LevelGenerator从object改为class注入RNG，测试用固定种子42锁定结果
+
+### 修复
+
+- **修复：Wallet灵石变更事件部分状态窗口** — SpiritStoneWallet改为暂存事件到pendingEvents，由GameEngineCore在stateStore.update事务外统一flushPendingEvents。消除事务内emit时UI层读到灵石已变、其他状态未提交的部分中间状态
+- **修复：纳贡不扣灵石但妖兽标记已击败** — resolveBeastAttackPayTribute中deduct返回的DeductResult被忽略。灵石不足时妖兽仍被标记为defeated=true。新增Success检查，扣除失败时跳过击败标记与BattleLog
+- **修复：储物袋掠夺双重扣除** — applyMaterialLoot重写为单次mapInPlace遍历，消除双次逻辑超额扣除
+- **修复：PatrolBattleSystem死亡路径未接入统一入口** — deathYears手动写入改为DiscipleDeathHandler.markAllDead，装备断言守卫在巡视塔战斗死亡路径生效
+- **修复：ExplorationService中kotlin.random.Random残留** — resolveBeastFightInternal中2处全局Random调用替换为RngPartition.BATTLE分区RNG
+- **修复：WorldLevelManager.processMonthly早返回跳过过期清理** — 无玩家宗门时先清理过期关卡再返回，确保过期关卡始终被移除
+- **修复：GameStateStore.setPendingBeastAttacks冗余脏标志** — 移除_stateDirty/_updateVersion，脏标志由外层stateStore.update统一管理
+- **修复：LevelGenerator整数溢出** — maxNewLevels+1溢出保护
+
+### 新增
+
+- **新增：巡视塔战斗结果持久化** — GameData.pendingPatrolBattleResults替代内存_pendingPatrolResults，存档读档后巡视塔弹窗不丢失
+- **新增：GameData.worldLevelLastRefreshMonth持久化** — 关卡刷新月从内存var迁移到GameData字段，消除读档后关卡膨胀
+- **新增：GameData.rngStates持久化** — 各分区RNG状态存档/读档完整恢复
+
+### 测试
+
+- **新增：探索包101个单元测试(10套件0失败)** — DeterministicRngTest(9)/GameRngManagerTest(5)/WorldLevelManagerTest(9)/BeastAttackDetectorTest(7)/LootCalculatorTest(14)/DiscipleDeathHandlerTest(7)/PatrolBattleSystemTest(7)/ExplorationTeamManagerTest(8)+原有LevelGeneratorTest(20)+CaveGeneratorTest(15)
+
+### 文档
+
+- **文档：CLAUDE.md更新** — Key Classes新增探索子系统+RNG系统表；PR审查清单新增4条RNG规则
+- **文档：新增设计方案** — docs/adr/exploration-system-refactoring.md(24条行业参考)
+- **规则：对抗性审查维度扩展** — first-principles-adversarial.md新增确定性RNG/事务边界/God Method/死亡路径统一4个审查维度
+
 ## [4.0.46] - 2026-07-13（versionCode=4046）
 
 ### 修复

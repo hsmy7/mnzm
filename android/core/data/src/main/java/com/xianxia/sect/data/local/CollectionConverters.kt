@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.room.TypeConverter
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.state.BattleResultUIData
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -526,4 +527,26 @@ object CollectionConverters {
     @JvmStatic
     fun toSectBattleRecordList(value: String): List<SectBattleRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(SectBattleRecord.serializer()), value) { emptyList() }
+
+    // ==================== 探索系统转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromRngStateMap(value: Map<Int, Long>): String =
+        ProtobufConverters.encodeToBase64(MapSerializer(Int.serializer(), Long.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toRngStateMap(value: String): Map<Int, Long> =
+        ProtobufConverters.decodeFromBase64(MapSerializer(Int.serializer(), Long.serializer()), value) { emptyMap() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromBattleResultUIDataList(value: List<BattleResultUIData>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(BattleResultUIData.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBattleResultUIDataList(value: String): List<BattleResultUIData> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(BattleResultUIData.serializer()), value) { emptyList() }
 }

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
@@ -59,7 +60,8 @@ class GameEngineCore @Inject constructor(
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
     private val gameClock: GameTimeClock,
-    private val thermalController: ThermalController
+    private val thermalController: ThermalController,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
 
     /**
@@ -836,6 +838,8 @@ class GameEngineCore @Inject constructor(
                 processBloodRefinementCompletions()
             }
             missionCheck?.invoke()
+            // ★ 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
+            spiritStoneWallet.flushPendingEvents(eventBus)
         }
     }
 
