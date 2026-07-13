@@ -335,6 +335,7 @@ class DiscipleTables {
 
     /**
      * 添加一个新弟子。所有组件表同时插入一行。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
@@ -344,8 +345,8 @@ class DiscipleTables {
                 return
             }
             ids.add(id)
+            writeAllFields(disciple)
         }
-        writeAllFields(disciple)
     }
 
     /**
@@ -605,16 +606,21 @@ class DiscipleTables {
 
     /**
      * 删除一个弟子。所有组件表同时删除对应行。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun remove(id: Int) {
-        synchronized(ids) { ids.remove(id) }
-        _allCopyableRefs.forEach { it.remove(id) }
+        synchronized(ids) {
+            ids.remove(id)
+            _allCopyableRefs.forEach { it.remove(id) }
+        }
     }
 
     /** 清空所有组件表 */
     fun clear() {
-        synchronized(ids) { ids.clear() }
-        _allCopyableRefs.forEach { it.clear() }
+        synchronized(ids) {
+            ids.clear()
+            _allCopyableRefs.forEach { it.clear() }
+        }
     }
 
     /**
@@ -623,22 +629,26 @@ class DiscipleTables {
      * [cause] 取值："age" / "battle" / "scout" / "exploration" / "cave" / "unknown"
      * 使用方式：
      *   discipleTables.markDead(id, currentYear, "battle")
+     *
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
-        if (!ids.contains(id)) return
-        deathRecords.add(DeathRecord(
-            id = id,
-            name = names.getOrNull(id) ?: "",
-            surname = surnames.getOrNull(id) ?: "",
-            realm = realms.getOrDefault(id, 9),
-            realmLayer = realmLayers.getOrDefault(id, 1),
-            deathAge = ages.getOrDefault(id, 0),
-            deathYear = currentYear,
-            cause = cause
-        ))
-        isAlive[id] = 0
-        statuses[id] = DiscipleStatus.DEAD
-        deathYears[id] = currentYear
+        synchronized(ids) {
+            if (!ids.contains(id)) return@synchronized
+            deathRecords.add(DeathRecord(
+                id = id,
+                name = names.getOrNull(id) ?: "",
+                surname = surnames.getOrNull(id) ?: "",
+                realm = realms.getOrDefault(id, 9),
+                realmLayer = realmLayers.getOrDefault(id, 1),
+                deathAge = ages.getOrDefault(id, 0),
+                deathYear = currentYear,
+                cause = cause
+            ))
+            isAlive[id] = 0
+            statuses[id] = DiscipleStatus.DEAD
+            deathYears[id] = currentYear
+        }
     }
 
     /**
@@ -691,24 +701,29 @@ class DiscipleTables {
      * 剔除死亡超过 [thresholdYear] 年的弟子，将基本信息保留到 [deathRecords]。
      * 使用 [deathYears] 组件判断死亡时长，无 deathYear 记录的不会剔除。
      * 用于 [DiscipleLifecycleProcessor.processYearlyAging] 年变事件。
+     *
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun cullDeadDisciples(thresholdYear: Int) {
-        val toRemove = ids.filter { id ->
-            deathYears.contains(id) && deathYears[id] <= thresholdYear
+        val toRemove = synchronized(ids) {
+            ids.filter { id ->
+                deathYears.contains(id) && deathYears[id] <= thresholdYear
+            }.also { filtered ->
+                filtered.forEach { id ->
+                    deathRecords.add(DeathRecord(
+                        id = id,
+                        name = names.getOrNull(id) ?: "",
+                        surname = surnames.getOrNull(id) ?: "",
+                        realm = realms.getOrDefault(id, 9),
+                        realmLayer = realmLayers.getOrDefault(id, 1),
+                        deathAge = ages.getOrDefault(id, 0),
+                        deathYear = deathYears.getOrDefault(id, 0),
+                        cause = "unknown"
+                    ))
+                }
+            }
         }
-        toRemove.forEach { id ->
-            deathRecords.add(DeathRecord(
-                id = id,
-                name = names.getOrNull(id) ?: "",
-                surname = surnames.getOrNull(id) ?: "",
-                realm = realms.getOrDefault(id, 9),
-                realmLayer = realmLayers.getOrDefault(id, 1),
-                deathAge = ages.getOrDefault(id, 0),
-                deathYear = deathYears.getOrDefault(id, 0),
-                cause = "unknown"
-            ))
-            remove(id)
-        }
+        toRemove.forEach { remove(it) }
     }
 
     companion object {

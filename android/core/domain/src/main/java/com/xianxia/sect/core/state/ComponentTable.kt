@@ -40,14 +40,12 @@ class ComponentTable<T> @JvmOverloads constructor(
 
     /** 设置值 */
     operator fun set(id: Int, value: T) {
-        synchronized(lock) { store.put(id, value) }
-        onWrite?.invoke()
+        synchronized(lock) { store.put(id, value); onWrite?.invoke() }
     }
 
     /** 原子更新（读取 → 变换 → 写回） */
     inline fun update(id: Int, block: (T) -> T) {
-        synchronized(lock) { store[id] = block(store[id]) }
-        onWrite?.invoke()
+        synchronized(lock) { store[id] = block(store[id]); onWrite?.invoke() }
     }
 
     // === 遍历 ===
@@ -93,20 +91,17 @@ class ComponentTable<T> @JvmOverloads constructor(
 
     /** 插入 */
     fun put(id: Int, value: T) {
-        synchronized(lock) { store.put(id, value) }
-        onWrite?.invoke()
+        synchronized(lock) { store.put(id, value); onWrite?.invoke() }
     }
 
     /** 删除 */
     fun remove(id: Int) {
-        synchronized(lock) { store.remove(id) }
-        onWrite?.invoke()
+        synchronized(lock) { store.remove(id); onWrite?.invoke() }
     }
 
     /** 清空 */
     fun clear() {
-        synchronized(lock) { store.clear() }
-        onWrite?.invoke()
+        synchronized(lock) { store.clear(); onWrite?.invoke() }
     }
 
     /** 安全遍历所有条目（供 RefTableRef.copyTo 等内部使用，避免直接 store 访问） */
@@ -238,6 +233,7 @@ class IntFlatArray @JvmOverloads constructor(
     fun clear() {
         for (i in 0 until values.size) values[i] = 0
         for (i in 0 until idToSlot.size) idToSlot[i] = -1
+        for (i in 0 until size_) keys[i] = 0
         size_ = 0
     }
 
@@ -359,6 +355,7 @@ class DoubleFlatArray @JvmOverloads constructor(
     fun clear() {
         for (i in 0 until values.size) values[i] = 0.0
         for (i in 0 until idToSlot.size) idToSlot[i] = -1
+        for (i in 0 until size_) keys[i] = 0
         size_ = 0
     }
 
