@@ -170,7 +170,6 @@ class ProductionSlotRepository @Inject constructor(
         cache.updateCache(newSlots)
 
         dao.update(newSlot)
-            dao.update(newSlot)
 
         DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
         return Result.success(newSlot)
@@ -225,7 +224,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
+    fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
         if (updates.isEmpty()) return Result.success(emptyList())
         
         val keys = updates.map { Pair(it.buildingType.name, it.slotIndex) }
@@ -264,7 +263,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun addSlot(slot: ProductionSlot): Result<ProductionSlot> {
+    fun addSlot(slot: ProductionSlot): Result<ProductionSlot> {
         return globalMutex.withLock {
             val currentSlots = _slots.value.toMutableList()
 

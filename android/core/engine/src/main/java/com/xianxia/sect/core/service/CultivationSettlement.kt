@@ -86,7 +86,7 @@ class CultivationSettlement @Inject constructor(
      *
      * 自动售卖逻辑统一通过 [SpiritStoneWallet] 处理，消除重复。
      */
-    suspend fun processAnnualSalary(year: Int) {
+    fun processAnnualSalary(year: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         val plan = calculateSalaryPlan(maxLoyalty) ?: return
 
@@ -145,7 +145,7 @@ class CultivationSettlement @Inject constructor(
      * 突破时补发当年年俸 — 仅发当年 1 年份，不累年。
      * 灵石不足则不发（自动售卖由 [SpiritStoneWallet] 统一处理）。
      */
-    suspend fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
+    fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
 
         stateStore.update {
@@ -179,7 +179,7 @@ class CultivationSettlement @Inject constructor(
         }
     }
 
-    suspend fun processResidenceLoyalty() {
+    fun processResidenceLoyalty() {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         stateStore.update {
             val data = gameData

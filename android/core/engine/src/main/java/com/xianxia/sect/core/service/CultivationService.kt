@@ -205,9 +205,7 @@ class CultivationService @Inject constructor(
     }
 
     fun processResidenceLoyalty() {
-        kotlinx.coroutines.runBlocking {
         cultivationSettlement.processResidenceLoyalty()
-        }
     }
 
     internal fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
@@ -235,9 +233,7 @@ class CultivationService @Inject constructor(
      */
     fun processYearlyEvents() {
         val year = stateStore.gameData.value.gameYear
-        kotlinx.coroutines.runBlocking {
             eventProcessor.processYearlyEvents(year)
-        }
     }
 
     /**
@@ -247,15 +243,9 @@ class CultivationService @Inject constructor(
      */
     fun processMonthlyEvents() {
         val data = stateStore.gameData.value
-        kotlinx.coroutines.runBlocking {
             eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
-        }
-        kotlinx.coroutines.runBlocking {
             productionProcessor.processAutoAssign()
-        }
-        kotlinx.coroutines.runBlocking {
             cultivationSettlement.processResidenceLoyalty()
-        }
     }
 
     /**
@@ -264,16 +254,12 @@ class CultivationService @Inject constructor(
      */
     fun processMonthlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
-        kotlinx.coroutines.runBlocking {
             eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
-        }
     }
 
     fun processYearlyEventsOnShadow(state: MutableGameState) {
         val data = state.gameData
-        kotlinx.coroutines.runBlocking {
             eventProcessor.processYearlyEvents(data.gameYear)
-        }
     }
 
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData
@@ -353,27 +339,19 @@ class CultivationService @Inject constructor(
     // ── 委托方法：ProductionProcessor ─────────────────────────────────
 
     internal fun processBuildingProduction(year: Int, month: Int) {
-        kotlinx.coroutines.runBlocking {
             productionProcessor.processBuildingProduction(year, month)
-        }
     }
 
     internal fun processSpiritFieldHarvest(state: MutableGameState) {
-        kotlinx.coroutines.runBlocking {
             productionProcessor.processSpiritFieldHarvest(state)
-        }
     }
 
     internal fun processAutoAlchemy() {
-        kotlinx.coroutines.runBlocking {
             productionProcessor.processAutoAlchemy()
-        }
     }
 
     internal fun processAutoForge() {
-        kotlinx.coroutines.runBlocking {
             productionProcessor.processAutoForge()
-        }
     }
 
     /** 影子状态批量生产循环（委托 ProductionProcessor 的 shadow 版方法） */

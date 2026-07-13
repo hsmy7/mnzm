@@ -46,7 +46,7 @@ class ProductionProcessor @Inject constructor(
 
     // ── 建筑生产 ──────────────────────────────────────────────────────
 
-    suspend fun processBuildingProduction(year: Int, month: Int) {
+    fun processBuildingProduction(year: Int, month: Int) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         forgeSlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
@@ -140,7 +140,7 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processSpiritFieldHarvest(state: MutableGameState) {
+    fun processSpiritFieldHarvest(state: MutableGameState) {
         val data = state.gameData
         val currentYear = data.gameYear
         val currentMonth = data.gameMonth
@@ -283,7 +283,7 @@ class ProductionProcessor @Inject constructor(
         )
     }
 
-    suspend fun processAutoAlchemy() {
+    fun processAutoAlchemy() {
         val data = stateStore.gameData.value
 
         val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
@@ -343,7 +343,7 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processAutoForge() {
+    fun processAutoForge() {
         val data = stateStore.gameData.value
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
@@ -405,7 +405,7 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    suspend fun processAutoAssign() {
+    fun processAutoAssign() {
         val data = stateStore.gameData.value
         val policies = data.sectPolicies
         val idleDisciples = mutableListOf<Disciple>().also { it.addAll(stateStore.disciples.value.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
@@ -468,7 +468,7 @@ class ProductionProcessor @Inject constructor(
      *
      * 依次取候选人填满所有空闲槽位，用 [ProductionSlotRepository.batchUpdate] 一次性写入。
      */
-    private suspend fun batchAssignToProductionSlots(
+    private fun batchAssignToProductionSlots(
         type: com.xianxia.sect.core.model.production.BuildingType,
         buildingId: String,
         takeNext: () -> Disciple?
@@ -499,7 +499,7 @@ class ProductionProcessor @Inject constructor(
      * 在 [processAutoAssign] 中连续分配时，
      * 确保状态变更在后续槽位查询前已可见。
      */
-    private suspend fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
+    private fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
         stateStore.update {
             discipleTables.statuses[discipleId.toInt()] = status
         }
@@ -521,7 +521,7 @@ class ProductionProcessor @Inject constructor(
      * 在影子状态上模拟 N 个月的生产循环。
      * 可由 [ProductionSubsystem.computePhaseTick] 在 ParallelDispatcher 上调用。
      */
-    suspend fun processMonthlyProductionOnSlots(
+    fun processMonthlyProductionOnSlots(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState,
         months: Int
@@ -535,7 +535,7 @@ class ProductionProcessor @Inject constructor(
     }
 
     /** 影子版自动炼丹：从 state 读取政策/草药，直接修改 slots */
-    private suspend fun batchAutoAlchemy(
+    private fun batchAutoAlchemy(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState
     ) {
@@ -581,7 +581,7 @@ class ProductionProcessor @Inject constructor(
     }
 
     /** 影子版自动锻造 */
-    private suspend fun batchAutoForge(
+    private fun batchAutoForge(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState
     ) {
@@ -625,7 +625,7 @@ class ProductionProcessor @Inject constructor(
     }
 
     /** 影子版生产完成检测 */
-    private suspend fun batchBuildingCompletion(
+    private fun batchBuildingCompletion(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState
     ) {
@@ -694,7 +694,7 @@ class ProductionProcessor @Inject constructor(
     }
 
     /** 影子版灵田收获（已用 state，直接复用） */
-    suspend fun batchSpiritFieldHarvest(
+    fun batchSpiritFieldHarvest(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState
     ) {
@@ -801,7 +801,7 @@ class ProductionProcessor @Inject constructor(
      * 在策略切换/长老变更后调用，确保所有槽位的 completionMonth
      * 反映当前速率。由 [CultivationService.checkpointAllProduction] 委托。
      */
-    suspend fun recalculateAllCompletionMonths() {
+    fun recalculateAllCompletionMonths() {
         val data = stateStore.gameData.value
         val currentMonth = data.gameYear * 12 + data.gameMonth
 

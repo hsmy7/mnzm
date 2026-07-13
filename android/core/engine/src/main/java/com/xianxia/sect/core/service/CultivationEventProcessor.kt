@@ -1,9 +1,6 @@
 package com.xianxia.sect.core.engine.service
-
 import kotlinx.coroutines.NonCancellable
-//import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-//import kotlinx.coroutines.yield
 import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -33,7 +30,6 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import javax.inject.Inject
 import javax.inject.Singleton
-
 @Singleton
 @GameService("CultivationEventProcessor")
 class CultivationEventProcessor @Inject constructor(
@@ -62,70 +58,54 @@ class CultivationEventProcessor @Inject constructor(
     private val disciplePurchaseService: DisciplePurchaseService
 ) {
     private val scope get() = scopeProvider.scope
-
     companion object {
         private const val TAG = "CultivationEventProc"
     }
-
     private val phaseMultiplier: Int get() = 10
-
     // ── 时间推进 ──────────────────────────────────────────────────────
-
     fun advancePhase(state: MutableGameState? = null) {
         val targetState = state ?: return
         val data = targetState.gameData
         val phase = data.gamePhase
         val month = data.gameMonth
         val year = data.gameYear
-
         // advancePhase 在游戏循环 tick 的 stateStore.update{} 块内被同步调用，
         // 此时持有 transactionMutex。processPhaseEvents 内部必须直接操作传入的
         // targetState（即事务内状态），不能再调用 stateStore.update{}（不可重入锁会死锁）。
         processPhaseEvents(phase, month, year, targetState)
     }
-
     fun advanceMonth(state: MutableGameState? = null) {
         val data = state?.gameData ?: stateStore.gameData.value
         var newMonth = data.gameMonth + 1
         var newYear = data.gameYear
-
         if (newMonth > 12) {
             newMonth = 1
             newYear++
         }
-
         val isYearChanged = newYear > data.gameYear
-
         val updatedData = data.copy(
             gameMonth = newMonth,
             gameYear = newYear,
             gamePhase = 0
         )
         if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
-
         if (isYearChanged) {
             processYearlyEvents(newYear)
         }
-
         processMonthlyEvents(newYear, newMonth)
     }
-
     fun advanceYear(state: MutableGameState? = null) {
         val data = state?.gameData ?: stateStore.gameData.value
         val newYear = data.gameYear + 1
-
         val updatedData = data.copy(
             gameYear = newYear,
             gameMonth = 1,
             gamePhase = 0
         )
         if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
-
         processYearlyEvents(newYear)
-
         processMonthlyEvents(newYear, 1)
     }
-
     private fun safelyRun(name: String, block: () -> Unit) {
         try {
             block()
@@ -135,15 +115,12 @@ class CultivationEventProcessor @Inject constructor(
             DomainLog.e(TAG, "Error in $name", e)
         }
     }
-
     private fun processPhaseEvents(phase: Int, month: Int, year: Int, state: MutableGameState) {
         safelyRun("checkGameOverCondition") { checkGameOverCondition() }
         safelyRun("processPhaseTick") { processPhaseTick(year, month, phase, state) }
         safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
     }
-
     // ── Phase Tick ──────────────────────────────────────────────────────
-
     private fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
         val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
         val manualMap = stateStore.manualInstances.value.associateBy { it.id }
@@ -154,9 +131,7 @@ class CultivationEventProcessor @Inject constructor(
         val manualStacksList = stateStore.manualStacks.value
         val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
         val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
-
         val aliveDisciples = stateStore.disciples.value.filter { it.isAlive }
-
         // 确保所有存活弟子的修炼速率缓存已填充（首月结算前缓存可能为空）
         val data = state.gameData
         val tables = state.discipleTables
@@ -169,9 +144,7 @@ class CultivationEventProcessor @Inject constructor(
             }
             sharedState.cachedCultivationRates = updatedRates
         }
-
         val acc = PhaseTickAccumulator()
-
         // 循环常量：构造一次，所有弟子共享（避免每迭代分配 5 个上下文对象）
         val tickTime = TickTimeContext(
             year = year, month = month, phase = phase,
@@ -194,7 +167,6 @@ class CultivationEventProcessor @Inject constructor(
             autoEquipDirty = sharedState.autoEquipDirty,
             autoLearnDirty = sharedState.autoLearnDirty
         )
-
         val batchSize = 50
         val processedAlive = mutableListOf<Disciple>()
         for ((index, disciple) in aliveDisciples.withIndex()) {
@@ -217,7 +189,6 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-
         val currentHfd = sharedState.highFrequencyData.value
         val accumGains = currentHfd.cultivationUpdates.toMutableMap()
         processedAlive.forEach { d ->
@@ -230,7 +201,6 @@ class CultivationEventProcessor @Inject constructor(
             cultivationUpdates = accumGains,
             focusedPhaseCount = currentHfd.focusedPhaseCount + 1
         )
-
         // 精准字段写回：仅写回 processDiscipleTick 实际修改的字段，
         // 不执行全量 clear()+insert()。
         // cultivations/realms/realmLayers/lifespans/loyalties 等字段
@@ -250,12 +220,9 @@ class CultivationEventProcessor @Inject constructor(
             state.discipleTables.accessoryIds[id] = disciple.equipment.accessoryId
             state.discipleTables.manualIds[id] = disciple.manualIds
         }
-
         cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
     }
-
     // ── 自动从仓库装备/学习 ──────────────────────────────────────────
-
     /**
      * 实时轨专用：自动从仓库装备/学习。
      * 仅由 [CultivationTickSystem.onPhaseTick] 在 phasesToSettle==1 时调用。
@@ -264,7 +231,6 @@ class CultivationEventProcessor @Inject constructor(
         val d = state.gameData
         processAutoFromWarehouse(d.gameYear, d.gameMonth, d.gamePhase, state)
     }
-
     private fun processAutoFromWarehouse(
         year: Int, month: Int, phase: Int, state: MutableGameState
     ) {
@@ -275,13 +241,10 @@ class CultivationEventProcessor @Inject constructor(
         val learnRootCounts = gameData.autoLearnFromWarehouseRootCounts
         val hasAutoEquip = equipFocused || equipRootCounts.isNotEmpty()
         val hasAutoLearn = learnFocused || learnRootCounts.isNotEmpty()
-
         if (!hasAutoEquip && !hasAutoLearn) return
-
         val tables = state.discipleTables
         val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
             .map { tables.assemble(it) }.toMutableList()
-
         val bagEqIds = mutableSetOf<String>()
         val bagMnIds = mutableSetOf<String>()
         for (disciple in updatedDisciples) {
@@ -292,24 +255,20 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-
         var eqStacks = state.equipmentStacks.all().filter { it.id !in bagEqIds }
         var mnStacks = state.manualStacks.all().filter { it.id !in bagMnIds }
         val eqInstancesById = state.equipmentInstances.associateById()
         val mnInstancesById = state.manualInstances.associateById()
         val newEqInstances = mutableListOf<EquipmentInstance>()
         val newMnInstances = mutableListOf<ManualInstance>()
-
         val sortedIndices = updatedDisciples.indices
             .filter { updatedDisciples[it].isAlive }
             .sortedWith(compareByDescending<Int> { updatedDisciples[it].statusData["followed"] == "true" }
                 .thenBy { updatedDisciples[it].realm }
                 .thenByDescending { updatedDisciples[it].realmLayer })
-
         for (idx in sortedIndices) {
             val disciple = updatedDisciples[idx]
             var d = disciple
-
             if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
                 val result = equipmentManager.processAutoEquipFromWarehouse(
                     disciple = d,
@@ -340,7 +299,6 @@ class CultivationEventProcessor @Inject constructor(
                     }
                 }
             }
-
             if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
                 val result = manualManager.processAutoLearnFromWarehouse(
                     disciple = d,
@@ -371,12 +329,10 @@ class CultivationEventProcessor @Inject constructor(
                     }
                 }
             }
-
             if (d !== disciple) {
                 updatedDisciples[idx] = d
             }
         }
-
         // 精准字段写回：仅写回自动装备/学习实际修改的字段，
         // 不执行全量 clear()+insert()
         for (disciple in updatedDisciples) {
@@ -397,9 +353,7 @@ class CultivationEventProcessor @Inject constructor(
         newEqInstances.forEach { state.equipmentInstances.add(it) }
         newMnInstances.forEach { state.manualInstances.add(it) }
     }
-
     // ── 月度/年度事件 ──────────────────────────────────────────────────
-
     fun processMonthlyEvents(year: Int, month: Int) {
         safelyRun("aiSectOperations") {
             caveExplorationProcessor.get().processAISectOperations(year, month)
@@ -432,7 +386,6 @@ class CultivationEventProcessor @Inject constructor(
         // 月度修炼结算 + HP/MP恢复 + 自动装备/丹药
         safelyRun("monthlyCultivation") { processMonthlyCultivationAndAuto() }
     }
-
     /**
      * 月度修炼结算 + 自动后台型系统。
      *
@@ -445,12 +398,10 @@ class CultivationEventProcessor @Inject constructor(
             val tables = discipleTables
             val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
             if (aliveIds.isEmpty()) return@update
-
             // HP/MP 恢复（兜底，已由每旬检查补充）
             cultivationCore.recoverHpMpForAllDisciples(this, phasesToSettle = 3)
         }
     }
-
     fun processYearlyEvents(year: Int) {
         safelyRun("yearlyTribute") {
             vassalService.processYearlyTribute()
@@ -510,16 +461,12 @@ class CultivationEventProcessor @Inject constructor(
             discipleLifecycleProcessor.processGriefExpiry(year)
         }
     }
-
     // ── 执法/盗窃 ──────────────────────────────────────────────────────
-
     fun calculateCaptureRate(): Double {
         val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
         val allDisciples = stateStore.disciples.value.associateBy { it.id }
-
         var captureRate = GameConfig.LawEnforcementConfig.BASE_CAPTURE_RATE
-
         elderSlots.lawEnforcementElder?.let { elderId ->
             if (elderId.isNotEmpty()) {
                 allDisciples[elderId]?.let { elder ->
@@ -528,7 +475,6 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-
         elderSlots.lawEnforcementDisciples.forEach { slot ->
             if (slot.discipleId.isNotEmpty()) {
                 allDisciples[slot.discipleId]?.let { disciple ->
@@ -537,14 +483,11 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-
         if (data.sectPolicies.enhancedSecurity) {
             captureRate += GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
         }
-
         return captureRate.coerceIn(0.0, 1.0)
     }
-
     fun processLawEnforcementMonthly() {
         val data = stateStore.gameData.value
         val captureRate = calculateCaptureRate()
@@ -553,7 +496,6 @@ class CultivationEventProcessor @Inject constructor(
         val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val protectionMonths =
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
-
         // 直接用 discipleTables 读实时数据，避免 StateFlow 快照滞后
         val atRiskIds = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
@@ -564,7 +506,6 @@ class CultivationEventProcessor @Inject constructor(
                     tables.recruitedMonths.getOrDefault(id, 0)) >=
                     protectionMonths
         }
-
         for (id in atRiskIds) {
             val loyal = tables.loyalties.getOrDefault(id, 0)
             val desertionProb =
@@ -594,7 +535,6 @@ class CultivationEventProcessor @Inject constructor(
                     val currentLoyal =
                         tables.loyalties.getOrDefault(id, 0)
                     if (currentLoyal >= threshold) continue
-
                     val snapshot = tables.assemble(id) ?: continue
                     val desertEquipIds = listOfNotNull(
                         snapshot.equipment.weaponId,
@@ -604,7 +544,6 @@ class CultivationEventProcessor @Inject constructor(
                     )
                     val desertManualIds = snapshot.manualIds.toSet()
                     val desertProfId = id.toString()
-
                     discipleLifecycleProcessor
                         .clearDiscipleFromAllSlots(id.toString())
                     stateStore.update {
@@ -629,11 +568,9 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
-
     fun processTheftMonthly() {
         val currentData = stateStore.gameData.value
         if (currentData.spiritStones <= 0) return
-
         val captureRate = calculateCaptureRate()
         val currentMonthValue = currentData.gameYear * 12 + currentData.gameMonth
         val tables = stateStore.discipleTables
@@ -641,7 +578,6 @@ class CultivationEventProcessor @Inject constructor(
         val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val protectionMonths =
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
-
         // 直接从 discipleTables 读取实时数据
         val atRiskIds = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
@@ -655,13 +591,11 @@ class CultivationEventProcessor @Inject constructor(
                 (currentMonthValue -
                     tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
         }
-
         val thiefIds = mutableSetOf<Int>()
         val warehouses = currentData.placedBuildings.filter {
             it.displayName == "仓库"
         }
         val garrisons = currentData.warehouseGarrisons
-
         for (id in atRiskIds) {
             val disciple = tables.assemble(id) ?: continue
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
@@ -718,7 +652,6 @@ class CultivationEventProcessor @Inject constructor(
                 } else {
                     Random.nextDouble() < captureRate
                 }
-
                 if (caught) {
                     stateStore.setPendingNotification(
                         GameNotification.DiscipleTheftCaught(disciple)
@@ -752,7 +685,6 @@ class CultivationEventProcessor @Inject constructor(
                             )
                         }
                     }
-
                     val loyalty = stats.loyalty
                     val desertionProb =
                         ((loyalThreshold - loyalty) *
@@ -764,14 +696,12 @@ class CultivationEventProcessor @Inject constructor(
                     if (Random.nextDouble() < desertionProb) {
                         thiefIds.add(id)
                     }
-
                     stateStore.setPendingNotification(
                         GameNotification.WarehouseTheft(stolenAmount)
                     )
                 }
             }
         }
-
         // 偷盗后叛逃：设置小卡片通知 + 清除槽位 + 清理装备/移除弟子
         val theftDesertCleanup = mutableMapOf<Int, Pair<List<String>, Set<String>>>()
         for (thiefId in thiefIds) {
@@ -779,7 +709,6 @@ class CultivationEventProcessor @Inject constructor(
             val currentLoyal =
                 tables.loyalties.getOrDefault(thiefId, 0)
             if (currentLoyal >= loyalThreshold) continue
-
             val snapshot = tables.assemble(thiefId)
             if (snapshot != null) {
                 val equipIds = listOfNotNull(
@@ -790,7 +719,6 @@ class CultivationEventProcessor @Inject constructor(
                 )
                 val manualIds = snapshot.manualIds.toSet()
                 theftDesertCleanup[thiefId] = equipIds to manualIds
-
                 stateStore.setPendingNotification(
                     GameNotification.DiscipleTheftDesertion(snapshot)
                 )
@@ -818,9 +746,7 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
-
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
-
     fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
         val disciples = stateStore.disciples.value.toMutableList()
@@ -852,7 +778,6 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
-
     fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
         val currentDisciplesList = stateStore.disciples.value.toMutableList()
         team.memberIds.forEach { memberId ->
@@ -883,9 +808,7 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
-
     // ── 侦察/外交 ──────────────────────────────────────────────────────
-
     fun processScoutInfoExpiryLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val hasExpired = data.scoutInfo.any { (_, info) ->
@@ -894,11 +817,9 @@ class CultivationEventProcessor @Inject constructor(
         if (!hasExpired) return
         processScoutInfoExpiry(year, month)
     }
-
     fun processScoutInfoExpiry(year: Int, month: Int) {
         val data = stateStore.gameData.value
         var hasExpired = false
-
         val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
             val isExpired = year > info.expiryYear ||
                 (year == info.expiryYear && month > info.expiryMonth)
@@ -907,7 +828,6 @@ class CultivationEventProcessor @Inject constructor(
             }
             !isExpired
         }
-
         if (hasExpired) {
             val updatedWorldMapSects = data.worldMapSects.map { sect ->
                 val sectScoutInfo = updatedScoutInfo[sect.id]
@@ -917,7 +837,6 @@ class CultivationEventProcessor @Inject constructor(
                     sect
                 }
             }
-
             val updatedDetails = data.sectDetails.toMutableMap()
             updatedScoutInfo.forEach { (sectId, _) ->
                 val detail = updatedDetails[sectId] ?: SectDetail(sectId = sectId)
@@ -928,7 +847,6 @@ class CultivationEventProcessor @Inject constructor(
                     updatedDetails[sectId] = detail.copy(scoutInfo = SectScoutInfo())
                 }
             }
-
             stateStore.update {
                 gameData = gameData.copy(
                     scoutInfo = updatedScoutInfo,
@@ -938,7 +856,6 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
-
     fun processTheftIfNeeded() {
         if (stateStore.gameData.value.spiritStones <= 0) return
         val tables = stateStore.discipleTables
@@ -956,15 +873,12 @@ class CultivationEventProcessor @Inject constructor(
         if (!hasLowMoralityDisciple) return
         processTheftMonthly()
     }
-
     // ── 任务 ──────────────────────────────────────────────────────────
-
     fun processCompletedMissionsLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val completedIds = mutableListOf<String>()
         val remainingActive = mutableListOf<ActiveMission>()
-
         for (activeMission in data.activeMissions) {
             val missionCompletionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
                 activeMission.startYear, activeMission.startMonth
@@ -975,12 +889,10 @@ class CultivationEventProcessor @Inject constructor(
             }
             if (activeMission.isComplete(year, month)) {
                 completedIds.add(activeMission.id)
-
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
                     stateStore.disciples.value.find { it.id == did && it.isAlive }
                 }
                 val allDead = aliveDisciples.isEmpty()
-
                 if (!allDead) {
                     val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
                     val manualMap = stateStore.manualInstances.value.associateBy { it.id }
@@ -1003,7 +915,6 @@ class CultivationEventProcessor @Inject constructor(
                     result.pills.forEach { pill -> inventorySystem.addPill(pill) }
                     result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
                     result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
-
                     if (result.combatTriggered && result.victory && result.battleResult != null) {
                         val missionSurvivorIds = result.battleResult.log.teamMembers
                             .filter { it.isAlive }.map { it.id }.toSet()
@@ -1016,7 +927,6 @@ class CultivationEventProcessor @Inject constructor(
                         }
                     }
                 }
-
                 for (did in activeMission.discipleIds) {
                     stateStore.update {
                         val mapped = discipleTables.assembleAll().map {
@@ -1030,17 +940,14 @@ class CultivationEventProcessor @Inject constructor(
                 remainingActive.add(activeMission)
             }
         }
-
         if (completedIds.isNotEmpty()) {
             stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) }
         }
     }
-
     fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
         processMissionRefresh()
     }
-
     fun processMissionRefresh() {
         val data = stateStore.gameData.value
         val result = MissionSystem.processMonthlyRefresh(
@@ -1050,44 +957,33 @@ class CultivationEventProcessor @Inject constructor(
         )
         stateStore.update { gameData = gameData.copy(availableMissions = result.cleanedMissions) }
     }
-
     // ── 游戏结束 ──────────────────────────────────────────────────────
-
     fun checkGameOverCondition() {
         val currentData = stateStore.gameData.value
         if (currentData.isGameOver) return
-
         val playerSect = currentData.worldMapSects.find { it.isPlayerSect } ?: return
         val playerSectId = playerSect.id
-
         val playerControlsAnySect = currentData.worldMapSects.any { sect ->
             (sect.isPlayerSect && sect.occupierSectId.isEmpty()) ||
             (sect.occupierSectId == playerSectId && !sect.isPlayerSect)
         }
-
         if (!playerControlsAnySect) {
             stateStore.update { this.gameData = this.gameData.copy(isGameOver = true) }
         }
     }
-
     // ── 辅助方法 ──────────────────────────────────────────────────────
-
     fun clearDiscipleFromAllSlots(discipleId: String) {
         discipleLifecycleProcessor.clearDiscipleFromAllSlots(discipleId)
     }
-
     fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect)
     }
-
     fun returnEquipmentToWarehouse(equipmentId: String) {
         discipleLifecycleProcessor.returnEquipmentToWarehouse(equipmentId)
     }
-
     fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
         discipleLifecycleProcessor.removeEquipmentFromDisciple(discipleId, equipmentId)
     }
-
     fun qualifiesForSectAutoPublic(disciple: Disciple, focused: Boolean, rootCounts: Set<Int>): Boolean {
         if (focused || rootCounts.isNotEmpty()) {
             if (focused && disciple.statusData["followed"] == "true") return true

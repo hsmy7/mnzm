@@ -15,11 +15,11 @@ class ShardedSlotLock(private val shardCount: Int = DEFAULT_SHARD_COUNT) {
     }
     private val shards = Array(shardCount) { ReentrantLock() }
     private val lockHolders = ConcurrentHashMap<String, AtomicInteger>()
-    private fun gsi(key: String): Int { var h = 0; for (c in key) h = 31 * h + c.code; return (h and 0x7FFFFFFF) % shardCount }
-    private fun ck(b: String, s: Int) = "$b:$s"
+    private fun getShardIndex(key: String): Int { var h = 0; for (c in key) h = 31 * h + c.code; return (h and 0x7FFFFFFF) % shardCount }
+    private fun createKey(b: String, s: Int) = "$b:$s"
 
     fun <T> withLock(buildingType: String, slotIndex: Int, block: () -> T): T {
-        val key = ck(buildingType, slotIndex); val hi = gsi(key); val h = lockHolders.computeIfAbsent(key) { AtomicInteger(0) }
+        val key = createKey(buildingType, slotIndex); val hi = getShardIndex(key); val h = lockHolders.computeIfAbsent(key) { AtomicInteger(0) }
         h.incrementAndGet()
         try { return shards[hi].withLock { block() } } finally { if (h.decrementAndGet() == 0) lockHolders.remove(key) }
     }
@@ -27,12 +27,12 @@ class ShardedSlotLock(private val shardCount: Int = DEFAULT_SHARD_COUNT) {
 
     fun <T> withBatchLock(keys: List<Pair<String, Int>>, block: () -> T): T {
         if (keys.isEmpty()) return block()
-        val li = keys.distinctBy { ck(it.first, it.second) }.sortedBy { ck(it.first, it.second) }
-            .map { gsi(ck(it.first, it.second)) }.distinct().sorted()
-        return atl(li, block)
+        val li = keys.distinctBy { createKey(it.first, it.second) }.sortedBy { createKey(it.first, it.second) }
+            .map { getShardIndex(createKey(it.first, it.second)) }.distinct().sorted()
+        return acquireLocksWithTryLock(li, block)
     }
 
-    private fun <T> atl(lockIndices: List<Int>, block: () -> T): T {
+    private fun <T> acquireLocksWithTryLock(lockIndices: List<Int>, block: () -> T): T {
         if (lockIndices.isEmpty()) return block()
         if (lockIndices.size == 1) return shards[lockIndices[0]].withLock { block() }
         var backoff = TRY_LOCK_BACKOFF_MS.toLong()
@@ -44,12 +44,12 @@ class ShardedSlotLock(private val shardCount: Int = DEFAULT_SHARD_COUNT) {
                 if (attempt < MAX_TRY_LOCK_RETRIES - 1) { backoff = (backoff * 1.5).toLong().coerceAtMost(100L); Thread.sleep(backoff) }
             } catch (e: Throwable) { acquired.reversed().forEach { try { shards[it].unlock() } catch (_: Exception) {} }; throw e }
         }
-        return fts(lockIndices, block)
+        return fallbackToSequential(lockIndices, block)
     }
 
-    private fun <T> fts(lockIndices: List<Int>, block: () -> T): T {
+    private fun <T> fallbackToSequential(lockIndices: List<Int>, block: () -> T): T {
         val su = lockIndices.distinct().sorted()
-        return su.first().let { fi -> shards[fi].withLock { val r = su.drop(1); if (r.isEmpty()) block() else fts(r, block) } }
+        return su.first().let { fi -> shards[fi].withLock { val r = su.drop(1); if (r.isEmpty()) block() else fallbackToSequential(r, block) } }
     }
 
     fun getLockStatistics() = ShardedLockStatistics(shardCount, lockHolders.size)

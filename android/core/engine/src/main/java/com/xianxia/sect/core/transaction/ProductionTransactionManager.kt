@@ -132,7 +132,7 @@ class ProductionTransactionManager @Inject constructor(
         }
     }
 
-    suspend fun executeStartProductionByBuildingId(
+    fun executeStartProductionByBuildingId(
         buildingId: String,
         slotIndex: Int,
         recipeId: String,
