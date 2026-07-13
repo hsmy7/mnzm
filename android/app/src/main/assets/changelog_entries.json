@@ -1,11 +1,19 @@
 [
   {
+    "date": "2026-07-13",
+    "version": "4.0.46",
+    "changes": [
+      "修复：ComponentTable 线程安全加固——在协程挂起时 kotlinx Mutex 会释放锁，另一协程可能交错写入 SparseArray 导致崩溃。给 ComponentTable/IntFlatArray/DoubleFlatArray 全方法加 synchronized/@Synchronized 保护，修复 3 个 ArrayIndexOutOfBoundsException（#5045/#5043/#5027）。对抗性审查 3 Agent 共发现 20+ 项问题并全部修复",
+      "修复：DiscipleTables 跨表原子性——insert/writeAllFields、remove、clear、markDead 统一在 synchronized(ids) 锁内执行读写，消除跨 90 张组件表的撕裂读",
+      "修复：Adreno 6xx 系列 Vulkan 驱动崩溃扩展黑名单"
+    ]
+  },
+  {
     "date": "2026-07-12",
     "version": "4.0.45",
     "changes": [
       "修复：弟子境界随机跳变（如筑基→练气）——根因是 IntPackedArray.safeIndex() 使用了 SparseIntArray.indexOfKey() 查询 packed 索引，但 indexOfKey 返回的是 SparseIntArray 内部排序位置，不是存储的 packed 数组索引值。非连续 ID 或删除+再插入后两个索引不一致，导致约 90 个 Int/Double 组件表字段数据错位。修正为 SparseIntArray.get(key, -1) 正确读取 packed 数组索引。涉及 1 文件 2 行改动",
-      "重构：灵植阁移除种植/收获系统——灵植阁（Herb Garden）的 ProductionSlot 种植/收获系统已整体移除，仅保留作为灵田速度加成建筑的功能（执事长老/光环弟子/政策加速）。灵田的种子种植通过 PlantingDialog 手动操作，收获和自动续种由 PlantingSystem 月变自动处理。涉及12文件-426/+178行",
-      "修复：ComponentTable 线程安全加固——在协程挂起时 kotlinx Mutex 会释放锁，此时另一协程可能进入 stateStore.update {} 交错修改 SparseArray 导致 GrowingArrayUtils.insert 内部数组不一致崩溃（ArrayIndexOutOfBoundsException #5045/#5043/#5027）。给 ComponentTable/IntFlatArray/DoubleFlatArray 所有公开方法加 synchronized/@Synchronized 保护，从根源上防止并发写入破坏内部状态"
+      "重构：灵植阁移除种植/收获系统——灵植阁（Herb Garden）的 ProductionSlot 种植/收获系统已整体移除，仅保留作为灵田速度加成建筑的功能（执事长老/光环弟子/政策加速）。灵田的种子种植通过 PlantingDialog 手动操作，收获和自动续种由 PlantingSystem 月变自动处理。涉及12文件-426/+178行"
     ]
   },
   {

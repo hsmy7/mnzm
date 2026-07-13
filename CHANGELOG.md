@@ -1,3 +1,14 @@
+## [4.0.46] - 2026-07-13（versionCode=4046）
+
+### 修复
+
+- **修复：ComponentTable 线程安全加固（#5045/#5043/#5027）** — 在协程挂起时 kotlinx Mutex 会释放锁，允许另一协程交错写入 SparseArray 导致 GrowingArrayUtils.insert 内部数组不一致崩溃。给 ComponentTable/IntFlatArray/DoubleFlatArray 所有公开方法加 synchronized/@Synchronized 保护，从底层防止并发写入破坏内部状态。对抗性审查 3 Agent 共发现 20+ 项问题并全部修复，含原子 update、idToSlot 守卫、迭代同步、writeAllFields 锁内执行、onWrite 一致性、keys 数组清空等
+- **修复：Adreno 6xx Vulkan 崩溃扩展黑名单（#5041）** — 补充 Adreno 620/630/650 等机型黑名单，可在下次启动自动降级软件渲染
+
+### 重构
+
+- **重构：DiscipleTables 跨表原子性** — insert/writeAllFields、remove、markDead、cullDeadDisciples 统一在 synchronized(ids) 锁内执行读写，消除跨 90 张组件表的撕裂读和状态不一致风险
+
 ## [4.0.45] - 2026-07-12（versionCode=4045）
 
 ### 修复
@@ -10,8 +21,6 @@
 - **重构：IntPackedArray/DoublePackedArray 平铺数组化** — 移除 SparseIntArray(id→packed索引) 映射层，改用值数组由 ID 直接索引（`values[id]` O(1)）。消除了 safeIndex 索引混淆 bug 的根本可能性。迭代使用紧凑 keys 列表，删除用 swap-on-remove。90 张组件表从 O(log N) 二分查找降为 O(1) 直接寻址，内存持平。涉及 1 文件约 300 行重写
 
 - **重构：灵植阁移除种植/收获系统** — 灵植阁（Herb Garden）的 ProductionSlot 种植/收获系统已整体移除，仅保留作为灵田速度加成建筑的功能（执事长老/光环弟子/政策加速）。灵田的种子种植通过 PlantingDialog 手动操作，收获和自动续种由 PlantingSystem 月变自动处理。涉及12文件-426/+178行。对抗性审查3 Agent 共发现16项问题并全部修复，含CRITICAL级速度公式错误（totalMultiplier zoneToMultiplier导致加速翻倍）和收获静默吞没Bug
-
-### 修复
 
 - **修复：ComponentTable 线程安全加固** — 在协程挂起时 kotlinx Mutex 会释放锁，允许另一协程交错写入 SparseArray 内部数组导致崩溃。给 ComponentTable/IntFlatArray/DoubleFlatArray 所有公开方法加 synchronized/@Synchronized 保护，从底层防止并发写入破坏内部状态。修复 3 个 ArrayIndexOutOfBoundsException 崩溃（#5045/#5043/#5027）
 
