@@ -225,20 +225,25 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     private suspend fun clearInternalEquipmentAndManuals(disciple: Disciple) {
-        disciple.equipment.weaponId?.let { returnEquipmentToWarehouse(it) }
-        disciple.equipment.armorId?.let { returnEquipmentToWarehouse(it) }
-        disciple.equipment.bootsId?.let { returnEquipmentToWarehouse(it) }
-        disciple.equipment.accessoryId?.let { returnEquipmentToWarehouse(it) }
-
+        // 仅清除所有权，不返还仓库
+        val allEquipIds = mutableSetOf<String>()
+        disciple.equipment.weaponId?.let { allEquipIds.add(it) }
+        disciple.equipment.armorId?.let { allEquipIds.add(it) }
+        disciple.equipment.bootsId?.let { allEquipIds.add(it) }
+        disciple.equipment.accessoryId?.let { allEquipIds.add(it) }
         disciple.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
-            .forEach { returnEquipmentToWarehouse(it.itemId) }
+            .map { it.itemId }.forEach { allEquipIds.add(it) }
 
-        val storageBagManualIds = disciple.equipment.storageBagItems
+        val bagManualIds = disciple.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
             .map { it.itemId }.toSet()
-        val allManualIds = storageBagManualIds + disciple.manualIds.toSet()
+        val allManualIds = bagManualIds + disciple.manualIds.toSet()
+
         stateStore.update {
+            equipmentInstances = equipmentInstances.map {
+                if (it.id in allEquipIds) it.copy(isEquipped = false, ownerId = null) else it
+            }
             manualInstances = manualInstances.map {
                 if (it.id in allManualIds) it.copy(isLearned = false, ownerId = null) else it
             }

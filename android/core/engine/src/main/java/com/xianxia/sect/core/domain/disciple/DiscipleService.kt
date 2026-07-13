@@ -575,58 +575,20 @@ private val scopeProvider: CoroutineScopeProvider,
 
             clearDiscipleFromAllSlots(discipleId)
 
-            val returnEquipIds = mutableListOf<String>()
-            discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.forEach { returnEquipIds.add(it.itemId) }
+            // 仅清除装备/功法所有权，不返还仓库
+            val expelEquipIds = mutableListOf<String>()
+            discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
+            discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
+            discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
+            discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
+            discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }
+            val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()
 
-            val bagStackIds = discipleTables.ids
-                .filter { it != id }
-                .flatMap { discipleTables.storageBagItems[it] }
-                .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK }
-                .map { it.itemId }
-                .toSet()
-
-            returnEquipIds.forEach { eid ->
-                val eq = equipmentInstances.get(eid) ?: return@forEach
-                val stack = eq.toStack()
-                val maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
-                equipmentStacks = equipmentStacks.mergeStackable(
-                    item = stack,
-                    matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id !in bagStackIds },
-                    maxStack = maxStack
-                )
-                equipmentInstances.remove(eid)
+            equipmentInstances = equipmentInstances.map {
+                if (it.id in expelEquipIds) it.copy(isEquipped = false, ownerId = null) else it
             }
-
-            discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.forEach { bagItem ->
-                val m = manualInstances.get(bagItem.itemId)
-                if (m != null) {
-                    val stack = m.toStack()
-                    val maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
-                    manualStacks = manualStacks.mergeStackable(
-                        item = stack,
-                        matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type },
-                        maxStack = maxStack
-                    )
-                    manualInstances.remove(bagItem.itemId)
-                }
-            }
-
-            discipleTables.manualIds[id].forEach { manualId ->
-                val m = manualInstances.get(manualId)
-                if (m != null) {
-                    val stack = m.toStack()
-                    val maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
-                    manualStacks = manualStacks.mergeStackable(
-                        item = stack,
-                        matchPredicate = { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type },
-                        maxStack = maxStack
-                    )
-                    manualInstances.remove(manualId)
-                }
+            manualInstances = manualInstances.map {
+                if (it.id in expelManualIds) it.copy(isLearned = false, ownerId = null) else it
             }
 
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
