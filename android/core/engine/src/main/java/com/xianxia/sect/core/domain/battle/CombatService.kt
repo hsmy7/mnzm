@@ -183,14 +183,10 @@ class CombatService @Inject constructor(
                     gameData = gameData.copy(manualProficiencies = mutable)
                 }
                 if (equipIdsToUnequip.isNotEmpty()) {
-                    equipmentInstances = equipmentInstances.map { e ->
-                        if (e.id in equipIdsToUnequip) e.copy(isEquipped = false, ownerId = null) else e
-                    }
+                    equipmentInstances = equipmentInstances.filter { it.id !in equipIdsToUnequip }
                 }
                 if (manualIdsToUnlearn.isNotEmpty()) {
-                    manualInstances = manualInstances.map { m ->
-                        if (m.id in manualIdsToUnlearn) m.copy(isLearned = false, ownerId = null) else m
-                    }
+                    manualInstances = manualInstances.filter { it.id !in manualIdsToUnlearn }
                 }
 
                 // D. 槽位清理

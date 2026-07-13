@@ -613,13 +613,9 @@ class CultivationEventProcessor @Inject constructor(
                                 id, 0
                             ) < threshold
                         ) {
-                            // 清理叛逃弟子的装备/功法所有权
-                            equipmentInstances = equipmentInstances.map { e ->
-                                if (e.id in desertEquipIds) e.copy(isEquipped = false, ownerId = null) else e
-                            }
-                            manualInstances = manualInstances.map { m ->
-                                if (m.id in desertManualIds) m.copy(isLearned = false, ownerId = null) else m
-                            }
+                            // 直接删除叛逃弟子的装备/功法实例
+                            equipmentInstances = equipmentInstances.filter { it.id !in desertEquipIds }
+                            manualInstances = manualInstances.filter { it.id !in desertManualIds }
                             val mutableProf = gameData.manualProficiencies.toMutableMap()
                             mutableProf.remove(desertProfId)
                             gameData = gameData.copy(manualProficiencies = mutableProf)
@@ -809,14 +805,10 @@ class CultivationEventProcessor @Inject constructor(
                             thiefId, 0
                         ) < loyalThreshold
                     ) {
-                        // 清理叛逃弟子的装备/功法所有权
+                        // 直接删除叛逃弟子的装备/功法实例
                         val (equipIds, manualIds) = theftDesertCleanup[thiefId] ?: (emptyList<String>() to emptySet())
-                        equipmentInstances = equipmentInstances.map { e ->
-                            if (e.id in equipIds) e.copy(isEquipped = false, ownerId = null) else e
-                        }
-                        manualInstances = manualInstances.map { m ->
-                            if (m.id in manualIds) m.copy(isLearned = false, ownerId = null) else m
-                        }
+                        equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
+                        manualInstances = manualInstances.filter { it.id !in manualIds }
                         val mutableProf = gameData.manualProficiencies.toMutableMap()
                         mutableProf.remove(thiefId.toString())
                         gameData = gameData.copy(manualProficiencies = mutableProf)

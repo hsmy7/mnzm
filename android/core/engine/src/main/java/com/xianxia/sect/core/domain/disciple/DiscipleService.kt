@@ -584,12 +584,8 @@ private val scopeProvider: CoroutineScopeProvider,
             discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }
             val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()
 
-            equipmentInstances = equipmentInstances.map {
-                if (it.id in expelEquipIds) it.copy(isEquipped = false, ownerId = null) else it
-            }
-            manualInstances = manualInstances.map {
-                if (it.id in expelManualIds) it.copy(isLearned = false, ownerId = null) else it
-            }
+            equipmentInstances = equipmentInstances.filter { it.id !in expelEquipIds }
+            manualInstances = manualInstances.filter { it.id !in expelManualIds }
 
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
             updatedProficiencies.remove(discipleId)

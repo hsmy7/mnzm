@@ -209,44 +209,41 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     private suspend fun clearExternalEquipmentAndManuals(disciple: Disciple) {
-        disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-        disciple.equipment.armorId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-        disciple.equipment.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-        disciple.equipment.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+        val externalEquipIds = mutableSetOf<String>()
+        disciple.equipment.weaponId?.let { externalEquipIds.add(it) }
+        disciple.equipment.armorId?.let { externalEquipIds.add(it) }
+        disciple.equipment.bootsId?.let { externalEquipIds.add(it) }
+        disciple.equipment.accessoryId?.let { externalEquipIds.add(it) }
 
-        val manualIdSet = disciple.manualIds.toSet()
+        val externalManualIds = disciple.manualIds.toSet()
+
         stateStore.update {
-            manualInstances = manualInstances.map {
-                if (it.id in manualIdSet) it.copy(isLearned = false, ownerId = null) else it
-            }
+            equipmentInstances = equipmentInstances.filter { it.id !in externalEquipIds }
+            manualInstances = manualInstances.filter { it.id !in externalManualIds }
         }
 
         removeProficiencies(disciple.id)
     }
 
     private suspend fun clearInternalEquipmentAndManuals(disciple: Disciple) {
-        // 仅清除所有权，不返还仓库
-        val allEquipIds = mutableSetOf<String>()
-        disciple.equipment.weaponId?.let { allEquipIds.add(it) }
-        disciple.equipment.armorId?.let { allEquipIds.add(it) }
-        disciple.equipment.bootsId?.let { allEquipIds.add(it) }
-        disciple.equipment.accessoryId?.let { allEquipIds.add(it) }
+        // 直接删除装备/功法实例，不返还仓库
+        val deleteEquipIds = mutableSetOf<String>()
+        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
         disciple.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
-            .map { it.itemId }.forEach { allEquipIds.add(it) }
+            .map { it.itemId }.forEach { deleteEquipIds.add(it) }
 
         val bagManualIds = disciple.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
             .map { it.itemId }.toSet()
-        val allManualIds = bagManualIds + disciple.manualIds.toSet()
+        val deleteManualIds = bagManualIds + disciple.manualIds.toSet()
 
         stateStore.update {
-            equipmentInstances = equipmentInstances.map {
-                if (it.id in allEquipIds) it.copy(isEquipped = false, ownerId = null) else it
-            }
-            manualInstances = manualInstances.map {
-                if (it.id in allManualIds) it.copy(isLearned = false, ownerId = null) else it
-            }
+            equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
+            manualInstances = manualInstances.filter { it.id !in deleteManualIds }
         }
 
         removeProficiencies(disciple.id)
@@ -349,15 +346,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     suspend fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
-        val equipment = stateStore.equipmentInstances.value.find { it.id == equipmentId } ?: return
-        if (!equipment.isEquipped) return
-
         stateStore.update {
-            equipmentInstances = equipmentInstances.map { eq ->
-                if (eq.id == equipmentId) {
-                    eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
-                } else eq
-            }
+            equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
         }
     }
 }
