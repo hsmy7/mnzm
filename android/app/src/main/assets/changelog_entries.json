@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-07-13",
+    "version": "4.0.48",
+    "changes": [
+      "重构：游戏生命周期BootPhase/RunState双层状态机——旧GameLifecycle单向不可逆设计与实际reload/restart场景不匹配，forceLifecycle散落4处+_isGameLoaded双真相源。新BootPhase(5态启动序列，单向)+RunState(4态运行时：IDLE/LOADING/PLAYING/RELOADING)，gameLifecycle组合派生兼容。提取BootSequenceController.boot()统一管理启动序列、RunState切换、资源预加载、游戏循环、地图生成、错误恢复。ViewModel减~200行。对抗性审查3 Agent修复15项问题(重入保护/Cancellation清理/setPlaying守卫/mapData回补/runState重置等)。游戏中读档IllegalLifecycleTransition崩溃根除"
+    ]
+  },
+  {
+    "date": "2026-07-13",
     "version": "4.0.47",
     "changes": [
       "重构：探索系统拆分为6个子系统——ExplorationService降为Facade，提取WorldLevelManager(关卡惰性管理)/BeastAttackDetector(妖兽攻击检测)/PatrolBattleSystem(巡视塔战斗拆4步)/LootCalculator(掠夺计算+双重扣除修复)/DiscipleDeathHandler(死亡标记+装备断言)/ExplorationTeamManager(队伍管理单事务竞态安全)。原processPatrolAttacks 241行God Method拆为4个≤60行方法",

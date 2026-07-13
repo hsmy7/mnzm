@@ -124,24 +124,52 @@ interface GameStateStore : GameStateSnapshotProvider {
      */
     var activeSubDialogs: Set<String>
 
-    // === 生命周期状态 ===
+    // === 生命周期状态（新 API，优先使用） ===
+    /**
+     * 启动序列阶段。
+     *
+     * 仅由 [BootSequenceController] 内部推进，外部只读。
+     */
+    val bootPhase: StateFlow<BootPhase>
+
+    /** 运行时状态：IDLE / LOADING / PLAYING / RELOADING */
+    val runState: StateFlow<RunState>
+
+    /**
+     * 推进启动序列到下一步。
+     * 只能在 [BootPhase] 内逐步前进（ordinal +1），到达 BOOT_COMPLETE 后不可再调用。
+     */
+    fun advanceBootPhase()
+
+    /**
+     * 重置启动序列到 UNINITIALIZED。
+     * 在 RELOADING 入口或错误恢复时调用。
+     */
+    fun resetBootPhase()
+
+    /**
+     * 设置运行状态为 PLAYING。
+     * 在启动序列完成后调用。
+     */
+    fun setPlaying()
+
+    /** 设置运行状态为 RELOADING。 */
+    fun setReloading()
+
+    /** 设置运行状态为 IDLE（取消后恢复）。 */
+    fun setIdle() {}
+
+    /** 设置运行状态为 LOADING（启动任务开始）。 */
+    fun setLoading() {}
+
+    // === 生命周期状态（旧 API，兼容层） ===
+    @Deprecated("Use bootPhase/runState instead. Will be removed in next major version.")
     val gameLifecycle: StateFlow<GameLifecycle>
 
-    /**
-     * 正常路径：推进游戏生命周期到下一阶段。
-     *
-     * 每次调用必须从当前状态过渡到 ordinal +1 的下一个状态，
-     * 非法转移（跳级/回退/自环）会抛出 [IllegalStateException]。
-     * 用于加载管线的正常顺序流程。
-     */
+    @Deprecated("Use advanceBootPhase() / resetBootPhase() instead. Will be removed in next major version.")
     fun transitionTo(state: GameLifecycle)
 
-    /**
-     * 错误恢复：无条件跳转到目标生命周期状态。
-     *
-     * 绕过 ordinal 校验，用于错误恢复和重启场景。
-     * 调用会记录 WARN 级别日志以便追踪。
-     */
+    @Deprecated("Use resetBootPhase() / setPlaying() / setReloading() instead. Will be removed in next major version.")
     fun forceLifecycle(state: GameLifecycle)
 
     // === 核心写入 API ===

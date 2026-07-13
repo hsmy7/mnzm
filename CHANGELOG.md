@@ -1,3 +1,20 @@
+## [4.0.48] - 2026-07-13（versionCode=4048）
+
+### 重构
+
+- **重构：游戏生命周期 BootPhase/RunState 双层状态机** — 旧 `GameLifecycle` 单向不可逆状态机与实际 reload/restart 场景需求不匹配，导致 `forceLifecycle` 4处散落调用 + `_isGameLoaded` 独立标志位双真相源 Bug。新设计：`BootPhase`(5态启动序列，单向，仅 `BootSequenceController` 推进) + `RunState`(4态运行时：IDLE/LOADING/PLAYING/RELOADING)，`gameLifecycle` 由二者组合派生保持旧代码兼容。消除 `forceLifecycle` 全部调用和 `_isGameLoaded` 独立标志位
+- **重构：提取 `BootSequenceController` 统一编排加载序列** — 之前启动逻辑散布在 SaveLoadViewModel 的 4 个方法(startNewGame/loadGame/loadGameFromSlot/restartGame)中。现由 BootController.boot() 统一管理 BootPhase 推进、RunState 切换、资源预加载(回调)、游戏循环启停、地图生成、错误恢复。ViewModel 减约 200 行
+- **重构：对抗性审查修复** — 3 Agent 发现 15 个问题，修复：重入保护(CAS+finally)、Cancellation 清理(cleanupAfterCancellation)、setPlaying()守卫(check bootPhase>=BOOT_COMPLETE)、recoverWithPartialData硬编码→while循环、恢复成功路径、mapData==null补全bootPhase、onCleared重置runState(防止Singleton残留)、补充setLoading/setIdle API
+
+### 新增
+
+- **新增：`BootSequenceController` 类** — `:core:engine` 模块，注入式控制器，统一编排启动序列。5项单元测试覆盖IDLE/PLAYING/错误/进度/地图回调路径
+- **新增：`BootSequenceControllerTest`** — 5项测试全部通过
+
+### 修复
+
+- **修复：游戏中读档 IllegalLifecycleTransition(PLAYING→DATA_READY)** — 根因：`transitionTo()` 只允许 forward +1，但 reload 路径从 PLAYING→DATA_READY 是回退。修复：`forceLifecycle(UNINITIALIZED)` 在 stopGameLoop 后重置生命周期，现由 `BootSequenceController.boot()` 内部通过 `setReloading()+resetBootPhase()` 统一处理
+
 ## [4.0.47] - 2026-07-13（versionCode=4047）
 
 ### 架构

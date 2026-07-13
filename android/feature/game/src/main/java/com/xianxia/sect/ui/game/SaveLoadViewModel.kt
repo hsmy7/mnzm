@@ -10,8 +10,7 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.save.SavePipeline
-import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.GameLifecycle
+import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -50,7 +49,8 @@ class SaveLoadViewModel @Inject constructor(
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     private val resourcePreloader: ResourcePreloader,
     private val discipleSnapshotCache: DiscipleSnapshotCache,
-    private val gameRngManager: GameRngManager
+    private val gameRngManager: GameRngManager,
+    private val bootSequenceController: BootSequenceController
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -92,44 +92,7 @@ class SaveLoadViewModel @Inject constructor(
         _preloadedUiSprites.value = result.uiSprites
     }
 
-    /**
-     * 生成地图预加载数据（瓦片 + flatTileData 预拍平）。
-     *
-     * 在游戏循环启动后调用（此时 gameData.mapSeed 已就绪）。
-     * 生成的 [MapPreloadData] 通过 [mapPreloadData] StateFlow 暴露，
-     * GameActivity 的 LaunchedEffect 观察并设置到 Composition local state。
-     *
-     * 此操作是 CPU 密集型的，调用方应在后台调度器上运行。
-     */
-    private suspend fun generateMapPreloadData(): MapPreloadData {
-        val tileSize = GameConfig.SectMap.TILE_SIZE
-        val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-        val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
-        val worldPixelWidth = worldWidthCells * tileSize
-        val worldPixelHeight = worldHeightCells * tileSize
-
-        _loadingProgress.value = SaveLoadViewModelConstants.PROGRESS_TILE_GEN
-
-        val rawTileData = withContext(Dispatchers.Default) {
-            SectMapTileGenerator.generateTileData(
-                worldWidthCells, worldHeightCells,
-                worldSeed = gameEngine.gameData.value?.mapSeed ?: 0
-            )
-        }
-
-        // 提前拍平 flatTileData，减轻 MainGameScreen 首次主线程组合负担
-        val flatTileData = rawTileData.flatMap { it.toList() }.toIntArray()
-
-        return MapPreloadData(
-            rawTileData = rawTileData,
-            worldWidthCells = worldWidthCells,
-            worldHeightCells = worldHeightCells,
-            tileSize = tileSize,
-            worldPixelWidth = worldPixelWidth,
-            worldPixelHeight = worldPixelHeight,
-            flatTileData = flatTileData
-        )
-    }
+    // generateMapPreloadData removed — now handled by BootSequenceController internally
 
     /**
      * 启动 L2 后台精灵图预加载（不阻塞首帧）
@@ -146,9 +109,8 @@ class SaveLoadViewModel @Inject constructor(
     private val saveLockAcquireTime = AtomicLong(0L)
     private val consecutiveSaveFailures = AtomicInteger(0)
 
-    @Volatile
-    private var _isGameLoaded = false
-    val isGameLoaded: Boolean get() = _isGameLoaded
+    // 游戏是否已加载 = RunState.PLAYING
+    val isGameLoaded: Boolean get() = stateStore.runState.value == RunState.PLAYING
 
     private val _isRestarting = MutableStateFlow(false)
     val isRestarting: StateFlow<Boolean> = _isRestarting.asStateFlow()
@@ -182,6 +144,12 @@ class SaveLoadViewModel @Inject constructor(
 
     /** 游戏生命周期（纯运行时，不随存档保存） */
     val gameLifecycle: StateFlow<GameLifecycle> get() = stateStore.gameLifecycle
+
+    /** 运行时状态：IDLE / LOADING / PLAYING / RELOADING */
+    val runState: StateFlow<RunState> get() = stateStore.runState
+
+    /** 启动序列阶段：UNINITIALIZED / DATA_READY / SYSTEMS_READY / MAP_READY / BOOT_COMPLETE */
+    val bootPhase: StateFlow<BootPhase> get() = stateStore.bootPhase
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
@@ -494,7 +462,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun isGameAlreadyLoaded(): Boolean {
-        return _isGameLoaded && gameEngine.gameData.value?.sectName?.isNotEmpty() == true
+        return isGameLoaded && gameEngine.gameData.value?.sectName?.isNotEmpty() == true
     }
 
     fun setLoadingProgress(progress: Float) {
@@ -507,7 +475,7 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        if (_isGameLoaded) {
+        if (isGameLoaded) {
             Log.w(TAG, "Game already loaded, ignoring startNewGame request")
             return
         }
@@ -523,7 +491,6 @@ class SaveLoadViewModel @Inject constructor(
 
                 _loadingProgress.value = PROGRESS_START
 
-                _loadingProgress.value = PROGRESS_ENGINE_INIT
                 Log.d(TAG, "startNewGame: Calling gameEngine.createNewGame(sectName=$sectName, slot=$slot)")
                 gameEngine.createNewGame(sectName, slot)
                 Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
@@ -534,7 +501,6 @@ class SaveLoadViewModel @Inject constructor(
 
                 storageFacade.setCurrentSlot(slot)
                 Log.d(TAG, "Active slot set to $slot")
-                stateStore.transitionTo(GameLifecycle.DATA_READY)
 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
                 var saveSuccess = performSynchronousSave(slot)
@@ -546,83 +512,39 @@ class SaveLoadViewModel @Inject constructor(
                 needSlotRefresh = true
                 if (!saveSuccess) {
                     Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
-                    // isGameStarted was never set to true (moved to after startGameLoop),
-                    // so no need to set it false here
                     showError("保存失败，无法启动游戏。请检查存储空间后重试。")
                     return@launch
                 }
 
-                preloadGameResources()
+                // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
+                // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
+                val bootResult = bootSequenceController.boot(
+                    slot = slot,
+                    onPreloadResources = { preloadGameResources() },
+                    onProgress = { progress ->
+                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+                    },
+                    onMapReady = { mapData -> _mapPreloadData.value = mapData }
+                )
 
-                // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
-                discipleSnapshotCache.prewarm(gameEngine.discipleTables)
+                if (bootResult.isSuccess) {
+                    gameStarted = true
+                    _loadingProgress.value = PROGRESS_COMPLETE
 
-                _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
-
-                _loadingProgress.value = PROGRESS_GAME_LOOP_START
-
-                setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
-
-                startGameLoop()
-                Log.d(TAG, "Game loop started, isPaused=${gameEngineCore.state.value.isPaused}")
-
-                stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
-
-                // 在地图数据就绪前推进生命周期，确保过渡时数据可用
-                val mapData = try {
-                    generateMapPreloadData().also {
-                        setLoadingProgress(
-                            SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
-                    }
-                } catch (e: CancellationException) { throw e }
-                  catch (e: Exception) {
-                    Log.e(TAG,
-                        "startNewGame: map preload failed (non-fatal)", e)
-                    null
+                    val gd = gameEngine.gameData.value
+                    Log.i(TAG, "=== startNewGame SUCCESS === " +
+                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
+                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                        "totalElapsed=${System.currentTimeMillis() - startTime}ms")
+                } else {
+                    val errorMsg = bootResult.exceptionOrNull()?.message ?: "启动失败"
+                    showError(errorMsg)
                 }
-                if (mapData != null) {
-                    _mapPreloadData.value = mapData
-                    stateStore.transitionTo(GameLifecycle.MAP_READY)
-                }
-
-                // Mark game as started AFTER game loop is running + map data ready
-                // GameActivity LaunchedEffect(gameLifecycle) 在 MAP_READY 触发 UI 过渡
-                stateStore.transitionTo(GameLifecycle.PLAYING)
-
-                _isGameLoaded = true
-                gameStarted = true
-                _loadingProgress.value = PROGRESS_COMPLETE
-
-                val gd = gameEngine.gameData.value
-                Log.i(TAG, "=== startNewGame SUCCESS === " +
-                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
-                    "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                    "totalElapsed=${System.currentTimeMillis() - startTime}ms")
             } catch (e: CancellationException) {
                 Log.w(TAG, "startNewGame cancelled")
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
-
-                val partialGameData = gameEngine.gameData.value
-                if (partialGameData.sectName.isNotEmpty() && gameEngine.disciples.value.isNotEmpty()) {
-                    Log.w(TAG, "startNewGame: Game data partially initialized (sectName=${partialGameData.sectName}, disciples=${gameEngine.disciples.value.size}), attempting to start game loop anyway")
-                    try {
-                        setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
-                        startGameLoop()
-                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
-                        _isGameLoaded = true
-                        gameStarted = true
-                        Log.w(TAG, "startNewGame: Game loop started with partial data")
-                    } catch (e: CancellationException) { throw e }
-                      catch (loopEx: Exception) {
-                        Log.e(TAG, "startNewGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
-                    }
-                } else {
-                    Log.e(TAG, "startNewGame: Game data not initialized, game loop will not start")
-                    // isGameStarted remains false (default) — no change needed
-                }
-
                 showError(e.message ?: "开始新游戏失败")
             } finally {
                 try {
@@ -731,12 +653,6 @@ class SaveLoadViewModel @Inject constructor(
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
-                if (_isGameLoaded) {
-                    Log.i(TAG, "Game already loaded, will reload from slot ${saveSlot.slot}")
-                    stopGameLoop()
-                    _isGameLoaded = false
-                }
-
                 performGarbageCollection()
 
                 savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
@@ -781,7 +697,6 @@ class SaveLoadViewModel @Inject constructor(
                     alliances = saveData.alliances,
                     productionSlots = saveData.productionSlots
                 )
-                stateStore.transitionTo(GameLifecycle.DATA_READY)
 
                 // 恢复 RNG 分区状态，确保读档后随机序列连续性
                 val loadedGd = gameEngine.gameData.value
@@ -790,83 +705,37 @@ class SaveLoadViewModel @Inject constructor(
                     Log.d(TAG, "loadGame: Restored ${loadedGd.rngStates.size} RNG partition states")
                 }
 
-                gameEngine.ensureHeavyDataLoaded()
-
-                // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
-                discipleSnapshotCache.prewarm(gameEngine.discipleTables)
-
-                setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
-
-                // 修正已有存档中的建筑网格尺寸，补齐instanceId
-                gameEngine.updateGameData { data ->
-                    if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
-                        android.util.Log.wtf(
-                            "SaveLoad",
-                            "DATA INTEGRITY: placedBuildings is empty but residenceSlots " +
-                            "has ${data.residenceSlots.size} entries! " +
-                            "Suspected GridBuildingData deserialization failure."
-                        )
-                    }
-                    val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                    val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
-                    if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
-                }
-
-                // 建筑占地重叠/越界迁移（旧存档兼容）
+                // 建筑占地重叠/越界迁移（旧存档兼容，不在 BootSequenceController 中）
                 loadDelegate.migrateOverflowBuildings()
 
-                preloadGameResources()
-                _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
+                // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
+                // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
+                val bootResult = bootSequenceController.boot(
+                    slot = effectiveSlot,
+                    onPreloadResources = { preloadGameResources() },
+                    onProgress = { progress ->
+                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+                    },
+                    onMapReady = { mapData -> _mapPreloadData.value = mapData },
+                    onSuccess = { showSuccess("读档成功") }
+                )
 
-                startGameLoop()
-                stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
-
-                // 生成地图瓦片数据（flatTileData 预拍平）
-                val mapData = try {
-                    generateMapPreloadData().also {
-                        setLoadingProgress(
-                            SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
-                    }
-                } catch (e: CancellationException) { throw e }
-                  catch (e: Exception) {
-                    Log.e(TAG, "loadGame: map preload failed", e)
-                    null
+                if (bootResult.isSuccess) {
+                    val gd = gameEngine.gameData.value
+                    Log.i(TAG, "=== loadGame SUCCESS === " +
+                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
+                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                        "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
+                        "elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else {
+                    val errorMsg = bootResult.exceptionOrNull()?.message ?: "读档失败"
+                    showError(errorMsg)
                 }
-                if (mapData != null) {
-                    _mapPreloadData.value = mapData
-                    stateStore.transitionTo(GameLifecycle.MAP_READY)
-                }
-
-                _isGameLoaded = true
-                stateStore.transitionTo(GameLifecycle.PLAYING)
-                showSuccess("读档成功")
-
-                val gd = gameEngine.gameData.value
-                Log.i(TAG, "=== loadGame SUCCESS === " +
-                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
-                    "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                    "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
-                    "elapsed=${System.currentTimeMillis() - startTime}ms")
             } catch (e: CancellationException) {
                 Log.w(TAG, "loadGame cancelled")
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
-                val partialGameData = gameEngine.gameData.value
-                if (partialGameData.sectName.isNotEmpty() && gameEngine.disciples.value.isNotEmpty()) {
-                    Log.w(TAG, "loadGame: Game data partially loaded, attempting to start game loop anyway")
-                    try {
-                        setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
-                        preloadGameResources()
-                        _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
-                        startGameLoop()
-                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
-                        _isGameLoaded = true
-                    } catch (e: CancellationException) { throw e }
-                      catch (loopEx: Exception) {
-                        Log.e(TAG, "loadGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
-                    }
-                }
                 showError("加载游戏失败: ${e.message}")
             } finally {
                 try {
@@ -884,189 +753,14 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun loadGameFromSlot(slot: Int) {
-        if (stateStore.unifiedState.value.isLoading) {
-            Log.w(TAG, "Already loading, ignoring loadGameFromSlot request")
-            return
-        }
-
-        if (!canPerformSaveOperation()) {
-            Log.e(TAG, "=== loadGameFromSlot FAILED === insufficient memory")
-            showError("内存不足，无法读档。请关闭其他应用后重试。")
-            return
-        }
-
-        Log.i(TAG, "=== loadGameFromSlot BEGIN === slot=$slot")
-        val startTime = System.currentTimeMillis()
-
-        viewModelScope.launch(Dispatchers.IO) {
-            var gameLoaded = false
-            try {
-                setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "load")
-
-                _loadingProgress.value = PROGRESS_START
-
-                if (_isGameLoaded) {
-                    Log.i(TAG, "Game already loaded, will reload from slot $slot")
-                    stopGameLoop()
-                    _isGameLoaded = false
-                }
-
-                performGarbageCollection()
-
-                savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
-
-                Log.d(TAG, "Starting to load save data for slot $slot")
-                val loadStartTime = System.currentTimeMillis()
-
-                val saveData = withTimeoutOrNull(60_000L) {
-                    try {
-                        val data = storageFacade.load(slot).getOrNull()
-                        Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
-                        data
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.e(TAG, "Error loading save data: ${e.message}", e)
-                        null
-                    }
-                }
-                if (saveData != null) {
-                    _loadingProgress.value = PROGRESS_DATA_LOAD
-                    val effectiveSlot = com.xianxia.sect.data.StorageConstants.resolveEffectiveSlot(slot)
-                    storageFacade.setCurrentSlot(effectiveSlot)
-                    gameEngine.loadData(
-                        gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
-                        disciples = saveData.disciples,
-                        equipmentStacks = saveData.equipmentStacks,
-                    equipmentInstances = saveData.equipmentInstances,
-                        manualStacks = saveData.manualStacks,
-                    manualInstances = saveData.manualInstances,
-                        pills = saveData.pills,
-                        materials = saveData.materials,
-                        herbs = saveData.herbs,
-                        seeds = saveData.seeds,
-                        storageBags = saveData.storageBags,
-                        teams = saveData.teams,
-                            battleLogs = saveData.battleLogs,
-                        alliances = saveData.alliances,
-                        productionSlots = saveData.productionSlots
-                    )
-                    stateStore.transitionTo(GameLifecycle.DATA_READY)
-
-                    // 恢复 RNG 分区状态，确保读档后随机序列连续性
-                    val loadedGd = gameEngine.gameData.value
-                    if (loadedGd.rngStates.isNotEmpty()) {
-                        gameRngManager.restoreStates(loadedGd.rngStates)
-                        Log.d(TAG, "loadGameFromSlot: Restored ${loadedGd.rngStates.size} RNG partition states")
-                    }
-
-                    // 修正已有存档中的建筑网格尺寸，补齐instanceId
-                    gameEngine.updateGameData { data ->
-                        if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
-                            android.util.Log.wtf(
-                                "SaveLoad",
-                                "DATA INTEGRITY: placedBuildings is empty but residenceSlots " +
-                                "has ${data.residenceSlots.size} entries! " +
-                                "Suspected GridBuildingData deserialization failure."
-                            )
-                        }
-                        val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                        val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
-                        if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
-                    }
-
-                    // 建筑占地重叠/越界迁移（旧存档兼容）
-                    loadDelegate.migrateOverflowBuildings()
-
-                    preloadGameResources()
-                    _preloadPhase.value = SaveLoadViewModelConstants.PHASE_READY
-                    _loadingProgress.value = PROGRESS_GAME_LOOP_START
-
-                    gameEngine.ensureHeavyDataLoaded()
-
-                    // 预计算弟子属性快照（5-15ms），加速弟子面板首帧渲染
-                    discipleSnapshotCache.prewarm(gameEngine.discipleTables)
-
-                    setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
-
-                    startGameLoop()
-                    stateStore.transitionTo(GameLifecycle.SYSTEMS_READY)
-                    _isGameLoaded = true
-
-                    // 生成地图瓦片数据（flatTileData 预拍平）
-                    // 在 MAP_READY 之前生成，确保 UI 过渡时地图数据已就绪
-                    val mapData = try {
-                        generateMapPreloadData().also {
-                            setLoadingProgress(SaveLoadViewModelConstants.PROGRESS_TILE_GEN)
-                        }
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.e(TAG,
-                            "loadGameFromSlot: map preload failed", e)
-                        null
-                    }
-                    if (mapData != null) {
-                        _mapPreloadData.value = mapData
-                        stateStore.transitionTo(GameLifecycle.MAP_READY)
-                    }
-
-                    gameLoaded = true
-                    stateStore.transitionTo(GameLifecycle.PLAYING)
-                    _loadingProgress.value = PROGRESS_COMPLETE
-
-                    val gd = gameEngine.gameData.value
-                    Log.i(TAG, "=== loadGameFromSlot SUCCESS === " +
-                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
-                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                        "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
-                        "elapsed=${System.currentTimeMillis() - startTime}ms")
-                } else {
-                    val elapsed = System.currentTimeMillis() - loadStartTime
-                    Log.e(TAG, "=== loadGameFromSlot FAILED === timeout or null for slot $slot, elapsed=${elapsed}ms")
-                    showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
-                }
-            } catch (e: CancellationException) {
-                Log.w(TAG, "loadGameFromSlot cancelled")
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "=== loadGameFromSlot FAILED === error=${e.message}", e)
-
-                val partialGameData = gameEngine.gameData.value
-                if (partialGameData.sectName.isNotEmpty() && gameEngine.disciples.value.isNotEmpty()) {
-                    Log.w(TAG, "loadGameFromSlot: Game data partially loaded, attempting to start game loop anyway")
-                    try {
-                        setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
-                        startGameLoop()
-                        stateStore.forceLifecycle(GameLifecycle.PLAYING)
-                        _isGameLoaded = true
-                        gameLoaded = true
-                        Log.w(TAG, "loadGameFromSlot: Game loop started with partial data")
-                    } catch (e: CancellationException) { throw e }
-                      catch (loopEx: Exception) {
-                        Log.e(TAG, "loadGameFromSlot: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
-                    }
-                }
-
-                showError("加载游戏失败: ${e.message}")
-            } finally {
-                try {
-                    setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (e: CancellationException) { throw e }
-                  catch (resetEx: Exception) {
-                    Log.e(TAG, "loadGameFromSlot: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
-                    _pendingSlot.value = null
-                    _pendingAction.value = null
-                }
-                gameEngineCore.clearActiveLoadJob()
-                if (!gameLoaded) {
-                    _loadingProgress.value = PROGRESS_START
-                }
-            }
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
+        // 从已缓存的存档元数据中查找 SaveSlot，兜底构造最小 SaveSlot
+        val saveSlot = _saveSlots.value.find { it.slot == slot }
+            ?: SaveSlot(slot, "", 0L, 1, 1, "", 0, 0L)
+        loadGame(saveSlot)
     }
 
     fun saveGame(slotId: String? = null) {
-        if (!_isGameLoaded) {
+        if (!isGameLoaded) {
             Log.w(TAG, "Game not loaded, ignoring saveGame request")
             return
         }
@@ -1269,6 +963,8 @@ class SaveLoadViewModel @Inject constructor(
 
                 val saveSuccess = performRestartSave(currentSlot, previousSlot)
 
+                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+
                 if (saveSuccess) {
                     Log.i(TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
                     _restartVersion.value++
@@ -1278,7 +974,21 @@ class SaveLoadViewModel @Inject constructor(
                     showError("游戏已重置，但保存失败，请手动保存")
                 }
 
-                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+                // BootSequenceController 统一处理生命周期、游戏循环重启、地图生成
+                val bootResult = bootSequenceController.boot(
+                    slot = currentSlot,
+                    onPreloadResources = { preloadGameResources() },
+                    onProgress = { progress ->
+                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+                    },
+                    onMapReady = { mapData -> _mapPreloadData.value = mapData }
+                )
+
+                if (bootResult.isSuccess) {
+                    _isTimeRunning.value = true
+                } else {
+                    Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
+                }
             } catch (e: CancellationException) {
                 Log.w(TAG, "restartGame cancelled")
                 throw e
@@ -1297,25 +1007,10 @@ class SaveLoadViewModel @Inject constructor(
                 saveLock.set(false)
                 saveLockAcquireTime.set(0)
                 gameEngineCore.clearActiveSaveJob()
-                if (wasRunning) {
-                    gameEngineCore.startGameLoop()
-
-                    // 重置生命周期（旧 session 结束时在 PLAYING），然后重新推进
-                    stateStore.forceLifecycle(GameLifecycle.UNINITIALIZED)
-
-                    // 生成地图瓦片数据（flatTileData 预拍平）
-                    try {
-                        val mapData = generateMapPreloadData()
-                        _mapPreloadData.value = mapData
-                        stateStore.forceLifecycle(GameLifecycle.MAP_READY)
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.e(TAG, "restartGame: generateMapPreloadData failed (non-fatal)", e)
-                    }
-
-                    stateStore.forceLifecycle(GameLifecycle.PLAYING)
-                    _isTimeRunning.value = true
-                    Log.d(TAG, "Game loop restarted after restart operation")
+                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
+                // BootSequenceController.boot() 在内部已处理游戏循环恢复
+                if (wasRunning && !_isTimeRunning.value) {
+                    Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
                 }
             }
         }.also { gameEngineCore.registerActiveSaveJob(it) }
@@ -1418,15 +1113,16 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun setGameLoaded(loaded: Boolean) {
-        _isGameLoaded = loaded
+        // 生命周期由 BootSequenceController 管理，此方法保留用于外部兼容
+        Log.d(TAG, "setGameLoaded($loaded) called — lifecycle managed by BootSequenceController, ignoring")
     }
 
     fun resumeGameLoop() {
         viewModelScope.launch {
             gameEngineCore.resume()
         }
-        if (!_isGameLoaded || stateStore.unifiedState.value.isLoading) {
-            Log.d(TAG, "resumeGameLoop: Skipping startGameLoop - isGameLoaded=$_isGameLoaded, isLoading=${stateStore.unifiedState.value.isLoading}")
+        if (!isGameLoaded || stateStore.unifiedState.value.isLoading) {
+            Log.d(TAG, "resumeGameLoop: Skipping startGameLoop - isGameLoaded=$isGameLoaded, isLoading=${stateStore.unifiedState.value.isLoading}")
             return
         }
         startGameLoop()
@@ -1466,6 +1162,15 @@ class SaveLoadViewModel @Inject constructor(
         _pendingSlot.value = null
         _pendingAction.value = null
         _loadingProgress.value = PROGRESS_START
+
+        // 重置生命周期状态，防止 Singleton GameStateStore 在下一次 Activity 创建时
+        // 仍保持 PLAYING 导致 isGameLoaded == true 阻止新游戏/读档
+        try {
+            stateStore.resetBootPhase()
+            stateStore.setIdle()
+        } catch (_: Exception) {
+            // 非关键清理，失败不影响主流程
+        }
 
         stateStore.setPausedDirect(true)
         super.onCleared()

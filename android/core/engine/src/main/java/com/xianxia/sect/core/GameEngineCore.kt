@@ -14,6 +14,8 @@ import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -352,7 +354,7 @@ class GameEngineCore @Inject constructor(
         DomainLog.i(TAG, "Game state resumed (isPaused=false)")
 
         val gd = stateStore.gameDataSnapshot
-        DomainLog.i(TAG, "startGameLoop: lifecycle=${stateStore.gameLifecycle.value}, " +
+        DomainLog.i(TAG, "startGameLoop: lifecycle=${stateStore.bootPhase.value}/${stateStore.runState.value}, " +
             "speed=${gameClock.speed}, " +
             "year=${gd.gameYear}, month=${gd.gameMonth}, " +
             "sectName=${gd.sectName}")

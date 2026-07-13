@@ -213,6 +213,42 @@ interface GameSystem {
 5. 新增影响数值的 buff/效果时，先确定它属于哪个乘区，在该乘区内加算
 6. 新增乘区时，参照 `CultivationSpeedZones` 模式：创建 data class → `buildZones()` → 公式引用 → 测试验证
 
+### Lifecycle Architecture: BootPhase / RunState 双层状态机（v4.0.48）
+
+游戏启动和运行时生命周期从 v4.0.48 起从**单向 GameLifecycle** 重构为 **BootPhase + RunState 双层设计**。
+
+```
+BootPhase（启动序列 — 单向，只推进一次）
+  UNINITIALIZED ──→ DATA_READY ──→ SYSTEMS_READY ──→ MAP_READY ──→ BOOT_COMPLETE
+
+RunState（运行时状态 — 可循环回退）
+  IDLE ──→ PLAYING ⇄ RELOADING ──→ PLAYING
+```
+
+**核心原则：**
+- **BootPhase** 只向前、一次性，由 `BootSequenceController.boot()` 内部驱动。外部只读。
+- **RunState** 在 PLAYING 和 RELOADING 之间循环（读档/重启时）。
+- `gameLifecycle`（`@Deprecated`）由 `computeGameLifecycle(bootPhase, runState)` 组合派生，保持旧代码兼容。
+
+**关键变化：**
+| 旧 API | 新 API | 说明 |
+|--------|--------|------|
+| `GameLifecycle` enum (5值) | `BootPhase`(5值) + `RunState`(4值) | 职责分离 |
+| `transitionTo(ordinal+1)` | `advanceBootPhase()` | 同样严格校验 |
+| `forceLifecycle(任意)` | `setReloading() → resetBootPhase() → boot()` | 统一入口 |
+| `_isGameLoaded` 独立标志 | `runState == PLAYING` | 单一真相源 |
+
+**错误恢复：**
+- `BootSequenceController.recoverWithPartialData()` 在 `boot()` 失败但 engine 有部分数据时尝试恢复
+- 恢复成功则走正常 success 路径（不再返回 failure 误导用户）
+- 恢复失败则 onError + return failure
+
+**剩余待优化项：**
+1. **双层写入原子性** — `_bootPhase` 和 `_runState` 是两个独立 MutableStateFlow，`setPlaying()` 等操作分两步写入。可改为单 `data class LifecycleState(bootPhase, runState)` 一次性发射，消除中间状态窗口
+2. **重入串行化硬屏障** — 当前 `bootInProgress AtomicBoolean` 是软屏障，依赖调用方捕获异常。可改为 `Mutex.withLock` 或 `Channel` 串行化请求
+3. **LOAING 状态达路径补充** — 初次加载时 `runState` 全程 IDLE 直到最后跳到 PLAYING。可补充 `setLoading()` 调用使状态机完整
+4. **取消时状态自动回滚** — 可在 `BootSequenceController` 入口记录 `initialBootPhase/initialRunState`，取消时自动回滚而非用 `cleanupAfterCancellation()` 手动清理
+
 ### Key Source Directories
 
 **Core:** `core/engine/`(game loop/services/systems), `core/engine/domain/`(per-domain services), `core/engine/system/`(ECS systems), `core/domain/`(data classes), `core/state/`(GameStateStore), `core/registry/`(static game data), `core/config/`(JSON config)
@@ -230,7 +266,8 @@ interface GameSystem {
 
 - **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
 - **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
-- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离
+- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（见下文）
+- **`BootSequenceController`** — 启动序列控制器：统一编排新游戏/读档/重启的 BootPhase 推进、RunState 切换、资源预加载(回调)、游戏循环启停、地图生成、错误恢复。`boot()` 为统一入口
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)

@@ -35,7 +35,8 @@ import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
-import com.xianxia.sect.core.state.GameLifecycle
+import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
 import com.xianxia.sect.data.crypto.SecureKeyManager
@@ -205,14 +206,15 @@ class GameActivity : ComponentActivity() {
                     // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
                     // 从根本上杜绝 "LoadingScreen 消失但贴图未就绪" 的中间帧
                     var mapPreloadData by remember { mutableStateOf<MapPreloadData?>(null) }
-                    val gameLifecycle by saveLoadViewModel.gameLifecycle.collectAsStateWithLifecycle()
+                    val bootPhase by saveLoadViewModel.bootPhase.collectAsStateWithLifecycle()
+                    val runState by saveLoadViewModel.runState.collectAsStateWithLifecycle()
 
                     // 游戏生命周期驱动 UI 过渡（替代旧的 gameData.isGameStarted 方案）
                     // MAP_READY → 地图瓦片就绪，安全切换 Crossfade 到 MainGameScreen
                     // PLAYING   → 游戏 fully loaded，触发 TapDB 上报和 Vulkan 预热
-                    LaunchedEffect(gameLifecycle) {
+                    LaunchedEffect(bootPhase, runState) {
                         when {
-                            gameLifecycle >= GameLifecycle.MAP_READY && mapPreloadData == null -> {
+                            bootPhase >= BootPhase.MAP_READY && mapPreloadData == null -> {
                                 // 从 ViewModel 获取已预生成的地图瓦片数据
                                 val precomputed = saveLoadViewModel.mapPreloadData.value
                                 if (precomputed != null) {
@@ -222,7 +224,7 @@ class GameActivity : ComponentActivity() {
 
                                 saveLoadViewModel.setLoadingProgress(1.0f)
                             }
-                            gameLifecycle >= GameLifecycle.PLAYING -> {
+                            runState == RunState.PLAYING -> {
                                 com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
                                 com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
                                 com.xianxia.sect.taptap.TapDBManager.trackEvent(

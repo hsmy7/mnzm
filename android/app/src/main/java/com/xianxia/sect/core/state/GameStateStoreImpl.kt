@@ -167,7 +167,25 @@ class GameStateStoreImpl @Inject constructor(
     private val _isSaving = MutableStateFlow(false)
 
     // ── 游戏生命周期（纯运行时，不随存档保存）──
+    // 新 API：BootPhase + RunState 双层状态机
+    private val _bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
+    private val _runState = MutableStateFlow(RunState.IDLE)
+    // 旧 API 兼容：由 _bootPhase + _runState 同步更新
     private val _gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
+
+    /** 根据当前 BootPhase + RunState 计算对应的 GameLifecycle 兼容值 */
+    private fun computeGameLifecycle(boot: BootPhase, run: RunState): GameLifecycle = when {
+        run == RunState.PLAYING && boot >= BootPhase.BOOT_COMPLETE -> GameLifecycle.PLAYING
+        boot >= BootPhase.MAP_READY -> GameLifecycle.MAP_READY
+        boot >= BootPhase.SYSTEMS_READY -> GameLifecycle.SYSTEMS_READY
+        boot >= BootPhase.DATA_READY -> GameLifecycle.DATA_READY
+        else -> GameLifecycle.UNINITIALIZED
+    }
+
+    /** 同步 _gameLifecycle 使其与 _bootPhase + _runState 保持一致 */
+    private fun syncGameLifecycle() {
+        _gameLifecycle.value = computeGameLifecycle(_bootPhase.value, _runState.value)
+    }
 
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
     internal val _updateVersion = MutableStateFlow(0L)
@@ -249,21 +267,92 @@ class GameStateStoreImpl @Inject constructor(
     override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     override val gameLifecycle: StateFlow<GameLifecycle> = _gameLifecycle.asStateFlow()
+    override val bootPhase: StateFlow<BootPhase> = _bootPhase.asStateFlow()
+    override val runState: StateFlow<RunState> = _runState.asStateFlow()
+
+    override fun advanceBootPhase() {
+        val current = _bootPhase.value
+        val nextOrdinal = current.ordinal + 1
+        check(nextOrdinal <= BootPhase.entries.lastIndex) {
+            "Already at terminal boot phase: $current"
+        }
+        _bootPhase.value = BootPhase.entries[nextOrdinal]
+        syncGameLifecycle()
+    }
+
+    override fun resetBootPhase() {
+        _bootPhase.value = BootPhase.UNINITIALIZED
+        syncGameLifecycle()
+    }
+
+    override fun setPlaying() {
+        check(_bootPhase.value >= BootPhase.BOOT_COMPLETE) {
+            "Cannot setPlaying() when bootPhase=${_bootPhase.value} is not BOOT_COMPLETE"
+        }
+        _runState.value = RunState.PLAYING
+        syncGameLifecycle()
+    }
+
+    override fun setLoading() {
+        _runState.value = RunState.LOADING
+        syncGameLifecycle()
+    }
+
+    override fun setReloading() {
+        _runState.value = RunState.RELOADING
+        syncGameLifecycle()
+    }
+
+    override fun setIdle() {
+        _runState.value = RunState.IDLE
+        syncGameLifecycle()
+    }
 
     override fun transitionTo(state: GameLifecycle) {
-        val current = _gameLifecycle.value
-        check(current.ordinal + 1 == state.ordinal) {
-            "Illegal lifecyle transition: $current → $state (must be ordinal +1)"
+        DomainLog.w(TAG, "transitionTo (deprecated): → $state")
+        val currentBoot = _bootPhase.value
+        val targetBoot = when (state) {
+            GameLifecycle.UNINITIALIZED -> BootPhase.UNINITIALIZED
+            GameLifecycle.DATA_READY -> BootPhase.DATA_READY
+            GameLifecycle.SYSTEMS_READY -> BootPhase.SYSTEMS_READY
+            GameLifecycle.MAP_READY -> BootPhase.MAP_READY
+            GameLifecycle.PLAYING -> BootPhase.BOOT_COMPLETE
         }
-        _gameLifecycle.value = state
+        check(currentBoot.ordinal + 1 == targetBoot.ordinal) {
+            "Illegal lifecyle transition: current=$currentBoot → target=$targetBoot (must be ordinal +1)"
+        }
+        _bootPhase.value = targetBoot
+        if (state == GameLifecycle.PLAYING) {
+            _runState.value = RunState.PLAYING
+        }
+        syncGameLifecycle()
     }
 
     override fun forceLifecycle(state: GameLifecycle) {
         val current = _gameLifecycle.value
         if (current != state) {
-            DomainLog.w(TAG, "forceLifecycle: $current → $state (bypass ordinal check)")
+            DomainLog.w(TAG, "forceLifecycle (deprecated): $current → $state (bypass ordinal check)")
         }
-        _gameLifecycle.value = state
+        when (state) {
+            GameLifecycle.UNINITIALIZED -> {
+                _bootPhase.value = BootPhase.UNINITIALIZED
+                _runState.value = RunState.IDLE
+            }
+            GameLifecycle.DATA_READY -> {
+                _bootPhase.value = BootPhase.DATA_READY
+            }
+            GameLifecycle.SYSTEMS_READY -> {
+                _bootPhase.value = BootPhase.SYSTEMS_READY
+            }
+            GameLifecycle.MAP_READY -> {
+                _bootPhase.value = BootPhase.MAP_READY
+            }
+            GameLifecycle.PLAYING -> {
+                _bootPhase.value = BootPhase.BOOT_COMPLETE
+                _runState.value = RunState.PLAYING
+            }
+        }
+        syncGameLifecycle()
     }
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()

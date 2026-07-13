@@ -121,6 +121,8 @@ private class FakeStore : GameStateStore {
     override val discipleTables: DiscipleTables = DiscipleTables()
     override val warehouseFullEvent = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
+    override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
+    override val runState = MutableStateFlow(RunState.IDLE)
     override var activeTab: String = ""
     override var activeDialog: String? = ""
     override var activeSubDialogs: Set<String> = emptySet()
@@ -140,6 +142,10 @@ private class FakeStore : GameStateStore {
     override fun clearRewardCardQueue(count: Int) {}
     override fun transitionTo(state: GameLifecycle) {}
     override fun forceLifecycle(state: GameLifecycle) {}
+    override fun advanceBootPhase() {}
+    override fun resetBootPhase() {}
+    override fun setPlaying() {}
+    override fun setReloading() {}
     override fun setPausedDirect(paused: Boolean) { isPaused.value = paused }
     override fun setLoadingDirect(loading: Boolean) { isLoading.value = loading }
     override fun setSavingDirect(saving: Boolean) { isSaving.value = saving }
