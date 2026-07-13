@@ -153,7 +153,7 @@ interface GameStateStore : GameStateSnapshotProvider {
      * @param block 在 [MutableGameState] 上下文中执行的 lambda，返回类型为 [R]
      * @return block 的返回值
      */
-    suspend fun <R> updateAndReturn(block: suspend MutableGameState.() -> R): R
+    fun <R> updateAndReturn(block: MutableGameState.() -> R): R
 
     // === Shadow/Transaction API ===
     fun createSettlementShadow(
