@@ -73,7 +73,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 16  // v16: game_data 新增 showAllAvailableDisciples 列
+    version = 17  // v17: MIGRATION_15_16 补漏 rngStates/pendingPatrolBattleResults/worldLevelLastRefreshMonth
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -761,7 +761,7 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        /** v15→v16: 新增 showAllAvailableDisciples 列 — 所有选择弟子界面显示所有可用弟子 */
+        /** v15→v16: 新增 showAllAvailableDisciples + worldLevelLastRefreshMonth + rngStates + pendingPatrolBattleResults 列 */
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!columnExists(db, "game_data", "showAllAvailableDisciples")) {
@@ -769,7 +769,44 @@ abstract class GameDatabase : RoomDatabase() {
                         "ALTER TABLE game_data ADD COLUMN showAllAvailableDisciples INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                Log.i(TAG, "Migration 15→16: added showAllAvailableDisciples to game_data")
+                if (!columnExists(db, "game_data", "worldLevelLastRefreshMonth")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN worldLevelLastRefreshMonth INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
+                if (!columnExists(db, "game_data", "rngStates")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN rngStates TEXT NOT NULL DEFAULT '{}'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "pendingPatrolBattleResults")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN pendingPatrolBattleResults TEXT NOT NULL DEFAULT '[]'"
+                    )
+                }
+                Log.i(TAG, "Migration 15→16: added showAllAvailableDisciples, worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")
+            }
+        }
+
+        /** v16→v17: 补漏 rngStates/pendingPatrolBattleResults/worldLevelLastRefreshMonth — 旧 MIGRATION_15_16 遗漏此 3 列 */
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "worldLevelLastRefreshMonth")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN worldLevelLastRefreshMonth INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
+                if (!columnExists(db, "game_data", "rngStates")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN rngStates TEXT NOT NULL DEFAULT '{}'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "pendingPatrolBattleResults")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN pendingPatrolBattleResults TEXT NOT NULL DEFAULT '[]'"
+                    )
+                }
+                Log.i(TAG, "Migration 16→17: added missing worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")
             }
         }
 
@@ -812,7 +849,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
