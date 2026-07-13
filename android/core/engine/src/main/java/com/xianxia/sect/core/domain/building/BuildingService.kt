@@ -15,6 +15,8 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainResult
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -83,16 +85,20 @@ private val inventorySystem: InventorySystem
         }
 
         if (existingSlot != null) {
-            productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
-                slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
+            withContext(Dispatchers.IO) {
+                productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
+                    slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
+                }
             }
         } else {
             val buildingType = ProductionSlot.resolveBuildingType(buildingId)
-            productionSlotRepository.addSlot(ProductionSlot.createIdle(
-                slotIndex = slotIndex,
-                buildingType = buildingType,
-                buildingId = buildingId
-            ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
+            withContext(Dispatchers.IO) {
+                productionSlotRepository.addSlot(ProductionSlot.createIdle(
+                    slotIndex = slotIndex,
+                    buildingType = buildingType,
+                    buildingId = buildingId
+                ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
+            }
         }
     }
 
@@ -107,8 +113,10 @@ private val inventorySystem: InventorySystem
             return
         }
 
-        productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
-            slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+        withContext(Dispatchers.IO) {
+            productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
+                slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            }
         }
     }
 
@@ -154,9 +162,30 @@ private val inventorySystem: InventorySystem
         val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, BuildingNames.ALCHEMY)
 
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
-        if (alchemySlot != null) {
-            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { slot ->
-                slot.copy(
+        withContext(Dispatchers.IO) {
+            if (alchemySlot != null) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { slot ->
+                    slot.copy(
+                        status = ProductionSlotStatus.WORKING,
+                        recipeId = recipeId,
+                        recipeName = recipe.name,
+                        startYear = data.gameYear,
+                        startMonth = data.gameMonth,
+                        duration = actualDuration,
+                        successRate = recipe.successRate,
+                        requiredMaterials = recipe.materials,
+                        outputItemId = recipeId,
+                        outputItemName = recipe.name,
+                        outputItemRarity = recipe.rarity,
+                        completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                        completionPhase = 2
+                    )
+                }
+            } else {
+                productionSlotRepository.addSlot(ProductionSlot(
+                    slotIndex = slotIndex,
+                    buildingType = BuildingType.ALCHEMY,
+                    buildingId = BuildingNames.ALCHEMY,
                     status = ProductionSlotStatus.WORKING,
                     recipeId = recipeId,
                     recipeName = recipe.name,
@@ -170,27 +199,8 @@ private val inventorySystem: InventorySystem
                     outputItemRarity = recipe.rarity,
                     completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
                     completionPhase = 2
-                )
+                ))
             }
-        } else {
-            productionSlotRepository.addSlot(ProductionSlot(
-                slotIndex = slotIndex,
-                buildingType = BuildingType.ALCHEMY,
-                buildingId = BuildingNames.ALCHEMY,
-                status = ProductionSlotStatus.WORKING,
-                recipeId = recipeId,
-                recipeName = recipe.name,
-                startYear = data.gameYear,
-                startMonth = data.gameMonth,
-                duration = actualDuration,
-                successRate = recipe.successRate,
-                requiredMaterials = recipe.materials,
-                outputItemId = recipeId,
-                outputItemName = recipe.name,
-                outputItemRarity = recipe.rarity,
-                completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
-                completionPhase = 2
-            ))
         }
 
         return DomainResult.Success(startData.slot)
@@ -234,9 +244,29 @@ private val inventorySystem: InventorySystem
 
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
         val existingForgeSlot = productionSlotRepository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)
-        if (existingForgeSlot != null) {
-            productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { slot ->
-                slot.copy(
+        withContext(Dispatchers.IO) {
+            if (existingForgeSlot != null) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { slot ->
+                    slot.copy(
+                        status = ProductionSlotStatus.WORKING,
+                        recipeId = recipeId,
+                        recipeName = recipe.name,
+                        startYear = data.gameYear,
+                        startMonth = data.gameMonth,
+                        duration = actualDuration,
+                        outputItemId = recipeId,
+                        outputItemName = recipe.name,
+                        outputItemRarity = recipe.rarity,
+                        outputItemSlot = recipe.type.name,
+                        completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
+                        completionPhase = 2
+                    )
+                }
+            } else {
+                productionSlotRepository.addSlot(ProductionSlot(
+                    slotIndex = slotIndex,
+                    buildingType = BuildingType.FORGE,
+                    buildingId = BuildingNames.FORGE,
                     status = ProductionSlotStatus.WORKING,
                     recipeId = recipeId,
                     recipeName = recipe.name,
@@ -247,30 +277,12 @@ private val inventorySystem: InventorySystem
                     outputItemName = recipe.name,
                     outputItemRarity = recipe.rarity,
                     outputItemSlot = recipe.type.name,
+                    assignedDiscipleId = existingForgeSlot?.assignedDiscipleId,
+                    assignedDiscipleName = existingForgeSlot?.assignedDiscipleName ?: "",
                     completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
                     completionPhase = 2
-                )
+                ))
             }
-        } else {
-            productionSlotRepository.addSlot(ProductionSlot(
-                slotIndex = slotIndex,
-                buildingType = BuildingType.FORGE,
-                buildingId = BuildingNames.FORGE,
-                status = ProductionSlotStatus.WORKING,
-                recipeId = recipeId,
-                recipeName = recipe.name,
-                startYear = data.gameYear,
-                startMonth = data.gameMonth,
-                duration = actualDuration,
-                outputItemId = recipeId,
-                outputItemName = recipe.name,
-                outputItemRarity = recipe.rarity,
-                outputItemSlot = recipe.type.name,
-                assignedDiscipleId = existingForgeSlot?.assignedDiscipleId,
-                assignedDiscipleName = existingForgeSlot?.assignedDiscipleName ?: "",
-                completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
-                completionPhase = 2
-            ))
         }
 
         return DomainResult.Success(startData.slot)
@@ -287,7 +299,9 @@ private val inventorySystem: InventorySystem
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
 
-        productionCoordinator.resetSlotByBuildingIdAtomic(slot.buildingId, slot.slotIndex)
+        withContext(Dispatchers.IO) {
+            productionCoordinator.resetSlotByBuildingIdAtomic(slot.buildingId, slot.slotIndex)
+        }
     }
 
     /**
@@ -321,7 +335,9 @@ private val inventorySystem: InventorySystem
             inventorySystem.addPill(pill)
         }
 
-        productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slot.slotIndex)
+        withContext(Dispatchers.IO) {
+            productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slot.slotIndex)
+        }
 
         slot.assignedDiscipleId?.let { discipleId ->
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)

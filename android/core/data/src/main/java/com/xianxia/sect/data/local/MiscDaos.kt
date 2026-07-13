@@ -13,40 +13,40 @@ interface ExplorationTeamDao {
     fun getActive(slotId: Int): Flow<List<ExplorationTeam>>
 
     @Query("SELECT * FROM exploration_teams WHERE slot_id = :slotId AND id = :id")
-    fun getById(slotId: Int, id: String): ExplorationTeam?
+    suspend fun getById(slotId: Int, id: String): ExplorationTeam?
 
     @Query("SELECT * FROM exploration_teams WHERE slot_id = :slotId")
-    fun getAllSync(slotId: Int): List<ExplorationTeam>
+    suspend fun getAllSync(slotId: Int): List<ExplorationTeam>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(team: ExplorationTeam)
+    suspend fun insert(team: ExplorationTeam)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(teams: List<ExplorationTeam>)
+    suspend fun insertAll(teams: List<ExplorationTeam>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsertAll(teams: List<ExplorationTeam>)
+    suspend fun upsertAll(teams: List<ExplorationTeam>)
 
     @Update
-    fun update(team: ExplorationTeam)
+    suspend fun update(team: ExplorationTeam)
 
     @Update
-    fun updateAll(teams: List<ExplorationTeam>)
+    suspend fun updateAll(teams: List<ExplorationTeam>)
 
     @Query("SELECT id FROM exploration_teams WHERE slot_id = :slotId")
-    fun getIdsBySlot(slotId: Int): List<String>
+    suspend fun getIdsBySlot(slotId: Int): List<String>
 
     @Delete
-    fun delete(team: ExplorationTeam)
+    suspend fun delete(team: ExplorationTeam)
 
     @Query("DELETE FROM exploration_teams WHERE slot_id = :slotId AND id = :id")
-    fun deleteById(slotId: Int, id: String)
+    suspend fun deleteById(slotId: Int, id: String)
 
     @Query("DELETE FROM exploration_teams WHERE slot_id = :slotId")
-    fun deleteAll(slotId: Int)
+    suspend fun deleteAll(slotId: Int)
 
     @Query("DELETE FROM exploration_teams")
-    fun deleteAllGlobal()
+    suspend fun deleteAllGlobal()
 }
 
 @Dao

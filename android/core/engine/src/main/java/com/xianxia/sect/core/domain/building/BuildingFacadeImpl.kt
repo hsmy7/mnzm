@@ -14,6 +14,8 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -83,23 +85,28 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) =
+    override suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
         buildingService.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
+    }
 
-    override suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) =
+    override suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) {
         buildingService.removeDiscipleFromBuilding(buildingId, slotIndex)
+    }
 
     override fun getBuildingSlots(buildingId: String): List<BuildingSlot> =
         buildingService.getBuildingSlotsForBuilding(buildingId)
 
-    override suspend fun startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> =
-        buildingService.startAlchemy(slotIndex, recipeId)
+    override suspend fun startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> {
+        return buildingService.startAlchemy(slotIndex, recipeId)
+    }
 
-    override suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> =
-        buildingService.startForging(slotIndex, recipeId)
+    override suspend fun startForging(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> {
+        return buildingService.startForging(slotIndex, recipeId)
+    }
 
-    override suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
-        buildingService.autoHarvestCompletedAlchemySlots()
+    override suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> {
+        return buildingService.autoHarvestCompletedAlchemySlots()
+    }
 
     override fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
 
@@ -145,11 +152,13 @@ class BuildingFacadeImpl @Inject constructor(
                 }
             }
 
-            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-                slot.copy(
-                    assignedDiscipleId = discipleId,
-                    assignedDiscipleName = discipleName
-                )
+            withContext(Dispatchers.IO) {
+                productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+                    slot.copy(
+                        assignedDiscipleId = discipleId,
+                        assignedDiscipleName = discipleName
+                    )
+                }
             }
         }
     }
@@ -162,18 +171,20 @@ class BuildingFacadeImpl @Inject constructor(
             val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             val discipleId = slot?.assignedDiscipleId
 
-            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
-                if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
-                    val remaining = s.remainingTime(currentYear, currentMonth)
-                    s.copy(
-                        assignedDiscipleId = null,
-                        assignedDiscipleName = "",
-                        startYear = currentYear,
-                        startMonth = currentMonth,
-                        duration = remaining.coerceAtLeast(1)
-                    )
-                } else {
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            withContext(Dispatchers.IO) {
+                productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
+                    if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
+                        val remaining = s.remainingTime(currentYear, currentMonth)
+                        s.copy(
+                            assignedDiscipleId = null,
+                            assignedDiscipleName = "",
+                            startYear = currentYear,
+                            startMonth = currentMonth,
+                            duration = remaining.coerceAtLeast(1)
+                        )
+                    } else {
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    }
                 }
             }
             if (discipleId != null) {
@@ -188,13 +199,17 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
-        productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-            slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+        withContext(Dispatchers.IO) {
+            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+                slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+            }
         }
     }
 
     override suspend fun addProductionSlot(slot: ProductionSlot) {
-        productionCoordinator.repository.addSlot(slot)
+        withContext(Dispatchers.IO) {
+            productionCoordinator.repository.addSlot(slot)
+        }
     }
 
     override suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
@@ -282,7 +297,9 @@ class BuildingFacadeImpl @Inject constructor(
     override fun clearAlchemySlot(slotIndex: Int) {
         if (slotIndex < 0) return
         gameEngineCore.launchInScope {
-            productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slotIndex)
+            withContext(Dispatchers.IO) {
+                productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slotIndex)
+            }
         }
     }
 
@@ -295,7 +312,9 @@ class BuildingFacadeImpl @Inject constructor(
                     updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
                 }
             }
-            productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.FORGE, slotIndex)
+            withContext(Dispatchers.IO) {
+                productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.FORGE, slotIndex)
+            }
         }
     }
 
