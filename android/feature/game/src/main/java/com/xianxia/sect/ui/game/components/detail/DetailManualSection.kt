@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.DialogProperties
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -170,6 +172,7 @@ fun ManualSelectionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GameColors.PageBackground,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -186,6 +189,8 @@ fun ManualSelectionDialog(
             }
         },
         text = {
+            DialogSystemBarGuard()
+
             if (availableManualStacks.isEmpty()) {
                 Text(
                     text = "暂无可学习的功法",

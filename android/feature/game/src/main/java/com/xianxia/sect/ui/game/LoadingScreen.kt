@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.ui.components.rememberChasingProgress
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import androidx.compose.foundation.Canvas
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image
@@ -73,6 +74,9 @@ fun LoadingDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏（LoadingScreen 在游戏加载时全屏显示）
+        DialogSystemBarGuard()
+
         LoadingScreenContent(
             progress = progress,
             showProgress = showProgress,

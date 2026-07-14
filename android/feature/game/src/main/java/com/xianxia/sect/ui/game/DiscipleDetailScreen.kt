@@ -34,7 +34,9 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.game.components.detail.*
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.RenameDiscipleDialog
@@ -553,6 +555,7 @@ private fun ManualReplaceDialog(
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismissReplace,
         containerColor = GameColors.PageBackground,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -569,6 +572,8 @@ private fun ManualReplaceDialog(
             }
         },
         text = {
+            DialogSystemBarGuard()
+
             if (availableManualStacks.isEmpty()) {
                 Text(
                     text = "暂无可更换的功法",

@@ -25,6 +25,7 @@
 - **重构：processAutoFromWarehouse God Method 拆分** — 122 行→~50 行，提取 processSingleAutoEquip/processSingleAutoLearn/writeAutoWarehouseResults 3 方法
 - **清理：死代码 advancePhase/processPhaseEvents/processPhaseTick 删除** — 旧四轨制残留零调用，含 unsafe Thread.sleep(5) 在锁内
 - **新增：7 项 checkpoint 单元测试 + 3 项 CultivationService 集成测试**
+- **修复：对话框打开时系统状态栏始终可见** — 根因：Compose `Dialog()` 创建独立平台 Window，`hideSystemBars()` 仅作用于 Activity Window，Dialog Window 未继承系统栏隐藏。创建 `DialogSystemBarGuard()` composable 在 Dialog Window 上应用双路径 `hideSystemBars()`（`WindowInsetsControllerCompat` + 传统 `SYSTEM_UI_FLAG_*`）。覆盖 13 处 Compose `Dialog` 容器 + 2 处 Material3 `AlertDialog`。对抗性审查：3 Agent 发现 7 项问题，修复 API 35+ OEM 兼容、AlertDialog 遗漏 2 项
 
 ## [4.0.48] - 2026-07-13（versionCode=4048）
 

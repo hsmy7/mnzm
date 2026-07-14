@@ -63,6 +63,9 @@ fun SmallScreenDialog(
             dismissOnClickOutside = dismissOnClickOutside
         )
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏
+        DialogSystemBarGuard()
+
         // Dialog 窗口销毁前清除焦点，防止文本选择 FloatingActionMode
         // 在窗口 token 失效后弹出 PopupWindow 导致 BadTokenException
         val dialogView = LocalView.current

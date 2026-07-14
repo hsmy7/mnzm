@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
@@ -484,6 +485,9 @@ fun BreakthroughDetailDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏
+        DialogSystemBarGuard()
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()

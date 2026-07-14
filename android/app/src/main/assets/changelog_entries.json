@@ -20,7 +20,8 @@
       "修复：DiscipleAggregate.buildCultivationZones()遗漏丹药修炼加速——DiscipleExtended新增pillCultivationSpeedBonus/pillEffectDuration+Room MIGRATION_18_19",
       "重构：processTheftMonthly God Method拆分(178→65行)/ processAutoFromWarehouse God Method拆分(122→50行)",
       "清理：死代码advancePhase/processPhaseEvents/processPhaseTick删除——旧四轨制残留，含unsafe Thread.sleep(5)在锁内",
-      "新增：7项checkpoint单元测试+3项CultivationService集成测试"
+      "新增：7项checkpoint单元测试+3项CultivationService集成测试",
+      "修复：对话框打开时系统状态栏始终可见——根因：Compose Dialog()创建独立平台Window，hideSystemBars()仅作用于Activity Window，Dialog Window未继承系统栏隐藏。创建DialogSystemBarGuard() composable在Dialog Window上应用双路径hideSystemBars()(WindowInsetsControllerCompat+传统SYSTEM_UI_FLAGS)。覆盖13处Compose Dialog+2处Material3 AlertDialog。对抗性审查：3 Agent发现7项问题，修复2项(API 35+OEM兼容/AlertDialog遗漏)"
     ]
   },
   {

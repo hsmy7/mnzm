@@ -43,9 +43,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import android.app.Activity
+import android.os.Build
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
@@ -71,6 +74,58 @@ fun DialogSoftInputGuard(
     DisposableEffect(targetWindow) {
         targetWindow.setSoftInputMode(mode)
         onDispose { targetWindow.setSoftInputMode(originalMode) }
+    }
+}
+
+/**
+ * 在 Dialog Window 上应用 hideSystemBars()，使对话框内容全屏无状态栏/导航栏。
+ *
+ * Compose Dialog 创建独立平台 Window，不继承 Activity 的 systemUiVisibility 标志。
+ * 此 composable 在 Dialog 挂载时对该 Window 应用隐藏标志，卸载时不需恢复（Window 销毁）。
+ *
+ * 双路径方案（对标 GameActivity.hideSystemBars()）：
+ * 1. WindowInsetsControllerCompat（现代 API，API 30+ 推荐方式）
+ * 2. 传统 SYSTEM_UI_FLAG_*（国产 OEM ROM 兼容性，API < 35）
+ */
+@Composable
+fun DialogSystemBarGuard() {
+    val dialogWindow = generateSequence(LocalView.current) {
+        it.parent as? View
+    }
+        .filterIsInstance<DialogWindowProvider>()
+        .firstOrNull()
+        ?.window
+        ?: return
+
+    DisposableEffect(dialogWindow) {
+        // 路径 1: WindowInsetsController 方式（现代 API，API 30+ 推荐）
+        WindowInsetsControllerCompat(dialogWindow, dialogWindow.decorView)
+            .let { controller ->
+                controller.hide(
+                    WindowInsetsCompat.Type.statusBars() or
+                        WindowInsetsCompat.Type.navigationBars()
+                )
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+
+        // 路径 2: 传统 SYSTEM_UI_FLAGS 方式（国产 OEM ROM 兼容，与 GameActivity.hideSystemBars 一致）
+        // 注：始终执行（不按 API level 过滤），因为国产 OEM ROM 即使在 API 35+ 上
+        // 仍可能对 WindowInsetsController 支持不完整，传统标志作为补充。在纯 AOSP 35+
+        // 上这些 flag 是 deprecated 但无害的 no-op。
+        @Suppress("DEPRECATION")
+        dialogWindow.decorView.systemUiVisibility =
+            dialogWindow.decorView.systemUiVisibility or
+            (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+             View.SYSTEM_UI_FLAG_FULLSCREEN or
+             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+             View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+
+        onDispose {
+            // Dialog Window 销毁时自动清理，无需手动恢复
+        }
     }
 }
 
@@ -108,6 +163,8 @@ fun StandardPromptDialog(
     ) {
         // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
         DialogSoftInputGuard()
+        // 隐藏 Dialog Window 的系统状态栏/导航栏（该 Window 不继承 Activity 的设置）
+        DialogSystemBarGuard()
 
         // Dialog 窗口销毁前清除焦点，防止文本选择 FloatingActionMode
         // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException
@@ -274,6 +331,9 @@ fun InlineStandardPromptDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏
+        DialogSystemBarGuard()
+
         Box(
             modifier = Modifier
                 .fillMaxSize()

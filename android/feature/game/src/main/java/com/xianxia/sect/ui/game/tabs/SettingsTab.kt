@@ -66,6 +66,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.DialogSoftInputGuard
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
 import com.xianxia.sect.ui.game.SaveLoadViewModel
@@ -330,6 +331,9 @@ internal fun SettingsTab(
                             onDismissRequest = { showEditIntervalDialog = false },
                             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
                         ) {
+                        // 隐藏 Dialog Window 的系统状态栏/导航栏
+                        DialogSystemBarGuard()
+
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -821,6 +825,9 @@ internal fun SettingsTab(
             onDismissRequest = { showOtherSettingsDialog = false },
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
+            // 隐藏 Dialog Window 的系统状态栏/导航栏
+            DialogSystemBarGuard()
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -978,6 +985,9 @@ internal fun SettingsTab(
             onDismissRequest = { showSalaryConfigDialog = false },
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
+            // 隐藏 Dialog Window 的系统状态栏/导航栏
+            DialogSystemBarGuard()
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1097,6 +1107,9 @@ internal fun SaveSlotDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏
+        DialogSystemBarGuard()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1398,6 +1411,9 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
             onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
+            // 隐藏 Dialog Window 的系统状态栏/导航栏
+            DialogSystemBarGuard()
+
     Box(
         modifier = Modifier
             .fillMaxSize()

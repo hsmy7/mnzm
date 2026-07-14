@@ -94,6 +94,9 @@ fun UnifiedGameDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 隐藏 Dialog Window 的系统状态栏/导航栏（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
+        DialogSystemBarGuard()
+
         Box(
             modifier = Modifier
                 .fillMaxSize()

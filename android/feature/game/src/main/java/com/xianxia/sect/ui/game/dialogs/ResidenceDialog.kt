@@ -72,6 +72,9 @@ fun ResidenceDialog(
             onDismissRequest = { showUpgradeConfirm = false },
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
+            // 隐藏 Dialog Window 的系统状态栏/导航栏
+            DialogSystemBarGuard()
+
             Box(
                 modifier = Modifier
                     .width(dialogWidth)
