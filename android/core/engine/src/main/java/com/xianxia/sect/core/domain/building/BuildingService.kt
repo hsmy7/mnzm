@@ -41,14 +41,19 @@ class BuildingService @Inject constructor(
             return
         }
 
-        val disciple = stateStore.disciples.value.find { it.id == discipleId } ?: return
-        if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-            return
+        // 在事务锁内验证弟子状态，确保基于最新数据
+        var discipleName = ""
+        stateStore.update {
+            val disciple = discipleTables.assemble(discipleId.toIntOrNull() ?: return@update)
+            if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+                return@update
+            }
+            if (disciple.age < 5) {
+                return@update
+            }
+            discipleName = disciple.name
         }
-
-        if (disciple.age < 5) {
-            return
-        }
+        if (discipleName.isEmpty()) return
 
         // Prevent assigning same disciple to multiple building slots.
         //
@@ -80,7 +85,7 @@ class BuildingService @Inject constructor(
         if (existingSlot != null) {
             withContext(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
-                    slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
+                    slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = discipleName)
                 }
             }
         } else {
@@ -90,7 +95,7 @@ class BuildingService @Inject constructor(
                     slotIndex = slotIndex,
                     buildingType = buildingType,
                     buildingId = buildingId
-                ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
+                ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = discipleName))
             }
         }
     }

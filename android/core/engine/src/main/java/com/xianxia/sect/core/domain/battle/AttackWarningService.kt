@@ -49,14 +49,12 @@ class AttackWarningService @Inject constructor(
 
     /** 取消指定攻击方的所有预警，返回被取消数量 */
     suspend fun cancelWarningsForAttacker(attackerSectId: String): Int {
-        val data = stateStore.gameData.value
-        val warnings = data.activeAttackWarnings
-        val remaining = warnings.filter {
-            it.attackerSectId != attackerSectId
-        }
-        val cancelled = warnings.size - remaining.size
-        if (cancelled > 0) {
-            stateStore.update {
+        var cancelled = 0
+        stateStore.update {
+            val warnings = gameData.activeAttackWarnings
+            val remaining = warnings.filter { it.attackerSectId != attackerSectId }
+            cancelled = warnings.size - remaining.size
+            if (cancelled > 0) {
                 gameData = gameData.copy(activeAttackWarnings = remaining)
             }
         }
@@ -65,18 +63,16 @@ class AttackWarningService @Inject constructor(
 
     /** 检查并处理到期的预警，返回需执行战斗的预警列表 */
     suspend fun checkExpiredWarnings(): List<AttackWarning> {
-        val data = stateStore.gameData.value
-        val nowMonth = data.gameYear * 12 + data.gameMonth
-        val warnings = data.activeAttackWarnings
+        var expired: List<AttackWarning> = emptyList()
+        stateStore.update {
+            val nowMonth = gameData.gameYear * 12 + gameData.gameMonth
+            expired = gameData.activeAttackWarnings.filter {
+                it.stage == WarningStage.WAR_DECLARATION &&
+                    nowMonth >= it.attackMonth
+            }
 
-        val expired = warnings.filter {
-            it.stage == WarningStage.WAR_DECLARATION &&
-                nowMonth >= it.attackMonth
-        }
-
-        if (expired.isNotEmpty()) {
-            val expiredIds = expired.map { it.warningId }.toSet()
-            stateStore.update {
+            if (expired.isNotEmpty()) {
+                val expiredIds = expired.map { it.warningId }.toSet()
                 gameData = gameData.copy(
                     activeAttackWarnings = gameData.activeAttackWarnings.filter {
                         it.warningId !in expiredIds
@@ -89,25 +85,24 @@ class AttackWarningService @Inject constructor(
 
     /** 推进需要升级阶段的预警（谴责→战书），返回刚升级的预警列表 */
     suspend fun advanceWarningsIfNeeded(): List<AttackWarning> {
-        val data = stateStore.gameData.value
-        val nowMonth = data.gameYear * 12 + data.gameMonth
         val newlyAdvanced = mutableListOf<AttackWarning>()
+        stateStore.update {
+            val nowMonth = gameData.gameYear * 12 + gameData.gameMonth
 
-        val updatedWarnings = data.activeAttackWarnings.map { warning ->
-            if (warning.stage == WarningStage.DENUNCIATION &&
-                nowMonth >= warning.attackMonth -
-                    GameConfig.AIAttack.WAR_WARNING_BEFORE_ATTACK_MONTHS
-            ) {
-                val advanced = warning.copy(stage = WarningStage.WAR_DECLARATION)
-                newlyAdvanced.add(advanced)
-                advanced
-            } else {
-                warning
+            val updatedWarnings = gameData.activeAttackWarnings.map { warning ->
+                if (warning.stage == WarningStage.DENUNCIATION &&
+                    nowMonth >= warning.attackMonth -
+                        GameConfig.AIAttack.WAR_WARNING_BEFORE_ATTACK_MONTHS
+                ) {
+                    val advanced = warning.copy(stage = WarningStage.WAR_DECLARATION)
+                    newlyAdvanced.add(advanced)
+                    advanced
+                } else {
+                    warning
+                }
             }
-        }
 
-        if (newlyAdvanced.isNotEmpty()) {
-            stateStore.update {
+            if (newlyAdvanced.isNotEmpty()) {
                 gameData = gameData.copy(activeAttackWarnings = updatedWarnings)
             }
         }

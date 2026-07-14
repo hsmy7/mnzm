@@ -57,11 +57,8 @@ class AutoBuyService @Inject constructor(
      */
     fun executeAutoBuy(year: Int, month: Int) {
         val data = stateStore.gameData.value
-        val autoBuyList = data.autoBuyList
-        if (autoBuyList.isEmpty()) return
-
-        val merchantItems = data.travelingMerchantItems
-        if (merchantItems.isEmpty()) return
+        if (data.autoBuyList.isEmpty()) return
+        if (data.travelingMerchantItems.isEmpty()) return
 
         var purchasedCount = 0
         var skippedNoFunds = 0
@@ -69,7 +66,7 @@ class AutoBuyService @Inject constructor(
         stateStore.update {
             val newMerchantItems = gameData.travelingMerchantItems.toMutableList()
 
-            for (entry in autoBuyList) {
+            for (entry in gameData.autoBuyList) {
                 val matchIdx = newMerchantItems.indexOfFirst { item ->
                     matches(entry, item)
                 }

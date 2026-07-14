@@ -13,6 +13,7 @@
 - **修复：自动重启未应用速度加成** — 启动后用 formulaService.calculateWorkDurationWithAllDisciples 重算 duration/completionMonth
 - **修复：startAlchemy/startForging 的 else 分支重复 addSlot 静默失败** — 改为统一 updateSlotByBuildingId
 - **修复：自动重启时弟子死亡仍被恢复为 IDLE** — 加 isAlive 守卫
+- **修复：储物袋消耗后剩余袋消失 + 全项目"锁外读→锁内决策"反模式批量修复** — `openStorageBag` 在 `stateStore.update` 锁外读取 `bag.quantity` 导致 TOCTOU 竞态。举一反三搜索全项目发现同类反模式 26 处，覆盖 `DiscipleService`/`CaveExplorationProcessor`/`MerchantAndRecruitService`/`AttackWarningService`/`DiscipleFacadeImpl`/`DiplomacyService`/`VassalService`/`FavorEventProcessor`/`GiftService`/`CombatService`/`GameEngineBattleOps`/`GameEngineCoordination`/`AutoBuyService`/`BuildingService` 共 17 文件。同步修复 `openStorageBag` 使用 `kotlin.random.Random`→`GameRngManager`、`WarehouseTab` ALL 过滤显示不刷新、`openAllStorageBags` 预捕获总量。对抗性审查（3 Agent）发现 11+8+9 项，1 处回归（`buyMerchantItem` 验证失败后发射空卡片）已修复
 - **修复：startAlchemy/startForging 未写入 baseDuration** — 政策重算无法正确计算进度比例
 - **修复：startAlchemyAtomic 缺空材料配方防御、_consumptionLogs 无限增长、startForgingAtomic 缺消耗日志**
 - **对抗性审查：** 3 Agent（边界狂魔+状态破坏者+数据篡改者）共发现 29 项问题，已全部修复

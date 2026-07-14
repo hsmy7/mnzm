@@ -74,10 +74,9 @@ class VassalService @Inject constructor(
 
     /** 记录年收入供年贡计算 */
     suspend fun recordYearlyIncome() {
-        val stones = stateStore.gameData.value.spiritStones
         stateStore.update {
             gameData = gameData.copy(
-                lastYearSpiritStoneIncome = stones
+                lastYearSpiritStoneIncome = gameData.spiritStones
             )
         }
     }
@@ -209,7 +208,7 @@ class VassalService @Inject constructor(
                     vassalContracts = gameData.vassalContracts
                         + VassalContract(
                         vassalSectId = sectId,
-                        establishedYear = data.gameYear,
+                        establishedYear = gameData.gameYear,
                         lastTributeYear = 0
                     )
                 )

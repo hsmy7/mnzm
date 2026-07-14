@@ -52,7 +52,6 @@ class GiftService @Inject constructor(
         bypassYearLimit: Boolean = false
     ): GiftResult {
         val data = stateStore.gameData.value
-        val currentYear = data.gameYear
 
         // 查找目标宗门
         val sect = data.worldMapSects.find { it.id == sectId }
@@ -74,7 +73,7 @@ class GiftService @Inject constructor(
         }
 
         // 检查每年一次限制（缓和关系可绕过）
-        if (!bypassYearLimit && (data.sectDetails[sect.id]?.lastGiftYear ?: 0) == currentYear) {
+        if (!bypassYearLimit && (data.sectDetails[sect.id]?.lastGiftYear ?: 0) == data.gameYear) {
             return GiftResult(
                 success = false,
                 rejected = false,
@@ -146,14 +145,14 @@ class GiftService @Inject constructor(
             if (livePlayerSect == null) return@update
 
             val liveUpdatedRelations = FavorDomain.updateFavor(
-                gameData.sectRelations, livePlayerSect.id, sectId, newFavor, currentYear
+                gameData.sectRelations, livePlayerSect.id, sectId, newFavor, gameData.gameYear
             )
 
             val liveUpdatedDetails = gameData.sectDetails.toMutableMap()
             if (shouldUpdateGiftYear) {
                 liveUpdatedDetails[sectId] = (liveUpdatedDetails[sectId]
                     ?: SectDetail(sectId = sectId))
-                    .copy(lastGiftYear = currentYear)
+                    .copy(lastGiftYear = gameData.gameYear)
             }
 
             spiritStoneWallet.deduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)

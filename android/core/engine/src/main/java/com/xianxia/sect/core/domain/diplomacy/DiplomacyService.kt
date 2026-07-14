@@ -77,19 +77,19 @@ class DiplomacyService @Inject constructor(
         val success = Random.nextDouble() < successChance
 
         if (success) {
-            val alliance = Alliance(
-                id = UUID.randomUUID().toString(),
-                sectIds = listOf("player", sectId),
-                startYear = data.gameYear,
-                initiatorId = "player"
-            )
             stateStore.update {
+                val alliance = Alliance(
+                    id = UUID.randomUUID().toString(),
+                    sectIds = listOf("player", sectId),
+                    startYear = gameData.gameYear,
+                    initiatorId = "player"
+                )
                 gameData = gameData.copy(
                     alliances = gameData.alliances + alliance,
                     worldMapSects = gameData.worldMapSects.map { s ->
                         when {
-                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
-                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
+                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
                             else -> s
                         }
                     }
@@ -105,13 +105,12 @@ class DiplomacyService @Inject constructor(
      * 无灵石惩罚
      */
     suspend fun dissolveAllianceSimple(sectId: String): Boolean {
-        val data = stateStore.gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId } ?: return false
-        if (sect.allianceId.isEmpty()) return false
-
-        val alliance = data.alliances.find { it.id == sect.allianceId } ?: return false
-
+        var success = false
         stateStore.update {
+            val sect = gameData.worldMapSects.find { it.id == sectId } ?: return@update
+            if (sect.allianceId.isEmpty()) return@update
+            val alliance = gameData.alliances.find { it.id == sect.allianceId } ?: return@update
+
             gameData = gameData.copy(
                 worldMapSects = gameData.worldMapSects.map { s ->
                     if (alliance.sectIds.contains(s.id)) s.copy(allianceId = "", allianceStartYear = 0)
@@ -119,8 +118,9 @@ class DiplomacyService @Inject constructor(
                 },
                 alliances = gameData.alliances.filter { it.id != alliance.id }
             )
+            success = true
         }
-        return true
+        return success
     }
 
     // ==================== 宗门交易系统 ====================
@@ -422,10 +422,8 @@ class DiplomacyService @Inject constructor(
         ReplaceWith("buyFromSectTradeSync(sectId, itemId, quantity)")
     )
     suspend fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
-        val data = stateStore.gameData.value
-        val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
-
         stateStore.update {
+            val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
             spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails
@@ -435,10 +433,8 @@ class DiplomacyService @Inject constructor(
     }
 
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
-        val data = stateStore.gameData.value
-        val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
-
         stateStore.update {
+            val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
             spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails

@@ -68,34 +68,35 @@ class MerchantAndRecruitService @Inject constructor(
 
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
 
-        val data = stateStore.gameData.value
-        val newRefreshCount = data.merchantRefreshCount + 1
-        val isPityRefresh = newRefreshCount % MERCHANT_PITY_THRESHOLD == 0
-
         val newItems = mutableListOf<MerchantItem>()
 
-        if (isPityRefresh) {
-            addGuaranteedMythicItem(newItems, pools, year, month, newRefreshCount)
-        }
+        stateStore.update {
+            val newRefreshCount = gameData.merchantRefreshCount + 1
+            val isPityRefresh = newRefreshCount % MERCHANT_PITY_THRESHOLD == 0
 
-        val remainingCount = TRAVELING_MERCHANT_ITEM_COUNT - newItems.size
-        repeat(remainingCount) {
-            val selectedRarity = selectRarity()
-            val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
-                ?: selectFirstAvailableItem(pools.poolByRarity)
-
-            if (selectedItem != null) {
-                newItems.add(createMerchantItem(selectedItem, pools, year, month))
+            if (isPityRefresh) {
+                addGuaranteedMythicItem(newItems, pools, year, month, newRefreshCount)
             }
+
+            val remainingCount = TRAVELING_MERCHANT_ITEM_COUNT - newItems.size
+            repeat(remainingCount) {
+                val selectedRarity = selectRarity()
+                val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
+                    ?: selectFirstAvailableItem(pools.poolByRarity)
+
+                if (selectedItem != null) {
+                    newItems.add(createMerchantItem(selectedItem, pools, year, month))
+                }
+            }
+
+            val mergedItems = mergeMerchantItems(newItems)
+
+            gameData = gameData.copy(
+                travelingMerchantItems = mergedItems,
+                merchantLastRefreshYear = year,
+                merchantRefreshCount = newRefreshCount
+            )
         }
-
-        val mergedItems = mergeMerchantItems(newItems)
-
-        stateStore.update { gameData = data.copy(
-            travelingMerchantItems = mergedItems,
-            merchantLastRefreshYear = year,
-            merchantRefreshCount = newRefreshCount
-        ) }
     }
 
     fun buildMerchantItemPools(): MerchantItemPools {

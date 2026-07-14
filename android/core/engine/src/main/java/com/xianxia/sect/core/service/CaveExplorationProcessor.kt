@@ -92,18 +92,14 @@ class CaveExplorationProcessor @Inject constructor(
     // ── 洞府探索 ──────────────────────────────────────────────────────
 
     fun processCaveLifecycle(year: Int, month: Int) {
-        val data = stateStore.gameData.value
-
-        val expiredCaveIds = data.cultivatorCaves.filter { cave ->
+        // Phase 1: 计算过期洞府 — 在 stateStore.update 外部读取初始快照，
+        // 然后逐个重置探索队伍状态（每个 reset 内含自身的 stateStore.update）。
+        val initialExpiredCaveIds = stateStore.gameData.value.cultivatorCaves.filter { cave ->
             cave.isExpired(year, month) || cave.status == CaveStatus.EXPLORED
         }.map { it.id }.toSet()
 
-        val activeCaves = data.cultivatorCaves.filter { cave ->
-            !cave.isExpired(year, month) && cave.status != CaveStatus.EXPLORED
-        }
-
-        expiredCaveIds.forEach { caveId ->
-            val affectedTeams = data.caveExplorationTeams.filter {
+        initialExpiredCaveIds.forEach { caveId ->
+            val affectedTeams = stateStore.gameData.value.caveExplorationTeams.filter {
                 it.caveId == caveId && it.status == CaveExplorationStatus.TRAVELING
             }
             affectedTeams.forEach { team ->
@@ -111,95 +107,111 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        val allAITeams = data.aiCaveTeams.toMutableList()
-        activeCaves.forEach { cave ->
-            val currentTeams = allAITeams.count {
-                it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
+        // Phase 2: 剩余逻辑在单个 stateStore.update 事务内完成，
+        // 使用 gameData（当前状态）替代外部快照 data，消除"锁外读状态→锁内决策"反模式。
+        // 内部 executeCaveExploration / resetCaveExplorationTeamMembersStatus 的
+        // 嵌套 stateStore.update 经 reentrant 路径写入同一 buffer，外层统一提交。
+        stateStore.update {
+            val caves = gameData.cultivatorCaves
+            val aiTeams = gameData.aiCaveTeams
+            val explorationTeams = gameData.caveExplorationTeams
+            val sects = gameData.worldMapSects
+            val details = gameData.sectDetails
+
+            val activeCaves = caves.filter { cave ->
+                !cave.isExpired(year, month) && cave.status != CaveStatus.EXPLORED
             }
 
-            if (currentTeams < 3 && Random.nextDouble() < 0.7) {
-                val nearbySects = findNearbySects(cave, 400f)
-                val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
+            // AI 队伍生成
+            val allAITeams = aiTeams.toMutableList()
+            activeCaves.forEach { cave ->
+                val currentTeams = allAITeams.count {
+                    it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
+                }
 
-                val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
-                if (aiTeam != null) {
-                    allAITeams.add(aiTeam)
+                if (currentTeams < 3 && Random.nextDouble() < 0.7) {
+                    val nearbySects = findNearbySects(cave, 400f)
+                    val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
+
+                    val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
+                    if (aiTeam != null) {
+                        allAITeams.add(aiTeam)
+                    }
                 }
             }
-        }
 
-        var updatedSectsForAI = stateStore.gameData.value.worldMapSects.toMutableList()
-        val updatedSectDetails = stateStore.gameData.value.sectDetails.toMutableMap()
-        val aiTeamsToRemove = mutableListOf<String>()
+            var updatedSectsForAI = sects.toMutableList()
+            val updatedSectDetails = details.toMutableMap()
+            val aiTeamsToRemove = mutableListOf<String>()
 
-        allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
-            val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
+            allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
+                val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
 
-            if (Random.nextDouble() < 0.3) {
-                aiTeamsToRemove.add(aiTeam.id)
-            }
-        }
-
-        val filteredAITeams = allAITeams.filter { it.id !in aiTeamsToRemove }
-
-        val teamsToComplete = data.caveExplorationTeams.filter {
-            it.status == CaveExplorationStatus.EXPLORING
-        }
-
-        var finalCaves = activeCaves.toMutableList()
-        var finalAITeams = filteredAITeams.toList()
-        var finalExplorationTeams = data.caveExplorationTeams.filter {
-            it.caveId !in expiredCaveIds
-        }.toMutableList()
-        val teamsWithMissingCave = mutableListOf<CaveExplorationTeam>()
-        val teamsWithError = mutableListOf<CaveExplorationTeam>()
-
-        teamsToComplete.forEach { team ->
-            val cave = finalCaves.find { it.id == team.caveId }
-            if (cave == null) {
-                teamsWithMissingCave.add(team)
-                return@forEach
-            }
-            try {
-                val result = executeCaveExploration(team, cave, finalAITeams)
-
-                finalCaves = result.first.toMutableList()
-                finalAITeams = result.second
-                if (result.third) {
-                    finalExplorationTeams.removeAll { it.id == team.id }
+                if (Random.nextDouble() < 0.3) {
+                    aiTeamsToRemove.add(aiTeam.id)
                 }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                DomainLog.e(TAG, "Error processing cave exploration for team ${team.id}", e)
-                teamsWithError.add(team)
             }
-        }
 
-        teamsWithMissingCave.forEach { team ->
-            resetCaveExplorationTeamMembersStatus(team)
-            finalExplorationTeams.removeAll { it.id == team.id }
-        }
+            val filteredAITeams = allAITeams.filter { it.id !in aiTeamsToRemove }
 
-        teamsWithError.forEach { team ->
-            resetCaveExplorationTeamMembersStatus(team)
-            finalCaves = finalCaves.map { cave ->
-                if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
-                    cave.copy(status = CaveStatus.AVAILABLE)
-                } else {
-                    cave
-                }
+            val teamsToComplete = explorationTeams.filter {
+                it.status == CaveExplorationStatus.EXPLORING
+            }
+
+            var finalCaves = activeCaves.toMutableList()
+            var finalAITeams = filteredAITeams.toList()
+            var finalExplorationTeams = explorationTeams.filter {
+                it.caveId !in initialExpiredCaveIds
             }.toMutableList()
-            finalExplorationTeams.removeAll { it.id == team.id }
-        }
+            val teamsWithMissingCave = mutableListOf<CaveExplorationTeam>()
+            val teamsWithError = mutableListOf<CaveExplorationTeam>()
 
-        val currentData = stateStore.gameData.value
-        stateStore.update { gameData = currentData.copy(
-            cultivatorCaves = finalCaves,
-            aiCaveTeams = finalAITeams,
-            caveExplorationTeams = finalExplorationTeams,
-            worldMapSects = updatedSectsForAI,
-            sectDetails = updatedSectDetails
-        ) }
+            teamsToComplete.forEach { team ->
+                val cave = finalCaves.find { it.id == team.caveId }
+                if (cave == null) {
+                    teamsWithMissingCave.add(team)
+                    return@forEach
+                }
+                try {
+                    val result = executeCaveExploration(team, cave, finalAITeams)
+
+                    finalCaves = result.first.toMutableList()
+                    finalAITeams = result.second
+                    if (result.third) {
+                        finalExplorationTeams.removeAll { it.id == team.id }
+                    }
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    DomainLog.e(TAG, "Error processing cave exploration for team ${team.id}", e)
+                    teamsWithError.add(team)
+                }
+            }
+
+            teamsWithMissingCave.forEach { team ->
+                resetCaveExplorationTeamMembersStatus(team)
+                finalExplorationTeams.removeAll { it.id == team.id }
+            }
+
+            teamsWithError.forEach { team ->
+                resetCaveExplorationTeamMembersStatus(team)
+                finalCaves = finalCaves.map { cave ->
+                    if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
+                        cave.copy(status = CaveStatus.AVAILABLE)
+                    } else {
+                        cave
+                    }
+                }.toMutableList()
+                finalExplorationTeams.removeAll { it.id == team.id }
+            }
+
+            gameData = gameData.copy(
+                cultivatorCaves = finalCaves,
+                aiCaveTeams = finalAITeams,
+                caveExplorationTeams = finalExplorationTeams,
+                worldMapSects = updatedSectsForAI,
+                sectDetails = updatedSectDetails
+            )
+        }
     }
 
     fun generateAITeamInline(
@@ -660,14 +672,15 @@ class CaveExplorationProcessor @Inject constructor(
      * AI 攻打玩家：预警生命周期 + 战斗结算。
      */
     private fun processPlayerDefenseBattles() {
-        val data = stateStore.gameData.value
-
         // 1. 推进预警阶段（谴责 → 战书）
         stateStore.update {
             attackWarningService.advanceWarningsIfNeededSync(this)
         }
 
-        // 2. 检查到期战书 → 执行内联结算（战斗前结算 + 战斗 + 结果）
+        // 2. 推进预警可能已修改 activeAttackWarnings / gameMonth，重新读取最新状态
+        val data = stateStore.gameData.value
+
+        // 3. 检查到期战书 → 执行内联结算（战斗前结算 + 战斗 + 结果）
         val expiredWarnings = data.activeAttackWarnings.filter {
             it.stage == WarningStage.WAR_DECLARATION &&
                 data.gameYear * 12 + data.gameMonth >= it.attackMonth
@@ -676,7 +689,7 @@ class CaveExplorationProcessor @Inject constructor(
             executePlayerDefenseBattle(expired)
         }
 
-        // 3. 新攻击决策 → 生成谴责
+        // 4. 新攻击决策 → 生成谴责
         val decision = AISectAttackManager.decidePlayerAttack(data)
         if (decision is PlayerAttackDecision.GenerateWarning) {
             stateStore.update {
@@ -689,7 +702,7 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        // 4. 驻军填充
+        // 5. 驻军填充
         stateStore.update {
             gameData = AISectGarrisonManager.fillEmptyGarrisonSlots(gameData)
         }

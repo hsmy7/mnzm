@@ -142,7 +142,7 @@ internal fun WarehouseTab(
         val item: Any
     )
 
-    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, spiritStoneCards) {
+    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, sortedBags, spiritStoneCards) {
         val items = mutableListOf<WarehouseItemData>()
         equipment.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         manuals.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }

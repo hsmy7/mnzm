@@ -449,8 +449,7 @@ fun GameEngine.recruitAllFromList(): Int {
 }
 
 fun GameEngine.removeFromRecruitList(discipleId: String) {
-    val data = stateStore.gameData.value
-    updateGameDataSync { it.copy(recruitList = data.recruitList.toList().filter { it.id != discipleId }) }
+    updateGameDataSync { it.copy(recruitList = it.recruitList.toList().filter { it.id != discipleId }) }
 }
 
 // ── Cross-domain: Spirit mine / patrol / salary ─────────────────────

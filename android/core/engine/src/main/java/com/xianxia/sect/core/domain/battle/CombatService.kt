@@ -102,37 +102,30 @@ class CombatService @Inject constructor(
             }
         }
 
-        // 收集槽位更新（在事务外基于快照计算，事务内写入）
-        val snapshot = stateStore.gameData.value
-        val updatedElderSlots by lazy { computeElderSlotUpdates(snapshot, deadMemberIds) }
-        val updatedSpiritMineSlots by lazy {
-            snapshot.spiritMineSlots.map { slot ->
-                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-        }
-        val updatedLibrarySlots by lazy {
-            snapshot.librarySlots.map { slot ->
-                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-        }
-
-        // 收集幸存者HP/MP更新
-        val survivorUpdates = survivorHpMap.mapNotNull { (memberId, hp) ->
-            val id = memberId.toIntOrNull() ?: return@mapNotNull null
-            if (!stateStore.discipleTables.ids.contains(id) || memberId in deadMemberIds) return@mapNotNull null
-            val maxHp = stateStore.discipleTables.baseHps[id]
-            val maxMp = stateStore.discipleTables.baseMps[id]
-            val mp = survivorMpMap[memberId] ?: stateStore.discipleTables.currentMps[id]
-            val currentStatus = stateStore.discipleTables.statuses[id]
-            val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
-            SurvivorUpdate(id, hp.coerceIn(0, maxHp), mp.coerceIn(0, maxMp), updatedStatus)
-        }
+        // slot/HP/年份更新已移入 stateStore.update 内部（锁内读取最新状态）
 
         // ── 阶段 2：单事务原子写入 ──
-        if (griefUpdates.isNotEmpty() || deadMemberIds.isNotEmpty() || survivorUpdates.isNotEmpty() ||
+        if (griefUpdates.isNotEmpty() || deadMemberIds.isNotEmpty() ||
             proficiencyRemoveIds.isNotEmpty() || equipIdsToUnequip.isNotEmpty() || manualIdsToUnlearn.isNotEmpty()) {
-            val battleCurrentYear = snapshot.gameYear
             stateStore.update {
+                val battleCurrentYear = gameData.gameYear
+                val liveElderSlots = computeElderSlotUpdates(gameData, deadMemberIds)
+                val liveSpiritMineSlots = gameData.spiritMineSlots.map { slot ->
+                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+                }
+                val liveLibrarySlots = gameData.librarySlots.map { slot ->
+                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+                }
+                val liveSurvivorUpdates = survivorHpMap.mapNotNull { (memberId, hp) ->
+                    val id = memberId.toIntOrNull() ?: return@mapNotNull null
+                    if (!discipleTables.ids.contains(id) || memberId in deadMemberIds) return@mapNotNull null
+                    val maxHp = discipleTables.baseHps[id]
+                    val maxMp = discipleTables.baseMps[id]
+                    val mp = survivorMpMap[memberId] ?: discipleTables.currentMps[id]
+                    val currentStatus = discipleTables.statuses[id]
+                    val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
+                    SurvivorUpdate(id, hp.coerceIn(0, maxHp), mp.coerceIn(0, maxMp), updatedStatus)
+                }
                 // A. 悲痛期
                 for ((id, griefEndYear) in griefUpdates) {
                     if (id in discipleTables.ids) {
@@ -191,13 +184,13 @@ class CombatService @Inject constructor(
 
                 // D. 槽位清理
                 gameData = gameData.copy(
-                    elderSlots = updatedElderSlots,
-                    spiritMineSlots = updatedSpiritMineSlots,
-                    librarySlots = updatedLibrarySlots
+                    elderSlots = liveElderSlots,
+                    spiritMineSlots = liveSpiritMineSlots,
+                    librarySlots = liveLibrarySlots
                 )
 
                 // E. 幸存者HP/MP
-                for (su in survivorUpdates) {
+                for (su in liveSurvivorUpdates) {
                     if (su.id in discipleTables.ids) {
                         discipleTables.currentHps[su.id] = su.hp
                         discipleTables.currentMps[su.id] = su.mp

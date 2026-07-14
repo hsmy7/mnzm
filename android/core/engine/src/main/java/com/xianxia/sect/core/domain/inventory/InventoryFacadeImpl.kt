@@ -17,6 +17,8 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.mergeStackable
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -29,7 +31,8 @@ class InventoryFacadeImpl @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val gameEngineCore: GameEngineCore,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val gameRngManager: GameRngManager
 ) : InventoryFacade {
     companion object {
         private const val TAG = "InventoryFacade"
@@ -394,39 +397,41 @@ stateStore.update {
     // ── Merchant trading ─────────────────────────────────────────────────
 
     override suspend fun buyMerchantItem(itemId: String, quantity: Int) {
-        val merchantItem = stateStore.gameData.value.travelingMerchantItems.find { it.id == itemId } ?: return
-        val cost = merchantItem.price * quantity
-        if (stateStore.gameData.value.spiritStones < cost || quantity > merchantItem.quantity) return
+        var itemName = ""; var itemType = ""; var itemRarity = 0
+        stateStore.update {
+            val merchantItem = gameData.travelingMerchantItems.find { it.id == itemId } ?: return@update
+            val cost = merchantItem.price * quantity
+            if (gameData.spiritStones < cost || quantity > merchantItem.quantity) return@update
 
-        when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> {
-                val eq = MerchantItemConverter.toEquipment(merchantItem)
-                if (!inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)) return
+            // 容量检查（在事务内基于最新状态做只读预测）
+            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    val eq = MerchantItemConverter.toEquipment(merchantItem)
+                    if (!inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)) return@update
+                }
+                "manual" -> {
+                    val m = MerchantItemConverter.toManual(merchantItem)
+                    if (!inventorySystem.canAddManual(m.name, m.rarity, m.type)) return@update
+                }
+                "pill" -> {
+                    val p = MerchantItemConverter.toPill(merchantItem)
+                    if (!inventorySystem.canAddPill(p.name, p.rarity, p.category, p.grade)) return@update
+                }
+                "material" -> {
+                    val m = MerchantItemConverter.toMaterial(merchantItem)
+                    if (!inventorySystem.canAddMaterial(m.name, m.rarity, m.category)) return@update
+                }
+                "herb" -> {
+                    val h = MerchantItemConverter.toHerb(merchantItem)
+                    if (!inventorySystem.canAddHerb(h.name, h.rarity, h.category)) return@update
+                }
+                "seed" -> {
+                    val s = MerchantItemConverter.toSeed(merchantItem)
+                    if (!inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)) return@update
+                }
+                "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
             }
-            "manual" -> {
-                val m = MerchantItemConverter.toManual(merchantItem)
-                if (!inventorySystem.canAddManual(m.name, m.rarity, m.type)) return
-            }
-            "pill" -> {
-                val p = MerchantItemConverter.toPill(merchantItem)
-                if (!inventorySystem.canAddPill(p.name, p.rarity, p.category, p.grade)) return
-            }
-            "material" -> {
-                val m = MerchantItemConverter.toMaterial(merchantItem)
-                if (!inventorySystem.canAddMaterial(m.name, m.rarity, m.category)) return
-            }
-            "herb" -> {
-                val h = MerchantItemConverter.toHerb(merchantItem)
-                if (!inventorySystem.canAddHerb(h.name, h.rarity, h.category)) return
-            }
-            "seed" -> {
-                val s = MerchantItemConverter.toSeed(merchantItem)
-                if (!inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)) return
-            }
-            "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
-        }
 
-stateStore.update {
             val deductResult = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             if (deductResult !is DeductResult.Success) return@update
             gameData = gameData.copy(
@@ -501,17 +506,22 @@ stateStore.update {
                     }
                 }
             }
+            itemName = merchantItem.name
+            itemType = merchantItem.type
+            itemRarity = merchantItem.rarity
         }
 
-        // 商人物品购买是手动操作，弹出奖励卡片
-        stateStore.enqueueRewardCards(listOf(
-            RewardCardItem(
-                itemName = merchantItem.name,
-                itemType = merchantItem.type.lowercase(),
-                rarity = merchantItem.rarity.coerceIn(1, 6),
-                quantity = quantity
-            )
-        ))
+        // 商人物品购买是手动操作，弹出奖励卡片（仅成功购买时）
+        if (itemName.isNotEmpty()) {
+            stateStore.enqueueRewardCards(listOf(
+                RewardCardItem(
+                    itemName = itemName,
+                    itemType = itemType.lowercase(),
+                    rarity = itemRarity.coerceIn(1, 6),
+                    quantity = quantity
+                )
+            ))
+        }
     }
 
     override suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int) {
@@ -668,51 +678,76 @@ stateStore.update {
     }
 
     override suspend fun removePlayerListedItem(itemId: String) {
-        val data = stateStore.gameData.value
-        val item = data.playerListedItems.find { it.id == itemId } ?: return
-
-        when (item.type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> stateStore.equipmentStacks.value.find { it.id == item.itemId }?.let {
-                inventorySystem.addEquipmentStack(it.copy(quantity = (it.quantity + item.quantity)))
+        stateStore.update {
+            val item = gameData.playerListedItems.find { it.id == itemId } ?: return@update
+            // 从玩家上架列表中移除，将物品退回仓库
+            when (item.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    val existing = equipmentStacks.get(item.itemId)
+                    if (existing != null) {
+                        equipmentStacks.update(item.itemId) { it.copy(quantity = it.quantity + item.quantity) }
+                    } else {
+                        // 原始装备堆叠已被消耗或删除，跳过回退
+                    }
+                }
+                "manual" -> {
+                    val existing = manualStacks.get(item.itemId)
+                    if (existing != null) {
+                        manualStacks.update(item.itemId) { it.copy(quantity = it.quantity + item.quantity) }
+                    } else {
+                        // 原始功法堆叠已被消耗或删除，跳过回退
+                    }
+                }
+                "pill" -> {
+                    val existing = pills.get(item.itemId)
+                    if (existing != null) {
+                        pills.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) }
+                    }
+                }
+                "material" -> {
+                    val existing = materials.get(item.itemId)
+                    if (existing != null) {
+                        materials.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) }
+                    }
+                }
+                "herb" -> {
+                    val existing = herbs.get(item.itemId)
+                    if (existing != null) {
+                        herbs.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) }
+                    }
+                }
+                "seed" -> {
+                    val existing = seeds.get(item.itemId)
+                    if (existing != null) {
+                        seeds.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) }
+                    }
+                }
             }
-            "manual" -> stateStore.manualStacks.value.find { it.id == item.itemId }?.let {
-                inventorySystem.addManualStack(it.copy(quantity = (it.quantity + item.quantity)))
-            }
-            "pill" -> stateStore.pills.value.find { it.id == item.itemId }?.let {
-                stateStore.update { pills.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) } }
-            }
-            "material" -> stateStore.materials.value.find { it.id == item.itemId }?.let {
-                stateStore.update { materials.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) } }
-            }
-            "herb" -> stateStore.herbs.value.find { it.id == item.itemId }?.let {
-                stateStore.update { herbs.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) } }
-            }
-            "seed" -> stateStore.seeds.value.find { it.id == item.itemId }?.let {
-                stateStore.update { seeds.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) } }
-            }
+            gameData = gameData.copy(playerListedItems = gameData.playerListedItems.filter { it.id != itemId })
         }
-        stateStore.update { gameData = gameData.copy(playerListedItems = gameData.playerListedItems.filter { it.id != itemId }) }
     }
 
     // ── Storage bag ──────────────────────────────────────────────────────
 
     override suspend fun openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> {
-        val bag = stateStore.storageBags.value.find { it.id == bagId }
-            ?: return Pair(emptyList(), emptyList())
-        val rarity = bag.rarity
-        val count = kotlin.random.Random.nextInt(5, 21)
-        val rewards = mutableListOf<BattleRewardItem>()
-
+        val rng = gameRngManager.getRng(RngPartition.EXPLORATION)
+        var rarity = 0
         stateStore.update {
+            val bag = storageBags.get(bagId) ?: return@update
+            rarity = bag.rarity
             if (bag.quantity <= 1) {
                 storageBags.remove(bagId)
             } else {
                 storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
             }
         }
+        if (rarity == 0) return Pair(emptyList(), emptyList())
+
+        val count = 5 + rng.nextInt(16)
+        val rewards = mutableListOf<BattleRewardItem>()
 
         repeat(count) {
-            val type = kotlin.random.Random.nextInt(7)
+            val type = rng.nextInt(7)
             when (type) {
                 0 -> {
                     val stack = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity, rarity)

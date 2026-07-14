@@ -211,18 +211,19 @@ class DiscipleFacadeImpl @Inject constructor(
     }
 
     override fun recruitDiscipleFromList(discipleId: String) {
-        val data = stateStore.gameData.value
-        val disciple = data.recruitList.toList().find { it.id == discipleId } ?: return
-        // ── 完整性校验：跳过损坏的弟子数据 ──
-        if (disciple.name.isBlank() || disciple.age <= 0 || disciple.realm <= 0) {
-            DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId")
-            return
-        }
-        val currentMonthValue = data.gameYear * 12 + data.gameMonth
         gameEngineCore.launchInScope {
-            // allocateNextId 内部有 synchronized 保护，可与 insert 互斥
-            val newId = stateStore.discipleTables.allocateNextId().toString()
+            var newId: String = ""
+            var discipleAge: Int = 0
             stateStore.update {
+                val disciple = gameData.recruitList.toList().find { it.id == discipleId } ?: return@update
+                // ── 完整性校验：跳过损坏的弟子数据 ──
+                if (disciple.name.isBlank() || disciple.age <= 0 || disciple.realm <= 0) {
+                    DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId")
+                    return@update
+                }
+                val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+                newId = discipleTables.allocateNextId().toString()
+                discipleAge = disciple.age
                 val recruitedDisciple = disciple.copy(
                     id = newId,
                     usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
@@ -230,8 +231,10 @@ class DiscipleFacadeImpl @Inject constructor(
                 discipleTables.insert(recruitedDisciple)
                 gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
             }
-            // 记录加入宗门日志
-            discipleService.addLifeEvent(newId, "${disciple.age}岁：加入宗门")
+            if (newId.isNotEmpty()) {
+                // 记录加入宗门日志
+                discipleService.addLifeEvent(newId, "${discipleAge}岁：加入宗门")
+            }
         }
     }
 
@@ -600,151 +603,144 @@ class DiscipleFacadeImpl @Inject constructor(
         discipleRealm: String,
         discipleSpiritRootColor: String
     ) {
-        val data = stateStore.gameData.value
-        val slots = data.elderSlots
-        val newSlot = DirectDiscipleSlot(
-            index = slotIndex,
-            discipleId = discipleId,
-            discipleName = discipleName,
-            discipleRealm = discipleRealm,
-            discipleSpiritRootColor = discipleSpiritRootColor,
-            sectId = data.activeSectId
-        )
-        val updatedSlots = when (elderSlotType) {
-            SLOT_TYPE_HERB_GARDEN -> {
-                val list = slots.herbGardenDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(herbGardenDisciples = list)
-            }
-            SLOT_TYPE_ALCHEMY -> {
-                val list = slots.alchemyDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(alchemyDisciples = list)
-            }
-            SLOT_TYPE_FORGE -> {
-                val list = slots.forgeDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(forgeDisciples = list)
-            }
-            SLOT_TYPE_PREACHING -> {
-                val list = slots.preachingMasters.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(preachingMasters = list)
-            }
-            SLOT_TYPE_LAW_ENFORCEMENT -> {
-                val list = slots.lawEnforcementDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(lawEnforcementDisciples = list)
-            }
-            SLOT_TYPE_QINGYUN -> {
-                val list = slots.qingyunPreachingMasters.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(qingyunPreachingMasters = list)
-            }
-            SLOT_TYPE_SPIRIT_MINE_DEACON -> {
-                val list = slots.spiritMineDeaconDisciples.toMutableList()
-                while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                list[slotIndex] = newSlot
-                slots.copy(spiritMineDeaconDisciples = list)
-            }
-            else -> slots
-        }
         gameEngineCore.launchInScope {
             stateStore.update {
+                val newSlot = DirectDiscipleSlot(
+                    index = slotIndex,
+                    discipleId = discipleId,
+                    discipleName = discipleName,
+                    discipleRealm = discipleRealm,
+                    discipleSpiritRootColor = discipleSpiritRootColor,
+                    sectId = gameData.activeSectId
+                )
+                val slots = gameData.elderSlots
+                val updatedSlots = when (elderSlotType) {
+                    SLOT_TYPE_HERB_GARDEN -> {
+                        val list = slots.herbGardenDisciples.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(herbGardenDisciples = list)
+                    }
+                    SLOT_TYPE_ALCHEMY -> {
+                        val list = slots.alchemyDisciples.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(alchemyDisciples = list)
+                    }
+                    SLOT_TYPE_FORGE -> {
+                        val list = slots.forgeDisciples.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(forgeDisciples = list)
+                    }
+                    SLOT_TYPE_PREACHING -> {
+                        val list = slots.preachingMasters.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(preachingMasters = list)
+                    }
+                    SLOT_TYPE_LAW_ENFORCEMENT -> {
+                        val list = slots.lawEnforcementDisciples.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(lawEnforcementDisciples = list)
+                    }
+                    SLOT_TYPE_QINGYUN -> {
+                        val list = slots.qingyunPreachingMasters.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(qingyunPreachingMasters = list)
+                    }
+                    SLOT_TYPE_SPIRIT_MINE_DEACON -> {
+                        val list = slots.spiritMineDeaconDisciples.toMutableList()
+                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
+                        list[slotIndex] = newSlot
+                        slots.copy(spiritMineDeaconDisciples = list)
+                    }
+                    else -> slots
+                }
                 gameData = gameData.copy(elderSlots = updatedSlots)
-                
             }
-                discipleService.syncAllDiscipleStatuses()
+            discipleService.syncAllDiscipleStatuses()
         }
     }
 
     override fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
-        val slots = stateStore.gameData.value.elderSlots
-        val updatedSlots = when (elderSlotType) {
-            SLOT_TYPE_HERB_GARDEN -> {
-                val list = slots.herbGardenDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(herbGardenDisciples = list)
-            }
-            SLOT_TYPE_ALCHEMY -> {
-                val list = slots.alchemyDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(alchemyDisciples = list)
-            }
-            SLOT_TYPE_FORGE -> {
-                val list = slots.forgeDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(forgeDisciples = list)
-            }
-            SLOT_TYPE_PREACHING -> {
-                val list = slots.preachingMasters.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(preachingMasters = list)
-            }
-            SLOT_TYPE_LAW_ENFORCEMENT -> {
-                val list = slots.lawEnforcementDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(lawEnforcementDisciples = list)
-            }
-            SLOT_TYPE_QINGYUN -> {
-                val list = slots.qingyunPreachingMasters.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(qingyunPreachingMasters = list)
-            }
-            SLOT_TYPE_SPIRIT_MINE_DEACON -> {
-                val list = slots.spiritMineDeaconDisciples.toMutableList()
-                if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
-                slots.copy(spiritMineDeaconDisciples = list)
-            }
-            else -> slots
-        }
         gameEngineCore.launchInScope {
             stateStore.update {
+                val slots = gameData.elderSlots
+                val updatedSlots = when (elderSlotType) {
+                    SLOT_TYPE_HERB_GARDEN -> {
+                        val list = slots.herbGardenDisciples.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(herbGardenDisciples = list)
+                    }
+                    SLOT_TYPE_ALCHEMY -> {
+                        val list = slots.alchemyDisciples.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(alchemyDisciples = list)
+                    }
+                    SLOT_TYPE_FORGE -> {
+                        val list = slots.forgeDisciples.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(forgeDisciples = list)
+                    }
+                    SLOT_TYPE_PREACHING -> {
+                        val list = slots.preachingMasters.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(preachingMasters = list)
+                    }
+                    SLOT_TYPE_LAW_ENFORCEMENT -> {
+                        val list = slots.lawEnforcementDisciples.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(lawEnforcementDisciples = list)
+                    }
+                    SLOT_TYPE_QINGYUN -> {
+                        val list = slots.qingyunPreachingMasters.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(qingyunPreachingMasters = list)
+                    }
+                    SLOT_TYPE_SPIRIT_MINE_DEACON -> {
+                        val list = slots.spiritMineDeaconDisciples.toMutableList()
+                        if (slotIndex < list.size) list[slotIndex] = DirectDiscipleSlot(index = slotIndex)
+                        slots.copy(spiritMineDeaconDisciples = list)
+                    }
+                    else -> slots
+                }
                 gameData = gameData.copy(elderSlots = updatedSlots)
-                
             }
-                discipleService.syncAllDiscipleStatuses()
+            discipleService.syncAllDiscipleStatuses()
         }
     }
 
     override fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
-        val data = stateStore.gameData.value
-        val slots = data.librarySlots.toMutableList()
-        if (slots.any { it.discipleId == discipleId && it.index != slotIndex }) return
-        while (slots.size <= slotIndex) {
-            slots.add(LibrarySlot(index = slots.size))
-        }
-        slots[slotIndex] = LibrarySlot(
-            index = slotIndex,
-            discipleId = discipleId,
-            discipleName = discipleName
-        )
         gameEngineCore.launchInScope {
             stateStore.update {
+                val slots = gameData.librarySlots.toMutableList()
+                if (slots.any { it.discipleId == discipleId && it.index != slotIndex }) return@update
+                while (slots.size <= slotIndex) {
+                    slots.add(LibrarySlot(index = slots.size))
+                }
+                slots[slotIndex] = LibrarySlot(
+                    index = slotIndex,
+                    discipleId = discipleId,
+                    discipleName = discipleName
+                )
                 gameData = gameData.copy(librarySlots = slots)
-                
             }
-                discipleService.syncAllDiscipleStatuses()
+            discipleService.syncAllDiscipleStatuses()
         }
     }
 
     override fun removeDiscipleFromLibrarySlot(slotIndex: Int) {
-        val data = stateStore.gameData.value
-        if (slotIndex < 0 || slotIndex >= data.librarySlots.size) return
-        val slots = data.librarySlots.toMutableList()
-        slots[slotIndex] = LibrarySlot(index = slotIndex)
         gameEngineCore.launchInScope {
             stateStore.update {
+                if (slotIndex < 0 || slotIndex >= gameData.librarySlots.size) return@update
+                val slots = gameData.librarySlots.toMutableList()
+                slots[slotIndex] = LibrarySlot(index = slotIndex)
                 gameData = gameData.copy(librarySlots = slots)
-                
             }
-                discipleService.syncAllDiscipleStatuses()
+            discipleService.syncAllDiscipleStatuses()
         }
     }
 

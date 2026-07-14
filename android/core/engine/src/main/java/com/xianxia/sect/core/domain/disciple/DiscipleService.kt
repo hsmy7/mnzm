@@ -378,68 +378,64 @@ private val scopeProvider: CoroutineScopeProvider,
      * Used when resetting game state or disbanding all teams
      */
     suspend fun resetAllDisciplesStatus() {
-        val data = stateStore.gameData.value
-        val tables = stateStore.discipleTables
-
-        val protectedIds = mutableSetOf<String>()
-        for (id in tables.ids) {
-            val status = tables.statuses[id]
-            if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
-                protectedIds.add(id.toString())
+        val protectedIds = stateStore.updateAndReturn {
+            val ids = mutableSetOf<String>()
+            for (id in discipleTables.ids) {
+                val status = discipleTables.statuses[id]
+                if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
+                    ids.add(id.toString())
+                }
             }
-        }
 
-        val clearedSpiritMineSlots = data.spiritMineSlots.map {
-            if (it.discipleId.isNotEmpty() && it.discipleId !in protectedIds)
-                it.copy(discipleId = "", discipleName = "") else it
-        }
+            val clearedSpiritMineSlots = gameData.spiritMineSlots.map {
+                if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                    it.copy(discipleId = "", discipleName = "") else it
+            }
 
-        val clearedLibrarySlots = data.librarySlots.map {
-            if (it.discipleId.isNotEmpty() && it.discipleId !in protectedIds)
-                it.copy(discipleId = "", discipleName = "") else it
-        }
+            val clearedLibrarySlots = gameData.librarySlots.map {
+                if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                    it.copy(discipleId = "", discipleName = "") else it
+            }
 
-        val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, protectedIds)
+            val clearedElderSlots = clearAllDisciplesFromElderSlots(gameData.elderSlots, ids)
 
-        val clearedGarrisonSects = data.worldMapSects.map { sect ->
-            if (sect.isPlayerSect) {
-                sect.copy(
-                    garrisonSlots = sect.garrisonSlots.map { slot ->
-                        if (slot.discipleId.isNotEmpty() && slot.discipleId !in protectedIds)
-                            GarrisonSlot(index = slot.index)
-                        else slot
-                    }
-                )
-            } else sect
-        }
+            val clearedGarrisonSects = gameData.worldMapSects.map { sect ->
+                if (sect.isPlayerSect) {
+                    sect.copy(
+                        garrisonSlots = sect.garrisonSlots.map { slot ->
+                            if (slot.discipleId.isNotEmpty() && slot.discipleId !in ids)
+                                GarrisonSlot(index = slot.index)
+                            else slot
+                        }
+                    )
+                } else sect
+            }
 
-        val clearedCaveTeams = data.caveExplorationTeams.map { team ->
-            if (team.memberIds.any { it !in protectedIds }) {
-                team.copy(
-                    memberIds = emptyList(),
-                    memberNames = emptyList(),
-                    status = CaveExplorationStatus.COMPLETED
-                )
-            } else team
-        }
+            val clearedCaveTeams = gameData.caveExplorationTeams.map { team ->
+                if (team.memberIds.any { it !in ids }) {
+                    team.copy(
+                        memberIds = emptyList(),
+                        memberNames = emptyList(),
+                        status = CaveExplorationStatus.COMPLETED
+                    )
+                } else team
+            }
 
-        val clearedActiveMissions = data.activeMissions.filter { mission ->
-            mission.discipleIds.all { it in protectedIds }
-        }
+            val clearedActiveMissions = gameData.activeMissions.filter { mission ->
+                mission.discipleIds.all { it in ids }
+            }
 
-        val teamsSnapshot = stateStore.teams.value
-        val updatedTeams = teamsSnapshot.map { team ->
-            if (team.memberIds.any { it !in protectedIds }) {
-                team.copy(
-                    memberIds = emptyList(),
-                    memberNames = emptyList(),
-                    status = ExplorationStatus.COMPLETED
-                )
-            } else team
-        }
+            val updatedTeams = teams.map { team ->
+                if (team.memberIds.any { it !in ids }) {
+                    team.copy(
+                        memberIds = emptyList(),
+                        memberNames = emptyList(),
+                        status = ExplorationStatus.COMPLETED
+                    )
+                } else team
+            }
 
-        stateStore.update {
-            gameData = data.copy(
+            gameData = gameData.copy(
                 spiritMineSlots = clearedSpiritMineSlots,
                 librarySlots = clearedLibrarySlots,
                 elderSlots = clearedElderSlots,
@@ -448,6 +444,19 @@ private val scopeProvider: CoroutineScopeProvider,
                 activeMissions = clearedActiveMissions
             )
             teams = updatedTeams
+
+            for (id in discipleTables.ids) {
+                val isAlive = discipleTables.isAlive[id] == 1
+                val status = discipleTables.statuses[id]
+                if (!isAlive) continue
+                if (status == DiscipleStatus.REFLECTING) continue
+                if (status == DiscipleStatus.REFINING) continue
+                if (status == DiscipleStatus.IDLE) continue
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+                discipleTables.statusData[id] = emptyMap()
+            }
+
+            ids
         }
 
         val allSlots = productionSlotRepository.getSlots()
@@ -457,17 +466,6 @@ private val scopeProvider: CoroutineScopeProvider,
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
-        }
-
-        for (id in tables.ids) {
-            val isAlive = tables.isAlive[id] == 1
-            val status = tables.statuses[id]
-            if (!isAlive) continue
-            if (status == DiscipleStatus.REFLECTING) continue
-            if (status == DiscipleStatus.REFINING) continue
-            if (status == DiscipleStatus.IDLE) continue
-            tables.statuses[id] = DiscipleStatus.IDLE
-            tables.statusData[id] = emptyMap()
         }
     }
 
@@ -968,9 +966,10 @@ private val scopeProvider: CoroutineScopeProvider,
      * Update yearly salary enabled/disabled for a realm
      */
     suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
-        val data = stateStore.gameData.value
-        val newEnabled = data.yearlySalaryEnabled.toMutableMap()
-        newEnabled[realm] = enabled
-        stateStore.update { gameData = gameData.copy(yearlySalaryEnabled = newEnabled) }
+        stateStore.update {
+            val newEnabled = gameData.yearlySalaryEnabled.toMutableMap()
+            newEnabled[realm] = enabled
+            gameData = gameData.copy(yearlySalaryEnabled = newEnabled)
+        }
     }
 }
