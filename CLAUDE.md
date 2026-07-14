@@ -720,6 +720,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
 | 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
+| 🔴 | 新增使用 Compose `Dialog()` 或 Material3 `AlertDialog` 的组件已添加 `DialogSystemBarGuard()` 调用（Dialog Window 不继承 Activity 的 `hideSystemBars()`，需独立隐藏状态栏） |
 | 🔴 | 新增聊天/对话类对话框使用 `UnifiedGameDialog` 容器（详见 `rules/chat-dialog-design.md`） |
 | 🔴 | 新增标记 `isAlive=0` / `status=DEAD` 的代码路径必须调用 `discipleTables.markDead(id, year)` 而非手动写三个字段；仅 `handleDiscipleDeath` 可豁免（已内置 deathYears 写入） |
 | 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |
