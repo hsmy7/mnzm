@@ -611,6 +611,7 @@ suspend fun GameEngine.completeExploration(teamId: String, success: Boolean, sur
 suspend fun GameEngine.redeemCode(code: String, usedCodes: List<String>, currentYear: Int, currentMonth: Int): RedeemResult = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
 fun GameEngine.resetCultivationTimer() { cultivationService.resetHighFrequencyData() }
 suspend fun GameEngine.checkpointAllProduction() { cultivationService.checkpointAllProduction() }
+fun GameEngine.checkpointAllDisciples() { stateStore.update { cultivationService.checkpointAllDisciples(this) } }
 
 // ── Private: Production slot fix ────────────────────────────────────
 

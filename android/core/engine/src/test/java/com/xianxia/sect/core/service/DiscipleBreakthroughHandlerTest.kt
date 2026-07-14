@@ -8,6 +8,8 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
@@ -54,11 +56,14 @@ class DiscipleBreakthroughHandlerTest {
             any<DiscipleTables>()
         )).thenReturn(50.0)
 
+        val rngManager = GameRngManager()
+        rngManager.initSystemSeed(12345L)
         handler = DiscipleBreakthroughHandler(
             stateStore = mockStore,
             cultivationCore = cultivationCore,
             scopeProvider = mock(),
-            relativeGiftHandler = mock()
+            relativeGiftHandler = mock(),
+            rngManager = rngManager
         )
     }
 
@@ -286,6 +291,31 @@ class DiscipleBreakthroughHandlerTest {
 
         assertTrue("realm 0 disciple's cultivation should be >= 0",
             result.cultivation >= 0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — pill depletion (auto pill focused but no pills)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - auto pill focused but no pills available still proceeds`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 9)
+        // 设置自动突破丹药但仓库和储物袋都没有丹药
+        state.gameData = GameData(breakthroughAutoPillFocused = true)
+
+        val original = tables.assemble(1)
+        val gameData = GameData(breakthroughAutoPillFocused = true)
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        // 仍然应该突破（无丹药加成），cultivation 被重置
+        assertEquals("cultivation should be reset after breakthrough attempt",
+            0.0, result.cultivation, 0.0)
+        val realmChanged = result.realm < original.realm || result.realmLayer != original.realmLayer
+        val hpMpReduced = result.combat.currentHp <= (original.maxHp * 0.1).toInt().coerceAtLeast(1)
+        assertTrue(
+            "breakthrough should either change realm/layer (success) or reduce HP/MP (failure) even without pills",
+            realmChanged || hpMpReduced
+        )
     }
 
     // ═══════════════════════════════════════════════════════════════

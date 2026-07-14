@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.state.MutableGameState
@@ -21,6 +20,8 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.util.DomainLog
@@ -55,25 +56,14 @@ class CultivationEventProcessor @Inject constructor(
     private val manualManager: DiscipleManualManager,
     private val autoBuyService: AutoBuyService,
     private val vassalService: VassalService,
-    private val disciplePurchaseService: DisciplePurchaseService
+    private val disciplePurchaseService: DisciplePurchaseService,
+    private val rngManager: GameRngManager
 ) {
     private val scope get() = scopeProvider.scope
     companion object {
         private const val TAG = "CultivationEventProc"
     }
-    private val phaseMultiplier: Int get() = 10
     // ── 时间推进 ──────────────────────────────────────────────────────
-    fun advancePhase(state: MutableGameState? = null) {
-        val targetState = state ?: return
-        val data = targetState.gameData
-        val phase = data.gamePhase
-        val month = data.gameMonth
-        val year = data.gameYear
-        // advancePhase 在游戏循环 tick 的 stateStore.update{} 块内被同步调用，
-        // 此时持有 transactionMutex。processPhaseEvents 内部必须直接操作传入的
-        // targetState（即事务内状态），不能再调用 stateStore.update{}（不可重入锁会死锁）。
-        processPhaseEvents(phase, month, year, targetState)
-    }
     fun advanceMonth(state: MutableGameState? = null) {
         val data = state?.gameData ?: stateStore.gameData.value
         var newMonth = data.gameMonth + 1
@@ -114,112 +104,6 @@ class CultivationEventProcessor @Inject constructor(
         } catch (e: Exception) {
             DomainLog.e(TAG, "Error in $name", e)
         }
-    }
-    private fun processPhaseEvents(phase: Int, month: Int, year: Int, state: MutableGameState) {
-        safelyRun("checkGameOverCondition") { checkGameOverCondition() }
-        safelyRun("processPhaseTick") { processPhaseTick(year, month, phase, state) }
-        safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
-    }
-    // ── Phase Tick ──────────────────────────────────────────────────────
-    private fun processPhaseTick(year: Int, month: Int, phase: Int, state: MutableGameState) {
-        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
-        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
-        val proficienciesMap = stateStore.gameData.value.manualProficiencies
-        val multiplier = phaseMultiplier.toDouble()
-        val decay = phaseMultiplier
-        val equipmentStacksList = stateStore.equipmentStacks.value
-        val manualStacksList = stateStore.manualStacks.value
-        val maxEquipStack = inventoryConfig.getMaxStackSize("equipment_stack")
-        val maxManualStack = inventoryConfig.getMaxStackSize("manual_stack")
-        val aliveDisciples = stateStore.disciples.value.filter { it.isAlive }
-        // 确保所有存活弟子的修炼速率缓存已填充（首月结算前缓存可能为空）
-        val data = state.gameData
-        val tables = state.discipleTables
-        val existingRates = sharedState.cachedCultivationRates
-        val missingIds = aliveDisciples.filter { it.id !in existingRates }
-        if (missingIds.isNotEmpty()) {
-            val updatedRates = existingRates.toMutableMap()
-            for (d in missingIds) {
-                updatedRates[d.id] = cultivationCore.calculateDiscipleCultivationPerPhase(d, data, tables)
-            }
-            sharedState.cachedCultivationRates = updatedRates
-        }
-        val acc = PhaseTickAccumulator()
-        // 循环常量：构造一次，所有弟子共享（避免每迭代分配 5 个上下文对象）
-        val tickTime = TickTimeContext(
-            year = year, month = month, phase = phase,
-            multiplier = multiplier, decay = decay
-        )
-        val tickEquip = TickEquipContext(
-            instanceMap = equipmentMap,
-            stacks = equipmentStacksList,
-            maxStack = maxEquipStack
-        )
-        val tickManual = TickManualContext(
-            instanceMap = manualMap,
-            proficienciesMap = proficienciesMap,
-            stacks = manualStacksList,
-            maxStack = maxManualStack
-        )
-        val tickShared = TickSharedContext(
-            cachedCultivationRates = sharedState.cachedCultivationRates,
-            highFrequencyData = sharedState.highFrequencyData.value,
-            autoEquipDirty = sharedState.autoEquipDirty,
-            autoLearnDirty = sharedState.autoLearnDirty
-        )
-        val batchSize = 50
-        val processedAlive = mutableListOf<Disciple>()
-        for ((index, disciple) in aliveDisciples.withIndex()) {
-            processedAlive.add(
-                cultivationCore.processDiscipleTick(
-                    DiscipleTickParams(
-                        disciple = disciple,
-                        time = tickTime,
-                        equip = tickEquip,
-                        manual = tickManual,
-                        shared = tickShared,
-                        acc = acc
-                    )
-                )
-            )
-            if ((index + 1) % batchSize == 0) {
-                if (thermalMonitor.shouldReduceWorkload()) {
-                    Thread.sleep(5)
-                }
-            }
-        }
-        val currentHfd = sharedState.highFrequencyData.value
-        val accumGains = currentHfd.cultivationUpdates.toMutableMap()
-        processedAlive.forEach { d ->
-            val cultivationRate = sharedState.cachedCultivationRates[d.id] ?: 0.0
-            if (cultivationRate > 0 && d.cultivation < d.maxCultivation) {
-                accumGains[d.id] = (accumGains[d.id] ?: 0.0) + cultivationRate
-            }
-        }
-        sharedState.highFrequencyData.value = currentHfd.copy(
-            cultivationUpdates = accumGains,
-            focusedPhaseCount = currentHfd.focusedPhaseCount + 1
-        )
-        // 精准字段写回：仅写回 processDiscipleTick 实际修改的字段，
-        // 不执行全量 clear()+insert()。
-        // cultivations/realms/realmLayers/lifespans/loyalties 等字段
-        // 由 SettlementCoordinator 月度结算单独管理，phaseTick 不碰。
-        for (disciple in processedAlive) {
-            val id = disciple.id.toInt()
-            state.discipleTables.currentHps[id] = disciple.combat.currentHp
-            state.discipleTables.currentMps[id] = disciple.combat.currentMp
-            state.discipleTables.cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
-            state.discipleTables.cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
-            state.discipleTables.pillCultivationSpeedBonuses[id] = disciple.pillEffects.pillCultivationSpeedBonus
-            state.discipleTables.pillEffectDurations[id] = disciple.pillEffects.pillEffectDuration
-            state.discipleTables.storageBagItems[id] = disciple.equipment.storageBagItems
-            state.discipleTables.weaponIds[id] = disciple.equipment.weaponId
-            state.discipleTables.armorIds[id] = disciple.equipment.armorId
-            state.discipleTables.bootsIds[id] = disciple.equipment.bootsId
-            state.discipleTables.accessoryIds[id] = disciple.equipment.accessoryId
-            state.discipleTables.manualIds[id] = disciple.manualIds
-        }
-        cultivationCore.applyAccumulator(acc, state, maxEquipStack, maxManualStack)
     }
     // ── 自动从仓库装备/学习 ──────────────────────────────────────────
     /**
@@ -269,71 +153,87 @@ class CultivationEventProcessor @Inject constructor(
             val disciple = updatedDisciples[idx]
             var d = disciple
             if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
-                val result = equipmentManager.processAutoEquipFromWarehouse(
-                    disciple = d,
-                    warehouseStacks = eqStacks,
-                    equipmentInstances = eqInstancesById,
-                    gameYear = year,
-                    gameMonth = month,
-                    gamePhase = phase,
-                    maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                )
-                if (result.newInstances.isNotEmpty()) {
-                    d = result.disciple
-                    newEqInstances.addAll(result.newInstances)
-                    // 记录自动装备日志
-                    val equipName = result.newInstances.firstOrNull()?.name ?: ""
-                    if (equipName.isNotEmpty()) {
-                        val age = tables.ages[d.id.toInt()]
-                        discipleService.addLifeEvent(d.id, "${age}岁：自动装备了${equipName}")
-                    }
-                    result.stackUpdates.forEach { update ->
-                        if (update.isDeletion) {
-                            eqStacks = eqStacks.filter { it.id != update.stackId }
-                        } else {
-                            eqStacks = eqStacks.map {
-                                if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
-                            }
-                        }
-                    }
-                }
+                val result = processSingleAutoEquip(d, year, month, phase, tables, eqStacks, eqInstancesById, newEqInstances)
+                d = result.first
+                eqStacks = result.second
             }
             if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
-                val result = manualManager.processAutoLearnFromWarehouse(
-                    disciple = d,
-                    warehouseStacks = mnStacks,
-                    manualInstances = mnInstancesById,
-                    gameYear = year,
-                    gameMonth = month,
-                    gamePhase = phase,
-                    maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                )
-                if (result.newInstance != null) {
-                    d = result.disciple
-                    newMnInstances.add(result.newInstance)
-                    // 记录自动学习日志
-                    val manualName = result.newInstance?.name ?: ""
-                    if (manualName.isNotEmpty()) {
-                        val age = tables.ages[d.id.toInt()]
-                        discipleService.addLifeEvent(d.id, "${age}岁：自动学习了${manualName}")
-                    }
-                    result.stackUpdate?.let { update ->
-                        if (update.isDeletion) {
-                            mnStacks = mnStacks.filter { it.id != update.stackId }
-                        } else {
-                            mnStacks = mnStacks.map {
-                                if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
-                            }
-                        }
-                    }
-                }
+                val result = processSingleAutoLearn(d, year, month, phase, tables, mnStacks, mnInstancesById, newMnInstances)
+                d = result.first
+                mnStacks = result.second
             }
             if (d !== disciple) {
                 updatedDisciples[idx] = d
             }
         }
-        // 精准字段写回：仅写回自动装备/学习实际修改的字段，
-        // 不执行全量 clear()+insert()
+        writeAutoWarehouseResults(state, tables, updatedDisciples, bagEqIds, bagMnIds, eqStacks, mnStacks, newEqInstances, newMnInstances)
+    }
+
+    /**
+     * 处理单个弟子的自动装备：调用 equipmentManager 后更新堆叠状态并记录日志。
+     * @return (更新后的弟子, 更新后的装备堆叠列表)
+     */
+    private fun processSingleAutoEquip(
+        d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables,
+        eqStacks: List<EquipmentStack>, eqInstancesById: Map<String, EquipmentInstance>,
+        newEqInstances: MutableList<EquipmentInstance>
+    ): Pair<Disciple, List<EquipmentStack>> {
+        val result = equipmentManager.processAutoEquipFromWarehouse(
+            disciple = d, warehouseStacks = eqStacks, equipmentInstances = eqInstancesById,
+            gameYear = year, gameMonth = month, gamePhase = phase,
+            maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+        )
+        if (result.newInstances.isEmpty()) return d to eqStacks
+        var stacks = eqStacks
+        newEqInstances.addAll(result.newInstances)
+        val equipName = result.newInstances.firstOrNull()?.name ?: ""
+        if (equipName.isNotEmpty()) {
+            discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动装备了${equipName}")
+        }
+        for (update in result.stackUpdates) {
+            stacks = if (update.isDeletion) stacks.filter { it.id != update.stackId }
+            else stacks.map { if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it }
+        }
+        return result.disciple to stacks
+    }
+
+    /**
+     * 处理单个弟子的自动学习功法：调用 manualManager 后更新堆叠状态并记录日志。
+     * @return (更新后的弟子, 更新后的功法堆叠列表)
+     */
+    private fun processSingleAutoLearn(
+        d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables,
+        mnStacks: List<ManualStack>, mnInstancesById: Map<String, ManualInstance>,
+        newMnInstances: MutableList<ManualInstance>
+    ): Pair<Disciple, List<ManualStack>> {
+        val result = manualManager.processAutoLearnFromWarehouse(
+            disciple = d, warehouseStacks = mnStacks, manualInstances = mnInstancesById,
+            gameYear = year, gameMonth = month, gamePhase = phase,
+            maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+        )
+        if (result.newInstance == null) return d to mnStacks
+        var stacks = mnStacks
+        newMnInstances.add(result.newInstance)
+        val manualName = result.newInstance.name
+        if (manualName.isNotEmpty()) {
+            discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动学习了${manualName}")
+        }
+        result.stackUpdate?.let { update ->
+            stacks = if (update.isDeletion) stacks.filter { it.id != update.stackId }
+            else stacks.map { if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it }
+        }
+        return result.disciple to stacks
+    }
+
+    /**
+     * 精准字段写回：仅写回自动装备/学习实际修改的字段，不执行全量 clear()+insert()。
+     */
+    private fun writeAutoWarehouseResults(
+        state: MutableGameState, tables: DiscipleTables,
+        updatedDisciples: List<Disciple>, bagEqIds: Set<String>, bagMnIds: Set<String>,
+        eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
+        newEqInstances: List<EquipmentInstance>, newMnInstances: List<ManualInstance>
+    ) {
         for (disciple in updatedDisciples) {
             val id = disciple.id.toInt()
             tables.storageBagItems[id] = disciple.equipment.storageBagItems
@@ -386,10 +286,13 @@ class CultivationEventProcessor @Inject constructor(
         safelyRun("monthlyCultivation") { processMonthlyCultivationAndAuto() }
     }
     /**
-     * 月度修炼结算 + 自动后台型系统。
+     * 月度 HP/MP 恢复兜底。
      *
-     * 对标 RimWorld Long Tick 模式 — 每月一次性处理
-     * 修炼经验累积、HP/MP恢复、自动装备/学习/丹药。
+     * 修炼累积、自动装备/学习/丹药已在每旬 [checkBreakthroughsAndPills] 中实时处理，
+     * 此方法仅做月度 HP/MP 恢复兜底（phaseMultiplier×3 旬的恢复量），
+     * 确保批量轨跳过时弟子仍能回满状态。
+     *
+     * 对标 RimWorld Long Tick — 每月一次性 HP/MP 恢复。
      */
     private fun processMonthlyCultivationAndAuto() {
         stateStore.update {
@@ -513,8 +416,8 @@ class CultivationEventProcessor @Inject constructor(
                     .coerceIn(
                         0.0, GameConfig.LawEnforcementConfig.MAX_PROB
                     )
-            if (Random.nextDouble() < desertionProb) {
-                if (Random.nextDouble() < captureRate) {
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
+                if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
                     val currentYear = data.gameYear
                     val endYear = currentYear +
                         GameConfig.LawEnforcementConfig.REFLECTION_YEARS
@@ -567,6 +470,60 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
     }
+    /**
+     * 守卫对战判定 — 选择最近仓库的守卫与盗贼交战，返回是否被抓。
+     *
+     * @return true 表示盗贼被守卫抓获
+     */
+    private fun tryGuardCatch(
+        disciple: Disciple,
+        warehouses: List<GridBuildingData>,
+        garrisons: List<WarehouseGarrisonSlot>,
+        captureRate: Double
+    ): Boolean {
+        if (warehouses.isEmpty()) return rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate
+        val warehouse = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
+        val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive } ?: return false
+        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId } ?: return false
+        val thiefStats = DiscipleStatCalculator.getBaseStats(disciple)
+        val guardStats = DiscipleStatCalculator.getBaseStats(guardDisciple)
+        val thiefPower = thiefStats.physicalAttack + thiefStats.magicAttack +
+            thiefStats.physicalDefense + thiefStats.magicDefense + thiefStats.speed
+        val guardPower = guardStats.physicalAttack + guardStats.magicAttack +
+            guardStats.physicalDefense + guardStats.magicDefense + guardStats.speed
+        val thiefWinProb = (thiefPower.toDouble() / (thiefPower + guardPower).coerceAtLeast(1))
+            .coerceIn(0.1, 0.9)
+        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= thiefWinProb
+    }
+
+    /**
+     * 执行偷窃：从宗门灵石中按比例盗取，存入弟子储物袋，更新最近偷窃月份。
+     * @return 实际盗取的灵石数量（≤0 表示无可偷灵石）
+     */
+    private fun executeTheftStolen(
+        disciple: Disciple,
+        currentMonthValue: Int,
+        tables: DiscipleTables
+    ): Long {
+        val currentData = stateStore.gameData.value
+        if (currentData.spiritStones <= 0) return 0L
+        val stolenAmount = (currentData.spiritStones * (
+            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO +
+            (GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO - GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO) *
+            rngManager.getRng(RngPartition.SYSTEM).nextDouble()
+        )).toLong().coerceAtLeast(1)
+        stateStore.update {
+            gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
+            discipleTables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
+                discipleTables.update(d.copy(
+                    equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount),
+                    usage = d.usage.copy(lastTheftMonth = currentMonthValue)
+                ))
+            }
+        }
+        return stolenAmount
+    }
+
     fun processTheftMonthly() {
         val currentData = stateStore.gameData.value
         if (currentData.spiritStones <= 0) return
@@ -603,96 +560,23 @@ class CultivationEventProcessor @Inject constructor(
                 ((moralThreshold - effectiveMorality) *
                     GameConfig.LawEnforcementConfig.PROB_PER_POINT)
                     .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-            if (Random.nextDouble() < theftProb) {
-                val caught = if (warehouses.isNotEmpty()) {
-                    val warehouse =
-                        warehouses[Random.nextInt(warehouses.size)]
-                    val garrison = garrisons.find {
-                        it.buildingInstanceId == warehouse.instanceId
-                            && it.isActive
-                    }
-                    if (garrison == null) {
-                        false
-                    } else {
-                        val guardDisciple =
-                            stateStore.disciples.value.find {
-                                it.id == garrison.discipleId
-                            }
-                        if (guardDisciple == null) {
-                            false
-                        } else {
-                            val thiefStats =
-                                DiscipleStatCalculator.getBaseStats(
-                                    disciple
-                                )
-                            val guardStats =
-                                DiscipleStatCalculator.getBaseStats(
-                                    guardDisciple
-                                )
-                            val thiefPower = thiefStats.physicalAttack +
-                                thiefStats.magicAttack +
-                                thiefStats.physicalDefense +
-                                thiefStats.magicDefense +
-                                thiefStats.speed
-                            val guardPower = guardStats.physicalAttack +
-                                guardStats.magicAttack +
-                                guardStats.physicalDefense +
-                                guardStats.magicDefense +
-                                guardStats.speed
-                            val totalPower =
-                                (thiefPower + guardPower)
-                                    .coerceAtLeast(1)
-                            val thiefWinProb =
-                                (thiefPower.toDouble() / totalPower)
-                                    .coerceIn(0.1, 0.9)
-                            Random.nextDouble() >= thiefWinProb
-                        }
-                    }
-                } else {
-                    Random.nextDouble() < captureRate
-                }
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < theftProb) {
+                val caught = tryGuardCatch(disciple, warehouses, garrisons, captureRate)
                 if (caught) {
                     stateStore.setPendingNotification(
                         GameNotification.DiscipleTheftCaught(disciple)
                     )
                 } else {
-                    val currentData2 = stateStore.gameData.value
-                    if (currentData2.spiritStones <= 0) break
-                    val stolenAmount =
-                        (currentData2.spiritStones * Random.nextDouble(
-                            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO,
-                            GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO
-                        )).toLong().coerceAtLeast(1)
-                    stateStore.update {
-                        gameData = gameData.copy(
-                            spiritStones = (gameData.spiritStones - stolenAmount)
-                                .coerceAtLeast(0)
-                        )
-                        discipleTables.assembleAll().firstOrNull {
-                            it.id == disciple.id
-                        }?.let { d ->
-                            discipleTables.update(
-                                d.copy(
-                                    equipment = d.equipment.copy(
-                                        storageBagSpiritStones =
-                                            d.equipment.storageBagSpiritStones + stolenAmount
-                                    ),
-                                    usage = d.usage.copy(
-                                        lastTheftMonth = currentMonthValue
-                                    )
-                                )
-                            )
-                        }
-                    }
+                    val stolenAmount = executeTheftStolen(
+                        disciple, currentMonthValue, tables
+                    )
+                    if (stolenAmount <= 0L) break
                     val loyalty = stats.loyalty
                     val desertionProb =
                         ((loyalThreshold - loyalty) *
                             GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-                            .coerceIn(
-                                0.0,
-                                GameConfig.LawEnforcementConfig.MAX_PROB
-                            )
-                    if (Random.nextDouble() < desertionProb) {
+                            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+                    if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
                         thiefIds.add(id)
                     }
                     stateStore.setPendingNotification(
@@ -701,47 +585,43 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-        // 偷盗后叛逃：设置小卡片通知 + 清除槽位 + 清理装备/移除弟子
+        processTheftDesertionCleanup(thiefIds, tables, loyalThreshold)
+    }
+
+    /**
+     * 偷盗后叛逃清理：通知 → 清除槽位 → 事务内移除弟子+清理装备/功法。
+     */
+    private fun processTheftDesertionCleanup(
+        thiefIds: Set<Int>,
+        tables: DiscipleTables,
+        loyalThreshold: Int
+    ) {
+        if (thiefIds.isEmpty()) return
         val theftDesertCleanup = mutableMapOf<Int, Pair<List<String>, Set<String>>>()
         for (thiefId in thiefIds) {
-            // 防御性二次校验
-            val currentLoyal =
-                tables.loyalties.getOrDefault(thiefId, 0)
+            val currentLoyal = tables.loyalties.getOrDefault(thiefId, 0)
             if (currentLoyal >= loyalThreshold) continue
             val snapshot = tables.assemble(thiefId)
             if (snapshot != null) {
                 val equipIds = listOfNotNull(
-                    snapshot.equipment.weaponId,
-                    snapshot.equipment.armorId,
-                    snapshot.equipment.bootsId,
-                    snapshot.equipment.accessoryId
+                    snapshot.equipment.weaponId, snapshot.equipment.armorId,
+                    snapshot.equipment.bootsId, snapshot.equipment.accessoryId
                 )
-                val manualIds = snapshot.manualIds.toSet()
-                theftDesertCleanup[thiefId] = equipIds to manualIds
-                stateStore.setPendingNotification(
-                    GameNotification.DiscipleTheftDesertion(snapshot)
-                )
+                theftDesertCleanup[thiefId] = equipIds to snapshot.manualIds.toSet()
+                stateStore.setPendingNotification(GameNotification.DiscipleTheftDesertion(snapshot))
             }
-            discipleLifecycleProcessor
-                .clearDiscipleFromAllSlots(thiefId.toString())
+            discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId.toString())
         }
-        if (thiefIds.isNotEmpty()) {
-            stateStore.update {
-                for (thiefId in thiefIds) {
-                    if (discipleTables.loyalties.getOrDefault(
-                            thiefId, 0
-                        ) < loyalThreshold
-                    ) {
-                        // 直接删除叛逃弟子的装备/功法实例
-                        val (equipIds, manualIds) = theftDesertCleanup[thiefId] ?: (emptyList<String>() to emptySet())
-                        equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
-                        manualInstances = manualInstances.filter { it.id !in manualIds }
-                        val mutableProf = gameData.manualProficiencies.toMutableMap()
-                        mutableProf.remove(thiefId.toString())
-                        gameData = gameData.copy(manualProficiencies = mutableProf)
-                        discipleTables.remove(thiefId)
-                    }
-                }
+        stateStore.update {
+            for (thiefId in thiefIds) {
+                if (discipleTables.loyalties.getOrDefault(thiefId, 0) >= loyalThreshold) continue
+                val (equipIds, manualIds) = theftDesertCleanup[thiefId] ?: (emptyList<String>() to emptySet())
+                equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
+                manualInstances = manualInstances.filter { it.id !in manualIds }
+                val mutableProf = gameData.manualProficiencies.toMutableMap()
+                mutableProf.remove(thiefId.toString())
+                gameData = gameData.copy(manualProficiencies = mutableProf)
+                discipleTables.remove(thiefId)
             }
         }
     }

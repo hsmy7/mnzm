@@ -169,4 +169,130 @@ class DiscipleTablesTest {
         assertEquals(200.0, copy.cultivations[1], 0.001)
         assertEquals(90, copy.loyalties[1])
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // checkpointDisciple / checkpointAllDisciples / getEffectiveCultivation
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `checkpointDisciple saves current cultivation and month`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 200.0))
+
+        tables.checkpointDisciple(1, currentMonth = 50)
+
+        assertEquals(200.0, tables.cultivationCheckpoints[1], 0.001)
+        assertEquals(50, tables.cultivationCheckpointGameMonths[1])
+    }
+
+    @Test
+    fun `checkpointDisciple after cultivation update saves latest value`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
+
+        tables.cultivations[1] = 350.0
+        tables.checkpointDisciple(1, currentMonth = 75)
+
+        assertEquals(350.0, tables.cultivationCheckpoints[1], 0.001)
+        assertEquals(75, tables.cultivationCheckpointGameMonths[1])
+    }
+
+    @Test
+    fun `checkpointDisciple updates checkpoint from current cultivation value`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 200.0))
+        tables.cultivations[1] = 350.0  // 修改修为但不更新检查点
+
+        tables.checkpointDisciple(1, currentMonth = 75)
+
+        assertEquals(350.0, tables.cultivationCheckpoints[1], 0.001)
+        assertEquals(75, tables.cultivationCheckpointGameMonths[1])
+    }
+
+    @Test
+    fun `checkpointDisciple skips dead disciple`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
+        tables.isAlive[1] = 0
+
+        tables.checkpointDisciple(1, currentMonth = 60)
+
+        // 死弟子的 checkpoint 保持 insert 时的初值（不更新）
+        assertEquals(0.0, tables.cultivationCheckpoints[1], 0.001)
+        assertEquals(0, tables.cultivationCheckpointGameMonths[1])
+    }
+
+    @Test
+    fun `checkpointAllDisciples snapshots only alive disciples`() {
+        val tables = DiscipleTables()
+        for (i in 1..3) {
+            tables.insert(createTestDisciple(id = i.toString(), cultivation = i * 100.0))
+        }
+        tables.isAlive[3] = 0  // mark disciple 3 as dead
+
+        tables.checkpointAllDisciples(currentMonth = 100)
+
+        // 存活弟子检查点更新为当前 cultivation
+        assertEquals(100.0, tables.cultivationCheckpoints[1], 0.001)
+        assertEquals(100, tables.cultivationCheckpointGameMonths[1])
+        assertEquals(200.0, tables.cultivationCheckpoints[2], 0.001)
+        assertEquals(100, tables.cultivationCheckpointGameMonths[2])
+        // 死弟子保持 insert 初值（0, 0）
+        assertEquals(0.0, tables.cultivationCheckpoints[3], 0.001)
+        assertEquals(0, tables.cultivationCheckpointGameMonths[3])
+    }
+
+    @Test
+    fun `getEffectiveCultivation projects from checkpoint plus rate times months`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
+        // 先更新 cultivation 再 checkpoint
+        tables.cultivations[1] = 100.0
+        tables.checkpointDisciple(1, currentMonth = 10)
+
+        val projected = tables.getEffectiveCultivation(1, currentMonth = 12, rate = 5.0)
+
+        // 100 + 5 * (12-10) * 3 = 100 + 30 = 130
+        assertEquals(130.0, projected, 0.001)
+    }
+
+    @Test
+    fun `getEffectiveCultivation uses cultivations when checkpoint month is before insert`() {
+        // insert 始终设置 checkpoint（初值 0），因此后备分支不可达。
+        // 但若 insert 时 cultivation 已有值，projection 用 checkpoint(0) + rate * elapsed
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 150.0))
+        // checkpoint 为 0.0（insert 默认），checkpointMonth 为 0
+
+        val projected = tables.getEffectiveCultivation(1, currentMonth = 20, rate = 5.0)
+
+        // 0 + 5 * (20-0) * 3 = 300
+        assertEquals(300.0, projected, 0.001)
+    }
+
+    @Test
+    fun `getEffectiveCultivation returns checkpoint when rate is zero`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
+        tables.cultivations[1] = 100.0
+        tables.checkpointDisciple(1, currentMonth = 10)
+        tables.cultivations[1] = 200.0  // advance beyond checkpoint
+
+        val projected = tables.getEffectiveCultivation(1, currentMonth = 15, rate = 0.0)
+
+        // rate <= 0 → return checkpoint only
+        assertEquals(100.0, projected, 0.001)
+    }
+
+    @Test
+    fun `getEffectiveCultivation returns checkpoint when months not advanced`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", cultivation = 100.0))
+        tables.cultivations[1] = 100.0
+        tables.checkpointDisciple(1, currentMonth = 10)
+
+        val projected = tables.getEffectiveCultivation(1, currentMonth = 10, rate = 5.0)
+
+        assertEquals(100.0, projected, 0.001)
+    }
 }

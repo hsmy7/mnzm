@@ -35,6 +35,13 @@ class ElderManagementUseCase @Inject constructor(
         ElderSlotType.ALCHEMY, ElderSlotType.FORGE, ElderSlotType.HERB_GARDEN
     )
 
+    /** 影响修炼速度的长老类型 — 变更后触发 checkpointAllDisciples() */
+    private val cultivationElderTypes = setOf(
+        ElderSlotType.PREACHING, ElderSlotType.CLOUD_PREACHING,
+        ElderSlotType.INNER_ELDER, ElderSlotType.OUTER_ELDER,
+        ElderSlotType.VICE_SECT_MASTER
+    )
+
     // ==================== Elder ID 查询辅助方法 ====================
 
     fun ElderSlots.getAllElderIds(): List<String> {
@@ -121,6 +128,10 @@ class ElderManagementUseCase @Inject constructor(
         if (slotType in productionElderTypes) {
             gameEngine.checkpointAllProduction()
         }
+        // Checkpoint：影响修炼速度的长老变化后同步弟子检查点
+        if (slotType in cultivationElderTypes) {
+            gameEngine.checkpointAllDisciples()
+        }
         return ElderResult.Success("长老任命成功")
     }
 
@@ -170,6 +181,9 @@ class ElderManagementUseCase @Inject constructor(
         gameEngine.updateElderSlots(newElderSlots)
         if (slotType in productionElderTypes) {
             gameEngine.checkpointAllProduction()
+        }
+        if (slotType in cultivationElderTypes) {
+            gameEngine.checkpointAllDisciples()
         }
         return ElderResult.Success("长老已卸任")
     }

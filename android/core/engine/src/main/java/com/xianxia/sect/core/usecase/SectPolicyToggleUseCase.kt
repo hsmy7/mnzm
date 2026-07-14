@@ -157,6 +157,8 @@ class SectPolicyToggleUseCase @Inject constructor(
                 it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = false))
             }
         }
+        // Checkpoint：修行津贴影响修炼速度，同步全部弟子检查点
+        gameEngine.checkpointAllDisciples()
         return ToggleResult.Success
     }
 

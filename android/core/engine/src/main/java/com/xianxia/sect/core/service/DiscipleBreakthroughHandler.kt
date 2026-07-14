@@ -10,10 +10,11 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 @Singleton
 @GameService("DiscipleBreakthroughHandler")
@@ -21,7 +22,8 @@ class DiscipleBreakthroughHandler @Inject constructor(
     private val stateStore: GameStateStore,
     private val cultivationCore: CultivationCore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val relativeGiftHandler: RelativeGiftHandler
+    private val relativeGiftHandler: RelativeGiftHandler,
+    private val rngManager: GameRngManager
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -59,6 +61,10 @@ class DiscipleBreakthroughHandler @Inject constructor(
                 shouldContinue = false
             }
         }
+
+        // Checkpoint：突破后弟子境界/层数可能变化，修炼速率改变，同步检查点
+        val currentMonth = data.gameYear * 12 + data.gameMonth
+        d.id.toIntOrNull()?.let { tables.checkpointDisciple(it, currentMonth) }
 
         d = clearAdBonus(d)
         writeBreakthroughCounts(d.id, tables, breakthroughCount, failCount)
@@ -270,7 +276,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             griefBreakthroughPenalty = griefBreakthroughPenalty,
             masterDiscipleBonus = masterDiscipleBonus
         )
-        return Random.nextDouble() < chance
+        return rngManager.getRng(RngPartition.BREAKTHROUGH).nextDouble() < chance
     }
 
     companion object {

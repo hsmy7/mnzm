@@ -679,13 +679,39 @@ class DiscipleTables {
     }
 
     /**
+     * 修炼检查点 — 将当前修炼值同步到检查点。
+     *
+     * 在任意影响修炼速率的操作后调用（政策、长老、丹药、突破等），
+     * 使后续 [getEffectiveCultivation] 在新速率下正确投影。
+     *
+     * @param id 弟子 ID
+     * @param currentMonth 当前绝对月份（gameYear * 12 + gameMonth）
+     */
+    fun checkpointDisciple(id: Int, currentMonth: Int) {
+        if (isAlive[id] != 1) return
+        cultivationCheckpoints[id] = cultivations.getOrDefault(id, 0.0)
+        cultivationCheckpointGameMonths[id] = currentMonth
+    }
+
+    /**
+     * 全量弟子检查点 — 对所有存活弟子同步检查点。
+     *
+     * 在影响全体弟子的速率变化后调用（政策切换、全局丹药等）。
+     *
+     * @param currentMonth 当前绝对月份（gameYear * 12 + gameMonth）
+     */
+    fun checkpointAllDisciples(currentMonth: Int) {
+        for (id in ids) {
+            checkpointDisciple(id, currentMonth)
+        }
+    }
+
+    /**
      * 修炼投影值：检查点值 + 速率 × 经过月份 × 3。
      * 无检查点时回退到实际修炼值（兼容旧数据/新弟子）。
      *
-     * ⚠️ 注意：当前版本中 checkpointDisciple() 仅在 accumulateCultivationPerPhase 每旬更新时同步，
-     * 速率变化点（政策/长老/丹药）尚未全量调用 checkpointDisciple()。
-     * 在启用此投影前，需先在 SectPolicyToggleUseCase、ElderManagementUseCase、CultivationCore 等
-     * 所有影响修炼速率的位置补充 checkpointDisciple() 调用。
+     * [checkpointDisciple] 已全量接入所有速率变化点，
+     * 投影计算在新速率下正确反映从检查点以来的增量。
      */
     fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double {
         if (!cultivationCheckpoints.contains(id)) return cultivations.getOrDefault(id, 0.0)

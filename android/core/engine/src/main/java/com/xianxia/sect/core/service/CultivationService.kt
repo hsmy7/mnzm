@@ -93,6 +93,9 @@ class CultivationService @Inject constructor(
 
         val curCult = tables.cultivations.getOrDefault(id, 0.0)
         tables.cultivations[id] = (curCult + rate).coerceAtMost(disciple.maxCultivation.toDouble())
+        // Checkpoint：每旬累积后同步检查点，确保 getEffectiveCultivation 投影准确
+        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        tables.checkpointDisciple(id, currentMonth)
     }
 
     /**
@@ -100,11 +103,17 @@ class CultivationService @Inject constructor(
      * 同步 checkpoint 到当前游戏月份，使下次计算用新速率。
      */
     fun checkpointDisciple(id: Int, state: MutableGameState) {
-        val tables = state.discipleTables
-        if (tables.isAlive[id] != 1) return
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
-        tables.cultivationCheckpoints[id] = tables.cultivations.getOrDefault(id, 0.0)
-        tables.cultivationCheckpointGameMonths[id] = currentMonth
+        state.discipleTables.checkpointDisciple(id, currentMonth)
+    }
+
+    /**
+     * 全量弟子检查点 — 对所有存活弟子同步检查点。
+     * 在影响全体弟子修炼速率的操作后调用（政策切换、全局丹药等）。
+     */
+    fun checkpointAllDisciples(state: MutableGameState) {
+        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        state.discipleTables.checkpointAllDisciples(currentMonth)
     }
 
     /**
@@ -213,10 +222,6 @@ class CultivationService @Inject constructor(
     }
 
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
-
-    suspend fun advancePhase(state: MutableGameState? = null) {
-        eventProcessor.advancePhase(state)
-    }
 
     suspend fun advanceMonth(state: MutableGameState? = null) {
         eventProcessor.advanceMonth(state)

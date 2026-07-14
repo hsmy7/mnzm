@@ -16,6 +16,13 @@
 - **修复：startAlchemy/startForging 未写入 baseDuration** — 政策重算无法正确计算进度比例
 - **修复：startAlchemyAtomic 缺空材料配方防御、_consumptionLogs 无限增长、startForgingAtomic 缺消耗日志**
 - **对抗性审查：** 3 Agent（边界狂魔+状态破坏者+数据篡改者）共发现 29 项问题，已全部修复
+- **修复：突破概率使用 kotlin.random.Random 破坏存档确定性** — DiscipleBreakthroughHandler.tryBreakthrough() 改为 GameRngManager.getRng(RngPartition.BREAKTHROUGH)。叛逃/偷盗 8 处同步修正(RngPartition.SYSTEM)
+- **修复：checkpointDisciple() 定义但零调用** — 修炼速率变化时(政策/长老/丹药/突破)检查点未同步。在 SectPolicyToggleUseCase/ElderManagementUseCase/CultivationCore.processRealtimeAutoPills/accumulateCultivationPerPhase/performBreakthrough 5个速率变化点接入。DiscipleTables 新增 checkpointDisciple/checkpointAllDisciples 基方法
+- **修复：DiscipleAggregate.buildCultivationZones() 遗漏丹药修炼加速** — pillCultivationSpeedBonus 仅在 Disciple 重载中计入，Aggregate 版本缺失。DiscipleExtended 新增 pillCultivationSpeedBonus/pillEffectDuration + Room MIGRATION_18_19
+- **重构：processTheftMonthly God Method 拆分** — 178 行→~65 行，提取 tryGuardCatch/executeTheftStolen/processTheftDesertionCleanup 3 方法
+- **重构：processAutoFromWarehouse God Method 拆分** — 122 行→~50 行，提取 processSingleAutoEquip/processSingleAutoLearn/writeAutoWarehouseResults 3 方法
+- **清理：死代码 advancePhase/processPhaseEvents/processPhaseTick 删除** — 旧四轨制残留零调用，含 unsafe Thread.sleep(5) 在锁内
+- **新增：7 项 checkpoint 单元测试 + 3 项 CultivationService 集成测试**
 
 ## [4.0.48] - 2026-07-13（versionCode=4048）
 

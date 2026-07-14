@@ -30,7 +30,6 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.ZoneCalculator

@@ -418,6 +418,8 @@ object DiscipleStatCalculator {
                 resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
             }
         } else if (manualIds.isNotEmpty()) {
+            // 兜底路径：调用方未传 manuals 实例映射时，从 ManualDatabase 静态查询
+            // 影响：不支持动态实例属性（如孕养等级），但用于 UI 显示预览足够
             manualIds.forEach { manualId ->
                 val manual = ManualDatabase.getById(manualId) ?: return@forEach
                 val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
@@ -502,6 +504,9 @@ object DiscipleStatCalculator {
         val ext = aggregate.extended
         if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
             temporaryBonus += ext.cultivationSpeedBonus
+        }
+        if (ext != null && ext.pillEffectDuration > 0 && ext.pillCultivationSpeedBonus > 0.0) {
+            temporaryBonus += ext.pillCultivationSpeedBonus
         }
         return computeCultivationZones(
             talentEffects = getTalentEffects(aggregate),
@@ -936,10 +941,15 @@ object DiscipleStatCalculator {
 
     /**
      * 根据血种随机选择属性（50/50），返回属性key。
+     *
+     * @param bloodType 血种类型
+     * @param rng 可选的确定性 PRNG，传入 [GameRngManager.getRng] 的结果可确保存档/读档一致性。
+     *            不传时使用 [kotlin.random.Random]（降低确定性保证）。
      */
-    fun randomBloodRefineStat(bloodType: String): String {
+    fun randomBloodRefineStat(bloodType: String, rng: com.xianxia.sect.core.util.DeterministicRng? = null): String {
         val rule = BeastMaterialDatabase.BLOOD_RULES[bloodType] ?: return ""
-        return if (kotlin.random.Random.nextBoolean()) rule.statA else rule.statB
+        val choice = if (rng != null) rng.nextInt(2) == 0 else kotlin.random.Random.nextBoolean()
+        return if (choice) rule.statA else rule.statB
     }
 
     /**

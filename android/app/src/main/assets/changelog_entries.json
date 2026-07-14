@@ -13,7 +13,13 @@
       "修复：自动重启时弟子死亡仍被恢复为IDLE——completeAlchemySlot/completeForgeSlot加it.isAlive守卫",
       "修复：startAlchemy/startForging未写入baseDuration——政策重算recalculateAllCompletionMonths无法正确计算进度比例",
       "修复：startAlchemyAtomic缺空材料配方防御、_consumptionLogs无限增长、startForgingAtomic缺消耗日志",
-      "对抗性审查：3Agent(边界狂魔+状态破坏者+数据篡改者)共发现29项问题，已全部修复"
+      "对抗性审查：3Agent(边界狂魔+状态破坏者+数据篡改者)共发现29项问题，已全部修复",
+      "修复：突破概率使用kotlin.random.Random破坏存档确定性——DiscipleBreakthroughHandler.tryBreakthrough()改为GameRngManager.getRng(RngPartition.BREAKTHROUGH)。叛逃/偷盗8处同步修正(RngPartition.SYSTEM)",
+      "修复：checkpointDisciple()定义但零调用——修炼速率变化时(政策/长老/丹药/突破)检查点未同步。5个速率变化点接入。DiscipleTables新增checkpointDisciple/checkpointAllDisciples基方法",
+      "修复：DiscipleAggregate.buildCultivationZones()遗漏丹药修炼加速——DiscipleExtended新增pillCultivationSpeedBonus/pillEffectDuration+Room MIGRATION_18_19",
+      "重构：processTheftMonthly God Method拆分(178→65行)/ processAutoFromWarehouse God Method拆分(122→50行)",
+      "清理：死代码advancePhase/processPhaseEvents/processPhaseTick删除——旧四轨制残留，含unsafe Thread.sleep(5)在锁内",
+      "新增：7项checkpoint单元测试+3项CultivationService集成测试"
     ]
   },
   {

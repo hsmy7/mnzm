@@ -548,6 +548,7 @@ class CultivationCore @Inject constructor(
         phase: Int
     ) {
         val tables = state.discipleTables
+        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
             if (!hasUsablePills(id, tables)) continue
@@ -558,6 +559,8 @@ class CultivationCore @Inject constructor(
             )
             if (result.disciple == disciple) continue
             writePillResultToTables(id, result.disciple, tables)
+            // Checkpoint：丹药可能改变修炼速率（持续加速/瞬间增长），同步检查点
+            tables.checkpointDisciple(id, currentMonth)
         }
     }
 
