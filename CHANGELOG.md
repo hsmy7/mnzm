@@ -8,6 +8,7 @@
 
 - **修复：startAlchemyAtomic/startForgingAtomic 材料超额扣除** — 同草药有多个条目时每个都被完整扣减 requiredAmount 导致多扣。改为按 herbId 聚合消耗量逐条扣减
 - **新增：炼丹/锻造成功率接入 FormulaService 乘区法** — 长老加成/弟子境界/天赋/政策四乘区计算，替代原来的裸 recipe.successRate
+- **修复：对话框 Full 模式标题/关闭按钮被 32dp 顶部内边距推下** — `UnifiedGameDialog` Full 模式的 `headerTopPadding` 错误复用水平间距 `headerH`(32dp)，导致全部 Full 模式弹窗（弟子/仓库/设置/建造等）标题和关闭按钮被推下 32dp。修复为 4dp 与 Half 模式一致。同步增强 `hideSystemBars()` 国产 OEM ROM 兼容性（HyperOS/MagicUI/ColorOS 等）
 - **修复：BuildingService 自动收获路径 kotlin.random.Random 破坏存档确定性** — 改为 GameRngManager.getRng(SYSTEM)。ProductionProcessor 对应路径同步修复共 4 处
 - **修复：processAutoAlchemy/processAutoForge 循环 break 卡死自动重启** — 改为 continue 跳过继续处理其余槽位
 - **修复：自动重启未应用速度加成** — 启动后用 formulaService.calculateWorkDurationWithAllDisciples 重算 duration/completionMonth

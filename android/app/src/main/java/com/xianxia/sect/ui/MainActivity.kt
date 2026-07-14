@@ -3,6 +3,7 @@ package com.xianxia.sect.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.View
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -495,6 +496,20 @@ class MainActivity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView).let { controller ->
             controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        // 增强兼容性：国产 OEM ROM（HyperOS/MagicUI/ColorOS 等）对 WindowInsetsController
+        // 支持不完整。使用传统 SystemUI 标志作为补充，确保状态栏在所有设备上可靠隐藏。
+        if (Build.VERSION.SDK_INT < 35) {
+            val decor = window.decorView
+            @Suppress("DEPRECATION")
+            decor.systemUiVisibility = decor.systemUiVisibility or
+                (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                 View.SYSTEM_UI_FLAG_FULLSCREEN or
+                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
         }
     }
 
