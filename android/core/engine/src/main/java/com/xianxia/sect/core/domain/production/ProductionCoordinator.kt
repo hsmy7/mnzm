@@ -147,6 +147,11 @@ class ProductionCoordinator @Inject constructor(
             ?: return DomainResult.Failure(
                 AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
+        if (recipe.materials.isEmpty()) {
+            return DomainResult.Failure(
+                AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
+            )
+        }
 
         val availableMaterials = mutableMapOf<String, Int>()
         herbs.forEach { herb ->
@@ -183,16 +188,25 @@ class ProductionCoordinator @Inject constructor(
             return DomainResult.Failure(appError)
         }
 
-        val newHerbs = herbs.map { herb ->
-            var newQuantity = herb.quantity
-            recipe.materials.forEach { (herbId, requiredAmount) ->
-                val herbData = HerbDatabase.getHerbById(herbId)
-                if (herbData?.name == herb.name && herbData.rarity == herb.rarity) {
-                    newQuantity -= requiredAmount
+        // 按 herbId 聚合消耗量，逐 herb 扣减直到满足配方要求
+        val newHerbs = buildList {
+            val remainingRequired = recipe.materials.toMutableMap()
+            for (herb in herbs) {
+                var newQty = herb.quantity
+                val iter = remainingRequired.iterator()
+                while (iter.hasNext()) {
+                    val (herbId, requiredAmount) = iter.next()
+                    val herbData = HerbDatabase.getHerbById(herbId) ?: continue
+                    if (herbData.name != herb.name || herbData.rarity != herb.rarity) continue
+                    val consume = minOf(newQty, requiredAmount)
+                    newQty -= consume
+                    val remaining = requiredAmount - consume
+                    if (remaining <= 0) iter.remove()
+                    else remainingRequired[herbId] = remaining
                 }
+                if (newQty > 0) add(herb.copy(quantity = newQty))
             }
-            herb.copy(quantity = newQuantity)
-        }.filter { it.quantity > 0 }
+        }
 
         val consumptionLog = MaterialConsumptionLog(
             id = java.util.UUID.randomUUID().toString(),
@@ -204,7 +218,9 @@ class ProductionCoordinator @Inject constructor(
             reason = "炼丹开始",
             buildingId = buildingId
         )
-        _consumptionLogs.value = _consumptionLogs.value + consumptionLog
+        // 限制日志条目数，防止无界增长
+        val MAX_LOG_ENTRIES = 1000
+        _consumptionLogs.value = (_consumptionLogs.value + consumptionLog).takeLast(MAX_LOG_ENTRIES)
 
         DomainLog.d(TAG, "Alchemy started successfully: $buildingId[$slotIndex]")
         return DomainResult.Success(
@@ -272,18 +288,41 @@ class ProductionCoordinator @Inject constructor(
             return DomainResult.Failure(appError)
         }
 
-        val newMaterials = materials.map { material ->
-            var newQuantity = material.quantity
-            recipe.materials.forEach { (materialId, requiredAmount) ->
-                val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                if (materialData?.name == material.name && materialData.rarity == material.rarity) {
-                    newQuantity -= requiredAmount
+        // 按 materialId 聚合消耗量，逐 material 扣减直到满足配方要求
+        val newMaterials = buildList {
+            val remainingRequired = recipe.materials.toMutableMap()
+            for (material in materials) {
+                var newQty = material.quantity
+                val iter = remainingRequired.iterator()
+                while (iter.hasNext()) {
+                    val (matId, requiredAmount) = iter.next()
+                    val matData = BeastMaterialDatabase.getMaterialById(matId) ?: continue
+                    if (matData.name != material.name || matData.rarity != material.rarity) continue
+                    val consume = minOf(newQty, requiredAmount)
+                    newQty -= consume
+                    val remaining = requiredAmount - consume
+                    if (remaining <= 0) iter.remove()
+                    else remainingRequired[matId] = remaining
                 }
+                if (newQty > 0) add(material.copy(quantity = newQty))
             }
-            material.copy(quantity = newQuantity)
-        }.filter { it.quantity > 0 }
+        }
 
         DomainLog.d(TAG, "Forging started successfully: $buildingId[$slotIndex]")
+
+        val forgeConsumptionLog = MaterialConsumptionLog(
+            id = java.util.UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            slotIndex = slotIndex,
+            recipeId = recipeId,
+            recipeName = recipe.name,
+            materials = recipe.materials,
+            reason = "锻造开始",
+            buildingId = buildingId
+        )
+        val MAX_LOG_ENTRIES = 1000
+        _consumptionLogs.value = (_consumptionLogs.value + forgeConsumptionLog).takeLast(MAX_LOG_ENTRIES)
+
         return DomainResult.Success(
             ProductionStartData(
                 slot = txResult.slot ?: ProductionSlot(

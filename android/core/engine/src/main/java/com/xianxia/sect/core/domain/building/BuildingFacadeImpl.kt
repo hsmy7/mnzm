@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -94,7 +95,7 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override fun getBuildingSlots(buildingId: String): List<BuildingSlot> =
-        buildingService.getBuildingSlotsForBuilding(buildingId)
+        productionCoordinator.getSlotsByBuildingId(buildingId).map { it.toBuildingSlot() }
 
     override suspend fun startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> {
         return buildingService.startAlchemy(slotIndex, recipeId)
@@ -108,7 +109,26 @@ class BuildingFacadeImpl @Inject constructor(
         return buildingService.autoHarvestCompletedAlchemySlots()
     }
 
-    override fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
+    override fun getForgeSlots(): List<BuildingSlot> =
+        productionCoordinator.getSlotsByBuildingId(BuildingNames.FORGE).map { it.toBuildingSlot() }
+
+    private fun ProductionSlot.toBuildingSlot(): BuildingSlot = BuildingSlot(
+        id = id,
+        buildingId = buildingId,
+        slotIndex = slotIndex,
+        discipleId = assignedDiscipleId,
+        discipleName = assignedDiscipleName,
+        startYear = startYear,
+        startMonth = startMonth,
+        duration = duration,
+        recipeId = recipeId,
+        recipeName = recipeName,
+        status = when (status) {
+            ProductionSlotStatus.IDLE -> SlotStatus.IDLE
+            ProductionSlotStatus.WORKING -> SlotStatus.WORKING
+            ProductionSlotStatus.COMPLETED -> SlotStatus.COMPLETED
+        }
+    )
 
     override fun getAlchemyFurnaceCount(): Int {
         return BuildingFeatureRegistry.countByType(stateStore.gameDataSnapshot, BuildingType.ALCHEMY)
@@ -294,17 +314,18 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
-    override fun clearAlchemySlot(slotIndex: Int) {
-        if (slotIndex < 0) return
+    override fun clearAlchemySlot(slotIndex: Int): DomainResult<Unit> {
+        if (slotIndex < 0) return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
         gameEngineCore.launchInScope {
             withContext(Dispatchers.IO) {
                 productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slotIndex)
             }
         }
+        return DomainResult.Success(Unit)
     }
 
-    override fun clearForgeSlot(slotIndex: Int) {
-        if (slotIndex < 0) return
+    override fun clearForgeSlot(slotIndex: Int): DomainResult<Unit> {
+        if (slotIndex < 0) return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
         gameEngineCore.launchInScope {
             val slot = productionCoordinator.repository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)
             if (slot != null && !slot.isWorking) {
@@ -316,6 +337,7 @@ class BuildingFacadeImpl @Inject constructor(
                 productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.FORGE, slotIndex)
             }
         }
+        return DomainResult.Success(Unit)
     }
 
     override suspend fun removeBuilding(instanceId: String, refund: Long) {

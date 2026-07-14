@@ -26,9 +26,6 @@ object BridgeBindingsModule {
     fun provideEquipmentRepository(impl: EquipmentRepositoryImpl): EquipmentRepository = impl
 
     @Provides @Singleton
-    fun provideForgeRepository(impl: ForgeRepositoryImpl): ForgeRepository = impl
-
-    @Provides @Singleton
     fun provideGameDataRepository(impl: GameDataRepositoryImpl): GameDataRepository = impl
 
     // Data port bindings

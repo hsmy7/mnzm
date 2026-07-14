@@ -50,8 +50,6 @@ class GameDataRepositoryImpl @Inject constructor(
             database.buildingSlotDao().deleteAll(slotId)
             database.recipeDao().deleteAll(slotId)
             database.battleLogDao().deleteAll(slotId)
-            database.forgeSlotDao().deleteAll(slotId)
-            database.alchemySlotDao().deleteAll(slotId)
             database.productionSlotDao().deleteBySlot(slotId)
         }
     }

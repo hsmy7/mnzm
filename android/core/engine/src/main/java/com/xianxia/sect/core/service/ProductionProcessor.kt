@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -23,6 +22,8 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,13 +32,10 @@ import javax.inject.Singleton
 class ProductionProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig,
-    private val scopeProvider: CoroutineScopeProvider,
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val cultivationSettlement: CultivationSettlement,
-    private val sharedState: CultivationSharedState,
-    private val formulaService: FormulaService
+    private val formulaService: FormulaService,
+    private val rngManager: GameRngManager
 ) {
 
     companion object {
@@ -47,96 +45,110 @@ class ProductionProcessor @Inject constructor(
     // ── 建筑生产 ──────────────────────────────────────────────────────
 
     fun processBuildingProduction(year: Int, month: Int) {
+        processForgeCompletion(year, month)
+        processAlchemyCompletion(year, month)
+    }
+
+    private fun processForgeCompletion(year: Int, month: Int) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         forgeSlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
-                val recipeId = slot.recipeId
-                if (recipeId != null) {
-                    val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
-                    if (recipe != null) {
-                        val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
-                        inventorySystem.addEquipmentStack(equipment)
-                    }
-                }
-
-                slot.assignedDiscipleId?.let { discipleId ->
-                    stateStore.update {
-                        val currentList = discipleTables.assembleAll()
-                        val updated = currentList.map {
-                            if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
-                        }
-                        discipleTables.clear()
-                        updated.forEach { discipleTables.insert(it) }
-                    }
-                }
-
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slot.slotIndex) { s ->
-                    ProductionSlot.createIdle(
-                        id = s.id,
-                        slotIndex = slot.slotIndex,
-                        buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
-                        buildingId = BuildingNames.FORGE,
-                        autoRestartEnabled = slot.autoRestartEnabled,
-                        assignedDiscipleId = slot.assignedDiscipleId,
-                        assignedDiscipleName = slot.assignedDiscipleName,
-                        recipeId = slot.recipeId
-                    )
-                }
+                completeForgeSlot(slot)
+                resetSlotToIdle(slot, BuildingNames.FORGE,
+                    com.xianxia.sect.core.model.production.BuildingType.FORGE)
             }
         }
+    }
 
-        val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+    private fun processAlchemyCompletion(year: Int, month: Int) {
+        val alchemySlots = productionSlotRepository.getSlotsByType(
+            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
         alchemySlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
-                val success = Random.nextDouble() <= slot.successRate
-                if (success) {
-                    val grade = PillGrade.random()
-                    val template = slot.recipeId?.let { rid ->
-                        val baseId = rid.substringBeforeLast("_")
-                        ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
-                    }
-                    val pill = if (template != null) {
-                        ItemDatabase.createPillFromTemplate(template)
-                    } else {
-                        Pill(
-                            name = slot.outputItemName,
-                            rarity = slot.outputItemRarity,
-                            grade = grade,
-                            category = PillCategory.CULTIVATION,
-                            description = "通过炼丹炉炼制而成",
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                            quantity = 1
-                        )
-                    }
-                    inventorySystem.addPill(pill)
-                }
-
-                slot.assignedDiscipleId?.let { discipleId ->
-                    stateStore.update {
-                        val currentList = discipleTables.assembleAll()
-                        val updated = currentList.map {
-                            if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
-                        }
-                        discipleTables.clear()
-                        updated.forEach { discipleTables.insert(it) }
-                    }
-                }
-
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slot.slotIndex) { s ->
-                    ProductionSlot.createIdle(
-                        id = s.id,
-                        slotIndex = slot.slotIndex,
-                        buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
-                        buildingId = BuildingNames.ALCHEMY,
-                        autoRestartEnabled = slot.autoRestartEnabled,
-                        assignedDiscipleId = slot.assignedDiscipleId,
-                        assignedDiscipleName = slot.assignedDiscipleName,
-                        recipeId = slot.recipeId
-                    )
-                }
+                completeAlchemySlot(slot)
+                resetSlotToIdle(slot, BuildingNames.ALCHEMY,
+                    com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
             }
+        }
+    }
+
+    private fun completeForgeSlot(slot: ProductionSlot) {
+        val recipeId = slot.recipeId
+        if (recipeId != null) {
+            val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
+            if (recipe != null) {
+                val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
+                inventorySystem.addEquipmentStack(equipment)
+            }
+        }
+        slot.assignedDiscipleId?.let { discipleId ->
+            stateStore.update {
+                val currentList = discipleTables.assembleAll()
+                val updated = currentList.map {
+                    if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                }
+                discipleTables.clear()
+                updated.forEach { discipleTables.insert(it) }
+            }
+        }
+    }
+
+    private fun completeAlchemySlot(slot: ProductionSlot) {
+        val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
+        val success = alchemyRng.nextDouble() <= slot.successRate
+        if (success) {
+            val roll = alchemyRng.nextDouble()
+            val grade = when {
+                roll < 0.06 -> PillGrade.HIGH
+                roll < 0.40 -> PillGrade.MEDIUM
+                else -> PillGrade.LOW
+            }
+            val template = slot.recipeId?.let { rid ->
+                val baseId = rid.substringBeforeLast("_")
+                ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
+            }
+            val pill = if (template != null) {
+                ItemDatabase.createPillFromTemplate(template)
+            } else {
+                Pill(
+                    name = slot.outputItemName,
+                    rarity = slot.outputItemRarity,
+                    grade = grade,
+                    category = PillCategory.CULTIVATION,
+                    description = "通过炼丹炉炼制而成",
+                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                    quantity = 1
+                )
+            }
+            inventorySystem.addPill(pill)
+        }
+        slot.assignedDiscipleId?.let { discipleId ->
+            stateStore.update {
+                val currentList = discipleTables.assembleAll()
+                val updated = currentList.map {
+                    if (it.id == discipleId && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
+                }
+                discipleTables.clear()
+                updated.forEach { discipleTables.insert(it) }
+            }
+        }
+    }
+
+    private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
+                                 buildingType: com.xianxia.sect.core.model.production.BuildingType) {
+        productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
+            ProductionSlot.createIdle(
+                id = s.id,
+                slotIndex = slot.slotIndex,
+                buildingType = buildingType,
+                buildingId = buildingId,
+                autoRestartEnabled = slot.autoRestartEnabled,
+                assignedDiscipleId = slot.assignedDiscipleId,
+                assignedDiscipleName = slot.assignedDiscipleName,
+                recipeId = slot.recipeId
+            )
         }
     }
 
@@ -294,34 +306,35 @@ class ProductionProcessor @Inject constructor(
             .map { it.slotIndex }
         if (idleSlotIndices.isEmpty()) return
 
-        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
         val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+
+        val allDisciples = stateStore.disciples.value
 
         for (slotIndex in idleSlotIndices) {
             val currentHerbs = stateStore.getCurrentHerbs()
-            val slot = alchemySlots.find { it.slotIndex == slotIndex } ?: break
+            val slot = alchemySlots.find { it.slotIndex == slotIndex } ?: continue
+
+            // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
+            val disciple = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
+            if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+                // 弟子不可用 → 清除槽位关联，等待玩家手动处理
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+                continue
+            }
 
             val recipeToStart = slot.recipeId
                 ?.let { prevRecipeId ->
-                    allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
+                    PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
                         recipe.materials.all { (materialId, requiredQuantity) ->
-                            val herbData = HerbDatabase.getHerbById(materialId)
-                            val herbName = herbData?.name
-                            val herbRarity = herbData?.rarity ?: 1
-                            val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
-                            herb != null && herb.quantity >= requiredQuantity
+                            val herbData = HerbDatabase.getHerbById(materialId) ?: return@all false
+                            currentHerbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
+                                .sumOf { it.quantity } >= requiredQuantity
                         }
                     }
                 }
-                ?: allRecipes.firstOrNull { recipe ->
-                    recipe.materials.all { (materialId, requiredQuantity) ->
-                        val herbData = HerbDatabase.getHerbById(materialId)
-                        val herbName = herbData?.name
-                        val herbRarity = herbData?.rarity ?: 1
-                        val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
-                        herb != null && herb.quantity >= requiredQuantity
-                    }
-                } ?: break
+                ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs) ?: continue
 
             val result = productionCoordinator.startAlchemyAtomic(
                 slotIndex = slotIndex,
@@ -337,8 +350,19 @@ class ProductionProcessor @Inject constructor(
                 stateStore.update {
                     this.herbs.replaceAll(result.data.materialUpdate.herbs)
                 }
+                // 用 FormulaService 重算 duration（startAlchemyAtomic 写入的是原始值）
+                val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
+                    recipeToStart.duration, BuildingNames.ALCHEMY)
+                val absMonth = data.gameYear * 12 + data.gameMonth
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                    s.copy(
+                        duration = actualDuration,
+                        baseDuration = recipeToStart.duration,
+                        completionMonth = absMonth + actualDuration.coerceAtLeast(1)
+                    )
+                }
             } else {
-                break
+                continue
             }
         }
     }
@@ -357,11 +381,22 @@ class ProductionProcessor @Inject constructor(
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
 
+        val allDisciples = stateStore.disciples.value
+
         for (slotIndex in idleSlotIndices) {
             val currentMaterials = stateStore.getCurrentMaterials()
             val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
                 .mapValues { (_, list) -> list.sumOf { it.quantity } }
-            val slot = forgeSlots.find { it.slotIndex == slotIndex } ?: break
+            val slot = forgeSlots.find { it.slotIndex == slotIndex } ?: continue
+
+            // 验证弟子仍存活且空闲
+            val disciple = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
+            if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+                continue
+            }
 
             val recipeToStart = slot.recipeId
                 ?.let { prevRecipeId ->
@@ -383,7 +418,7 @@ class ProductionProcessor @Inject constructor(
                             available >= requiredQuantity
                         }
                     }
-                } ?: break
+                } ?: continue
 
             val result = productionCoordinator.startForgingAtomic(
                 slotIndex = slotIndex,
@@ -542,7 +577,6 @@ class ProductionProcessor @Inject constructor(
         val gd = state.gameData
         val policyBonus = if (gd.sectPolicies.alchemyIncentive)
             GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
-        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
 
         val idleSlotIndices = slots
             .filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY }
@@ -552,7 +586,7 @@ class ProductionProcessor @Inject constructor(
 
         for (slotIndex in idleSlotIndices) {
             val currentHerbs = state.herbs.all()
-            val recipeToStart = findRecipe(allRecipes, currentHerbs) ?: break
+            val recipeToStart = findRecipe(currentHerbs) ?: break
             val slotIdx = slots.indexOfFirst { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY && it.slotIndex == slotIndex }
             if (slotIdx < 0) continue
 
@@ -629,67 +663,89 @@ class ProductionProcessor @Inject constructor(
         slots: MutableList<ProductionSlot>,
         state: MutableGameState
     ) {
+        batchForgeCompletion(slots, state)
+        batchAlchemyCompletion(slots, state)
+    }
+
+    private fun batchForgeCompletion(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
         val year = state.gameData.gameYear
         val month = state.gameData.gameMonth
-
         for (i in slots.indices) {
             val slot = slots[i]
+            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.FORGE) continue
             if (slot.status != ProductionSlotStatus.WORKING) continue
             if (!isSlotCompleteDynamic(slot, year, month)) continue
 
-            when (slot.buildingType) {
-                com.xianxia.sect.core.model.production.BuildingType.FORGE -> {
-                    slot.recipeId?.let { rid ->
-                        val recipe = ForgeRecipeDatabase.getRecipeById(rid)
-                        if (recipe != null) {
-                            val equipment = InventoryFactories.createEquipmentFromRecipe(recipe)
-                            state.equipmentStacks.add(equipment)
-                        }
-                    }
-                    slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
-                        state.discipleTables.statuses[did] = DiscipleStatus.IDLE
-                    }
-                    slots[i] = ProductionSlot.createIdle(
-                        id = slot.id, slotIndex = slot.slotIndex,
-                        buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
-                        buildingId = slot.buildingId,
-                        autoRestartEnabled = slot.autoRestartEnabled,
-                        assignedDiscipleId = slot.assignedDiscipleId,
-                        assignedDiscipleName = slot.assignedDiscipleName ?: "",
-                        recipeId = slot.recipeId
-                    )
+            slot.recipeId?.let { rid ->
+                val recipe = ForgeRecipeDatabase.getRecipeById(rid)
+                if (recipe != null) {
+                    val equipment = InventoryFactories.createEquipmentFromRecipe(recipe)
+                    state.equipmentStacks.add(equipment)
                 }
-                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY -> {
-                    val success = kotlin.random.Random.nextDouble() <= slot.successRate
-                    if (success) {
-                        val grade = com.xianxia.sect.core.model.PillGrade.random()
-                        val baseId = slot.recipeId?.substringBeforeLast("_")
-                        val template = baseId?.let { ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}") }
-                        val pill = if (template != null) ItemDatabase.createPillFromTemplate(template)
-                        else com.xianxia.sect.core.model.Pill(
-                            name = slot.outputItemName, rarity = slot.outputItemRarity,
-                            grade = grade, category = PillCategory.CULTIVATION,
-                            description = "通过炼丹炉炼制而成",
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                            quantity = 1
-                        )
-                        state.pills.add(pill)
-                    }
-                    slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
-                        state.discipleTables.statuses[did] = DiscipleStatus.IDLE
-                    }
-                    slots[i] = ProductionSlot.createIdle(
-                        id = slot.id, slotIndex = slot.slotIndex,
-                        buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
-                        buildingId = slot.buildingId,
-                        autoRestartEnabled = slot.autoRestartEnabled,
-                        assignedDiscipleId = slot.assignedDiscipleId,
-                        assignedDiscipleName = slot.assignedDiscipleName ?: "",
-                        recipeId = slot.recipeId
-                    )
-                }
-                else -> { }
             }
+            slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
+                state.discipleTables.statuses[did] = DiscipleStatus.IDLE
+            }
+            slots[i] = ProductionSlot.createIdle(
+                id = slot.id, slotIndex = slot.slotIndex,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
+                buildingId = slot.buildingId,
+                autoRestartEnabled = slot.autoRestartEnabled,
+                assignedDiscipleId = slot.assignedDiscipleId,
+                assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                recipeId = slot.recipeId
+            )
+        }
+    }
+
+    private fun batchAlchemyCompletion(
+        slots: MutableList<ProductionSlot>,
+        state: MutableGameState
+    ) {
+        val year = state.gameData.gameYear
+        val month = state.gameData.gameMonth
+        for (i in slots.indices) {
+            val slot = slots[i]
+            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.ALCHEMY) continue
+            if (slot.status != ProductionSlotStatus.WORKING) continue
+            if (!isSlotCompleteDynamic(slot, year, month)) continue
+
+            val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
+            val success = alchemyRng.nextDouble() <= slot.successRate
+            if (success) {
+                val roll = alchemyRng.nextDouble()
+                val grade = when {
+                    roll < 0.06 -> com.xianxia.sect.core.model.PillGrade.HIGH
+                    roll < 0.40 -> com.xianxia.sect.core.model.PillGrade.MEDIUM
+                    else -> com.xianxia.sect.core.model.PillGrade.LOW
+                }
+                val baseId = slot.recipeId?.substringBeforeLast("_")
+                val template = baseId?.let { ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}") }
+                val pill = if (template != null) ItemDatabase.createPillFromTemplate(template)
+                else com.xianxia.sect.core.model.Pill(
+                    name = slot.outputItemName, rarity = slot.outputItemRarity,
+                    grade = grade, category = PillCategory.CULTIVATION,
+                    description = "通过炼丹炉炼制而成",
+                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                    quantity = 1
+                )
+                state.pills.add(pill)
+            }
+            slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
+                state.discipleTables.statuses[did] = DiscipleStatus.IDLE
+            }
+            slots[i] = ProductionSlot.createIdle(
+                id = slot.id, slotIndex = slot.slotIndex,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
+                buildingId = slot.buildingId,
+                autoRestartEnabled = slot.autoRestartEnabled,
+                assignedDiscipleId = slot.assignedDiscipleId,
+                assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                recipeId = slot.recipeId
+            )
         }
     }
 
@@ -709,16 +765,9 @@ class ProductionProcessor @Inject constructor(
     // ═══════════════════════════════════════════════════════════════
 
     private fun findRecipe(
-        recipes: List<PillRecipeDatabase.PillRecipe>,
         herbs: List<Herb>
     ): PillRecipeDatabase.PillRecipe? {
-        return recipes.firstOrNull { recipe ->
-            recipe.materials.all { (herbId, requiredQty) ->
-                val herbData = HerbDatabase.getHerbById(herbId) ?: return@all false
-                herbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
-                    .sumOf { it.quantity } >= requiredQty
-            }
-        }
+        return PillRecipeDatabase.findBestCraftableRecipe(herbs)
     }
 
     private fun findForgeRecipe(

@@ -1,3 +1,22 @@
+## [4.0.49] - 2026-07-14（versionCode=4049）
+
+### 重构
+
+- **重构：炼丹系统代码质量全面优化** — 僵尸 Room 实体 `AlchemySlot`/`ForgeSlot` 清理（MIGRATION_17_18 删除 2 张表 + 移除 DAO/Entity/Hilt 绑定）。God Method `processBuildingProduction` 拆 5 个单一职责方法。配方匹配逻辑提取公共函数 `findBestCraftableRecipe` 消除 4 处重复。`PillDetailDialog` 23+ if 样板替换为数据驱动渲染。`clearAlchemySlot`/`clearForgeSlot` 统一返回 `DomainResult`。死代码 `ForgeRepository`/`BuildingService.getAlchemySlots`/4 个 BuildingService 死方法全部删除
+
+### 修复
+
+- **修复：startAlchemyAtomic/startForgingAtomic 材料超额扣除** — 同草药有多个条目时每个都被完整扣减 requiredAmount 导致多扣。改为按 herbId 聚合消耗量逐条扣减
+- **新增：炼丹/锻造成功率接入 FormulaService 乘区法** — 长老加成/弟子境界/天赋/政策四乘区计算，替代原来的裸 recipe.successRate
+- **修复：BuildingService 自动收获路径 kotlin.random.Random 破坏存档确定性** — 改为 GameRngManager.getRng(SYSTEM)。ProductionProcessor 对应路径同步修复共 4 处
+- **修复：processAutoAlchemy/processAutoForge 循环 break 卡死自动重启** — 改为 continue 跳过继续处理其余槽位
+- **修复：自动重启未应用速度加成** — 启动后用 formulaService.calculateWorkDurationWithAllDisciples 重算 duration/completionMonth
+- **修复：startAlchemy/startForging 的 else 分支重复 addSlot 静默失败** — 改为统一 updateSlotByBuildingId
+- **修复：自动重启时弟子死亡仍被恢复为 IDLE** — 加 isAlive 守卫
+- **修复：startAlchemy/startForging 未写入 baseDuration** — 政策重算无法正确计算进度比例
+- **修复：startAlchemyAtomic 缺空材料配方防御、_consumptionLogs 无限增长、startForgingAtomic 缺消耗日志**
+- **对抗性审查：** 3 Agent（边界狂魔+状态破坏者+数据篡改者）共发现 29 项问题，已全部修复
+
 ## [4.0.48] - 2026-07-13（versionCode=4048）
 
 ### 重构

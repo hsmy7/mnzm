@@ -57,10 +57,6 @@ interface EquipmentRepository {
     suspend fun getEquipmentInstancesByOwner(discipleId: String, slotId: Int = 0): List<EquipmentInstance>
 }
 
-interface ForgeRepository {
-    suspend fun getForgeSlotBySlotIndex(slotIndex: Int, slotId: Int = 0): ForgeSlot?
-}
-
 interface GameDataRepository {
     fun getGameData(slotId: Int = 0): Flow<GameData?>
     suspend fun getGameDataSync(slotId: Int = 0): GameData?

@@ -34,8 +34,6 @@ class GameStateRepository @Inject constructor(
     private val buildingSlotDao: BuildingSlotDao,
     private val recipeDao: RecipeDao,
     private val battleLogDao: BattleLogDao,
-    private val forgeSlotDao: ForgeSlotDao,
-    private val alchemySlotDao: AlchemySlotDao,
     private val productionSlotDao: ProductionSlotDao,
     private val changeLogDao: ChangeLogDao,
     private val scopeProvider: CoroutineScopeProvider

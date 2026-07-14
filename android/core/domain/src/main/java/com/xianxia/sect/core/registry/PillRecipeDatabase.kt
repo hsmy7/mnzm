@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.registry
 
+import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import kotlin.math.roundToInt
@@ -329,6 +330,22 @@ object PillRecipeDatabase {
     }
 
     fun getAllRecipes(): List<PillRecipe> = _allRecipes
+
+    /**
+     * 在所有配方中查找材料满足条件且品阶最高的可合成配方。
+     * 用于自动炼丹/UI 配方选择等场景，消除四处重复的遍历逻辑。
+     */
+    fun findBestCraftableRecipe(herbs: List<Herb>): PillRecipe? {
+        return getAllRecipes()
+            .sortedByDescending { it.tier }
+            .firstOrNull { recipe ->
+                recipe.materials.all { (herbId, requiredQty) ->
+                    val herbData = HerbDatabase.getHerbById(herbId) ?: return@all false
+                    herbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
+                        .sumOf { it.quantity } >= requiredQty
+                }
+            }
+    }
 
     fun getRecipeById(id: String): PillRecipe? = _allRecipes.find { it.id == id }
 

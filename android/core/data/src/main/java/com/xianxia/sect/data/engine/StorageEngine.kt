@@ -253,8 +253,6 @@ class StorageEngine @Inject constructor(
                     core.database.explorationTeamDao().deleteAll(slot)
                     core.database.buildingSlotDao().deleteAll(slot)
                     core.database.recipeDao().deleteAll(slot)
-                    core.database.forgeSlotDao().deleteAll(slot)
-                    core.database.alchemySlotDao().deleteAll(slot)
                     core.database.productionSlotDao().deleteBySlot(slot)
                     core.database.battleLogDao().deleteAll(slot)
                     core.database.mailDao().deleteAllForSlot(slot)

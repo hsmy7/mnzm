@@ -472,80 +472,39 @@ private fun PillDetailDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color.Black)
 
-                    if (recipe.breakthroughChance > 0) {
-                        Text(text = "突破成功率 ${pctRange { it.breakthroughChance }}", fontSize = 11.sp, color = Color.Black)
-                        if (recipe.targetRealm > 0) {
-                            Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color.Black)
+                    data class StatLine(val label: String, val value: String)
+
+                    val statLines = buildList {
+                        if (recipe.breakthroughChance > 0) {
+                            add(StatLine("突破成功率", pctRange { it.breakthroughChance }))
+                            if (recipe.targetRealm > 0) add(StatLine("目标境界", "${recipe.targetRealm}阶"))
                         }
+                        if (recipe.cultivationSpeedPercent > 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))
+                        if (recipe.cultivationAdd > 0) add(StatLine("修为", intRange { it.cultivationAdd }))
+                        if (recipe.physicalAttackAdd > 0) add(StatLine("物理攻击", intRange { it.physicalAttackAdd }))
+                        if (recipe.magicAttackAdd > 0) add(StatLine("法术攻击", intRange { it.magicAttackAdd }))
+                        if (recipe.physicalDefenseAdd > 0) add(StatLine("物理防御", intRange { it.physicalDefenseAdd }))
+                        if (recipe.magicDefenseAdd > 0) add(StatLine("法术防御", intRange { it.magicDefenseAdd }))
+                        if (recipe.hpAdd > 0) add(StatLine("生命值", intRange { it.hpAdd }))
+                        if (recipe.mpAdd > 0) add(StatLine("灵力容量", intRange { it.mpAdd }))
+                        if (recipe.speedAdd > 0) add(StatLine("身法", intRange { it.speedAdd }))
+                        if (recipe.critRateAdd > 0) add(StatLine("暴击率", pctRange { it.critRateAdd }))
+                        if (recipe.critEffectAdd > 0) add(StatLine("暴击效果", pctRange { it.critEffectAdd }))
+                        if (recipe.skillExpAdd > 0) add(StatLine("功法熟练度", intRange { it.skillExpAdd }))
+                        if (recipe.nurtureAdd > 0) add(StatLine("孕育值", intRange { it.nurtureAdd }))
+                        if (recipe.extendLife > 0) add(StatLine("延长寿命", "${intRange { it.extendLife }}年"))
+                        if (recipe.intelligenceAdd > 0) add(StatLine("悟性", intRange { it.intelligenceAdd }))
+                        if (recipe.charmAdd > 0) add(StatLine("魅力", intRange { it.charmAdd }))
+                        if (recipe.loyaltyAdd > 0) add(StatLine("忠诚", intRange { it.loyaltyAdd }))
+                        if (recipe.comprehensionAdd > 0) add(StatLine("领悟", intRange { it.comprehensionAdd }))
+                        if (recipe.artifactRefiningAdd > 0) add(StatLine("炼器", intRange { it.artifactRefiningAdd }))
+                        if (recipe.pillRefiningAdd > 0) add(StatLine("炼丹", intRange { it.pillRefiningAdd }))
+                        if (recipe.spiritPlantingAdd > 0) add(StatLine("种植", intRange { it.spiritPlantingAdd }))
+                        if (recipe.teachingAdd > 0) add(StatLine("传授", intRange { it.teachingAdd }))
+                        if (recipe.moralityAdd > 0) add(StatLine("道德", intRange { it.moralityAdd }))
                     }
-                    if (recipe.cultivationSpeedPercent > 0) {
-                        Text(text = "修炼速度 ${pctRange { it.cultivationSpeedPercent }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.cultivationAdd > 0) {
-                        Text(text = "修为 ${intRange { it.cultivationAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.physicalAttackAdd > 0) {
-                        Text(text = "物理攻击 ${intRange { it.physicalAttackAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.magicAttackAdd > 0) {
-                        Text(text = "法术攻击 ${intRange { it.magicAttackAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.physicalDefenseAdd > 0) {
-                        Text(text = "物理防御 ${intRange { it.physicalDefenseAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.magicDefenseAdd > 0) {
-                        Text(text = "法术防御 ${intRange { it.magicDefenseAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.hpAdd > 0) {
-                        Text(text = "生命值 ${intRange { it.hpAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.mpAdd > 0) {
-                        Text(text = "灵力容量 ${intRange { it.mpAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.speedAdd > 0) {
-                        Text(text = "身法 ${intRange { it.speedAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.critRateAdd > 0) {
-                        Text(text = "暴击率 ${pctRange { it.critRateAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.critEffectAdd > 0) {
-                        Text(text = "暴击效果 ${pctRange { it.critEffectAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.skillExpAdd > 0) {
-                        Text(text = "功法熟练度 ${intRange { it.skillExpAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.nurtureAdd > 0) {
-                        Text(text = "孕育值 ${intRange { it.nurtureAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.extendLife > 0) {
-                        Text(text = "延长寿命 ${intRange { it.extendLife }}年", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.intelligenceAdd > 0) {
-                        Text(text = "悟性 ${intRange { it.intelligenceAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.charmAdd > 0) {
-                        Text(text = "魅力 ${intRange { it.charmAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.loyaltyAdd > 0) {
-                        Text(text = "忠诚 ${intRange { it.loyaltyAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.comprehensionAdd > 0) {
-                        Text(text = "领悟 ${intRange { it.comprehensionAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.artifactRefiningAdd > 0) {
-                        Text(text = "炼器 ${intRange { it.artifactRefiningAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.pillRefiningAdd > 0) {
-                        Text(text = "炼丹 ${intRange { it.pillRefiningAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.spiritPlantingAdd > 0) {
-                        Text(text = "种植 ${intRange { it.spiritPlantingAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.teachingAdd > 0) {
-                        Text(text = "传授 ${intRange { it.teachingAdd }}", fontSize = 11.sp, color = Color.Black)
-                    }
-                    if (recipe.moralityAdd > 0) {
-                        Text(text = "道德 ${intRange { it.moralityAdd }}", fontSize = 11.sp, color = Color.Black)
+                    statLines.forEach { line ->
+                        Text(text = "${line.label} ${line.value}", fontSize = 11.sp, color = Color.Black)
                     }
                 }
 

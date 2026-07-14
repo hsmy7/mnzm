@@ -482,13 +482,10 @@ class ProductionProcessorTest {
         return ProductionProcessor(
             stateStore = mock(),
             inventorySystem = mock(),
-            inventoryConfig = InventoryConfig(),
-            scopeProvider = mock(),
             productionCoordinator = mock(),
             productionSlotRepository = mock(),
-            cultivationSettlement = mock(),
-            sharedState = mock(),
-            formulaService = mock()
+            formulaService = mock(),
+            rngManager = mock()
         )
     }
 

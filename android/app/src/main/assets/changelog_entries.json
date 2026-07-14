@@ -1,5 +1,22 @@
 [
   {
+    "date": "2026-07-14",
+    "version": "4.0.49",
+    "changes": [
+      "重构：炼丹系统代码质量全面优化——僵尸Room实体AlchemySlot/ForgeSlot清理(MIGRATION_17_18删2张僵尸表+移除DAO/Entity/Hilt绑定)。God Method processBuildingProduction拆5个单一职责方法。配方匹配逻辑提取公共函数findBestCraftableRecipe消除4处重复。PillDetailDialog 23+if样板替换为数据驱动渲染。clearAlchemySlot/clearForgeSlot统一返回DomainResult。死代码ForgeRepository/BuildingService.getAlchemySlots/4个BuildingService死方法全部删除。移除2个wildcard import",
+      "修复：startAlchemyAtomic/startForgingAtomic材料超额扣除——同草药有多个条目时每个都被完整扣减requiredAmount导致多扣。改为按herbId聚合消耗量逐条扣减",
+      "新增：炼丹/锻造成功率接入FormulaService乘区法——长老加成/弟子境界/天赋/政策四乘区计算，替代原来的裸recipe.successRate",
+      "修复：BuildingService自动收获路径autoCollectAlchemyResult/completeBuildingTaskFromProductionSlot使用kotlin.random.Random破坏存档确定性——改为GameRngManager.getRng(SYSTEM)。ProductionProcessor对应路径同步修复共4处（前序更改遗漏的2条并路径）",
+      "修复：processAutoAlchemy/processAutoForge循环break导致一个槽位材料不足卡死全部自动重启——改为continue跳过继续处理其余槽位",
+      "修复：自动重启未应用速度加成——启动后用formulaService.calculateWorkDurationWithAllDisciples重算duration/completionMonth",
+      "修复：BuildingService.startAlchemy/startForging的else分支重复addSlot静默失败——startAlchemyAtomic已创建槽位，else写入不生效导致formula计算的duration/successRate丢失。改为统一updateSlotByBuildingId",
+      "修复：自动重启时弟子死亡仍被恢复为IDLE——completeAlchemySlot/completeForgeSlot加it.isAlive守卫",
+      "修复：startAlchemy/startForging未写入baseDuration——政策重算recalculateAllCompletionMonths无法正确计算进度比例",
+      "修复：startAlchemyAtomic缺空材料配方防御、_consumptionLogs无限增长、startForgingAtomic缺消耗日志",
+      "对抗性审查：3Agent(边界狂魔+状态破坏者+数据篡改者)共发现29项问题，已全部修复"
+    ]
+  },
+  {
     "date": "2026-07-13",
     "version": "4.0.48",
     "changes": [

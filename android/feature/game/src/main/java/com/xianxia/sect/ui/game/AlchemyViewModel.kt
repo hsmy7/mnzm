@@ -1,9 +1,13 @@
 ﻿package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.startAlchemy
+import com.xianxia.sect.core.engine.toggleAutoRestart
+import com.xianxia.sect.core.engine.assignDiscipleToProductionSlot
+import com.xianxia.sect.core.engine.removeDiscipleFromProductionSlot
+import com.xianxia.sect.core.engine.clearAlchemySlot
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -114,20 +118,9 @@ class AlchemyViewModel @Inject constructor(
 
     private suspend fun startBestAlchemyRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentHerbs = gameEngine.getCurrentHerbs()
-        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
-        val recipeToStart = allRecipes.firstOrNull { recipe ->
-            recipe.materials.all { (materialId, requiredQuantity) ->
-                val herbData = HerbDatabase.getHerbById(materialId)
-                val herbName = herbData?.name
-                val herbRarity = herbData?.rarity ?: 1
-                val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
-                herb != null && herb.quantity >= requiredQuantity
-            }
-        } ?: return DomainResult.Failure(
-            AppError.Domain.Production.InsufficientMaterials()
-        )
-
-        return gameEngine.startAlchemy(slotIndex, recipeToStart.id)
+        val recipe = PillRecipeDatabase.findBestCraftableRecipe(currentHerbs)
+            ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
+        return gameEngine.startAlchemy(slotIndex, recipe.id)
     }
 
     fun toggleAuto(buildingIndex: Int) {
@@ -162,7 +155,10 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun cancelAlchemy(slotIndex: Int) {
-        gameEngine.clearAlchemySlot(slotIndex)
+        val result = gameEngine.clearAlchemySlot(slotIndex)
+        if (result is DomainResult.Failure) {
+            android.util.Log.w("AlchemyViewModel", "取消炼丹失败: ${result.error.message}")
+        }
     }
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {

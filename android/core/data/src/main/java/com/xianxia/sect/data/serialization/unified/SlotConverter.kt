@@ -278,6 +278,7 @@ internal class SlotConverter {
         )
     }
 
+    @Deprecated("AlchemySlot is no longer a Room entity; only used for legacy save data conversion")
     fun convertAlchemySlot(slot: com.xianxia.sect.core.model.AlchemySlot): SerializableAlchemySlot {
         return SerializableAlchemySlot(
             id = slot.id,
@@ -294,6 +295,7 @@ internal class SlotConverter {
         )
     }
 
+    @Deprecated("AlchemySlot is no longer a Room entity; only used for legacy save data conversion")
     fun convertBackAlchemySlot(data: SerializableAlchemySlot): com.xianxia.sect.core.model.AlchemySlot {
         return com.xianxia.sect.core.model.AlchemySlot(
             id = data.id,

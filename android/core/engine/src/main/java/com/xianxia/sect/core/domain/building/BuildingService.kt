@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -26,20 +27,12 @@ class BuildingService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
-private val inventorySystem: InventorySystem
+    private val inventorySystem: InventorySystem,
+    private val formulaService: FormulaService,
+    private val rngManager: com.xianxia.sect.core.util.GameRngManager
 ) {
     companion object {
         private const val TAG = "BuildingService"
-    }
-
-    @Suppress("DEPRECATION")
-    fun getBuildingSlots(): List<BuildingSlot> {
-        return productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE).map { it.toBuildingSlot() }
-    }
-
-    @Suppress("DEPRECATION")
-    fun getAlchemySlots(): List<AlchemySlot> {
-        return productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY).map { it.toAlchemySlot() }
     }
 
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
@@ -120,11 +113,6 @@ private val inventorySystem: InventorySystem
         }
     }
 
-    @Suppress("DEPRECATION")
-    fun getBuildingSlotsForBuilding(buildingId: String): List<BuildingSlot> {
-        return productionSlotRepository.getSlotsByBuildingId(buildingId).map { it.toBuildingSlot() }
-    }
-
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> {
         if (slotIndex < 0) {
             return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
@@ -140,6 +128,22 @@ private val inventorySystem: InventorySystem
             return DomainResult.Failure(AppError.Domain.Production.DiscipleNotAvailable(discipleId = ""))
         }
 
+        val recipe = PillRecipeDatabase.getRecipeById(recipeId)
+            ?: return DomainResult.Failure(AppError.Domain.Production.RecipeNotFound(recipeId = recipeId))
+
+        val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive)
+            com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+
+        val disciple = alchemySlot?.assignedDiscipleId?.let { id ->
+            stateStore.disciples.value.find { it.id == id }
+        }
+        val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+            disciple = disciple,
+            buildingId = BuildingNames.ALCHEMY,
+            baseRate = recipe.successRate,
+            policyBonus = alchemyPolicyBonus
+        ).calculate()
+
         val result = productionCoordinator.startAlchemyAtomic(
             slotIndex = slotIndex,
             recipeId = recipeId,
@@ -147,7 +151,7 @@ private val inventorySystem: InventorySystem
             currentMonth = data.gameMonth,
             herbs = stateStore.getCurrentHerbs(),
             buildingId = BuildingNames.ALCHEMY,
-            alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            alchemyPolicyBonus = alchemyPolicyBonus
         )
 
         val startData = when (result) {
@@ -157,49 +161,28 @@ private val inventorySystem: InventorySystem
         }
         stateStore.update { herbs.replaceAll(startData.materialUpdate.herbs) }
 
-        val recipe = PillRecipeDatabase.getRecipeById(recipeId)
-            ?: return DomainResult.Failure(AppError.Domain.Production.RecipeNotFound(recipeId = recipeId))
         val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, BuildingNames.ALCHEMY)
 
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
+        // startAlchemyAtomic 已确保槽位存在，此处直接更新为最终值
         withContext(Dispatchers.IO) {
-            if (alchemySlot != null) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { slot ->
-                    slot.copy(
-                        status = ProductionSlotStatus.WORKING,
-                        recipeId = recipeId,
-                        recipeName = recipe.name,
-                        startYear = data.gameYear,
-                        startMonth = data.gameMonth,
-                        duration = actualDuration,
-                        successRate = recipe.successRate,
-                        requiredMaterials = recipe.materials,
-                        outputItemId = recipeId,
-                        outputItemName = recipe.name,
-                        outputItemRarity = recipe.rarity,
-                        completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
-                        completionPhase = 2
-                    )
-                }
-            } else {
-                productionSlotRepository.addSlot(ProductionSlot(
-                    slotIndex = slotIndex,
-                    buildingType = BuildingType.ALCHEMY,
-                    buildingId = BuildingNames.ALCHEMY,
+            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { slot ->
+                slot.copy(
                     status = ProductionSlotStatus.WORKING,
                     recipeId = recipeId,
                     recipeName = recipe.name,
                     startYear = data.gameYear,
                     startMonth = data.gameMonth,
                     duration = actualDuration,
-                    successRate = recipe.successRate,
+                    baseDuration = recipe.duration,
+                    successRate = effectiveSuccessRate,
                     requiredMaterials = recipe.materials,
                     outputItemId = recipeId,
                     outputItemName = recipe.name,
                     outputItemRarity = recipe.rarity,
                     completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
                     completionPhase = 2
-                ))
+                )
             }
         }
 
@@ -220,6 +203,22 @@ private val inventorySystem: InventorySystem
             return DomainResult.Failure(AppError.Domain.Production.DiscipleNotAvailable(discipleId = ""))
         }
 
+        val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
+            ?: return DomainResult.Failure(AppError.Domain.Production.RecipeNotFound(recipeId = recipeId))
+
+        val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
+            com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+
+        val disciple = forgeSlot?.assignedDiscipleId?.let { id ->
+            stateStore.disciples.value.find { it.id == id }
+        }
+        val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+            disciple = disciple,
+            buildingId = BuildingNames.FORGE,
+            baseRate = recipe.successRate,
+            policyBonus = forgePolicyBonus
+        ).calculate()
+
         val result = productionCoordinator.startForgingAtomic(
             slotIndex = slotIndex,
             recipeId = recipeId,
@@ -227,7 +226,7 @@ private val inventorySystem: InventorySystem
             currentMonth = data.gameMonth,
             materials = stateStore.getCurrentMaterials(),
             buildingId = BuildingNames.FORGE,
-            forgePolicyBonus = if (data.sectPolicies.forgeIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            forgePolicyBonus = forgePolicyBonus
         )
 
         val startData = when (result) {
@@ -237,51 +236,29 @@ private val inventorySystem: InventorySystem
         }
         stateStore.update { materials.replaceAll(startData.materialUpdate.materials) }
 
-        val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
-            ?: return DomainResult.Failure(AppError.Domain.Production.RecipeNotFound(recipeId = recipeId))
         val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
         val actualDuration = calculateWorkDurationWithAllDisciples(baseDuration, BuildingNames.FORGE)
 
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(data.gameYear, data.gameMonth)
-        val existingForgeSlot = productionSlotRepository.getSlotByBuildingId(BuildingNames.FORGE, slotIndex)
+        // startForgingAtomic 已确保槽位存在，此处直接更新为最终值
         withContext(Dispatchers.IO) {
-            if (existingForgeSlot != null) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { slot ->
-                    slot.copy(
-                        status = ProductionSlotStatus.WORKING,
-                        recipeId = recipeId,
-                        recipeName = recipe.name,
-                        startYear = data.gameYear,
-                        startMonth = data.gameMonth,
-                        duration = actualDuration,
-                        outputItemId = recipeId,
-                        outputItemName = recipe.name,
-                        outputItemRarity = recipe.rarity,
-                        outputItemSlot = recipe.type.name,
-                        completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
-                        completionPhase = 2
-                    )
-                }
-            } else {
-                productionSlotRepository.addSlot(ProductionSlot(
-                    slotIndex = slotIndex,
-                    buildingType = BuildingType.FORGE,
-                    buildingId = BuildingNames.FORGE,
+            productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { slot ->
+                slot.copy(
                     status = ProductionSlotStatus.WORKING,
                     recipeId = recipeId,
                     recipeName = recipe.name,
                     startYear = data.gameYear,
                     startMonth = data.gameMonth,
                     duration = actualDuration,
+                    baseDuration = baseDuration,
+                    successRate = effectiveSuccessRate,
                     outputItemId = recipeId,
                     outputItemName = recipe.name,
                     outputItemRarity = recipe.rarity,
                     outputItemSlot = recipe.type.name,
-                    assignedDiscipleId = existingForgeSlot?.assignedDiscipleId,
-                    assignedDiscipleName = existingForgeSlot?.assignedDiscipleName ?: "",
                     completionMonth = currentAbsoluteMonth + actualDuration.coerceAtLeast(1),
                     completionPhase = 2
-                ))
+                )
             }
         }
 
@@ -309,11 +286,17 @@ private val inventorySystem: InventorySystem
      * Returns the alchemy result for event recording.
      */
     private suspend fun autoCollectAlchemyResult(slot: ProductionSlot): AlchemyResult? {
-        val success = Random.nextDouble() <= slot.successRate
+        val rng = rngManager.getRng(com.xianxia.sect.core.util.RngPartition.SYSTEM)
+        val success = rng.nextDouble() <= slot.successRate
 
         var pill: Pill? = null
         if (success) {
-            val grade = PillGrade.random()
+            val roll = rng.nextDouble()
+            val grade = when {
+                roll < 0.06 -> PillGrade.HIGH
+                roll < 0.40 -> PillGrade.MEDIUM
+                else -> PillGrade.LOW
+            }
             val recipeId = slot.recipeId
             val template = recipeId?.let { rid ->
                 val baseId = rid.substringBeforeLast("_")
@@ -467,7 +450,12 @@ private val inventorySystem: InventorySystem
             BuildingNames.ALCHEMY -> {
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId)
                 if (recipe != null) {
-                    val grade = PillGrade.random()
+                    val roll = rngManager.getRng(com.xianxia.sect.core.util.RngPartition.SYSTEM).nextDouble()
+                    val grade = when {
+                        roll < 0.06 -> PillGrade.HIGH
+                        roll < 0.40 -> PillGrade.MEDIUM
+                        else -> PillGrade.LOW
+                    }
                     val baseId = recipeId.substringBeforeLast("_")
                     val template = ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
                     val pill = if (template != null) {
@@ -490,44 +478,5 @@ private val inventorySystem: InventorySystem
             }
         }
     }
-
-    @Deprecated("Use ProductionSlot directly")
-    private fun ProductionSlot.toBuildingSlot(): BuildingSlot = BuildingSlot(
-        id = id,
-        buildingId = buildingId,
-        slotIndex = slotIndex,
-        discipleId = assignedDiscipleId,
-        discipleName = assignedDiscipleName,
-        startYear = startYear,
-        startMonth = startMonth,
-        duration = duration,
-        recipeId = recipeId,
-        recipeName = recipeName,
-        status = when (status) {
-            ProductionSlotStatus.IDLE -> SlotStatus.IDLE
-            ProductionSlotStatus.WORKING -> SlotStatus.WORKING
-            ProductionSlotStatus.COMPLETED -> SlotStatus.COMPLETED
-        }
-    )
-
-    @Deprecated("Use ProductionSlot directly")
-    private fun ProductionSlot.toAlchemySlot(): AlchemySlot = AlchemySlot(
-        id = id,
-        slotIndex = slotIndex,
-        recipeId = recipeId,
-        recipeName = recipeName,
-        pillName = outputItemName,
-        pillRarity = outputItemRarity,
-        startYear = startYear,
-        startMonth = startMonth,
-        duration = duration,
-        status = when (status) {
-            ProductionSlotStatus.IDLE -> AlchemySlotStatus.IDLE
-            ProductionSlotStatus.WORKING -> AlchemySlotStatus.WORKING
-            ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
-        },
-        successRate = successRate,
-        requiredMaterials = requiredMaterials
-    )
 
 }

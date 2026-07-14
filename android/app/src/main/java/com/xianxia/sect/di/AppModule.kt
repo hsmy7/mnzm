@@ -103,12 +103,6 @@ object AppModule {
     fun provideBattleLogDao(database: GameDatabase): BattleLogDao = database.battleLogDao()
 
     @Provides
-    fun provideForgeSlotDao(database: GameDatabase): ForgeSlotDao = database.forgeSlotDao()
-    
-    @Provides
-    fun provideAlchemySlotDao(database: GameDatabase): AlchemySlotDao = database.alchemySlotDao()
-
-    @Provides
     fun provideDiscipleCoreDao(database: GameDatabase): DiscipleCoreDao = database.discipleCoreDao()
 
     @Provides

@@ -56,8 +56,6 @@ object GameDatabaseConfig {
         BuildingSlot::class,
         Recipe::class,
         BattleLog::class,
-        ForgeSlot::class,
-        AlchemySlot::class,
         ProductionSlot::class,
         ChangeLogEntity::class,
         SaveSlotMetadata::class,
@@ -73,7 +71,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 17  // v17: MIGRATION_15_16 补漏 rngStates/pendingPatrolBattleResults/worldLevelLastRefreshMonth
+    version = 18  // v18: MIGRATION_17_18 删除 forge_slots/alchemy_slots 两张僵尸表
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -99,8 +97,6 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun buildingSlotDao(): BuildingSlotDao
     abstract fun recipeDao(): RecipeDao
     abstract fun battleLogDao(): BattleLogDao
-    abstract fun forgeSlotDao(): ForgeSlotDao
-    abstract fun alchemySlotDao(): AlchemySlotDao
     abstract fun productionSlotDao(): ProductionSlotDao
     abstract fun changeLogDao(): ChangeLogDao
     abstract fun saveSlotMetadataDao(): SaveSlotMetadataDao
@@ -810,6 +806,15 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /** v17→v18: 删除 forge_slots/alchemy_slots 两张僵尸表 — 已全部迁移到 production_slots */
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS forge_slots")
+                db.execSQL("DROP TABLE IF EXISTS alchemy_slots")
+                Log.i(TAG, "Migration 17→18: dropped forge_slots and alchemy_slots tables")
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
@@ -849,7 +854,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
