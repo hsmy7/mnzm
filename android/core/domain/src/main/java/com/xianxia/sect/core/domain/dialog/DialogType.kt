@@ -9,6 +9,8 @@ package com.xianxia.sect.core.domain.dialog
  * 非挂起、零 Android 依赖，iOS 接入时直接可用。
  */
 sealed interface DialogType {
+    /** 域映射键，用于 [com.xianxia.sect.core.engine.GameEngine.setActiveDialog] */
+    val domainKey: String get() = this::class.simpleName ?: ""
 
     // ==================== 主 Tab 全屏覆盖层 ====================
 

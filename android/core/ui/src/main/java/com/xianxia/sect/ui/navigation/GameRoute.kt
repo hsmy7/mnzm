@@ -54,89 +54,35 @@ sealed class GameRoute(val route: String) {
     object GameOver : GameRoute("game_over")
 }
 
-sealed class DialogRoute {
-    /**
-     * 域映射键 — 对应 [com.xianxia.sect.core.engine.system.InterfaceDomainMap] 中的键。
-     * 默认返回简单类名，与 map 中的条目精确匹配。
-     * 子类可通过覆写此属性提供自定义映射键（例如兼容旧调用方）。
-     *
-     * 新增 [InterfaceDomainMap] 条目时，常规做法是让 DialogRoute 子类的类名
-     * 与 map 键一致，由默认实现自动匹配。如需自定义键名，覆写此属性即可。
-     */
-    open val domainKey: String get() = this::class.simpleName ?: ""
-
-    /**
-     * 返回 [domainKey] 作为字符串表示，确保与 [InterfaceDomainMap] 的键精确匹配，
-     * 而非返回默认的 FQN@hash（object）或 data class 的完整参数串。
-     */
-    override fun toString(): String = domainKey
-
-    object None : DialogRoute()
-
-    object Disciples : DialogRoute()
-    object Warehouse : DialogRoute()
-    object Settings : DialogRoute()
-    object Buildings : DialogRoute()
-
-    object Recruit : DialogRoute()
-    object Diplomacy : DialogRoute()
-    object Planting : DialogRoute()
-    object Merchant : DialogRoute()
-    object SalaryConfig : DialogRoute()
-    object WorldMap : DialogRoute()
-    object BattleLog : DialogRoute()
-    object Mail : DialogRoute()
-    object Activity : DialogRoute()
-
-    data class SpiritMine(val buildingInstanceId: String) : DialogRoute()
-    object HerbGarden : DialogRoute()
-    data class Alchemy(val buildingInstanceId: String) : DialogRoute()
-    data class Forge(val buildingInstanceId: String) : DialogRoute()
-    object Library : DialogRoute()
-    object WenDaoPeak : DialogRoute()
-    object QingyunPeak : DialogRoute()
-    object TianshuHall : DialogRoute()
-    object LawEnforcementHall : DialogRoute()
-    object MissionHall : DialogRoute()
-    object ReflectionCliff : DialogRoute()
-    data class PatrolTower(val buildingInstanceId: String) : DialogRoute()
-    data class BloodRefiningPool(val buildingInstanceId: String) : DialogRoute()
-    data class Residence(val buildingInstanceId: String) : DialogRoute()
-    data class WarehouseBuilding(val buildingInstanceId: String) : DialogRoute()
-    object GameOver : DialogRoute()
-    object SectLevelDetail : DialogRoute()
-    object RenameSect : DialogRoute()
-}
-
-fun GameRoute.toDialogRoute(buildingInstanceId: String = ""): DialogRoute = when (this) {
-    GameRoute.Disciples -> DialogRoute.Disciples
-    GameRoute.Warehouse -> DialogRoute.Warehouse
-    GameRoute.Settings -> DialogRoute.Settings
-    GameRoute.Buildings -> DialogRoute.Buildings
-    GameRoute.Recruit -> DialogRoute.Recruit
-    GameRoute.Diplomacy -> DialogRoute.Diplomacy
-    GameRoute.Planting -> DialogRoute.Planting
-    GameRoute.Merchant -> DialogRoute.Merchant
-    GameRoute.SalaryConfig -> DialogRoute.SalaryConfig
-    GameRoute.WorldMap -> DialogRoute.WorldMap
-    GameRoute.BattleLog -> DialogRoute.BattleLog
-    GameRoute.Mail -> DialogRoute.Mail
-    GameRoute.Activity -> DialogRoute.Activity
-    GameRoute.SpiritMine -> DialogRoute.SpiritMine(buildingInstanceId)
-    GameRoute.HerbGarden -> DialogRoute.HerbGarden
-    GameRoute.Alchemy -> DialogRoute.Alchemy(buildingInstanceId)
-    GameRoute.Forge -> DialogRoute.Forge(buildingInstanceId)
-    GameRoute.Library -> DialogRoute.Library
-    GameRoute.WenDaoPeak -> DialogRoute.WenDaoPeak
-    GameRoute.QingyunPeak -> DialogRoute.QingyunPeak
-    GameRoute.TianshuHall -> DialogRoute.TianshuHall
-    GameRoute.LawEnforcementHall -> DialogRoute.LawEnforcementHall
-    GameRoute.MissionHall -> DialogRoute.MissionHall
-    GameRoute.ReflectionCliff -> DialogRoute.ReflectionCliff
-    GameRoute.PatrolTower -> DialogRoute.PatrolTower(buildingInstanceId)
-    GameRoute.BloodRefiningPool -> DialogRoute.BloodRefiningPool(buildingInstanceId)
-    GameRoute.Residence -> DialogRoute.Residence(buildingInstanceId)
-    GameRoute.WarehouseBuilding -> DialogRoute.WarehouseBuilding(buildingInstanceId)
-    GameRoute.GameOver -> DialogRoute.GameOver
-    GameRoute.BattleResult -> DialogRoute.None
+fun GameRoute.toDialogType(buildingInstanceId: String = ""): com.xianxia.sect.core.domain.dialog.DialogType = when (this) {
+    GameRoute.Disciples -> com.xianxia.sect.core.domain.dialog.DialogType.Disciples
+    GameRoute.Warehouse -> com.xianxia.sect.core.domain.dialog.DialogType.Warehouse
+    GameRoute.Settings -> com.xianxia.sect.core.domain.dialog.DialogType.Settings
+    GameRoute.Buildings -> com.xianxia.sect.core.domain.dialog.DialogType.Buildings
+    GameRoute.Recruit -> com.xianxia.sect.core.domain.dialog.DialogType.Recruit
+    GameRoute.Diplomacy -> com.xianxia.sect.core.domain.dialog.DialogType.Diplomacy
+    GameRoute.Planting -> com.xianxia.sect.core.domain.dialog.DialogType.Planting
+    GameRoute.Merchant -> com.xianxia.sect.core.domain.dialog.DialogType.Merchant
+    GameRoute.SalaryConfig -> com.xianxia.sect.core.domain.dialog.DialogType.SalaryConfig
+    GameRoute.WorldMap -> com.xianxia.sect.core.domain.dialog.DialogType.WorldMap
+    GameRoute.BattleLog -> com.xianxia.sect.core.domain.dialog.DialogType.BattleLog
+    GameRoute.Mail -> com.xianxia.sect.core.domain.dialog.DialogType.Mail
+    GameRoute.Activity -> com.xianxia.sect.core.domain.dialog.DialogType.Activity
+    GameRoute.SpiritMine -> com.xianxia.sect.core.domain.dialog.DialogType.SpiritMine(buildingInstanceId)
+    GameRoute.HerbGarden -> com.xianxia.sect.core.domain.dialog.DialogType.HerbGarden
+    GameRoute.Alchemy -> com.xianxia.sect.core.domain.dialog.DialogType.Alchemy(buildingInstanceId)
+    GameRoute.Forge -> com.xianxia.sect.core.domain.dialog.DialogType.Forge(buildingInstanceId)
+    GameRoute.Library -> com.xianxia.sect.core.domain.dialog.DialogType.Library
+    GameRoute.WenDaoPeak -> com.xianxia.sect.core.domain.dialog.DialogType.WenDaoPeak
+    GameRoute.QingyunPeak -> com.xianxia.sect.core.domain.dialog.DialogType.QingyunPeak
+    GameRoute.TianshuHall -> com.xianxia.sect.core.domain.dialog.DialogType.TianshuHall
+    GameRoute.LawEnforcementHall -> com.xianxia.sect.core.domain.dialog.DialogType.LawEnforcementHall
+    GameRoute.MissionHall -> com.xianxia.sect.core.domain.dialog.DialogType.MissionHall
+    GameRoute.ReflectionCliff -> com.xianxia.sect.core.domain.dialog.DialogType.ReflectionCliff
+    GameRoute.PatrolTower -> com.xianxia.sect.core.domain.dialog.DialogType.PatrolTower(buildingInstanceId)
+    GameRoute.BloodRefiningPool -> com.xianxia.sect.core.domain.dialog.DialogType.BloodRefiningPool(buildingInstanceId)
+    GameRoute.Residence -> com.xianxia.sect.core.domain.dialog.DialogType.Residence(buildingInstanceId)
+    GameRoute.WarehouseBuilding -> com.xianxia.sect.core.domain.dialog.DialogType.WarehouseBuilding(buildingInstanceId)
+    GameRoute.GameOver -> com.xianxia.sect.core.domain.dialog.DialogType.GameOver
+    GameRoute.BattleResult -> com.xianxia.sect.core.domain.dialog.DialogType.None
 }

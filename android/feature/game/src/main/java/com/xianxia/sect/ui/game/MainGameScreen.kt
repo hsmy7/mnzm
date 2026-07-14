@@ -33,9 +33,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
-import com.xianxia.sect.ui.navigation.DialogRoute
+import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.navigation.GameRoute
-import com.xianxia.sect.ui.navigation.toDialogRoute
+import com.xianxia.sect.ui.navigation.toDialogType
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
@@ -286,22 +286,22 @@ fun MainGameScreen(
     val buildingList = remember {
         BuildingRegistry.constructible.map { def ->
             val handler: (GridBuildingData?) -> Unit = when (def.key) {
-                "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.SpiritMine(it)) }; Unit }
-                "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogRoute.HerbGarden) }
-                "spirit_field" -> { _ -> viewModel.navigateToDialog(DialogRoute.Planting) }
-                "alchemy" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Alchemy(it)) }; Unit }
-                "forge" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Forge(it)) }; Unit }
-                "library" -> { _ -> viewModel.navigateToDialog(DialogRoute.Library) }
-                "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogRoute.WenDaoPeak) }
-                "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogRoute.QingyunPeak) }
-                "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.TianshuHall) }
-                "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.LawEnforcementHall) }
-                "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogRoute.MissionHall) }
-                "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogRoute.ReflectionCliff) }
-                "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.PatrolTower(it)) }; Unit }
-                "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.BloodRefiningPool(it)) }; Unit }
-                "single_residence", "multi_residence" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.Residence(it)) }; Unit }
-                "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogRoute.WarehouseBuilding(it)) }; Unit }
+                "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }
+                "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogType.HerbGarden) }
+                "spirit_field" -> { _ -> viewModel.navigateToDialog(DialogType.Planting) }
+                "alchemy" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Alchemy(it)) }; Unit }
+                "forge" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Forge(it)) }; Unit }
+                "library" -> { _ -> viewModel.navigateToDialog(DialogType.Library) }
+                "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogType.WenDaoPeak) }
+                "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogType.QingyunPeak) }
+                "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogType.TianshuHall) }
+                "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogType.LawEnforcementHall) }
+                "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
+                "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
+                "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }
+                "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }
+                "single_residence", "multi_residence" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
+                "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }
                 else -> { _ -> Unit }
             }
             def.displayName to handler
@@ -310,13 +310,13 @@ fun MainGameScreen(
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { route ->
-            viewModel.navigateToDialog(route.toDialogRoute())
+            viewModel.navigateToDialog(route.toDialogType())
         }
     }
 
     LaunchedEffect(Unit) {
-        viewModel.currentDialogRoute.collect { route ->
-            if (route !is DialogRoute.None) {
+        viewModel.currentDialogType.collect { route ->
+            if (route !is DialogType.None) {
                 isPlacingBuilding = false
                 movingBuilding = null
                 buildingBarExpanded = false
@@ -608,11 +608,11 @@ fun MainGameScreen(
                         if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
                             val def = BuildingRegistry.findByDisplayName(clicked.displayName)
                             when (def?.key) {
-                                "spirit_mine" -> viewModel.navigateToDialog(DialogRoute.SpiritMine(clicked.instanceId))
-                                "alchemy" -> viewModel.navigateToDialog(DialogRoute.Alchemy(clicked.instanceId))
-                                "forge" -> viewModel.navigateToDialog(DialogRoute.Forge(clicked.instanceId))
+                                "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
+                                "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
+                                "forge" -> viewModel.navigateToDialog(DialogType.Forge(clicked.instanceId))
                                 "single_residence", "single_residence_upgraded", "multi_residence" -> {
-                                    viewModel.navigateToDialog(DialogRoute.Residence(clicked.instanceId))
+                                    viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
                                 }
                                 else -> {
                                     val b = buildingList.find { it.first == clicked.displayName }
@@ -1006,7 +1006,7 @@ fun MainGameScreen(
                         sectLevel = currentSectLevel,
                         showRewardBadge = showRewardBadge,
                         onSectIconClick = { viewModel.navigateToSectLevelDetail() },
-                        onSectNameClick = { viewModel.navigateToDialog(DialogRoute.RenameSect) }
+                        onSectNameClick = { viewModel.navigateToDialog(DialogType.RenameSect) }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }

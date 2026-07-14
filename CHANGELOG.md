@@ -3,6 +3,7 @@
 ### 重构
 
 - **重构：炼丹系统代码质量全面优化** — 僵尸 Room 实体 `AlchemySlot`/`ForgeSlot` 清理（MIGRATION_17_18 删除 2 张表 + 移除 DAO/Entity/Hilt 绑定）。God Method `processBuildingProduction` 拆 5 个单一职责方法。配方匹配逻辑提取公共函数 `findBestCraftableRecipe` 消除 4 处重复。`PillDetailDialog` 23+ if 样板替换为数据驱动渲染。`clearAlchemySlot`/`clearForgeSlot` 统一返回 `DomainResult`。死代码 `ForgeRepository`/`BuildingService.getAlchemySlots`/4 个 BuildingService 死方法全部删除
+- **重构：移除 DialogRoute 冗余类型层级** — `DialogType`（core:domain）和 `DialogRoute`（core:ui）内容完全一致的平行密封类，靠 ~100 行双向映射 + StateFlow 桥接串联。对标行业标准（Google Compose 推荐、Unreal CommonUI、Unity UIManager 均为 1 套类型 0 行映射），删除 `DialogRoute` + 双向映射 + 桥接，直接 `DialogType` 单一真相源驱动 UI。新增界面只需 2 步：DialogType 加类型 → GameOverlayHost 加 when 分支。8 文件修改，-361/+129 行
 
 ### 修复
 

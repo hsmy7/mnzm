@@ -18,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.navigation.DialogRoute
 
 @Composable
 fun GameActionButtons(
@@ -43,11 +43,11 @@ fun GameActionButtons(
             FloatingActionButton(
                 text = "外交",
                 spriteName = "ui_diplomacy_button"
-            ) { viewModel.navigateToDialog(DialogRoute.Diplomacy) }
+            ) { viewModel.navigateToDialog(DialogType.Diplomacy) }
             FloatingActionButton(
                 text = "商人",
                 spriteName = "ui_merchant_button"
-            ) { viewModel.navigateToDialog(DialogRoute.Merchant) }
+            ) { viewModel.navigateToDialog(DialogType.Merchant) }
             FloatingActionButton(
                 text = "建造",
                 spriteName = "ui_build_button"
@@ -55,25 +55,25 @@ fun GameActionButtons(
             FloatingActionButton(
                 text = "仓库",
                 spriteName = "ui_warehouse_button"
-            ) { viewModel.navigateToDialog(DialogRoute.Warehouse) }
+            ) { viewModel.navigateToDialog(DialogType.Warehouse) }
             FloatingActionButton(
                 text = "活动",
                 spriteName = "ui_activity_button",
                 badge = if (activityBadge) 1 else 0
-            ) { viewModel.navigateToDialog(DialogRoute.Activity) }
+            ) { viewModel.navigateToDialog(DialogType.Activity) }
         }
         FloatingActionButton(
             text = "弟子",
             spriteName = "ui_team_button"
-        ) { viewModel.navigateToDialog(DialogRoute.Disciples) }
+        ) { viewModel.navigateToDialog(DialogType.Disciples) }
         FloatingActionButton(
             text = "世界",
             spriteName = "ui_map_button"
-        ) { viewModel.navigateToDialog(DialogRoute.WorldMap) }
+        ) { viewModel.navigateToDialog(DialogType.WorldMap) }
         FloatingActionButton(
             text = "种植",
             spriteName = "ui_planting_button"
-        ) { viewModel.navigateToDialog(DialogRoute.Planting) }
+        ) { viewModel.navigateToDialog(DialogType.Planting) }
     }
 }
 
@@ -92,20 +92,20 @@ fun LeftSideButtons(
         FloatingActionButton(
             text = "设置",
             spriteName = "ui_settings_button"
-        ) { viewModel.navigateToDialog(DialogRoute.Settings) }
+        ) { viewModel.navigateToDialog(DialogType.Settings) }
         FloatingActionButton(
             text = "招募",
             spriteName = "ui_recruit_button"
-        ) { viewModel.navigateToDialog(DialogRoute.Recruit) }
+        ) { viewModel.navigateToDialog(DialogType.Recruit) }
         FloatingActionButton(
             text = "邮件",
             spriteName = "ui_mail_button",
             badge = mailUnreadCount
-        ) { viewModel.navigateToDialog(DialogRoute.Mail) }
+        ) { viewModel.navigateToDialog(DialogType.Mail) }
         FloatingActionButton(
             text = "日志",
             spriteName = "ui_log_button"
-        ) { viewModel.navigateToDialog(DialogRoute.BattleLog) }
+        ) { viewModel.navigateToDialog(DialogType.BattleLog) }
     }
 }
 

@@ -719,6 +719,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🔴 | 新增影响炼丹/锻造/灵田速率因子已同步更新 `calculateWorkDurationWithAllDisciples` 或 `calculateSpiritFieldMaturityBonus` |
 | 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
+| 🔴 | 新增对话框已遵循 `rules/new-dialog-checklist.md` 标准流程（注册 DialogType → 渲染 when 分支） |
 | 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
 | 🔴 | 新增使用 Compose `Dialog()` 或 Material3 `AlertDialog` 的组件已添加 `DialogSystemBarGuard()` 调用（Dialog Window 不继承 Activity 的 `hideSystemBars()`，需独立隐藏状态栏） |
 | 🔴 | 新增聊天/对话类对话框使用 `UnifiedGameDialog` 容器（详见 `rules/chat-dialog-design.md`） |

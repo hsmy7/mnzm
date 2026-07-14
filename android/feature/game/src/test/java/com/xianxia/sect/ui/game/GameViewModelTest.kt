@@ -35,7 +35,6 @@ import com.xianxia.sect.core.state.UnifiedGameState
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
-import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.ui.navigation.GameRoute
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -517,7 +516,7 @@ class GameViewModelTest {
     @Test
     fun navigateToDialog_delegates_to_dialogManager_open() = runTest(testDispatcher) {
         every { dialogManager.open(any(), any()) } just runs
-        viewModel.navigateToDialog(DialogRoute.Settings)
+        viewModel.navigateToDialog(DialogType.Settings)
         verify { dialogManager.open(any(), any()) }
     }
 
@@ -712,91 +711,5 @@ class GameViewModelTest {
         )
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // 对话框桥接映射 roundtrip 测试
-    // ════════════════════════════════════════════════════════════════
+	}
 
-    @Test
-    fun `dialogRoute toDialogType roundtrip - all None`() {
-        assertEquals(DialogType.None, with(viewModel) { DialogRoute.None.toDialogType() })
-    }
-
-    @Test
-    fun `dialogRoute toDialogType - Disciples maps correctly`() {
-        assertEquals(DialogType.Disciples, with(viewModel) { DialogRoute.Disciples.toDialogType() })
-    }
-
-    @Test
-    fun `dialogRoute toDialogType - Settings maps correctly`() {
-        assertEquals(DialogType.Settings, with(viewModel) { DialogRoute.Settings.toDialogType() })
-    }
-
-    @Test
-    fun `dialogRoute toDialogType - Alchemy maps with buildingInstanceId`() {
-        val type = with(viewModel) { DialogRoute.Alchemy("bld_001").toDialogType() }
-        assertTrue(type is DialogType.Alchemy)
-        assertEquals("bld_001", (type as DialogType.Alchemy).buildingInstanceId)
-    }
-
-    @Test
-    fun `dialogType toDialogRoute roundtrip - Alchemy`() {
-        val original = DialogRoute.Alchemy("bld_001")
-        val type = with(viewModel) { original.toDialogType() }
-        val routeBack = with(viewModel) { type.toDialogRoute() }
-        assertEquals(original, routeBack)
-    }
-
-    @Test
-    fun `dialogType toDialogRoute roundtrip - all singleton routes`() {
-        val routes = listOf(
-            DialogRoute.Disciples,
-            DialogRoute.Warehouse,
-            DialogRoute.Settings,
-            DialogRoute.Buildings,
-            DialogRoute.Recruit,
-            DialogRoute.Diplomacy,
-            DialogRoute.WorldMap,
-            DialogRoute.BattleLog,
-            DialogRoute.Mail,
-            DialogRoute.Activity,
-            DialogRoute.Planting,
-            DialogRoute.Merchant,
-            DialogRoute.HerbGarden,
-            DialogRoute.Library,
-            DialogRoute.WenDaoPeak,
-            DialogRoute.QingyunPeak,
-            DialogRoute.TianshuHall,
-            DialogRoute.LawEnforcementHall,
-            DialogRoute.MissionHall,
-            DialogRoute.ReflectionCliff,
-            DialogRoute.GameOver,
-            DialogRoute.SectLevelDetail,
-            DialogRoute.RenameSect,
-            DialogRoute.SalaryConfig
-        )
-        for (route in routes) {
-            val type = with(viewModel) { route.toDialogType() }
-            val roundtrip = with(viewModel) { type.toDialogRoute() }
-            assertEquals("Roundtrip failed for $route", route, roundtrip)
-        }
-    }
-
-    @Test
-    fun `dialogType toDialogRoute roundtrip - data class routes with instanceId`() {
-        val routes = mapOf(
-            DialogRoute.Alchemy("b1") to DialogType.Alchemy("b1"),
-            DialogRoute.Forge("b2") to DialogType.Forge("b2"),
-            DialogRoute.SpiritMine("b3") to DialogType.SpiritMine("b3"),
-            DialogRoute.PatrolTower("b4") to DialogType.PatrolTower("b4"),
-            DialogRoute.BloodRefiningPool("b5") to DialogType.BloodRefiningPool("b5"),
-            DialogRoute.Residence("b6") to DialogType.Residence("b6"),
-            DialogRoute.WarehouseBuilding("b7") to DialogType.WarehouseBuilding("b7")
-        )
-        for ((route, expectedType) in routes) {
-            val type = with(viewModel) { route.toDialogType() }
-            assertEquals(expectedType, type)
-            val roundtrip = with(viewModel) { type.toDialogRoute() }
-            assertEquals("Roundtrip failed for $route", route, roundtrip)
-        }
-    }
-}

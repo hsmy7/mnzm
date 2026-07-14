@@ -42,7 +42,6 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
-import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.ui.navigation.GameRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
@@ -108,110 +107,18 @@ class GameViewModel @Inject constructor(
 
     private val _dialogOpenTrigger = MutableSharedFlow<Unit>(replay = 0)
 
-    /**
-     * 旧版兼容：将 [DialogRoute] 映射为 [DialogType]。
-     * 在后续步骤中逐步替换为直接使用 [DialogType]。
-     */
-    fun DialogRoute.toDialogType(): DialogType = when (this) {
-        DialogRoute.None -> DialogType.None
-        DialogRoute.Disciples -> DialogType.Disciples
-        DialogRoute.Warehouse -> DialogType.Warehouse
-        DialogRoute.Settings -> DialogType.Settings
-        DialogRoute.Buildings -> DialogType.Buildings
-        DialogRoute.Recruit -> DialogType.Recruit
-        DialogRoute.Diplomacy -> DialogType.Diplomacy
-        DialogRoute.WorldMap -> DialogType.WorldMap
-        DialogRoute.BattleLog -> DialogType.BattleLog
-        DialogRoute.Mail -> DialogType.Mail
-        DialogRoute.Activity -> DialogType.Activity
-        DialogRoute.Planting -> DialogType.Planting
-        DialogRoute.Merchant -> DialogType.Merchant
-        is DialogRoute.SpiritMine -> DialogType.SpiritMine(buildingInstanceId)
-        DialogRoute.HerbGarden -> DialogType.HerbGarden
-        is DialogRoute.Alchemy -> DialogType.Alchemy(buildingInstanceId)
-        is DialogRoute.Forge -> DialogType.Forge(buildingInstanceId)
-        DialogRoute.Library -> DialogType.Library
-        DialogRoute.WenDaoPeak -> DialogType.WenDaoPeak
-        DialogRoute.QingyunPeak -> DialogType.QingyunPeak
-        DialogRoute.TianshuHall -> DialogType.TianshuHall
-        DialogRoute.LawEnforcementHall -> DialogType.LawEnforcementHall
-        DialogRoute.MissionHall -> DialogType.MissionHall
-        DialogRoute.ReflectionCliff -> DialogType.ReflectionCliff
-        is DialogRoute.PatrolTower -> DialogType.PatrolTower(buildingInstanceId)
-        is DialogRoute.BloodRefiningPool -> DialogType.BloodRefiningPool(buildingInstanceId)
-        is DialogRoute.Residence -> DialogType.Residence(buildingInstanceId)
-        is DialogRoute.WarehouseBuilding -> DialogType.WarehouseBuilding(buildingInstanceId)
-        DialogRoute.GameOver -> DialogType.GameOver
-        DialogRoute.SectLevelDetail -> DialogType.SectLevelDetail
-        DialogRoute.RenameSect -> DialogType.RenameSect
-        DialogRoute.SalaryConfig -> DialogType.SalaryConfig
-    }
+    /** 当前对话框类型（由 DialogManager 驱动，直接映射 DialogType） */
+    val currentDialogType: StateFlow<DialogType> = dialogManager.currentDialog
+        .map { entry -> entry?.type ?: DialogType.None }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DialogType.None)
 
     /**
-     * 旧版兼容：将 [DialogType] 映射为 [DialogRoute]。
-     * 在 UI 层完全迁移后移除此桥接。
+     * 打开指定对话框 — 委托给 DialogManager。
      */
-    internal fun DialogType.toDialogRoute(): DialogRoute = when (this) {
-        DialogType.None -> DialogRoute.None
-        DialogType.Disciples -> DialogRoute.Disciples
-        DialogType.Warehouse -> DialogRoute.Warehouse
-        DialogType.Settings -> DialogRoute.Settings
-        DialogType.Buildings -> DialogRoute.Buildings
-        DialogType.Recruit -> DialogRoute.Recruit
-        DialogType.Diplomacy -> DialogRoute.Diplomacy
-        DialogType.WorldMap -> DialogRoute.WorldMap
-        DialogType.BattleLog -> DialogRoute.BattleLog
-        DialogType.Mail -> DialogRoute.Mail
-        DialogType.Activity -> DialogRoute.Activity
-        DialogType.Planting -> DialogRoute.Planting
-        DialogType.Merchant -> DialogRoute.Merchant
-        is DialogType.SpiritMine -> DialogRoute.SpiritMine(buildingInstanceId)
-        DialogType.HerbGarden -> DialogRoute.HerbGarden
-        is DialogType.Alchemy -> DialogRoute.Alchemy(buildingInstanceId)
-        is DialogType.Forge -> DialogRoute.Forge(buildingInstanceId)
-        DialogType.Library -> DialogRoute.Library
-        DialogType.WenDaoPeak -> DialogRoute.WenDaoPeak
-        DialogType.QingyunPeak -> DialogRoute.QingyunPeak
-        DialogType.TianshuHall -> DialogRoute.TianshuHall
-        DialogType.LawEnforcementHall -> DialogRoute.LawEnforcementHall
-        DialogType.MissionHall -> DialogRoute.MissionHall
-        DialogType.ReflectionCliff -> DialogRoute.ReflectionCliff
-        is DialogType.PatrolTower -> DialogRoute.PatrolTower(buildingInstanceId)
-        is DialogType.BloodRefiningPool -> DialogRoute.BloodRefiningPool(buildingInstanceId)
-        is DialogType.Residence -> DialogRoute.Residence(buildingInstanceId)
-        is DialogType.WarehouseBuilding -> DialogRoute.WarehouseBuilding(buildingInstanceId)
-        DialogType.GameOver -> DialogRoute.GameOver
-        DialogType.SectLevelDetail -> DialogRoute.SectLevelDetail
-        DialogType.RenameSect -> DialogRoute.RenameSect
-        DialogType.SalaryConfig -> DialogRoute.SalaryConfig
-    }
-
-    /** 当前对话框路由（由 DialogManager 驱动，为兼容保持 StateFlow<DialogRoute> 签名） */
-    private val _currentDialogRoute: MutableStateFlow<DialogRoute> =
-        MutableStateFlow(DialogRoute.None)
-    val currentDialogRoute: StateFlow<DialogRoute> = _currentDialogRoute.asStateFlow()
-
-    init {
-        // 订阅 DialogManager，将 DialogType → DialogRoute 映射
-        viewModelScope.launch {
-            dialogManager.currentDialog.collect { entry ->
-                _currentDialogRoute.value = if (entry == null || entry.type == DialogType.None) {
-                    DialogRoute.None
-                } else {
-                    entry.type.toDialogRoute()
-                }
-            }
-        }
-    }
-
-    /**
-     * 打开指定路由的对话框 — 委托给 DialogManager。
-     */
-    fun navigateToDialog(route: DialogRoute) {
-        if (route is DialogRoute.None) return  // None 不打开任何对话框
-        val type = route.toDialogType()
+    fun navigateToDialog(type: DialogType) {
+        if (type is DialogType.None) return  // None 不打开任何对话框
         // 先设置引擎状态，再打开 UI（失败安全：引擎若抛异常则 UI 不动）
-        gameEngine.setActiveDialog(route.domainKey)
+        gameEngine.setActiveDialog(type.domainKey)
         dialogManager.open(type)
         _dialogOpenTrigger.tryEmit(Unit)
     }

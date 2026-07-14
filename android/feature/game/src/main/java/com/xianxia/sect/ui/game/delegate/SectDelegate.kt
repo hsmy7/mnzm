@@ -22,12 +22,12 @@ class SectDelegate(
     private val scope: CoroutineScope,
     private val onShowSuccess: (String) -> Unit = {},
     private val onShowError: (String) -> Unit = {},
-    private val onNavigateToDialog: (com.xianxia.sect.ui.navigation.DialogRoute) -> Unit = {},
+    private val onNavigateToDialog: (com.xianxia.sect.core.domain.dialog.DialogType) -> Unit = {},
     private val onDismissDialog: () -> Unit = {}
 ) {
     /** 打开宗门等级详情界面 */
     fun navigateToSectLevelDetail() {
-        onNavigateToDialog(com.xianxia.sect.ui.navigation.DialogRoute.SectLevelDetail)
+        onNavigateToDialog(com.xianxia.sect.core.domain.dialog.DialogType.SectLevelDetail)
     }
 
     /** 修改宗门名称 */

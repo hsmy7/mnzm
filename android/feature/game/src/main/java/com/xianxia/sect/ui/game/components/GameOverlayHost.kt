@@ -46,7 +46,6 @@ import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
-import com.xianxia.sect.ui.navigation.DialogRoute
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
@@ -56,6 +55,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.core.domain.dialog.DialogType
 
 private val CachedColorScheme = XianxiaColorScheme()
 
@@ -83,7 +83,7 @@ fun GameOverlayHost(
 
     var detailBattleLog by remember { mutableStateOf<BattleLog?>(null) }
 
-    val currentDialogRoute by viewModel.currentDialogRoute.collectAsStateWithLifecycle()
+    val currentDialogType by viewModel.currentDialogType.collectAsStateWithLifecycle()
 
     val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsStateWithLifecycle()
@@ -186,15 +186,15 @@ fun GameOverlayHost(
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
-    if (currentDialogRoute != DialogRoute.None) {
+    if (currentDialogType != DialogType.None) {
         // 仅在 Dialog 可见时订阅 gameData，避免无 Dialog 时的不必要 StateFlow 订阅
         val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
-        key(currentDialogRoute) {
+        key(currentDialogType) {
             @Suppress("UNUSED_EXPRESSION")
-            when (val route = currentDialogRoute) {
-                is DialogRoute.None -> Unit
-                is DialogRoute.Disciples -> {
+            when (val type = currentDialogType) {
+                is DialogType.None -> Unit
+                is DialogType.Disciples -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("DISCIPLES")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
@@ -203,14 +203,14 @@ fun GameOverlayHost(
                 DisciplesTabContent(viewModel = viewModel)
             }
         }
-        is DialogRoute.Warehouse -> {
+        is DialogType.Warehouse -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("WAREHOUSE")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
             FullScreenOverlayWarehouse(viewModel = viewModel, onDismiss = onDismiss)
         }
-        is DialogRoute.Settings -> {
+        is DialogType.Settings -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("SETTINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
@@ -226,7 +226,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Buildings -> {
+        is DialogType.Buildings -> {
             DisposableEffect(Unit) {
                 viewModel.setActiveTab("BUILDINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
@@ -243,7 +243,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Recruit -> {
+        is DialogType.Recruit -> {
             val recruitList by viewModel.recruitListAggregates.collectAsStateWithLifecycle()
             RecruitDialog(
                 recruitList = recruitList,
@@ -252,7 +252,7 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.Diplomacy -> {
+        is DialogType.Diplomacy -> {
             DiplomacyDialog(
                 gameData = gameData,
                 viewModel = viewModel,
@@ -260,7 +260,7 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.Planting -> {
+        is DialogType.Planting -> {
             val seeds by viewModel.seeds.collectAsStateWithLifecycle()
             PlantingDialog(
                 seeds = seeds,
@@ -270,15 +270,15 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.Merchant -> {
+        is DialogType.Merchant -> {
             MerchantDialog(
                 gameData = gameData,
                 viewModel = viewModel,
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.SalaryConfig -> { }
-        is DialogRoute.WorldMap -> {
+        is DialogType.SalaryConfig -> { }
+        is DialogType.WorldMap -> {
             val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             Surface(
@@ -297,20 +297,20 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.BattleLog -> {
+        is DialogType.BattleLog -> {
             val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
             BattleLogListDialog(
                 battleLogs = battleLogs,
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.Mail -> {
+        is DialogType.Mail -> {
             MailDialog(
                 viewModel = viewModel,
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.Activity -> {
+        is DialogType.Activity -> {
             val activityViewModel = androidx.hilt.navigation.compose.hiltViewModel<ActivityViewModel>()
             ActivityDialog(
                 viewModel = activityViewModel,
@@ -318,16 +318,16 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.SpiritMine -> {
+        is DialogType.SpiritMine -> {
             SpiritMineDialog(
-                buildingInstanceId = route.buildingInstanceId,
+                buildingInstanceId = type.buildingInstanceId,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
                 spiritMineViewModel = spiritMineViewModel,
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.HerbGarden -> {
+        is DialogType.HerbGarden -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 HerbGardenDialog(
@@ -339,14 +339,14 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Alchemy -> {
+        is DialogType.Alchemy -> {
             val alchemySlots by viewModel.alchemySlots.collectAsStateWithLifecycle()
             val materials by viewModel.materials.collectAsStateWithLifecycle()
             val herbs by viewModel.herbs.collectAsStateWithLifecycle()
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 AlchemyDialog(
-                    buildingInstanceId = route.buildingInstanceId,
+                    buildingInstanceId = type.buildingInstanceId,
                     alchemySlots = alchemySlots,
                     materials = materials,
                     herbs = herbs,
@@ -360,13 +360,13 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Forge -> {
+        is DialogType.Forge -> {
             val forgeSlots by viewModel.forgeSlots.collectAsStateWithLifecycle()
             val materials by viewModel.materials.collectAsStateWithLifecycle()
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 ForgeDialog(
-                    buildingInstanceId = route.buildingInstanceId,
+                    buildingInstanceId = type.buildingInstanceId,
                     forgeSlots = forgeSlots,
                     materials = materials,
                     gameData = gameData,
@@ -379,7 +379,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Library -> {
+        is DialogType.Library -> {
             val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
@@ -393,7 +393,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.WenDaoPeak -> {
+        is DialogType.WenDaoPeak -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 WenDaoPeakDialog(
@@ -405,7 +405,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.QingyunPeak -> {
+        is DialogType.QingyunPeak -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 QingyunPeakDialog(
@@ -417,7 +417,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.TianshuHall -> {
+        is DialogType.TianshuHall -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 TianshuHallDialog(
@@ -429,7 +429,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.LawEnforcementHall -> {
+        is DialogType.LawEnforcementHall -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 LawEnforcementHallDialog(
@@ -441,7 +441,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.MissionHall -> {
+        is DialogType.MissionHall -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 MissionHallDialog(
@@ -452,7 +452,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.ReflectionCliff -> {
+        is DialogType.ReflectionCliff -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             DeferredContent {
                 ReflectionCliffDialog(
@@ -463,10 +463,10 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.PatrolTower -> {
+        is DialogType.PatrolTower -> {
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             PatrolTowerDialog(
-                buildingInstanceId = route.buildingInstanceId,
+                buildingInstanceId = type.buildingInstanceId,
                 viewModel = viewModel,
                 patrolTowerViewModel = patrolTowerViewModel,
                 gameData = gameData,
@@ -474,12 +474,12 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.BloodRefiningPool -> {
+        is DialogType.BloodRefiningPool -> {
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
             val materials by viewModel.materials.collectAsStateWithLifecycle()
             DeferredContent {
                 BloodRefiningPoolDialog(
-                    buildingInstanceId = route.buildingInstanceId,
+                    buildingInstanceId = type.buildingInstanceId,
                     viewModel = viewModel,
                     bloodRefiningViewModel = bloodRefiningViewModel,
                     gameData = gameData,
@@ -489,11 +489,11 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.Residence -> {
-            if (route.buildingInstanceId.isNotEmpty()) {
+        is DialogType.Residence -> {
+            if (type.buildingInstanceId.isNotEmpty()) {
                 val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
                 ResidenceDialog(
-                    buildingInstanceId = route.buildingInstanceId,
+                    buildingInstanceId = type.buildingInstanceId,
                     viewModel = viewModel,
                     disciples = disciples,
                     gameData = gameData,
@@ -501,11 +501,11 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.WarehouseBuilding -> {
-            if (route.buildingInstanceId.isNotEmpty()) {
+        is DialogType.WarehouseBuilding -> {
+            if (type.buildingInstanceId.isNotEmpty()) {
                 val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
                 WarehouseDialog(
-                    buildingInstanceId = route.buildingInstanceId,
+                    buildingInstanceId = type.buildingInstanceId,
                     gameData = gameData,
                     disciples = disciples,
                     viewModel = viewModel,
@@ -514,7 +514,7 @@ fun GameOverlayHost(
                 )
             }
         }
-        is DialogRoute.SectLevelDetail -> {
+        is DialogType.SectLevelDetail -> {
             val aliveDisciples by viewModel.aliveDisciples.collectAsStateWithLifecycle()
             SectLevelDetailDialog(
                 gameData = gameData,
@@ -523,7 +523,7 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.RenameSect -> {
+        is DialogType.RenameSect -> {
             val onConfirm = remember(viewModel) {
                 { newName: String -> viewModel.renameSect(newName) }
             }
@@ -533,7 +533,7 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogRoute.GameOver -> {
+        is DialogType.GameOver -> {
             GameOverDialog(
                 onRestartGame = {
                     viewModel.dismissDialog()
